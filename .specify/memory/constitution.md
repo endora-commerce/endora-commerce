@@ -1,57 +1,51 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: TEMPLATE (unversioned) → 1.0.0
-Rationale: Initial ratification. Bump = MAJOR (0.0.0 → 1.0.0) because this is the
-first concrete, enforceable constitution replacing placeholder tokens.
+Version change: 1.0.0 → 1.1.0
+Rationale: MINOR bump. Adds a new, first-class principle (VIII. Working Language)
+that is materially new guidance — it did not exist before and applies to every
+artifact the project produces going forward. No prior compliant work is
+invalidated; the one known artifact authored in another language is flagged
+under "Deferred items / TODOs" below for follow-up retranslation.
 
 Modified principles:
-  - [PRINCIPLE_1_NAME]                 → I. Modular Architecture (NON-NEGOTIABLE)
-  - [PRINCIPLE_2_NAME]                 → II. API-First Design
-  - [PRINCIPLE_3_NAME]                 → III. Test-Driven Development (NON-NEGOTIABLE)
-  - [PRINCIPLE_4_NAME]                 → IV. YAGNI & Minimal Dependencies
-  - [PRINCIPLE_5_NAME]                 → V. TypeScript Everywhere
-  - (added)                            → VI. Naming Conventions (NON-NEGOTIABLE)
-  - (added)                            → VII. SEO, Performance & Discoverability
+  - (added)                            → VIII. Working Language (English) (NON-NEGOTIABLE)
 
 Added sections:
-  - Technology Stack (mandated + fallback matrix)
-  - Monorepo Structure & Application Boundaries
-  - Documentation Requirements
-  - Performance & Scale Targets
-  - Infrastructure Constraints
-  - Development Workflow & Quality Gates
-  - Governance
+  - (none — Principle VIII slots into Core Principles)
 
 Removed sections:
-  - Generic [SECTION_2_NAME] / [SECTION_3_NAME] placeholders (replaced by the
-    named sections listed above).
+  - (none)
 
 Templates / artifacts requiring alignment:
-  - ✅ .specify/templates/plan-template.md — Constitution Check gates now map to
-       principles I–VII; Technical Context pre-filled stack is consistent with
-       the mandated Technology Stack section. No edits required (placeholders
-       remain deliberately advisory).
-  - ✅ .specify/templates/spec-template.md — Scope is business/UX-focused and
-       does not conflict with constitution; no edits required.
-  - ✅ .specify/templates/tasks-template.md — Task categories (Setup,
-       Foundational, per-User-Story, Polish) align with modular/TDD principles;
-       no edits required.
-  - ⚠ README.md — DOES NOT EXIST YET. Principle VII and the Documentation
-       Requirements section mandate its creation on first feature implementation.
-       Flagged for follow-up under deferred items.
-  - ⚠ docs/ (project documentation site) — DOES NOT EXIST YET. Mandated by the
-       Documentation Requirements section. Flagged for follow-up.
-  - ✅ .claude/skills/speckit-constitution — No changes needed (tool file).
+  - ✅ .specify/templates/plan-template.md — Constitution Check is a generic
+       gate block; does not enumerate principles by number. No edits required.
+  - ✅ .specify/templates/spec-template.md — No language/principle references.
+       No edits required.
+  - ✅ .specify/templates/tasks-template.md — No language/principle references.
+       No edits required.
+  - ⚠ specs/001-b2b-platform-foundation/spec.md — AUTHORED IN POLISH.
+       Needs retranslation to English to comply with Principle VIII. Flagged
+       under deferred items.
+  - ⚠ README.md — still does not exist. Must be authored in English when
+       created (inherits Principle VIII + existing TODO from v1.0.0).
+  - ⚠ docs/ (project documentation site) — still does not exist. When created
+       must be authored in English. Inherits existing TODO from v1.0.0.
 
 Deferred items / TODOs:
+  - TODO(TRANSLATE_FEATURE_001_SPEC): Retranslate
+    `specs/001-b2b-platform-foundation/spec.md` from Polish to English before
+    the feature moves to `/speckit.plan`. The Polish draft predates Principle
+    VIII; domain terminology (e.g. "Zapytanie Ofertowe", "Limit Kupiecki",
+    "Lista Zakupowa", "Organizacja") must be rendered as
+    "Quote Request (RFQ)", "Credit Limit", "Shopping List", "Organization"
+    respectively. Polish proper-noun systems (Comarch Optima, Subiekt GT,
+    enova365, Symfonia) may be retained verbatim.
   - TODO(README): Initial README.md must be authored when the first module is
-    scaffolded. It must include the minimum + recommended hardware/system
-    requirements section required by the Infrastructure Constraints section.
-  - TODO(DOCS_SITE): A generated project documentation site (developer +
-    Product Owner readable) must be stood up alongside the first user-facing
-    module. Implementation approach (Docusaurus, Nextra, VitePress, or
-    equivalent) is a design decision for the first /speckit.plan cycle.
+    scaffolded, in English, with the minimum + recommended hardware/system
+    requirements section (carried over from v1.0.0).
+  - TODO(DOCS_SITE): Project documentation site must be stood up alongside the
+    first user-facing module, in English (carried over from v1.0.0).
 -->
 
 # B2B Platform Constitution
@@ -178,6 +172,45 @@ time-to-interactive.
 through search. A storefront that is invisible to crawlers or slow on
 mobile erodes the platform's primary acquisition channel.
 
+### VIII. Working Language — English (NON-NEGOTIABLE)
+
+All engineering artifacts generated or maintained in this repository MUST be
+authored in **English**. This covers, at minimum:
+
+- Specifications (`spec.md`), implementation plans (`plan.md`), task lists
+  (`tasks.md`), research notes (`research.md`), data models (`data-model.md`),
+  interface contracts (`contracts/`), quickstart guides (`quickstart.md`).
+- The root `README.md` and the generated project documentation site.
+- The constitution itself and any governance documents.
+- All in-code identifiers (variables, functions, classes, types, files,
+  folders, database tables, columns, API field names, URL path segments).
+- Code comments and docstrings.
+- Commit messages, pull-request titles and descriptions, code-review comments.
+- Issue templates and CI/CD configuration labels.
+
+**Scope exception — end-customer content**: Text that is delivered to the end
+customer through a localized channel (storefront copy, admin UI labels,
+notification emails, CMS pages) is **not** an engineering artifact for the
+purposes of this principle. Such content is governed by the localization
+mechanism required by Principle VII (multilingual storefront) and MAY be
+authored in the customer's language. Translation keys and message identifiers
+used by the localization mechanism MUST still be in English.
+
+**Scope exception — proper nouns**: Foreign-language proper nouns (e.g.
+product names of local third-party systems such as *Comarch Optima*,
+*Subiekt GT*, *enova365*, *Symfonia*, or regulatory terms like *NIP*) MAY
+appear verbatim in English prose where translation would lose meaning.
+Surrounding prose, field names, and variable names remain English.
+
+**Rationale**: Engineering artifacts are consumed by a mix of human
+contributors, AI tooling, and automated pipelines. English is the working
+language of the entire ecosystem this project depends on (Node.js, MikroORM,
+PostgreSQL, Meilisearch docs; GitHub; LLM tooling; error messages and stack
+traces). Mixing languages fragments searchability, hurts code review,
+undermines LLM-assisted tooling, and raises the barrier for future
+contributors. A single working language is the cheapest way to keep all of
+those cheap.
+
 ## Technology Stack
 
 The following stack is mandated. Substitutions require amending this
@@ -252,6 +285,8 @@ shippable:
    etc.) is a plan-level decision; the mandate is the artifact, not the
    tool.
 
+Both artifacts MUST be authored in English per Principle VIII.
+
 ## Performance & Scale Targets
 
 The platform is sized for the following workload and MUST be designed to
@@ -296,10 +331,14 @@ Every change MUST pass the following gates before merge:
    with zero errors in every affected app/package.
 4. **Naming conventions** — reviewers MUST reject any PR that violates
    Principle VI.
-5. **Docs sync** — if a module is added or an infrastructure-relevant
+5. **Working language** — reviewers MUST reject any PR that introduces
+   non-English artifacts, identifiers, comments, or commit messages in
+   violation of Principle VIII, aside from the scope exceptions listed
+   in that principle.
+6. **Docs sync** — if a module is added or an infrastructure-relevant
    change is made, the PR MUST update `README.md` and the documentation
    site in the same commit range.
-6. **Dependency justification** — any new runtime dependency MUST carry a
+7. **Dependency justification** — any new runtime dependency MUST carry a
    one-paragraph rationale in the PR description (Principle IV).
 
 Code review MUST explicitly verify each of the above. "LGTM" without
@@ -339,4 +378,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 1.0.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-04-23
+**Version**: 1.1.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-04-23
