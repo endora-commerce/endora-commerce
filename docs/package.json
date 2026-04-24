@@ -1,0 +1,36 @@
+{
+  "name": "docs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "B2B platform documentation site — Docusaurus. Authored for both developers and Product Owners per the constitution's Documentation Requirements.",
+  "engines": {
+    "node": ">=22.17.0"
+  },
+  "scripts": {
+    "dev": "docusaurus start --port 3003",
+    "build": "docusaurus build",
+    "start": "docusaurus serve --port 3003",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'docs site has no linter job'",
+    "test": "echo 'docs site has no tests'"
+  },
+  "dependencies": {
+    "@docusaurus/core": "^3.10.0",
+    "@docusaurus/preset-classic": "^3.10.0",
+    "@mdx-js/react": "^3.1.1",
+    "clsx": "^2.1.1",
+    "prism-react-renderer": "^2.4.1",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@docusaurus/module-type-aliases": "^3.10.0",
+    "@docusaurus/tsconfig": "^3.10.0",
+    "@docusaurus/types": "^3.10.0",
+    "typescript": "^5.9.3"
+  },
+  "browserslist": {
+    "production": [">0.5%", "not dead", "not op_mini all"],
+    "development": ["last 3 chrome version", "last 3 firefox version", "last 5 safari version"]
+  }
+}

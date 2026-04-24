@@ -1,0 +1,6 @@
+packages:
+  - backend
+  - storefront
+  - admin
+  - packages/*
+  - docs
