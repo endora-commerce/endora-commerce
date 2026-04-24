@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { FastifyInstance } from 'fastify';
-import { setupTestServer } from '../../helpers/test-server.js';
+
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
 
 /**
  * T044 — `GET /catalog/products/:idOrSlug` must omit price fields on a non-public
@@ -11,19 +15,19 @@ import { setupTestServer } from '../../helpers/test-server.js';
  */
 
 describe('GET /api/v1/catalog/products/:slug — price visibility by Sales Channel', () => {
-  let app: FastifyInstance;
+  let h: BackendServerHandle;
 
   beforeAll(async () => {
-    app = await setupTestServer();
-    await app.ready();
+    h = await setupBackendServer();
+
   });
 
   afterAll(async () => {
-    await app.close();
+    await teardownBackendServer(h);
   });
 
   it('includes price when the Sales Channel is public', async () => {
-    const res = await app.inject({
+    const res = await h.app.inject({
       method: 'GET',
       url: '/api/v1/catalog/products/example-simple-product',
       headers: { 'x-sales-channel': 'pl_retail' },
@@ -36,7 +40,7 @@ describe('GET /api/v1/catalog/products/:slug — price visibility by Sales Chann
   });
 
   it('omits price when the Sales Channel is non-public', async () => {
-    const res = await app.inject({
+    const res = await h.app.inject({
       method: 'GET',
       url: '/api/v1/catalog/products/example-simple-product',
       headers: { 'x-sales-channel': 'pl_b2b_vip' },

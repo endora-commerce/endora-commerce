@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { FastifyInstance } from 'fastify';
-import { setupTestServer } from '../../helpers/test-server.js';
+
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
 
 /**
  * T055 — Integration proof of FR-004 / SC-006 "hot swap":
@@ -22,19 +26,19 @@ interface ProductSummary {
 }
 
 describe('attribute hot swap reflects in search filters and results', () => {
-  let app: FastifyInstance;
+  let h: BackendServerHandle;
 
   beforeAll(async () => {
-    app = await setupTestServer();
-    await app.ready();
+    h = await setupBackendServer();
+
   });
 
   afterAll(async () => {
-    await app.close();
+    await teardownBackendServer(h);
   });
 
   it('toggle isFilterable=true then GET /catalog/filters shows the attribute', async () => {
-    const patch = await app.inject({
+    const patch = await h.app.inject({
       method: 'PATCH',
       url: '/api/v1/admin/catalog/attributes/certification',
       payload: { isFilterable: true },
@@ -42,7 +46,7 @@ describe('attribute hot swap reflects in search filters and results', () => {
     });
     expect(patch.statusCode).toBe(200);
 
-    const filters = await app.inject({
+    const filters = await h.app.inject({
       method: 'GET',
       url: '/api/v1/catalog/filters',
       headers: { 'x-sales-channel': 'pl_retail' },
@@ -53,7 +57,7 @@ describe('attribute hot swap reflects in search filters and results', () => {
   });
 
   it('toggle isSearchable=true then GET /catalog/products?q=<value> finds products by that attribute', async () => {
-    const patch = await app.inject({
+    const patch = await h.app.inject({
       method: 'PATCH',
       url: '/api/v1/admin/catalog/attributes/certification',
       payload: { isSearchable: true },
@@ -61,7 +65,7 @@ describe('attribute hot swap reflects in search filters and results', () => {
     });
     expect(patch.statusCode).toBe(200);
 
-    const search = await app.inject({
+    const search = await h.app.inject({
       method: 'GET',
       url: '/api/v1/catalog/products?q=ISO9001',
       headers: { 'x-sales-channel': 'pl_retail' },

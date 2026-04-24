@@ -18,7 +18,7 @@ export class Session {
 
   /** Opaque token shown to the client (cookie value). Never used for lookups directly —
    *  we hash it before storing. The actual cookie sent to the client is `${id}.${tokenHash}`. */
-  @Property({ length: 128 })
+  @Property({ type: 'string', length: 128 })
   @Index()
   tokenHash!: string;
 
@@ -39,22 +39,22 @@ export class Session {
   @Property({ type: 'uuid', nullable: true })
   impersonatorAdminUserId?: string | null;
 
-  @Property()
+  @Property({ type: 'datetime' })
   @Index()
   expiresAt!: Date;
 
-  @Property({ onCreate: () => new Date() })
+  @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();
 
-  @Property({ onUpdate: () => new Date() })
+  @Property({ type: 'datetime', onUpdate: () => new Date() })
   updatedAt: Date = new Date();
 
-  @Property({ nullable: true })
+  @Property({ type: 'datetime', nullable: true })
   lastSeenAt?: Date | null;
 
-  @Property({ length: 45, nullable: true })
+  @Property({ type: 'string', length: 45, nullable: true })
   ipAddress?: string | null;
 
-  @Property({ length: 255, nullable: true })
+  @Property({ type: 'string', length: 255, nullable: true })
   userAgent?: string | null;
 }

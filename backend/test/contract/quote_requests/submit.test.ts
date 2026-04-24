@@ -1,7 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { FastifyInstance } from 'fastify';
+
 import { ERROR_CODES } from '@b2b/contracts';
-import { setupTestServer } from '../../helpers/test-server.js';
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
 
 /**
  * T049 — Happy path for an RFQ:
@@ -13,20 +17,20 @@ import { setupTestServer } from '../../helpers/test-server.js';
  */
 
 describe('POST /api/v1/quote-requests/current/submit', () => {
-  let app: FastifyInstance;
+  let h: BackendServerHandle;
 
   beforeAll(async () => {
-    app = await setupTestServer();
-    await app.ready();
+    h = await setupBackendServer();
+
   });
 
   afterAll(async () => {
-    await app.close();
+    await teardownBackendServer(h);
   });
 
   it('submits a non-empty draft: 200 and status flips to "new"', async () => {
     // Step 1 — ensure we have an item.
-    const addItem = await app.inject({
+    const addItem = await h.app.inject({
       method: 'POST',
       url: '/api/v1/quote-requests/current/items',
       payload: { productId: '00000000-0000-4000-8000-000000000101', quantity: 3 },
@@ -35,7 +39,7 @@ describe('POST /api/v1/quote-requests/current/submit', () => {
     expect(addItem.statusCode).toBe(200);
 
     // Step 2 — submit.
-    const submit = await app.inject({
+    const submit = await h.app.inject({
       method: 'POST',
       url: '/api/v1/quote-requests/current/submit',
       payload: {},
@@ -49,7 +53,7 @@ describe('POST /api/v1/quote-requests/current/submit', () => {
 
   it('returns 422 RFQ_EMPTY when submitting an empty draft', async () => {
     // Fresh draft (different stub session implies a different draft).
-    const res = await app.inject({
+    const res = await h.app.inject({
       method: 'POST',
       url: '/api/v1/quote-requests/current/submit',
       payload: {},

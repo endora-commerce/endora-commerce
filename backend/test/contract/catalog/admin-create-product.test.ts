@@ -1,7 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { FastifyInstance } from 'fastify';
+
 import { ERROR_CODES } from '@b2b/contracts';
-import { setupTestServer } from '../../helpers/test-server.js';
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
 
 /**
  * T047 — `POST /admin/catalog/products` with a duplicate SKU must return
@@ -13,15 +17,15 @@ import { setupTestServer } from '../../helpers/test-server.js';
  */
 
 describe('POST /api/v1/admin/catalog/products — duplicate SKU', () => {
-  let app: FastifyInstance;
+  let h: BackendServerHandle;
 
   beforeAll(async () => {
-    app = await setupTestServer();
-    await app.ready();
+    h = await setupBackendServer();
+
   });
 
   afterAll(async () => {
-    await app.close();
+    await teardownBackendServer(h);
   });
 
   const productPayload = {
@@ -35,7 +39,7 @@ describe('POST /api/v1/admin/catalog/products — duplicate SKU', () => {
   };
 
   it('creates the first time, returns 409 SKU_ALREADY_EXISTS on the second', async () => {
-    const first = await app.inject({
+    const first = await h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/catalog/products',
       payload: productPayload,
@@ -43,7 +47,7 @@ describe('POST /api/v1/admin/catalog/products — duplicate SKU', () => {
     });
     expect(first.statusCode).toBe(201);
 
-    const second = await app.inject({
+    const second = await h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/catalog/products',
       payload: productPayload,

@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { FastifyInstance } from 'fastify';
-import { setupTestServer } from '../../helpers/test-server.js';
+
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
 
 /**
  * T046 — `GET /catalog/filters` returns only attributes where `isFilterable=true`.
@@ -16,19 +20,19 @@ interface FilterDef {
 }
 
 describe('GET /api/v1/catalog/filters — filterable attributes only', () => {
-  let app: FastifyInstance;
+  let h: BackendServerHandle;
 
   beforeAll(async () => {
-    app = await setupTestServer();
-    await app.ready();
+    h = await setupBackendServer();
+
   });
 
   afterAll(async () => {
-    await app.close();
+    await teardownBackendServer(h);
   });
 
   it('returns the filterable attribute definitions', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/catalog/filters' });
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/filters' });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: FilterDef[] };
     expect(Array.isArray(body.data)).toBe(true);
@@ -42,7 +46,7 @@ describe('GET /api/v1/catalog/filters — filterable attributes only', () => {
   });
 
   it('excludes an attribute toggled to isFilterable=false', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/catalog/filters' });
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/filters' });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: FilterDef[] };
     const keys = body.data.map((f) => f.attributeKey);

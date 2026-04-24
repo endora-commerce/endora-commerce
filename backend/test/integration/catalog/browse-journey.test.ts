@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { FastifyInstance } from 'fastify';
-import { setupTestServer } from '../../helpers/test-server.js';
+
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
 
 /**
  * T053 — Journey: an anonymous visitor searches the catalog, applies a filter,
@@ -20,20 +24,20 @@ interface ProductDetail extends ProductSummary {
 }
 
 describe('catalog browse journey', () => {
-  let app: FastifyInstance;
+  let h: BackendServerHandle;
 
   beforeAll(async () => {
-    app = await setupTestServer();
-    await app.ready();
+    h = await setupBackendServer();
+
   });
 
   afterAll(async () => {
-    await app.close();
+    await teardownBackendServer(h);
   });
 
   it('search → filter → PDP returns SEO-ready payloads on a public channel', async () => {
     // 1. Search
-    const search = await app.inject({
+    const search = await h.app.inject({
       method: 'GET',
       url: '/api/v1/catalog/products?q=example',
       headers: { 'x-sales-channel': 'pl_retail' },
@@ -43,7 +47,7 @@ describe('catalog browse journey', () => {
     expect(searchBody.data.length).toBeGreaterThan(0);
 
     // 2. Filter by a filterable attribute
-    const filtered = await app.inject({
+    const filtered = await h.app.inject({
       method: 'GET',
       url: '/api/v1/catalog/products?filter%5Battr.color%5D=red',
       headers: { 'x-sales-channel': 'pl_retail' },
@@ -53,7 +57,7 @@ describe('catalog browse journey', () => {
     // 3. PDP for the first hit
     const pick = searchBody.data[0];
     expect(pick).toBeDefined();
-    const pdp = await app.inject({
+    const pdp = await h.app.inject({
       method: 'GET',
       url: `/api/v1/catalog/products/${pick!.slug}`,
       headers: { 'x-sales-channel': 'pl_retail' },

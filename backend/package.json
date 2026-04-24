@@ -18,10 +18,11 @@
     "test:unit": "vitest run test/unit",
     "test:contract": "vitest run test/contract",
     "test:integration": "vitest run test/integration",
-    "migration:up": "mikro-orm migration:up",
-    "migration:down": "mikro-orm migration:down",
-    "migration:create": "mikro-orm migration:create",
-    "db:reset": "mikro-orm schema:drop --run && mikro-orm schema:create --run && mikro-orm migration:up && pnpm run seed:dev",
+    "migration:up": "tsx src/db/migrate.ts up",
+    "migration:down": "tsx src/db/migrate.ts down",
+    "migration:pending": "tsx src/db/migrate.ts pending",
+    "db:fresh": "tsx src/db/migrate.ts fresh",
+    "db:reset": "pnpm run db:fresh && pnpm run seed:dev",
     "seed:dev": "tsx src/modules/catalog/seeds/dev-catalog-seed.ts",
     "search:reindex": "tsx src/modules/search/scripts/reindex.ts"
   },
@@ -56,5 +57,12 @@
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^2.1.4"
+  },
+  "mikro-orm": {
+    "useTsNode": true,
+    "configPaths": [
+      "./src/db/mikro-orm.config.ts",
+      "./dist/db/mikro-orm.config.js"
+    ]
   }
 }

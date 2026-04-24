@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { FastifyInstance } from 'fastify';
-import { setupTestServer } from '../../helpers/test-server.js';
+
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
 
 /**
  * T054 — End-to-end RFQ journey:
@@ -17,15 +21,15 @@ interface Rfq {
 }
 
 describe('RFQ end-to-end — 3 items, claim, quote, accept', () => {
-  let app: FastifyInstance;
+  let h: BackendServerHandle;
 
   beforeAll(async () => {
-    app = await setupTestServer();
-    await app.ready();
+    h = await setupBackendServer();
+
   });
 
   afterAll(async () => {
-    await app.close();
+    await teardownBackendServer(h);
   });
 
   it('walks every transition without an error', async () => {
@@ -39,7 +43,7 @@ describe('RFQ end-to-end — 3 items, claim, quote, accept', () => {
 
     // 1. Customer adds 3 items.
     for (const pid of productIds) {
-      const add = await app.inject({
+      const add = await h.app.inject({
         method: 'POST',
         url: '/api/v1/quote-requests/current/items',
         payload: { productId: pid, quantity: 2 },
@@ -49,7 +53,7 @@ describe('RFQ end-to-end — 3 items, claim, quote, accept', () => {
     }
 
     // 2. Customer submits.
-    const submit = await app.inject({
+    const submit = await h.app.inject({
       method: 'POST',
       url: '/api/v1/quote-requests/current/submit',
       payload: {},
@@ -61,7 +65,7 @@ describe('RFQ end-to-end — 3 items, claim, quote, accept', () => {
     const rfqId = submitted.data.id;
 
     // 3. Admin claims.
-    const claim = await app.inject({
+    const claim = await h.app.inject({
       method: 'POST',
       url: `/api/v1/admin/quote-requests/${rfqId}/claim`,
       payload: {},
@@ -75,7 +79,7 @@ describe('RFQ end-to-end — 3 items, claim, quote, accept', () => {
       items: submitted.data.items.map((it) => ({ itemId: it.id, quotedUnitPrice: 9.99 })),
       terms: { leadTimeDays: 5, validityDays: 30 },
     };
-    const quote = await app.inject({
+    const quote = await h.app.inject({
       method: 'POST',
       url: `/api/v1/admin/quote-requests/${rfqId}/quote`,
       payload: quotePayload,
@@ -85,7 +89,7 @@ describe('RFQ end-to-end — 3 items, claim, quote, accept', () => {
     expect((quote.json() as { data: Rfq }).data.status).toBe('quoted');
 
     // 5. Customer accepts.
-    const accept = await app.inject({
+    const accept = await h.app.inject({
       method: 'POST',
       url: `/api/v1/quote-requests/${rfqId}/accept`,
       payload: {},

@@ -1,6 +1,8 @@
 import { defineConfig } from '@mikro-orm/postgresql';
 import { Migrator } from '@mikro-orm/migrations';
 import { PluralizingNamingStrategy } from './pluralizing-naming-strategy.js';
+import { ALL_ENTITIES } from './entities-registry.js';
+import { Migration001FoundationInit } from './migrations/001_foundation_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -21,16 +23,19 @@ const databaseUrl =
 export default defineConfig({
   clientUrl: databaseUrl,
   namingStrategy: PluralizingNamingStrategy,
-  entities: ['./dist/modules/**/entities/*.js'],
-  entitiesTs: ['./src/modules/**/entities/*.ts'],
+  // Explicit class list, not a glob — glob discovery requires runtime dynamic
+  // `import()` of .ts files, which Node's ESM loader cannot transform and which
+  // breaks under Vitest. See src/db/entities-registry.ts for the rationale.
+  entities: [...ALL_ENTITIES],
   debug: process.env['NODE_ENV'] === 'development' && process.env['DB_DEBUG'] === 'true',
   allowGlobalContext: false,
   forceUndefined: true,
   extensions: [Migrator],
   migrations: {
-    path: './dist/modules/**/migrations',
-    pathTs: './src/modules/**/migrations',
-    glob: '!(*.d).{js,ts}',
+    // Explicit migration list — same reasoning as entities above.
+    migrationsList: [
+      { name: 'Migration001FoundationInit', class: Migration001FoundationInit },
+    ],
     transactional: true,
     disableForeignKeys: false,
     allOrNothing: true,

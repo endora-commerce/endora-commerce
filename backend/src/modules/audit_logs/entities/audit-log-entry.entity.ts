@@ -25,7 +25,7 @@ export class AuditLogEntry {
   @Index()
   impersonatedCustomerAccountId?: string | null;
 
-  @Property()
+  @Property({ type: 'datetime' })
   @Index()
   actedAt: Date = new Date();
 
@@ -33,15 +33,15 @@ export class AuditLogEntry {
    * Screaming-snake-case action identifier, e.g. `price.update`, `permission.change`,
    * `credit_limit.adjust`, `impersonation.start`, `impersonation.end`.
    */
-  @Property({ length: 120 })
+  @Property({ type: 'string', length: 120 })
   @Index()
   action!: string;
 
   /** Polymorphic pointer to the affected entity. */
-  @Property({ length: 120 })
+  @Property({ type: 'string', length: 120 })
   objectType!: string;
 
-  @Property({ length: 120 })
+  @Property({ type: 'string', length: 120 })
   @Index()
   objectId!: string;
 
@@ -52,13 +52,13 @@ export class AuditLogEntry {
   @Property({ type: 'json', nullable: true })
   stateAfter?: Record<string, unknown> | null;
 
-  @Property({ length: 45, nullable: true })
+  @Property({ type: 'string', length: 45, nullable: true })
   ipAddress?: string | null;
 
-  @Property({ length: 255, nullable: true })
+  @Property({ type: 'string', length: 255, nullable: true })
   userAgent?: string | null;
 
   /** Correlation id from the inbound request (X-Request-Id). */
-  @Property({ length: 64, nullable: true })
+  @Property({ type: 'string', length: 64, nullable: true })
   requestId?: string | null;
 }

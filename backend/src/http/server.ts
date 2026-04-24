@@ -12,6 +12,15 @@ import { registerErrorEnvelope } from './error-envelope.js';
 import { registerOpenApiRoutes, type OpenApiMetadata } from './openapi.js';
 
 /**
+ * Module registration hook — each backend module exposes a plugin that takes
+ * the composed Fastify app and wires its own routes. Modules receive the
+ * composition root's dependency container via a separate mechanism (services
+ * are constructed once at boot and passed in explicitly). This keeps the
+ * server.ts bootstrap decoupled from any specific module.
+ */
+export type ModulePlugin = (app: FastifyInstance) => Promise<void> | void;
+
+/**
  * Fastify bootstrap — the single entry point used by `src/index.ts` (production) and by
  * test/helpers/test-server.ts (contract tests). All cross-cutting concerns (helmet, cookie
  * parsing, rate limiting, Zod validation, error envelope, request id, OpenAPI) are wired
@@ -25,6 +34,8 @@ export interface BuildServerOptions {
   openApi: OpenApiMetadata;
   /** Test overrides — bypass rate limits so contract tests are not flaky. */
   disableRateLimit?: boolean;
+  /** Business-module route registrations, invoked after cross-cutting hooks are installed. */
+  modules?: ModulePlugin[];
 }
 
 export async function buildServer(options: BuildServerOptions): Promise<FastifyInstance> {
@@ -74,6 +85,10 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
 
   registerErrorEnvelope(app);
   registerOpenApiRoutes(app, options.openApi);
+
+  for (const modulePlugin of options.modules ?? []) {
+    await modulePlugin(app);
+  }
 
   return app.withTypeProvider<ZodTypeProvider>();
 }

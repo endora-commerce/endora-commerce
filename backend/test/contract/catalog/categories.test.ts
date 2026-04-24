@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { FastifyInstance } from 'fastify';
-import { setupTestServer } from '../../helpers/test-server.js';
+
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
 
 /**
  * T045 — `GET /catalog/categories` returns a nested Category tree with `children`
@@ -22,19 +26,19 @@ function maxDepth(nodes: CategoryShape[], acc = 1): number {
 }
 
 describe('GET /api/v1/catalog/categories — nested tree', () => {
-  let app: FastifyInstance;
+  let h: BackendServerHandle;
 
   beforeAll(async () => {
-    app = await setupTestServer();
-    await app.ready();
+    h = await setupBackendServer();
+
   });
 
   afterAll(async () => {
-    await app.close();
+    await teardownBackendServer(h);
   });
 
   it('returns a nested tree with children[] recursion', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/catalog/categories' });
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/categories' });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: CategoryShape[] };
     expect(Array.isArray(body.data)).toBe(true);

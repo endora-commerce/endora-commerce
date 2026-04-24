@@ -1,7 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { FastifyInstance } from 'fastify';
+
 import { ERROR_CODES } from '@b2b/contracts';
-import { setupTestServer } from '../../helpers/test-server.js';
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
 
 /**
  * T052 — Two concurrent `PATCH` calls on the same RFQ with the same `If-Match`
@@ -10,29 +14,29 @@ import { setupTestServer } from '../../helpers/test-server.js';
  */
 
 describe('concurrent PATCH /api/v1/quote-requests/current/items/:itemId', () => {
-  let app: FastifyInstance;
+  let h: BackendServerHandle;
 
   beforeAll(async () => {
-    app = await setupTestServer();
-    await app.ready();
+    h = await setupBackendServer();
+
   });
 
   afterAll(async () => {
-    await app.close();
+    await teardownBackendServer(h);
   });
 
   it('one PATCH wins, the other returns 409 VERSION_CONFLICT', async () => {
     const itemId = '00000000-0000-4000-8000-000000002101';
     const ifMatch = '"1"';
     const [a, b] = await Promise.all([
-      app.inject({
+      h.app.inject({
         method: 'PATCH',
         url: `/api/v1/quote-requests/current/items/${itemId}`,
         payload: { quantity: 5 },
         headers: { 'if-match': ifMatch },
         cookies: { b2b_session: 'stub-customer-session' },
       }),
-      app.inject({
+      h.app.inject({
         method: 'PATCH',
         url: `/api/v1/quote-requests/current/items/${itemId}`,
         payload: { quantity: 6 },
