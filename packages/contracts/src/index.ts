@@ -12,3 +12,5 @@ export * from './errors.js';
 export * from './envelopes.js';
 export * from './pagination.js';
 export * from './common.js';
+export * from './catalog.js';
+export * from './quote-requests.js';
