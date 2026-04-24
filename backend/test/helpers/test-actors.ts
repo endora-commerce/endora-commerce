@@ -2,17 +2,22 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../src/http/error-envelope.js';
 import type { RequireAdminFactory } from '../../src/modules/catalog/routes.admin.js';
+import type { SessionService } from '../../src/modules/auth/services/session-service.js';
+import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import type { EntityManager } from '@mikro-orm/postgresql';
 
 /**
  * Test-only auth wiring. The US1 contract and integration tests identify the
- * calling actor via stable cookie values like `stub-customer-session` — the
- * real session plumbing is only built in US2+US4. This helper maps those
- * cookie values to synthetic actors with fixed UUIDs so route-level guards
- * (`requireCustomer`, `requireAdmin`) can enforce the right shape without
- * depending on unrelated modules.
+ * calling actor either via:
+ *   - a stable stub cookie value like `stub-customer-session` — resolved
+ *     through an in-memory map below, for tests that were written before
+ *     the real customer_accounts module existed; or
+ *   - a real session cookie (`<sessionId>.<rawToken>` minted by the customer
+ *     login route) — resolved through SessionService and the customer_accounts
+ *     table.
  *
- * Cookie → actor mapping is stable across tests; if you add a new stub
- * identifier, add it here once.
+ * The resolver tries real sessions first; if the cookie doesn't parse as a
+ * real session, it falls back to the stub map.
  */
 
 export const TEST_ORGANIZATION_ID = '00000000-0000-4000-8000-0000000000aa';
@@ -60,12 +65,16 @@ declare module 'fastify' {
   }
 }
 
+export interface TestAuthDeps {
+  sessionService: SessionService;
+  emFactory: () => EntityManager;
+}
+
 /**
- * Register a lightweight onRequest hook that resolves `request.testActor` from
- * the `b2b_session` cookie. `requireTestCustomer` + `requireTestAdmin` below
- * consume it.
+ * Register the cookie → actor resolver. Must be added BEFORE any module plugin
+ * so route-level guards see a resolved actor.
  */
-export function registerTestAuth(app: FastifyInstance): void {
+export function registerTestAuth(app: FastifyInstance, deps: TestAuthDeps): void {
   app.addHook('onRequest', async (request: FastifyRequest) => {
     const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
     const raw = cookies?.['b2b_session'];
@@ -73,6 +82,28 @@ export function registerTestAuth(app: FastifyInstance): void {
       request.testActor = { kind: 'anonymous' };
       return;
     }
+
+    // Try the real session flow first — this is what login flow produces.
+    if (raw.includes('.')) {
+      const resolved = await deps.sessionService.loadSession(raw);
+      if (resolved && resolved.kind === 'customer' && resolved.session.customerAccountId) {
+        const em = deps.emFactory();
+        const customer = await em.findOne(CustomerAccount, {
+          id: resolved.session.customerAccountId,
+        });
+        if (customer) {
+          request.testActor = {
+            kind: 'customer',
+            customerAccountId: customer.id,
+            organizationId: customer.organizationId,
+            impersonatorAdminUserId: null,
+          };
+          return;
+        }
+      }
+    }
+
+    // Fall back to the stub cookie map.
     const customer = CUSTOMER_COOKIES[raw];
     if (customer) {
       request.testActor = {

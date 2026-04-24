@@ -9,6 +9,10 @@ import { SalesChannel } from '../modules/catalog/entities/sales-channel.entity.j
 import { AvailabilityNotification } from '../modules/inventory/entities/availability-notification.entity.js';
 import { QuoteRequest } from '../modules/quote_requests/entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../modules/quote_requests/entities/quote-request-item.entity.js';
+import { Organization } from '../modules/organizations/entities/organization.entity.js';
+import { CustomerAccount } from '../modules/customer_accounts/entities/customer-account.entity.js';
+import { Address } from '../modules/addresses/entities/address.entity.js';
+import { EmailVerificationToken } from '../modules/organizations/entities/email-verification-token.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -43,4 +47,9 @@ export const ALL_ENTITIES = [
   // quote_requests
   QuoteRequest,
   QuoteRequestItem,
+  // organizations + customer_accounts + addresses
+  Organization,
+  CustomerAccount,
+  Address,
+  EmailVerificationToken,
 ] as const;

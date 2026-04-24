@@ -1,11 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
+import Redis from 'ioredis';
 import { buildServer, type ModulePlugin } from '../../src/http/server.js';
 import { initOrm, closeOrm } from '../../src/db/index.js';
 import { EventBus } from '../../src/events/bus.js';
+import { SessionService } from '../../src/modules/auth/services/session-service.js';
 import { catalogModule } from '../../src/modules/catalog/plugin.js';
 import { quoteRequestsModule } from '../../src/modules/quote_requests/plugin.js';
+import { organizationsModule } from '../../src/modules/organizations/plugin.js';
 import { seedUs1Catalog } from './seed-catalog.js';
+import { seedTestOrganizations } from './seed-organizations.js';
 import {
   registerTestAuth,
   requireTestAdmin,
@@ -17,16 +21,14 @@ import {
 
 /**
  * Boots an in-process Fastify instance for contract tests.
- * Rate limiting is disabled so tests are not flaky; session cookie secret is stable.
+ * Rate limiting is disabled; session cookie secret is stable.
  *
  * Usage — HTTP-only (no DB):
  *   const app = await setupTestServer();
- *   const res = await app.inject({ method: 'GET', url: '/api/v1/_health' });
  *   afterAll(() => app.close());
  *
- * Usage — with the DB-backed catalog + quote_requests modules + seed:
- *   const { app, orm } = await setupBackendServer({ seed: 'us1-catalog' });
- *   ...
+ * Usage — full DB-backed server (catalog + quote_requests + organizations):
+ *   const h = await setupBackendServer();
  *   afterAll(() => teardownBackendServer(h));
  */
 
@@ -43,9 +45,7 @@ export async function setupTestServer(): Promise<FastifyInstance> {
 }
 
 export interface BackendServerOptions {
-  /** Which seed pack to apply after truncating business tables. */
   seed?: 'us1-catalog' | 'none';
-  /** Additional module plugins — extensible when new stories land. */
   extraModules?: ModulePlugin[];
 }
 
@@ -54,12 +54,17 @@ export interface BackendServerHandle {
   orm: MikroORM;
   em: () => EntityManager;
   eventBus: EventBus;
+  redis: Redis;
+  sessionService: SessionService;
 }
 
-// Tables whose rows are cleared before seeding. Kept narrow — sessions and
-// audit_log_entries are not cleared so any concurrent auth tests keep their
-// data. Extend as new modules land.
+// Tables cleared by truncate before each suite. Order follows FK edges —
+// dependent tables first.
 const SEEDED_TABLES = [
+  'email_verification_tokens',
+  'addresses',
+  'customer_accounts',
+  'organizations',
   'sales_channel_products',
   'product_assets',
   'product_categories',
@@ -80,20 +85,46 @@ export async function setupBackendServer(
   const orm = await initOrm();
   const em = (): EntityManager => orm.em.fork() as EntityManager;
 
-  // Truncate business tables so every suite starts clean.
+  const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
+  const redis = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
+  // Flush only the test keyspace — in practice we share db 0 with everything,
+  // so we only clear session keys to stay polite to any other local process.
+  const sessionKeys = await redis.keys('session:*');
+  if (sessionKeys.length > 0) await redis.del(sessionKeys);
+
+  const sessionService = new SessionService(em, redis);
+
   const conn = orm.em.getConnection();
   await conn.execute(`truncate table ${SEEDED_TABLES.map((t) => `"${t}"`).join(', ')} cascade`);
 
   if ((options.seed ?? 'us1-catalog') === 'us1-catalog') {
     await seedUs1Catalog(em());
   }
+  // Always seed the test organizations + customer accounts — they back the
+  // stub-session cookies and the real login flow both relies on them.
+  await seedTestOrganizations(em());
 
   const eventBus = new EventBus();
 
   const modules: ModulePlugin[] = [
-    // The test auth hook must run before any module plugin so their
-    // requireCustomer / requireAdmin guards see the resolved actor.
-    async (app) => registerTestAuth(app),
+    // Test auth hook MUST run before any module plugin's guards.
+    async (app) => registerTestAuth(app, { sessionService, emFactory: em }),
+    organizationsModule({
+      emFactory: em,
+      eventBus,
+      sessionService,
+      requireCustomer: requireTestCustomer(),
+      resolveCustomerContext: (request) => {
+        if (request.testActor?.kind !== 'customer') {
+          return { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID };
+        }
+        return {
+          customerAccountId: request.testActor.customerAccountId,
+          organizationId: request.testActor.organizationId,
+        };
+      },
+      exposeTestProbe: true,
+    }),
     catalogModule({
       emFactory: em,
       eventBus,
@@ -106,7 +137,6 @@ export async function setupBackendServer(
       requireAdmin: requireTestAdmin(),
       resolveCustomerContext: (request) => {
         if (request.testActor?.kind !== 'customer') {
-          // Guard runs before this resolver; surface a generic error to be safe.
           return { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID };
         }
         return {
@@ -136,10 +166,11 @@ export async function setupBackendServer(
   });
   await app.ready();
 
-  return { app, orm, em, eventBus };
+  return { app, orm, em, eventBus, redis, sessionService };
 }
 
 export async function teardownBackendServer(h: BackendServerHandle): Promise<void> {
   await h.app.close();
+  h.redis.disconnect();
   await closeOrm();
 }
