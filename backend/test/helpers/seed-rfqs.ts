@@ -1,11 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { QuoteRequest } from '../../src/modules/quote_requests/entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../../src/modules/quote_requests/entities/quote-request-item.entity.js';
-import {
-  TEST_CUSTOMER_ID,
-  TEST_CUSTOMER_RFQ_ID,
-  TEST_ORGANIZATION_ID,
-} from './test-actors.js';
+import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from './test-actors.js';
 import { SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID } from './seed-catalog.js';
 
 /**
