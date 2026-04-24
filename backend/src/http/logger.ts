@@ -1,24 +1,35 @@
-// Minimal logger stub — replaced with the full pino configuration + requestId bindings
-// in Phase 2 task T020.
+import { pino, type Logger as PinoLogger, type LoggerOptions } from 'pino';
 
-export interface Logger {
-  info: (obj: Record<string, unknown> | string, msg?: string) => void;
-  warn: (obj: Record<string, unknown> | string, msg?: string) => void;
-  error: (obj: Record<string, unknown> | string, msg?: string) => void;
+export type Logger = PinoLogger;
+
+export interface CreateLoggerOptions {
+  level?: string;
+  /** When true (development), pretty-prints the output. */
+  pretty?: boolean;
 }
 
-export function createLogger(): Logger {
-  const log = (level: 'info' | 'warn' | 'error') =>
-    (obj: Record<string, unknown> | string, msg?: string): void => {
-      const payload = typeof obj === 'string' ? { msg: obj } : { ...obj, ...(msg ? { msg } : {}) };
-      const line = JSON.stringify({ level, time: new Date().toISOString(), ...payload });
-      if (level === 'error') {
-        console.error(line);
-      } else if (level === 'warn') {
-        console.warn(line);
-      } else {
-        console.warn(line);
-      }
-    };
-  return { info: log('info'), warn: log('warn'), error: log('error') };
+export function createLogger(options: CreateLoggerOptions = {}): Logger {
+  const level = options.level ?? process.env['LOG_LEVEL'] ?? 'info';
+  const pretty = options.pretty ?? process.env['NODE_ENV'] !== 'production';
+
+  const loggerOptions: LoggerOptions = {
+    level,
+    base: { pid: process.pid },
+    timestamp: pino.stdTimeFunctions.isoTime,
+    redact: {
+      paths: ['req.headers.authorization', 'req.headers.cookie', '*.password', '*.passwordHash', '*.secret'],
+      censor: '[REDACTED]',
+    },
+  };
+
+  if (pretty) {
+    return pino({
+      ...loggerOptions,
+      transport: {
+        target: 'pino-pretty',
+        options: { colorize: true, translateTime: 'SYS:HH:MM:ss.l', ignore: 'pid,hostname' },
+      },
+    });
+  }
+  return pino(loggerOptions);
 }
