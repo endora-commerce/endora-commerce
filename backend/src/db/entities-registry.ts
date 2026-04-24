@@ -7,6 +7,8 @@ import { Category } from '../modules/catalog/entities/category.entity.js';
 import { ProductAttribute } from '../modules/catalog/entities/product-attribute.entity.js';
 import { SalesChannel } from '../modules/catalog/entities/sales-channel.entity.js';
 import { AvailabilityNotification } from '../modules/inventory/entities/availability-notification.entity.js';
+import { QuoteRequest } from '../modules/quote_requests/entities/quote-request.entity.js';
+import { QuoteRequestItem } from '../modules/quote_requests/entities/quote-request-item.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -38,4 +40,7 @@ export const ALL_ENTITIES = [
   SalesChannel,
   // inventory
   AvailabilityNotification,
+  // quote_requests
+  QuoteRequest,
+  QuoteRequestItem,
 ] as const;

@@ -3,6 +3,7 @@ import { Migrator } from '@mikro-orm/migrations';
 import { PluralizingNamingStrategy } from './pluralizing-naming-strategy.js';
 import { ALL_ENTITIES } from './entities-registry.js';
 import { Migration001FoundationInit } from './migrations/001_foundation_init.js';
+import { Migration002QuoteRequestsInit } from '../modules/quote_requests/migrations/002_quote_requests_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -35,6 +36,7 @@ export default defineConfig({
     // Explicit migration list — same reasoning as entities above.
     migrationsList: [
       { name: 'Migration001FoundationInit', class: Migration001FoundationInit },
+      { name: 'Migration002QuoteRequestsInit', class: Migration002QuoteRequestsInit },
     ],
     transactional: true,
     disableForeignKeys: false,

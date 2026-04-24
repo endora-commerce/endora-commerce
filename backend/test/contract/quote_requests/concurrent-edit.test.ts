@@ -6,6 +6,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { seedRfqForConcurrentEdit } from '../../helpers/seed-rfqs.js';
 
 /**
  * T052 — Two concurrent `PATCH` calls on the same RFQ with the same `If-Match`
@@ -18,7 +19,7 @@ describe('concurrent PATCH /api/v1/quote-requests/current/items/:itemId', () => 
 
   beforeAll(async () => {
     h = await setupBackendServer();
-
+    await seedRfqForConcurrentEdit(h.em());
   });
 
   afterAll(async () => {

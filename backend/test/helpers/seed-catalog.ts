@@ -4,6 +4,11 @@ import { Category } from '../../src/modules/catalog/entities/category.entity.js'
 import { ProductAttribute } from '../../src/modules/catalog/entities/product-attribute.entity.js';
 import { SalesChannel } from '../../src/modules/catalog/entities/sales-channel.entity.js';
 
+/** Fixed UUIDs for the three seeded Products — the RFQ tests reference these directly. */
+export const SEED_PRODUCT_101_ID = '00000000-0000-4000-8000-000000000101';
+export const SEED_PRODUCT_102_ID = '00000000-0000-4000-8000-000000000102';
+export const SEED_PRODUCT_103_ID = '00000000-0000-4000-8000-000000000103';
+
 /**
  * Minimum seed for US1 public catalog tests.
  *
@@ -13,8 +18,8 @@ import { SalesChannel } from '../../src/modules/catalog/entities/sales-channel.e
  *   (searchable but NOT filterable — used by T046 + T048 to prove the toggle
  *   path), `material` (filterable enum), `certification` (not-yet-filterable —
  *   exercised by T055 hot swap).
- * - Three active Products attached to both channels (a few with specific
- *   slugs the contract tests rely on — `example-simple-product`, etc.).
+ * - Three active Products attached to both channels, with fixed UUIDs so RFQ
+ *   tests (T049, T054) can reference them directly.
  */
 export async function seedUs1Catalog(em: EntityManager): Promise<void> {
   // --- Sales Channels ----------------------------------------------------
@@ -91,6 +96,7 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
 
   // --- Products ----------------------------------------------------------
   const exampleSimple = em.create(Product, {
+    id: SEED_PRODUCT_101_ID,
     sku: 'EXAMPLE-SIMPLE-001',
     slug: 'example-simple-product',
     type: 'simple',
@@ -108,6 +114,7 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
     },
   });
   const exampleB = em.create(Product, {
+    id: SEED_PRODUCT_102_ID,
     sku: 'EXAMPLE-BLUE-002',
     slug: 'example-blue-product',
     type: 'simple',
@@ -125,6 +132,7 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
     },
   });
   const exampleC = em.create(Product, {
+    id: SEED_PRODUCT_103_ID,
     sku: 'EXAMPLE-LARGE-003',
     slug: 'example-large-product',
     type: 'simple',

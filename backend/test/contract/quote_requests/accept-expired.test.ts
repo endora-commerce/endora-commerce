@@ -6,6 +6,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { seedRfqForAcceptExpired } from '../../helpers/seed-rfqs.js';
 
 /**
  * T051 — Accepting a quoted RFQ after `expiresAt` must return `410 RFQ_EXPIRED`.
@@ -18,7 +19,7 @@ describe('POST /api/v1/quote-requests/:id/accept — expired quote', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
-
+    await seedRfqForAcceptExpired(h.em());
   });
 
   afterAll(async () => {

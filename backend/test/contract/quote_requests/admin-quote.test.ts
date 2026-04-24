@@ -6,6 +6,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { seedRfqForAdminQuote } from '../../helpers/seed-rfqs.js';
 
 /**
  * T050 — `POST /admin/quote-requests/:id/quote` where the request body is
@@ -18,7 +19,7 @@ describe('POST /api/v1/admin/quote-requests/:id/quote — incomplete quote', () 
 
   beforeAll(async () => {
     h = await setupBackendServer();
-
+    await seedRfqForAdminQuote(h.em());
   });
 
   afterAll(async () => {

@@ -4,7 +4,16 @@ import { buildServer, type ModulePlugin } from '../../src/http/server.js';
 import { initOrm, closeOrm } from '../../src/db/index.js';
 import { EventBus } from '../../src/events/bus.js';
 import { catalogModule } from '../../src/modules/catalog/plugin.js';
+import { quoteRequestsModule } from '../../src/modules/quote_requests/plugin.js';
 import { seedUs1Catalog } from './seed-catalog.js';
+import {
+  registerTestAuth,
+  requireTestAdmin,
+  requireTestCustomer,
+  TEST_ADMIN_ID,
+  TEST_CUSTOMER_ID,
+  TEST_ORGANIZATION_ID,
+} from './test-actors.js';
 
 /**
  * Boots an in-process Fastify instance for contract tests.
@@ -15,10 +24,10 @@ import { seedUs1Catalog } from './seed-catalog.js';
  *   const res = await app.inject({ method: 'GET', url: '/api/v1/_health' });
  *   afterAll(() => app.close());
  *
- * Usage — with the DB-backed catalog module + seed:
+ * Usage — with the DB-backed catalog + quote_requests modules + seed:
  *   const { app, orm } = await setupBackendServer({ seed: 'us1-catalog' });
  *   ...
- *   afterAll(async () => { await app.close(); await orm.close(true); });
+ *   afterAll(() => teardownBackendServer(h));
  */
 
 export async function setupTestServer(): Promise<FastifyInstance> {
@@ -36,7 +45,7 @@ export async function setupTestServer(): Promise<FastifyInstance> {
 export interface BackendServerOptions {
   /** Which seed pack to apply after truncating business tables. */
   seed?: 'us1-catalog' | 'none';
-  /** Additional module plugins — e.g. quote_requests wiring in Phase 3.5. */
+  /** Additional module plugins — extensible when new stories land. */
   extraModules?: ModulePlugin[];
 }
 
@@ -61,6 +70,8 @@ const SEEDED_TABLES = [
   'categories',
   'sales_channels',
   'assets',
+  'quote_request_items',
+  'quote_requests',
 ];
 
 export async function setupBackendServer(
@@ -78,7 +89,39 @@ export async function setupBackendServer(
   }
 
   const eventBus = new EventBus();
-  const modules: ModulePlugin[] = [catalogModule({ emFactory: em, eventBus })];
+
+  const modules: ModulePlugin[] = [
+    // The test auth hook must run before any module plugin so their
+    // requireCustomer / requireAdmin guards see the resolved actor.
+    async (app) => registerTestAuth(app),
+    catalogModule({
+      emFactory: em,
+      eventBus,
+      requireAdmin: requireTestAdmin(),
+    }),
+    quoteRequestsModule({
+      emFactory: em,
+      eventBus,
+      requireCustomer: requireTestCustomer(),
+      requireAdmin: requireTestAdmin(),
+      resolveCustomerContext: (request) => {
+        if (request.testActor?.kind !== 'customer') {
+          // Guard runs before this resolver; surface a generic error to be safe.
+          return { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID };
+        }
+        return {
+          customerAccountId: request.testActor.customerAccountId,
+          organizationId: request.testActor.organizationId,
+        };
+      },
+      resolveAdminContext: (request) => {
+        if (request.testActor?.kind !== 'admin') {
+          return { adminUserId: TEST_ADMIN_ID };
+        }
+        return { adminUserId: request.testActor.adminUserId };
+      },
+    }),
+  ];
   if (options.extraModules) modules.push(...options.extraModules);
 
   const app = await buildServer({
