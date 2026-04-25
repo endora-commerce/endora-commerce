@@ -22,6 +22,7 @@ import { Order } from '../modules/orders/entities/order.entity.js';
 import { OrderItem } from '../modules/orders/entities/order-item.entity.js';
 import { Payment } from '../modules/payments/entities/payment.entity.js';
 import { Invoice } from '../modules/invoices/entities/invoice.entity.js';
+import { OrganizationInvitation } from '../modules/organizations/entities/organization-invitation.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -71,4 +72,6 @@ export const ALL_ENTITIES = [
   OrderItem,
   Payment,
   Invoice,
+  // organization invitations (US3)
+  OrganizationInvitation,
 ] as const;

@@ -5,6 +5,7 @@ import { ERROR_CODES, type PlaceOrderRequest } from '@b2b/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
+import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { Address } from '../../addresses/entities/address.entity.js';
 import { Cart } from '../../carts/entities/cart.entity.js';
 import { CartItem } from '../../carts/entities/cart-item.entity.js';
@@ -236,22 +237,42 @@ export class OrderService {
 
   async getById(orderId: string, ctx: CustomerContext): Promise<Order> {
     const em = this.emFactory();
-    const order = await em.findOne(Order, {
-      id: orderId,
-      organizationId: ctx.organizationId,
-      placedByCustomerAccountId: ctx.customerAccountId,
-    });
+    const where = await this.#scopedOrderWhere(em, ctx, { id: orderId });
+    const order = await em.findOne(Order, where);
     if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
     return order;
   }
 
   async listForCustomer(ctx: CustomerContext): Promise<Order[]> {
     const em = this.emFactory();
-    return em.find(
-      Order,
-      { organizationId: ctx.organizationId, placedByCustomerAccountId: ctx.customerAccountId },
-      { orderBy: { placedAt: 'desc' } },
-    );
+    const where = await this.#scopedOrderWhere(em, ctx);
+    return em.find(Order, where, { orderBy: { placedAt: 'desc' } });
+  }
+
+  /**
+   * Builds a where clause that scopes Orders by Role (US3 / FR-042):
+   *   - Organization Admin: any Order in the Organization.
+   *   - Regular User: only Orders they placed.
+   *
+   * Returns 404 (not 403) on out-of-scope reads — the where clause does not
+   * match, so findOne returns null and the caller raises 404 ORDER_NOT_FOUND.
+   * Avoids leaking the existence of orders the caller cannot see.
+   */
+  async #scopedOrderWhere(
+    em: EntityManager,
+    ctx: CustomerContext,
+    extra: Record<string, unknown> = {},
+  ): Promise<Record<string, unknown>> {
+    const customer = await em.findOne(CustomerAccount, { id: ctx.customerAccountId });
+    const isAdmin = customer?.role === 'organization_admin';
+    if (isAdmin) {
+      return { ...extra, organizationId: ctx.organizationId };
+    }
+    return {
+      ...extra,
+      organizationId: ctx.organizationId,
+      placedByCustomerAccountId: ctx.customerAccountId,
+    };
   }
 
   async listAll(): Promise<Order[]> {

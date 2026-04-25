@@ -9,8 +9,11 @@ import {
 import { EmailVerificationService } from './services/email-verification-service.js';
 import { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
 import { AddressService } from '../addresses/services/address-service.js';
+import { InvitationService } from './services/invitation-service.js';
+import { RoleService } from '../customer_accounts/services/role-service.js';
 import { registerOrganizationsPublicRoutes } from './routes.public.js';
 import { registerOrganizationsCustomerRoutes } from './routes.customer.js';
+import { registerMembersRoutes } from './routes.members.js';
 
 /**
  * Composition root for the organizations + customer_accounts + addresses
@@ -53,6 +56,9 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       options.sessionService,
     );
     const addressService = new AddressService(options.emFactory);
+    const invitationService = new InvitationService(options.emFactory);
+    const roleService = new RoleService(options.emFactory);
+    const latestInvitationToken: { value: string | null } = { value: null };
 
     await registerOrganizationsPublicRoutes(app, {
       registrationService,
@@ -67,6 +73,15 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       addressService,
       requireCustomer: options.requireCustomer,
       resolveCustomerContext: options.resolveCustomerContext,
+    });
+    await registerMembersRoutes(app, {
+      invitationService,
+      roleService,
+      requireCustomer: options.requireCustomer,
+      resolveCustomerContext: options.resolveCustomerContext,
+      exposeTestProbe: options.exposeTestProbe ?? false,
+      latestInvitationToken,
+      emFactory: options.emFactory,
     });
   };
 }

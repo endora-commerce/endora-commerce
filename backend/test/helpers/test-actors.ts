@@ -58,6 +58,11 @@ const CUSTOMER_COOKIES: Record<string, { customerAccountId: string; organization
     customerAccountId: '00000000-0000-4000-8000-0000000000a4',
     organizationId: '00000000-0000-4000-8000-0000000000ab',
   },
+  // Regular user inside TEST_ORGANIZATION (T169 role-scoping fixture).
+  'stub-regular-user-session': {
+    customerAccountId: '00000000-0000-4000-8000-000000000a31',
+    organizationId: TEST_ORGANIZATION_ID,
+  },
   // Stock-race customers (T100 fixture).
   'stub-customer-session-race-a': {
     customerAccountId: '00000000-0000-4000-8000-000000000aa1',
