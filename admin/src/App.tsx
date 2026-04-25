@@ -4,6 +4,7 @@ import { AppShell } from './components/AppShell.js';
 import { ApiKeysPage } from './modules/api_keys/ApiKeysPage.js';
 import { WebhooksPage } from './modules/webhooks/WebhooksPage.js';
 import { IntegrationsPage } from './modules/integrations/IntegrationsPage.js';
+import { AnalyticsPage } from './modules/analytics/AnalyticsPage.js';
 
 export function App(): ReactNode {
   return (
@@ -13,6 +14,7 @@ export function App(): ReactNode {
         <Route path="/api-keys" element={<ApiKeysPage />} />
         <Route path="/webhooks" element={<WebhooksPage />} />
         <Route path="/integrations" element={<IntegrationsPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
         <Route
           path="*"
           element={

@@ -24,6 +24,7 @@ const sidebars = {
         'modules/addresses',
         'modules/admin_roles',
         'modules/admin_users',
+        'modules/analytics',
         'modules/api_keys',
         'modules/assets',
         'modules/audit_logs',

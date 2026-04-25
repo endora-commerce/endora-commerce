@@ -26,6 +26,7 @@ how to consume it.
 | [addresses](./addresses) | Customer postal addresses with default-per-kind invariant | yes |
 | [admin_roles](./admin_roles) | Admin role definitions + per-module Permissions | yes |
 | [admin_users](./admin_users) | Platform Administrator accounts + impersonation | yes |
+| [analytics](./analytics) | Storefront event ingest + admin aggregation + optional GA4 forwarder | yes |
 | [api_keys](./api_keys) | Bearer-token integration credentials | yes |
 | [assets](./assets) | Binary asset storage references (images, PDFs) | no |
 | [audit_logs](./audit_logs) | Sensitive-action audit trail | yes (admin viewer) |

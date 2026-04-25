@@ -15,6 +15,7 @@ import { adminModule } from '../../src/modules/admin_users/plugin.js';
 import { inventoryModule } from '../../src/modules/inventory/plugin.js';
 import { creditLimitsModule } from '../../src/modules/credit_limits/plugin.js';
 import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
+import { analyticsModule } from '../../src/modules/analytics/plugin.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
 import { seedUs1Catalog } from './seed-catalog.js';
 import { seedTestOrganizations } from './seed-organizations.js';
@@ -58,6 +59,7 @@ export interface BackendServerHandle {
 }
 
 const SEEDED_TABLES = [
+  'analytics_events',
   'audit_log_entries',
   'invoices',
   'payments',
@@ -155,11 +157,19 @@ export async function setupBackendServer(
     requireAdmin: requireTestAdmin(permissionService),
   });
 
+  // Analytics (Phase 10 / T237). No GA4 forwarder in tests — the env vars
+  // are unset by default so `buildForwarderFromEnv` returns a NoopForwarder.
+  const analytics = analyticsModule({
+    emFactory: em,
+    requireAdmin: requireTestAdmin(permissionService),
+  });
+
   const modules: ModulePlugin[] = [
     async (app) => registerTestAuth(app, { sessionService, emFactory: em }),
     admin.plugin,
     creditLimits.plugin,
     integrations.plugin,
+    analytics.plugin,
     commerceModule({
       emFactory: em,
       eventBus,

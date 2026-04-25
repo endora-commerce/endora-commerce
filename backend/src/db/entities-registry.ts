@@ -32,6 +32,7 @@ import { ApiKey } from '../modules/api_keys/entities/api-key.entity.js';
 import { Webhook } from '../modules/webhooks/entities/webhook.entity.js';
 import { WebhookDelivery } from '../modules/webhooks/entities/webhook-delivery.entity.js';
 import { ExternalIntegration } from '../modules/integrations/entities/external-integration.entity.js';
+import { AnalyticsEvent } from '../modules/analytics/entities/analytics-event.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -96,4 +97,6 @@ export const ALL_ENTITIES = [
   Webhook,
   WebhookDelivery,
   ExternalIntegration,
+  // analytics (Phase 10 / T237)
+  AnalyticsEvent,
 ] as const;

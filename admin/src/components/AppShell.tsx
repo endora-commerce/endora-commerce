@@ -10,6 +10,7 @@ const NAV: NavItem[] = [
   { to: '/api-keys', label: 'API Keys' },
   { to: '/webhooks', label: 'Webhooks' },
   { to: '/integrations', label: 'Integrations' },
+  { to: '/analytics', label: 'Analytics' },
 ];
 
 export function AppShell(): ReactNode {
