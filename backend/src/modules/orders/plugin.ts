@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
+import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import { CartService } from '../carts/services/cart-service.js';
 import { OrderService, type OrderEventBus } from './services/order-service.js';
 import { registerCartRoutes } from '../carts/routes.js';
@@ -21,7 +22,10 @@ export interface OrdersModuleOptions {
   resolveCustomerContext: (req: FastifyRequest) => {
     customerAccountId: string;
     organizationId: string;
+    impersonatorAdminUserId?: string | null;
   };
+  /** Audit-log writer; OrderService stamps order.place_on_behalf rows on impersonated checkouts. */
+  auditLogService?: AuditLogService;
   /**
    * Resolver for cart actor (customer OR anonymous). The test helper maps
    * stub cookies + real sessions here; production wires it to the real auth
@@ -41,6 +45,7 @@ export function commerceModule(options: OrdersModuleOptions) {
     const orderService = new OrderService(
       options.emFactory,
       options.eventBus as OrderEventBus,
+      options.auditLogService,
     );
     if (options.exposeCartService) options.exposeCartService(cartService);
 

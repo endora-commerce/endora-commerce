@@ -5,14 +5,18 @@ import { buildServer, type ModulePlugin } from '../../src/http/server.js';
 import { initOrm, closeOrm } from '../../src/db/index.js';
 import { EventBus } from '../../src/events/bus.js';
 import { SessionService } from '../../src/modules/auth/services/session-service.js';
+import { AuditLogService } from '../../src/modules/audit_logs/services/audit-log-service.js';
+import { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
 import { catalogModule } from '../../src/modules/catalog/plugin.js';
 import { quoteRequestsModule } from '../../src/modules/quote_requests/plugin.js';
 import { organizationsModule } from '../../src/modules/organizations/plugin.js';
 import { commerceModule } from '../../src/modules/orders/plugin.js';
+import { adminModule } from '../../src/modules/admin_users/plugin.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
 import { seedUs1Catalog } from './seed-catalog.js';
 import { seedTestOrganizations } from './seed-organizations.js';
 import { seedUs2Commerce } from './seed-commerce.js';
+import { seedTestAdmins } from './seed-admins.js';
 import {
   registerTestAuth,
   requireTestAdmin,
@@ -46,10 +50,12 @@ export interface BackendServerHandle {
   eventBus: EventBus;
   redis: Redis;
   sessionService: SessionService;
+  auditLogService: AuditLogService;
+  permissionService: PermissionService;
 }
 
-// Table order matters — dependents first.
 const SEEDED_TABLES = [
+  'audit_log_entries',
   'invoices',
   'payments',
   'order_items',
@@ -59,9 +65,12 @@ const SEEDED_TABLES = [
   'stock_levels',
   'payment_methods',
   'delivery_methods',
+  'organization_invitations',
   'email_verification_tokens',
   'addresses',
   'customer_accounts',
+  'admin_users',
+  'admin_roles',
   'organizations',
   'sales_channel_products',
   'product_assets',
@@ -89,6 +98,8 @@ export async function setupBackendServer(
   if (sessionKeys.length > 0) await redis.del(sessionKeys);
 
   const sessionService = new SessionService(em, redis);
+  const auditLogService = new AuditLogService(em);
+  const permissionService = new PermissionService(em);
 
   const conn = orm.em.getConnection();
   await conn.execute(`truncate table ${SEEDED_TABLES.map((t) => `"${t}"`).join(', ')} cascade`);
@@ -98,20 +109,33 @@ export async function setupBackendServer(
   }
   await seedTestOrganizations(em());
   await seedUs2Commerce(em());
+  await seedTestAdmins(em());
 
   const eventBus = new EventBus();
 
-  // The commerce module exposes its CartService via a side channel so the
-  // organizations login handler can merge anonymous carts at sign-in time.
+  // CartService is exposed by the commerce module so the login handler in
+  // organizations can merge anonymous baskets after sign-in.
   let cartService: CartService | null = null;
+
+  // Build the admin module first so we can hand its handle (auditLogService,
+  // permissionService) to other modules that need it.
+  const admin = adminModule({
+    emFactory: em,
+    sessionService,
+    auditLogService,
+    permissionService,
+    requireAdmin: requireTestAdmin(permissionService),
+  });
 
   const modules: ModulePlugin[] = [
     async (app) => registerTestAuth(app, { sessionService, emFactory: em }),
+    admin.plugin,
     commerceModule({
       emFactory: em,
       eventBus,
+      auditLogService,
       requireCustomer: requireTestCustomer(),
-      requireAdmin: requireTestAdmin(),
+      requireAdmin: requireTestAdmin(permissionService),
       resolveCustomerContext: customerResolver,
       resolveCartActor: (request) => {
         if (request.testActor?.kind === 'customer') {
@@ -150,13 +174,20 @@ export async function setupBackendServer(
     catalogModule({
       emFactory: em,
       eventBus,
-      requireAdmin: requireTestAdmin(),
+      requireAdmin: requireTestAdmin(permissionService),
+      auditLogService,
+      resolveAdminAuditContext: (request) => {
+        if (request.testActor?.kind !== 'admin') {
+          return { actorAdminUserId: TEST_ADMIN_ID };
+        }
+        return { actorAdminUserId: request.testActor.adminUserId };
+      },
     }),
     quoteRequestsModule({
       emFactory: em,
       eventBus,
       requireCustomer: requireTestCustomer(),
-      requireAdmin: requireTestAdmin(),
+      requireAdmin: requireTestAdmin(permissionService),
       resolveCustomerContext: customerResolver,
       resolveAdminContext: (request) => {
         if (request.testActor?.kind !== 'admin') {
@@ -180,12 +211,22 @@ export async function setupBackendServer(
   });
   await app.ready();
 
-  return { app, orm, em, eventBus, redis, sessionService };
+  return {
+    app,
+    orm,
+    em,
+    eventBus,
+    redis,
+    sessionService,
+    auditLogService,
+    permissionService,
+  };
 }
 
 function customerResolver(request: FastifyRequest): {
   customerAccountId: string;
   organizationId: string;
+  impersonatorAdminUserId?: string | null;
 } {
   if (request.testActor?.kind !== 'customer') {
     return { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID };
@@ -193,6 +234,7 @@ function customerResolver(request: FastifyRequest): {
   return {
     customerAccountId: request.testActor.customerAccountId,
     organizationId: request.testActor.organizationId,
+    impersonatorAdminUserId: request.testActor.impersonatorAdminUserId,
   };
 }
 

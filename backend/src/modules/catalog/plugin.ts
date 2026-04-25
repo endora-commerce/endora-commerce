@@ -1,6 +1,7 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
+import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import { CatalogQueryService } from './services/catalog-query.service.js';
 import { CatalogAdminService, type CatalogEventBus } from './services/catalog-admin.service.js';
 import { registerCatalogPublicRoutes } from './routes.public.js';
@@ -12,17 +13,16 @@ import { registerCatalogAdminRoutes, type RequireAdminFactory } from './routes.a
  */
 
 export interface CatalogModuleOptions {
-  /** Factory returning the EntityManager for the current request/transaction. */
   emFactory: () => EntityManager;
-  /** Shared event bus — catalog publishes product.created.v1 / product.updated.v1 / attribute.updated.v1 here. */
   eventBus: EventBus;
-  /**
-   * Pre-handler gate for admin routes. Supplied by the composition root so the
-   * catalog module has no dependency on the auth plugin's exact shape.
-   * Defaults to a permissive allow-all (useful only for local development and
-   * tests where the actor is otherwise irrelevant).
-   */
   requireAdmin?: RequireAdminFactory;
+  /** Audit-log writer; if provided, mutations land an AuditLogEntry. */
+  auditLogService?: AuditLogService;
+  /** Resolver for who's acting — used for audit attribution. */
+  resolveAdminAuditContext?: (req: FastifyRequest) => {
+    actorAdminUserId: string;
+    impersonatedCustomerAccountId?: string | null;
+  };
 }
 
 export function catalogModule(options: CatalogModuleOptions) {
@@ -31,6 +31,7 @@ export function catalogModule(options: CatalogModuleOptions) {
     const adminService = new CatalogAdminService(
       options.emFactory,
       options.eventBus as CatalogEventBus,
+      options.auditLogService,
     );
 
     await registerCatalogPublicRoutes(app, { queryService });
@@ -41,6 +42,9 @@ export function catalogModule(options: CatalogModuleOptions) {
         (() => async () => {
           // no-op gate: development/tests default
         }),
+      ...(options.resolveAdminAuditContext
+        ? { resolveAdminAuditContext: options.resolveAdminAuditContext }
+        : {}),
     });
   };
 }

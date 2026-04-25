@@ -5,6 +5,7 @@ import type { RequireAdminFactory } from '../../src/modules/catalog/routes.admin
 import type { SessionService } from '../../src/modules/auth/services/session-service.js';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
 
 /**
  * Test-only auth wiring. The US1 contract and integration tests identify the
@@ -76,6 +77,10 @@ const CUSTOMER_COOKIES: Record<string, { customerAccountId: string; organization
 
 const ADMIN_COOKIES: Record<string, { adminUserId: string }> = {
   'stub-admin-session': { adminUserId: TEST_ADMIN_ID },
+  // Restricted admin (T181 permissions test) — only `orders:read` permission.
+  'stub-restricted-admin-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000b2',
+  },
 };
 
 declare module 'fastify' {
@@ -105,17 +110,29 @@ export function registerTestAuth(app: FastifyInstance, deps: TestAuthDeps): void
     // Try the real session flow first — this is what login flow produces.
     if (raw.includes('.')) {
       const resolved = await deps.sessionService.loadSession(raw);
-      if (resolved && resolved.kind === 'customer' && resolved.session.customerAccountId) {
-        const em = deps.emFactory();
-        const customer = await em.findOne(CustomerAccount, {
-          id: resolved.session.customerAccountId,
-        });
-        if (customer) {
+      if (resolved) {
+        if (
+          (resolved.kind === 'customer' || resolved.kind === 'impersonation') &&
+          resolved.session.customerAccountId
+        ) {
+          const em = deps.emFactory();
+          const customer = await em.findOne(CustomerAccount, {
+            id: resolved.session.customerAccountId,
+          });
+          if (customer) {
+            request.testActor = {
+              kind: 'customer',
+              customerAccountId: customer.id,
+              organizationId: customer.organizationId,
+              impersonatorAdminUserId: resolved.session.impersonatorAdminUserId ?? null,
+            };
+            return;
+          }
+        }
+        if (resolved.kind === 'admin' && resolved.session.adminUserId) {
           request.testActor = {
-            kind: 'customer',
-            customerAccountId: customer.id,
-            organizationId: customer.organizationId,
-            impersonatorAdminUserId: null,
+            kind: 'admin',
+            adminUserId: resolved.session.adminUserId,
           };
           return;
         }
@@ -142,10 +159,23 @@ export function registerTestAuth(app: FastifyInstance, deps: TestAuthDeps): void
   });
 }
 
-export function requireTestAdmin(): RequireAdminFactory {
-  return () => async (request) => {
+export function requireTestAdmin(permissionService?: PermissionService): RequireAdminFactory {
+  return (permission?: string) => async (request) => {
     if (request.testActor?.kind !== 'admin') {
       throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+    }
+    if (permission && permissionService) {
+      const ok = await permissionService.hasPermission(
+        request.testActor.adminUserId,
+        permission,
+      );
+      if (!ok) {
+        throw new HttpError(
+          403,
+          ERROR_CODES.FORBIDDEN,
+          `Missing permission: ${permission}.`,
+        );
+      }
     }
   };
 }

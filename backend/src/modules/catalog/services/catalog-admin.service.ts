@@ -25,6 +25,16 @@ export type CatalogEventBus = EventBus<CatalogEvents>;
 import { HttpError } from '../../../http/error-envelope.js';
 import { Product } from '../entities/product.entity.js';
 import { ProductAttribute } from '../entities/product-attribute.entity.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+
+/** Optional metadata used to attach audit entries to admin mutations. */
+export interface AdminAuditContext {
+  actorAdminUserId: string;
+  impersonatedCustomerAccountId?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  requestId?: string | null;
+}
 
 /**
  * Catalog write-path service (admin write surface).
@@ -36,6 +46,7 @@ export class CatalogAdminService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly events: CatalogEventBus,
+    private readonly auditLog?: AuditLogService,
   ) {}
 
   async createProduct(req: CreateProductRequest): Promise<Product> {
@@ -71,12 +82,24 @@ export class CatalogAdminService {
     return product;
   }
 
-  async updateProduct(id: string, req: UpdateProductRequest): Promise<Product> {
+  async updateProduct(
+    id: string,
+    req: UpdateProductRequest,
+    auditCtx?: AdminAuditContext,
+  ): Promise<Product> {
     const em = this.emFactory();
     const product = await em.findOne(Product, { id });
     if (!product) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
+    const stateBefore: Record<string, unknown> = {
+      name: { ...product.name },
+      description: { ...product.description },
+      stockMode: product.stockMode,
+      visibility: product.visibility,
+      attributeValues: { ...product.attributeValues },
+      allowedOrganizationIds: [...product.allowedOrganizationIds],
+    };
     const changedFields: string[] = [];
     if (req.name) { product.name = req.name; changedFields.push('name'); }
     if (req.description) { product.description = req.description; changedFields.push('description'); }
@@ -91,6 +114,31 @@ export class CatalogAdminService {
       changedFields.push('allowedOrganizationIds');
     }
     await em.flush();
+
+    if (this.auditLog && auditCtx) {
+      await this.auditLog.record({
+        actorAdminUserId: auditCtx.actorAdminUserId,
+        ...(auditCtx.impersonatedCustomerAccountId !== undefined
+          ? { impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId }
+          : {}),
+        action: 'product.update',
+        objectType: 'product',
+        objectId: product.id,
+        stateBefore,
+        stateAfter: {
+          name: { ...product.name },
+          description: { ...product.description },
+          stockMode: product.stockMode,
+          visibility: product.visibility,
+          attributeValues: { ...product.attributeValues },
+          allowedOrganizationIds: [...product.allowedOrganizationIds],
+          changedFields,
+        },
+        ...(auditCtx.ipAddress !== undefined ? { ipAddress: auditCtx.ipAddress } : {}),
+        ...(auditCtx.userAgent !== undefined ? { userAgent: auditCtx.userAgent } : {}),
+        ...(auditCtx.requestId !== undefined ? { requestId: auditCtx.requestId } : {}),
+      });
+    }
 
     this.events.emit('product.updated.v1', {
       eventId: randomUUID(),

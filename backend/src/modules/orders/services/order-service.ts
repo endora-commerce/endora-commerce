@@ -6,6 +6,7 @@ import type { EventBase, EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { Address } from '../../addresses/entities/address.entity.js';
 import { Cart } from '../../carts/entities/cart.entity.js';
 import { CartItem } from '../../carts/entities/cart-item.entity.js';
@@ -32,6 +33,12 @@ export type OrderEventBus = EventBus<OrderEvents>;
 export interface CustomerContext {
   customerAccountId: string;
   organizationId: string;
+  /**
+   * When the request is from an Admin User impersonating this Customer,
+   * carry the Admin's id here so OrderService can stamp it onto the Order
+   * (FR-042 / R-12) and emit an audit entry.
+   */
+  impersonatorAdminUserId?: string | null;
 }
 
 /**
@@ -53,6 +60,7 @@ export class OrderService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly events: OrderEventBus,
+    private readonly auditLog?: AuditLogService,
   ) {}
 
   async placeOrder(
@@ -175,6 +183,9 @@ export class OrderService {
         total: total.toFixed(2),
         currency,
         ...(req.customerNote ? { customerNote: req.customerNote } : {}),
+        ...(ctx.impersonatorAdminUserId
+          ? { placedOnBehalfByAdminUserId: ctx.impersonatorAdminUserId }
+          : {}),
         placedAt: new Date(),
       });
       await tx.persistAndFlush(order);
@@ -230,6 +241,20 @@ export class OrderService {
         orderId: order.id,
         organizationId: ctx.organizationId,
       });
+
+      // Impersonated order placement → audit row tying the Admin User to the
+      // action on behalf of the Customer (R-12, T183).
+      if (ctx.impersonatorAdminUserId && this.auditLog) {
+        await this.auditLog.record({
+          actorAdminUserId: ctx.impersonatorAdminUserId,
+          impersonatedCustomerAccountId: ctx.customerAccountId,
+          action: 'order.place_on_behalf',
+          objectType: 'order',
+          objectId: order.id,
+          stateBefore: null,
+          stateAfter: { total: total.toFixed(2), currency, status: 'new' },
+        });
+      }
 
       return order;
     });

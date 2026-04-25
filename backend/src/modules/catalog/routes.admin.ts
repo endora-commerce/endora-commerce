@@ -25,6 +25,14 @@ export interface CatalogAdminDeps {
    * and dev-mode servers can wire this up progressively.
    */
   requireAdmin: RequireAdminFactory;
+  /**
+   * Resolves an admin actor (admin user id, optional impersonated customer)
+   * for audit-log entries — passed through to the catalog admin service.
+   */
+  resolveAdminAuditContext?: (req: FastifyRequest) => {
+    actorAdminUserId: string;
+    impersonatedCustomerAccountId?: string | null;
+  };
 }
 
 export async function registerCatalogAdminRoutes(
@@ -55,7 +63,23 @@ export async function registerCatalogAdminRoutes(
     },
     async (request) => {
       const body = updateProductRequestSchema.parse(request.body);
-      const product = await adminService.updateProduct(request.params.id, body);
+      const auditCtx = deps.resolveAdminAuditContext?.(request);
+      const product = await adminService.updateProduct(
+        request.params.id,
+        body,
+        auditCtx
+          ? {
+              actorAdminUserId: auditCtx.actorAdminUserId,
+              impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId ?? null,
+              ipAddress: request.ip ?? null,
+              userAgent:
+                typeof request.headers['user-agent'] === 'string'
+                  ? request.headers['user-agent']
+                  : null,
+              requestId: request.id,
+            }
+          : undefined,
+      );
       return { data: product };
     },
   );

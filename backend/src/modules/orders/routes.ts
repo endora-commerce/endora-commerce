@@ -22,6 +22,7 @@ export interface OrdersDeps {
   resolveCustomerContext: (req: FastifyRequest) => {
     customerAccountId: string;
     organizationId: string;
+    impersonatorAdminUserId?: string | null;
   };
 }
 

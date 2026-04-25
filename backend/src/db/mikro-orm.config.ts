@@ -7,6 +7,7 @@ import { Migration002QuoteRequestsInit } from '../modules/quote_requests/migrati
 import { Migration003OrganizationsInit } from '../modules/organizations/migrations/003_organizations_init.js';
 import { Migration004CommerceInit } from './migrations/004_commerce_init.js';
 import { Migration005InvitationsInit } from '../modules/organizations/migrations/005_invitations_init.js';
+import { Migration006AdminUsersInit } from '../modules/admin_users/migrations/006_admin_users_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -43,6 +44,7 @@ export default defineConfig({
       { name: 'Migration003OrganizationsInit', class: Migration003OrganizationsInit },
       { name: 'Migration004CommerceInit', class: Migration004CommerceInit },
       { name: 'Migration005InvitationsInit', class: Migration005InvitationsInit },
+      { name: 'Migration006AdminUsersInit', class: Migration006AdminUsersInit },
     ],
     transactional: true,
     disableForeignKeys: false,
