@@ -37,6 +37,7 @@ import { SeoMetaOverride } from '../modules/seo/entities/seo-meta-override.entit
 import { SitemapCache } from '../modules/seo/entities/sitemap-cache.entity.js';
 import { Language } from '../modules/languages/entities/language.entity.js';
 import { Currency } from '../modules/currencies/entities/currency.entity.js';
+import { CmsPage } from '../modules/cms_pages/entities/cms-page.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -109,4 +110,6 @@ export const ALL_ENTITIES = [
   // languages + currencies (Phase 10 / T238)
   Language,
   Currency,
+  // cms (Phase 10 / T234)
+  CmsPage,
 ] as const;

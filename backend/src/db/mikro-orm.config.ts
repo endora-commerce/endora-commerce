@@ -14,6 +14,7 @@ import { Migration009Us7Init } from '../modules/webhooks/migrations/009_us7_init
 import { Migration010AnalyticsInit } from '../modules/analytics/migrations/010_analytics_init.js';
 import { Migration011SeoInit } from '../modules/seo/migrations/011_seo_init.js';
 import { Migration012LanguagesCurrenciesInit } from '../modules/languages/migrations/012_languages_currencies_init.js';
+import { Migration013CmsPagesInit } from '../modules/cms_pages/migrations/013_cms_pages_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -57,6 +58,7 @@ export default defineConfig({
       { name: 'Migration010AnalyticsInit', class: Migration010AnalyticsInit },
       { name: 'Migration011SeoInit', class: Migration011SeoInit },
       { name: 'Migration012LanguagesCurrenciesInit', class: Migration012LanguagesCurrenciesInit },
+      { name: 'Migration013CmsPagesInit', class: Migration013CmsPagesInit },
     ],
     transactional: true,
     disableForeignKeys: false,

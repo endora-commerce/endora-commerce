@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { Category } from '../../catalog/entities/category.entity.js';
+import { CmsPage } from '../../cms_pages/entities/cms-page.entity.js';
 import { SitemapCache } from '../entities/sitemap-cache.entity.js';
 
 /**
@@ -68,6 +69,11 @@ export class SitemapGeneratorService {
       { deletedAt: null },
       { orderBy: { sortOrder: 'asc' } },
     );
+    const cmsPages = await em.find(
+      CmsPage,
+      { status: 'published' },
+      { orderBy: { path: 'asc' } },
+    );
 
     const urls: SitemapUrl[] = [];
     for (const c of categories) {
@@ -76,6 +82,14 @@ export class SitemapGeneratorService {
         lastmod: c.updatedAt,
         changefreq: 'weekly',
         priority: 0.7,
+      });
+    }
+    for (const page of cmsPages) {
+      urls.push({
+        loc: `${this.baseUrl}/${page.path}`,
+        lastmod: page.publishedAt ?? page.updatedAt,
+        changefreq: 'monthly',
+        priority: 0.5,
       });
     }
     for (const p of products) {

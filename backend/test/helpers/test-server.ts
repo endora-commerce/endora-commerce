@@ -19,6 +19,7 @@ import { analyticsModule } from '../../src/modules/analytics/plugin.js';
 import { importExportModule } from '../../src/modules/import_export/plugin.js';
 import { seoModule } from '../../src/modules/seo/plugin.js';
 import { i18nModule } from '../../src/modules/languages/plugin.js';
+import { cmsPagesModule } from '../../src/modules/cms_pages/plugin.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
 import { seedUs1Catalog } from './seed-catalog.js';
 import { seedTestOrganizations } from './seed-organizations.js';
@@ -62,6 +63,7 @@ export interface BackendServerHandle {
 }
 
 const SEEDED_TABLES = [
+  'cms_pages',
   'analytics_events',
   'sitemap_cache',
   'seo_meta_overrides',
@@ -206,6 +208,12 @@ export async function setupBackendServer(
     requireAdmin: requireTestAdmin(permissionService),
   });
 
+  // CMS pages (Phase 10 / T234). Hooked by SEO + sitemap.
+  const cmsPages = cmsPagesModule({
+    emFactory: em,
+    requireAdmin: requireTestAdmin(permissionService),
+  });
+
   const modules: ModulePlugin[] = [
     async (app) => registerTestAuth(app, { sessionService, emFactory: em }),
     admin.plugin,
@@ -215,6 +223,7 @@ export async function setupBackendServer(
     importExport.plugin,
     seo.plugin,
     i18n.plugin,
+    cmsPages.plugin,
     commerceModule({
       emFactory: em,
       eventBus,

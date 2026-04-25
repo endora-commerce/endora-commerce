@@ -8,6 +8,7 @@ import { AnalyticsPage } from './modules/analytics/AnalyticsPage.js';
 import { ImportExportPage } from './modules/import_export/ImportExportPage.js';
 import { SeoPage } from './modules/seo/SeoPage.js';
 import { I18nPage } from './modules/i18n/I18nPage.js';
+import { CmsPagesPage } from './modules/cms_pages/CmsPagesPage.js';
 
 export function App(): ReactNode {
   return (
@@ -21,6 +22,7 @@ export function App(): ReactNode {
         <Route path="/import-export" element={<ImportExportPage />} />
         <Route path="/seo" element={<SeoPage />} />
         <Route path="/i18n" element={<I18nPage />} />
+        <Route path="/cms" element={<CmsPagesPage />} />
         <Route
           path="*"
           element={

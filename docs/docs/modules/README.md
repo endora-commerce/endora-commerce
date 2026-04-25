@@ -33,6 +33,7 @@ how to consume it.
 | [auth](./auth) | Customer + admin sessions, password hashing, TOTP | shared |
 | [carts](./carts) | Customer shopping cart with anonymous→logged-in merge | yes |
 | [catalog](./catalog) | Products, variants, categories, attributes, sales channels | yes |
+| [cms_pages](./cms_pages) | Editorial pages with multilingual title/body and draft→published lifecycle | yes |
 | [credit_limits](./credit_limits) | Credit-limit grant + atomic reservation | yes |
 | [currencies](./currencies) | Pool of accepted ISO 4217 currencies + default | yes |
 | [customer_accounts](./customer_accounts) | Customer login, password reset, 2FA, role assignment | yes |

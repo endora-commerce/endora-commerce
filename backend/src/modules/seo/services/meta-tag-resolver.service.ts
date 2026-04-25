@@ -4,6 +4,7 @@ import type { ResolvedMeta, SeoEntityType } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { Category } from '../../catalog/entities/category.entity.js';
+import { CmsPage } from '../../cms_pages/entities/cms-page.entity.js';
 import { SeoMetaOverride } from '../entities/seo-meta-override.entity.js';
 
 /**
@@ -26,6 +27,7 @@ const DESCRIPTION_MAX = 160;
 export interface RuleBuilderInput {
   product?: Product;
   category?: Category;
+  cmsPage?: CmsPage;
 }
 
 export class MetaTagResolverService {
@@ -145,14 +147,15 @@ export class MetaTagResolverService {
       }
       return { category };
     }
-    // CMS pages have no module yet — rule falls back to a static stub but the
-    // override path still works once a CMS row exists. For now reject so a
-    // misconfigured admin cannot pin a stale override to a non-existent page.
-    throw new HttpError(
-      404,
-      ERROR_CODES.NOT_FOUND,
-      'CMS pages are not yet supported (cms module pending).',
-    );
+    if (entityType === 'cms_page') {
+      const cmsPage = await em.findOne(CmsPage, { id: entityId });
+      if (!cmsPage) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, `CMS page ${entityId} not found.`);
+      }
+      return { cmsPage };
+    }
+    // Exhaustiveness — every branch in `seoEntityTypeSchema` is handled above.
+    throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Unknown entity type ${String(entityType)}.`);
   }
 }
 
@@ -183,6 +186,22 @@ export function buildRuleMeta(
       openGraph: {
         title: trim(name, TITLE_MAX),
         description,
+        image: null,
+      },
+    };
+  }
+  if (entityType === 'cms_page' && source.cmsPage) {
+    const title = pickLocale(source.cmsPage.title, locale);
+    // First-paragraph approximation for the description: take up to the
+    // DESCRIPTION_MAX characters of the body, stripping markdown markers.
+    const body = pickLocale(source.cmsPage.body, locale);
+    const description = body.replace(/[#>*_`>\-]+/g, '').replace(/\s+/g, ' ').trim();
+    return {
+      title: trim(title, TITLE_MAX),
+      description: trim(description, DESCRIPTION_MAX),
+      openGraph: {
+        title: trim(title, TITLE_MAX),
+        description: trim(description, DESCRIPTION_MAX),
         image: null,
       },
     };

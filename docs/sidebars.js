@@ -31,6 +31,7 @@ const sidebars = {
         'modules/auth',
         'modules/carts',
         'modules/catalog',
+        'modules/cms_pages',
         'modules/credit_limits',
         'modules/currencies',
         'modules/customer_accounts',
