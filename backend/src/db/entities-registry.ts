@@ -28,6 +28,10 @@ import { AdminRole } from '../modules/admin_roles/entities/admin-role.entity.js'
 import { PasswordResetToken } from '../modules/customer_accounts/entities/password-reset-token.entity.js';
 import { CreditLimit } from '../modules/credit_limits/entities/credit-limit.entity.js';
 import { CreditLimitReservation } from '../modules/credit_limits/entities/credit-limit-reservation.entity.js';
+import { ApiKey } from '../modules/api_keys/entities/api-key.entity.js';
+import { Webhook } from '../modules/webhooks/entities/webhook.entity.js';
+import { WebhookDelivery } from '../modules/webhooks/entities/webhook-delivery.entity.js';
+import { ExternalIntegration } from '../modules/integrations/entities/external-integration.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -87,4 +91,9 @@ export const ALL_ENTITIES = [
   // credit limits (US6)
   CreditLimit,
   CreditLimitReservation,
+  // US7 — API keys, webhooks, integrations
+  ApiKey,
+  Webhook,
+  WebhookDelivery,
+  ExternalIntegration,
 ] as const;

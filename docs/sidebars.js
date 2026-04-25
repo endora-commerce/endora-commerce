@@ -20,7 +20,7 @@ const sidebars = {
       type: 'category',
       label: 'Integrations',
       link: { type: 'generated-index', title: 'Integrations' },
-      items: [],
+      items: ['integrations/README'],
     },
     {
       type: 'category',

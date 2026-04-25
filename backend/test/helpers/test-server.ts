@@ -14,6 +14,7 @@ import { commerceModule } from '../../src/modules/orders/plugin.js';
 import { adminModule } from '../../src/modules/admin_users/plugin.js';
 import { inventoryModule } from '../../src/modules/inventory/plugin.js';
 import { creditLimitsModule } from '../../src/modules/credit_limits/plugin.js';
+import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
 import { seedUs1Catalog } from './seed-catalog.js';
 import { seedTestOrganizations } from './seed-organizations.js';
@@ -73,6 +74,10 @@ const SEEDED_TABLES = [
   'customer_accounts',
   'admin_users',
   'admin_roles',
+  'webhook_deliveries',
+  'webhooks',
+  'external_integrations',
+  'api_keys',
   'credit_limit_reservations',
   'credit_limits',
   'organizations',
@@ -141,10 +146,20 @@ export async function setupBackendServer(
     resolveCustomerContext: customerResolver,
   });
 
+  // US7 — API keys, webhooks, external integrations. The handle exposes
+  // requireApiKey, threaded into the catalog module's by-sku route so that
+  // surface gets real bearer-token gating.
+  const integrations = integrationsModule({
+    emFactory: em,
+    auditLogService,
+    requireAdmin: requireTestAdmin(permissionService),
+  });
+
   const modules: ModulePlugin[] = [
     async (app) => registerTestAuth(app, { sessionService, emFactory: em }),
     admin.plugin,
     creditLimits.plugin,
+    integrations.plugin,
     commerceModule({
       emFactory: em,
       eventBus,
@@ -193,6 +208,7 @@ export async function setupBackendServer(
       eventBus,
       requireAdmin: requireTestAdmin(permissionService),
       auditLogService,
+      requireApiKey: integrations.handle.requireApiKey,
       resolveAdminAuditContext: (request) => {
         if (request.testActor?.kind !== 'admin') {
           return { actorAdminUserId: TEST_ADMIN_ID };

@@ -9,6 +9,64 @@ import type { OpenAPIV3_1 } from 'openapi-types';
  */
 export const openApiRegistry = new OpenAPIRegistry();
 
+const HTTP_METHODS = new Set([
+  'get',
+  'post',
+  'put',
+  'delete',
+  'patch',
+  'head',
+  'options',
+  'trace',
+] as const);
+
+type HttpMethod = 'get' | 'post' | 'put' | 'delete' | 'patch' | 'head' | 'options' | 'trace';
+
+const seenRoutes = new Set<string>();
+
+/**
+ * Registers an `onRoute` hook so every Fastify route auto-publishes into the OpenAPI
+ * registry. Avoids per-module registerPath boilerplate while still letting a module opt
+ * into a richer schema by calling `openApiRegistry.registerPath` directly.
+ */
+export function attachOpenApiAutoRegistration(app: FastifyInstance): void {
+  app.addHook('onRoute', (route) => {
+    const rawMethod = route.method;
+    const methods: string[] = Array.isArray(rawMethod) ? rawMethod : [rawMethod];
+    const path = toOpenApiPath(route.url);
+
+    if (path === '/api/v1/_openapi.json' || path === '/api/v1/_docs') return;
+
+    for (const m of methods) {
+      const method = m.toLowerCase();
+      if (!HTTP_METHODS.has(method as HttpMethod)) continue;
+      // Fastify auto-registers HEAD for every GET; skip the duplicate.
+      if (method === 'head') continue;
+
+      const key = `${method} ${path}`;
+      if (seenRoutes.has(key)) continue;
+      seenRoutes.add(key);
+
+      try {
+        openApiRegistry.registerPath({
+          method: method as HttpMethod,
+          path,
+          responses: {
+            '200': { description: 'OK' },
+          },
+        });
+      } catch {
+        // Swallow — auto-registration is best-effort; a route that can't be expressed
+        // here should opt into manual registration via openApiRegistry.registerPath.
+      }
+    }
+  });
+}
+
+function toOpenApiPath(url: string): string {
+  return url.replace(/:([A-Za-z0-9_]+)/g, '{$1}');
+}
+
 export interface OpenApiMetadata {
   title: string;
   version: string;
@@ -32,8 +90,8 @@ function buildDocument(meta: OpenApiMetadata): OpenAPIV3_1.Document {
 }
 
 export function registerOpenApiRoutes(app: FastifyInstance, meta: OpenApiMetadata): void {
-  // Lazily build the document on first request; registry may still receive registrations
-  // during route-registration time.
+  // Build the document lazily on first request — by then every module has registered
+  // its routes via the onRoute hook installed in attachOpenApiAutoRegistration().
   let cached: OpenAPIV3_1.Document | undefined;
   const getDoc = (): OpenAPIV3_1.Document => {
     if (!cached) {

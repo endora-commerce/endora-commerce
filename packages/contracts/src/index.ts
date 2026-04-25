@@ -25,3 +25,6 @@ export * from './invoices.js';
 export * from './payments.js';
 export * from './admin.js';
 export * from './credit-limits.js';
+export * from './api-keys.js';
+export * from './webhooks.js';
+export * from './integrations.js';

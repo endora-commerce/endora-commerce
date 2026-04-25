@@ -9,7 +9,11 @@ import {
 } from '@fastify/type-provider-zod';
 
 import { registerErrorEnvelope } from './error-envelope.js';
-import { registerOpenApiRoutes, type OpenApiMetadata } from './openapi.js';
+import {
+  attachOpenApiAutoRegistration,
+  registerOpenApiRoutes,
+  type OpenApiMetadata,
+} from './openapi.js';
 
 /**
  * Module registration hook — each backend module exposes a plugin that takes
@@ -84,6 +88,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   });
 
   registerErrorEnvelope(app);
+  attachOpenApiAutoRegistration(app);
   registerOpenApiRoutes(app, options.openApi);
 
   for (const modulePlugin of options.modules ?? []) {
