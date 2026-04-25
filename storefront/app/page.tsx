@@ -1,15 +1,23 @@
-// Storefront landing page — placeholder, replaced by the catalog landing layout in Phase 3 (US1).
-// Kept deliberately minimal so the SSR smoke test in quickstart.md has something to hit.
+import Link from 'next/link';
+import type { ReactNode } from 'react';
+import { tForLocale } from '../lib/i18n/messages';
+import { getServerContext } from '../lib/server-context';
 
-export default function HomePage() {
+/**
+ * Landing page. Reference-theme content; themes typically replace it
+ * with a hero + featured-product grid. Server-rendered so it shows up in
+ * the initial HTML for crawlers.
+ */
+export default async function HomePage(): Promise<ReactNode> {
+  const { locale } = await getServerContext();
+  const t = tForLocale(locale);
   return (
-    <main>
+    <section>
       <h1>B2B Platform</h1>
-      <p>
-        The storefront is scaffolded but not yet wired to the API. User Story 1 (Catalog + Quote
-        Request) in specs/001-b2b-platform-foundation/tasks.md Phase 3 replaces this page with the
-        real catalog landing layout.
+      <p className="muted">
+        Reference storefront. Browse the <Link href="/catalog">{t('nav.catalog')}</Link> or use{' '}
+        <Link href="/search">{t('nav.search')}</Link> to find products.
       </p>
-    </main>
+    </section>
   );
 }

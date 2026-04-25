@@ -7,10 +7,8 @@
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  experimental: {
-    // Enable typed Link and route typing — surfaces missing routes at build time.
-    typedRoutes: true,
-  },
+  // Enable typed Link and route typing — surfaces missing routes at build time.
+  typedRoutes: true,
   async headers() {
     return [
       {
