@@ -12,6 +12,7 @@ import { quoteRequestsModule } from '../../src/modules/quote_requests/plugin.js'
 import { organizationsModule } from '../../src/modules/organizations/plugin.js';
 import { commerceModule } from '../../src/modules/orders/plugin.js';
 import { adminModule } from '../../src/modules/admin_users/plugin.js';
+import { inventoryModule } from '../../src/modules/inventory/plugin.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
 import { seedUs1Catalog } from './seed-catalog.js';
 import { seedTestOrganizations } from './seed-organizations.js';
@@ -195,6 +196,11 @@ export async function setupBackendServer(
         }
         return { adminUserId: request.testActor.adminUserId };
       },
+    }),
+    inventoryModule({
+      emFactory: em,
+      requireCustomer: requireTestCustomer(),
+      resolveCustomerContext: customerResolver,
     }),
   ];
   if (options.extraModules) modules.push(...options.extraModules);
