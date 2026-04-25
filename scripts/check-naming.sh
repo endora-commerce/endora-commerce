@@ -49,7 +49,7 @@ fail=0
 # whose plural forms read worse than the singular (catalog, inventory, search,
 # auth, example).
 # ──────────────────────────────────────────────────────────────────────────
-allowed_singular="^(auth|catalog|example|import_export|inventory|search)$"
+allowed_singular="^(auth|catalog|example|import_export|inventory|search|seo)$"
 
 if [ -d backend/src/modules ]; then
   while IFS= read -r -d '' dir; do

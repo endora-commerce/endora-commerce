@@ -33,6 +33,8 @@ import { Webhook } from '../modules/webhooks/entities/webhook.entity.js';
 import { WebhookDelivery } from '../modules/webhooks/entities/webhook-delivery.entity.js';
 import { ExternalIntegration } from '../modules/integrations/entities/external-integration.entity.js';
 import { AnalyticsEvent } from '../modules/analytics/entities/analytics-event.entity.js';
+import { SeoMetaOverride } from '../modules/seo/entities/seo-meta-override.entity.js';
+import { SitemapCache } from '../modules/seo/entities/sitemap-cache.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -99,4 +101,7 @@ export const ALL_ENTITIES = [
   ExternalIntegration,
   // analytics (Phase 10 / T237)
   AnalyticsEvent,
+  // seo (Phase 10 / T235)
+  SeoMetaOverride,
+  SitemapCache,
 ] as const;

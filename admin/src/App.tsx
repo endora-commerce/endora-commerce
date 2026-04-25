@@ -6,6 +6,7 @@ import { WebhooksPage } from './modules/webhooks/WebhooksPage.js';
 import { IntegrationsPage } from './modules/integrations/IntegrationsPage.js';
 import { AnalyticsPage } from './modules/analytics/AnalyticsPage.js';
 import { ImportExportPage } from './modules/import_export/ImportExportPage.js';
+import { SeoPage } from './modules/seo/SeoPage.js';
 
 export function App(): ReactNode {
   return (
@@ -17,6 +18,7 @@ export function App(): ReactNode {
         <Route path="/integrations" element={<IntegrationsPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/import-export" element={<ImportExportPage />} />
+        <Route path="/seo" element={<SeoPage />} />
         <Route
           path="*"
           element={

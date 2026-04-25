@@ -45,6 +45,7 @@ const sidebars = {
         'modules/payments',
         'modules/quote_requests',
         'modules/search',
+        'modules/seo',
         'modules/webhooks',
       ],
     },

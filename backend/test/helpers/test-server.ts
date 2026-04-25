@@ -17,6 +17,7 @@ import { creditLimitsModule } from '../../src/modules/credit_limits/plugin.js';
 import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
 import { analyticsModule } from '../../src/modules/analytics/plugin.js';
 import { importExportModule } from '../../src/modules/import_export/plugin.js';
+import { seoModule } from '../../src/modules/seo/plugin.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
 import { seedUs1Catalog } from './seed-catalog.js';
 import { seedTestOrganizations } from './seed-organizations.js';
@@ -61,6 +62,8 @@ export interface BackendServerHandle {
 
 const SEEDED_TABLES = [
   'analytics_events',
+  'sitemap_cache',
+  'seo_meta_overrides',
   'audit_log_entries',
   'invoices',
   'payments',
@@ -171,6 +174,14 @@ export async function setupBackendServer(
     requireAdmin: requireTestAdmin(permissionService),
   });
 
+  // SEO meta + sitemap (Phase 10 / T235). Stale-window dropped to zero in
+  // tests so each test that calls regenerate sees a fresh payload.
+  const seo = seoModule({
+    emFactory: em,
+    requireAdmin: requireTestAdmin(permissionService),
+    sitemap: { staleAfterMs: 0, baseUrl: 'http://test.local' },
+  });
+
   const modules: ModulePlugin[] = [
     async (app) => registerTestAuth(app, { sessionService, emFactory: em }),
     admin.plugin,
@@ -178,6 +189,7 @@ export async function setupBackendServer(
     integrations.plugin,
     analytics.plugin,
     importExport.plugin,
+    seo.plugin,
     commerceModule({
       emFactory: em,
       eventBus,

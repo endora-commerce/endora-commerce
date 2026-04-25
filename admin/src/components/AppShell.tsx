@@ -12,6 +12,7 @@ const NAV: NavItem[] = [
   { to: '/integrations', label: 'Integrations' },
   { to: '/analytics', label: 'Analytics' },
   { to: '/import-export', label: 'Import / Export' },
+  { to: '/seo', label: 'SEO' },
 ];
 
 export function AppShell(): ReactNode {

@@ -12,6 +12,7 @@ import { Migration007PasswordResetTokens } from '../modules/customer_accounts/mi
 import { Migration008CreditLimitsInit } from '../modules/credit_limits/migrations/008_credit_limits_init.js';
 import { Migration009Us7Init } from '../modules/webhooks/migrations/009_us7_init.js';
 import { Migration010AnalyticsInit } from '../modules/analytics/migrations/010_analytics_init.js';
+import { Migration011SeoInit } from '../modules/seo/migrations/011_seo_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -53,6 +54,7 @@ export default defineConfig({
       { name: 'Migration008CreditLimitsInit', class: Migration008CreditLimitsInit },
       { name: 'Migration009Us7Init', class: Migration009Us7Init },
       { name: 'Migration010AnalyticsInit', class: Migration010AnalyticsInit },
+      { name: 'Migration011SeoInit', class: Migration011SeoInit },
     ],
     transactional: true,
     disableForeignKeys: false,

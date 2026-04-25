@@ -47,4 +47,5 @@ how to consume it.
 | [payments](./payments) | Payment driver dispatch + settlement events | yes |
 | [quote_requests](./quote_requests) | RFQ lifecycle (draft → quote → accept/reject) | yes |
 | [search](./search) | Meilisearch indexer + query bridge (in development) | no |
+| [seo](./seo) | Meta-tag resolver + cached XML sitemap | yes |
 | [webhooks](./webhooks) | Outbound HMAC-signed event subscriptions | yes |
