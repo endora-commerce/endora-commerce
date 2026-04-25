@@ -37,23 +37,41 @@ describe('cart merges from anonymous into authenticated on login', () => {
     });
     expect(addAnon.statusCode).toBe(200);
 
-    // 2. Login as a customer who has their own cart (empty at this point).
+    // 2. Login as the seeded stub customer. Real session cookie is minted —
+    //    the anonymous cart token is included so the login handler merges it.
     const login = await h.app.inject({
       method: 'POST',
       url: '/api/v1/auth/customer/login',
-      payload: { email: 'happy@example.com', password: 'strong-password-1234!' },
+      payload: {
+        email: 'stub-customer@example.com',
+        password: 'stub-password-change-me-1234',
+      },
       cookies: { b2b_cart_anon: anonToken },
     });
     expect(login.statusCode).toBe(200);
+    const session = parseSessionCookie(login.headers['set-cookie']);
 
-    // 3. Fetch current cart — the anonymous item must be present.
+    // 3. Fetch current cart with the freshly-issued real session cookie.
     const cart = await h.app.inject({
       method: 'GET',
       url: '/api/v1/cart',
-      cookies: { b2b_session: 'stub-customer-session' },
+      cookies: { b2b_session: session },
     });
     expect(cart.statusCode).toBe(200);
     const body = cart.json() as { data: Cart };
-    expect(body.data.items.some((i) => i.productId === '00000000-0000-4000-8000-000000000101' && i.quantity >= 2)).toBe(true);
+    expect(
+      body.data.items.some(
+        (i) => i.productId === '00000000-0000-4000-8000-000000000101' && i.quantity >= 2,
+      ),
+    ).toBe(true);
   });
 });
+
+function parseSessionCookie(setCookie: string | string[] | undefined): string {
+  const header = Array.isArray(setCookie)
+    ? setCookie.find((c) => c.includes('b2b_session='))
+    : setCookie;
+  if (!header) return '';
+  const match = /b2b_session=([^;]+)/.exec(header);
+  return match?.[1] ?? '';
+}

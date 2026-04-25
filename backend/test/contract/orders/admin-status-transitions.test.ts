@@ -5,6 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { seedShippedOrder } from '../../helpers/seed-commerce.js';
 
 /**
  * T101 — Admin status-transition graph is enforced (FR-014).
@@ -16,6 +17,7 @@ describe('POST /api/v1/admin/orders/:id/status — invalid transition', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    await seedShippedOrder(h.em());
   });
 
   afterAll(async () => {

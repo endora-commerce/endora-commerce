@@ -29,6 +29,12 @@ export interface OrganizationsModuleOptions {
   };
   /** Expose the /api/v1/_test/latest-verification-token probe (test-only). */
   exposeTestProbe?: boolean;
+  /** Optional post-login hook — the commerce module uses this to merge carts. */
+  onLogin?: (ctx: {
+    customerAccountId: string;
+    organizationId: string;
+    anonymousCartToken?: string;
+  }) => Promise<void>;
 }
 
 export function organizationsModule(options: OrganizationsModuleOptions) {
@@ -54,6 +60,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       customerAuthService,
       exposeTestProbe: options.exposeTestProbe ?? false,
       latestTokenByEmail,
+      ...(options.onLogin ? { onLogin: options.onLogin } : {}),
     });
     await registerOrganizationsCustomerRoutes(app, {
       customerAuthService,

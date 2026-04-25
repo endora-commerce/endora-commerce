@@ -5,6 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { seedSuspendedOrganization } from '../../helpers/seed-commerce.js';
 
 /**
  * T099 — `POST /orders` on a suspended Organization must return 423
@@ -17,6 +18,7 @@ describe('POST /api/v1/orders — suspended Organization', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    await seedSuspendedOrganization(h.em());
   });
 
   afterAll(async () => {

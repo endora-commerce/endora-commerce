@@ -4,6 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { seedCartForStubCustomer } from '../../helpers/seed-commerce.js';
 
 /**
  * T104 — SC-003 SLA: an Order placed by a Customer must appear in the Admin
@@ -18,6 +19,7 @@ describe('orders SLA — admin visibility < 30s', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    await seedCartForStubCustomer(h.em());
   });
 
   afterAll(async () => {

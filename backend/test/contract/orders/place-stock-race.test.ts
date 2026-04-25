@@ -5,6 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { seedStockRaceFixture } from '../../helpers/seed-commerce.js';
 
 /**
  * T100 — Two concurrent `POST /orders` placing the same last unit of a
@@ -18,6 +19,7 @@ describe('POST /api/v1/orders — stock race', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    await seedStockRaceFixture(h.em());
   });
 
   afterAll(async () => {

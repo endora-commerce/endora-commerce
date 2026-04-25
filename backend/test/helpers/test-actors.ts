@@ -53,6 +53,20 @@ const CUSTOMER_COOKIES: Record<string, { customerAccountId: string; organization
     customerAccountId: TEST_CUSTOMER_EMPTY_ID,
     organizationId: TEST_ORGANIZATION_ID,
   },
+  // Suspended-org customer (T099 place-suspended fixture).
+  'stub-customer-session-suspended': {
+    customerAccountId: '00000000-0000-4000-8000-0000000000a4',
+    organizationId: '00000000-0000-4000-8000-0000000000ab',
+  },
+  // Stock-race customers (T100 fixture).
+  'stub-customer-session-race-a': {
+    customerAccountId: '00000000-0000-4000-8000-000000000aa1',
+    organizationId: TEST_ORGANIZATION_ID,
+  },
+  'stub-customer-session-race-b': {
+    customerAccountId: '00000000-0000-4000-8000-000000000aa2',
+    organizationId: TEST_ORGANIZATION_ID,
+  },
 };
 
 const ADMIN_COOKIES: Record<string, { adminUserId: string }> = {

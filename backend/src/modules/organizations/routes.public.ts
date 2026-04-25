@@ -30,6 +30,15 @@ export interface OrganizationsPublicDeps {
    * returns the most recent one. Pure in-memory; cleared on process restart.
    */
   latestTokenByEmail?: Map<string, string>;
+  /**
+   * Optional post-login hook — the commerce module registers one to merge an
+   * anonymous cart (cookie `b2b_cart_anon`) into the authenticated cart.
+   */
+  onLogin?: (ctx: {
+    customerAccountId: string;
+    organizationId: string;
+    anonymousCartToken?: string;
+  }) => Promise<void>;
 }
 
 export async function registerOrganizationsPublicRoutes(
@@ -91,6 +100,17 @@ export async function registerOrganizationsPublicRoutes(
           : {}),
       });
       setSessionCookie(reply, result.sessionCookieValue, result.sessionExpiresAt);
+      // Merge any anonymous cart the caller was carrying into the authenticated
+      // cart (R-09, T125).
+      if (deps.onLogin) {
+        const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
+        const anon = cookies?.['b2b_cart_anon'];
+        await deps.onLogin({
+          customerAccountId: result.customerAccount.id,
+          organizationId: result.customerAccount.organizationId,
+          ...(anon ? { anonymousCartToken: anon } : {}),
+        });
+      }
       return { data: { customerAccount: serializeCustomerAccount(result.customerAccount) } };
     },
   );

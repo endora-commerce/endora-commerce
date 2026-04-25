@@ -13,6 +13,15 @@ import { Organization } from '../modules/organizations/entities/organization.ent
 import { CustomerAccount } from '../modules/customer_accounts/entities/customer-account.entity.js';
 import { Address } from '../modules/addresses/entities/address.entity.js';
 import { EmailVerificationToken } from '../modules/organizations/entities/email-verification-token.entity.js';
+import { Cart } from '../modules/carts/entities/cart.entity.js';
+import { CartItem } from '../modules/carts/entities/cart-item.entity.js';
+import { StockLevel } from '../modules/inventory/entities/stock-level.entity.js';
+import { DeliveryMethod } from '../modules/delivery_methods/entities/delivery-method.entity.js';
+import { PaymentMethod } from '../modules/payment_methods/entities/payment-method.entity.js';
+import { Order } from '../modules/orders/entities/order.entity.js';
+import { OrderItem } from '../modules/orders/entities/order-item.entity.js';
+import { Payment } from '../modules/payments/entities/payment.entity.js';
+import { Invoice } from '../modules/invoices/entities/invoice.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -52,4 +61,14 @@ export const ALL_ENTITIES = [
   CustomerAccount,
   Address,
   EmailVerificationToken,
+  // carts + commerce
+  Cart,
+  CartItem,
+  StockLevel,
+  DeliveryMethod,
+  PaymentMethod,
+  Order,
+  OrderItem,
+  Payment,
+  Invoice,
 ] as const;

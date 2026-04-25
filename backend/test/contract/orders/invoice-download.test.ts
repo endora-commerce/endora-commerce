@@ -5,6 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { seedOrdersForInvoiceTests } from '../../helpers/seed-commerce.js';
 
 /**
  * T102 — `GET /orders/:id/invoice`:
@@ -17,6 +18,7 @@ describe('GET /api/v1/orders/:id/invoice — availability', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    await seedOrdersForInvoiceTests(h.em());
   });
 
   afterAll(async () => {

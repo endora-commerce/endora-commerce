@@ -5,6 +5,7 @@ import { ALL_ENTITIES } from './entities-registry.js';
 import { Migration001FoundationInit } from './migrations/001_foundation_init.js';
 import { Migration002QuoteRequestsInit } from '../modules/quote_requests/migrations/002_quote_requests_init.js';
 import { Migration003OrganizationsInit } from '../modules/organizations/migrations/003_organizations_init.js';
+import { Migration004CommerceInit } from './migrations/004_commerce_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -39,6 +40,7 @@ export default defineConfig({
       { name: 'Migration001FoundationInit', class: Migration001FoundationInit },
       { name: 'Migration002QuoteRequestsInit', class: Migration002QuoteRequestsInit },
       { name: 'Migration003OrganizationsInit', class: Migration003OrganizationsInit },
+      { name: 'Migration004CommerceInit', class: Migration004CommerceInit },
     ],
     transactional: true,
     disableForeignKeys: false,
