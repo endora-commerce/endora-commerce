@@ -1,51 +1,40 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.0.0 → 1.1.0
-Rationale: MINOR bump. Adds a new, first-class principle (VIII. Working Language)
-that is materially new guidance — it did not exist before and applies to every
-artifact the project produces going forward. No prior compliant work is
-invalidated; the one known artifact authored in another language is flagged
-under "Deferred items / TODOs" below for follow-up retranslation.
+Version change: 1.1.0 → 1.1.1
+Rationale: PATCH bump. Pure wording clarification of Principle VIII. The original
+text was misread as forbidding multi-language *product* support; it has always
+governed only engineering artifacts. The amendment makes that scope explicit,
+cross-references Principle VII (which mandates multilingual storefront + multi-
+currency), and renames the two "Scope exception" sub-sections to
+"Out of scope" — they were never exceptions to the rule, they describe its
+boundary. No normative behaviour changes; no prior compliant work is invalidated.
 
 Modified principles:
-  - (added)                            → VIII. Working Language (English) (NON-NEGOTIABLE)
+  - VIII. Working Language — English  (clarified scope; renamed sub-sections)
 
 Added sections:
-  - (none — Principle VIII slots into Core Principles)
+  - (none)
 
 Removed sections:
   - (none)
 
 Templates / artifacts requiring alignment:
-  - ✅ .specify/templates/plan-template.md — Constitution Check is a generic
-       gate block; does not enumerate principles by number. No edits required.
-  - ✅ .specify/templates/spec-template.md — No language/principle references.
-       No edits required.
-  - ✅ .specify/templates/tasks-template.md — No language/principle references.
-       No edits required.
-  - ⚠ specs/001-b2b-platform-foundation/spec.md — AUTHORED IN POLISH.
-       Needs retranslation to English to comply with Principle VIII. Flagged
-       under deferred items.
-  - ⚠ README.md — still does not exist. Must be authored in English when
-       created (inherits Principle VIII + existing TODO from v1.0.0).
-  - ⚠ docs/ (project documentation site) — still does not exist. When created
-       must be authored in English. Inherits existing TODO from v1.0.0.
+  - ✅ .specify/templates/plan-template.md      — references Constitution Check
+       generically; no edits required.
+  - ✅ .specify/templates/spec-template.md      — no edits required.
+  - ✅ .specify/templates/tasks-template.md     — no edits required.
+  - ✅ specs/001-b2b-platform-foundation/spec.md — already in English; v1.1.0
+       deferred TODO(TRANSLATE_FEATURE_001_SPEC) cleared.
+  - ✅ README.md — exists and is in English; v1.1.0 TODO(README) cleared.
+  - ✅ docs/ (Docusaurus site) — exists and is in English; v1.1.0
+       TODO(DOCS_SITE) cleared.
+  - ✅ scripts/check-language.sh — already encodes the engineering-artifact
+       scope (excludes storefront/i18n catalogs, email-template locales, and
+       seed fixtures simulating end-customer content). No change required.
 
 Deferred items / TODOs:
-  - TODO(TRANSLATE_FEATURE_001_SPEC): Retranslate
-    `specs/001-b2b-platform-foundation/spec.md` from Polish to English before
-    the feature moves to `/speckit.plan`. The Polish draft predates Principle
-    VIII; domain terminology (e.g. "Zapytanie Ofertowe", "Limit Kupiecki",
-    "Lista Zakupowa", "Organizacja") must be rendered as
-    "Quote Request (RFQ)", "Credit Limit", "Shopping List", "Organization"
-    respectively. Polish proper-noun systems (Comarch Optima, Subiekt GT,
-    enova365, Symfonia) may be retained verbatim.
-  - TODO(README): Initial README.md must be authored when the first module is
-    scaffolded, in English, with the minimum + recommended hardware/system
-    requirements section (carried over from v1.0.0).
-  - TODO(DOCS_SITE): Project documentation site must be stood up alongside the
-    first user-facing module, in English (carried over from v1.0.0).
+  - (none)
 -->
 
 # B2B Platform Constitution
@@ -174,8 +163,20 @@ mobile erodes the platform's primary acquisition channel.
 
 ### VIII. Working Language — English (NON-NEGOTIABLE)
 
-All engineering artifacts generated or maintained in this repository MUST be
-authored in **English**. This covers, at minimum:
+This principle governs the **engineering artifacts** of the project — the
+material that contributors, code reviewers, automated tooling, and AI
+assistants read and write. Every such artifact MUST be authored in
+**English**.
+
+**This principle does not restrict the languages the platform serves to its
+end users.** Multilingual storefront content, multi-currency pricing,
+localized email templates, and locale-specific seed fixtures are a
+first-class product capability and are required by Principle VII. Engineering
+artifacts (the *how* of the platform) live in English; product content (the
+*what* customers see) lives in whatever language the Sales Channel is
+configured for.
+
+In-scope artifacts that MUST be English include, at minimum:
 
 - Specifications (`spec.md`), implementation plans (`plan.md`), task lists
   (`tasks.md`), research notes (`research.md`), data models (`data-model.md`),
@@ -188,15 +189,16 @@ authored in **English**. This covers, at minimum:
 - Commit messages, pull-request titles and descriptions, code-review comments.
 - Issue templates and CI/CD configuration labels.
 
-**Scope exception — end-customer content**: Text that is delivered to the end
+**Out of scope — localized end-customer content**: Text delivered to the end
 customer through a localized channel (storefront copy, admin UI labels,
-notification emails, CMS pages) is **not** an engineering artifact for the
-purposes of this principle. Such content is governed by the localization
-mechanism required by Principle VII (multilingual storefront) and MAY be
-authored in the customer's language. Translation keys and message identifiers
-used by the localization mechanism MUST still be in English.
+notification emails, CMS pages, locale-specific seed fixtures simulating
+customer content) is **not** an engineering artifact for the purposes of this
+principle. Such content is governed by the localization mechanism required by
+Principle VII and MAY be authored in the customer's language. Translation
+keys and message identifiers used by the localization mechanism MUST still
+be in English.
 
-**Scope exception — proper nouns**: Foreign-language proper nouns (e.g.
+**Out of scope — foreign proper nouns**: Foreign-language proper nouns (e.g.
 product names of local third-party systems such as *Comarch Optima*,
 *Subiekt GT*, *enova365*, *Symfonia*, or regulatory terms like *NIP*) MAY
 appear verbatim in English prose where translation would lose meaning.
@@ -206,10 +208,12 @@ Surrounding prose, field names, and variable names remain English.
 contributors, AI tooling, and automated pipelines. English is the working
 language of the entire ecosystem this project depends on (Node.js, MikroORM,
 PostgreSQL, Meilisearch docs; GitHub; LLM tooling; error messages and stack
-traces). Mixing languages fragments searchability, hurts code review,
-undermines LLM-assisted tooling, and raises the barrier for future
-contributors. A single working language is the cheapest way to keep all of
-those cheap.
+traces). Mixing languages inside the engineering layer fragments
+searchability, hurts code review, undermines LLM-assisted tooling, and
+raises the barrier for future contributors. Keeping the engineering layer
+in one language costs nothing and protects all of the above; the platform
+itself remains free to speak as many customer-facing languages as the
+business requires.
 
 ## Technology Stack
 
@@ -378,4 +382,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 1.1.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-04-23
+**Version**: 1.1.1 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-04-25
