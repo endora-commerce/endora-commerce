@@ -1,0 +1,92 @@
+name: Lighthouse
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 03:30 UTC nightly — well after the seed-data backups settle.
+    - cron: '30 3 * * *'
+
+jobs:
+  lighthouse:
+    name: Core Web Vitals — catalog / category / PDP
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: b2b
+          POSTGRES_PASSWORD: b2b
+          POSTGRES_DB: b2b
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U b2b -d b2b"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=10
+      meilisearch:
+        image: getmeili/meilisearch:v1.11
+        env:
+          MEILI_MASTER_KEY: devMasterKeyChangeMe
+          MEILI_ENV: development
+          MEILI_NO_ANALYTICS: 'true'
+        ports: ['7700:7700']
+    env:
+      DATABASE_URL: postgresql://b2b:b2b@localhost:5432/b2b
+      REDIS_URL: redis://localhost:6379
+      MEILISEARCH_URL: http://localhost:7700
+      MEILISEARCH_API_KEY: devMasterKeyChangeMe
+      BACKEND_BASE_URL: http://localhost:3001
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations + seed dev catalog
+        run: |
+          pnpm --filter backend run migration:up
+          pnpm --filter backend run seed:dev
+
+      - name: Build storefront
+        run: pnpm --filter storefront run build
+
+      - name: Start backend (background)
+        run: |
+          pnpm --filter backend run start &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3001/api/v1/_health >/dev/null; then break; fi
+            sleep 1
+          done
+
+      - name: Start storefront (background)
+        run: |
+          pnpm --filter storefront run start &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/ >/dev/null; then break; fi
+            sleep 1
+          done
+
+      - name: Lighthouse CI
+        run: pnpm dlx @lhci/cli@0.14.x autorun --config=./.lighthouserc.js
+
+      - name: Upload Lighthouse report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: .lighthouseci/
+          if-no-files-found: warn

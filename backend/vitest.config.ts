@@ -7,7 +7,7 @@ export default mergeConfig(
     test: {
       name: 'backend',
       environment: 'node',
-      include: ['test/**/*.test.ts', 'src/**/*.test.ts'],
+      include: ['test/**/*.test.ts', 'test/**/*.bench.ts', 'src/**/*.test.ts'],
       setupFiles: [],
       // Integration/contract tests share a single Postgres database. Running
       // test files in parallel would race on truncate+seed — pin to a single

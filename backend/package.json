@@ -18,6 +18,7 @@
     "test:unit": "vitest run test/unit",
     "test:contract": "vitest run test/contract",
     "test:integration": "vitest run test/integration",
+    "test:perf": "PERF_RUN=true vitest run test/perf",
     "migration:up": "tsx src/db/migrate.ts up",
     "migration:down": "tsx src/db/migrate.ts down",
     "migration:pending": "tsx src/db/migrate.ts pending",
