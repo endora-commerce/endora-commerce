@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
+import { PwaRegister } from '../components/PwaRegister';
 import { getServerContext } from '../lib/server-context';
 import './globals.css';
 
@@ -8,6 +9,7 @@ export const metadata = {
   title: 'B2B Platform',
   description:
     'A B2B commerce platform supporting Quote Requests and direct purchase for business customers.',
+  manifest: '/manifest.webmanifest',
 };
 
 /**
@@ -38,6 +40,7 @@ export default async function RootLayout({
           <main className="b2b-shell__main">{children}</main>
           <Footer />
         </div>
+        <PwaRegister />
       </body>
     </html>
   );

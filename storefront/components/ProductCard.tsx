@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import type { ProductSummary } from '@b2b/contracts';
 import { PriceTag } from './PriceTag';
 import { StockBadge } from './StockBadge';
+import { CompareToggle } from './CompareToggle';
 
 /**
  * A grid-item product card. Keeps markup simple and semantic so
@@ -30,6 +31,7 @@ export function ProductCard(props: {
         <StockBadge product={product} locale={locale} />
       </div>
       <small className="b2b-card__sku">{product.sku}</small>
+      <CompareToggle slug={product.slug} locale={locale} />
     </article>
   );
 }

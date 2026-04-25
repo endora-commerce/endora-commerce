@@ -29,4 +29,17 @@ export default [
       ],
     },
   },
+  {
+    // Next.js Route Handlers MUST export functions named after the HTTP
+    // method (`GET`, `POST`, `PATCH`, …). Allow UPPER_CASE for those.
+    files: ['app/**/route.ts', 'app/**/route.tsx'],
+    rules: {
+      '@typescript-eslint/naming-convention': [
+        'error',
+        { selector: 'function', format: ['camelCase', 'UPPER_CASE'] },
+        { selector: 'variable', format: ['camelCase', 'UPPER_CASE', 'PascalCase'], leadingUnderscore: 'allow' },
+        { selector: 'typeLike', format: ['PascalCase'] },
+      ],
+    },
+  },
 ];

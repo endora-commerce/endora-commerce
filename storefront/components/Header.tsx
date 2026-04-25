@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { I18nConfigResponse } from '@b2b/contracts';
 import { tForLocale } from '../lib/i18n/messages';
+import { CompareCounterLink } from './CompareToggle';
 
 /**
  * Reference-theme header. Themes replace this component with their own
@@ -22,6 +23,7 @@ export function Header(props: {
         <nav className="b2b-header__nav" aria-label="Primary">
           <Link href="/catalog">{t('nav.catalog')}</Link>
           <Link href="/search">{t('nav.search')}</Link>
+          <CompareCounterLink href="/compare" />
         </nav>
         <form action="/search" method="GET" className="b2b-header__search" role="search">
           <input
