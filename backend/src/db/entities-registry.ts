@@ -35,6 +35,8 @@ import { ExternalIntegration } from '../modules/integrations/entities/external-i
 import { AnalyticsEvent } from '../modules/analytics/entities/analytics-event.entity.js';
 import { SeoMetaOverride } from '../modules/seo/entities/seo-meta-override.entity.js';
 import { SitemapCache } from '../modules/seo/entities/sitemap-cache.entity.js';
+import { Language } from '../modules/languages/entities/language.entity.js';
+import { Currency } from '../modules/currencies/entities/currency.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -104,4 +106,7 @@ export const ALL_ENTITIES = [
   // seo (Phase 10 / T235)
   SeoMetaOverride,
   SitemapCache,
+  // languages + currencies (Phase 10 / T238)
+  Language,
+  Currency,
 ] as const;

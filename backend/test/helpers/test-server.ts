@@ -18,6 +18,7 @@ import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
 import { analyticsModule } from '../../src/modules/analytics/plugin.js';
 import { importExportModule } from '../../src/modules/import_export/plugin.js';
 import { seoModule } from '../../src/modules/seo/plugin.js';
+import { i18nModule } from '../../src/modules/languages/plugin.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
 import { seedUs1Catalog } from './seed-catalog.js';
 import { seedTestOrganizations } from './seed-organizations.js';
@@ -119,6 +120,22 @@ export async function setupBackendServer(
   const conn = orm.em.getConnection();
   await conn.execute(`truncate table ${SEEDED_TABLES.map((t) => `"${t}"`).join(', ')} cascade`);
 
+  // Reset the i18n config tables to a known state so parallel-running tests
+  // don't inherit each other's mutations. We don't truncate them in
+  // SEEDED_TABLES because they're configuration, not transactional state.
+  await conn.execute('delete from "languages"');
+  await conn.execute('delete from "currencies"');
+  await conn.execute(
+    `insert into "languages" ("code", "label", "is_default", "is_active", "sort_order", "created_at", "updated_at")
+     values ('en-US', 'English (US)', true, true, 0, now(), now()),
+            ('pl-PL', 'Polski', false, true, 1, now(), now())`,
+  );
+  await conn.execute(
+    `insert into "currencies" ("code", "label", "symbol", "is_default", "is_active", "sort_order", "created_at", "updated_at")
+     values ('PLN', 'Polish zloty', U&'z\\0142', true, true, 0, now(), now()),
+            ('EUR', 'Euro', U&'\\20AC', false, true, 1, now(), now())`,
+  );
+
   if ((options.seed ?? 'us1-catalog') === 'us1-catalog') {
     await seedUs1Catalog(em());
   }
@@ -182,6 +199,13 @@ export async function setupBackendServer(
     sitemap: { staleAfterMs: 0, baseUrl: 'http://test.local' },
   });
 
+  // Languages + currencies (Phase 10 / T238). Static config, bootstrapped
+  // by migration 012 with en-US + pl-PL languages and PLN + EUR currencies.
+  const i18n = i18nModule({
+    emFactory: em,
+    requireAdmin: requireTestAdmin(permissionService),
+  });
+
   const modules: ModulePlugin[] = [
     async (app) => registerTestAuth(app, { sessionService, emFactory: em }),
     admin.plugin,
@@ -190,6 +214,7 @@ export async function setupBackendServer(
     analytics.plugin,
     importExport.plugin,
     seo.plugin,
+    i18n.plugin,
     commerceModule({
       emFactory: em,
       eventBus,

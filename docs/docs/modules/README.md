@@ -34,6 +34,7 @@ how to consume it.
 | [carts](./carts) | Customer shopping cart with anonymous→logged-in merge | yes |
 | [catalog](./catalog) | Products, variants, categories, attributes, sales channels | yes |
 | [credit_limits](./credit_limits) | Credit-limit grant + atomic reservation | yes |
+| [currencies](./currencies) | Pool of accepted ISO 4217 currencies + default | yes |
 | [customer_accounts](./customer_accounts) | Customer login, password reset, 2FA, role assignment | yes |
 | [delivery_methods](./delivery_methods) | Configured delivery options | yes |
 | [health_checks](./health_checks) | Liveness + readiness probe | yes |
@@ -41,6 +42,7 @@ how to consume it.
 | [integrations](./integrations) | External vendor configurations (encrypted) | yes |
 | [inventory](./inventory) | Stock levels, reservations, availability notifications | yes |
 | [invoices](./invoices) | PDF invoice / proforma generation + asset linkage | yes |
+| [languages](./languages) | Pool of supported BCP-47 language tags + translation-fallback helper | yes |
 | [orders](./orders) | Order placement, status machine, payment + delivery linkage | yes |
 | [organizations](./organizations) | Customer Organizations, registration, invitations | yes |
 | [payment_methods](./payment_methods) | Configured payment methods | yes |
