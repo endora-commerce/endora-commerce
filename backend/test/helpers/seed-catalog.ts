@@ -110,6 +110,7 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
     attributeValues: {
       color: 'red',
       material: 'steel',
+      certification: 'ISO9001',
       defaultPrice: 19.99,
     },
   });

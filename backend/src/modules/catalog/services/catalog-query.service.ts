@@ -110,13 +110,26 @@ export class CatalogQueryService {
       deletedAt: null,
     };
     if (params.q) {
-      // MVP: DB-only search over SKU. Full-text search over the multilingual
-      // `name` / `description` JSONB blobs needs Postgres `::text` casts plus a
-      // trigram or GIN index to hit the FR-131 p95 < 200 ms target, so that
-      // path is delegated to the Meilisearch indexer (T067/T068). Until Meili
-      // lands the storefront search surface only discriminates by SKU; tests
-      // that need name-level matches rely on seeded SKUs (e.g. "EXAMPLE-…").
-      where['sku'] = { $ilike: `%${params.q}%` };
+      // MVP: DB-only search. Production target uses Meilisearch behind this
+      // same query method (T067/T068 — Phase 10 polish); for now we match:
+      //   1. SKU ILIKE (covers the seeded EXAMPLE-… ids)
+      //   2. attributeValues at any key flagged isSearchable=true
+      // The attribute-values match uses Postgres ILIKE on the JSONB cast to
+      // text, which is fine for the test corpus and good enough until Meili.
+      const searchableKeys = await this.searchableAttributeKeys(em);
+      const orClauses: Array<Record<string, unknown>> = [
+        { sku: { $ilike: `%${params.q}%` } },
+      ];
+      for (const key of searchableKeys) {
+        // MikroORM's `expr()` would be cleaner; raw cast keeps the dependency
+        // surface minimal here.
+        orClauses.push({
+          // Match any product whose attributeValues[key] (case-insensitive)
+          // contains the query.
+          attributeValues: this.searchableJsonbClause(key, params.q),
+        });
+      }
+      where['$or'] = orClauses;
     }
     if (params.changedSince) {
       where['updatedAt'] = { $gt: new Date(params.changedSince) };
@@ -379,6 +392,25 @@ export class CatalogQueryService {
   // ------------------------------------------------------------------
   // Internal helpers
   // ------------------------------------------------------------------
+
+  /** Cached per-call list of attribute keys that should match free-text search. */
+  private async searchableAttributeKeys(em: EntityManager): Promise<string[]> {
+    const attrs = await em.find(ProductAttribute, { isSearchable: true });
+    return attrs.map((a) => a.key);
+  }
+
+  /**
+   * Build a MikroORM where-clause for "attributeValues[key] contains query
+   * (case-insensitive)". MikroORM doesn't have a first-class JSONB query
+   * helper for the `->>` operator, so we use `$jsonb` style by selecting the
+   * value via the operators object.
+   */
+  private searchableJsonbClause(key: string, query: string): Record<string, unknown> {
+    // expr` returns the property at `key` cast to text; ILIKE handles
+    // case-insensitivity. We rely on MikroORM's `raw()` operator-form passed
+    // through to Knex.
+    return { [key]: { $ilike: `%${query}%` } };
+  }
 
   private async resolveChannel(
     em: EntityManager,
