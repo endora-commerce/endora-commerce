@@ -35,6 +35,7 @@ const sidebars = {
         'modules/customer_accounts',
         'modules/delivery_methods',
         'modules/health_checks',
+        'modules/import_export',
         'modules/integrations',
         'modules/inventory',
         'modules/invoices',

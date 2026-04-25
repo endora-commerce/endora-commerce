@@ -11,6 +11,7 @@ const NAV: NavItem[] = [
   { to: '/webhooks', label: 'Webhooks' },
   { to: '/integrations', label: 'Integrations' },
   { to: '/analytics', label: 'Analytics' },
+  { to: '/import-export', label: 'Import / Export' },
 ];
 
 export function AppShell(): ReactNode {

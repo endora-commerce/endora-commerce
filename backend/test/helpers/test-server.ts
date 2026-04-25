@@ -16,6 +16,7 @@ import { inventoryModule } from '../../src/modules/inventory/plugin.js';
 import { creditLimitsModule } from '../../src/modules/credit_limits/plugin.js';
 import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
 import { analyticsModule } from '../../src/modules/analytics/plugin.js';
+import { importExportModule } from '../../src/modules/import_export/plugin.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
 import { seedUs1Catalog } from './seed-catalog.js';
 import { seedTestOrganizations } from './seed-organizations.js';
@@ -164,12 +165,19 @@ export async function setupBackendServer(
     requireAdmin: requireTestAdmin(permissionService),
   });
 
+  // Import/Export (Phase 10 / T240).
+  const importExport = importExportModule({
+    emFactory: em,
+    requireAdmin: requireTestAdmin(permissionService),
+  });
+
   const modules: ModulePlugin[] = [
     async (app) => registerTestAuth(app, { sessionService, emFactory: em }),
     admin.plugin,
     creditLimits.plugin,
     integrations.plugin,
     analytics.plugin,
+    importExport.plugin,
     commerceModule({
       emFactory: em,
       eventBus,

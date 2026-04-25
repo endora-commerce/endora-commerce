@@ -37,6 +37,7 @@ how to consume it.
 | [customer_accounts](./customer_accounts) | Customer login, password reset, 2FA, role assignment | yes |
 | [delivery_methods](./delivery_methods) | Configured delivery options | yes |
 | [health_checks](./health_checks) | Liveness + readiness probe | yes |
+| [import_export](./import_export) | CSV import / export for bulk-edit entities | yes |
 | [integrations](./integrations) | External vendor configurations (encrypted) | yes |
 | [inventory](./inventory) | Stock levels, reservations, availability notifications | yes |
 | [invoices](./invoices) | PDF invoice / proforma generation + asset linkage | yes |
