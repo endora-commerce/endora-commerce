@@ -8,6 +8,7 @@ import { Migration003OrganizationsInit } from '../modules/organizations/migratio
 import { Migration004CommerceInit } from './migrations/004_commerce_init.js';
 import { Migration005InvitationsInit } from '../modules/organizations/migrations/005_invitations_init.js';
 import { Migration006AdminUsersInit } from '../modules/admin_users/migrations/006_admin_users_init.js';
+import { Migration007PasswordResetTokens } from '../modules/customer_accounts/migrations/007_password_reset_tokens.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -45,6 +46,7 @@ export default defineConfig({
       { name: 'Migration004CommerceInit', class: Migration004CommerceInit },
       { name: 'Migration005InvitationsInit', class: Migration005InvitationsInit },
       { name: 'Migration006AdminUsersInit', class: Migration006AdminUsersInit },
+      { name: 'Migration007PasswordResetTokens', class: Migration007PasswordResetTokens },
     ],
     transactional: true,
     disableForeignKeys: false,

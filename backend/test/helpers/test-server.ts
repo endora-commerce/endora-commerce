@@ -161,6 +161,7 @@ export async function setupBackendServer(
       eventBus,
       sessionService,
       requireCustomer: requireTestCustomer(),
+      requireAdmin: requireTestAdmin(permissionService),
       resolveCustomerContext: customerResolver,
       exposeTestProbe: true,
       onLogin: async (ctx) => {

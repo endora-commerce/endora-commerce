@@ -11,9 +11,13 @@ import { CustomerAuthService } from '../customer_accounts/services/customer-auth
 import { AddressService } from '../addresses/services/address-service.js';
 import { InvitationService } from './services/invitation-service.js';
 import { RoleService } from '../customer_accounts/services/role-service.js';
+import { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
+import { TotpEnrolmentService } from '../customer_accounts/services/totp-enrolment-service.js';
 import { registerOrganizationsPublicRoutes } from './routes.public.js';
 import { registerOrganizationsCustomerRoutes } from './routes.customer.js';
 import { registerMembersRoutes } from './routes.members.js';
+import { registerOrganizationsAdminRoutes } from './routes.admin.js';
+import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
 /**
  * Composition root for the organizations + customer_accounts + addresses
@@ -38,6 +42,8 @@ export interface OrganizationsModuleOptions {
     organizationId: string;
     anonymousCartToken?: string;
   }) => Promise<void>;
+  /** Admin gate for /admin/organizations routes. */
+  requireAdmin?: RequireAdminFactory;
 }
 
 export function organizationsModule(options: OrganizationsModuleOptions) {
@@ -58,12 +64,15 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
     const addressService = new AddressService(options.emFactory);
     const invitationService = new InvitationService(options.emFactory);
     const roleService = new RoleService(options.emFactory);
+    const passwordResetService = new PasswordResetService(options.emFactory);
+    const totpEnrolmentService = new TotpEnrolmentService(options.emFactory);
     const latestInvitationToken: { value: string | null } = { value: null };
 
     await registerOrganizationsPublicRoutes(app, {
       registrationService,
       verificationService,
       customerAuthService,
+      passwordResetService,
       exposeTestProbe: options.exposeTestProbe ?? false,
       latestTokenByEmail,
       ...(options.onLogin ? { onLogin: options.onLogin } : {}),
@@ -71,6 +80,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
     await registerOrganizationsCustomerRoutes(app, {
       customerAuthService,
       addressService,
+      totpEnrolmentService,
       requireCustomer: options.requireCustomer,
       resolveCustomerContext: options.resolveCustomerContext,
     });
@@ -83,5 +93,11 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       latestInvitationToken,
       emFactory: options.emFactory,
     });
+    if (options.requireAdmin) {
+      await registerOrganizationsAdminRoutes(app, {
+        emFactory: options.emFactory,
+        requireAdmin: options.requireAdmin,
+      });
+    }
   };
 }

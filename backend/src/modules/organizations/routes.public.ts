@@ -2,11 +2,14 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
   customerLoginRequestSchema,
   emailVerificationRequestSchema,
+  passwordResetConfirmSchema,
+  passwordResetRequestSchema,
   registerOrganizationRequestSchema,
 } from '@b2b/contracts';
 import type { RegistrationService } from './services/registration-service.js';
 import type { EmailVerificationService } from './services/email-verification-service.js';
 import type { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
+import type { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
 import { SESSION_COOKIE_NAME } from '../auth/plugin.js';
 
 /**
@@ -18,6 +21,7 @@ export interface OrganizationsPublicDeps {
   registrationService: RegistrationService;
   verificationService: EmailVerificationService;
   customerAuthService: CustomerAuthService;
+  passwordResetService: PasswordResetService;
   /**
    * Exposes the latest raw verification token for the test-only probe endpoint.
    * Not wired outside of test mode — production keeps this undefined so the
@@ -45,7 +49,8 @@ export async function registerOrganizationsPublicRoutes(
   app: FastifyInstance,
   deps: OrganizationsPublicDeps,
 ): Promise<void> {
-  const { registrationService, verificationService, customerAuthService } = deps;
+  const { registrationService, verificationService, customerAuthService, passwordResetService } =
+    deps;
 
   app.post(
     '/api/v1/organizations/register',
@@ -112,6 +117,31 @@ export async function registerOrganizationsPublicRoutes(
         });
       }
       return { data: { customerAccount: serializeCustomerAccount(result.customerAccount) } };
+    },
+  );
+
+  app.post(
+    '/api/v1/auth/password-reset/request',
+    { schema: { body: passwordResetRequestSchema } },
+    async (request, reply) => {
+      const body = passwordResetRequestSchema.parse(request.body);
+      const result = await passwordResetService.requestReset(body.email.toLowerCase());
+      if (deps.latestTokenByEmail && result.rawToken) {
+        deps.latestTokenByEmail.set(`reset:${body.email.toLowerCase()}`, result.rawToken);
+        deps.latestTokenByEmail.set('__latest_reset__', result.rawToken);
+      }
+      // Always 202 — defends against account enumeration.
+      reply.status(202).send();
+    },
+  );
+
+  app.post(
+    '/api/v1/auth/password-reset/confirm',
+    { schema: { body: passwordResetConfirmSchema } },
+    async (request, reply) => {
+      const body = passwordResetConfirmSchema.parse(request.body);
+      await passwordResetService.confirmReset(body.token, body.newPassword);
+      reply.status(200).send({ data: { ok: true } });
     },
   );
 

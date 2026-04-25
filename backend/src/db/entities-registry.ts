@@ -25,6 +25,7 @@ import { Invoice } from '../modules/invoices/entities/invoice.entity.js';
 import { OrganizationInvitation } from '../modules/organizations/entities/organization-invitation.entity.js';
 import { AdminUser } from '../modules/admin_users/entities/admin-user.entity.js';
 import { AdminRole } from '../modules/admin_roles/entities/admin-role.entity.js';
+import { PasswordResetToken } from '../modules/customer_accounts/entities/password-reset-token.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -79,4 +80,6 @@ export const ALL_ENTITIES = [
   // admin (US4)
   AdminUser,
   AdminRole,
+  // password reset (polish)
+  PasswordResetToken,
 ] as const;

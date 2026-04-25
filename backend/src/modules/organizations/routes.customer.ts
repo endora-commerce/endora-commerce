@@ -1,7 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { z } from 'zod';
 import { changePasswordRequestSchema } from '@b2b/contracts';
 import type { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
 import type { AddressService } from '../addresses/services/address-service.js';
+import type { TotpEnrolmentService } from '../customer_accounts/services/totp-enrolment-service.js';
 import {
   createAddressRequestSchema,
   updateAddressRequestSchema,
@@ -10,6 +12,7 @@ import {
 export interface OrganizationsCustomerDeps {
   customerAuthService: CustomerAuthService;
   addressService: AddressService;
+  totpEnrolmentService: TotpEnrolmentService;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   resolveCustomerContext: (req: FastifyRequest) => {
     customerAccountId: string;
@@ -17,11 +20,19 @@ export interface OrganizationsCustomerDeps {
   };
 }
 
+const twoFactorCodeBodySchema = z.object({ code: z.string().min(4).max(64) });
+
 export async function registerOrganizationsCustomerRoutes(
   app: FastifyInstance,
   deps: OrganizationsCustomerDeps,
 ): Promise<void> {
-  const { customerAuthService, addressService, requireCustomer, resolveCustomerContext } = deps;
+  const {
+    customerAuthService,
+    addressService,
+    totpEnrolmentService,
+    requireCustomer,
+    resolveCustomerContext,
+  } = deps;
 
   app.post(
     '/api/v1/me/password',
@@ -94,6 +105,39 @@ export async function registerOrganizationsCustomerRoutes(
     async (request, reply) => {
       const ctx = resolveCustomerContext(request);
       await addressService.deleteAddress(ctx.organizationId, request.params.id);
+      reply.status(204).send();
+    },
+  );
+
+  // --- 2FA enrolment (T119) -------------------------------------------------
+  app.post(
+    '/api/v1/me/two-factor/enable',
+    { preHandler: requireCustomer },
+    async (request) => {
+      const ctx = resolveCustomerContext(request);
+      const result = await totpEnrolmentService.enable(ctx.customerAccountId);
+      return { data: result };
+    },
+  );
+
+  app.post(
+    '/api/v1/me/two-factor/confirm',
+    { preHandler: requireCustomer, schema: { body: twoFactorCodeBodySchema } },
+    async (request, reply) => {
+      const ctx = resolveCustomerContext(request);
+      const body = twoFactorCodeBodySchema.parse(request.body);
+      await totpEnrolmentService.confirm(ctx.customerAccountId, body.code);
+      reply.status(204).send();
+    },
+  );
+
+  app.post(
+    '/api/v1/me/two-factor/disable',
+    { preHandler: requireCustomer, schema: { body: twoFactorCodeBodySchema } },
+    async (request, reply) => {
+      const ctx = resolveCustomerContext(request);
+      const body = twoFactorCodeBodySchema.parse(request.body);
+      await totpEnrolmentService.disable(ctx.customerAccountId, body.code);
       reply.status(204).send();
     },
   );
