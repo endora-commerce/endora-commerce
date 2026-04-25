@@ -1,14 +1,27 @@
-// Admin panel entry. Replaced by the real router + module pages in Phases 3–9 of tasks.md.
+import type { ReactNode } from 'react';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { AppShell } from './components/AppShell.js';
+import { ApiKeysPage } from './modules/api_keys/ApiKeysPage.js';
+import { WebhooksPage } from './modules/webhooks/WebhooksPage.js';
+import { IntegrationsPage } from './modules/integrations/IntegrationsPage.js';
 
-export function App() {
+export function App(): ReactNode {
   return (
-    <main>
-      <h1>B2B Platform — Admin</h1>
-      <p>
-        The admin panel is scaffolded but not yet wired to the API. Per-module pages (catalog,
-        orders, organizations, …) are introduced by their corresponding tasks in
-        specs/001-b2b-platform-foundation/tasks.md.
-      </p>
-    </main>
+    <Routes>
+      <Route element={<AppShell />}>
+        <Route index element={<Navigate to="/api-keys" replace />} />
+        <Route path="/api-keys" element={<ApiKeysPage />} />
+        <Route path="/webhooks" element={<WebhooksPage />} />
+        <Route path="/integrations" element={<IntegrationsPage />} />
+        <Route
+          path="*"
+          element={
+            <div className="alert alert--warning">
+              Page not found. Pick a module from the sidebar.
+            </div>
+          }
+        />
+      </Route>
+    </Routes>
   );
 }

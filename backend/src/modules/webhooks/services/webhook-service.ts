@@ -74,6 +74,40 @@ export class WebhookService {
     await em.removeAndFlush(webhook);
   }
 
+  /**
+   * Re-queue a failed or dead-lettered delivery: copy the source delivery into
+   * a fresh `pending` row referencing the same event/payload. The actual
+   * outbound POST is performed by the BullMQ worker once the job is enqueued
+   * by the production composition root; the new row is the audit trail.
+   *
+   * Only `failed` and `dead_lettered` rows can be replayed — calling this on
+   * an already-pending or successful row is a no-op signalled via 409.
+   */
+  async replay(deliveryId: string): Promise<WebhookDelivery> {
+    const em = this.emFactory();
+    const source = await em.findOne(WebhookDelivery, { id: deliveryId });
+    if (!source) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Webhook delivery not found.');
+    }
+    if (source.status !== 'failed' && source.status !== 'dead_lettered') {
+      throw new HttpError(
+        409,
+        ERROR_CODES.WEBHOOK_DELIVERY_NOT_REPLAYABLE,
+        `Only failed or dead-lettered deliveries can be replayed (status=${source.status}).`,
+      );
+    }
+    const copy = em.create(WebhookDelivery, {
+      webhookId: source.webhookId,
+      eventId: source.eventId,
+      eventType: source.eventType,
+      payload: source.payload,
+      status: 'pending',
+      attemptCount: 0,
+    });
+    await em.persistAndFlush(copy);
+    return copy;
+  }
+
   async listDeliveries(filter: {
     webhookId?: string;
     status?: 'pending' | 'in_flight' | 'succeeded' | 'failed' | 'dead_lettered';

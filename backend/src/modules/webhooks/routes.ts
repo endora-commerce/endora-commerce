@@ -83,6 +83,16 @@ export async function registerWebhooksAdminRoutes(
       return { data: rows.map(serializeDelivery) };
     },
   );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/webhooks/deliveries/:id/replay',
+    { preHandler: requireAdmin('integrations:manage') },
+    async (request, reply) => {
+      const copy = await webhookService.replay(request.params.id);
+      reply.status(202);
+      return { data: serializeDelivery(copy) };
+    },
+  );
 }
 
 function serializeWebhook(w: Webhook): Record<string, unknown> {
