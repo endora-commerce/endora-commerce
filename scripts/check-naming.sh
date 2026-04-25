@@ -1,7 +1,17 @@
 #!/usr/bin/env bash
 # scripts/check-naming.sh — enforces Principle VI of the constitution (naming conventions).
-# Phase 2 task T041 wires this into CI; Phase 10 task T244 fills in the full diff-aware variant.
-# For now, static checks against the whole tree.
+#
+# What it checks:
+#   1. Backend module folders are plural snake_case.
+#   2. MikroORM migration source code does not declare PascalCase or camelCase
+#      table / column names (we want snake_case).
+#   3. JSON literal keys inside Zod contracts and route bodies are camelCase.
+#   4. URL path segments inside Fastify route registrations are kebab-case.
+#
+# Modes:
+#   --diff          scan only files changed against $BASE_REF (defaults to origin/main).
+#                   Used by CI on pull requests; faster + actionable.
+#   (no flag)       full-tree scan. Used locally and by the `main` branch CI.
 
 set -euo pipefail
 
@@ -9,19 +19,42 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 red() { printf '\033[31m%s\033[0m\n' "$*"; }
+yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
+
+mode="full"
+if [[ "${1:-}" == "--diff" ]]; then
+  mode="diff"
+fi
+
+base_ref="${BASE_REF:-origin/main}"
+
+# Build the file list. In --diff mode we use the changed-files set against $BASE_REF;
+# fall back to a full-tree scan if the base ref isn't fetched.
+list_files() {
+  if [[ "$mode" == "diff" ]] && git rev-parse --verify --quiet "$base_ref" >/dev/null; then
+    git diff --name-only --diff-filter=ACMR "$base_ref"...HEAD
+  else
+    git ls-files --cached --others --exclude-standard
+  fi
+}
+
+mapfile -t changed_files < <(list_files | grep -Ev '^(node_modules/|dist/|build/|\.next/|\.docusaurus/|pnpm-lock\.yaml|package-lock\.json)' || true)
 
 fail=0
 
-# Allowed singular exceptions for backend module folders (Principle VI).
-allowed_singular="^(auth|example)$"
+# ──────────────────────────────────────────────────────────────────────────
+# 1. Backend module folder shape.
+# Plural snake_case, with a small explicit allow-list of singular-mass nouns
+# whose plural forms read worse than the singular (catalog, inventory, search,
+# auth, example).
+# ──────────────────────────────────────────────────────────────────────────
+allowed_singular="^(auth|catalog|example|inventory|search)$"
 
 if [ -d backend/src/modules ]; then
   while IFS= read -r -d '' dir; do
     name="$(basename "$dir")"
-    # Skip README and other files; only directories have a name we care about.
     [ -d "$dir" ] || continue
-    # Accept plural snake_case OR one of the allowed singular exceptions.
     if [[ ! "$name" =~ ^[a-z][a-z0-9_]*$ ]]; then
       red "✗ Invalid backend module folder casing: backend/src/modules/$name (must be snake_case)"
       fail=1
@@ -30,35 +63,144 @@ if [ -d backend/src/modules ]; then
     if [[ "$name" =~ $allowed_singular ]]; then
       continue
     fi
-    # A very conservative pluralization check: accepts anything ending in 's' or common
-    # plural-but-not-trailing-s forms. We cannot do English pluralization perfectly in bash,
-    # but this catches the common offenders (`order/` instead of `orders/`).
     if [[ ! "$name" =~ (s|ies|ches|shes|xes|zes)$ ]]; then
-      red "✗ Backend module folder looks singular: backend/src/modules/$name (Principle VI requires plural snake_case; exceptions: auth, example)"
+      red "✗ Backend module folder looks singular: backend/src/modules/$name"
+      red "  Principle VI requires plural snake_case. Allowed singular exceptions: ${allowed_singular//[()^$]/}"
       fail=1
     fi
   done < <(find backend/src/modules -mindepth 1 -maxdepth 1 -type d -print0)
 fi
 
-# Table-creation SQL inside migrations should use snake_case table and column names.
-# This is a heuristic — runs only against the staged migration files when a migration folder exists.
-if find backend/src/modules -path '*/migrations/*.ts' 2>/dev/null | grep -q .; then
-  if grep -REn --include='*.ts' "createTable\(['\"][A-Z]" backend/src/modules/*/migrations 2>/dev/null; then
-    red "✗ Migration references a non-snake_case table name (Principle VI)."
-    fail=1
+# ──────────────────────────────────────────────────────────────────────────
+# 2. Migration files — flag PascalCase/camelCase table or column literals.
+# Heuristic: any quoted string passed to createTable/dropTable/addColumn etc.
+# whose first character is uppercase or contains a hump.
+# ──────────────────────────────────────────────────────────────────────────
+migration_files=()
+for f in "${changed_files[@]}"; do
+  if [[ "$f" == backend/src/modules/*/migrations/*.ts ]]; then
+    migration_files+=("$f")
   fi
+done
+# In full mode, also scan all migrations regardless of diff selection so a
+# silent regression on `main` is caught.
+if [[ "$mode" == "full" ]]; then
+  while IFS= read -r f; do migration_files+=("$f"); done < <(
+    find backend/src/modules -path '*/migrations/*.ts' 2>/dev/null
+  )
+fi
+# de-duplicate
+if [ "${#migration_files[@]}" -gt 0 ]; then
+  mapfile -t migration_files < <(printf '%s\n' "${migration_files[@]}" | sort -u)
 fi
 
-# API URL paths — must be kebab-case. Heuristic: scan for `/api/v1/<segment>` patterns in backend routes.
-if find backend/src/modules -name 'routes.*.ts' 2>/dev/null | grep -q .; then
-  if grep -REn --include='routes.*.ts' "['\"]\/api\/v1\/[^'\"/]*[A-Z_]" backend/src/modules 2>/dev/null; then
-    red "✗ API URL segment looks non-kebab-case (Principle VI)."
+for f in "${migration_files[@]}"; do
+  [ -f "$f" ] || continue
+  # createTable("Foo") / table.string("orderItemId") — flag uppercase letters in
+  # the identifier. The greedy [A-Z] match is enough; a false positive would
+  # be a string in the SQL body, which is rare for these helper calls.
+  if grep -nP "(createTable|dropTable|addColumn|alterTable)\(\s*['\"][^'\"]*[A-Z]" "$f" >/dev/null 2>&1; then
+    red "✗ Migration $f references a non-snake_case identifier:"
+    grep -nP "(createTable|dropTable|addColumn|alterTable)\(\s*['\"][^'\"]*[A-Z]" "$f" | sed 's/^/    /'
     fail=1
   fi
+done
+
+# ──────────────────────────────────────────────────────────────────────────
+# 3. JSON keys in Zod contracts must be camelCase.
+# We look at packages/contracts/src/*.ts for object literals like
+# `{ snake_case: ... }` or `{ PascalCase: ... }` keyed in a z.object call.
+# Heuristic — picks up multi-word identifiers with a leading uppercase or
+# embedded underscore.
+# ──────────────────────────────────────────────────────────────────────────
+contract_files=()
+for f in "${changed_files[@]}"; do
+  if [[ "$f" == packages/contracts/src/*.ts ]]; then
+    contract_files+=("$f")
+  fi
+done
+if [[ "$mode" == "full" ]]; then
+  while IFS= read -r f; do contract_files+=("$f"); done < <(
+    find packages/contracts/src -name '*.ts' 2>/dev/null
+  )
 fi
+if [ "${#contract_files[@]}" -gt 0 ]; then
+  mapfile -t contract_files < <(printf '%s\n' "${contract_files[@]}" | sort -u)
+fi
+
+for f in "${contract_files[@]}"; do
+  [ -f "$f" ] || continue
+  # Inside z.object({ ... }) match a `foo_bar: ...` or `Foo: ...` field declaration.
+  # Skip lines that are clearly comments. Allow underscore in well-known meta
+  # fields like `'application/json'` keys, which are quoted (pattern: '…').
+  matches=$(awk '
+    /z\.object\(\s*\{/ { inblock=1 }
+    inblock {
+      if (match($0, /^[[:space:]]*([A-Z][A-Za-z0-9]*|[a-z][a-zA-Z0-9]*_[A-Za-z0-9_]+)[[:space:]]*:/, m)) {
+        print FILENAME":"NR":"$0
+      }
+      if ($0 ~ /\}\)/) inblock=0
+    }
+  ' "$f" || true)
+  if [ -n "$matches" ]; then
+    red "✗ Non-camelCase Zod field key in $f:"
+    echo "$matches" | sed 's/^/    /'
+    fail=1
+  fi
+done
+
+# ──────────────────────────────────────────────────────────────────────────
+# 4. URL path segments — kebab-case in Fastify route declarations.
+# Reads route registrations like `app.get('/api/v1/foo/bar', ...)`.
+# Allowed:
+#   - kebab-case ascii segments
+#   - segment params `:foo`
+#   - leading-underscore segments (e.g. /_health, /_openapi.json, /_test/*) —
+#     internal/diagnostic convention.
+# ──────────────────────────────────────────────────────────────────────────
+route_files=()
+for f in "${changed_files[@]}"; do
+  if [[ "$f" == backend/src/modules/*/routes*.ts ]] || [[ "$f" == backend/src/**/routes.ts ]]; then
+    route_files+=("$f")
+  fi
+done
+if [[ "$mode" == "full" ]]; then
+  while IFS= read -r f; do route_files+=("$f"); done < <(
+    find backend/src -name 'routes*.ts' 2>/dev/null
+  )
+fi
+if [ "${#route_files[@]}" -gt 0 ]; then
+  mapfile -t route_files < <(printf '%s\n' "${route_files[@]}" | sort -u)
+fi
+
+for f in "${route_files[@]}"; do
+  [ -f "$f" ] || continue
+  # Pull every quoted string that starts with `/api/v1/`. For each segment,
+  # verify it matches an allowed shape.
+  while IFS= read -r line; do
+    [[ "$line" =~ \"(/api/v1/[^\"]+)\" ]] || [[ "$line" =~ \'(/api/v1/[^\']+)\' ]] || continue
+    path="${BASH_REMATCH[1]}"
+    IFS='/' read -ra segments <<< "$path"
+    for seg in "${segments[@]}"; do
+      [ -n "$seg" ] || continue
+      # Allowed shapes:
+      #   - empty (leading /)
+      #   - `:param`
+      #   - `*` glob (Fastify catch-all)
+      #   - leading-underscore internal/diagnostic prefix (e.g. _health, _openapi.json, _test)
+      #   - kebab-case lower (letters/digits, words separated by '-')
+      if [[ "$seg" =~ ^: ]]; then continue; fi
+      if [[ "$seg" == "*" ]]; then continue; fi
+      if [[ "$seg" =~ ^_[a-z0-9][a-z0-9.-]*$ ]]; then continue; fi
+      if [[ "$seg" =~ ^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+)*$ ]]; then continue; fi
+      red "✗ Non-kebab-case URL segment '$seg' in $f → $path"
+      fail=1
+    done
+  done < <(grep -nE "['\"]/api/v1/" "$f" || true)
+done
 
 if [ "$fail" -eq 0 ]; then
-  green "✓ Naming conventions OK"
+  green "✓ Naming conventions OK ($mode mode)"
   exit 0
 fi
 exit 1

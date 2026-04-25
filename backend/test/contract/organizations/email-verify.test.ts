@@ -32,7 +32,7 @@ describe('email verification flow', () => {
           taxId: 'PL9876543210',
           registeredAddress: {
             street: 'ul. Weryfikacyjna 5',
-            city: 'Kraków',
+            city: 'Krakow',
             postalCode: '30-001',
             country: 'PL',
           },

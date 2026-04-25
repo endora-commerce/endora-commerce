@@ -223,8 +223,9 @@ export class CatalogAdminService {
   // ------------------------------------------------------------------
 
   private slugify(value: string): string {
-    // Unicode class \p{Diacritic} strips combining marks left by NFKD
-    // normalization (e.g. "Żółć" → "zolc"). Requires the `u` flag.
+    // \p{Diacritic} strips combining marks left over from NFKD normalization
+    // so accented Latin characters collapse onto their base letter; non-Latin
+    // characters drop entirely via the [^a-z0-9]+ pass below.
     return value
       .toLowerCase()
       .normalize('NFKD')

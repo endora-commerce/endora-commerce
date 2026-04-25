@@ -85,11 +85,17 @@ jobs:
   constitution-check:
     name: Constitution Check (naming, working language)
     runs-on: ubuntu-latest
+    env:
+      # Diff-aware gates: PRs only flag the lines this PR introduces.
+      # Push-to-main runs in full-tree mode (BASE_REF unresolved → fallback).
+      BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.event.pull_request.base.ref) || '' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Check naming conventions (Principle VI)
-        run: bash scripts/check-naming.sh
+        run: |
+          if [ -n "$BASE_REF" ]; then bash scripts/check-naming.sh --diff; else bash scripts/check-naming.sh; fi
       - name: Check working language — English only (Principle VIII)
-        run: bash scripts/check-language.sh
+        run: |
+          if [ -n "$BASE_REF" ]; then bash scripts/check-language.sh --diff; else bash scripts/check-language.sh; fi
