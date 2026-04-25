@@ -19,6 +19,30 @@ import { OrderItem } from '../entities/order-item.entity.js';
 import { Payment } from '../../payments/entities/payment.entity.js';
 import { Invoice } from '../../invoices/entities/invoice.entity.js';
 
+/**
+ * Narrow port consumed by the order-placement transaction. The credit_limits
+ * module wires its CreditLimitService here; a no-op fallback short-circuits
+ * the flow when the payment method is not credit_limit.
+ */
+export interface CreditLimitPort {
+  reserve(input: {
+    organizationId: string;
+    orderId: string;
+    amount: number;
+    currency: string;
+    tx: EntityManager;
+  }): Promise<
+    | { ok: true; reservationId: string; availableAmountAfter: number }
+    | { ok: false; code: 'LIMIT_INSUFFICIENT'; availableAmount: number }
+    | { ok: false; code: 'CREDIT_LIMIT_NOT_GRANTED' }
+    | { ok: false; code: 'CURRENCY_MISMATCH' }
+  >;
+  releaseByOrder(input: {
+    orderId: string;
+    reason: 'invoice_paid' | 'order_cancelled' | 'admin_revocation';
+  }): Promise<unknown>;
+}
+
 export interface OrderEvents extends Record<string, EventBase> {
   'order.created.v1': EventBase & { orderId: string; organizationId: string };
   'order.status_changed.v1': EventBase & {
@@ -61,6 +85,7 @@ export class OrderService {
     private readonly emFactory: () => EntityManager,
     private readonly events: OrderEventBus,
     private readonly auditLog?: AuditLogService,
+    private readonly creditLimit?: CreditLimitPort,
   ) {}
 
   async placeOrder(
@@ -217,6 +242,55 @@ export class OrderService {
       });
       await tx.persistAndFlush(payment);
 
+      // Reserve credit limit when this order pays via the credit_limit driver.
+      // Reservation runs INSIDE the order-placement transaction so a failure
+      // (LIMIT_INSUFFICIENT, CURRENCY_MISMATCH, …) rolls back the Order row
+      // and no dangling state remains (SC-011).
+      if (paymentMethod.kind === 'credit_limit') {
+        if (!this.creditLimit) {
+          throw new HttpError(
+            500,
+            ERROR_CODES.INTERNAL,
+            'Credit-limit driver is not wired into the order service.',
+          );
+        }
+        const result = await this.creditLimit.reserve({
+          organizationId: ctx.organizationId,
+          orderId: order.id,
+          amount: total,
+          currency,
+          tx,
+        });
+        if (!result.ok) {
+          if (result.code === 'LIMIT_INSUFFICIENT') {
+            throw new HttpError(
+              409,
+              ERROR_CODES.LIMIT_INSUFFICIENT,
+              `Available credit limit (${result.availableAmount}) is below order total (${total}).`,
+            );
+          }
+          if (result.code === 'CREDIT_LIMIT_NOT_GRANTED') {
+            throw new HttpError(
+              409,
+              ERROR_CODES.CREDIT_LIMIT_NOT_GRANTED,
+              'Organization has no credit limit; pick a different payment method.',
+            );
+          }
+          if (result.code === 'CURRENCY_MISMATCH') {
+            throw new HttpError(
+              422,
+              ERROR_CODES.CURRENCY_MISMATCH,
+              'Order currency does not match the credit limit currency.',
+            );
+          }
+        }
+        // Credit-limit-paid orders: the payment status is `deferred` until the
+        // invoice is paid out-of-band; admin marks it paid via
+        // POST /admin/orders/:id/payment-status which releases the reservation.
+        order.paymentStatus = 'deferred';
+        payment.status = 'deferred';
+      }
+
       // Kick off invoice row — status stays `pending` for the unit test that
       // hits the "not ready" contract; fixtures transition it to `ready` for
       // the download test.
@@ -326,6 +400,32 @@ export class OrderService {
       from,
       to,
     });
+    // Cancellation releases the credit-limit reservation (T211).
+    if (to === 'cancelled' && this.creditLimit) {
+      await this.creditLimit.releaseByOrder({
+        orderId: order.id,
+        reason: 'order_cancelled',
+      });
+    }
+    return order;
+  }
+
+  /** Admin payment-status transition (T210 + T149). */
+  async transitionPaymentStatus(
+    orderId: string,
+    to: 'paid' | 'refunded',
+  ): Promise<Order> {
+    const em = this.emFactory();
+    const order = await em.findOne(Order, { id: orderId });
+    if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
+    order.paymentStatus = to;
+    await em.flush();
+    if (to === 'paid' && this.creditLimit) {
+      await this.creditLimit.releaseByOrder({
+        orderId: order.id,
+        reason: 'invoice_paid',
+      });
+    }
     return order;
   }
 

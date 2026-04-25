@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
+  adminOrderPaymentStatusTransitionSchema,
   adminOrderStatusTransitionSchema,
   ERROR_CODES,
   placeOrderRequestSchema,
@@ -129,6 +130,19 @@ export async function registerOrderRoutes(
     async (request) => {
       const body = adminOrderStatusTransitionSchema.parse(request.body);
       const order = await orderService.transitionStatus(request.params.id, body.to);
+      return { data: await serializeOrder(emFactory(), order) };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/orders/:id/payment-status',
+    {
+      preHandler: requireAdmin('orders:write'),
+      schema: { body: adminOrderPaymentStatusTransitionSchema },
+    },
+    async (request) => {
+      const body = adminOrderPaymentStatusTransitionSchema.parse(request.body);
+      const order = await orderService.transitionPaymentStatus(request.params.id, body.to);
       return { data: await serializeOrder(emFactory(), order) };
     },
   );

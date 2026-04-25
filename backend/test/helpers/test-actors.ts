@@ -64,6 +64,15 @@ const CUSTOMER_COOKIES: Record<string, { customerAccountId: string; organization
     customerAccountId: '00000000-0000-4000-8000-000000000a31',
     organizationId: TEST_ORGANIZATION_ID,
   },
+  // Credit-limit race customers (T207 fixture).
+  'stub-customer-session-cl-a': {
+    customerAccountId: '00000000-0000-4000-8000-0000000000a5',
+    organizationId: TEST_ORGANIZATION_ID,
+  },
+  'stub-customer-session-cl-b': {
+    customerAccountId: '00000000-0000-4000-8000-0000000000a6',
+    organizationId: TEST_ORGANIZATION_ID,
+  },
   // Stock-race customers (T100 fixture).
   'stub-customer-session-race-a': {
     customerAccountId: '00000000-0000-4000-8000-000000000aa1',

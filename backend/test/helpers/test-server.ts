@@ -13,6 +13,7 @@ import { organizationsModule } from '../../src/modules/organizations/plugin.js';
 import { commerceModule } from '../../src/modules/orders/plugin.js';
 import { adminModule } from '../../src/modules/admin_users/plugin.js';
 import { inventoryModule } from '../../src/modules/inventory/plugin.js';
+import { creditLimitsModule } from '../../src/modules/credit_limits/plugin.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
 import { seedUs1Catalog } from './seed-catalog.js';
 import { seedTestOrganizations } from './seed-organizations.js';
@@ -72,6 +73,8 @@ const SEEDED_TABLES = [
   'customer_accounts',
   'admin_users',
   'admin_roles',
+  'credit_limit_reservations',
+  'credit_limits',
   'organizations',
   'sales_channel_products',
   'product_assets',
@@ -128,13 +131,25 @@ export async function setupBackendServer(
     requireAdmin: requireTestAdmin(permissionService),
   });
 
+  // Credit-limits module — its CreditLimitService is the driver passed into
+  // commerceModule below so OrderService.placeOrder can reserve atomically.
+  const creditLimits = creditLimitsModule({
+    emFactory: em,
+    eventBus,
+    requireCustomer: requireTestCustomer(),
+    requireAdmin: requireTestAdmin(permissionService),
+    resolveCustomerContext: customerResolver,
+  });
+
   const modules: ModulePlugin[] = [
     async (app) => registerTestAuth(app, { sessionService, emFactory: em }),
     admin.plugin,
+    creditLimits.plugin,
     commerceModule({
       emFactory: em,
       eventBus,
       auditLogService,
+      creditLimit: creditLimits.handle.creditLimitService,
       requireCustomer: requireTestCustomer(),
       requireAdmin: requireTestAdmin(permissionService),
       resolveCustomerContext: customerResolver,

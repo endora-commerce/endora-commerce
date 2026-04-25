@@ -3,7 +3,11 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import { CartService } from '../carts/services/cart-service.js';
-import { OrderService, type OrderEventBus } from './services/order-service.js';
+import {
+  OrderService,
+  type CreditLimitPort,
+  type OrderEventBus,
+} from './services/order-service.js';
 import { registerCartRoutes } from '../carts/routes.js';
 import { registerOrderRoutes } from './routes.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
@@ -26,6 +30,8 @@ export interface OrdersModuleOptions {
   };
   /** Audit-log writer; OrderService stamps order.place_on_behalf rows on impersonated checkouts. */
   auditLogService?: AuditLogService;
+  /** Optional CreditLimit driver — wired by the credit_limits module composition root. */
+  creditLimit?: CreditLimitPort;
   /**
    * Resolver for cart actor (customer OR anonymous). The test helper maps
    * stub cookies + real sessions here; production wires it to the real auth
@@ -46,6 +52,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       options.emFactory,
       options.eventBus as OrderEventBus,
       options.auditLogService,
+      options.creditLimit,
     );
     if (options.exposeCartService) options.exposeCartService(cartService);
 
