@@ -18,6 +18,17 @@ import { ProductsList } from './modules/catalog/ProductsList.js';
 import { ProductEditor } from './modules/catalog/ProductEditor.js';
 import { CategoriesTree } from './modules/catalog/CategoriesTree.js';
 import { AttributesManager } from './modules/catalog/AttributesManager.js';
+import { OrganizationsList } from './modules/organizations/OrganizationsList.js';
+import { OrganizationDetail } from './modules/organizations/OrganizationDetail.js';
+import { OrdersList } from './modules/orders/OrdersList.js';
+import { OrderDetail } from './modules/orders/OrderDetail.js';
+import { InvoicesList } from './modules/invoices/InvoicesList.js';
+import { TaxesPage } from './modules/taxes/TaxesPage.js';
+import { PromotionsPage } from './modules/promotions/PromotionsPage.js';
+import { PriceListsPage } from './modules/price_lists/PriceListsPage.js';
+import { DeliveryMethodsPage } from './modules/delivery_methods/DeliveryMethodsPage.js';
+import { PaymentMethodsPage } from './modules/payment_methods/PaymentMethodsPage.js';
+import { InventoryPage } from './modules/inventory/InventoryPage.js';
 
 export function App(): ReactNode {
   return (
@@ -28,6 +39,17 @@ export function App(): ReactNode {
         <Route path="/catalog/products/:id" element={<ProductEditor />} />
         <Route path="/catalog/categories" element={<CategoriesTree />} />
         <Route path="/catalog/attributes" element={<AttributesManager />} />
+        <Route path="/organizations" element={<OrganizationsList />} />
+        <Route path="/organizations/:id" element={<OrganizationDetail />} />
+        <Route path="/orders" element={<OrdersList />} />
+        <Route path="/orders/:id" element={<OrderDetail />} />
+        <Route path="/invoices" element={<InvoicesList />} />
+        <Route path="/taxes" element={<TaxesPage />} />
+        <Route path="/promotions" element={<PromotionsPage />} />
+        <Route path="/price-lists" element={<PriceListsPage />} />
+        <Route path="/delivery-methods" element={<DeliveryMethodsPage />} />
+        <Route path="/payment-methods" element={<PaymentMethodsPage />} />
+        <Route path="/inventory" element={<InventoryPage />} />
         <Route path="/quote-requests" element={<RfqList />} />
         <Route path="/quote-requests/:id" element={<RfqDetail />} />
         <Route path="/admin-users" element={<AdminUsersPage />} />

@@ -325,6 +325,7 @@ export async function setupBackendServer(
       emFactory: em,
       requireCustomer: requireTestCustomer(),
       resolveCustomerContext: customerResolver,
+      requireAdmin: requireTestAdmin(permissionService),
     }),
   ];
   if (options.extraModules) modules.push(...options.extraModules);

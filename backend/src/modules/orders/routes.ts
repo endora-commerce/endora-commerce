@@ -121,6 +121,19 @@ export async function registerOrderRoutes(
     },
   );
 
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/orders/:id',
+    { preHandler: requireAdmin('orders:read') },
+    async (request) => {
+      const em = emFactory();
+      const order = await em.findOne(Order, { id: request.params.id });
+      if (!order) {
+        throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
+      }
+      return { data: await serializeOrder(em, order) };
+    },
+  );
+
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/orders/:id/status',
     {

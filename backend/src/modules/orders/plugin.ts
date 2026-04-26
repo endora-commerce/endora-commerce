@@ -10,8 +10,15 @@ import {
 } from './services/order-service.js';
 import { registerCartRoutes } from '../carts/routes.js';
 import { registerOrderRoutes } from './routes.js';
-import { registerDeliveryMethodsPublicRoutes } from '../delivery_methods/routes.js';
-import { registerPaymentMethodsPublicRoutes } from '../payment_methods/routes.js';
+import {
+  registerDeliveryMethodsPublicRoutes,
+  registerDeliveryMethodsAdminRoutes,
+} from '../delivery_methods/routes.js';
+import {
+  registerPaymentMethodsPublicRoutes,
+  registerPaymentMethodsAdminRoutes,
+} from '../payment_methods/routes.js';
+import { registerInvoicesAdminRoutes } from '../invoices/routes.admin.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
 /**
@@ -72,5 +79,17 @@ export function commerceModule(options: OrdersModuleOptions) {
     });
     await registerDeliveryMethodsPublicRoutes(app, { emFactory: options.emFactory });
     await registerPaymentMethodsPublicRoutes(app, { emFactory: options.emFactory });
+    await registerDeliveryMethodsAdminRoutes(app, {
+      emFactory: options.emFactory,
+      requireAdmin: options.requireAdmin,
+    });
+    await registerPaymentMethodsAdminRoutes(app, {
+      emFactory: options.emFactory,
+      requireAdmin: options.requireAdmin,
+    });
+    await registerInvoicesAdminRoutes(app, {
+      emFactory: options.emFactory,
+      requireAdmin: options.requireAdmin,
+    });
   };
 }
