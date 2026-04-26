@@ -16,6 +16,7 @@ import { Migration011SeoInit } from '../modules/seo/migrations/011_seo_init.js';
 import { Migration012LanguagesCurrenciesInit } from '../modules/languages/migrations/012_languages_currencies_init.js';
 import { Migration013CmsPagesInit } from '../modules/cms_pages/migrations/013_cms_pages_init.js';
 import { Migration014PricingInit } from '../modules/price_lists/migrations/014_pricing_init.js';
+import { Migration015TaxesPromotionsInit } from '../modules/taxes/migrations/015_taxes_promotions_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -61,6 +62,7 @@ export default defineConfig({
       { name: 'Migration012LanguagesCurrenciesInit', class: Migration012LanguagesCurrenciesInit },
       { name: 'Migration013CmsPagesInit', class: Migration013CmsPagesInit },
       { name: 'Migration014PricingInit', class: Migration014PricingInit },
+      { name: 'Migration015TaxesPromotionsInit', class: Migration015TaxesPromotionsInit },
     ],
     transactional: true,
     disableForeignKeys: false,

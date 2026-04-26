@@ -49,7 +49,9 @@ how to consume it.
 | [payment_methods](./payment_methods) | Configured payment methods | yes |
 | [payments](./payments) | Payment driver dispatch + settlement events | yes |
 | [price_lists](./price_lists) | Customer / group / default pricing with volume tiers + per-category adjustments | yes |
+| [promotions](./promotions) | Cart-level percentage / amount / free-delivery discounts with eligibility filters | yes |
 | [quote_requests](./quote_requests) | RFQ lifecycle (draft → quote → accept/reject) | yes |
 | [search](./search) | Meilisearch indexer + query bridge (in development) | no |
 | [seo](./seo) | Meta-tag resolver + cached XML sitemap | yes |
+| [taxes](./taxes) | Tax-rate resolver narrowed by country / product type / VAT status | yes |
 | [webhooks](./webhooks) | Outbound HMAC-signed event subscriptions | yes |

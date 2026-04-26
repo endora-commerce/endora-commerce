@@ -21,6 +21,8 @@ import { seoModule } from '../../src/modules/seo/plugin.js';
 import { i18nModule } from '../../src/modules/languages/plugin.js';
 import { cmsPagesModule } from '../../src/modules/cms_pages/plugin.js';
 import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
+import { taxesModule } from '../../src/modules/taxes/plugin.js';
+import { promotionsModule } from '../../src/modules/promotions/plugin.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
 import { seedUs1Catalog } from './seed-catalog.js';
 import { seedTestOrganizations } from './seed-organizations.js';
@@ -68,6 +70,8 @@ const SEEDED_TABLES = [
   'price_list_items',
   'price_lists',
   'customer_groups',
+  'taxes',
+  'promotions',
   'cms_pages',
   'analytics_events',
   'sitemap_cache',
@@ -225,6 +229,16 @@ export async function setupBackendServer(
     requireAdmin: requireTestAdmin(permissionService),
   });
 
+  // Taxes (T128 / FR-051) + Promotions (T129 / FR-052).
+  const taxes = taxesModule({
+    emFactory: em,
+    requireAdmin: requireTestAdmin(permissionService),
+  });
+  const promotions = promotionsModule({
+    emFactory: em,
+    requireAdmin: requireTestAdmin(permissionService),
+  });
+
   const modules: ModulePlugin[] = [
     async (app) => registerTestAuth(app, { sessionService, emFactory: em }),
     admin.plugin,
@@ -236,6 +250,8 @@ export async function setupBackendServer(
     i18n.plugin,
     cmsPages.plugin,
     priceLists.plugin,
+    taxes.plugin,
+    promotions.plugin,
     commerceModule({
       emFactory: em,
       eventBus,
