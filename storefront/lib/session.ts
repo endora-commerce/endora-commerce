@@ -11,6 +11,7 @@ import { cookies } from 'next/headers';
  */
 
 const SESSION_COOKIE = 'b2b_session';
+const ANON_CART_COOKIE = 'b2b_cart_anon';
 
 /** Read the storefront `b2b_session` cookie, or null if anonymous. */
 export async function getSessionCookie(): Promise<string | null> {
@@ -34,4 +35,21 @@ export async function setSessionCookie(value: string, expiresAt?: Date): Promise
 export async function clearSessionCookie(): Promise<void> {
   const jar = await cookies();
   jar.delete(SESSION_COOKIE);
+}
+
+/** Read the anonymous cart cookie minted by `POST /cart/items` for guests. */
+export async function getAnonCartCookie(): Promise<string | null> {
+  const jar = await cookies();
+  return jar.get(ANON_CART_COOKIE)?.value ?? null;
+}
+
+/** Persist the anon cart cookie returned by the backend on first add. */
+export async function setAnonCartCookie(value: string): Promise<void> {
+  const jar = await cookies();
+  jar.set(ANON_CART_COOKIE, value, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env['NODE_ENV'] === 'production',
+  });
 }

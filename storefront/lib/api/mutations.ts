@@ -24,6 +24,12 @@ export interface MutateOptions {
   ctx?: RequestContext;
   /** Raw value of the `b2b_session` cookie to forward to the backend. */
   sessionCookie?: string | null;
+  /**
+   * Pre-built `Cookie` header value for endpoints that need more than the
+   * session cookie (e.g. cart endpoints which can carry `b2b_cart_anon`).
+   * Wins over `sessionCookie` when both are supplied.
+   */
+  rawCookieHeader?: string | null;
 }
 
 export interface MutateResult<T> {
@@ -39,7 +45,11 @@ export async function apiMutate<T>(opts: MutateOptions): Promise<MutateResult<T>
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   if (opts.ctx?.salesChannelCode) headers['X-Sales-Channel'] = opts.ctx.salesChannelCode;
   if (opts.ctx?.locale) headers['Accept-Language'] = opts.ctx.locale;
-  if (opts.sessionCookie) headers['Cookie'] = `b2b_session=${opts.sessionCookie}`;
+  if (opts.rawCookieHeader) {
+    headers['Cookie'] = opts.rawCookieHeader;
+  } else if (opts.sessionCookie) {
+    headers['Cookie'] = `b2b_session=${opts.sessionCookie}`;
+  }
 
   const init: RequestInit = {
     method: opts.method,

@@ -24,6 +24,7 @@ export function Header(props: {
           <Link href="/catalog">{t('nav.catalog')}</Link>
           <Link href="/search">{t('nav.search')}</Link>
           <CompareCounterLink href="/compare" />
+          <Link href="/cart">Cart</Link>
           <Link href="/account">{t('nav.account')}</Link>
         </nav>
         <form action="/search" method="GET" className="b2b-header__search" role="search">

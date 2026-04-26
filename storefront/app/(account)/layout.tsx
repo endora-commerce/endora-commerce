@@ -40,6 +40,7 @@ export default async function AccountLayout({
         <strong>{me.customerAccount.firstName} {me.customerAccount.lastName}</strong>
         <span className="muted">{me.organization.name}</span>
         <Link href="/account">Profile</Link>
+        <Link href="/account/orders">Orders</Link>
         <Link href="/account/password">Change password</Link>
         <Link href="/account/two-factor">Two-factor</Link>
         <Link href="/organization">Organization</Link>

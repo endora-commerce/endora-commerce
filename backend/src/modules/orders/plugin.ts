@@ -10,6 +10,8 @@ import {
 } from './services/order-service.js';
 import { registerCartRoutes } from '../carts/routes.js';
 import { registerOrderRoutes } from './routes.js';
+import { registerDeliveryMethodsPublicRoutes } from '../delivery_methods/routes.js';
+import { registerPaymentMethodsPublicRoutes } from '../payment_methods/routes.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
 /**
@@ -68,5 +70,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       requireAdmin: options.requireAdmin,
       resolveCustomerContext: options.resolveCustomerContext,
     });
+    await registerDeliveryMethodsPublicRoutes(app, { emFactory: options.emFactory });
+    await registerPaymentMethodsPublicRoutes(app, { emFactory: options.emFactory });
   };
 }
