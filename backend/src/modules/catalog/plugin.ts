@@ -5,6 +5,8 @@ import type { AuditLogService } from '../audit_logs/services/audit-log-service.j
 import { CatalogQueryService } from './services/catalog-query.service.js';
 import { CatalogAdminService, type CatalogEventBus } from './services/catalog-admin.service.js';
 import { SearchQueryService } from '../search/services/search-query.service.js';
+import { SearchIndexer } from '../search/services/search-indexer.js';
+import { SearchEventSubscriber } from '../search/services/search-event-subscriber.js';
 import { registerCatalogPublicRoutes } from './routes.public.js';
 import { registerCatalogAdminRoutes, type RequireAdminFactory } from './routes.admin.js';
 import { registerCatalogApiKeyRoutes } from './routes.api-key.js';
@@ -37,6 +39,14 @@ export interface CatalogModuleOptions {
    * pass-through gate.
    */
   requireApiKey?: RequireApiKeyFactory;
+  /**
+   * Subscribe the SearchEventSubscriber to product/attribute events so the
+   * Meilisearch index incrementally tracks Postgres mutations (T067).
+   * Defaults to `false` so tests that don't have Meilisearch up don't pay
+   * the per-mutation outbound HTTP cost. Production composition roots set
+   * this to `true`.
+   */
+  enableSearchEventSubscriber?: boolean;
 }
 
 export function catalogModule(options: CatalogModuleOptions) {
@@ -51,6 +61,17 @@ export function catalogModule(options: CatalogModuleOptions) {
     // an operator can flip CATALOG_SEARCH_BACKEND=meilisearch at runtime
     // without restarting (R-08 reserved-fallback still applies).
     const searchQueryService = new SearchQueryService(options.emFactory);
+
+    if (options.enableSearchEventSubscriber) {
+      const indexer = new SearchIndexer();
+      const subscriber = new SearchEventSubscriber({
+        eventBus: options.eventBus as never,
+        emFactory: options.emFactory,
+        indexer,
+      });
+      const teardown = subscriber.subscribe();
+      app.addHook('onClose', async () => teardown());
+    }
 
     await registerCatalogPublicRoutes(app, { queryService, searchQueryService });
     await registerCatalogApiKeyRoutes(app, {

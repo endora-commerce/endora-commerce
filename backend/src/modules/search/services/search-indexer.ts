@@ -139,6 +139,109 @@ export class SearchIndexer {
     };
   }
 
+  /**
+   * Incremental upsert of a single product into every channel index that
+   * publishes it. Used by the event-driven subscriber. Performs no index
+   * wipe and no setting changes — just a per-channel `addDocuments` (Meili
+   * upsert semantics) for the channels the product currently belongs to,
+   * plus a `deleteDocument` from any channel index it was removed from.
+   *
+   * Returns the channel codes that were touched so callers can log a
+   * one-line summary.
+   */
+  async upsertProduct(em: EntityManager, productId: string): Promise<string[]> {
+    const product = await em.findOne(Product, { id: productId });
+    if (!product) return [];
+
+    const channels = await em.find(SalesChannel, {});
+    const linkRows = await em
+      .getConnection()
+      .execute<Array<{ sales_channel_id: string }>>(
+        `select sales_channel_id from sales_channel_products where product_id = ?`,
+        [productId],
+      );
+    const linkedChannelIds = new Set(linkRows.map((r) => r.sales_channel_id));
+
+    const categoryRows = await em
+      .getConnection()
+      .execute<Array<{ category_id: string; slug: string }>>(
+        `select pc.category_id, c.slug
+           from product_categories pc
+           join categories c on c.id = pc.category_id
+          where pc.product_id = ?`,
+        [productId],
+      );
+    const categories = categoryRows.map((r) => ({ id: r.category_id, slug: r.slug }));
+    const document = buildDocument(product, categories, this.locale);
+
+    const isPublishable =
+      product.status === 'active' && !product.deletedAt && !product.archivedAt;
+
+    const touched: string[] = [];
+    for (const channel of channels) {
+      const indexUid = indexUidFor(channel);
+      const index = await this.ensureIndex(indexUid);
+      if (linkedChannelIds.has(channel.id) && isPublishable) {
+        const task = await index.addDocuments([document], { primaryKey: 'id' });
+        await this.client.tasks.waitForTask(task.taskUid);
+      } else {
+        // Either unlinked or no longer publishable — make sure the doc is gone.
+        const task = await index.deleteDocument(productId);
+        await this.client.tasks.waitForTask(task.taskUid);
+      }
+      touched.push(channel.code);
+    }
+    return touched;
+  }
+
+  /**
+   * Drop a product from every channel index. Called on
+   * `product.archived.v1` and on hard delete.
+   */
+  async deleteProduct(em: EntityManager, productId: string): Promise<string[]> {
+    const channels = await em.find(SalesChannel, {});
+    const touched: string[] = [];
+    for (const channel of channels) {
+      const indexUid = indexUidFor(channel);
+      const index = await this.ensureIndex(indexUid);
+      const task = await index.deleteDocument(productId);
+      await this.client.tasks.waitForTask(task.taskUid);
+      touched.push(channel.code);
+    }
+    return touched;
+  }
+
+  /**
+   * Re-apply searchable + filterable attribute settings on every channel
+   * index, derived from the live `product_attributes` rows. Called on
+   * `attribute.updated.v1` so a flipped `isFilterable` / `isSearchable`
+   * propagates without a full reindex.
+   */
+  async refreshAttributeSettings(em: EntityManager): Promise<string[]> {
+    const channels = await em.find(SalesChannel, {});
+    const attributes = await em.find(ProductAttribute, {});
+    const searchable = ['name', 'sku', 'description'];
+    const filterable: string[] = ['categoryIds', 'categorySlugs', 'visibility', 'status'];
+    for (const attr of attributes) {
+      const path = `attributes.${attr.key}`;
+      if (attr.isSearchable) searchable.push(path);
+      if (attr.isFilterable) filterable.push(path);
+    }
+    const touched: string[] = [];
+    for (const channel of channels) {
+      const indexUid = indexUidFor(channel);
+      const index = await this.ensureIndex(indexUid);
+      const searchableTask = await index.updateSearchableAttributes(searchable);
+      const filterableTask = await index.updateFilterableAttributes(filterable);
+      // Settings updates are async tasks; wait so callers reading the
+      // settings immediately after see the new values.
+      await this.client.tasks.waitForTask(searchableTask.taskUid);
+      await this.client.tasks.waitForTask(filterableTask.taskUid);
+      touched.push(channel.code);
+    }
+    return touched;
+  }
+
   async reindexAllChannels(em: EntityManager): Promise<
     Array<{ channelCode: string; indexUid: string; documentCount: number }>
   > {
