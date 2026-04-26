@@ -92,6 +92,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       totpEnrolmentService,
       requireCustomer: options.requireCustomer,
       resolveCustomerContext: options.resolveCustomerContext,
+      emFactory: options.emFactory,
     });
     await registerMembersRoutes(app, {
       invitationService,

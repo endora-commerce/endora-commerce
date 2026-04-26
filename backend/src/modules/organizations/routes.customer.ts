@@ -1,6 +1,8 @@
+import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { changePasswordRequestSchema } from '@b2b/contracts';
+import { changePasswordRequestSchema, ERROR_CODES } from '@b2b/contracts';
+import { HttpError } from '../../http/error-envelope.js';
 import type { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
 import type { AddressService } from '../addresses/services/address-service.js';
 import type { TotpEnrolmentService } from '../customer_accounts/services/totp-enrolment-service.js';
@@ -8,6 +10,8 @@ import {
   createAddressRequestSchema,
   updateAddressRequestSchema,
 } from '@b2b/contracts';
+import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
+import { Organization } from './entities/organization.entity.js';
 
 export interface OrganizationsCustomerDeps {
   customerAuthService: CustomerAuthService;
@@ -18,6 +22,8 @@ export interface OrganizationsCustomerDeps {
     customerAccountId: string;
     organizationId: string;
   };
+  /** Read-only EntityManager factory for the GET /me endpoint. */
+  emFactory: () => EntityManager;
 }
 
 const twoFactorCodeBodySchema = z.object({ code: z.string().min(4).max(64) });
@@ -33,6 +39,28 @@ export async function registerOrganizationsCustomerRoutes(
     requireCustomer,
     resolveCustomerContext,
   } = deps;
+
+  app.get(
+    '/api/v1/me',
+    { preHandler: requireCustomer },
+    async (request) => {
+      const ctx = resolveCustomerContext(request);
+      const em = deps.emFactory();
+      const [customer, organization] = await Promise.all([
+        em.findOne(CustomerAccount, { id: ctx.customerAccountId }),
+        em.findOne(Organization, { id: ctx.organizationId }),
+      ]);
+      if (!customer || !organization) {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+      }
+      return {
+        data: {
+          customerAccount: serializeCustomer(customer),
+          organization: serializeOrganization(organization),
+        },
+      };
+    },
+  );
 
   app.post(
     '/api/v1/me/password',
@@ -166,5 +194,33 @@ function serializeAddress(a: {
     country: a.country,
     phone: a.phone ?? null,
     isDefault: a.isDefault,
+  };
+}
+
+function serializeCustomer(c: CustomerAccount) {
+  return {
+    id: c.id,
+    organizationId: c.organizationId,
+    email: c.email,
+    firstName: c.firstName,
+    lastName: c.lastName,
+    role: c.role,
+    emailVerifiedAt: c.emailVerifiedAt?.toISOString() ?? null,
+    twoFactorEnabled: !!c.twoFactorConfirmedAt,
+    createdAt: c.createdAt.toISOString(),
+    updatedAt: c.updatedAt.toISOString(),
+  };
+}
+
+function serializeOrganization(o: Organization) {
+  return {
+    id: o.id,
+    name: o.name,
+    taxId: o.taxId,
+    status: o.status,
+    vatStatus: o.vatStatus,
+    registeredAddress: o.registeredAddress,
+    createdAt: o.createdAt.toISOString(),
+    updatedAt: o.updatedAt.toISOString(),
   };
 }
