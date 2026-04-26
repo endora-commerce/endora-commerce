@@ -16,6 +16,8 @@ export type ActorAnonymous = { kind: 'anonymous' };
 export type ActorCustomer = {
   kind: 'customer';
   customerAccountId: string;
+  /** Resolved fresh from the CustomerAccount when the auth plugin has an emFactory. */
+  organizationId: string;
   /** Non-null when the request is a Supplier employee acting on behalf of a Customer. */
   impersonatorAdminUserId: string | null;
   session: Session;
@@ -42,6 +44,12 @@ export interface AuthPluginOptions {
   sessionService: SessionService;
   /** Resolves an API key bearer token to an ApiKey actor. Installed by the api_keys module. */
   apiKeyResolver?: (token: string) => Promise<{ apiKeyId: string; scopes: string[] } | null>;
+  /**
+   * Resolves a customerAccountId to the customer's `organizationId`. Used to
+   * stamp `actor.organizationId` for customer + impersonation sessions so
+   * route handlers don't have to re-fetch the CustomerAccount per request.
+   */
+  customerOrgResolver?: (customerAccountId: string) => Promise<string | null>;
   /** Cookie name used to carry sessions. */
   cookieName?: string;
 }
@@ -51,9 +59,26 @@ export const SESSION_COOKIE_NAME = 'b2b_session';
 async function authPluginImpl(app: FastifyInstance, opts: AuthPluginOptions): Promise<void> {
   const cookieName = opts.cookieName ?? SESSION_COOKIE_NAME;
 
-  app.decorateRequest('actor', { kind: 'anonymous' } satisfies ActorAnonymous);
+  // Fastify 5 forbids reference-type defaults on decorateRequest (they'd be
+  // shared across requests). Use a getter / setter pair backed by a
+  // per-request symbol so each request gets its own slot; the onRequest
+  // hook below seeds the value.
+  const actorSlot = Symbol('b2b-auth.actor');
+  app.decorateRequest('actor', {
+    getter(): Actor {
+      const self = this as unknown as Record<symbol, Actor | undefined>;
+      return self[actorSlot] ?? { kind: 'anonymous' };
+    },
+    setter(value: Actor): void {
+      (this as unknown as Record<symbol, Actor>)[actorSlot] = value;
+    },
+  });
 
   app.addHook('onRequest', async (request: FastifyRequest) => {
+    // Initialise to anonymous; downstream branches may overwrite with a
+    // typed customer / admin / api_key actor.
+    request.actor = { kind: 'anonymous' };
+
     // 1. API key (Bearer) beats cookie — integrations pass Authorization: Bearer ...
     const authHeader = request.headers.authorization;
     if (authHeader?.startsWith('Bearer ') && opts.apiKeyResolver) {
@@ -80,18 +105,26 @@ async function authPluginImpl(app: FastifyInstance, opts: AuthPluginOptions): Pr
       return;
     }
     if (resolved.kind === 'impersonation' && session.customerAccountId) {
+      const orgId = opts.customerOrgResolver
+        ? (await opts.customerOrgResolver(session.customerAccountId)) ?? ''
+        : '';
       request.actor = {
         kind: 'customer',
         customerAccountId: session.customerAccountId,
+        organizationId: orgId,
         impersonatorAdminUserId: session.impersonatorAdminUserId ?? null,
         session,
       };
       return;
     }
     if (resolved.kind === 'customer' && session.customerAccountId) {
+      const orgId = opts.customerOrgResolver
+        ? (await opts.customerOrgResolver(session.customerAccountId)) ?? ''
+        : '';
       request.actor = {
         kind: 'customer',
         customerAccountId: session.customerAccountId,
+        organizationId: orgId,
         impersonatorAdminUserId: null,
         session,
       };
