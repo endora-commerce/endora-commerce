@@ -16,7 +16,7 @@ them:
   flows* it powers without reading code.
 
 The OpenAPI document at `GET /api/v1/_openapi.json` is the live contract for
-every HTTP surface listed here; see [API Contracts](../contracts/README) for
+every HTTP surface listed here; see [API Contracts](../contracts/) for
 how to consume it.
 
 ## Module map

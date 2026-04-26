@@ -38,8 +38,9 @@ Admin routes are gated by `catalog:read` (list / get) /
 
 `Product`, `ProductVariant`, `Category`, `ProductAttribute`,
 `SalesChannel`, plus the M:N bridges
-`product_categories`, `sales_channel_products`, `product_assets`. See
-[data-model.md](../../../specs/001-b2b-platform-foundation/data-model.md).
+`product_categories`, `sales_channel_products`, `product_assets`. The
+authoritative ER diagram is in `specs/001-b2b-platform-foundation/data-model.md`
+in the source repository.
 
 ## Events emitted
 

@@ -25,7 +25,7 @@ Headers: `Content-Type: application/json`,
 `X-Webhook-Event-Id`, `X-Webhook-Event-Type`,
 `X-Webhook-Signature-256`, `X-Webhook-Attempt`. Receivers MUST verify the
 signature with `timingSafeEqual` and dedupe on the event id.
-See [Integrations → Subscribing to webhooks](../integrations/README) for the
+See [Integrations → Subscribing to webhooks](../integrations/) for the
 verification example.
 
 ## Retry model

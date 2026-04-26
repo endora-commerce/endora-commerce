@@ -14,8 +14,8 @@ folders permitted by Principle VI (alongside `example`).
   with a Redis cache layer for hot reads; cookies signed via
   `@fastify/cookie`.
 - **Password hashing** — `password-hasher.ts` wraps argon2id; defaults are
-  tuned for the target hardware (see
-  [Hardware & system requirements](../../README#hardware--system-requirements)).
+  tuned for the target hardware (see the **Hardware & system requirements**
+  section of `README.md` at the repository root).
 - **TOTP** — `totp-service.ts` wraps `otpauth` + a backup-code pool.
 - **Fastify plugin** — `plugin.ts` parses the session cookie and attaches
   `request.actor = { kind, id, ... }`; exposes `requireCustomer`,

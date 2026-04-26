@@ -26,5 +26,10 @@
     "eslint": "^10.2.1",
     "prettier": "^3.8.3",
     "typescript": "^5.9.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "webpackbar": "^7.0.0"
+    }
   }
 }

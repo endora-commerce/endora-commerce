@@ -1,5 +1,6 @@
 ---
 sidebar_position: 1
+slug: /
 ---
 
 # B2B Platform — Introduction
@@ -17,7 +18,7 @@ Both audiences read the same tree. Sections marked _Developers_ vs _Usage_ let y
 
 | Artifact | Location |
 | --- | --- |
-| Governance source of truth | [`.specify/memory/constitution.md`](../../.specify/memory/constitution.md) in the repository |
+| Governance source of truth | `.specify/memory/constitution.md` in the repository |
 | Per-feature specs, plans, tasks, contracts | `specs/###-feature-name/` in the repository |
 | Dev + prod runbook + hardware requirements | `README.md` at the repository root |
 | Module documentation (you are here) | This site |
