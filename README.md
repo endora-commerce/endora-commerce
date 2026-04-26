@@ -3,12 +3,13 @@
 A Supplier-operated B2B commerce platform supporting both **Quote Request (RFQ)** and **direct-purchase** workflows on one codebase, with Customer Organizations, multi-user Roles, Credit Limit settlement, a permissioned Admin Panel, and an open API + webhook layer built for ERP / PIM / WMS / CRM integrations.
 
 - **Constitution** (governance source of truth): [`.specify/memory/constitution.md`](./.specify/memory/constitution.md)
-- **Feature 001 — Foundation spec, plan, tasks**: [`specs/001-b2b-platform-foundation/`](./specs/001-b2b-platform-foundation/)
+- **Feature 001 — Foundation spec, plan, tasks**: [`specs/001-b2b-platform-foundation/`](./specs/001-b2b-platform-foundation/) — **complete**, every checkbox in `tasks.md` is ticked across User Stories 1–7.
 - **Runtime guidance and module docs**: the docs site in [`docs/`](./docs/)
 
 ## Table of contents
 
 - [Overview](#overview)
+- [Capability status](#capability-status)
 - [Prerequisites](#prerequisites)
 - [Install](#install)
 - [Environment variables](#environment-variables)
@@ -29,6 +30,40 @@ The repository is a **pnpm monorepo** with three independently buildable applica
 - `packages/contracts/` — Zod schemas shared across applications (source of truth for API types per Principle V).
 - `packages/api-client/` — typed HTTP client used by storefront and admin.
 - `docs/` — Docusaurus documentation site for developers and Product Owners.
+
+## Capability status
+
+Foundation feature 001 is complete. Each capability below is exercised by contract / integration tests in `backend/test/` and surfaced through the storefront (Next.js) and admin panel (Vite + React).
+
+**Customer-facing (storefront)**
+
+- Catalog browsing with multi-locale name/description, category tree, faceted filters, Meilisearch-backed full-text search, and a server-rendered PDP with stock badge + structured-data JSON-LD.
+- Account flows — register, email verification, login (with optional 2FA challenge field), password reset, profile, change password, two-factor enrolment.
+- Organization settings — members list with role change / remove, pending-invitation list with revoke, addresses CRUD.
+- Cart that supports anonymous → logged-in merge, full checkout (address → delivery → payment → review → submit), order confirmation with the bank-transfer next-action panel, and an orders history view.
+- Quote Requests — "Request a quote" widget on the PDP, list grouped by status, detail page with mode-aware editing, accept / reject with reason, and deep-linking from converters.
+- Shopping lists — per-customer named bundles with item editing and one-click bulk **convert-to-cart** / **convert-to-RFQ** (archived rows are skipped + reported, never blocking).
+- Quick order — paste a `sku,quantity` CSV, server-renders a recognised + rejected partition with line numbers, then bulk-adds to cart.
+- Credit-limit-aware checkout — granted/available/reservation widget on Account, an inline panel during checkout, and automatic filtering of `credit_limit`-kind payment methods when no limit exists or the cart exceeds the available credit.
+- Impersonation banner appears on every authenticated page when a Supplier admin is acting as the buyer.
+
+**Supplier-operated (admin panel)**
+
+- Catalog admin: Products list + editor (per-locale fields, category multi-select, default price, archive), Categories tree editor with cycle guard + non-empty-delete refusal, Attributes manager with hot-toggle searchable / filterable / variant-axis checkboxes.
+- Inventory: read with hydrated SKU / name, absolute on-hand set form (reserved counters are read-only — driven by orders).
+- Customer organizations: list with status / VAT / search filters, detail with status + VAT-status patches and members table.
+- Orders: list with status filter, detail with order/payment-status transitions, addresses, methods, and a PDF link.
+- Invoices: filterable list with per-order PDF re-download buttons.
+- Quote Requests: triage list with status + assignee filters, claim, send-quote with per-item pricing + lead-time / validity terms, decline with a free-text message.
+- Pricing / Taxes / Promotions: per-rule taxes with country / product-type / VAT-status narrowing + default fallback, percentage / amount / free-delivery promotions, per-customer / per-group / volume / per-category price-list adjustments.
+- Delivery + Payment Methods CRUD with per-locale labels and kind selector for payment drivers.
+- Credit Limits: roster of every granted limit + per-organization grant / adjust editor with `allowOverAllocation` override.
+- Users & Roles: admin-user CRUD with role assignment, role editor with a permission-matrix grouped by module, plus a canonical permissions catalogue.
+- Audit Log viewer: filtered query with stateBefore / stateAfter side-by-side JSON expansion.
+- Integrations: API keys (bearer-token credentials), Webhooks (HMAC-signed outbound subscriptions), External Integrations.
+- Phase-10 surfaces: Analytics, SEO meta-tag overrides, Languages & Currencies, CMS pages, Import / Export.
+
+For an authoritative endpoint list, see the live OpenAPI document at `GET /api/v1/_openapi.json` and the per-module pages under [`docs/docs/modules/`](./docs/docs/modules/).
 
 ## Prerequisites
 

@@ -10,6 +10,9 @@ depends on and the admin-side authoring surface.
 
 ## Public surface
 
+Admin routes are gated by `catalog:read` (list / get) /
+`catalog:write` (mutations).
+
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
 | `GET /api/v1/catalog/products` | storefront / API key | List/search/filter products in the active Sales Channel |
@@ -17,8 +20,18 @@ depends on and the admin-side authoring surface.
 | `GET /api/v1/catalog/categories` | storefront | Nested category tree |
 | `GET /api/v1/catalog/filters` | storefront | Filterable attributes for the active Sales Channel |
 | `GET /api/v1/catalog/sitemap.xml` | crawlers | SEO sitemap |
-| `POST /api/v1/admin/catalog/products` | admin | Create / update product |
-| `PATCH /api/v1/admin/catalog/attributes/:key` | admin | Hot-toggle `isFilterable` / `isSearchable` |
+| `GET /api/v1/admin/catalog/products?includeArchived` | admin | Admin product list (includes drafts; archived rows opt-in) |
+| `GET /api/v1/admin/catalog/products/:id` | admin | Product detail |
+| `POST /api/v1/admin/catalog/products` | admin | Create product (sku + type immutable post-create) |
+| `PATCH /api/v1/admin/catalog/products/:id` | admin | Update; writes an audit row with stateBefore / stateAfter |
+| `DELETE /api/v1/admin/catalog/products/:id` | admin | Archive (soft) |
+| `GET /api/v1/admin/catalog/attributes` | admin | List attributes |
+| `POST /api/v1/admin/catalog/attributes` | admin | Create attribute |
+| `PATCH /api/v1/admin/catalog/attributes/:key` | admin | Hot-toggle `isFilterable` / `isSearchable` / `isVariantAxis` (re-emits `attribute.updated.v1`) |
+| `GET /api/v1/admin/catalog/categories` | admin | Flat list, the UI folds into a tree |
+| `POST /api/v1/admin/catalog/categories` | admin | Create (parent must exist) |
+| `PATCH /api/v1/admin/catalog/categories/:id` | admin | Update; reparenting walks the new parent's chain to refuse cycles (409) |
+| `DELETE /api/v1/admin/catalog/categories/:id` | admin | Soft-delete; rejects with 409 if any active child still references the row |
 | `PUT /api/v1/catalog/products/by-sku/:sku` | API key | Idempotent upsert (PIM sync) |
 
 ## Entities

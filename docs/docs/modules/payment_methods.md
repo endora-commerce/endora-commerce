@@ -10,13 +10,16 @@ checkout. Each `PaymentMethod` row references a driver kind from the
 
 ## Public surface
 
+Admin routes are gated by `catalog:read` (list) / `catalog:write` (mutations).
+The storefront filters out `credit_limit`-kind rows when no limit is granted
+or the cart total exceeds available credit (T219).
+
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
-| `GET /api/v1/payment-methods` | customer | Methods visible in active Sales Channel |
-| `GET /api/v1/admin/payment-methods` | admin | Full list |
-| `POST /api/v1/admin/payment-methods` | admin | Create |
-| `PATCH /api/v1/admin/payment-methods/:id` | admin | Update (driver kind is immutable post-create) |
-| `DELETE /api/v1/admin/payment-methods/:id` | admin | Soft-archive (rejected if referenced by open orders) |
+| `GET /api/v1/payment-methods` | anon | Active methods for the storefront checkout |
+| `GET /api/v1/admin/payment-methods` | admin | Full list (active + inactive) |
+| `PUT /api/v1/admin/payment-methods/:code` | admin | Upsert by code; the `kind` field picks the backend driver |
+| `DELETE /api/v1/admin/payment-methods/:id` | admin | Hard delete (the kind snapshot is captured on every placed Order, so removal doesn't rewrite history) |
 
 ## Entities
 

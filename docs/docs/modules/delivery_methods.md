@@ -9,13 +9,14 @@ CRUD over delivery methods (in-person pickup, parcel courier, freight,
 
 ## Public surface
 
+Admin routes are gated by `catalog:read` (list) / `catalog:write` (mutations).
+
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
-| `GET /api/v1/delivery-methods` | customer | Methods available to the active cart |
-| `GET /api/v1/admin/delivery-methods` | admin | Full list |
-| `POST /api/v1/admin/delivery-methods` | admin | Create |
-| `PATCH /api/v1/admin/delivery-methods/:id` | admin | Update |
-| `DELETE /api/v1/admin/delivery-methods/:id` | admin | Soft-archive (open-order guard) |
+| `GET /api/v1/delivery-methods` | anon | Active methods for the storefront checkout |
+| `GET /api/v1/admin/delivery-methods` | admin | Full list (active + inactive) |
+| `PUT /api/v1/admin/delivery-methods/:code` | admin | Upsert by code |
+| `DELETE /api/v1/admin/delivery-methods/:id` | admin | Hard delete (cost is captured per-Order at placement, so removing the method doesn't rewrite history) |
 
 ## Entities
 

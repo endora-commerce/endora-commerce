@@ -9,10 +9,11 @@ what, when, and (during impersonation) on whose behalf.
 
 ## Public surface
 
+Gated by the `audit_log:read` permission.
+
 | Verb + Path | Purpose |
 | --- | --- |
-| `GET /api/v1/admin/audit-logs` | List entries with filters by actor / object / action |
-| `GET /api/v1/admin/audit-logs/:id` | Detail with `stateBefore` / `stateAfter` JSON |
+| `GET /api/v1/admin/audit-log` | Query the append-only log. Filters: `filter[actor]`, `filter[customer]`, `filter[action]`, `filter[objectType]`, `filter[objectId]`. Default `limit=100`, capped at 500. Each row carries `stateBefore` / `stateAfter` JSON inline so the admin viewer can render side-by-side diffs without a second roundtrip. |
 
 ## Recording
 
@@ -26,7 +27,8 @@ two-line change at the call site.
 
 `AuditLogEntry` — `actorAdminUserId`, optional
 `impersonatedCustomerAccountId`, `action`, `objectType`, `objectId`,
-`stateBefore`, `stateAfter`, `requestId`, `recordedAt`.
+`stateBefore`, `stateAfter`, `ipAddress`, `userAgent`, `requestId`,
+`actedAt`.
 
 ## Extension points
 

@@ -9,11 +9,13 @@ checkout, and the `notify-when-available` opt-in.
 
 ## Public surface
 
+Admin routes are gated by `orders:read` (list) / `catalog:write` (set).
+
 | Verb + Path | Purpose |
 | --- | --- |
 | `POST /api/v1/catalog/products/:id/notify-when-available` | Customer subscribes to back-in-stock notification |
-| `GET /api/v1/admin/inventory/levels` | Admin stock view |
-| `POST /api/v1/admin/inventory/levels/:variantId` | Set stock level (delta or absolute) |
+| `GET /api/v1/admin/inventory?productId&limit` | Admin stock view; rows hydrated with product SKU + name; `available = onHand − reserved` is precomputed |
+| `PUT /api/v1/admin/inventory` | Set absolute on-hand for `(productId, variantId?)`. Reserved counters are intentionally not editable here — they're driven by orders. |
 
 ## Reserve / release contract
 

@@ -10,13 +10,21 @@ released on invoice paid or order cancellation.
 
 ## Public surface
 
+All admin routes are gated by the `credit_limits:manage` permission.
+
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
-| `GET /api/v1/me/credit-limit` | customer | View granted limit + currently reserved |
+| `GET /api/v1/me/credit-limit` | customer | View granted limit + currently reserved (404 `CREDIT_LIMIT_NOT_GRANTED` if none) |
+| `GET /api/v1/admin/credit-limits` | admin | Roster of every granted limit with active reservations |
+| `GET /api/v1/admin/organizations/:id/credit-limit` | admin | One organization's limit + reservations |
 | `POST /api/v1/admin/organizations/:id/credit-limit` | admin | Grant initial limit |
 | `PATCH /api/v1/admin/organizations/:id/credit-limit` | admin | Adjust amount (rejects below active reservations unless `allowOverAllocation`) |
-| `DELETE /api/v1/admin/organizations/:id/credit-limit` | admin | Revoke when no active reservations |
-| `GET /api/v1/admin/credit-limits/reservations` | admin | List active + historical reservations |
+
+Storefront UX (T219): the Account profile and Checkout page render a
+`CreditLimitWidget` (granted / available / reservation breakdown) when
+the limit exists; `credit_limit`-kind payment methods are filtered out
+of Checkout when no limit is granted or the cart total exceeds the
+available credit.
 
 ## Concurrency model
 

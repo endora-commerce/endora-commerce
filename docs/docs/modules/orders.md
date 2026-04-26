@@ -10,28 +10,34 @@ and audit logging.
 
 ## Public surface
 
+Admin routes are gated by `orders:read` (read) / `orders:write` (mutations).
+
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
 | `POST /api/v1/orders` | customer | Place order from active Cart |
 | `GET /api/v1/orders` | customer | List orders scoped by Role (Regular vs Org Admin) |
 | `GET /api/v1/orders/:id` | customer | Order detail |
-| `POST /api/v1/orders/:id/cancel` | customer | Cancel before fulfilment |
 | `GET /api/v1/orders/:id/invoice` | customer | Download invoice PDF |
+| `GET /api/v1/admin/orders` | admin | List every order (cross-organization) |
+| `GET /api/v1/admin/orders/:id` | admin | Order detail (bypasses customer scope) |
 | `POST /api/v1/admin/orders/:id/status` | admin | Status transition (audited) |
 | `POST /api/v1/admin/orders/:id/payment-status` | admin | Payment status transition (audited) |
-| `POST /api/v1/admin/orders/:id/refund` | admin | Refund with optional partial amount |
 
 ## Status machine
 
-Order statuses: `new → confirmed → in_progress → shipped → delivered`, with
-side branches `cancelled` and `returned`. Payment statuses run
-`unpaid → reserved → paid` plus `refunded` and `failed`. Transitions are
-guarded by `order-status-service.ts`.
+Order statuses: `new → confirmed → in_fulfilment → shipped → completed`,
+with `cancelled` as a terminal side branch. Payment statuses run
+`awaiting_payment → paid` with `deferred` and `refunded` as alternatives.
+Transitions are guarded by `order-service.ts#transitionStatus` /
+`#transitionPaymentStatus`.
 
 ## Entities
 
-`Order`, `OrderItem`, `Payment`, `Invoice`, `Delivery`. `OrderItem` snapshots
-unit prices so historical orders survive pricing changes.
+`Order`, `OrderItem`, `Payment`. `OrderItem` snapshots the product +
+variant + unit price + tax rate at placement so historical orders
+survive pricing / catalog changes. `Order.deliveryMethodSnapshot` and
+`paymentMethodSnapshot` capture the configured method shape verbatim
+for the same reason.
 
 ## Events emitted
 
