@@ -59,6 +59,57 @@ export const impersonationStartResponseSchema = z.object({
 });
 export type ImpersonationStartResponse = z.infer<typeof impersonationStartResponseSchema>;
 
+// --- Admin user CRUD --------------------------------------------------------
+
+export const createAdminUserRequestSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(12).max(256),
+  firstName: z.string().min(1).max(120),
+  lastName: z.string().min(1).max(120),
+  adminRoleId: uuidSchema.nullable().optional(),
+});
+export type CreateAdminUserRequest = z.infer<typeof createAdminUserRequestSchema>;
+
+export const updateAdminUserRequestSchema = z
+  .object({
+    firstName: z.string().min(1).max(120).optional(),
+    lastName: z.string().min(1).max(120).optional(),
+    adminRoleId: uuidSchema.nullable().optional(),
+    status: z.enum(['active', 'inactive']).optional(),
+  })
+  .strict();
+export type UpdateAdminUserRequest = z.infer<typeof updateAdminUserRequestSchema>;
+
+// --- Admin role CRUD --------------------------------------------------------
+
+export const upsertAdminRoleRequestSchema = z.object({
+  code: z.string().min(1).max(64),
+  name: z.string().min(1).max(160),
+  permissions: z.array(z.string().min(1).max(120)),
+  requiresTwoFactor: z.boolean().optional(),
+});
+export type UpsertAdminRoleRequest = z.infer<typeof upsertAdminRoleRequestSchema>;
+
+/**
+ * Canonical permission catalogue exposed by `GET /admin/permissions`.
+ * The matrix UI groups by `module`; the wildcard `*` is intentionally not
+ * in the catalogue (it's only granted to the bootstrap "platform_admin").
+ */
+export const PERMISSION_CATALOGUE = [
+  { code: 'catalog:read', module: 'catalog', label: 'View catalog' },
+  { code: 'catalog:write', module: 'catalog', label: 'Edit catalog' },
+  { code: 'orders:read', module: 'orders', label: 'View orders' },
+  { code: 'orders:write', module: 'orders', label: 'Edit orders / change status' },
+  { code: 'rfqs:handle', module: 'quote_requests', label: 'Handle quote requests' },
+  { code: 'customers:read', module: 'customers', label: 'View customers' },
+  { code: 'customers:impersonate', module: 'customers', label: 'Impersonate customers' },
+  { code: 'integrations:manage', module: 'integrations', label: 'Manage integrations' },
+  { code: 'audit_log:read', module: 'audit_log', label: 'View audit log' },
+  { code: 'admin_users:manage', module: 'admin_users', label: 'Manage admin users + roles' },
+] as const;
+
+// --- Audit log --------------------------------------------------------------
+
 export const auditLogEntrySchema = z.object({
   id: uuidSchema,
   actorAdminUserId: uuidSchema.nullable(),

@@ -3,10 +3,14 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { SessionService } from '../auth/services/session-service.js';
 import { AdminAuthService } from './services/admin-auth-service.js';
 import { ImpersonationService } from './services/impersonation-service.js';
+import { AdminUserService } from './services/admin-user-service.js';
+import { AdminRoleService } from '../admin_roles/services/admin-role-service.js';
 import { PermissionService } from '../admin_roles/services/permission-service.js';
 import { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import { registerAdminPublicRoutes } from './routes.public.js';
 import { registerImpersonationRoutes } from './routes.impersonation.js';
+import { registerAdminUsersAdminRoutes } from './routes.admin.js';
+import { registerAuditLogAdminRoutes } from '../audit_logs/routes.admin.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
 export interface AdminModuleOptions {
@@ -43,12 +47,23 @@ export function adminModule(
     permissionService: options.permissionService,
     auditLogService: options.auditLogService,
   };
+  const adminUserService = new AdminUserService(options.emFactory);
+  const adminRoleService = new AdminRoleService(options.emFactory);
   return {
     handle,
     plugin: async (app) => {
       await registerAdminPublicRoutes(app, { adminAuthService });
       await registerImpersonationRoutes(app, {
         impersonationService,
+        requireAdmin: options.requireAdmin,
+      });
+      await registerAdminUsersAdminRoutes(app, {
+        adminUserService,
+        adminRoleService,
+        requireAdmin: options.requireAdmin,
+      });
+      await registerAuditLogAdminRoutes(app, {
+        auditLogService: options.auditLogService,
         requireAdmin: options.requireAdmin,
       });
     },

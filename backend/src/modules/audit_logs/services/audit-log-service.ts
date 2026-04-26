@@ -45,4 +45,29 @@ export class AuditLogService {
     await em.persistAndFlush(entry);
     return entry;
   }
+
+  async query(filter: AuditLogFilter = {}): Promise<AuditLogEntry[]> {
+    const em = this.emFactory();
+    const where: Record<string, unknown> = {};
+    if (filter.actorAdminUserId) where['actorAdminUserId'] = filter.actorAdminUserId;
+    if (filter.action) where['action'] = filter.action;
+    if (filter.objectType) where['objectType'] = filter.objectType;
+    if (filter.objectId) where['objectId'] = filter.objectId;
+    if (filter.impersonatedCustomerAccountId) {
+      where['impersonatedCustomerAccountId'] = filter.impersonatedCustomerAccountId;
+    }
+    return em.find(AuditLogEntry, where, {
+      orderBy: { actedAt: 'desc' },
+      limit: Math.min(Math.max(filter.limit ?? 100, 1), 500),
+    });
+  }
+}
+
+export interface AuditLogFilter {
+  actorAdminUserId?: string;
+  impersonatedCustomerAccountId?: string;
+  action?: string;
+  objectType?: string;
+  objectId?: string;
+  limit?: number;
 }

@@ -28,6 +28,8 @@ export interface CurrentOrganization {
 export interface MeResult {
   customerAccount: CurrentCustomer;
   organization: CurrentOrganization;
+  /** Non-null when the current session is an Admin impersonating this customer. */
+  impersonation: { impersonatorAdminUserId: string } | null;
 }
 
 export async function getMe(sessionCookie: string): Promise<MeResult> {

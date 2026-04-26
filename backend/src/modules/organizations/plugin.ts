@@ -34,6 +34,7 @@ export interface OrganizationsModuleOptions {
   resolveCustomerContext: (req: FastifyRequest) => {
     customerAccountId: string;
     organizationId: string;
+    impersonatorAdminUserId?: string | null;
   };
   /** Expose the /api/v1/_test/latest-verification-token probe (test-only). */
   exposeTestProbe?: boolean;

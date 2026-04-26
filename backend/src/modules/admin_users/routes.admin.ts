@@ -1,0 +1,161 @@
+import type { FastifyInstance } from 'fastify';
+import {
+  createAdminUserRequestSchema,
+  updateAdminUserRequestSchema,
+  upsertAdminRoleRequestSchema,
+  PERMISSION_CATALOGUE,
+} from '@b2b/contracts';
+import type { AdminUserService } from './services/admin-user-service.js';
+import type { AdminRoleService } from '../admin_roles/services/admin-role-service.js';
+import type { AdminUser } from './entities/admin-user.entity.js';
+import type { AdminRole } from '../admin_roles/entities/admin-role.entity.js';
+import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+
+/**
+ * Admin user + role CRUD (T193 / FR-080..FR-083). All gated by
+ * `admin_users:manage`. The wildcard `*` is intentionally not exposed
+ * by this surface — bootstrap-only.
+ */
+
+export interface AdminUsersAdminDeps {
+  adminUserService: AdminUserService;
+  adminRoleService: AdminRoleService;
+  requireAdmin: RequireAdminFactory;
+}
+
+export async function registerAdminUsersAdminRoutes(
+  app: FastifyInstance,
+  deps: AdminUsersAdminDeps,
+): Promise<void> {
+  const { adminUserService, adminRoleService, requireAdmin } = deps;
+
+  // --- Permissions catalogue -------------------------------------------------
+  app.get(
+    '/api/v1/admin/permissions',
+    { preHandler: requireAdmin('admin_users:manage') },
+    async () => ({ data: PERMISSION_CATALOGUE }),
+  );
+
+  // --- Admin users -----------------------------------------------------------
+  app.get(
+    '/api/v1/admin/admin-users',
+    { preHandler: requireAdmin('admin_users:manage') },
+    async () => {
+      const rows = await adminUserService.list();
+      return { data: rows.map(serializeAdminUser) };
+    },
+  );
+
+  app.post(
+    '/api/v1/admin/admin-users',
+    {
+      preHandler: requireAdmin('admin_users:manage'),
+      schema: { body: createAdminUserRequestSchema },
+    },
+    async (request, reply) => {
+      const body = createAdminUserRequestSchema.parse(request.body);
+      const user = await adminUserService.create({
+        email: body.email,
+        password: body.password,
+        firstName: body.firstName,
+        lastName: body.lastName,
+        ...(body.adminRoleId !== undefined ? { adminRoleId: body.adminRoleId } : {}),
+      });
+      reply.status(201);
+      return { data: serializeAdminUser(user) };
+    },
+  );
+
+  app.patch<{ Params: { id: string } }>(
+    '/api/v1/admin/admin-users/:id',
+    {
+      preHandler: requireAdmin('admin_users:manage'),
+      schema: { body: updateAdminUserRequestSchema },
+    },
+    async (request) => {
+      const body = updateAdminUserRequestSchema.parse(request.body);
+      const user = await adminUserService.update(request.params.id, {
+        ...(body.firstName !== undefined ? { firstName: body.firstName } : {}),
+        ...(body.lastName !== undefined ? { lastName: body.lastName } : {}),
+        ...(body.adminRoleId !== undefined ? { adminRoleId: body.adminRoleId } : {}),
+        ...(body.status !== undefined ? { status: body.status } : {}),
+      });
+      return { data: serializeAdminUser(user) };
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/v1/admin/admin-users/:id',
+    { preHandler: requireAdmin('admin_users:manage') },
+    async (request, reply) => {
+      await adminUserService.softDelete(request.params.id);
+      reply.status(204).send();
+    },
+  );
+
+  // --- Admin roles -----------------------------------------------------------
+  app.get(
+    '/api/v1/admin/admin-roles',
+    { preHandler: requireAdmin('admin_users:manage') },
+    async () => {
+      const rows = await adminRoleService.list();
+      return { data: rows.map(serializeAdminRole) };
+    },
+  );
+
+  app.put<{ Params: { code: string } }>(
+    '/api/v1/admin/admin-roles/:code',
+    {
+      preHandler: requireAdmin('admin_users:manage'),
+      schema: { body: upsertAdminRoleRequestSchema },
+    },
+    async (request) => {
+      const body = upsertAdminRoleRequestSchema.parse(request.body);
+      const role = await adminRoleService.upsertByCode({
+        code: request.params.code,
+        name: body.name,
+        permissions: body.permissions,
+        ...(body.requiresTwoFactor !== undefined
+          ? { requiresTwoFactor: body.requiresTwoFactor }
+          : {}),
+      });
+      return { data: serializeAdminRole(role) };
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/v1/admin/admin-roles/:id',
+    { preHandler: requireAdmin('admin_users:manage') },
+    async (request, reply) => {
+      await adminRoleService.remove(request.params.id);
+      reply.status(204).send();
+    },
+  );
+}
+
+function serializeAdminUser(u: AdminUser) {
+  return {
+    id: u.id,
+    email: u.email,
+    firstName: u.firstName,
+    lastName: u.lastName,
+    adminRoleId: u.adminRoleId ?? null,
+    twoFactorEnabled: !!u.twoFactorConfirmedAt,
+    status: u.status,
+    lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
+    createdAt: u.createdAt.toISOString(),
+    updatedAt: u.updatedAt.toISOString(),
+  };
+}
+
+function serializeAdminRole(r: AdminRole) {
+  return {
+    id: r.id,
+    code: r.code,
+    name: r.name,
+    permissions: r.permissions,
+    requiresTwoFactor: r.requiresTwoFactor,
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+  };
+}

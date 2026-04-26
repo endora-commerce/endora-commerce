@@ -21,6 +21,7 @@ export interface OrganizationsCustomerDeps {
   resolveCustomerContext: (req: FastifyRequest) => {
     customerAccountId: string;
     organizationId: string;
+    impersonatorAdminUserId?: string | null;
   };
   /** Read-only EntityManager factory for the GET /me endpoint. */
   emFactory: () => EntityManager;
@@ -53,10 +54,14 @@ export async function registerOrganizationsCustomerRoutes(
       if (!customer || !organization) {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
       }
+      const impersonatorAdminUserId = ctx.impersonatorAdminUserId ?? null;
       return {
         data: {
           customerAccount: serializeCustomer(customer),
           organization: serializeOrganization(organization),
+          impersonation: impersonatorAdminUserId
+            ? { impersonatorAdminUserId }
+            : null,
         },
       };
     },

@@ -5,6 +5,7 @@ import { getSessionCookie, clearSessionCookie } from '../../lib/session';
 import { getMe } from '../../lib/api/account';
 import { logoutCustomer } from '../../lib/api/auth';
 import { StorefrontApiError } from '../../lib/api/client';
+import { ImpersonationBanner } from '../../components/ImpersonationBanner';
 
 /**
  * Authenticated route-group layout (T154 + T155). Loads `/me` once for the
@@ -36,6 +37,13 @@ export default async function AccountLayout({
 
   return (
     <section className="b2b-account">
+      {me.impersonation ? (
+        <div style={{ gridColumn: '1 / -1' }}>
+          <ImpersonationBanner
+            impersonatorAdminUserId={me.impersonation.impersonatorAdminUserId}
+          />
+        </div>
+      ) : null}
       <aside className="b2b-account__nav" aria-label="Account">
         <strong>{me.customerAccount.firstName} {me.customerAccount.lastName}</strong>
         <span className="muted">{me.organization.name}</span>

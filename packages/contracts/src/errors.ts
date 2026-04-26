@@ -75,6 +75,10 @@ export const ERROR_CODES = {
   // API keys / webhooks / integrations
   API_KEY_OUT_OF_SCOPE: 'API_KEY_OUT_OF_SCOPE',
   WEBHOOK_DELIVERY_NOT_REPLAYABLE: 'WEBHOOK_DELIVERY_NOT_REPLAYABLE',
+
+  // Admin users / roles
+  ADMIN_ROLE_CODE_TAKEN: 'ADMIN_ROLE_CODE_TAKEN',
+  ADMIN_ROLE_IN_USE: 'ADMIN_ROLE_IN_USE',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
