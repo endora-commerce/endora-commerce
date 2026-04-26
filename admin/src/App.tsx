@@ -9,12 +9,16 @@ import { ImportExportPage } from './modules/import_export/ImportExportPage.js';
 import { SeoPage } from './modules/seo/SeoPage.js';
 import { I18nPage } from './modules/i18n/I18nPage.js';
 import { CmsPagesPage } from './modules/cms_pages/CmsPagesPage.js';
+import { RfqList } from './modules/quote_requests/RfqList.js';
+import { RfqDetail } from './modules/quote_requests/RfqDetail.js';
 
 export function App(): ReactNode {
   return (
     <Routes>
       <Route element={<AppShell />}>
-        <Route index element={<Navigate to="/api-keys" replace />} />
+        <Route index element={<Navigate to="/quote-requests" replace />} />
+        <Route path="/quote-requests" element={<RfqList />} />
+        <Route path="/quote-requests/:id" element={<RfqDetail />} />
         <Route path="/api-keys" element={<ApiKeysPage />} />
         <Route path="/webhooks" element={<WebhooksPage />} />
         <Route path="/integrations" element={<IntegrationsPage />} />

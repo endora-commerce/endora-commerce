@@ -42,6 +42,15 @@ export async function registerQuoteRequestsAdminRoutes(
     },
   );
 
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/quote-requests/:id',
+    { preHandler: requireAdmin('rfqs:handle') },
+    async (request) => {
+      const rfq = await adminService.getById(request.params.id);
+      return { data: await loadRfqWithItems(emFactory(), rfq) };
+    },
+  );
+
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/quote-requests/:id/claim',
     { preHandler: requireAdmin('rfqs:handle') },

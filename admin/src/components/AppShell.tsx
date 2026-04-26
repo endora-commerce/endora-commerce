@@ -7,6 +7,7 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
+  { to: '/quote-requests', label: 'Quote requests' },
   { to: '/api-keys', label: 'API Keys' },
   { to: '/webhooks', label: 'Webhooks' },
   { to: '/integrations', label: 'Integrations' },
