@@ -220,6 +220,29 @@ export class CatalogAdminService {
     return attr;
   }
 
+  // --- Read methods (admin lists / detail) --------------------------------
+
+  async listProducts(options: { includeArchived?: boolean } = {}): Promise<Product[]> {
+    const em = this.emFactory();
+    const where: Record<string, unknown> = {};
+    if (!options.includeArchived) where['status'] = { $ne: 'archived' };
+    return em.find(Product, where, { orderBy: { createdAt: 'desc' }, limit: 200 });
+  }
+
+  async getProductById(id: string): Promise<Product> {
+    const em = this.emFactory();
+    const product = await em.findOne(Product, { id });
+    if (!product) {
+      throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+    }
+    return product;
+  }
+
+  async listAttributes(): Promise<ProductAttribute[]> {
+    const em = this.emFactory();
+    return em.find(ProductAttribute, {}, { orderBy: { key: 'asc' } });
+  }
+
   // ------------------------------------------------------------------
 
   private slugify(value: string): string {

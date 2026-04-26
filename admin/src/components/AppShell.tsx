@@ -7,6 +7,9 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
+  { to: '/catalog/products', label: 'Products' },
+  { to: '/catalog/categories', label: 'Categories' },
+  { to: '/catalog/attributes', label: 'Attributes' },
   { to: '/quote-requests', label: 'Quote requests' },
   { to: '/admin-users', label: 'Users' },
   { to: '/admin-roles', label: 'Roles' },

@@ -14,12 +14,20 @@ import { RfqDetail } from './modules/quote_requests/RfqDetail.js';
 import { AdminUsersPage } from './modules/admin_users/AdminUsersPage.js';
 import { AdminRolesPage } from './modules/admin_users/AdminRolesPage.js';
 import { AuditLogViewer } from './modules/audit_logs/AuditLogViewer.js';
+import { ProductsList } from './modules/catalog/ProductsList.js';
+import { ProductEditor } from './modules/catalog/ProductEditor.js';
+import { CategoriesTree } from './modules/catalog/CategoriesTree.js';
+import { AttributesManager } from './modules/catalog/AttributesManager.js';
 
 export function App(): ReactNode {
   return (
     <Routes>
       <Route element={<AppShell />}>
-        <Route index element={<Navigate to="/quote-requests" replace />} />
+        <Route index element={<Navigate to="/catalog/products" replace />} />
+        <Route path="/catalog/products" element={<ProductsList />} />
+        <Route path="/catalog/products/:id" element={<ProductEditor />} />
+        <Route path="/catalog/categories" element={<CategoriesTree />} />
+        <Route path="/catalog/attributes" element={<AttributesManager />} />
         <Route path="/quote-requests" element={<RfqList />} />
         <Route path="/quote-requests/:id" element={<RfqDetail />} />
         <Route path="/admin-users" element={<AdminUsersPage />} />

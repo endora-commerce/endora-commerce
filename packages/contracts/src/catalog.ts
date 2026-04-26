@@ -223,6 +223,21 @@ export const createCategoryRequestSchema = z.object({
 });
 export type CreateCategoryRequest = z.infer<typeof createCategoryRequestSchema>;
 
+export const updateCategoryRequestSchema = z
+  .object({
+    parentCategoryId: uuidSchema.nullable().optional(),
+    name: multilingualStringSchema.optional(),
+    slug: z
+      .string()
+      .min(1)
+      .max(160)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'must be kebab-case')
+      .optional(),
+    sortOrder: z.number().int().optional(),
+  })
+  .strict();
+export type UpdateCategoryRequest = z.infer<typeof updateCategoryRequestSchema>;
+
 // --- Storefront list/query ---------------------------------------------------
 
 export const productListQuerySchema = z.object({

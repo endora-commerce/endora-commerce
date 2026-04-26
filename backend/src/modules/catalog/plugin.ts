@@ -4,6 +4,7 @@ import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import { CatalogQueryService } from './services/catalog-query.service.js';
 import { CatalogAdminService, type CatalogEventBus } from './services/catalog-admin.service.js';
+import { CategoryAdminService } from './services/category-admin.service.js';
 import { SearchQueryService } from '../search/services/search-query.service.js';
 import { SearchIndexer } from '../search/services/search-indexer.js';
 import { SearchEventSubscriber } from '../search/services/search-event-subscriber.js';
@@ -80,8 +81,10 @@ export function catalogModule(options: CatalogModuleOptions) {
       emFactory: options.emFactory,
       ...(options.requireApiKey ? { requireApiKey: options.requireApiKey } : {}),
     });
+    const categoryAdminService = new CategoryAdminService(options.emFactory);
     await registerCatalogAdminRoutes(app, {
       adminService,
+      categoryAdminService,
       requireAdmin:
         options.requireAdmin ??
         (() => async () => {
