@@ -5,6 +5,7 @@ import { Breadcrumbs } from '../../../../components/Breadcrumbs';
 import { ProductGallery } from '../../../../components/ProductGallery';
 import { PriceTag } from '../../../../components/PriceTag';
 import { StockBadge } from '../../../../components/StockBadge';
+import { AddToRfqForm } from '../../../../components/rfq/AddToRfqForm';
 import { getProductBySlug } from '../../../../lib/api/catalog';
 import { getServerContext } from '../../../../lib/server-context';
 import { tForLocale } from '../../../../lib/i18n/messages';
@@ -80,10 +81,13 @@ export default async function ProductPage({ params }: PageProps): Promise<ReactN
             <StockBadge product={product} locale={locale} />
           </div>
 
-          <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
-            <a href="#" className="b2b-cta">
-              {product.price ? t('product.addToCart') : t('product.requestQuote')}
-            </a>
+          <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
+            {product.price ? (
+              <a href="/cart" className="b2b-cta">
+                {t('product.addToCart')}
+              </a>
+            ) : null}
+            <AddToRfqForm productId={product.id} productSlug={product.slug} />
           </div>
 
           {Object.keys(product.attributeValues).length > 0 ? (
