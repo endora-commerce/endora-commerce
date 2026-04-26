@@ -121,6 +121,24 @@ export class InvitationService {
     return { invitation, rawToken };
   }
 
+  /**
+   * Lists every pending invitation on the actor's organization. "Pending"
+   * means not yet consumed and not revoked; expired rows are intentionally
+   * still surfaced so the admin can see what needs cleaning up.
+   */
+  async listPending(actor: { organizationId: string }): Promise<OrganizationInvitation[]> {
+    const em = this.emFactory();
+    return em.find(
+      OrganizationInvitation,
+      {
+        organizationId: actor.organizationId,
+        consumedAt: null,
+        revokedAt: null,
+      },
+      { orderBy: { createdAt: 'desc' } },
+    );
+  }
+
   async revoke(
     actor: { organizationId: string },
     invitationId: string,

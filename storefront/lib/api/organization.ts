@@ -24,6 +24,34 @@ export async function listMembers(sessionCookie: string): Promise<MemberSummary[
   });
 }
 
+export interface PendingInvitation {
+  id: string;
+  organizationId: string;
+  email: string;
+  role: 'organization_admin' | 'regular_user';
+  invitedByCustomerAccountId: string | null;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export async function listPendingInvitations(sessionCookie: string): Promise<PendingInvitation[]> {
+  return apiGetAuthed<PendingInvitation[]>({
+    path: '/api/v1/organizations/mine/invitations',
+    sessionCookie,
+  });
+}
+
+export async function revokeInvitation(
+  sessionCookie: string,
+  invitationId: string,
+): Promise<void> {
+  await apiMutate<null>({
+    method: 'DELETE',
+    path: `/api/v1/organizations/mine/invitations/${invitationId}`,
+    sessionCookie,
+  });
+}
+
 export async function inviteMember(
   sessionCookie: string,
   payload: { email: string; role?: 'organization_admin' | 'regular_user' },

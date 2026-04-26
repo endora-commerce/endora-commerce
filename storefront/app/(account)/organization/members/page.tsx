@@ -6,7 +6,9 @@ import {
   changeMemberRole,
   inviteMember,
   listMembers,
+  listPendingInvitations,
   removeMember,
+  revokeInvitation,
 } from '../../../../lib/api/organization';
 import { StorefrontApiError } from '../../../../lib/api/client';
 
@@ -32,7 +34,10 @@ export default async function MembersPage({
       </>
     );
   }
-  const members = await listMembers(session);
+  const [members, pendingInvitations] = await Promise.all([
+    listMembers(session),
+    listPendingInvitations(session),
+  ]);
   const params = await searchParams;
 
   return (
@@ -40,6 +45,9 @@ export default async function MembersPage({
       <h2>Members</h2>
       {params.status === 'invited' ? (
         <p className="b2b-auth__success">Invitation sent to {params.email}.</p>
+      ) : null}
+      {params.status === 'revoked' ? (
+        <p className="b2b-auth__success">Invitation revoked.</p>
       ) : null}
       {params.error ? <p className="b2b-auth__error">{params.error}</p> : null}
 
@@ -80,6 +88,39 @@ export default async function MembersPage({
           ))}
         </tbody>
       </table>
+
+      {pendingInvitations.length > 0 ? (
+        <>
+          <h3>Pending invitations</h3>
+          <table className="b2b-account__table">
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Sent</th>
+                <th>Expires</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {pendingInvitations.map((inv) => (
+                <tr key={inv.id}>
+                  <td>{inv.email}</td>
+                  <td>{inv.role}</td>
+                  <td>{new Date(inv.createdAt).toLocaleDateString()}</td>
+                  <td>{new Date(inv.expiresAt).toLocaleDateString()}</td>
+                  <td>
+                    <form action={revokeAction} style={{ display: 'inline' }}>
+                      <input type="hidden" name="invitationId" value={inv.id} />
+                      <button type="submit">Revoke</button>
+                    </form>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      ) : null}
 
       <h3>Invite a new member</h3>
       <form action={inviteAction} className="b2b-auth__form">
@@ -149,4 +190,19 @@ async function removeAction(formData: FormData): Promise<void> {
     redirect(`/organization/members?error=${encodeURIComponent(message)}`);
   }
   redirect(`/organization/members`);
+}
+
+async function revokeAction(formData: FormData): Promise<void> {
+  'use server';
+  const session = await getSessionCookie();
+  if (!session) redirect('/login');
+  const invitationId = (formData.get('invitationId') as string) ?? '';
+  try {
+    await revokeInvitation(session, invitationId);
+  } catch (err) {
+    const message =
+      err instanceof StorefrontApiError ? err.message : 'Could not revoke invitation.';
+    redirect(`/organization/members?error=${encodeURIComponent(message)}`);
+  }
+  redirect(`/organization/members?status=revoked`);
 }

@@ -49,6 +49,31 @@ export async function registerMembersRoutes(app: FastifyInstance, deps: MembersD
     },
   );
 
+  app.get(
+    '/api/v1/organizations/mine/invitations',
+    { preHandler: requireCustomer },
+    async (request) => {
+      const ctx = resolveCustomerContext(request);
+      await assertOrganizationAdmin(deps.emFactory(), ctx.customerAccountId);
+      const rows = await invitationService.listPending({ organizationId: ctx.organizationId });
+      return { data: rows.map(serializeInvitation) };
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/v1/organizations/mine/invitations/:id',
+    { preHandler: requireCustomer },
+    async (request, reply) => {
+      const ctx = resolveCustomerContext(request);
+      await assertOrganizationAdmin(deps.emFactory(), ctx.customerAccountId);
+      await invitationService.revoke(
+        { organizationId: ctx.organizationId },
+        request.params.id,
+      );
+      reply.status(204).send();
+    },
+  );
+
   app.post(
     '/api/v1/organizations/mine/invitations',
     { preHandler: requireCustomer, schema: { body: inviteMemberRequestSchema } },
@@ -125,6 +150,18 @@ async function assertOrganizationAdmin(em: EntityManager, customerAccountId: str
   if (!me || me.role !== 'organization_admin') {
     throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization Admin role required.');
   }
+}
+
+function serializeInvitation(i: OrganizationInvitation): Record<string, unknown> {
+  return {
+    id: i.id,
+    organizationId: i.organizationId,
+    email: i.email,
+    role: i.role,
+    invitedByCustomerAccountId: i.invitedByCustomerAccountId ?? null,
+    expiresAt: i.expiresAt.toISOString(),
+    createdAt: i.createdAt.toISOString(),
+  };
 }
 
 function serializeMember(m: CustomerAccount | OrganizationInvitation): Record<string, unknown> {
