@@ -44,6 +44,8 @@ import { PriceListItem } from '../modules/price_lists/entities/price-list-item.e
 import { PriceListAssignment } from '../modules/price_lists/entities/price-list-assignment.entity.js';
 import { Tax } from '../modules/taxes/entities/tax.entity.js';
 import { Promotion } from '../modules/promotions/entities/promotion.entity.js';
+import { ShoppingList } from '../modules/shopping_lists/entities/shopping-list.entity.js';
+import { ShoppingListItem } from '../modules/shopping_lists/entities/shopping-list-item.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -126,4 +128,7 @@ export const ALL_ENTITIES = [
   // taxes + promotions (Phase 4 polish / T128, T129)
   Tax,
   Promotion,
+  // shopping lists (US5 / T200)
+  ShoppingList,
+  ShoppingListItem,
 ] as const;

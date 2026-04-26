@@ -13,6 +13,7 @@ import { organizationsModule } from '../../src/modules/organizations/plugin.js';
 import { commerceModule } from '../../src/modules/orders/plugin.js';
 import { adminModule } from '../../src/modules/admin_users/plugin.js';
 import { inventoryModule } from '../../src/modules/inventory/plugin.js';
+import { shoppingListsModule } from '../../src/modules/shopping_lists/plugin.js';
 import { creditLimitsModule } from '../../src/modules/credit_limits/plugin.js';
 import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
 import { analyticsModule } from '../../src/modules/analytics/plugin.js';
@@ -111,6 +112,8 @@ const SEEDED_TABLES = [
   'assets',
   'quote_request_items',
   'quote_requests',
+  'shopping_list_items',
+  'shopping_lists',
 ];
 
 export async function setupBackendServer(
@@ -326,6 +329,12 @@ export async function setupBackendServer(
       requireCustomer: requireTestCustomer(),
       resolveCustomerContext: customerResolver,
       requireAdmin: requireTestAdmin(permissionService),
+    }),
+    shoppingListsModule({
+      emFactory: em,
+      eventBus,
+      requireCustomer: requireTestCustomer(),
+      resolveCustomerContext: customerResolver,
     }),
   ];
   if (options.extraModules) modules.push(...options.extraModules);

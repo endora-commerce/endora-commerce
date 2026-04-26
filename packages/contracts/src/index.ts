@@ -32,3 +32,5 @@ export * from './analytics.js';
 export * from './seo.js';
 export * from './i18n.js';
 export * from './cms-pages.js';
+export * from './shopping-lists.js';
+export * from './quick-order.js';
