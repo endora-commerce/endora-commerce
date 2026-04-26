@@ -19,7 +19,7 @@ this PR (constitution §Governance).
 - [ ] **2. Tests** — new backend modules carry unit + contract + integration tests (Principle III). Full suite passes locally and in CI.
 - [ ] **3. Type check & lint** — `pnpm -r run typecheck` and `pnpm -r run lint` are clean.
 - [ ] **4. Naming conventions** (Principle VI) — `pnpm run check:naming` is clean.
-- [ ] **5. Working language** (Principle VIII) — `pnpm run check:language` is clean. Code, comments, commit messages, and PR description are English.
+- [ ] **5. Working language** (Principle VIII) — `pnpm run check:language` is clean. Source code (in-code identifiers + inline comments) is English. Documentation, this PR description, commit messages, and code-review prose MAY be in any language.
 - [ ] **6. Docs sync** — README and the docs site are updated alongside any new module or infrastructure-relevant change.
 - [ ] **7. Dependency justification** (Principle IV) — every new runtime dependency added by this PR has a one-paragraph rationale below.
 
