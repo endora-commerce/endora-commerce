@@ -5,7 +5,6 @@ import { ERROR_CODES, type PlaceOrderRequest } from '@b2b/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
-import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { Address } from '../../addresses/entities/address.entity.js';
 import { Cart } from '../../carts/entities/cart.entity.js';
@@ -18,6 +17,7 @@ import { Order } from '../entities/order.entity.js';
 import { OrderItem } from '../entities/order-item.entity.js';
 import { Payment } from '../../payments/entities/payment.entity.js';
 import { Invoice } from '../../invoices/entities/invoice.entity.js';
+import { OrderAccessService } from './order-access-service.js';
 
 /**
  * Narrow port consumed by the order-placement transaction. The credit_limits
@@ -81,12 +81,17 @@ export interface CustomerContext {
  *   9. Emit order.created.v1.
  */
 export class OrderService {
+  private readonly accessService: OrderAccessService;
+
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly events: OrderEventBus,
     private readonly auditLog?: AuditLogService,
     private readonly creditLimit?: CreditLimitPort,
-  ) {}
+    accessService?: OrderAccessService,
+  ) {
+    this.accessService = accessService ?? new OrderAccessService(emFactory);
+  }
 
   async placeOrder(
     ctx: CustomerContext,
@@ -349,29 +354,18 @@ export class OrderService {
   }
 
   /**
-   * Builds a where clause that scopes Orders by Role (US3 / FR-042):
-   *   - Organization Admin: any Order in the Organization.
-   *   - Regular User: only Orders they placed.
-   *
-   * Returns 404 (not 403) on out-of-scope reads — the where clause does not
-   * match, so findOne returns null and the caller raises 404 ORDER_NOT_FOUND.
-   * Avoids leaking the existence of orders the caller cannot see.
+   * Delegates to OrderAccessService (T145). The rule itself — Organization
+   * Admin sees all org orders, Regular User sees only their own — lives
+   * there so any module that needs to enforce it imports the service
+   * rather than duplicating the SQL. Out-of-scope reads return no rows
+   * and the caller raises 404, never 403, to avoid leaking existence.
    */
   async #scopedOrderWhere(
     em: EntityManager,
     ctx: CustomerContext,
     extra: Record<string, unknown> = {},
   ): Promise<Record<string, unknown>> {
-    const customer = await em.findOne(CustomerAccount, { id: ctx.customerAccountId });
-    const isAdmin = customer?.role === 'organization_admin';
-    if (isAdmin) {
-      return { ...extra, organizationId: ctx.organizationId };
-    }
-    return {
-      ...extra,
-      organizationId: ctx.organizationId,
-      placedByCustomerAccountId: ctx.customerAccountId,
-    };
+    return this.accessService.scopedWhereWithEm(em, ctx, extra);
   }
 
   async listAll(): Promise<Order[]> {

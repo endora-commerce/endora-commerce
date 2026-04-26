@@ -13,6 +13,7 @@ import { InvitationService } from './services/invitation-service.js';
 import { RoleService } from '../customer_accounts/services/role-service.js';
 import { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
 import { TotpEnrolmentService } from '../customer_accounts/services/totp-enrolment-service.js';
+import { ConsoleMailer, type Mailer } from '../email/services/mailer.js';
 import { registerOrganizationsPublicRoutes } from './routes.public.js';
 import { registerOrganizationsCustomerRoutes } from './routes.customer.js';
 import { registerMembersRoutes } from './routes.members.js';
@@ -44,6 +45,10 @@ export interface OrganizationsModuleOptions {
   }) => Promise<void>;
   /** Admin gate for /admin/organizations routes. */
   requireAdmin?: RequireAdminFactory;
+  /** Mailer used to dispatch invitation emails. Defaults to ConsoleMailer. */
+  mailer?: Mailer;
+  /** Storefront base URL for the invitation accept link. */
+  storefrontBaseUrl?: string;
 }
 
 export function organizationsModule(options: OrganizationsModuleOptions) {
@@ -62,7 +67,11 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       options.sessionService,
     );
     const addressService = new AddressService(options.emFactory);
-    const invitationService = new InvitationService(options.emFactory);
+    const invitationService = new InvitationService(
+      options.emFactory,
+      options.mailer ?? new ConsoleMailer(),
+      options.storefrontBaseUrl ? { acceptBaseUrl: options.storefrontBaseUrl } : {},
+    );
     const roleService = new RoleService(options.emFactory);
     const passwordResetService = new PasswordResetService(options.emFactory);
     const totpEnrolmentService = new TotpEnrolmentService(options.emFactory);

@@ -7,6 +7,8 @@ import { hashPassword } from '../../auth/services/password-hasher.js';
 import { Organization } from '../entities/organization.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { OrganizationInvitation } from '../entities/organization-invitation.entity.js';
+import type { Mailer } from '../../email/services/mailer.js';
+import { buildInvitationEmail } from '../email-templates/invitation.js';
 
 /**
  * InvitationService (T173, FR-043).
@@ -30,8 +32,23 @@ export interface InvitationResult {
   rawToken: string;
 }
 
+export interface InvitationServiceOptions {
+  /** Storefront base used when building the redemption link. */
+  acceptBaseUrl?: string;
+}
+
 export class InvitationService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  private readonly mailer: Mailer | null;
+  private readonly acceptBaseUrl: string;
+
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    mailer?: Mailer | null,
+    options?: InvitationServiceOptions,
+  ) {
+    this.mailer = mailer ?? null;
+    this.acceptBaseUrl = options?.acceptBaseUrl ?? 'https://storefront.local';
+  }
 
   async invite(
     actor: { customerAccountId: string; organizationId: string },
@@ -78,6 +95,27 @@ export class InvitationService {
         );
       }
       throw err;
+    }
+
+    if (this.mailer) {
+      const [organization, inviter] = await Promise.all([
+        em.findOne(Organization, { id: actor.organizationId }),
+        em.findOne(CustomerAccount, { id: actor.customerAccountId }),
+      ]);
+      const inviterName = inviter
+        ? [inviter.firstName, inviter.lastName].filter(Boolean).join(' ').trim() || inviter.email
+        : 'An organization admin';
+      const message = buildInvitationEmail({
+        invitationId: invitation.id,
+        rawToken,
+        inviteeEmail: invitation.email,
+        inviterName,
+        organizationName: organization?.name ?? 'your organization',
+        role: invitation.role,
+        expiresAt: invitation.expiresAt,
+        acceptBaseUrl: this.acceptBaseUrl,
+      });
+      await this.mailer.send(message);
     }
 
     return { invitation, rawToken };

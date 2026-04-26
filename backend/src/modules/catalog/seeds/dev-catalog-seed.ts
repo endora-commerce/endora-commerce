@@ -27,6 +27,12 @@ import { Organization } from '../../organizations/entities/organization.entity.j
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { AdminUser } from '../../admin_users/entities/admin-user.entity.js';
 import { AdminRole } from '../../admin_roles/entities/admin-role.entity.js';
+import { DeliveryMethod } from '../../delivery_methods/entities/delivery-method.entity.js';
+import { PaymentMethod } from '../../payment_methods/entities/payment-method.entity.js';
+import { Tax } from '../../taxes/entities/tax.entity.js';
+import { PriceList } from '../../price_lists/entities/price-list.entity.js';
+import { PriceListItem } from '../../price_lists/entities/price-list-item.entity.js';
+import { PriceListAssignment } from '../../price_lists/entities/price-list-assignment.entity.js';
 import { hashPassword } from '../../auth/services/password-hasher.js';
 
 const DEMO_ADMIN_EMAIL = 'admin@demo.local';
@@ -75,7 +81,13 @@ async function main(): Promise<void> {
       customer_accounts,
       organizations,
       admin_users,
-      admin_roles
+      admin_roles,
+      price_list_assignments,
+      price_list_items,
+      price_lists,
+      taxes,
+      delivery_methods,
+      payment_methods
     cascade
   `);
 
@@ -294,6 +306,58 @@ async function main(): Promise<void> {
   });
   await em.persistAndFlush(demoBuyer);
 
+  // --- Delivery + payment methods (T166) ------------------------------
+  const pickup = em.create(DeliveryMethod, {
+    code: 'in_person_pickup',
+    name: { 'en-US': 'In-person pickup', 'pl-PL': 'Odbior osobisty' },
+    cost: '0',
+    currency: 'PLN',
+  });
+  await em.persistAndFlush(pickup);
+
+  const bankTransfer = em.create(PaymentMethod, {
+    code: 'bank_transfer',
+    name: { 'en-US': 'Bank transfer', 'pl-PL': 'Przelew bankowy' },
+    kind: 'bank_transfer',
+  });
+  await em.persistAndFlush(bankTransfer);
+
+  // --- Default Price List with per-product fixed_unit prices (T166) ---
+  const defaultPriceList = em.create(PriceList, {
+    code: 'default_pln',
+    name: 'Default PLN',
+    currency: 'PLN',
+    isDefault: true,
+    priority: 0,
+  });
+  await em.persistAndFlush(defaultPriceList);
+
+  for (const product of products) {
+    const price = Number(product.attributeValues['defaultPrice']);
+    em.create(PriceListItem, {
+      priceListId: defaultPriceList.id,
+      mode: 'fixed_unit',
+      productId: product.id,
+      minQuantity: 1,
+      unitPrice: String(price),
+    });
+  }
+  em.create(PriceListAssignment, {
+    priceListId: defaultPriceList.id,
+    isDefault: true,
+  });
+  await em.flush();
+
+  // --- Polish VAT Tax (T166) ------------------------------------------
+  em.create(Tax, {
+    code: 'pl_vat_23',
+    name: 'PL VAT 23%',
+    rate: '0.23',
+    country: 'PL',
+    isDefault: true,
+  });
+  await em.flush();
+
   // --- Summary --------------------------------------------------------
   const _summary: SeedRow<unknown>[] = [];
   void _summary;
@@ -303,6 +367,10 @@ async function main(): Promise<void> {
   console.log(`Products       : ${PRODUCT_COUNT}`);
   console.log(`Categories     : ${1 + sections.length + leaves.length} nodes`);
   console.log(`Sales Channels : pl_retail (public), pl_b2b_vip (logged-in only)`);
+  console.log(`Price Lists    : default_pln (${PRODUCT_COUNT} items, default)`);
+  console.log(`Taxes          : pl_vat_23 (23% on PL, default)`);
+  console.log(`Delivery       : in_person_pickup (free)`);
+  console.log(`Payment        : bank_transfer (proforma flow)`);
   console.log('');
   console.log('Sign in credentials (CHANGE before any non-local use):');
   console.log(`  Platform Administrator : ${DEMO_ADMIN_EMAIL} / ${DEMO_ADMIN_PASSWORD}`);
