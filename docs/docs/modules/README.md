@@ -48,6 +48,7 @@ how to consume it.
 | [organizations](./organizations) | Customer Organizations, registration, invitations | yes |
 | [payment_methods](./payment_methods) | Configured payment methods | yes |
 | [payments](./payments) | Payment driver dispatch + settlement events | yes |
+| [price_lists](./price_lists) | Customer / group / default pricing with volume tiers + per-category adjustments | yes |
 | [quote_requests](./quote_requests) | RFQ lifecycle (draft → quote → accept/reject) | yes |
 | [search](./search) | Meilisearch indexer + query bridge (in development) | no |
 | [seo](./seo) | Meta-tag resolver + cached XML sitemap | yes |

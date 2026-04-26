@@ -38,6 +38,10 @@ import { SitemapCache } from '../modules/seo/entities/sitemap-cache.entity.js';
 import { Language } from '../modules/languages/entities/language.entity.js';
 import { Currency } from '../modules/currencies/entities/currency.entity.js';
 import { CmsPage } from '../modules/cms_pages/entities/cms-page.entity.js';
+import { CustomerGroup } from '../modules/price_lists/entities/customer-group.entity.js';
+import { PriceList } from '../modules/price_lists/entities/price-list.entity.js';
+import { PriceListItem } from '../modules/price_lists/entities/price-list-item.entity.js';
+import { PriceListAssignment } from '../modules/price_lists/entities/price-list-assignment.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -112,4 +116,9 @@ export const ALL_ENTITIES = [
   Currency,
   // cms (Phase 10 / T234)
   CmsPage,
+  // pricing (Phase 4 polish / T127)
+  CustomerGroup,
+  PriceList,
+  PriceListItem,
+  PriceListAssignment,
 ] as const;

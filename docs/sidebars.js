@@ -46,6 +46,7 @@ const sidebars = {
         'modules/organizations',
         'modules/payment_methods',
         'modules/payments',
+        'modules/price_lists',
         'modules/quote_requests',
         'modules/search',
         'modules/seo',

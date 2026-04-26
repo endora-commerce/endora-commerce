@@ -17,7 +17,8 @@ export class Organization {
     | 'updatedAt'
     | 'status'
     | 'vatStatus'
-    | 'deletedAt';
+    | 'deletedAt'
+    | 'customerGroupId';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -36,6 +37,15 @@ export class Organization {
 
   @Property({ type: 'string', length: 16 })
   vatStatus: 'vat_payer' | 'vat_exempt' | 'reverse_charge' = 'vat_payer';
+
+  /**
+   * Optional pricing bucket (T127). Drives `PriceListAssignment` lookups: a
+   * group price list applies to every Organization carrying that
+   * customerGroupId, unless an organization-specific list overrides it.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  @Index()
+  customerGroupId?: string | null;
 
   /** JSONB snapshot of { street, city, postalCode, country }. */
   @Property({ type: 'json' })
