@@ -29,6 +29,7 @@ import { PriceListsPage } from './modules/price_lists/PriceListsPage.js';
 import { DeliveryMethodsPage } from './modules/delivery_methods/DeliveryMethodsPage.js';
 import { PaymentMethodsPage } from './modules/payment_methods/PaymentMethodsPage.js';
 import { InventoryPage } from './modules/inventory/InventoryPage.js';
+import { CreditLimitsPage } from './modules/credit_limits/CreditLimitsPage.js';
 
 export function App(): ReactNode {
   return (
@@ -50,6 +51,7 @@ export function App(): ReactNode {
         <Route path="/delivery-methods" element={<DeliveryMethodsPage />} />
         <Route path="/payment-methods" element={<PaymentMethodsPage />} />
         <Route path="/inventory" element={<InventoryPage />} />
+        <Route path="/credit-limits" element={<CreditLimitsPage />} />
         <Route path="/quote-requests" element={<RfqList />} />
         <Route path="/quote-requests/:id" element={<RfqDetail />} />
         <Route path="/admin-users" element={<AdminUsersPage />} />

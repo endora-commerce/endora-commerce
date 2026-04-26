@@ -14,6 +14,7 @@ const NAV: NavItem[] = [
   { to: '/organizations', label: 'Organizations' },
   { to: '/orders', label: 'Orders' },
   { to: '/invoices', label: 'Invoices' },
+  { to: '/credit-limits', label: 'Credit limits' },
   { to: '/quote-requests', label: 'Quote requests' },
   { to: '/price-lists', label: 'Price lists' },
   { to: '/taxes', label: 'Taxes' },

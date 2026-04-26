@@ -6,6 +6,8 @@ import { getCart, type CartCookieJar } from '../../../lib/api/cart';
 import { listAddresses } from '../../../lib/api/organization';
 import { listDeliveryMethods, listPaymentMethods } from '../../../lib/api/methods';
 import { placeOrder } from '../../../lib/api/orders';
+import { getMyCreditLimit } from '../../../lib/api/credit-limit';
+import { CreditLimitWidget } from '../../../components/CreditLimitWidget';
 import { StorefrontApiError } from '../../../lib/api/client';
 
 /**
@@ -30,14 +32,27 @@ export default async function CheckoutPage({
   const params = await searchParams;
   const jar: CartCookieJar = await readJar();
 
-  const [cartResult, addresses, deliveryMethods, paymentMethods] = await Promise.all([
-    getCart(jar),
-    listAddresses(session),
-    listDeliveryMethods(),
-    listPaymentMethods(),
-  ]);
+  const [cartResult, addresses, deliveryMethods, paymentMethodsRaw, creditLimit] =
+    await Promise.all([
+      getCart(jar),
+      listAddresses(session),
+      listDeliveryMethods(),
+      listPaymentMethods(),
+      getMyCreditLimit(session),
+    ]);
   if (cartResult.newAnonCookie) await setAnonCartCookie(cartResult.newAnonCookie);
   const cart = cartResult.cart;
+  // Hide the credit_limit-kind method(s) when the buyer's organization
+  // hasn't been granted a limit, or when the cart total clearly exceeds
+  // the available credit. The backend rejects an over-limit reservation
+  // anyway, but a friendlier UX is to drop the option early.
+  const creditAvailable = creditLimit?.availableAmount ?? 0;
+  const cartTotal = cart.subtotal.amount;
+  const paymentMethods = paymentMethodsRaw.filter((m) => {
+    if (m.kind !== 'credit_limit') return true;
+    if (!creditLimit) return false;
+    return creditAvailable >= cartTotal;
+  });
 
   if (cart.items.length === 0) {
     return (
@@ -135,6 +150,19 @@ export default async function CheckoutPage({
           <label htmlFor="note">Note for the seller (optional)</label>
           <textarea id="note" name="customerNote" rows={3} maxLength={4000} />
         </div>
+
+        {creditLimit ? (
+          <div style={{ marginTop: 'var(--b2b-spacing, 16px)' }}>
+            <CreditLimitWidget limit={creditLimit} />
+            {creditAvailable < cartTotal ? (
+              <p className="b2b-auth__hint">
+                Your cart total ({cartTotal.toFixed(2)} {cart.subtotal.currency}) exceeds the
+                available credit. The credit-limit payment option is hidden until you reduce
+                the cart or contact support to raise your limit.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         <h3>Review</h3>
         <table className="b2b-account__table">

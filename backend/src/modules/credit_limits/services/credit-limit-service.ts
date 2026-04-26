@@ -59,6 +59,11 @@ export class CreditLimitService {
     return em.findOne(CreditLimit, { organizationId });
   }
 
+  async listAll(): Promise<CreditLimit[]> {
+    const em = this.emFactory();
+    return em.find(CreditLimit, {}, { orderBy: { createdAt: 'desc' } });
+  }
+
   async listActiveReservations(creditLimitId: string): Promise<CreditLimitReservation[]> {
     const em = this.emFactory();
     return em.find(CreditLimitReservation, { creditLimitId, status: 'active' });

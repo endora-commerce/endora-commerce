@@ -44,6 +44,21 @@ export async function registerCreditLimitsRoutes(
     },
   );
 
+  app.get(
+    '/api/v1/admin/credit-limits',
+    { preHandler: requireAdmin('credit_limits:manage') },
+    async () => {
+      const rows = await creditLimitService.listAll();
+      const data = await Promise.all(
+        rows.map(async (l) => {
+          const reservations = await creditLimitService.listActiveReservations(l.id);
+          return serializeView(l, reservations);
+        }),
+      );
+      return { data };
+    },
+  );
+
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/organizations/:id/credit-limit',
     {
