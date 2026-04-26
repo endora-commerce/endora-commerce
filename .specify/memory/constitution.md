@@ -1,17 +1,24 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.1.0 → 1.1.1
-Rationale: PATCH bump. Pure wording clarification of Principle VIII. The original
-text was misread as forbidding multi-language *product* support; it has always
-governed only engineering artifacts. The amendment makes that scope explicit,
-cross-references Principle VII (which mandates multilingual storefront + multi-
-currency), and renames the two "Scope exception" sub-sections to
-"Out of scope" — they were never exceptions to the rule, they describe its
-boundary. No normative behaviour changes; no prior compliant work is invalidated.
+Version change: 1.1.1 → 2.0.0
+Rationale: MAJOR bump. Principle VIII is materially redefined: the
+English-only requirement now applies ONLY to source code (identifiers,
+inline string literals that are not user-facing) and inline code comments.
+Documentation artifacts — specs, plans, tasks, research notes,
+data-model, contracts, quickstart, README, the docs site, governance
+documents, commit messages, PR titles + descriptions, code-review
+comments, issue templates, CI labels — MAY now be authored in any
+language the team chooses. Past compliant work (everything authored in
+English) remains compliant; the redefinition only loosens the rule, but
+the principle's normative scope is substantively narrower than v1.1.1,
+hence MAJOR.
 
 Modified principles:
-  - VIII. Working Language — English  (clarified scope; renamed sub-sections)
+  - VIII. Working Language — English (NON-NEGOTIABLE)
+        scope shrunk from "every engineering artifact" to "code +
+        code comments". Sub-sections rewritten; cross-reference to
+        Principle VII (multilingual storefront) preserved.
 
 Added sections:
   - (none)
@@ -20,21 +27,32 @@ Removed sections:
   - (none)
 
 Templates / artifacts requiring alignment:
-  - ✅ .specify/templates/plan-template.md      — references Constitution Check
-       generically; no edits required.
+  - ✅ .specify/templates/plan-template.md      — references Constitution
+       Check generically; no edits required.
   - ✅ .specify/templates/spec-template.md      — no edits required.
   - ✅ .specify/templates/tasks-template.md     — no edits required.
-  - ✅ specs/001-b2b-platform-foundation/spec.md — already in English; v1.1.0
-       deferred TODO(TRANSLATE_FEATURE_001_SPEC) cleared.
-  - ✅ README.md — exists and is in English; v1.1.0 TODO(README) cleared.
-  - ✅ docs/ (Docusaurus site) — exists and is in English; v1.1.0
-       TODO(DOCS_SITE) cleared.
-  - ✅ scripts/check-language.sh — already encodes the engineering-artifact
-       scope (excludes storefront/i18n catalogs, email-template locales, and
-       seed fixtures simulating end-customer content). No change required.
+  - ⚠ scripts/check-language.sh — currently encodes the v1.1.1 broader
+       scope (scans every file outside the i18n exception paths). With
+       the v2.0.0 scope it MUST limit its scan to source-code files
+       (.ts, .tsx, .js, .jsx, .css, .html, etc.) and SHOULD NOT scan
+       Markdown, YAML, JSON, SQL, plain text, or commit messages. Flagged
+       as a follow-up commit.
+  - ⚠ README.md "Constitution quick reference" line for Principle VIII
+       — the current wording reflects v1.1.1's "every engineering
+       artifact" framing and SHOULD be updated to the new scope
+       ("code + code comments"). Flagged as a follow-up commit.
+  - ⚠ .github/pull_request_template.md gate #5 — the wording "code,
+       comments, commit messages, and PR description are English"
+       SHOULD be narrowed to "code and code comments are English".
+       Flagged as a follow-up commit.
 
 Deferred items / TODOs:
-  - (none)
+  - TODO(SCRIPT_RESCOPE): Update `scripts/check-language.sh` to scan
+    only source-code file extensions and to drop the commit-message
+    walker.
+  - TODO(README_RESCOPE): Update README's Principle VIII line.
+  - TODO(PR_TEMPLATE_RESCOPE): Update gate #5 in
+    .github/pull_request_template.md.
 -->
 
 # B2B Platform Constitution
@@ -163,57 +181,58 @@ mobile erodes the platform's primary acquisition channel.
 
 ### VIII. Working Language — English (NON-NEGOTIABLE)
 
-This principle governs the **engineering artifacts** of the project — the
-material that contributors, code reviewers, automated tooling, and AI
-assistants read and write. Every such artifact MUST be authored in
-**English**.
+The English-only requirement applies to **source code and inline code
+comments**. Everything else — documentation, planning artifacts, governance
+documents, commit messages, code-review comments — MAY be authored in any
+language the team chooses.
 
-**This principle does not restrict the languages the platform serves to its
-end users.** Multilingual storefront content, multi-currency pricing,
-localized email templates, and locale-specific seed fixtures are a
-first-class product capability and are required by Principle VII. Engineering
-artifacts (the *how* of the platform) live in English; product content (the
-*what* customers see) lives in whatever language the Sales Channel is
-configured for.
+**In scope (MUST be English)**:
 
-In-scope artifacts that MUST be English include, at minimum:
+- All in-code identifiers: variable, function, class, type, file, and folder
+  names; database tables, columns, and constraint names; API field names
+  and URL path segments.
+- Inline code comments and docstrings inside source files
+  (`*.ts`, `*.tsx`, `*.js`, `*.jsx`, `*.cjs`, `*.mjs`, `*.css`, `*.html`,
+  shell scripts, and equivalents).
+- Inline string literals that are NOT user-facing (e.g. internal log
+  messages, error codes, route definitions, migration SQL).
+
+**Out of scope (MAY be in any language)**:
 
 - Specifications (`spec.md`), implementation plans (`plan.md`), task lists
   (`tasks.md`), research notes (`research.md`), data models (`data-model.md`),
-  interface contracts (`contracts/`), quickstart guides (`quickstart.md`).
-- The root `README.md` and the generated project documentation site.
-- The constitution itself and any governance documents.
-- All in-code identifiers (variables, functions, classes, types, files,
-  folders, database tables, columns, API field names, URL path segments).
-- Code comments and docstrings.
-- Commit messages, pull-request titles and descriptions, code-review comments.
-- Issue templates and CI/CD configuration labels.
+  interface contracts (`contracts/`), quickstart guides (`quickstart.md`),
+  validation reports.
+- The root `README.md`, every other Markdown file, and the generated
+  project documentation site.
+- The constitution itself and any other governance documents.
+- Commit messages, pull-request titles and descriptions, code-review
+  comments, issue templates, CI/CD configuration labels.
+- All localized end-customer content — storefront copy, admin UI labels,
+  notification emails, CMS pages, locale-specific seed fixtures simulating
+  customer content. This category is also governed by the localization
+  mechanism required by Principle VII; translation keys and message
+  identifiers used by that mechanism MUST still be English (because they
+  are code identifiers).
+- Foreign-language proper nouns inside any artifact (e.g. *Comarch Optima*,
+  *Subiekt GT*, *enova365*, *Symfonia*, regulatory terms like *NIP*).
 
-**Out of scope — localized end-customer content**: Text delivered to the end
-customer through a localized channel (storefront copy, admin UI labels,
-notification emails, CMS pages, locale-specific seed fixtures simulating
-customer content) is **not** an engineering artifact for the purposes of this
-principle. Such content is governed by the localization mechanism required by
-Principle VII and MAY be authored in the customer's language. Translation
-keys and message identifiers used by the localization mechanism MUST still
-be in English.
+**Rationale for keeping code in English**: Source code is the single
+artifact every contributor, every code reviewer, every linter, every
+LLM-assisted tool, and every stack trace touches. English is the working
+language of the entire ecosystem the platform depends on (Node.js,
+MikroORM, PostgreSQL, Meilisearch documentation; GitHub; LLM tooling;
+error messages from the runtime). Keeping identifiers and inline comments
+in one language preserves grep-ability, code-review fluency, and
+LLM-assisted refactoring across a team that spans multiple human
+languages.
 
-**Out of scope — foreign proper nouns**: Foreign-language proper nouns (e.g.
-product names of local third-party systems such as *Comarch Optima*,
-*Subiekt GT*, *enova365*, *Symfonia*, or regulatory terms like *NIP*) MAY
-appear verbatim in English prose where translation would lose meaning.
-Surrounding prose, field names, and variable names remain English.
-
-**Rationale**: Engineering artifacts are consumed by a mix of human
-contributors, AI tooling, and automated pipelines. English is the working
-language of the entire ecosystem this project depends on (Node.js, MikroORM,
-PostgreSQL, Meilisearch docs; GitHub; LLM tooling; error messages and stack
-traces). Mixing languages inside the engineering layer fragments
-searchability, hurts code review, undermines LLM-assisted tooling, and
-raises the barrier for future contributors. Keeping the engineering layer
-in one language costs nothing and protects all of the above; the platform
-itself remains free to speak as many customer-facing languages as the
-business requires.
+**Rationale for loosening the prose scope**: Documentation, planning, and
+review prose are read primarily by people, not tooling. A team whose
+working language is not English is better served by writing planning
+artifacts in their own language than by translating every spec into
+English at the cost of nuance and review speed. The product also remains
+free to speak whatever customer-facing languages the business requires.
 
 ## Technology Stack
 
@@ -382,4 +401,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 1.1.1 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-04-25
+**Version**: 2.0.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-04-26
