@@ -104,8 +104,20 @@ export class SearchIndexer {
       buildDocument(p, categoriesByProduct.get(p.id) ?? [], this.locale),
     );
 
+    // Wipe the index first so removed-from-channel products disappear from
+    // search. The offline reindex contract is "the index after this call
+    // exactly mirrors Postgres for this channel". Event-driven incremental
+    // reindex is a separate code path that can upsert without wiping.
+    const wipeTask = await index.deleteAllDocuments();
+    await this.client.tasks.waitForTask(wipeTask.taskUid);
+
     if (documents.length > 0) {
-      await index.addDocuments(documents, { primaryKey: 'id' });
+      const task = await index.addDocuments(documents, { primaryKey: 'id' });
+      // Wait for the task to settle so the documents are queryable when
+      // this method returns. Production callers (event-driven reindex)
+      // could fire-and-forget; the offline reindex CLI + tests both want
+      // the synchronous guarantee.
+      await this.client.tasks.waitForTask(task.taskUid);
     }
 
     const attributes = await em.find(ProductAttribute, {});

@@ -1,10 +1,25 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { CatalogQueryService } from './services/catalog-query.service.js';
+import {
+  SearchBackendUnavailable,
+  type SearchQueryService,
+} from '../search/services/search-query.service.js';
 
 /**
  * Public catalog routes (US1 read surface).
  * Storefront SSR + crawlers + anonymous API consumers. No auth.
+ *
+ * Read-backend selection (T067/T068):
+ *   - When `CATALOG_SEARCH_BACKEND=meilisearch` AND a SearchQueryService was
+ *     injected, list-products is served from Meilisearch.
+ *   - On any Meilisearch failure (`SearchBackendUnavailable`), the route
+ *     transparently degrades to the Postgres path (R-08 reserved-fallback,
+ *     so search is never fully broken).
+ *   - The `changedSince` query param stays on Postgres because it has no
+ *     equivalent in the Meilisearch index today.
+ *   - Default backend remains Postgres so existing tests + deployments
+ *     keep their behaviour without an opt-in.
  */
 
 const salesChannelHeaderSchema = z.string().optional();
@@ -12,29 +27,59 @@ const acceptLanguageHeaderSchema = z.string().optional();
 
 export interface CatalogPublicDeps {
   queryService: CatalogQueryService;
+  /** Optional Meilisearch read backend; routed through when env enables it. */
+  searchQueryService?: SearchQueryService;
 }
 
 export async function registerCatalogPublicRoutes(
   app: FastifyInstance,
   deps: CatalogPublicDeps,
 ): Promise<void> {
-  const { queryService } = deps;
+  const { queryService, searchQueryService } = deps;
 
   // GET /api/v1/catalog/products
   app.get('/api/v1/catalog/products', async (request, reply) => {
     const { q, limit, cursor, sort, categorySlug, attributeFilters, changedSince } =
       parseListQuery(request);
     const ctx = readContext(request);
-    try {
-      const result = await queryService.listProducts(
-        { q, limit, cursor, sort, categorySlug, attributeFilters, changedSince },
-        ctx,
-      );
-      reply.header('x-search-backend', 'postgres');
-      return result;
-    } catch (err) {
-      throw err;
+
+    const useMeili =
+      process.env['CATALOG_SEARCH_BACKEND'] === 'meilisearch' &&
+      searchQueryService !== undefined &&
+      changedSince === undefined;
+    if (useMeili) {
+      try {
+        const result = await searchQueryService.listProducts(
+          {
+            ...(q !== undefined ? { q } : {}),
+            limit,
+            ...(cursor !== undefined ? { cursor } : {}),
+            ...(sort !== undefined ? { sort } : {}),
+            ...(categorySlug !== undefined ? { categorySlug } : {}),
+            ...(attributeFilters !== undefined ? { attributeFilters } : {}),
+          },
+          ctx,
+        );
+        reply.header('x-search-backend', 'meilisearch');
+        return result;
+      } catch (err) {
+        if (err instanceof SearchBackendUnavailable) {
+          request.log.warn(
+            { err: err.message },
+            'meilisearch unavailable; falling back to postgres',
+          );
+        } else {
+          throw err;
+        }
+      }
     }
+
+    const result = await queryService.listProducts(
+      { q, limit, cursor, sort, categorySlug, attributeFilters, changedSince },
+      ctx,
+    );
+    reply.header('x-search-backend', 'postgres');
+    return result;
   });
 
   // GET /api/v1/catalog/products/:idOrSlug
