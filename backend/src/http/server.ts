@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import helmet from '@fastify/helmet';
 import cookie from '@fastify/cookie';
+import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import {
   serializerCompiler,
@@ -73,6 +74,22 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   app.setSerializerCompiler(serializerCompiler);
 
   await app.register(helmet, { contentSecurityPolicy: false });
+  // Allow the storefront (Next.js) and admin panel (Vite) to call the API
+  // cross-origin in dev. CORS_ORIGINS is a comma-separated allow-list; the
+  // default covers the local dev ports for both apps. `credentials: true`
+  // pairs with the api-client's `credentials: 'include'` so b2b_session
+  // cookies survive the round-trip.
+  const corsOrigins = (process.env['CORS_ORIGINS'] ?? 'http://localhost:3000,http://localhost:3002')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  await app.register(cors, {
+    origin: corsOrigins,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Sales-Channel', 'Accept-Language', 'If-Match', 'X-Request-Id'],
+    exposedHeaders: ['X-Request-Id', 'ETag'],
+  });
   await app.register(cookie, { secret: options.sessionCookieSecret });
 
   if (options.disableRateLimit !== true) {
