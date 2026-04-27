@@ -1,16 +1,24 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-import { formatDateTime } from '../../lib/format.js';
-
-/**
- * Admin RFQ detail (T092 / FR-019..FR-026). Three actions:
- *   - Claim: assigns the row to the current admin (no-op when already
- *     claimed).
- *   - Send quote: per-item unit price + optional discount, plus required
- *     lead-time + validity terms; submits the whole quote in one POST.
- *   - Decline: a free-text message; the buyer sees it on the storefront.
- */
+import { ArrowLeft, Send, XCircle } from 'lucide-react';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { formatDateTime } from '@/lib/format';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface AdminRfqItem {
   id: string;
@@ -202,207 +210,243 @@ export function RfqDetail(): ReactNode {
     }
   }, [rfq, declineMessage, refresh]);
 
-  if (loading) return <p className="muted">Loading…</p>;
+  if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>;
   if (!rfq) {
     return (
       <>
-        <p className="alert alert--warning">RFQ not found.</p>
-        <button
-          className="btn"
-          onClick={(): void => {
-            navigate('/quote-requests');
-          }}
-        >
+        <Alert variant="warning" className="mb-4">
+          <AlertDescription>RFQ not found.</AlertDescription>
+        </Alert>
+        <Button variant="outline" onClick={(): void => { navigate('/quote-requests'); }}>
+          <ArrowLeft />
           Back to list
-        </button>
+        </Button>
       </>
     );
   }
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>RFQ {rfq.id.slice(0, 8)}</h1>
-          <p>
-            Status <strong>{rfq.status}</strong>
-            {rfq.expiresAt ? <> · expires {formatDateTime(rfq.expiresAt)}</> : null}
-          </p>
-        </div>
-        <div>
-          <Link className="btn" to="/quote-requests">
-            Back
-          </Link>
-        </div>
-      </header>
+      <PageHeader
+        title={`RFQ ${rfq.id.slice(0, 8)}`}
+        description={
+          <span className="inline-flex items-center gap-2">
+            <Badge variant="secondary">{rfq.status}</Badge>
+            {rfq.expiresAt ? <span>expires {formatDateTime(rfq.expiresAt)}</span> : null}
+          </span>
+        }
+        actions={
+          <Button asChild variant="outline">
+            <Link to="/quote-requests">
+              <ArrowLeft />
+              Back
+            </Link>
+          </Button>
+        }
+      />
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      {info ? <div className="alert alert--success">{info}</div> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert variant="success" className="mb-4">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="card">
-        <div>
-          <strong>Buyer</strong>
-          <div className="muted">org {rfq.organizationId.slice(0, 8)} · user {rfq.customerAccountId.slice(0, 8)}</div>
-        </div>
-        <div style={{ marginTop: 8 }}>
-          <strong>Assigned</strong>
-          <div className="muted">
-            {rfq.assignedAdminUserId ? rfq.assignedAdminUserId : 'unassigned'}
-            {' · '}
-            {!rfq.assignedAdminUserId && QUOTABLE_STATUSES.includes(rfq.status) ? (
-              <button className="btn btn--primary" type="button" onClick={(): void => void handleClaim()}>
-                Claim
-              </button>
-            ) : null}
+      <Card className="mb-4">
+        <CardContent className="space-y-3 pt-6 text-sm">
+          <div>
+            <div className="font-semibold">Buyer</div>
+            <div className="font-mono text-xs text-muted-foreground">
+              org {rfq.organizationId.slice(0, 8)} · user {rfq.customerAccountId.slice(0, 8)}
+            </div>
           </div>
-        </div>
-        {rfq.requesterNote ? (
-          <div style={{ marginTop: 8 }}>
-            <strong>Requester note</strong>
-            <p className="muted">{rfq.requesterNote}</p>
+          <div>
+            <div className="font-semibold">Assigned</div>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <span className="font-mono text-xs">
+                {rfq.assignedAdminUserId ?? 'unassigned'}
+              </span>
+              {!rfq.assignedAdminUserId && QUOTABLE_STATUSES.includes(rfq.status) ? (
+                <Button
+                  size="sm"
+                  type="button"
+                  onClick={(): void => void handleClaim()}
+                >
+                  Claim
+                </Button>
+              ) : null}
+            </div>
           </div>
-        ) : null}
-      </div>
+          {rfq.requesterNote ? (
+            <div>
+              <div className="font-semibold">Requester note</div>
+              <p className="text-muted-foreground">{rfq.requesterNote}</p>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Items + quote</h2>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Product</th>
-              <th>Qty</th>
-              <th>Unit price</th>
-              <th>Discount %</th>
-              <th>Note</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rfq.items.map((it) => (
-              <tr key={it.id}>
-                <td>
-                  {it.productName}
-                  {it.variantLabel ? (
-                    <>
-                      <br />
-                      <span className="muted">{it.variantLabel}</span>
-                    </>
-                  ) : null}
-                </td>
-                <td>{it.quantity}</td>
-                <td>
-                  <input
-                    className="input"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    style={{ width: 110 }}
-                    value={lines[it.id]?.unitPrice ?? ''}
-                    onChange={(e): void =>
-                      setLines((prev) => ({
-                        ...prev,
-                        [it.id]: {
-                          unitPrice: e.target.value,
-                          discountPercent: prev[it.id]?.discountPercent ?? '',
-                        },
-                      }))
-                    }
-                    disabled={!canQuote}
-                  />
-                </td>
-                <td>
-                  <input
-                    className="input"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="100"
-                    style={{ width: 80 }}
-                    value={lines[it.id]?.discountPercent ?? ''}
-                    onChange={(e): void =>
-                      setLines((prev) => ({
-                        ...prev,
-                        [it.id]: {
-                          unitPrice: prev[it.id]?.unitPrice ?? '',
-                          discountPercent: e.target.value,
-                        },
-                      }))
-                    }
-                    disabled={!canQuote}
-                  />
-                </td>
-                <td className="muted">{it.requesterNote ?? ''}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Items + quote</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Product</TableHead>
+                <TableHead>Qty</TableHead>
+                <TableHead>Unit price</TableHead>
+                <TableHead>Discount %</TableHead>
+                <TableHead>Note</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rfq.items.map((it) => (
+                <TableRow key={it.id}>
+                  <TableCell>
+                    <div className="font-medium">{it.productName}</div>
+                    {it.variantLabel ? (
+                      <div className="text-xs text-muted-foreground">{it.variantLabel}</div>
+                    ) : null}
+                  </TableCell>
+                  <TableCell>{it.quantity}</TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="w-28"
+                      value={lines[it.id]?.unitPrice ?? ''}
+                      onChange={(e): void =>
+                        setLines((prev) => ({
+                          ...prev,
+                          [it.id]: {
+                            unitPrice: e.target.value,
+                            discountPercent: prev[it.id]?.discountPercent ?? '',
+                          },
+                        }))
+                      }
+                      disabled={!canQuote}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="100"
+                      className="w-20"
+                      value={lines[it.id]?.discountPercent ?? ''}
+                      onChange={(e): void =>
+                        setLines((prev) => ({
+                          ...prev,
+                          [it.id]: {
+                            unitPrice: prev[it.id]?.unitPrice ?? '',
+                            discountPercent: e.target.value,
+                          },
+                        }))
+                      }
+                      disabled={!canQuote}
+                    />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {it.requesterNote ?? ''}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       {canQuote ? (
         <>
-          <div className="card">
-            <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Quote terms</h2>
-            <div className="field">
-              <label htmlFor="lead">Lead time (days)</label>
-              <input
-                id="lead"
-                className="input"
-                type="number"
-                min="0"
-                value={terms.leadTimeDays}
-                onChange={(e): void => setTerms((t) => ({ ...t, leadTimeDays: e.target.value }))}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="valid">Validity (days)</label>
-              <input
-                id="valid"
-                className="input"
-                type="number"
-                min="1"
-                value={terms.validityDays}
-                onChange={(e): void => setTerms((t) => ({ ...t, validityDays: e.target.value }))}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="dterms">Delivery terms (optional)</label>
-              <input
-                id="dterms"
-                className="input"
-                value={terms.deliveryTerms}
-                onChange={(e): void => setTerms((t) => ({ ...t, deliveryTerms: e.target.value }))}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="remarks">Remarks (optional)</label>
-              <textarea
-                id="remarks"
-                className="input"
-                rows={3}
-                value={terms.remarks}
-                onChange={(e): void => setTerms((t) => ({ ...t, remarks: e.target.value }))}
-              />
-            </div>
-            <button className="btn btn--primary" type="button" onClick={(): void => void handleSendQuote()}>
-              Send quote
-            </button>
-          </div>
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle>Quote terms</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="lead">Lead time (days)</Label>
+                  <Input
+                    id="lead"
+                    type="number"
+                    min="0"
+                    value={terms.leadTimeDays}
+                    onChange={(e): void =>
+                      setTerms((t) => ({ ...t, leadTimeDays: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="valid">Validity (days)</Label>
+                  <Input
+                    id="valid"
+                    type="number"
+                    min="1"
+                    value={terms.validityDays}
+                    onChange={(e): void =>
+                      setTerms((t) => ({ ...t, validityDays: e.target.value }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dterms">Delivery terms (optional)</Label>
+                <Input
+                  id="dterms"
+                  value={terms.deliveryTerms}
+                  onChange={(e): void =>
+                    setTerms((t) => ({ ...t, deliveryTerms: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="remarks">Remarks (optional)</Label>
+                <Textarea
+                  id="remarks"
+                  rows={3}
+                  value={terms.remarks}
+                  onChange={(e): void => setTerms((t) => ({ ...t, remarks: e.target.value }))}
+                />
+              </div>
+              <Button type="button" onClick={(): void => void handleSendQuote()}>
+                <Send />
+                Send quote
+              </Button>
+            </CardContent>
+          </Card>
 
-          <div className="card">
-            <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Decline</h2>
-            <div className="field">
-              <label htmlFor="dmsg">Message to the buyer</label>
-              <textarea
-                id="dmsg"
-                className="input"
-                rows={3}
-                value={declineMessage}
-                onChange={(e): void => setDeclineMessage(e.target.value)}
-              />
-            </div>
-            <button className="btn btn--danger" type="button" onClick={(): void => void handleDecline()}>
-              Decline RFQ
-            </button>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Decline</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="dmsg">Message to the buyer</Label>
+                <Textarea
+                  id="dmsg"
+                  rows={3}
+                  value={declineMessage}
+                  onChange={(e): void => setDeclineMessage(e.target.value)}
+                />
+              </div>
+              <Button
+                variant="destructive"
+                type="button"
+                onClick={(): void => void handleDecline()}
+              >
+                <XCircle />
+                Decline RFQ
+              </Button>
+            </CardContent>
+          </Card>
         </>
       ) : null}
     </>

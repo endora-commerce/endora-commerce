@@ -1,11 +1,22 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-
-/**
- * Delivery methods admin (T164). Per-method `cost` is captured as a
- * snapshot on Order at placement time, so changes here don't rewrite
- * historical orders.
- */
+import { Trash2 } from 'lucide-react';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface AdminDeliveryMethod {
   id: string;
@@ -87,61 +98,81 @@ export function DeliveryMethodsPage(): ReactNode {
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>Delivery methods</h1>
-          <p>Cost is captured per-order at placement; later edits don&apos;t rewrite history.</p>
-        </div>
-      </header>
+      <PageHeader
+        title="Delivery methods"
+        description="Cost is captured per-order at placement; later edits don't rewrite history."
+      />
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      {info ? <div className="alert alert--success">{info}</div> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert variant="success" className="mb-4">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>New / update method</h2>
-        <UpsertForm onSubmit={handleUpsert} />
-      </div>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>New / update method</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <UpsertForm onSubmit={handleUpsert} />
+        </CardContent>
+      </Card>
 
-      {loading ? (
-        <p className="muted">Loading…</p>
-      ) : rows.length === 0 ? (
-        <p className="muted">No delivery methods yet.</p>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Name</th>
-              <th>Cost</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td>
-                  <code>{r.code}</code>
-                </td>
-                <td>{r.name['en-US'] ?? Object.values(r.name)[0]}</td>
-                <td>
-                  {r.cost.amount.toFixed(2)} {r.cost.currency}
-                </td>
-                <td>{r.status}</td>
-                <td>
-                  <button
-                    className="btn btn--danger"
-                    type="button"
-                    onClick={(): void => void handleDelete(r.id)}
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <Card>
+        <CardContent className="pt-6">
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No delivery methods yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Cost</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell>
+                      <code className="font-mono text-xs">{r.code}</code>
+                    </TableCell>
+                    <TableCell>{r.name['en-US'] ?? Object.values(r.name)[0]}</TableCell>
+                    <TableCell className="tabular-nums">
+                      {r.cost.amount.toFixed(2)} {r.cost.currency}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={r.status === 'active' ? 'success' : 'secondary'}>
+                        {r.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        type="button"
+                        onClick={(): void => void handleDelete(r.id)}
+                      >
+                        <Trash2 />
+                        Delete
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }
@@ -166,33 +197,34 @@ function UpsertForm({
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
   return (
     <form
+      className="space-y-4"
       onSubmit={(e: FormEvent): void => {
         e.preventDefault();
         void onSubmit({ code, nameEn, namePl, cost: Number(cost), currency, status });
       }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div className="field">
-          <label>Code</label>
-          <input
-            className="input"
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="dcode">Code</Label>
+          <Input
+            id="dcode"
             value={code}
             onChange={(e): void => setCode(e.target.value)}
             required
           />
         </div>
-        <div className="field">
-          <label>Name [en-US]</label>
-          <input className="input" value={nameEn} onChange={(e): void => setNameEn(e.target.value)} />
+        <div className="space-y-2">
+          <Label htmlFor="dnameen">Name [en-US]</Label>
+          <Input id="dnameen" value={nameEn} onChange={(e): void => setNameEn(e.target.value)} />
         </div>
-        <div className="field">
-          <label>Name [pl-PL]</label>
-          <input className="input" value={namePl} onChange={(e): void => setNamePl(e.target.value)} />
+        <div className="space-y-2">
+          <Label htmlFor="dnamepl">Name [pl-PL]</Label>
+          <Input id="dnamepl" value={namePl} onChange={(e): void => setNamePl(e.target.value)} />
         </div>
-        <div className="field">
-          <label>Cost</label>
-          <input
-            className="input"
+        <div className="space-y-2">
+          <Label htmlFor="dcost">Cost</Label>
+          <Input
+            id="dcost"
             type="number"
             step="0.01"
             min="0"
@@ -200,31 +232,29 @@ function UpsertForm({
             onChange={(e): void => setCost(e.target.value)}
           />
         </div>
-        <div className="field">
-          <label>Currency</label>
-          <input
-            className="input"
+        <div className="space-y-2">
+          <Label htmlFor="dcur">Currency</Label>
+          <Input
+            id="dcur"
             value={currency}
             onChange={(e): void => setCurrency(e.target.value.toUpperCase())}
             maxLength={3}
             required
           />
         </div>
-        <div className="field">
-          <label>Status</label>
-          <select
-            className="input"
+        <div className="space-y-2">
+          <Label htmlFor="dstatus">Status</Label>
+          <Select
+            id="dstatus"
             value={status}
             onChange={(e): void => setStatus(e.target.value as 'active' | 'inactive')}
           >
             <option value="active">active</option>
             <option value="inactive">inactive</option>
-          </select>
+          </Select>
         </div>
       </div>
-      <button className="btn btn--primary" type="submit">
-        Save
-      </button>
+      <Button type="submit">Save</Button>
     </form>
   );
 }

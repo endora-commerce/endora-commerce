@@ -1,15 +1,21 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-
-/**
- * Categories tree editor (T090). Flat list returned by the backend is
- * folded into a tree on the client; rows render with depth-based
- * indentation. Each row exposes inline rename + reparent + delete; a
- * "New child" button on any row creates a child under it.
- *
- * The backend rejects cycle attempts (409) — surfaced via the error
- * banner. Soft-delete refuses if children are still attached.
- */
+import { Fragment, useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface AdminCategory {
   id: string;
@@ -126,22 +132,27 @@ export function CategoriesTree(): ReactNode {
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>Categories</h1>
-          <p>Hierarchical tree. Cycles + non-empty deletions are rejected by the backend.</p>
-        </div>
-        <button
-          className="btn btn--primary"
-          type="button"
-          onClick={(): void => setCreateUnderId('__root__')}
-        >
-          New root category
-        </button>
-      </header>
+      <PageHeader
+        title="Categories"
+        description="Hierarchical tree. Cycles + non-empty deletions are rejected by the backend."
+        actions={
+          <Button type="button" onClick={(): void => setCreateUnderId('__root__')}>
+            <Plus />
+            New root category
+          </Button>
+        }
+      />
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      {info ? <div className="alert alert--success">{info}</div> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert variant="success" className="mb-4">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
       {createUnderId === '__root__' ? (
         <CreateForm
@@ -151,82 +162,94 @@ export function CategoriesTree(): ReactNode {
         />
       ) : null}
 
-      {loading ? (
-        <p className="muted">Loading…</p>
-      ) : tree.length === 0 ? (
-        <p className="muted">No categories yet.</p>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Category</th>
-              <th>Slug</th>
-              <th>Sort</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {flatten(tree).map(({ category: c, depth }) => (
-              <>
-                <tr key={c.id}>
-                  <td style={{ paddingLeft: depth * 24 + 8 }}>
-                    {editing === c.id ? (
-                      <EditForm
-                        category={c}
-                        categories={categories}
-                        onCancel={(): void => setEditing(null)}
-                        onSubmit={(input): void => void handleUpdate(c.id, input)}
-                      />
-                    ) : (
-                      <>
-                        <strong>{pickName(c.name)}</strong>
-                      </>
-                    )}
-                  </td>
-                  <td>{c.slug}</td>
-                  <td>{c.sortOrder}</td>
-                  <td>
-                    {editing === c.id ? null : (
-                      <>
-                        <button className="btn" type="button" onClick={(): void => setEditing(c.id)}>
-                          Edit
-                        </button>{' '}
-                        <button
-                          className="btn"
-                          type="button"
-                          onClick={(): void => setCreateUnderId(c.id)}
-                        >
-                          New child
-                        </button>{' '}
-                        <button
-                          className="btn btn--danger"
-                          type="button"
-                          onClick={(): void => void handleDelete(c)}
-                        >
-                          Delete
-                        </button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-                {createUnderId === c.id ? (
-                  <tr key={c.id + ':new'}>
-                    <td colSpan={4} style={{ paddingLeft: depth * 24 + 32 }}>
-                      <CreateForm
-                        parentLabel={pickName(c.name)}
-                        onCancel={(): void => setCreateUnderId(null)}
-                        onSubmit={(input): void =>
-                          void handleCreate({ parentCategoryId: c.id, ...input })
-                        }
-                      />
-                    </td>
-                  </tr>
-                ) : null}
-              </>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <Card>
+        <CardContent className="pt-6">
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : tree.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No categories yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Slug</TableHead>
+                  <TableHead>Sort</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {flatten(tree).map(({ category: c, depth }) => (
+                  <Fragment key={c.id}>
+                    <TableRow>
+                      <TableCell style={{ paddingLeft: depth * 24 + 8 }}>
+                        {editing === c.id ? (
+                          <EditForm
+                            category={c}
+                            categories={categories}
+                            onCancel={(): void => setEditing(null)}
+                            onSubmit={(input): void => void handleUpdate(c.id, input)}
+                          />
+                        ) : (
+                          <span className="font-medium">{pickName(c.name)}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{c.slug}</TableCell>
+                      <TableCell>{c.sortOrder}</TableCell>
+                      <TableCell>
+                        {editing === c.id ? null : (
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              type="button"
+                              onClick={(): void => setEditing(c.id)}
+                            >
+                              <Pencil />
+                              Edit
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              type="button"
+                              onClick={(): void => setCreateUnderId(c.id)}
+                            >
+                              <Plus />
+                              New child
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              type="button"
+                              onClick={(): void => void handleDelete(c)}
+                            >
+                              <Trash2 />
+                              Delete
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                    {createUnderId === c.id ? (
+                      <TableRow>
+                        <TableCell colSpan={4} style={{ paddingLeft: depth * 24 + 32 }}>
+                          <CreateForm
+                            parentLabel={pickName(c.name)}
+                            onCancel={(): void => setCreateUnderId(null)}
+                            onSubmit={(input): void =>
+                              void handleCreate({ parentCategoryId: c.id, ...input })
+                            }
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                  </Fragment>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }
@@ -244,42 +267,48 @@ function CreateForm({
   const [nameEn, setNameEn] = useState('');
   const [namePl, setNamePl] = useState('');
   return (
-    <form
-      className="card"
-      onSubmit={(e: FormEvent): void => {
-        e.preventDefault();
-        onSubmit({ slug, nameEn, namePl });
-      }}
-    >
-      <p>
-        New category under <strong>{parentLabel}</strong>
-      </p>
-      <div className="field">
-        <label>Slug</label>
-        <input
-          className="input"
-          value={slug}
-          onChange={(e): void => setSlug(e.target.value.toLowerCase())}
-          required
-          pattern="[a-z0-9]+(-[a-z0-9]+)*"
-          title="kebab-case"
-        />
-      </div>
-      <div className="field">
-        <label>Name [en-US]</label>
-        <input className="input" value={nameEn} onChange={(e): void => setNameEn(e.target.value)} />
-      </div>
-      <div className="field">
-        <label>Name [pl-PL]</label>
-        <input className="input" value={namePl} onChange={(e): void => setNamePl(e.target.value)} />
-      </div>
-      <button className="btn btn--primary" type="submit">
-        Create
-      </button>{' '}
-      <button className="btn" type="button" onClick={onCancel}>
-        Cancel
-      </button>
-    </form>
+    <Card className="mb-4">
+      <CardContent className="pt-6">
+        <form
+          className="space-y-4"
+          onSubmit={(e: FormEvent): void => {
+            e.preventDefault();
+            onSubmit({ slug, nameEn, namePl });
+          }}
+        >
+          <p className="text-sm">
+            New category under <strong>{parentLabel}</strong>
+          </p>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="cslug">Slug</Label>
+              <Input
+                id="cslug"
+                value={slug}
+                onChange={(e): void => setSlug(e.target.value.toLowerCase())}
+                required
+                pattern="[a-z0-9]+(-[a-z0-9]+)*"
+                title="kebab-case"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cen">Name [en-US]</Label>
+              <Input id="cen" value={nameEn} onChange={(e): void => setNameEn(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cpl">Name [pl-PL]</Label>
+              <Input id="cpl" value={namePl} onChange={(e): void => setNamePl(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button type="submit">Create</Button>
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -305,52 +334,52 @@ function EditForm({
   const [parentId, setParentId] = useState<string>(category.parentCategoryId ?? '');
   return (
     <form
+      className="space-y-4"
       onSubmit={(e: FormEvent): void => {
         e.preventDefault();
         onSubmit({ slug, nameEn, namePl, parentCategoryId: parentId === '' ? null : parentId });
       }}
     >
-      <div className="field">
-        <label>Slug</label>
-        <input
-          className="input"
-          value={slug}
-          onChange={(e): void => setSlug(e.target.value.toLowerCase())}
-          required
-          pattern="[a-z0-9]+(-[a-z0-9]+)*"
-        />
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Slug</Label>
+          <Input
+            value={slug}
+            onChange={(e): void => setSlug(e.target.value.toLowerCase())}
+            required
+            pattern="[a-z0-9]+(-[a-z0-9]+)*"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Parent</Label>
+          <Select value={parentId} onChange={(e): void => setParentId(e.target.value)}>
+            <option value="">— root —</option>
+            {categories
+              .filter((c) => c.id !== category.id)
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {pickName(c.name)} ({c.slug})
+                </option>
+              ))}
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Name [en-US]</Label>
+          <Input value={nameEn} onChange={(e): void => setNameEn(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label>Name [pl-PL]</Label>
+          <Input value={namePl} onChange={(e): void => setNamePl(e.target.value)} />
+        </div>
       </div>
-      <div className="field">
-        <label>Name [en-US]</label>
-        <input className="input" value={nameEn} onChange={(e): void => setNameEn(e.target.value)} />
+      <div className="flex gap-2">
+        <Button type="submit" size="sm">
+          Save
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={onCancel}>
+          Cancel
+        </Button>
       </div>
-      <div className="field">
-        <label>Name [pl-PL]</label>
-        <input className="input" value={namePl} onChange={(e): void => setNamePl(e.target.value)} />
-      </div>
-      <div className="field">
-        <label>Parent</label>
-        <select
-          className="input"
-          value={parentId}
-          onChange={(e): void => setParentId(e.target.value)}
-        >
-          <option value="">— root —</option>
-          {categories
-            .filter((c) => c.id !== category.id)
-            .map((c) => (
-              <option key={c.id} value={c.id}>
-                {pickName(c.name)} ({c.slug})
-              </option>
-            ))}
-        </select>
-      </div>
-      <button className="btn btn--primary" type="submit">
-        Save
-      </button>{' '}
-      <button className="btn" type="button" onClick={onCancel}>
-        Cancel
-      </button>
     </form>
   );
 }

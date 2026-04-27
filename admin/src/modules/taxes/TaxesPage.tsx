@@ -1,11 +1,23 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-
-/**
- * Taxes admin (T163). Upsert by code; the most-specific matching rule
- * wins at resolution time (FR-051). One default rule is allowed via the
- * partial unique index — the backend swap is atomic.
- */
+import { Trash2 } from 'lucide-react';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface AdminTax {
   id: string;
@@ -85,67 +97,87 @@ export function TaxesPage(): ReactNode {
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>Taxes</h1>
-          <p>Per-rule rates narrowed by country, product type, and buyer VAT status.</p>
-        </div>
-      </header>
+      <PageHeader
+        title="Taxes"
+        description="Per-rule rates narrowed by country, product type, and buyer VAT status."
+      />
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      {info ? <div className="alert alert--success">{info}</div> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert variant="success" className="mb-4">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>New / update tax rule</h2>
-        <UpsertForm onSubmit={handleUpsert} />
-      </div>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>New / update tax rule</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <UpsertForm onSubmit={handleUpsert} />
+        </CardContent>
+      </Card>
 
-      {loading ? (
-        <p className="muted">Loading…</p>
-      ) : rows.length === 0 ? (
-        <p className="muted">No tax rules yet.</p>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Name</th>
-              <th>Rate</th>
-              <th>Country</th>
-              <th>Product type</th>
-              <th>VAT statuses</th>
-              <th>Default</th>
-              <th>Priority</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td>
-                  <code>{r.code}</code>
-                </td>
-                <td>{r.name}</td>
-                <td>{(r.rate * 100).toFixed(1)}%</td>
-                <td>{r.country ?? '—'}</td>
-                <td>{r.productType ?? '—'}</td>
-                <td>{r.appliesToVatStatuses.join(', ') || '—'}</td>
-                <td>{r.isDefault ? 'yes' : ''}</td>
-                <td>{r.priority}</td>
-                <td>
-                  <button
-                    className="btn btn--danger"
-                    type="button"
-                    onClick={(): void => void handleDelete(r.id)}
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <Card>
+        <CardContent className="pt-6">
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No tax rules yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Rate</TableHead>
+                  <TableHead>Country</TableHead>
+                  <TableHead>Product type</TableHead>
+                  <TableHead>VAT statuses</TableHead>
+                  <TableHead>Default</TableHead>
+                  <TableHead>Priority</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell>
+                      <code className="font-mono text-xs">{r.code}</code>
+                    </TableCell>
+                    <TableCell className="font-medium">{r.name}</TableCell>
+                    <TableCell className="tabular-nums">{(r.rate * 100).toFixed(1)}%</TableCell>
+                    <TableCell>{r.country ?? '—'}</TableCell>
+                    <TableCell>{r.productType ?? '—'}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {r.appliesToVatStatuses.join(', ') || '—'}
+                    </TableCell>
+                    <TableCell>
+                      {r.isDefault ? <Badge variant="default">default</Badge> : null}
+                    </TableCell>
+                    <TableCell>{r.priority}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        type="button"
+                        onClick={(): void => void handleDelete(r.id)}
+                      >
+                        <Trash2 />
+                        Delete
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }
@@ -162,6 +194,7 @@ function UpsertForm({ onSubmit }: { onSubmit: (input: AdminTax) => Promise<void>
 
   return (
     <form
+      className="space-y-4"
       onSubmit={(e: FormEvent): void => {
         e.preventDefault();
         void onSubmit({
@@ -177,19 +210,19 @@ function UpsertForm({ onSubmit }: { onSubmit: (input: AdminTax) => Promise<void>
         });
       }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div className="field">
-          <label>Code</label>
-          <input className="input" value={code} onChange={(e): void => setCode(e.target.value)} required />
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="tcode">Code</Label>
+          <Input id="tcode" value={code} onChange={(e): void => setCode(e.target.value)} required />
         </div>
-        <div className="field">
-          <label>Display name</label>
-          <input className="input" value={name} onChange={(e): void => setName(e.target.value)} required />
+        <div className="space-y-2">
+          <Label htmlFor="tname">Display name</Label>
+          <Input id="tname" value={name} onChange={(e): void => setName(e.target.value)} required />
         </div>
-        <div className="field">
-          <label>Rate (decimal — 0.23 = 23%)</label>
-          <input
-            className="input"
+        <div className="space-y-2">
+          <Label htmlFor="trate">Rate (decimal — 0.23 = 23%)</Label>
+          <Input
+            id="trate"
             type="number"
             step="0.001"
             min="0"
@@ -197,19 +230,19 @@ function UpsertForm({ onSubmit }: { onSubmit: (input: AdminTax) => Promise<void>
             onChange={(e): void => setRate(e.target.value)}
           />
         </div>
-        <div className="field">
-          <label>Country (ISO-2, blank = any)</label>
-          <input
-            className="input"
+        <div className="space-y-2">
+          <Label htmlFor="tctry">Country (ISO-2, blank = any)</Label>
+          <Input
+            id="tctry"
             value={country}
             onChange={(e): void => setCountry(e.target.value.toUpperCase())}
             maxLength={2}
           />
         </div>
-        <div className="field">
-          <label>Product type (blank = any)</label>
-          <select
-            className="input"
+        <div className="space-y-2">
+          <Label htmlFor="tptype">Product type (blank = any)</Label>
+          <Select
+            id="tptype"
             value={productType}
             onChange={(e): void => setProductType(e.target.value)}
           >
@@ -219,51 +252,49 @@ function UpsertForm({ onSubmit }: { onSubmit: (input: AdminTax) => Promise<void>
                 {t}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
-        <div className="field">
-          <label>Priority (higher wins on ties)</label>
-          <input
-            className="input"
+        <div className="space-y-2">
+          <Label htmlFor="tprio">Priority (higher wins on ties)</Label>
+          <Input
+            id="tprio"
             type="number"
             value={priority}
             onChange={(e): void => setPriority(e.target.value)}
           />
         </div>
       </div>
-      <div className="field">
-        <label>Applies to VAT statuses (none = any)</label>
-        {VAT_STATUSES.map((v) => (
-          <label key={v} style={{ display: 'inline-block', marginRight: 12 }}>
-            <input
-              type="checkbox"
-              checked={vatStatuses.has(v)}
-              onChange={(e): void =>
-                setVatStatuses((prev) => {
-                  const next = new Set(prev);
-                  if (e.target.checked) next.add(v);
-                  else next.delete(v);
-                  return next;
-                })
-              }
-            />{' '}
-            {v}
-          </label>
-        ))}
+      <div className="space-y-2">
+        <Label>Applies to VAT statuses (none = any)</Label>
+        <div className="flex flex-wrap gap-3">
+          {VAT_STATUSES.map((v) => (
+            <label key={v} className="inline-flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={vatStatuses.has(v)}
+                onChange={(e): void =>
+                  setVatStatuses((prev) => {
+                    const next = new Set(prev);
+                    if (e.target.checked) next.add(v);
+                    else next.delete(v);
+                    return next;
+                  })
+                }
+              />
+              {v}
+            </label>
+          ))}
+        </div>
       </div>
-      <div className="field">
-        <label>
-          <input
-            type="checkbox"
-            checked={isDefault}
-            onChange={(e): void => setIsDefault(e.target.checked)}
-          />{' '}
-          Default fallback rule
-        </label>
+      <label className="inline-flex items-center gap-2 text-sm">
+        <Checkbox
+          checked={isDefault}
+          onChange={(e): void => setIsDefault(e.target.checked)}
+        />
+        Default fallback rule
+      </label>
+      <div>
+        <Button type="submit">Save</Button>
       </div>
-      <button className="btn btn--primary" type="submit">
-        Save
-      </button>
     </form>
   );
 }

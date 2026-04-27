@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-import { formatDateTime } from '../../lib/format.js';
-
-/**
- * Inventory admin (T165). Read + adjust on-hand counters per
- * (productId, variantId?). `available = onHand − reserved` is shown so
- * operators can spot rows where the storefront would refuse stock even
- * though the warehouse has units (because some are reserved by
- * unfulfilled orders).
- *
- * The set form takes an absolute on-hand value. Reserved counters are
- * driven by orders and are not editable here.
- */
+import { ApiError, apiClient } from '@/lib/api-client';
+import { formatDateTime } from '@/lib/format';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface AdminStockRow {
   id: string;
@@ -72,75 +75,95 @@ export function InventoryPage(): ReactNode {
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>Inventory</h1>
-          <p>
-            On-hand counters per product / variant. <code>available = onHand − reserved</code>.
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        title="Inventory"
+        description={
+          <span>
+            On-hand counters per product / variant.{' '}
+            <code className="font-mono text-xs">available = onHand − reserved</code>.
+          </span>
+        }
+      />
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      {info ? <div className="alert alert--success">{info}</div> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert variant="success" className="mb-4">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="card">
-        <div className="field">
-          <label>Filter by product id</label>
-          <input
-            className="input"
-            value={productFilter}
-            onChange={(e): void => setProductFilter(e.target.value.trim())}
-            placeholder="UUID"
-          />
-        </div>
-      </div>
+      <Card className="mb-4">
+        <CardContent className="pt-6">
+          <div className="space-y-2 md:max-w-md">
+            <Label htmlFor="ifilter">Filter by product id</Label>
+            <Input
+              id="ifilter"
+              value={productFilter}
+              onChange={(e): void => setProductFilter(e.target.value.trim())}
+              placeholder="UUID"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Set on-hand</h2>
-        <SetStockForm onSubmit={handleSet} />
-      </div>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Set on-hand</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SetStockForm onSubmit={handleSet} />
+        </CardContent>
+      </Card>
 
-      {loading ? (
-        <p className="muted">Loading…</p>
-      ) : rows.length === 0 ? (
-        <p className="muted">No stock-level rows match the current filter.</p>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Product</th>
-              <th>Variant</th>
-              <th>On hand</th>
-              <th>Reserved</th>
-              <th>Available</th>
-              <th>Updated</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td>
-                  {r.productSku ? <code>{r.productSku}</code> : <code>{r.productId.slice(0, 8)}</code>}
-                  {r.productName ? (
-                    <>
-                      <br />
-                      <span className="muted">
-                        {r.productName['en-US'] ?? Object.values(r.productName)[0]}
-                      </span>
-                    </>
-                  ) : null}
-                </td>
-                <td>{r.variantId ? r.variantId.slice(0, 8) : '—'}</td>
-                <td>{r.onHand}</td>
-                <td>{r.reserved}</td>
-                <td>{r.available}</td>
-                <td>{formatDateTime(r.updatedAt)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <Card>
+        <CardContent className="pt-6">
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No stock-level rows match the current filter.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Variant</TableHead>
+                  <TableHead>On hand</TableHead>
+                  <TableHead>Reserved</TableHead>
+                  <TableHead>Available</TableHead>
+                  <TableHead>Updated</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell>
+                      <code className="font-mono text-xs">
+                        {r.productSku ?? r.productId.slice(0, 8)}
+                      </code>
+                      {r.productName ? (
+                        <div className="text-xs text-muted-foreground">
+                          {r.productName['en-US'] ?? Object.values(r.productName)[0]}
+                        </div>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {r.variantId ? r.variantId.slice(0, 8) : '—'}
+                    </TableCell>
+                    <TableCell className="tabular-nums">{r.onHand}</TableCell>
+                    <TableCell className="tabular-nums">{r.reserved}</TableCell>
+                    <TableCell className="tabular-nums font-medium">{r.available}</TableCell>
+                    <TableCell>{formatDateTime(r.updatedAt)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }
@@ -155,6 +178,7 @@ function SetStockForm({
   const [onHand, setOnHand] = useState('0');
   return (
     <form
+      className="space-y-4"
       onSubmit={(e: FormEvent): void => {
         e.preventDefault();
         void onSubmit({
@@ -164,30 +188,30 @@ function SetStockForm({
         });
       }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-        <div className="field">
-          <label>Product ID</label>
-          <input
-            className="input"
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="space-y-2">
+          <Label htmlFor="ipid">Product ID</Label>
+          <Input
+            id="ipid"
             value={productId}
             onChange={(e): void => setProductId(e.target.value.trim())}
             required
             placeholder="UUID"
           />
         </div>
-        <div className="field">
-          <label>Variant ID (optional)</label>
-          <input
-            className="input"
+        <div className="space-y-2">
+          <Label htmlFor="ivid">Variant ID (optional)</Label>
+          <Input
+            id="ivid"
             value={variantId}
             onChange={(e): void => setVariantId(e.target.value.trim())}
             placeholder="UUID"
           />
         </div>
-        <div className="field">
-          <label>On hand</label>
-          <input
-            className="input"
+        <div className="space-y-2">
+          <Label htmlFor="ionhand">On hand</Label>
+          <Input
+            id="ionhand"
             type="number"
             min="0"
             value={onHand}
@@ -195,9 +219,7 @@ function SetStockForm({
           />
         </div>
       </div>
-      <button className="btn btn--primary" type="submit">
-        Save
-      </button>
+      <Button type="submit">Save</Button>
     </form>
   );
 }

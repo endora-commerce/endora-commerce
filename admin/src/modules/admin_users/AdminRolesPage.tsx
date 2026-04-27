@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-
-/**
- * Admin Roles editor (T193 / FR-080..FR-083). One page per Role with a
- * permission-matrix checkbox grid grouped by module. Save = PUT
- * `/admin/admin-roles/:code` (upsert). Delete refuses if any user is
- * still assigned (backend returns 409 ADMIN_ROLE_IN_USE — surfaced as a
- * banner here).
- */
+import { Plus, ShieldAlert } from 'lucide-react';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import { cn } from '@/lib/utils';
 
 interface AdminRole {
   id: string;
@@ -77,15 +78,12 @@ export function AdminRolesPage(): ReactNode {
       requiresTwoFactor: boolean;
     }): Promise<void> => {
       try {
-        await apiClient.put<{ data: AdminRole }>(
-          `/api/v1/admin/admin-roles/${input.code}`,
-          {
-            code: input.code,
-            name: input.name,
-            permissions: input.permissions,
-            requiresTwoFactor: input.requiresTwoFactor,
-          },
-        );
+        await apiClient.put<{ data: AdminRole }>(`/api/v1/admin/admin-roles/${input.code}`, {
+          code: input.code,
+          name: input.name,
+          permissions: input.permissions,
+          requiresTwoFactor: input.requiresTwoFactor,
+        });
         setInfo(`Saved role ${input.code}.`);
         setEditingCode(input.code);
         await refresh();
@@ -113,44 +111,75 @@ export function AdminRolesPage(): ReactNode {
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>Roles</h1>
-          <p>
-            Permission bundles assigned in <Link to="/admin-users">Users</Link>.
-          </p>
-        </div>
-        <button className="btn btn--primary" type="button" onClick={(): void => setEditingCode(NEW_ROLE_KEY)}>
-          New role
-        </button>
-      </header>
+      <PageHeader
+        title="Roles"
+        description={
+          <>
+            Permission bundles assigned in{' '}
+            <Link to="/admin-users" className="underline underline-offset-2">
+              Users
+            </Link>
+            .
+          </>
+        }
+        actions={
+          <Button onClick={(): void => setEditingCode(NEW_ROLE_KEY)}>
+            <Plus />
+            New role
+          </Button>
+        }
+      />
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      {info ? <div className="alert alert--success">{info}</div> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert variant="success" className="mb-4">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
       {loading ? (
-        <p className="muted">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16 }}>
-          <div className="card">
-            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 4 }}>
-              {roles.map((r) => (
-                <li key={r.id}>
-                  <button
-                    className={
-                      'btn ' + (editingCode === r.code ? 'btn--primary' : '')
-                    }
-                    type="button"
-                    style={{ width: '100%', justifyContent: 'flex-start', textAlign: 'left' }}
-                    onClick={(): void => setEditingCode(r.code)}
-                  >
-                    {r.name} <span className="muted">{r.code}</span>
-                  </button>
-                </li>
-              ))}
-              {roles.length === 0 ? <li className="muted">No roles yet.</li> : null}
-            </ul>
-          </div>
+        <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
+          <Card>
+            <CardContent className="pt-6">
+              <ul className="space-y-1">
+                {roles.map((r) => (
+                  <li key={r.id}>
+                    <button
+                      type="button"
+                      onClick={(): void => setEditingCode(r.code)}
+                      className={cn(
+                        'flex w-full flex-col items-start gap-0.5 rounded-md px-3 py-2 text-left text-sm transition-colors',
+                        editingCode === r.code
+                          ? 'bg-primary text-primary-foreground'
+                          : 'hover:bg-accent hover:text-accent-foreground',
+                      )}
+                    >
+                      <span className="font-medium">{r.name}</span>
+                      <span
+                        className={cn(
+                          'text-xs',
+                          editingCode === r.code
+                            ? 'text-primary-foreground/80'
+                            : 'text-muted-foreground',
+                        )}
+                      >
+                        {r.code}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+                {roles.length === 0 ? (
+                  <li className="text-sm text-muted-foreground">No roles yet.</li>
+                ) : null}
+              </ul>
+            </CardContent>
+          </Card>
 
           {editing ? (
             <RoleEditor
@@ -173,7 +202,11 @@ export function AdminRolesPage(): ReactNode {
               }
             />
           ) : (
-            <div className="card muted">Pick a role on the left or create a new one.</div>
+            <Card>
+              <CardContent className="pt-6 text-sm text-muted-foreground">
+                Pick a role on the left or create a new one.
+              </CardContent>
+            </Card>
           )}
         </div>
       )}
@@ -213,97 +246,105 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
   }, [props.permissions]);
 
   return (
-    <div className="card">
-      {isWildcard ? (
-        <div className="alert alert--warning">
-          This role uses the wildcard <code>*</code> permission (bootstrap admin). The matrix
-          below is informational; saving the role will replace the wildcard with whatever the
-          matrix shows.
-        </div>
-      ) : null}
-      <form
-        onSubmit={(e: FormEvent): void => {
-          e.preventDefault();
-          props.onSave({
-            code,
-            name,
-            permissions: Array.from(permissions),
-            requiresTwoFactor,
-          });
-        }}
-      >
-        <div className="field">
-          <label htmlFor="rcode">Code</label>
-          <input
-            id="rcode"
-            className="input"
-            value={code}
-            onChange={(e): void => setCode(e.target.value)}
-            disabled={!!props.role.code}
-            required
-            maxLength={64}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="rname">Display name</label>
-          <input
-            id="rname"
-            className="input"
-            value={name}
-            onChange={(e): void => setName(e.target.value)}
-            required
-            maxLength={160}
-          />
-        </div>
-        <div className="field">
-          <label>
-            <input
-              type="checkbox"
+    <Card>
+      <CardContent className="space-y-4 pt-6">
+        {isWildcard ? (
+          <Alert variant="warning">
+            <ShieldAlert className="size-4" />
+            <AlertTitle>Wildcard role</AlertTitle>
+            <AlertDescription>
+              This role uses the wildcard <code className="font-mono">*</code> permission
+              (bootstrap admin). The matrix below is informational; saving the role will replace
+              the wildcard with whatever the matrix shows.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        <form
+          className="space-y-4"
+          onSubmit={(e: FormEvent): void => {
+            e.preventDefault();
+            props.onSave({
+              code,
+              name,
+              permissions: Array.from(permissions),
+              requiresTwoFactor,
+            });
+          }}
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="rcode">Code</Label>
+              <Input
+                id="rcode"
+                value={code}
+                onChange={(e): void => setCode(e.target.value)}
+                disabled={!!props.role.code}
+                required
+                maxLength={64}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="rname">Display name</Label>
+              <Input
+                id="rname"
+                value={name}
+                onChange={(e): void => setName(e.target.value)}
+                required
+                maxLength={160}
+              />
+            </div>
+          </div>
+          <label className="inline-flex items-center gap-2 text-sm">
+            <Checkbox
               checked={requiresTwoFactor}
               onChange={(e): void => setRequiresTwoFactor(e.target.checked)}
-            />{' '}
+            />
             Requires two-factor authentication on assigned users
           </label>
-        </div>
 
-        <h3 style={{ fontSize: '1rem' }}>Permissions</h3>
-        {grouped.map(([module, perms]) => (
-          <fieldset
-            key={module}
-            style={{ border: '1px solid var(--color-border)', padding: 12, marginBottom: 12 }}
-          >
-            <legend style={{ fontWeight: 600 }}>{module}</legend>
-            {perms.map((p) => (
-              <label key={p.code} style={{ display: 'block', padding: '2px 0' }}>
-                <input
-                  type="checkbox"
-                  checked={permissions.has(p.code)}
-                  onChange={(e): void => {
-                    setPermissions((prev) => {
-                      const next = new Set(prev);
-                      if (e.target.checked) next.add(p.code);
-                      else next.delete(p.code);
-                      return next;
-                    });
-                  }}
-                />{' '}
-                <code>{p.code}</code> — {p.label}
-              </label>
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold">Permissions</h3>
+            {grouped.map(([module, perms]) => (
+              <fieldset key={module} className="rounded-md border p-3">
+                <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {module}
+                </legend>
+                <div className="space-y-1.5">
+                  {perms.map((p) => (
+                    <label
+                      key={p.code}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      <Checkbox
+                        checked={permissions.has(p.code)}
+                        onChange={(e): void => {
+                          setPermissions((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(p.code);
+                            else next.delete(p.code);
+                            return next;
+                          });
+                        }}
+                      />
+                      <code className="font-mono text-xs">{p.code}</code>
+                      <span className="text-muted-foreground">— {p.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
             ))}
-          </fieldset>
-        ))}
+          </div>
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn--primary" type="submit">
-            Save
-          </button>
-          {props.onDelete ? (
-            <button className="btn btn--danger" type="button" onClick={props.onDelete}>
-              Delete role
-            </button>
-          ) : null}
-        </div>
-      </form>
-    </div>
+          <div className="flex gap-2">
+            <Button type="submit">Save</Button>
+            {props.onDelete ? (
+              <Button type="button" variant="destructive" onClick={props.onDelete}>
+                Delete role
+              </Button>
+            ) : null}
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
