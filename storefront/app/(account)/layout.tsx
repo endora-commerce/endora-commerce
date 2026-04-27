@@ -26,9 +26,7 @@ export default async function AccountLayout({
     me = await getMe(session);
   } catch (err) {
     if (err instanceof StorefrontApiError && err.status === 401) {
-      // Stale session — clear it and bounce to /login.
-      await clearSessionCookie();
-      redirect('/login?next=/account');
+      redirect('/session-expired?next=/account');
     }
     throw err;
   }
