@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { ApiError, apiClient } from './api-client.js';
+import { ApiError, apiClient, onUnauthorized } from './api-client.js';
 
 /**
  * Admin auth context. The session lives in the `b2b_session` httpOnly cookie
@@ -78,6 +78,22 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(
+    () =>
+      onUnauthorized(() => {
+        setState((prev) =>
+          prev.status === 'authenticated'
+            ? {
+                status: 'unauthenticated',
+                me: null,
+                lastLoginError: 'Your session expired. Please sign in again.',
+              }
+            : prev,
+        );
+      }),
+    [],
+  );
 
   const login = useCallback(
     async (email: string, password: string): Promise<void> => {

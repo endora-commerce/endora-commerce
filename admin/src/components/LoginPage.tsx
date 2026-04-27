@@ -37,7 +37,9 @@ export function LoginPage(): ReactNode {
           {lastLoginError ? (
             <Alert variant="destructive">
               <ShieldAlert className="size-4" />
-              <AlertTitle>Sign-in failed</AlertTitle>
+              <AlertTitle>
+                {/expired/i.test(lastLoginError) ? 'Session expired' : 'Sign-in failed'}
+              </AlertTitle>
               <AlertDescription>{lastLoginError}</AlertDescription>
             </Alert>
           ) : null}
