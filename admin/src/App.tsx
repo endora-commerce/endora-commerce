@@ -37,8 +37,8 @@ export function App(): ReactNode {
   const { status } = useAuth();
   if (status === 'loading') {
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
-        <p className="muted">Loading…</p>
+      <div className="grid min-h-screen place-items-center bg-muted/40">
+        <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
     );
   }
@@ -79,7 +79,7 @@ export function App(): ReactNode {
         <Route
           path="*"
           element={
-            <div className="alert alert--warning">
+            <div className="rounded-md border border-amber-500/40 bg-amber-50 p-4 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
               Page not found. Pick a module from the sidebar.
             </div>
           }

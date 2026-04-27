@@ -1,12 +1,28 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { Trash2 } from 'lucide-react';
 import type { CmsPage } from '@b2b/contracts';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-import { formatDateTime } from '../../lib/format.js';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { formatDateTime } from '@/lib/format';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
 
 interface ListEnvelope {
   data: CmsPage[];
 }
-
 interface SingleEnvelope {
   data: CmsPage;
 }
@@ -38,7 +54,11 @@ export function CmsPagesPage(): ReactNode {
   }, [refresh]);
 
   const create = useCallback(
-    async (input: { path: string; title: Record<string, string>; body: Record<string, string> }): Promise<void> => {
+    async (input: {
+      path: string;
+      title: Record<string, string>;
+      body: Record<string, string>;
+    }): Promise<void> => {
       try {
         await apiClient.post<SingleEnvelope>('/api/v1/admin/cms/pages', input);
         setInfo('Page created as draft. Publish to expose it on the storefront.');
@@ -96,96 +116,137 @@ export function CmsPagesPage(): ReactNode {
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>CMS pages</h1>
-          <p>Editorial copy served at the configured path. Title and body are multilingual.</p>
-        </div>
-      </header>
+      <PageHeader
+        title="CMS pages"
+        description="Editorial copy served at the configured path. Title and body are multilingual."
+      />
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      {info ? <div className="alert alert--success">{info}</div> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert variant="success" className="mb-4">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Create page</h2>
-        <CreatePageForm onSubmit={create} />
-      </div>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Create page</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CreatePageForm onSubmit={create} />
+        </CardContent>
+      </Card>
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Pages</h2>
-        {loading ? (
-          <p className="muted">Loading…</p>
-        ) : rows.length === 0 ? (
-          <p className="muted">No CMS pages yet.</p>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Path</th>
-                <th>Status</th>
-                <th>Published</th>
-                <th>Updated</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id}>
-                  <td className="code">/{row.path}</td>
-                  <td>
-                    <StatusBadge status={row.status} />
-                  </td>
-                  <td>{formatDateTime(row.publishedAt)}</td>
-                  <td>{formatDateTime(row.updatedAt)}</td>
-                  <td className="row-actions">
-                    <button
-                      className="btn"
-                      onClick={(): void => setEditing(editing?.id === row.id ? null : row)}
-                    >
-                      {editing?.id === row.id ? 'Close' : 'Edit'}
-                    </button>
-                    {row.status === 'published' ? (
-                      <button className="btn" onClick={(): void => { void action(row.id, 'unpublish'); }}>
-                        Unpublish
-                      </button>
-                    ) : (
-                      <button className="btn btn--primary" onClick={(): void => { void action(row.id, 'publish'); }}>
-                        Publish
-                      </button>
-                    )}
-                    {row.status !== 'archived' ? (
-                      <button className="btn" onClick={(): void => { void action(row.id, 'archive'); }}>
-                        Archive
-                      </button>
-                    ) : null}
-                    <button className="btn btn--danger" onClick={(): void => { void remove(row.id); }}>
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Pages</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No CMS pages yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Path</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Published</TableHead>
+                  <TableHead>Updated</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row) => (
+                  <TableRow key={row.id}>
+                    <TableCell className="font-mono">/{row.path}</TableCell>
+                    <TableCell>
+                      <StatusBadge status={row.status} />
+                    </TableCell>
+                    <TableCell>{formatDateTime(row.publishedAt)}</TableCell>
+                    <TableCell>{formatDateTime(row.updatedAt)}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(): void => setEditing(editing?.id === row.id ? null : row)}
+                        >
+                          {editing?.id === row.id ? 'Close' : 'Edit'}
+                        </Button>
+                        {row.status === 'published' ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(): void => {
+                              void action(row.id, 'unpublish');
+                            }}
+                          >
+                            Unpublish
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={(): void => {
+                              void action(row.id, 'publish');
+                            }}
+                          >
+                            Publish
+                          </Button>
+                        )}
+                        {row.status !== 'archived' ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(): void => {
+                              void action(row.id, 'archive');
+                            }}
+                          >
+                            Archive
+                          </Button>
+                        ) : null}
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={(): void => {
+                            void remove(row.id);
+                          }}
+                        >
+                          <Trash2 />
+                          Delete
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       {editing ? <EditorCard page={editing} onSave={save} /> : null}
     </>
   );
 }
 
-function StatusBadge(props: { status: CmsPage['status'] }): ReactNode {
-  const cls =
-    props.status === 'published'
-      ? 'badge badge--success'
-      : props.status === 'archived'
-        ? 'badge badge--danger'
-        : 'badge badge--warning';
-  return <span className={cls}>{props.status}</span>;
+function StatusBadge({ status }: { status: CmsPage['status'] }): ReactNode {
+  const variant =
+    status === 'published' ? 'success' : status === 'archived' ? 'destructive' : 'warning';
+  return <Badge variant={variant}>{status}</Badge>;
 }
 
 function CreatePageForm(props: {
-  onSubmit: (input: { path: string; title: Record<string, string>; body: Record<string, string> }) => Promise<void>;
+  onSubmit: (input: {
+    path: string;
+    title: Record<string, string>;
+    body: Record<string, string>;
+  }) => Promise<void>;
 }): ReactNode {
   const [path, setPath] = useState('');
   const [titleEn, setTitleEn] = useState('');
@@ -211,51 +272,56 @@ function CreatePageForm(props: {
   };
 
   return (
-    <form onSubmit={(e): void => { void onSubmit(e); }}>
-      <div className="field">
-        <label>Path</label>
-        <input
-          className="input"
+    <form
+      className="space-y-4"
+      onSubmit={(e): void => {
+        void onSubmit(e);
+      }}
+    >
+      <div className="space-y-2">
+        <Label>Path</Label>
+        <Input
           value={path}
           onChange={(e): void => setPath(e.target.value)}
           placeholder="about-us or policies/privacy"
         />
-        <span className="field__hint">kebab-case; / for nested paths.</span>
+        <p className="text-xs text-muted-foreground">kebab-case; / for nested paths.</p>
       </div>
-      <div className="field">
-        <label>Title (en-US)</label>
-        <input
-          className="input"
-          value={titleEn}
-          onChange={(e): void => setTitleEn(e.target.value)}
-        />
+      <div className="space-y-2">
+        <Label>Title (en-US)</Label>
+        <Input value={titleEn} onChange={(e): void => setTitleEn(e.target.value)} />
       </div>
-      <div className="field">
-        <label>Body (en-US)</label>
-        <textarea
-          className="textarea"
+      <div className="space-y-2">
+        <Label>Body (en-US)</Label>
+        <Textarea
           rows={6}
           value={bodyEn}
           onChange={(e): void => setBodyEn(e.target.value)}
         />
       </div>
-      <button
-        type="submit"
-        className="btn btn--primary"
-        disabled={busy || !path.trim() || !titleEn.trim()}
-      >
+      <Button type="submit" disabled={busy || !path.trim() || !titleEn.trim()}>
         {busy ? 'Creating…' : 'Create page'}
-      </button>
+      </Button>
     </form>
   );
 }
 
 function EditorCard(props: {
   page: CmsPage;
-  onSave: (id: string, patch: { title: Record<string, string>; body: Record<string, string> }) => Promise<void>;
+  onSave: (
+    id: string,
+    patch: { title: Record<string, string>; body: Record<string, string> },
+  ) => Promise<void>;
 }): ReactNode {
   const initialLocales = useMemo(
-    () => Array.from(new Set([...Object.keys(props.page.title), ...Object.keys(props.page.body), ...LOCALE_OPTIONS])),
+    () =>
+      Array.from(
+        new Set([
+          ...Object.keys(props.page.title),
+          ...Object.keys(props.page.body),
+          ...LOCALE_OPTIONS,
+        ]),
+      ),
     [props.page],
   );
   const [title, setTitle] = useState<Record<string, string>>(props.page.title);
@@ -272,35 +338,42 @@ function EditorCard(props: {
   };
 
   return (
-    <div className="card">
-      <h2 style={{ marginTop: 0, fontSize: '1rem' }}>
-        Edit <span className="code">/{props.page.path}</span>
-      </h2>
-      {initialLocales.map((locale) => (
-        <div key={locale} style={{ marginBottom: 12 }}>
-          <h3 style={{ fontSize: '0.9rem', margin: '4px 0' }}>{locale}</h3>
-          <div className="field">
-            <label>Title</label>
-            <input
-              className="input"
-              value={title[locale] ?? ''}
-              onChange={(e): void => setTitle((t) => ({ ...t, [locale]: e.target.value }))}
-            />
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          Edit <code className="font-mono">/{props.page.path}</code>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {initialLocales.map((locale) => (
+          <div key={locale} className="space-y-3 rounded-md border p-4">
+            <h3 className="text-sm font-semibold">{locale}</h3>
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input
+                value={title[locale] ?? ''}
+                onChange={(e): void => setTitle((t) => ({ ...t, [locale]: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Body</Label>
+              <Textarea
+                rows={6}
+                value={body[locale] ?? ''}
+                onChange={(e): void => setBody((b) => ({ ...b, [locale]: e.target.value }))}
+              />
+            </div>
           </div>
-          <div className="field">
-            <label>Body</label>
-            <textarea
-              className="textarea"
-              rows={6}
-              value={body[locale] ?? ''}
-              onChange={(e): void => setBody((b) => ({ ...b, [locale]: e.target.value }))}
-            />
-          </div>
-        </div>
-      ))}
-      <button className="btn btn--primary" disabled={busy} onClick={(): void => { void onSave(); }}>
-        {busy ? 'Saving…' : 'Save'}
-      </button>
-    </div>
+        ))}
+        <Button
+          disabled={busy}
+          onClick={(): void => {
+            void onSave();
+          }}
+        >
+          {busy ? 'Saving…' : 'Save'}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

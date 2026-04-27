@@ -1,6 +1,22 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { Trash2 } from 'lucide-react';
 import type { Currency, Language } from '@b2b/contracts';
-import { ApiError, apiClient } from '../../lib/api-client.js';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface ListEnvelope<T> {
   data: T[];
@@ -9,18 +25,14 @@ interface ListEnvelope<T> {
 export function I18nPage(): ReactNode {
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>Languages &amp; currencies</h1>
-          <p>
-            The pool of locales and currencies the storefront and admin can pick from. Exactly
-            one default each (enforced at the database).
-          </p>
-        </div>
-      </header>
-
-      <LanguagesCard />
-      <CurrenciesCard />
+      <PageHeader
+        title="Languages & currencies"
+        description="The pool of locales and currencies the storefront and admin can pick from. Exactly one default each (enforced at the database)."
+      />
+      <div className="space-y-4">
+        <LanguagesCard />
+        <CurrenciesCard />
+      </div>
     </>
   );
 }
@@ -70,9 +82,7 @@ function LanguagesCard(): ReactNode {
         );
         await refresh();
       } catch (err) {
-        setError(
-          err instanceof ApiError ? err.envelope.error.message : 'Failed to set default.',
-        );
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to set default.');
       }
     },
     [refresh],
@@ -92,61 +102,72 @@ function LanguagesCard(): ReactNode {
   );
 
   return (
-    <div className="card">
-      <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Languages</h2>
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      <AddLanguageForm onSubmit={upsert} />
-      {loading ? (
-        <p className="muted">Loading…</p>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Label</th>
-              <th>Active</th>
-              <th>Default</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.code}>
-                <td className="code">{row.code}</td>
-                <td>{row.label}</td>
-                <td>{row.isActive ? 'yes' : 'no'}</td>
-                <td>
-                  {row.isDefault ? (
-                    <span className="badge badge--success">default</span>
-                  ) : (
-                    <button
-                      className="btn"
+    <Card>
+      <CardHeader>
+        <CardTitle>Languages</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        <AddLanguageForm onSubmit={upsert} />
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Code</TableHead>
+                <TableHead>Label</TableHead>
+                <TableHead>Active</TableHead>
+                <TableHead>Default</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={row.code}>
+                  <TableCell className="font-mono">{row.code}</TableCell>
+                  <TableCell>{row.label}</TableCell>
+                  <TableCell>{row.isActive ? 'yes' : 'no'}</TableCell>
+                  <TableCell>
+                    {row.isDefault ? (
+                      <Badge variant="success">default</Badge>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!row.isActive}
+                        onClick={(): void => {
+                          void setDefault(row.code);
+                        }}
+                      >
+                        Make default
+                      </Button>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={row.isDefault}
                       onClick={(): void => {
-                        void setDefault(row.code);
+                        void remove(row.code);
                       }}
-                      disabled={!row.isActive}
                     >
-                      Make default
-                    </button>
-                  )}
-                </td>
-                <td>
-                  <button
-                    className="btn btn--danger"
-                    onClick={(): void => {
-                      void remove(row.code);
-                    }}
-                    disabled={row.isDefault}
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+                      <Trash2 />
+                      Delete
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -173,12 +194,18 @@ function CurrenciesCard(): ReactNode {
   }, [refresh]);
 
   const upsert = useCallback(
-    async (input: { code: string; label: string; symbol: string; isActive: boolean }): Promise<void> => {
+    async (input: {
+      code: string;
+      label: string;
+      symbol: string;
+      isActive: boolean;
+    }): Promise<void> => {
       try {
-        await apiClient.put<{ data: Currency }>(
-          `/api/v1/admin/currencies/${input.code}`,
-          { label: input.label, symbol: input.symbol, isActive: input.isActive },
-        );
+        await apiClient.put<{ data: Currency }>(`/api/v1/admin/currencies/${input.code}`, {
+          label: input.label,
+          symbol: input.symbol,
+          isActive: input.isActive,
+        });
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
@@ -193,9 +220,7 @@ function CurrenciesCard(): ReactNode {
         await apiClient.post<{ data: Currency }>(`/api/v1/admin/currencies/${code}/default`);
         await refresh();
       } catch (err) {
-        setError(
-          err instanceof ApiError ? err.envelope.error.message : 'Failed to set default.',
-        );
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to set default.');
       }
     },
     [refresh],
@@ -215,63 +240,74 @@ function CurrenciesCard(): ReactNode {
   );
 
   return (
-    <div className="card">
-      <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Currencies</h2>
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      <AddCurrencyForm onSubmit={upsert} />
-      {loading ? (
-        <p className="muted">Loading…</p>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Label</th>
-              <th>Symbol</th>
-              <th>Active</th>
-              <th>Default</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.code}>
-                <td className="code">{row.code}</td>
-                <td>{row.label}</td>
-                <td>{row.symbol}</td>
-                <td>{row.isActive ? 'yes' : 'no'}</td>
-                <td>
-                  {row.isDefault ? (
-                    <span className="badge badge--success">default</span>
-                  ) : (
-                    <button
-                      className="btn"
+    <Card>
+      <CardHeader>
+        <CardTitle>Currencies</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        <AddCurrencyForm onSubmit={upsert} />
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Code</TableHead>
+                <TableHead>Label</TableHead>
+                <TableHead>Symbol</TableHead>
+                <TableHead>Active</TableHead>
+                <TableHead>Default</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={row.code}>
+                  <TableCell className="font-mono">{row.code}</TableCell>
+                  <TableCell>{row.label}</TableCell>
+                  <TableCell>{row.symbol}</TableCell>
+                  <TableCell>{row.isActive ? 'yes' : 'no'}</TableCell>
+                  <TableCell>
+                    {row.isDefault ? (
+                      <Badge variant="success">default</Badge>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!row.isActive}
+                        onClick={(): void => {
+                          void setDefault(row.code);
+                        }}
+                      >
+                        Make default
+                      </Button>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={row.isDefault}
                       onClick={(): void => {
-                        void setDefault(row.code);
+                        void remove(row.code);
                       }}
-                      disabled={!row.isActive}
                     >
-                      Make default
-                    </button>
-                  )}
-                </td>
-                <td>
-                  <button
-                    className="btn btn--danger"
-                    onClick={(): void => {
-                      void remove(row.code);
-                    }}
-                    disabled={row.isDefault}
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+                      <Trash2 />
+                      Delete
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -293,40 +329,33 @@ function AddLanguageForm(props: {
 
   return (
     <form
+      className="flex flex-wrap items-center gap-2"
       onSubmit={(e): void => {
         void onSubmit(e);
       }}
-      style={{ marginBottom: 12 }}
     >
-      <div className="toolbar">
-        <input
-          className="input"
-          style={{ width: 120 }}
-          placeholder="en-US"
-          value={code}
-          onChange={(e): void => setCode(e.target.value)}
+      <Input
+        className="w-32"
+        placeholder="en-US"
+        value={code}
+        onChange={(e): void => setCode(e.target.value)}
+      />
+      <Input
+        className="w-64"
+        placeholder="English (US)"
+        value={label}
+        onChange={(e): void => setLabel(e.target.value)}
+      />
+      <label className="inline-flex items-center gap-2 text-sm">
+        <Checkbox
+          checked={isActive}
+          onChange={(e): void => setIsActive(e.target.checked)}
         />
-        <input
-          className="input"
-          style={{ width: 240 }}
-          placeholder="English (US)"
-          value={label}
-          onChange={(e): void => setLabel(e.target.value)}
-        />
-        <label
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 'normal' }}
-        >
-          <input
-            type="checkbox"
-            checked={isActive}
-            onChange={(e): void => setIsActive(e.target.checked)}
-          />
-          Active
-        </label>
-        <button type="submit" className="btn btn--primary" disabled={!code.trim() || !label.trim()}>
-          Save language
-        </button>
-      </div>
+        Active
+      </label>
+      <Button type="submit" disabled={!code.trim() || !label.trim()}>
+        Save language
+      </Button>
     </form>
   );
 }
@@ -361,51 +390,39 @@ function AddCurrencyForm(props: {
 
   return (
     <form
+      className="flex flex-wrap items-center gap-2"
       onSubmit={(e): void => {
         void onSubmit(e);
       }}
-      style={{ marginBottom: 12 }}
     >
-      <div className="toolbar">
-        <input
-          className="input"
-          style={{ width: 96 }}
-          placeholder="EUR"
-          value={code}
-          onChange={(e): void => setCode(e.target.value.toUpperCase())}
+      <Input
+        className="w-24"
+        placeholder="EUR"
+        value={code}
+        onChange={(e): void => setCode(e.target.value.toUpperCase())}
+      />
+      <Input
+        className="w-64"
+        placeholder="Euro"
+        value={label}
+        onChange={(e): void => setLabel(e.target.value)}
+      />
+      <Input
+        className="w-20"
+        placeholder="€"
+        value={symbol}
+        onChange={(e): void => setSymbol(e.target.value)}
+      />
+      <label className="inline-flex items-center gap-2 text-sm">
+        <Checkbox
+          checked={isActive}
+          onChange={(e): void => setIsActive(e.target.checked)}
         />
-        <input
-          className="input"
-          style={{ width: 240 }}
-          placeholder="Euro"
-          value={label}
-          onChange={(e): void => setLabel(e.target.value)}
-        />
-        <input
-          className="input"
-          style={{ width: 80 }}
-          placeholder="€"
-          value={symbol}
-          onChange={(e): void => setSymbol(e.target.value)}
-        />
-        <label
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 'normal' }}
-        >
-          <input
-            type="checkbox"
-            checked={isActive}
-            onChange={(e): void => setIsActive(e.target.checked)}
-          />
-          Active
-        </label>
-        <button
-          type="submit"
-          className="btn btn--primary"
-          disabled={!code.trim() || !label.trim() || !symbol.trim()}
-        >
-          Save currency
-        </button>
-      </div>
+        Active
+      </label>
+      <Button type="submit" disabled={!code.trim() || !label.trim() || !symbol.trim()}>
+        Save currency
+      </Button>
     </form>
   );
 }

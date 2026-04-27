@@ -1,18 +1,34 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { Trash2 } from 'lucide-react';
 import type { ExternalIntegration, IntegrationTestResult } from '@b2b/contracts';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-import { formatDateTime } from '../../lib/format.js';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { formatDateTime } from '@/lib/format';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
 
 const KIND_OPTIONS = ['payment_gateway', 'shipping_carrier', 'analytics', 'crm', 'erp'] as const;
 
 interface IntegrationsListResponse {
   data: ExternalIntegration[];
 }
-
 interface CreateIntegrationResponse {
   data: ExternalIntegration & { testResult?: IntegrationTestResult };
 }
-
 interface TestResponse {
   data: IntegrationTestResult;
 }
@@ -30,9 +46,7 @@ export function IntegrationsPage(): ReactNode {
       const res = await apiClient.get<IntegrationsListResponse>('/api/v1/admin/integrations');
       setItems(res.data);
     } catch (err) {
-      setError(
-        err instanceof ApiError ? err.envelope.error.message : 'Failed to load integrations.',
-      );
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load integrations.');
     } finally {
       setLoading(false);
     }
@@ -66,9 +80,7 @@ export function IntegrationsPage(): ReactNode {
         }
         await refresh();
       } catch (err) {
-        setError(
-          err instanceof ApiError ? err.envelope.error.message : 'Failed to create integration.',
-        );
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to create integration.');
       }
     },
     [refresh],
@@ -98,9 +110,7 @@ export function IntegrationsPage(): ReactNode {
         await apiClient.delete<void>(`/api/v1/admin/integrations/${id}`);
         await refresh();
       } catch (err) {
-        setError(
-          err instanceof ApiError ? err.envelope.error.message : 'Failed to delete integration.',
-        );
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to delete integration.');
       }
     },
     [refresh],
@@ -108,91 +118,106 @@ export function IntegrationsPage(): ReactNode {
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>External Integrations</h1>
-          <p>Per-vendor credentials. Encrypted at rest; only redacted fields are returned by GET.</p>
-        </div>
-      </header>
+      <PageHeader
+        title="External integrations"
+        description="Per-vendor credentials. Encrypted at rest; only redacted fields are returned by GET."
+      />
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      {info ? <div className="alert alert--success">{info}</div> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert variant="success" className="mb-4">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Configure new integration</h2>
-        <CreateIntegrationForm onSubmit={handleCreate} />
-      </div>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Configure new integration</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CreateIntegrationForm onSubmit={handleCreate} />
+        </CardContent>
+      </Card>
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Configured</h2>
-        {loading ? (
-          <p className="muted">Loading…</p>
-        ) : items.length === 0 ? (
-          <p className="muted">No integrations configured yet.</p>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Kind</th>
-                <th>Vendor</th>
-                <th>Status</th>
-                <th>Last tested</th>
-                <th>Last error</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((i) => (
-                <tr key={i.id}>
-                  <td>{i.name}</td>
-                  <td>
-                    <span className="badge">{i.kind}</span>
-                  </td>
-                  <td>{i.vendor}</td>
-                  <td>
-                    <IntegrationStatusBadge status={i.status} />
-                  </td>
-                  <td>{formatDateTime(i.lastTestedAt)}</td>
-                  <td className="muted" style={{ maxWidth: 240 }}>
-                    {i.lastError ?? '—'}
-                  </td>
-                  <td className="row-actions">
-                    <button
-                      className="btn"
-                      onClick={(): void => {
-                        void handleTest(i.id);
-                      }}
-                    >
-                      Test
-                    </button>
-                    <button
-                      className="btn btn--danger"
-                      onClick={(): void => {
-                        void handleDelete(i.id);
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Configured</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : items.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No integrations configured yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Kind</TableHead>
+                  <TableHead>Vendor</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Last tested</TableHead>
+                  <TableHead>Last error</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.map((i) => (
+                  <TableRow key={i.id}>
+                    <TableCell className="font-medium">{i.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{i.kind}</Badge>
+                    </TableCell>
+                    <TableCell>{i.vendor}</TableCell>
+                    <TableCell>
+                      <IntegrationStatusBadge status={i.status} />
+                    </TableCell>
+                    <TableCell>{formatDateTime(i.lastTestedAt)}</TableCell>
+                    <TableCell className="max-w-[240px] truncate text-xs text-muted-foreground">
+                      {i.lastError ?? '—'}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(): void => {
+                            void handleTest(i.id);
+                          }}
+                        >
+                          Test
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={(): void => {
+                            void handleDelete(i.id);
+                          }}
+                        >
+                          <Trash2 />
+                          Delete
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }
 
-function IntegrationStatusBadge(props: { status: ExternalIntegration['status'] }): ReactNode {
-  const cls =
-    props.status === 'active'
-      ? 'badge badge--success'
-      : props.status === 'error'
-        ? 'badge badge--danger'
-        : 'badge badge--warning';
-  return <span className={cls}>{props.status}</span>;
+function IntegrationStatusBadge({ status }: { status: ExternalIntegration['status'] }): ReactNode {
+  const variant =
+    status === 'active' ? 'success' : status === 'error' ? 'destructive' : 'warning';
+  return <Badge variant={variant}>{status}</Badge>;
 }
 
 function CreateIntegrationForm(props: {
@@ -213,7 +238,6 @@ function CreateIntegrationForm(props: {
   const onSubmit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
     if (!name.trim() || !vendor.trim()) return;
-
     let config: Record<string, unknown>;
     try {
       const parsed = JSON.parse(configText) as unknown;
@@ -239,68 +263,55 @@ function CreateIntegrationForm(props: {
 
   return (
     <form
+      className="space-y-4"
       onSubmit={(e): void => {
         void onSubmit(e);
       }}
     >
-      <div className="field">
-        <label htmlFor="int-name">Name</label>
-        <input
-          id="int-name"
-          className="input"
-          value={name}
-          onChange={(e): void => setName(e.target.value)}
-          required
-        />
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="space-y-2">
+          <Label htmlFor="int-name">Name</Label>
+          <Input id="int-name" value={name} onChange={(e): void => setName(e.target.value)} required />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="int-vendor">Vendor</Label>
+          <Input
+            id="int-vendor"
+            value={vendor}
+            onChange={(e): void => setVendor(e.target.value)}
+            placeholder="e.g. stripe, inpost"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="int-kind">Kind</Label>
+          <Select id="int-kind" value={kind} onChange={(e): void => setKind(e.target.value)}>
+            {KIND_OPTIONS.map((k) => (
+              <option key={k} value={k}>
+                {k}
+              </option>
+            ))}
+          </Select>
+        </div>
       </div>
-      <div className="field">
-        <label htmlFor="int-vendor">Vendor</label>
-        <input
-          id="int-vendor"
-          className="input"
-          value={vendor}
-          onChange={(e): void => setVendor(e.target.value)}
-          placeholder="e.g. stripe, inpost"
-          required
-        />
-      </div>
-      <div className="field">
-        <label htmlFor="int-kind">Kind</label>
-        <select
-          id="int-kind"
-          className="select"
-          value={kind}
-          onChange={(e): void => setKind(e.target.value)}
-        >
-          {KIND_OPTIONS.map((k) => (
-            <option key={k} value={k}>
-              {k}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="field">
-        <label htmlFor="int-config">Config (JSON)</label>
-        <textarea
+      <div className="space-y-2">
+        <Label htmlFor="int-config">Config (JSON)</Label>
+        <Textarea
           id="int-config"
-          className="textarea"
           value={configText}
           onChange={(e): void => setConfigText(e.target.value)}
           rows={6}
           spellCheck={false}
+          className="font-mono text-xs"
         />
-        {parseError ? <span className="field__hint" style={{ color: 'var(--color-danger)' }}>{parseError}</span> : null}
-        <span className="field__hint">
+        {parseError ? <p className="text-xs text-destructive">{parseError}</p> : null}
+        <p className="text-xs text-muted-foreground">
           Stored encrypted at rest. Only the per-vendor adapter ever decrypts it.
-        </span>
+        </p>
       </div>
-      <button
-        type="submit"
-        className="btn btn--primary"
-        disabled={submitting || !name.trim() || !vendor.trim()}
-      >
+      <Button type="submit" disabled={submitting || !name.trim() || !vendor.trim()}>
         {submitting ? 'Creating…' : 'Create + test connection'}
-      </button>
+      </Button>
     </form>
   );
 }
