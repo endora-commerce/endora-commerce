@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { SessionService } from '../auth/services/session-service.js';
 import { AdminAuthService } from './services/admin-auth-service.js';
@@ -19,6 +19,9 @@ export interface AdminModuleOptions {
   auditLogService: AuditLogService;
   permissionService: PermissionService;
   requireAdmin: RequireAdminFactory;
+  /** Resolves the current admin's id from `request.actor` (prod) or
+   *  `request.testActor` (test harness). Used by `GET /admin/me`. */
+  resolveAdminContext: (req: FastifyRequest) => { adminUserId: string };
 }
 
 export interface AdminModuleHandle {
@@ -60,7 +63,9 @@ export function adminModule(
       await registerAdminUsersAdminRoutes(app, {
         adminUserService,
         adminRoleService,
+        permissionService: options.permissionService,
         requireAdmin: options.requireAdmin,
+        resolveAdminContext: options.resolveAdminContext,
       });
       await registerAuditLogAdminRoutes(app, {
         auditLogService: options.auditLogService,

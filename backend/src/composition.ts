@@ -142,6 +142,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     auditLogService,
     permissionService,
     requireAdmin,
+    resolveAdminContext: adminContextResolver,
   });
 
   const creditLimits = creditLimitsModule({

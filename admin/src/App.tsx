@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell.js';
+import { LoginPage } from './components/LoginPage.js';
+import { useAuth } from './lib/auth.js';
 import { ApiKeysPage } from './modules/api_keys/ApiKeysPage.js';
 import { WebhooksPage } from './modules/webhooks/WebhooksPage.js';
 import { IntegrationsPage } from './modules/integrations/IntegrationsPage.js';
@@ -32,6 +34,15 @@ import { InventoryPage } from './modules/inventory/InventoryPage.js';
 import { CreditLimitsPage } from './modules/credit_limits/CreditLimitsPage.js';
 
 export function App(): ReactNode {
+  const { status } = useAuth();
+  if (status === 'loading') {
+    return (
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
+        <p className="muted">Loading…</p>
+      </div>
+    );
+  }
+  if (status === 'unauthenticated') return <LoginPage />;
   return (
     <Routes>
       <Route element={<AppShell />}>

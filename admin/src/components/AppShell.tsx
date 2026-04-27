@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { useAuth } from '../lib/auth.js';
 
 interface NavItem {
   to: string;
@@ -35,10 +36,36 @@ const NAV: NavItem[] = [
 ];
 
 export function AppShell(): ReactNode {
+  const { me, logout } = useAuth();
+  const fullName = me ? `${me.adminUser.firstName} ${me.adminUser.lastName}`.trim() : '';
   return (
     <div className="app-shell">
       <aside className="app-shell__sidebar">
         <div className="app-shell__brand">B2B Admin</div>
+        {me ? (
+          <div
+            style={{
+              borderBottom: '1px solid var(--color-border)',
+              paddingBottom: 12,
+              marginBottom: 12,
+              fontSize: '0.85rem',
+            }}
+          >
+            <div style={{ fontWeight: 600 }}>{fullName || me.adminUser.email}</div>
+            <div className="muted">{me.adminUser.email}</div>
+            <div className="muted" style={{ fontSize: '0.8rem' }}>
+              {me.role ? me.role.name : 'no role'}
+            </div>
+            <button
+              className="btn"
+              type="button"
+              style={{ marginTop: 8, width: '100%' }}
+              onClick={(): void => void logout()}
+            >
+              Sign out
+            </button>
+          </div>
+        ) : null}
         <nav>
           <ul>
             {NAV.map((item) => (
