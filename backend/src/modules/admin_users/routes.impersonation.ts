@@ -1,0 +1,123 @@
+import type { FastifyInstance, FastifyReply } from 'fastify';
+import { ERROR_CODES, impersonationRequestSchema } from '@b2b/contracts';
+import { HttpError } from '../../http/error-envelope.js';
+import { SESSION_COOKIE_NAME } from '../auth/plugin.js';
+import type { ImpersonationService } from './services/impersonation-service.js';
+import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+
+/**
+ * Admin impersonation routes (T191).
+ *
+ * - POST /admin/organizations/:id/impersonate — admin starts impersonation of
+ *   a customer in the target Organization. Audit row written BEFORE the
+ *   cookie is set (T179). Two cookies are issued: the new b2b_session for
+ *   the impersonation, and admin_shadow_session preserving the original
+ *   admin session value so end can restore it.
+ * - POST /admin/impersonation/end — destroys the impersonation session,
+ *   restores the admin session from admin_shadow_session, writes the
+ *   impersonation.end audit row.
+ */
+
+const ADMIN_SHADOW_COOKIE = 'admin_shadow_session';
+
+export interface ImpersonationDeps {
+  impersonationService: ImpersonationService;
+  requireAdmin: RequireAdminFactory;
+}
+
+export async function registerImpersonationRoutes(
+  app: FastifyInstance,
+  deps: ImpersonationDeps,
+): Promise<void> {
+  const { impersonationService, requireAdmin } = deps;
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/organizations/:id/impersonate',
+    {
+      preHandler: requireAdmin('customers:impersonate'),
+      schema: { body: impersonationRequestSchema },
+    },
+    async (request, reply) => {
+      const body = impersonationRequestSchema.parse(request.body);
+      if (request.testActor?.kind !== 'admin') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+      }
+      const adminId = request.testActor.adminUserId;
+
+      const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
+      const adminCookie = cookies?.[SESSION_COOKIE_NAME] ?? '';
+      // For tests, the stub-admin-session cookie isn't a real session value —
+      // we treat the entire raw cookie as the shadow regardless. End() will
+      // refuse to restore a stub cookie that no longer resolves.
+
+      const result = await impersonationService.start({
+        adminUserId: adminId,
+        adminSessionCookieValue: adminCookie,
+        customerAccountId: body.customerAccountId,
+        organizationId: request.params.id,
+        ...(body.reason !== undefined ? { reason: body.reason } : {}),
+        ...(request.ip ? { ip: request.ip } : {}),
+        ...(typeof request.headers['user-agent'] === 'string'
+          ? { userAgent: request.headers['user-agent'] }
+          : {}),
+        requestId: request.id,
+      });
+
+      setSessionCookie(reply, result.impersonationCookieValue, result.impersonationExpiresAt);
+      reply.setCookie(ADMIN_SHADOW_COOKIE, result.adminShadowSessionCookieValue, {
+        path: '/',
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env['NODE_ENV'] === 'production',
+        expires: result.impersonationExpiresAt,
+        signed: false,
+      });
+
+      return {
+        data: {
+          impersonationSessionId: result.impersonationSessionId,
+          impersonatedCustomerAccount: {
+            id: result.impersonatedCustomerAccount.id,
+            email: result.impersonatedCustomerAccount.email,
+            firstName: result.impersonatedCustomerAccount.firstName,
+            lastName: result.impersonatedCustomerAccount.lastName,
+            role: result.impersonatedCustomerAccount.role,
+          },
+        },
+      };
+    },
+  );
+
+  app.post('/api/v1/admin/impersonation/end', async (request, reply) => {
+    const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
+    const impersonationCookie = cookies?.[SESSION_COOKIE_NAME];
+    const shadow = cookies?.[ADMIN_SHADOW_COOKIE];
+    if (!impersonationCookie || !shadow) {
+      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'No impersonation session active.');
+    }
+    const result = await impersonationService.end({
+      impersonationSessionCookieValue: impersonationCookie,
+      adminShadowCookieValue: shadow,
+      ...(request.ip ? { ip: request.ip } : {}),
+      ...(typeof request.headers['user-agent'] === 'string'
+        ? { userAgent: request.headers['user-agent'] }
+        : {}),
+      requestId: request.id,
+    });
+
+    setSessionCookie(reply, result.adminSessionCookieValue, result.adminSessionExpiresAt);
+    reply.clearCookie(ADMIN_SHADOW_COOKIE, { path: '/' });
+    return { data: { restored: true } };
+  });
+}
+
+function setSessionCookie(reply: FastifyReply, value: string, expiresAt: Date): void {
+  reply.setCookie(SESSION_COOKIE_NAME, value, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env['NODE_ENV'] === 'production',
+    expires: expiresAt,
+    signed: false,
+  });
+}

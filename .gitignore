@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+.next/
+out/
+.turbo/
+storybook-static/
+
+# Test & coverage
+coverage/
+.nyc_output/
+*.lcov
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime / caches
+.cache/
+.vite/
+.docusaurus/
+.swc/
+.tsbuildinfo
+*.tsbuildinfo
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Editor & OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.idea/
+*.iml
+
+# Generated API docs
+backend/src/generated/
+packages/contracts/src/generated/
+
+# PDFs and uploaded assets (dev only)
+uploads/
+tmp/

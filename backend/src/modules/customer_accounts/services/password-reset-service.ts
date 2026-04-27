@@ -1,0 +1,77 @@
+import { createHash, randomBytes } from 'crypto';
+import type { EntityManager } from '@mikro-orm/postgresql';
+import { ERROR_CODES } from '@b2b/contracts';
+import { HttpError } from '../../../http/error-envelope.js';
+import { hashPassword } from '../../auth/services/password-hasher.js';
+import { CustomerAccount } from '../entities/customer-account.entity.js';
+import { PasswordResetToken } from '../entities/password-reset-token.entity.js';
+
+/**
+ * Password reset flow (FR-045 / T119).
+ *
+ *   - request: always returns success regardless of account existence
+ *     (account-enumeration defense). Issues a sha256-hashed token with a
+ *     short TTL (1 hour). The raw token is returned for the email body.
+ *   - confirm: validates token (one-shot, expiry), rehashes the new password,
+ *     marks the token consumed.
+ */
+
+const TOKEN_TTL_HOURS = 1;
+
+export class PasswordResetService {
+  constructor(private readonly emFactory: () => EntityManager) {}
+
+  /** Returns the raw token only when the email matched a real account. Caller emails it. */
+  async requestReset(email: string): Promise<{ rawToken: string | null }> {
+    const em = this.emFactory();
+    const customer = await em.findOne(CustomerAccount, { email, deletedAt: null });
+    if (!customer) return { rawToken: null };
+
+    const rawToken = randomBytes(32).toString('base64url');
+    const token = em.create(PasswordResetToken, {
+      customerAccountId: customer.id,
+      tokenHash: sha256Hex(rawToken),
+      expiresAt: new Date(Date.now() + TOKEN_TTL_HOURS * 60 * 60 * 1_000),
+    });
+    await em.persistAndFlush(token);
+    return { rawToken };
+  }
+
+  async confirmReset(rawToken: string, newPassword: string): Promise<void> {
+    const em = this.emFactory();
+    const token = await em.findOne(PasswordResetToken, { tokenHash: sha256Hex(rawToken) });
+    if (!token || token.consumedAt || token.expiresAt.getTime() <= Date.now()) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.TOKEN_INVALID_OR_EXPIRED,
+        'Reset token is invalid or has expired.',
+      );
+    }
+    const customer = await em.findOne(CustomerAccount, { id: token.customerAccountId });
+    if (!customer) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.TOKEN_INVALID_OR_EXPIRED,
+        'Associated account no longer exists.',
+      );
+    }
+    customer.passwordHash = await hashPassword(newPassword);
+    token.consumedAt = new Date();
+    await em.flush();
+  }
+
+  /** Test-only — returns the latest unconsumed token id for probe tests. */
+  async latestUnconsumedTokenId(): Promise<string | null> {
+    const em = this.emFactory();
+    const row = await em.findOne(
+      PasswordResetToken,
+      { consumedAt: null },
+      { orderBy: { createdAt: 'desc' } },
+    );
+    return row?.id ?? null;
+  }
+}
+
+function sha256Hex(input: string): string {
+  return createHash('sha256').update(input, 'utf8').digest('hex');
+}

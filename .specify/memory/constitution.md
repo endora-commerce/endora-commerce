@@ -1,57 +1,58 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: TEMPLATE (unversioned) → 1.0.0
-Rationale: Initial ratification. Bump = MAJOR (0.0.0 → 1.0.0) because this is the
-first concrete, enforceable constitution replacing placeholder tokens.
+Version change: 1.1.1 → 2.0.0
+Rationale: MAJOR bump. Principle VIII is materially redefined: the
+English-only requirement now applies ONLY to source code (identifiers,
+inline string literals that are not user-facing) and inline code comments.
+Documentation artifacts — specs, plans, tasks, research notes,
+data-model, contracts, quickstart, README, the docs site, governance
+documents, commit messages, PR titles + descriptions, code-review
+comments, issue templates, CI labels — MAY now be authored in any
+language the team chooses. Past compliant work (everything authored in
+English) remains compliant; the redefinition only loosens the rule, but
+the principle's normative scope is substantively narrower than v1.1.1,
+hence MAJOR.
 
 Modified principles:
-  - [PRINCIPLE_1_NAME]                 → I. Modular Architecture (NON-NEGOTIABLE)
-  - [PRINCIPLE_2_NAME]                 → II. API-First Design
-  - [PRINCIPLE_3_NAME]                 → III. Test-Driven Development (NON-NEGOTIABLE)
-  - [PRINCIPLE_4_NAME]                 → IV. YAGNI & Minimal Dependencies
-  - [PRINCIPLE_5_NAME]                 → V. TypeScript Everywhere
-  - (added)                            → VI. Naming Conventions (NON-NEGOTIABLE)
-  - (added)                            → VII. SEO, Performance & Discoverability
+  - VIII. Working Language — English (NON-NEGOTIABLE)
+        scope shrunk from "every engineering artifact" to "code +
+        code comments". Sub-sections rewritten; cross-reference to
+        Principle VII (multilingual storefront) preserved.
 
 Added sections:
-  - Technology Stack (mandated + fallback matrix)
-  - Monorepo Structure & Application Boundaries
-  - Documentation Requirements
-  - Performance & Scale Targets
-  - Infrastructure Constraints
-  - Development Workflow & Quality Gates
-  - Governance
+  - (none)
 
 Removed sections:
-  - Generic [SECTION_2_NAME] / [SECTION_3_NAME] placeholders (replaced by the
-    named sections listed above).
+  - (none)
 
 Templates / artifacts requiring alignment:
-  - ✅ .specify/templates/plan-template.md — Constitution Check gates now map to
-       principles I–VII; Technical Context pre-filled stack is consistent with
-       the mandated Technology Stack section. No edits required (placeholders
-       remain deliberately advisory).
-  - ✅ .specify/templates/spec-template.md — Scope is business/UX-focused and
-       does not conflict with constitution; no edits required.
-  - ✅ .specify/templates/tasks-template.md — Task categories (Setup,
-       Foundational, per-User-Story, Polish) align with modular/TDD principles;
-       no edits required.
-  - ⚠ README.md — DOES NOT EXIST YET. Principle VII and the Documentation
-       Requirements section mandate its creation on first feature implementation.
-       Flagged for follow-up under deferred items.
-  - ⚠ docs/ (project documentation site) — DOES NOT EXIST YET. Mandated by the
-       Documentation Requirements section. Flagged for follow-up.
-  - ✅ .claude/skills/speckit-constitution — No changes needed (tool file).
+  - ✅ .specify/templates/plan-template.md      — references Constitution
+       Check generically; no edits required.
+  - ✅ .specify/templates/spec-template.md      — no edits required.
+  - ✅ .specify/templates/tasks-template.md     — no edits required.
+  - ⚠ scripts/check-language.sh — currently encodes the v1.1.1 broader
+       scope (scans every file outside the i18n exception paths). With
+       the v2.0.0 scope it MUST limit its scan to source-code files
+       (.ts, .tsx, .js, .jsx, .css, .html, etc.) and SHOULD NOT scan
+       Markdown, YAML, JSON, SQL, plain text, or commit messages. Flagged
+       as a follow-up commit.
+  - ⚠ README.md "Constitution quick reference" line for Principle VIII
+       — the current wording reflects v1.1.1's "every engineering
+       artifact" framing and SHOULD be updated to the new scope
+       ("code + code comments"). Flagged as a follow-up commit.
+  - ⚠ .github/pull_request_template.md gate #5 — the wording "code,
+       comments, commit messages, and PR description are English"
+       SHOULD be narrowed to "code and code comments are English".
+       Flagged as a follow-up commit.
 
 Deferred items / TODOs:
-  - TODO(README): Initial README.md must be authored when the first module is
-    scaffolded. It must include the minimum + recommended hardware/system
-    requirements section required by the Infrastructure Constraints section.
-  - TODO(DOCS_SITE): A generated project documentation site (developer +
-    Product Owner readable) must be stood up alongside the first user-facing
-    module. Implementation approach (Docusaurus, Nextra, VitePress, or
-    equivalent) is a design decision for the first /speckit.plan cycle.
+  - TODO(SCRIPT_RESCOPE): Update `scripts/check-language.sh` to scan
+    only source-code file extensions and to drop the commit-message
+    walker.
+  - TODO(README_RESCOPE): Update README's Principle VIII line.
+  - TODO(PR_TEMPLATE_RESCOPE): Update gate #5 in
+    .github/pull_request_template.md.
 -->
 
 # B2B Platform Constitution
@@ -178,6 +179,61 @@ time-to-interactive.
 through search. A storefront that is invisible to crawlers or slow on
 mobile erodes the platform's primary acquisition channel.
 
+### VIII. Working Language — English (NON-NEGOTIABLE)
+
+The English-only requirement applies to **source code and inline code
+comments**. Everything else — documentation, planning artifacts, governance
+documents, commit messages, code-review comments — MAY be authored in any
+language the team chooses.
+
+**In scope (MUST be English)**:
+
+- All in-code identifiers: variable, function, class, type, file, and folder
+  names; database tables, columns, and constraint names; API field names
+  and URL path segments.
+- Inline code comments and docstrings inside source files
+  (`*.ts`, `*.tsx`, `*.js`, `*.jsx`, `*.cjs`, `*.mjs`, `*.css`, `*.html`,
+  shell scripts, and equivalents).
+- Inline string literals that are NOT user-facing (e.g. internal log
+  messages, error codes, route definitions, migration SQL).
+
+**Out of scope (MAY be in any language)**:
+
+- Specifications (`spec.md`), implementation plans (`plan.md`), task lists
+  (`tasks.md`), research notes (`research.md`), data models (`data-model.md`),
+  interface contracts (`contracts/`), quickstart guides (`quickstart.md`),
+  validation reports.
+- The root `README.md`, every other Markdown file, and the generated
+  project documentation site.
+- The constitution itself and any other governance documents.
+- Commit messages, pull-request titles and descriptions, code-review
+  comments, issue templates, CI/CD configuration labels.
+- All localized end-customer content — storefront copy, admin UI labels,
+  notification emails, CMS pages, locale-specific seed fixtures simulating
+  customer content. This category is also governed by the localization
+  mechanism required by Principle VII; translation keys and message
+  identifiers used by that mechanism MUST still be English (because they
+  are code identifiers).
+- Foreign-language proper nouns inside any artifact (e.g. *Comarch Optima*,
+  *Subiekt GT*, *enova365*, *Symfonia*, regulatory terms like *NIP*).
+
+**Rationale for keeping code in English**: Source code is the single
+artifact every contributor, every code reviewer, every linter, every
+LLM-assisted tool, and every stack trace touches. English is the working
+language of the entire ecosystem the platform depends on (Node.js,
+MikroORM, PostgreSQL, Meilisearch documentation; GitHub; LLM tooling;
+error messages from the runtime). Keeping identifiers and inline comments
+in one language preserves grep-ability, code-review fluency, and
+LLM-assisted refactoring across a team that spans multiple human
+languages.
+
+**Rationale for loosening the prose scope**: Documentation, planning, and
+review prose are read primarily by people, not tooling. A team whose
+working language is not English is better served by writing planning
+artifacts in their own language than by translating every spec into
+English at the cost of nuance and review speed. The product also remains
+free to speak whatever customer-facing languages the business requires.
+
 ## Technology Stack
 
 The following stack is mandated. Substitutions require amending this
@@ -252,6 +308,8 @@ shippable:
    etc.) is a plan-level decision; the mandate is the artifact, not the
    tool.
 
+Both artifacts MUST be authored in English per Principle VIII.
+
 ## Performance & Scale Targets
 
 The platform is sized for the following workload and MUST be designed to
@@ -296,10 +354,14 @@ Every change MUST pass the following gates before merge:
    with zero errors in every affected app/package.
 4. **Naming conventions** — reviewers MUST reject any PR that violates
    Principle VI.
-5. **Docs sync** — if a module is added or an infrastructure-relevant
+5. **Working language** — reviewers MUST reject any PR that introduces
+   non-English artifacts, identifiers, comments, or commit messages in
+   violation of Principle VIII, aside from the scope exceptions listed
+   in that principle.
+6. **Docs sync** — if a module is added or an infrastructure-relevant
    change is made, the PR MUST update `README.md` and the documentation
    site in the same commit range.
-6. **Dependency justification** — any new runtime dependency MUST carry a
+7. **Dependency justification** — any new runtime dependency MUST carry a
    one-paragraph rationale in the PR description (Principle IV).
 
 Code review MUST explicitly verify each of the above. "LGTM" without
@@ -339,4 +401,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 1.0.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-04-23
+**Version**: 2.0.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-04-26

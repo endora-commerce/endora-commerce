@@ -1,0 +1,134 @@
+import { Session } from '../modules/auth/entities/session.entity.js';
+import { AuditLogEntry } from '../modules/audit_logs/entities/audit-log-entry.entity.js';
+import { Asset } from '../modules/assets/entities/asset.entity.js';
+import { Product } from '../modules/catalog/entities/product.entity.js';
+import { ProductVariant } from '../modules/catalog/entities/product-variant.entity.js';
+import { Category } from '../modules/catalog/entities/category.entity.js';
+import { ProductAttribute } from '../modules/catalog/entities/product-attribute.entity.js';
+import { SalesChannel } from '../modules/catalog/entities/sales-channel.entity.js';
+import { AvailabilityNotification } from '../modules/inventory/entities/availability-notification.entity.js';
+import { QuoteRequest } from '../modules/quote_requests/entities/quote-request.entity.js';
+import { QuoteRequestItem } from '../modules/quote_requests/entities/quote-request-item.entity.js';
+import { Organization } from '../modules/organizations/entities/organization.entity.js';
+import { CustomerAccount } from '../modules/customer_accounts/entities/customer-account.entity.js';
+import { Address } from '../modules/addresses/entities/address.entity.js';
+import { EmailVerificationToken } from '../modules/organizations/entities/email-verification-token.entity.js';
+import { Cart } from '../modules/carts/entities/cart.entity.js';
+import { CartItem } from '../modules/carts/entities/cart-item.entity.js';
+import { StockLevel } from '../modules/inventory/entities/stock-level.entity.js';
+import { DeliveryMethod } from '../modules/delivery_methods/entities/delivery-method.entity.js';
+import { PaymentMethod } from '../modules/payment_methods/entities/payment-method.entity.js';
+import { Order } from '../modules/orders/entities/order.entity.js';
+import { OrderItem } from '../modules/orders/entities/order-item.entity.js';
+import { Payment } from '../modules/payments/entities/payment.entity.js';
+import { Invoice } from '../modules/invoices/entities/invoice.entity.js';
+import { OrganizationInvitation } from '../modules/organizations/entities/organization-invitation.entity.js';
+import { AdminUser } from '../modules/admin_users/entities/admin-user.entity.js';
+import { AdminRole } from '../modules/admin_roles/entities/admin-role.entity.js';
+import { PasswordResetToken } from '../modules/customer_accounts/entities/password-reset-token.entity.js';
+import { CreditLimit } from '../modules/credit_limits/entities/credit-limit.entity.js';
+import { CreditLimitReservation } from '../modules/credit_limits/entities/credit-limit-reservation.entity.js';
+import { ApiKey } from '../modules/api_keys/entities/api-key.entity.js';
+import { Webhook } from '../modules/webhooks/entities/webhook.entity.js';
+import { WebhookDelivery } from '../modules/webhooks/entities/webhook-delivery.entity.js';
+import { ExternalIntegration } from '../modules/integrations/entities/external-integration.entity.js';
+import { AnalyticsEvent } from '../modules/analytics/entities/analytics-event.entity.js';
+import { SeoMetaOverride } from '../modules/seo/entities/seo-meta-override.entity.js';
+import { SitemapCache } from '../modules/seo/entities/sitemap-cache.entity.js';
+import { Language } from '../modules/languages/entities/language.entity.js';
+import { Currency } from '../modules/currencies/entities/currency.entity.js';
+import { CmsPage } from '../modules/cms_pages/entities/cms-page.entity.js';
+import { CustomerGroup } from '../modules/price_lists/entities/customer-group.entity.js';
+import { PriceList } from '../modules/price_lists/entities/price-list.entity.js';
+import { PriceListItem } from '../modules/price_lists/entities/price-list-item.entity.js';
+import { PriceListAssignment } from '../modules/price_lists/entities/price-list-assignment.entity.js';
+import { Tax } from '../modules/taxes/entities/tax.entity.js';
+import { Promotion } from '../modules/promotions/entities/promotion.entity.js';
+import { ShoppingList } from '../modules/shopping_lists/entities/shopping-list.entity.js';
+import { ShoppingListItem } from '../modules/shopping_lists/entities/shopping-list-item.entity.js';
+
+/**
+ * Explicit entity registry consumed by `mikro-orm.config.ts`.
+ *
+ * We avoid the glob-based discovery (`entities: ['./dist/.../*.js']`) for the
+ * same reason every modern ORM example does: glob discovery needs dynamic
+ * `import()` at runtime, which Node's ESM loader can't transform TypeScript
+ * through. Under Vitest's test loader that dynamic import fails with
+ * `SyntaxError: Invalid or unexpected token` because the .ts file reaches the
+ * Node loader without esbuild transformation. Listing the classes explicitly
+ * side-steps the whole problem.
+ *
+ * Every new module entity MUST be added here. Ownership still belongs to the
+ * module folder — this file is just the composition root's import list.
+ */
+
+export const ALL_ENTITIES = [
+  // auth
+  Session,
+  // audit_logs
+  AuditLogEntry,
+  // assets
+  Asset,
+  // catalog
+  Product,
+  ProductVariant,
+  Category,
+  ProductAttribute,
+  SalesChannel,
+  // inventory
+  AvailabilityNotification,
+  // quote_requests
+  QuoteRequest,
+  QuoteRequestItem,
+  // organizations + customer_accounts + addresses
+  Organization,
+  CustomerAccount,
+  Address,
+  EmailVerificationToken,
+  // carts + commerce
+  Cart,
+  CartItem,
+  StockLevel,
+  DeliveryMethod,
+  PaymentMethod,
+  Order,
+  OrderItem,
+  Payment,
+  Invoice,
+  // organization invitations (US3)
+  OrganizationInvitation,
+  // admin (US4)
+  AdminUser,
+  AdminRole,
+  // password reset (polish)
+  PasswordResetToken,
+  // credit limits (US6)
+  CreditLimit,
+  CreditLimitReservation,
+  // US7 — API keys, webhooks, integrations
+  ApiKey,
+  Webhook,
+  WebhookDelivery,
+  ExternalIntegration,
+  // analytics (Phase 10 / T237)
+  AnalyticsEvent,
+  // seo (Phase 10 / T235)
+  SeoMetaOverride,
+  SitemapCache,
+  // languages + currencies (Phase 10 / T238)
+  Language,
+  Currency,
+  // cms (Phase 10 / T234)
+  CmsPage,
+  // pricing (Phase 4 polish / T127)
+  CustomerGroup,
+  PriceList,
+  PriceListItem,
+  PriceListAssignment,
+  // taxes + promotions (Phase 4 polish / T128, T129)
+  Tax,
+  Promotion,
+  // shopping lists (US5 / T200)
+  ShoppingList,
+  ShoppingListItem,
+] as const;

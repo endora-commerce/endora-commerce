@@ -1,0 +1,16 @@
+node_modules/
+.pnpm-store/
+
+dist/
+build/
+.next/
+out/
+.turbo/
+.docusaurus/
+
+coverage/
+
+*.min.js
+
+backend/src/generated/
+packages/contracts/src/generated/

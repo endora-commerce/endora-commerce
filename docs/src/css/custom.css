@@ -1,0 +1,25 @@
+/**
+ * Minimal theme override for the B2B Platform docs site.
+ * Keep intentionally sparse — visual design is a later concern (Principle IV).
+ */
+
+:root {
+  --ifm-color-primary: #1f6feb;
+  --ifm-color-primary-dark: #1859c5;
+  --ifm-color-primary-darker: #1752ba;
+  --ifm-color-primary-darkest: #124398;
+  --ifm-color-primary-light: #3a83ed;
+  --ifm-color-primary-lighter: #4a8cee;
+  --ifm-color-primary-lightest: #76a6f2;
+  --ifm-code-font-size: 92%;
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #4a8cee;
+  --ifm-color-primary-dark: #2b79ea;
+  --ifm-color-primary-darker: #1c70e8;
+  --ifm-color-primary-darkest: #135ec7;
+  --ifm-color-primary-light: #699ff2;
+  --ifm-color-primary-lighter: #79a8f3;
+  --ifm-color-primary-lightest: #a6c3f7;
+}

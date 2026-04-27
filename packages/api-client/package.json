@@ -1,0 +1,28 @@
+{
+  "name": "@b2b/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Typed HTTP client shared by storefront and admin. Re-exports Zod-inferred types from @b2b/contracts so both frontends stay in lockstep with the backend surface.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "engines": {
+    "node": ">=22.17.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@b2b/contracts": "workspace:*",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.4"
+  }
+}

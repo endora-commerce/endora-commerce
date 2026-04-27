@@ -1,0 +1,45 @@
+version: 2
+
+# Keeps runtime dependencies and CI tooling fresh while honouring
+# Constitution Principle IV (YAGNI / minimal dependencies). Each group of
+# updates lands as one PR per ecosystem per week, so reviewers see the
+# smallest dependency-justification surface possible.
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - npm
+    commit-message:
+      prefix: chore(deps)
+      include: scope
+    groups:
+      production:
+        dependency-type: production
+        update-types:
+          - patch
+          - minor
+      development:
+        dependency-type: development
+        update-types:
+          - patch
+          - minor
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: chore(ci)
