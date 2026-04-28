@@ -1,24 +1,31 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.1.1 → 2.0.0
-Rationale: MAJOR bump. Principle VIII is materially redefined: the
-English-only requirement now applies ONLY to source code (identifiers,
-inline string literals that are not user-facing) and inline code comments.
-Documentation artifacts — specs, plans, tasks, research notes,
-data-model, contracts, quickstart, README, the docs site, governance
-documents, commit messages, PR titles + descriptions, code-review
-comments, issue templates, CI labels — MAY now be authored in any
-language the team chooses. Past compliant work (everything authored in
-English) remains compliant; the redefinition only loosens the rule, but
-the principle's normative scope is substantively narrower than v1.1.1,
-hence MAJOR.
+Version change: 2.0.0 → 2.1.0
+Rationale: MINOR bump. Principle VIII gains an explicit carve-out:
+the generated project documentation site under `/docs` (the
+Docusaurus tree consumed by both developers and Product Owners) is
+moved from the v2.0.0 "MAY be in any language" allowance back into
+the "MUST be English" scope. No principle is removed or redefined;
+the loosening introduced by v2.0.0 stands for every other prose
+artifact (specs, plans, tasks, research, README's body, governance
+docs, commit messages, code-review comments). The change adds one
+specific obligation. The `/docs` tree was already authored in English
+under the v1.1.1 → v2.0.0 transition (verified at amendment time),
+so no prior compliant work is invalidated; this amendment formalises
+the existing state and resolves the residual contradiction between
+Principle VIII (v2.0.0) and the Documentation Requirements section
+(which has continuously required English for both documentation
+artifacts).
 
 Modified principles:
   - VIII. Working Language — English (NON-NEGOTIABLE)
-        scope shrunk from "every engineering artifact" to "code +
-        code comments". Sub-sections rewritten; cross-reference to
-        Principle VII (multilingual storefront) preserved.
+        the bullet "The root `README.md`, every other Markdown file,
+        and the generated project documentation site" in the
+        Out-of-scope list is split: README (and other Markdown
+        outside `/docs/`) stays out of scope; the `/docs/`
+        documentation site moves into the In-scope list with its own
+        bullet and rationale.
 
 Added sections:
   - (none)
@@ -31,28 +38,22 @@ Templates / artifacts requiring alignment:
        Check generically; no edits required.
   - ✅ .specify/templates/spec-template.md      — no edits required.
   - ✅ .specify/templates/tasks-template.md     — no edits required.
-  - ⚠ scripts/check-language.sh — currently encodes the v1.1.1 broader
-       scope (scans every file outside the i18n exception paths). With
-       the v2.0.0 scope it MUST limit its scan to source-code files
-       (.ts, .tsx, .js, .jsx, .css, .html, etc.) and SHOULD NOT scan
-       Markdown, YAML, JSON, SQL, plain text, or commit messages. Flagged
-       as a follow-up commit.
-  - ⚠ README.md "Constitution quick reference" line for Principle VIII
-       — the current wording reflects v1.1.1's "every engineering
-       artifact" framing and SHOULD be updated to the new scope
-       ("code + code comments"). Flagged as a follow-up commit.
-  - ⚠ .github/pull_request_template.md gate #5 — the wording "code,
-       comments, commit messages, and PR description are English"
-       SHOULD be narrowed to "code and code comments are English".
+  - ✅ README.md — Principle VIII quick-reference line updated to
+       call out the `/docs/` exception.
+  - ✅ .github/pull_request_template.md — gate #5 updated to call out
+       the `/docs/` exception.
+  - ⚠ scripts/check-language.sh — currently scans only source-code
+       file extensions (.ts, .tsx, .css, .html, .sh) and skips
+       Markdown. To enforce the new `/docs/` MUST-be-English rule it
+       SHOULD additionally scan `docs/docs/**/*.md` (and equivalent
+       Docusaurus content paths) for non-Latin / non-ASCII prose.
        Flagged as a follow-up commit.
 
 Deferred items / TODOs:
-  - TODO(SCRIPT_RESCOPE): Update `scripts/check-language.sh` to scan
-    only source-code file extensions and to drop the commit-message
-    walker.
-  - TODO(README_RESCOPE): Update README's Principle VIII line.
-  - TODO(PR_TEMPLATE_RESCOPE): Update gate #5 in
-    .github/pull_request_template.md.
+  - TODO(DOCS_LANGUAGE_CHECK): extend `scripts/check-language.sh`
+    with a Markdown-scan step limited to the `/docs/` Docusaurus tree,
+    so the new Principle VIII obligation is enforced in CI rather than
+    only at code-review time.
 -->
 
 # B2B Platform Constitution
@@ -181,10 +182,12 @@ mobile erodes the platform's primary acquisition channel.
 
 ### VIII. Working Language — English (NON-NEGOTIABLE)
 
-The English-only requirement applies to **source code and inline code
-comments**. Everything else — documentation, planning artifacts, governance
-documents, commit messages, code-review comments — MAY be authored in any
-language the team chooses.
+The English-only requirement applies to **source code, inline code
+comments, and the generated project documentation site under `/docs/`**.
+Every other prose artifact — specs, plans, tasks, research notes,
+the root README's body, governance documents, commit messages,
+code-review comments — MAY be authored in any language the team
+chooses.
 
 **In scope (MUST be English)**:
 
@@ -196,6 +199,14 @@ language the team chooses.
   shell scripts, and equivalents).
 - Inline string literals that are NOT user-facing (e.g. internal log
   messages, error codes, route definitions, migration SQL).
+- The **generated project documentation site** (the Docusaurus tree
+  rooted at `/docs/`, including every Markdown file under `docs/docs/`,
+  sidebar labels, and authored `src/` content). Every page authored
+  for this site MUST be written in English — both developer-facing
+  module documentation and Product Owner / end-user "Usage" pages.
+  The exception covers the contents of the docs site itself; tooling
+  configuration (`docusaurus.config.js`, `package.json`, build
+  scripts) is governed by the source-code rules above.
 
 **Out of scope (MAY be in any language)**:
 
@@ -203,8 +214,9 @@ language the team chooses.
   (`tasks.md`), research notes (`research.md`), data models (`data-model.md`),
   interface contracts (`contracts/`), quickstart guides (`quickstart.md`),
   validation reports.
-- The root `README.md`, every other Markdown file, and the generated
-  project documentation site.
+- The root `README.md` body and every other Markdown file **outside
+  the `/docs/` documentation site** (e.g. module READMEs, ADRs, RFCs,
+  in-repo design notes).
 - The constitution itself and any other governance documents.
 - Commit messages, pull-request titles and descriptions, code-review
   comments, issue templates, CI/CD configuration labels.
@@ -233,6 +245,19 @@ working language is not English is better served by writing planning
 artifacts in their own language than by translating every spec into
 English at the cost of nuance and review speed. The product also remains
 free to speak whatever customer-facing languages the business requires.
+
+**Rationale for keeping the `/docs/` site in English**: The `/docs/`
+Docusaurus site is the project's **public, long-lived knowledge base**.
+Unlike specs and plans (which live next to the work that produced them
+and decay quickly), the docs site is the artifact a third-party
+integrator, an LLM-assisted contributor, an auditor, or a future
+maintainer reads months or years after the team that wrote it has
+moved on. The same arguments that justify English source code apply:
+grep-ability, reviewability across a multilingual contributor base,
+LLM tool fluency, and alignment with the ecosystem's working
+language. The carve-out is bounded — it covers the docs site only,
+not specs, ADRs, module READMEs, or any other authored prose — so
+the v2.0.0 freedom stands everywhere it was intended.
 
 ## Technology Stack
 
@@ -401,4 +426,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 2.0.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-04-26
+**Version**: 2.1.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-04-28
