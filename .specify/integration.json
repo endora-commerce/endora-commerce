@@ -1,7 +1,7 @@
 {
-  "integration": "claude",
+  "integration": "cursor-agent",
   "version": "0.5.1",
   "scripts": {
-    "update-context": ".specify/integrations/claude/scripts/update-context.sh"
+    "update-context": ".specify/integrations/cursor-agent/scripts/update-context.sh"
   }
 }
