@@ -1,14 +1,23 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-import { formatDateTime } from '../../lib/format.js';
-
-/**
- * Invoices list (T162). Filterable by status (pending / ready /
- * cancelled). The "PDF" button links to the existing per-order
- * /api/v1/orders/:id/invoice endpoint — same surface the buyer uses on
- * the storefront, scoped to the order.
- */
+import { FileDown } from 'lucide-react';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { formatDateTime } from '@/lib/format';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface AdminInvoice {
   id: string;
@@ -23,6 +32,12 @@ interface AdminInvoice {
 }
 
 const STATUSES = ['pending', 'ready', 'cancelled'] as const;
+
+const STATUS_VARIANT: Record<AdminInvoice['status'], 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
+  pending: 'warning',
+  ready: 'success',
+  cancelled: 'destructive',
+};
 
 export function InvoicesList(): ReactNode {
   const [rows, setRows] = useState<AdminInvoice[]>([]);
@@ -55,82 +70,99 @@ export function InvoicesList(): ReactNode {
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>Invoices</h1>
-          <p>Read-only. Generation is driven by order events; PDF re-download is per-order.</p>
-        </div>
-      </header>
+      <PageHeader
+        title="Invoices"
+        description="Read-only. Generation is driven by order events; PDF re-download is per-order."
+      />
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="card">
-        <div className="field">
-          <label>Status</label>
-          <select
-            className="input"
-            value={status}
-            onChange={(e): void => setStatus(e.target.value as typeof status)}
-          >
-            <option value="">All</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <Card className="mb-4">
+        <CardContent className="pt-6">
+          <div className="space-y-2 md:max-w-xs">
+            <Label htmlFor="istatus">Status</Label>
+            <Select
+              id="istatus"
+              value={status}
+              onChange={(e): void => setStatus(e.target.value as typeof status)}
+            >
+              <option value="">All</option>
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
-      {loading ? (
-        <p className="muted">Loading…</p>
-      ) : rows.length === 0 ? (
-        <p className="muted">No invoices match the current filter.</p>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Number</th>
-              <th>Kind</th>
-              <th>Issued</th>
-              <th>Order</th>
-              <th>Total</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((i) => (
-              <tr key={i.id}>
-                <td>{i.number}</td>
-                <td>{i.kind}</td>
-                <td>{formatDateTime(i.issuedAt)}</td>
-                <td>
-                  <Link to={`/orders/${i.orderId}`}>{i.orderId.slice(0, 8)}</Link>
-                </td>
-                <td>
-                  {i.total.toFixed(2)} {i.currency}
-                </td>
-                <td>{i.status}</td>
-                <td>
-                  {i.pdfReady ? (
-                    <a
-                      className="btn"
-                      href={`${baseUrl}/api/v1/orders/${i.orderId}/invoice`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      PDF
-                    </a>
-                  ) : (
-                    <span className="muted">not ready</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <Card>
+        <CardContent className="pt-6">
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No invoices match the current filter.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Number</TableHead>
+                  <TableHead>Kind</TableHead>
+                  <TableHead>Issued</TableHead>
+                  <TableHead>Order</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((i) => (
+                  <TableRow key={i.id}>
+                    <TableCell className="font-medium">{i.number}</TableCell>
+                    <TableCell>{i.kind}</TableCell>
+                    <TableCell>{formatDateTime(i.issuedAt)}</TableCell>
+                    <TableCell>
+                      <Link
+                        to={`/orders/${i.orderId}`}
+                        className="font-mono text-xs underline underline-offset-2"
+                      >
+                        {i.orderId.slice(0, 8)}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="tabular-nums">
+                      {i.total.toFixed(2)} {i.currency}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={STATUS_VARIANT[i.status]}>{i.status}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {i.pdfReady ? (
+                        <Button asChild variant="outline" size="sm">
+                          <a
+                            href={`${baseUrl}/api/v1/orders/${i.orderId}/invoice`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <FileDown />
+                            PDF
+                          </a>
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">not ready</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }

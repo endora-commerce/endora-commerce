@@ -1,7 +1,21 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { RefreshCw } from 'lucide-react';
 import type { AnalyticsSummaryResponse } from '@b2b/contracts';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-import { formatDateTime } from '../../lib/format.js';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { formatDateTime } from '@/lib/format';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 const RANGE_OPTIONS = [
   { value: 7, label: 'Last 7 days' },
@@ -30,9 +44,7 @@ export function AnalyticsPage(): ReactNode {
     setError(null);
     try {
       const qs = `?from=${encodeURIComponent(window.fromIso)}&to=${encodeURIComponent(window.toIso)}`;
-      const res = await apiClient.get<SummaryEnvelope>(
-        `/api/v1/admin/analytics/summary${qs}`,
-      );
+      const res = await apiClient.get<SummaryEnvelope>(`/api/v1/admin/analytics/summary${qs}`);
       setSummary(res.data);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load summary.');
@@ -53,102 +65,114 @@ export function AnalyticsPage(): ReactNode {
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>Analytics</h1>
-          <p>
-            Aggregated counts of storefront events. Window:{' '}
-            <span className="muted">
-              {formatDateTime(window.fromIso)} – {formatDateTime(window.toIso)}
-            </span>
-            .
-          </p>
-        </div>
-        <div className="toolbar" style={{ marginBottom: 0 }}>
-          <select
-            className="select"
-            style={{ width: 'auto' }}
-            value={rangeDays}
-            onChange={(e): void => setRangeDays(Number(e.target.value))}
-          >
-            {RANGE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          <button
-            className="btn"
-            onClick={(): void => {
-              void refresh();
-            }}
-          >
-            Refresh
-          </button>
-        </div>
-      </header>
-
-      {error ? <div className="alert alert--error">{error}</div> : null}
-
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Totals by event type</h2>
-        {loading ? (
-          <p className="muted">Loading…</p>
-        ) : !summary || summary.totalsByType.length === 0 ? (
-          <p className="muted">No events recorded in this window.</p>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Event type</th>
-                <th style={{ textAlign: 'right' }}>Count</th>
-              </tr>
-            </thead>
-            <tbody>
-              {summary.totalsByType.map((row) => (
-                <tr key={row.type}>
-                  <td className="code">{row.type}</td>
-                  <td style={{ textAlign: 'right' }}>{row.count.toLocaleString()}</td>
-                </tr>
+      <PageHeader
+        title="Analytics"
+        description={
+          <>
+            Aggregated counts of storefront events. Window: {formatDateTime(window.fromIso)} –{' '}
+            {formatDateTime(window.toIso)}.
+          </>
+        }
+        actions={
+          <>
+            <Select
+              className="w-auto"
+              value={rangeDays}
+              onChange={(e): void => setRangeDays(Number(e.target.value))}
+            >
+              {RANGE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
               ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(): void => {
+                void refresh();
+              }}
+            >
+              <RefreshCw />
+              Refresh
+            </Button>
+          </>
+        }
+      />
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Daily breakdown</h2>
-        {loading ? (
-          <p className="muted">Loading…</p>
-        ) : dailyByDay.size === 0 ? (
-          <p className="muted">No events recorded in this window.</p>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Day</th>
-                {allTypes.map((t) => (
-                  <th key={t} className="code" style={{ textAlign: 'right' }}>
-                    {t}
-                  </th>
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Totals by event type</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : !summary || summary.totalsByType.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No events recorded in this window.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Event type</TableHead>
+                  <TableHead className="text-right">Count</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {summary.totalsByType.map((row) => (
+                  <TableRow key={row.type}>
+                    <TableCell className="font-mono text-xs">{row.type}</TableCell>
+                    <TableCell className="text-right">{row.count.toLocaleString()}</TableCell>
+                  </TableRow>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {Array.from(dailyByDay.entries()).map(([day, counts]) => (
-                <tr key={day}>
-                  <td>{day}</td>
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Daily breakdown</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : dailyByDay.size === 0 ? (
+            <p className="text-sm text-muted-foreground">No events recorded in this window.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Day</TableHead>
                   {allTypes.map((t) => (
-                    <td key={t} style={{ textAlign: 'right' }}>
-                      {(counts[t] ?? 0).toLocaleString()}
-                    </td>
+                    <TableHead key={t} className="text-right font-mono text-xs">
+                      {t}
+                    </TableHead>
                   ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Array.from(dailyByDay.entries()).map(([day, counts]) => (
+                  <TableRow key={day}>
+                    <TableCell>{day}</TableCell>
+                    {allTypes.map((t) => (
+                      <TableCell key={t} className="text-right">
+                        {(counts[t] ?? 0).toLocaleString()}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }

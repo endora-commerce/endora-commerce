@@ -25,7 +25,8 @@
     "db:fresh": "tsx src/db/migrate.ts fresh",
     "db:reset": "pnpm run db:fresh && pnpm run seed:dev",
     "seed:dev": "tsx src/modules/catalog/seeds/dev-catalog-seed.ts",
-    "search:reindex": "tsx src/modules/search/scripts/reindex.ts"
+    "search:reindex": "tsx src/modules/search/scripts/reindex.ts",
+    "admin:create": "tsx src/modules/admin_users/scripts/create-admin.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",

@@ -1,7 +1,24 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { Trash2 } from 'lucide-react';
 import type { ApiKey, CreateApiKeyResponse } from '@b2b/contracts';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-import { formatDateTime } from '../../lib/format.js';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { formatDateTime } from '@/lib/format';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 const KNOWN_SCOPES = [
   'catalog:read',
@@ -45,10 +62,7 @@ export function ApiKeysPage(): ReactNode {
   const handleCreate = useCallback(
     async (input: { name: string; scopes: string[] }): Promise<void> => {
       try {
-        const res = await apiClient.post<CreateApiKeyEnvelope>(
-          '/api/v1/admin/api-keys',
-          input,
-        );
+        const res = await apiClient.post<CreateApiKeyEnvelope>('/api/v1/admin/api-keys', input);
         setRevealedToken({ name: input.name, token: res.data.bearerToken });
         await refresh();
       } catch (err) {
@@ -73,92 +87,107 @@ export function ApiKeysPage(): ReactNode {
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>API Keys</h1>
-          <p>Bearer tokens for machine-to-machine integrations. The full token is shown once.</p>
-        </div>
-      </header>
+      <PageHeader
+        title="API keys"
+        description="Bearer tokens for machine-to-machine integrations. The full token is shown once, on creation."
+      />
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
-
-      {revealedToken ? (
-        <div className="alert alert--warning">
-          <strong>Save this bearer token now — it will not be shown again.</strong>
-          <div className="muted">{revealedToken.name}</div>
-          <code className="code">{revealedToken.token}</code>
-          <div style={{ marginTop: 8 }}>
-            <button className="btn" onClick={(): void => setRevealedToken(null)}>
-              I have stored it
-            </button>
-          </div>
-        </div>
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Create new key</h2>
-        <CreateKeyForm onSubmit={handleCreate} />
-      </div>
+      {revealedToken ? (
+        <Alert variant="warning" className="mb-4">
+          <AlertTitle>Save this bearer token now — it will not be shown again.</AlertTitle>
+          <AlertDescription>
+            <p className="text-xs text-muted-foreground">{revealedToken.name}</p>
+            <code className="mt-2 block break-all rounded bg-muted px-2 py-1 font-mono text-xs">
+              {revealedToken.token}
+            </code>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              onClick={(): void => setRevealedToken(null)}
+            >
+              I have stored it
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="card">
-        {loading ? (
-          <p className="muted">Loading…</p>
-        ) : keys.length === 0 ? (
-          <p className="muted">No API keys yet.</p>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Status</th>
-                <th>Scopes</th>
-                <th>Last 4</th>
-                <th>Last used</th>
-                <th>Created</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {keys.map((k) => (
-                <tr key={k.id}>
-                  <td>{k.name}</td>
-                  <td>
-                    <span
-                      className={
-                        k.status === 'active' ? 'badge badge--success' : 'badge badge--danger'
-                      }
-                    >
-                      {k.status}
-                    </span>
-                  </td>
-                  <td>
-                    {k.scopes.map((s) => (
-                      <span key={s} className="badge" style={{ marginRight: 4 }}>
-                        {s}
-                      </span>
-                    ))}
-                  </td>
-                  <td className="code">…{k.lastFour}</td>
-                  <td>{formatDateTime(k.lastUsedAt)}</td>
-                  <td>{formatDateTime(k.createdAt)}</td>
-                  <td>
-                    {k.status === 'active' ? (
-                      <button
-                        className="btn btn--danger"
-                        onClick={(): void => {
-                          void handleRevoke(k.id);
-                        }}
-                      >
-                        Revoke
-                      </button>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Create new key</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CreateKeyForm onSubmit={handleCreate} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="pt-6">
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : keys.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No API keys yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Scopes</TableHead>
+                  <TableHead>Last 4</TableHead>
+                  <TableHead>Last used</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {keys.map((k) => (
+                  <TableRow key={k.id}>
+                    <TableCell className="font-medium">{k.name}</TableCell>
+                    <TableCell>
+                      <Badge variant={k.status === 'active' ? 'success' : 'destructive'}>
+                        {k.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {k.scopes.map((s) => (
+                          <Badge key={s} variant="outline" className="font-mono text-xs">
+                            {s}
+                          </Badge>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">…{k.lastFour}</TableCell>
+                    <TableCell>{formatDateTime(k.lastUsedAt)}</TableCell>
+                    <TableCell>{formatDateTime(k.createdAt)}</TableCell>
+                    <TableCell>
+                      {k.status === 'active' ? (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={(): void => {
+                            void handleRevoke(k.id);
+                          }}
+                        >
+                          <Trash2 />
+                          Revoke
+                        </Button>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }
@@ -194,47 +223,41 @@ function CreateKeyForm(props: {
 
   return (
     <form
+      className="space-y-4"
       onSubmit={(e): void => {
         void onSubmit(e);
       }}
     >
-      <div className="field">
-        <label htmlFor="api-key-name">Name</label>
-        <input
+      <div className="space-y-2">
+        <Label htmlFor="api-key-name">Name</Label>
+        <Input
           id="api-key-name"
-          className="input"
           value={name}
           onChange={(e): void => setName(e.target.value)}
           placeholder="e.g. PIM sync"
           required
         />
       </div>
-      <div className="field">
-        <label>Scopes</label>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div className="space-y-2">
+        <Label>Scopes</Label>
+        <div className="flex flex-wrap gap-3">
           {KNOWN_SCOPES.map((scope) => (
             <label
               key={scope}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 'normal' }}
+              className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-xs"
             >
-              <input
-                type="checkbox"
-                checked={scopes.has(scope)}
-                onChange={(): void => toggle(scope)}
-              />
-              <span className="code">{scope}</span>
+              <Checkbox checked={scopes.has(scope)} onChange={(): void => toggle(scope)} />
+              <code className="font-mono">{scope}</code>
             </label>
           ))}
         </div>
-        <span className="field__hint">Pick the smallest set that lets the integration work.</span>
+        <p className="text-xs text-muted-foreground">
+          Pick the smallest set that lets the integration work.
+        </p>
       </div>
-      <button
-        type="submit"
-        className="btn btn--primary"
-        disabled={submitting || !name.trim() || scopes.size === 0}
-      >
+      <Button type="submit" disabled={submitting || !name.trim() || scopes.size === 0}>
         {submitting ? 'Creating…' : 'Create key'}
-      </button>
+      </Button>
     </form>
   );
 }

@@ -1,13 +1,24 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-import { formatDateTime } from '../../lib/format.js';
-
-/**
- * Admin Products list (T089). Default view excludes archived rows; the
- * "Show archived" toggle widens the query. Each row deep-links to the
- * editor at /catalog/products/:id.
- */
+import { ArrowRight, Plus } from 'lucide-react';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { formatDateTime } from '@/lib/format';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface AdminProduct {
   id: string;
@@ -20,6 +31,12 @@ interface AdminProduct {
   attributeValues: Record<string, unknown>;
   updatedAt: string;
 }
+
+const STATUS_VARIANT: Record<AdminProduct['status'], 'default' | 'secondary' | 'success' | 'warning'> = {
+  draft: 'warning',
+  active: 'success',
+  archived: 'secondary',
+};
 
 export function ProductsList(): ReactNode {
   const [rows, setRows] = useState<AdminProduct[]>([]);
@@ -60,77 +77,98 @@ export function ProductsList(): ReactNode {
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>Products</h1>
-          <p>Catalog rows. Pricing, stock, and assets are managed in dedicated modules.</p>
-        </div>
-        <Link className="btn btn--primary" to="/catalog/products/new">
-          New product
-        </Link>
-      </header>
+      <PageHeader
+        title="Products"
+        description="Catalog rows. Pricing, stock, and assets are managed in dedicated modules."
+        actions={
+          <Button asChild>
+            <Link to="/catalog/products/new">
+              <Plus />
+              New product
+            </Link>
+          </Button>
+        }
+      />
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="card">
-        <div className="field">
-          <label htmlFor="prod-filter">Filter by SKU / slug / name</label>
-          <input
-            id="prod-filter"
-            className="input"
-            value={filter}
-            onChange={(e): void => setFilter(e.target.value)}
-            placeholder="EXAMPLE-SIMPLE-001"
-          />
-        </div>
-        <label>
-          <input
-            type="checkbox"
-            checked={includeArchived}
-            onChange={(e): void => setIncludeArchived(e.target.checked)}
-          />{' '}
-          Show archived rows
-        </label>
-      </div>
+      <Card className="mb-4">
+        <CardContent className="space-y-4 pt-6">
+          <div className="space-y-2">
+            <Label htmlFor="prod-filter">Filter by SKU / slug / name</Label>
+            <Input
+              id="prod-filter"
+              value={filter}
+              onChange={(e): void => setFilter(e.target.value)}
+              placeholder="EXAMPLE-SIMPLE-001"
+            />
+          </div>
+          <label className="inline-flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={includeArchived}
+              onChange={(e): void => setIncludeArchived(e.target.checked)}
+            />
+            Show archived rows
+          </label>
+        </CardContent>
+      </Card>
 
-      {loading ? (
-        <p className="muted">Loading…</p>
-      ) : visible.length === 0 ? (
-        <p className="muted">No products match the current filter.</p>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>SKU</th>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Status</th>
-              <th>Visibility</th>
-              <th>Updated</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((r) => (
-              <tr key={r.id}>
-                <td>
-                  <Link to={`/catalog/products/${r.id}`}>{r.sku}</Link>
-                </td>
-                <td>{pickName(r.name)}</td>
-                <td>{r.type}</td>
-                <td>{r.status}</td>
-                <td>{r.visibility}</td>
-                <td>{formatDateTime(r.updatedAt)}</td>
-                <td>
-                  <Link className="btn" to={`/catalog/products/${r.id}`}>
-                    Open
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <Card>
+        <CardContent className="pt-6">
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : visible.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No products match the current filter.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>SKU</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Visibility</TableHead>
+                  <TableHead>Updated</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visible.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell>
+                      <Link
+                        to={`/catalog/products/${r.id}`}
+                        className="font-mono text-xs underline underline-offset-2"
+                      >
+                        {r.sku}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="font-medium">{pickName(r.name)}</TableCell>
+                    <TableCell>{r.type}</TableCell>
+                    <TableCell>
+                      <Badge variant={STATUS_VARIANT[r.status]}>{r.status}</Badge>
+                    </TableCell>
+                    <TableCell>{r.visibility}</TableCell>
+                    <TableCell>{formatDateTime(r.updatedAt)}</TableCell>
+                    <TableCell>
+                      <Button asChild variant="outline" size="sm">
+                        <Link to={`/catalog/products/${r.id}`}>
+                          Open
+                          <ArrowRight />
+                        </Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }

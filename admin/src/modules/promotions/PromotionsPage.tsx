@@ -1,12 +1,24 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-import { formatDateTime } from '../../lib/format.js';
-
-/**
- * Promotions admin (T163). Three kinds: percentage_off, amount_off
- * (requires currency), free_delivery. Backend enforces value ranges and
- * the currency requirement; this UI only does the obvious presentation.
- */
+import { Trash2 } from 'lucide-react';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { formatDateTime } from '@/lib/format';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface AdminPromotion {
   id: string;
@@ -89,71 +101,97 @@ export function PromotionsPage(): ReactNode {
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>Promotions</h1>
-          <p>Cart-level discounts. Percentage values are 0..100; amount-off requires a currency.</p>
-        </div>
-      </header>
+      <PageHeader
+        title="Promotions"
+        description="Cart-level discounts. Percentage values are 0..100; amount-off requires a currency."
+      />
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      {info ? <div className="alert alert--success">{info}</div> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert variant="success" className="mb-4">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Create promotion</h2>
-        <CreatePromotionForm onSubmit={handleCreate} />
-      </div>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Create promotion</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CreatePromotionForm onSubmit={handleCreate} />
+        </CardContent>
+      </Card>
 
-      {loading ? (
-        <p className="muted">Loading…</p>
-      ) : rows.length === 0 ? (
-        <p className="muted">No promotions yet.</p>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Name</th>
-              <th>Kind</th>
-              <th>Value</th>
-              <th>Min cart</th>
-              <th>Valid</th>
-              <th>Active</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((p) => (
-              <tr key={p.id}>
-                <td>
-                  <code>{p.code ?? '—'}</code>
-                </td>
-                <td>{p.name}</td>
-                <td>{p.kind}</td>
-                <td>
-                  {p.kind === 'percentage_off' ? `${p.value}%` : p.kind === 'amount_off' ? `${p.value} ${p.currency}` : 'free delivery'}
-                </td>
-                <td>{p.minCartSubtotal != null ? p.minCartSubtotal.toFixed(2) : '—'}</td>
-                <td>
-                  {p.validFrom ? formatDateTime(p.validFrom) : '—'}
-                  {' → '}
-                  {p.validUntil ? formatDateTime(p.validUntil) : '—'}
-                </td>
-                <td>{p.isActive ? 'yes' : 'no'}</td>
-                <td>
-                  <button
-                    className="btn btn--danger"
-                    type="button"
-                    onClick={(): void => void handleDelete(p.id)}
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <Card>
+        <CardContent className="pt-6">
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No promotions yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Kind</TableHead>
+                  <TableHead>Value</TableHead>
+                  <TableHead>Min cart</TableHead>
+                  <TableHead>Valid</TableHead>
+                  <TableHead>Active</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((p) => (
+                  <TableRow key={p.id}>
+                    <TableCell>
+                      <code className="font-mono text-xs">{p.code ?? '—'}</code>
+                    </TableCell>
+                    <TableCell className="font-medium">{p.name}</TableCell>
+                    <TableCell>{p.kind}</TableCell>
+                    <TableCell className="tabular-nums">
+                      {p.kind === 'percentage_off'
+                        ? `${p.value}%`
+                        : p.kind === 'amount_off'
+                          ? `${p.value} ${p.currency}`
+                          : 'free delivery'}
+                    </TableCell>
+                    <TableCell className="tabular-nums">
+                      {p.minCartSubtotal != null ? p.minCartSubtotal.toFixed(2) : '—'}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {p.validFrom ? formatDateTime(p.validFrom) : '—'}
+                      {' → '}
+                      {p.validUntil ? formatDateTime(p.validUntil) : '—'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={p.isActive ? 'success' : 'secondary'}>
+                        {p.isActive ? 'yes' : 'no'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        type="button"
+                        onClick={(): void => void handleDelete(p.id)}
+                      >
+                        <Trash2 />
+                        Delete
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }
@@ -179,6 +217,7 @@ function CreatePromotionForm({
 
   return (
     <form
+      className="space-y-4"
       onSubmit={(e: FormEvent): void => {
         e.preventDefault();
         void onSubmit({
@@ -195,24 +234,24 @@ function CreatePromotionForm({
         });
       }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div className="field">
-          <label>Code (optional)</label>
-          <input className="input" value={code} onChange={(e): void => setCode(e.target.value)} />
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="prcode">Code (optional)</Label>
+          <Input id="prcode" value={code} onChange={(e): void => setCode(e.target.value)} />
         </div>
-        <div className="field">
-          <label>Display name</label>
-          <input
-            className="input"
+        <div className="space-y-2">
+          <Label htmlFor="prname">Display name</Label>
+          <Input
+            id="prname"
             value={name}
             onChange={(e): void => setName(e.target.value)}
             required
           />
         </div>
-        <div className="field">
-          <label>Kind</label>
-          <select
-            className="input"
+        <div className="space-y-2">
+          <Label htmlFor="prkind">Kind</Label>
+          <Select
+            id="prkind"
             value={kind}
             onChange={(e): void => setKind(e.target.value as typeof kind)}
           >
@@ -221,12 +260,14 @@ function CreatePromotionForm({
                 {k}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
-        <div className="field">
-          <label>Value {kind === 'percentage_off' ? '(%)' : kind === 'amount_off' ? '' : '(ignored)'}</label>
-          <input
-            className="input"
+        <div className="space-y-2">
+          <Label htmlFor="prvalue">
+            Value {kind === 'percentage_off' ? '(%)' : kind === 'amount_off' ? '' : '(ignored)'}
+          </Label>
+          <Input
+            id="prvalue"
             type="number"
             step="0.01"
             min="0"
@@ -235,10 +276,10 @@ function CreatePromotionForm({
           />
         </div>
         {kind === 'amount_off' ? (
-          <div className="field">
-            <label>Currency</label>
-            <input
-              className="input"
+          <div className="space-y-2">
+            <Label htmlFor="prcur">Currency</Label>
+            <Input
+              id="prcur"
               value={currency}
               onChange={(e): void => setCurrency(e.target.value.toUpperCase())}
               maxLength={3}
@@ -247,19 +288,16 @@ function CreatePromotionForm({
           </div>
         ) : null}
       </div>
-      <div className="field">
-        <label>
-          <input
-            type="checkbox"
-            checked={isActive}
-            onChange={(e): void => setIsActive(e.target.checked)}
-          />{' '}
-          Active
-        </label>
+      <label className="inline-flex items-center gap-2 text-sm">
+        <Checkbox
+          checked={isActive}
+          onChange={(e): void => setIsActive(e.target.checked)}
+        />
+        Active
+      </label>
+      <div>
+        <Button type="submit">Create</Button>
       </div>
-      <button className="btn btn--primary" type="submit">
-        Create
-      </button>
     </form>
   );
 }

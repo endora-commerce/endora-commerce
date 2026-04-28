@@ -171,6 +171,10 @@ export async function setupBackendServer(
     auditLogService,
     permissionService,
     requireAdmin: requireTestAdmin(permissionService),
+    resolveAdminContext: (request) => ({
+      adminUserId:
+        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+    }),
   });
 
   // Credit-limits module — its CreditLimitService is the driver passed into

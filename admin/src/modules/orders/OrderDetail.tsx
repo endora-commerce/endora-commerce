@@ -1,17 +1,22 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-import { formatDateTime } from '../../lib/format.js';
-
-/**
- * Order detail (T161). Shows items, totals, addresses, methods. Two
- * actions: transition order status and transition payment status. The
- * backend rejects illegal transitions with 409 INVALID_TRANSITION.
- *
- * The "Download invoice PDF" link points at the per-order endpoint
- * already in production; rendering it as a plain anchor lets the
- * browser stream the PDF directly.
- */
+import { ArrowLeft, FileDown } from 'lucide-react';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { formatDateTime } from '@/lib/format';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface OrderItem {
   id: string;
@@ -111,166 +116,209 @@ export function OrderDetail(): ReactNode {
     [id, refresh],
   );
 
-  if (loading) return <p className="muted">Loading…</p>;
-  if (!order) return <p className="alert alert--warning">Order not found.</p>;
+  if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  if (!order)
+    return (
+      <Alert variant="warning">
+        <AlertDescription>Order not found.</AlertDescription>
+      </Alert>
+    );
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>Order {order.id.slice(0, 8)}</h1>
-          <p>
-            <Link to="/orders">← Back to list</Link> · placed{' '}
-            {formatDateTime(order.placedAt)} · org {order.organizationId.slice(0, 8)}
-          </p>
-        </div>
-        <a
-          className="btn"
-          href={`${import.meta.env['VITE_API_BASE_URL'] ?? ''}/api/v1/orders/${order.id}/invoice`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          Invoice PDF
-        </a>
-      </header>
+      <PageHeader
+        title={`Order ${order.id.slice(0, 8)}`}
+        description={
+          <span>
+            placed {formatDateTime(order.placedAt)} · org{' '}
+            <code className="font-mono text-xs">{order.organizationId.slice(0, 8)}</code>
+          </span>
+        }
+        actions={
+          <>
+            <Button asChild variant="outline">
+              <Link to="/orders">
+                <ArrowLeft />
+                Back
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <a
+                href={`${import.meta.env['VITE_API_BASE_URL'] ?? ''}/api/v1/orders/${order.id}/invoice`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <FileDown />
+                Invoice PDF
+              </a>
+            </Button>
+          </>
+        }
+      />
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      {info ? <div className="alert alert--success">{info}</div> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert variant="success" className="mb-4">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Status</h2>
-        <div style={{ display: 'flex', gap: 16 }}>
-          <div className="field" style={{ flex: 1 }}>
-            <label>Order status</label>
-            <select
-              className="input"
-              value={order.status}
-              onChange={(e): void => void handleStatus(e.target.value)}
-            >
-              {ORDER_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Status</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="ostat">Order status</Label>
+              <Select
+                id="ostat"
+                value={order.status}
+                onChange={(e): void => void handleStatus(e.target.value)}
+              >
+                {ORDER_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pstat">Payment status</Label>
+              <Select
+                id="pstat"
+                value={order.paymentStatus}
+                onChange={(e): void => void handlePaymentStatus(e.target.value)}
+              >
+                {PAYMENT_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+            </div>
           </div>
-          <div className="field" style={{ flex: 1 }}>
-            <label>Payment status</label>
-            <select
-              className="input"
-              value={order.paymentStatus}
-              onChange={(e): void => void handlePaymentStatus(e.target.value)}
-            >
-              {PAYMENT_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Items</h2>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Product</th>
-              <th>Qty</th>
-              <th>Unit</th>
-              <th>Tax</th>
-              <th>Line</th>
-            </tr>
-          </thead>
-          <tbody>
-            {order.items.map((it) => (
-              <tr key={it.id}>
-                <td>{it.productId.slice(0, 8)}</td>
-                <td>{it.quantity}</td>
-                <td>
-                  {it.unitPrice.toFixed(2)} {order.currency}
-                </td>
-                <td>{(it.taxRate * 100).toFixed(1)}%</td>
-                <td>
-                  {it.lineTotal.toFixed(2)} {order.currency}
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Items</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Product</TableHead>
+                <TableHead>Qty</TableHead>
+                <TableHead>Unit</TableHead>
+                <TableHead>Tax</TableHead>
+                <TableHead>Line</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {order.items.map((it) => (
+                <TableRow key={it.id}>
+                  <TableCell className="font-mono text-xs">{it.productId.slice(0, 8)}</TableCell>
+                  <TableCell>{it.quantity}</TableCell>
+                  <TableCell className="tabular-nums">
+                    {it.unitPrice.toFixed(2)} {order.currency}
+                  </TableCell>
+                  <TableCell>{(it.taxRate * 100).toFixed(1)}%</TableCell>
+                  <TableCell className="tabular-nums">
+                    {it.lineTotal.toFixed(2)} {order.currency}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+            <tfoot className="border-t [&_td]:p-2 [&_th]:p-2">
+              <tr>
+                <th colSpan={4} className="text-right font-medium text-muted-foreground">
+                  Subtotal
+                </th>
+                <td className="tabular-nums">
+                  {order.subtotal.toFixed(2)} {order.currency}
                 </td>
               </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <th colSpan={4} style={{ textAlign: 'right' }}>
-                Subtotal
-              </th>
-              <td>
-                {order.subtotal.toFixed(2)} {order.currency}
-              </td>
-            </tr>
-            <tr>
-              <th colSpan={4} style={{ textAlign: 'right' }}>
-                Tax
-              </th>
-              <td>
-                {order.taxTotal.toFixed(2)} {order.currency}
-              </td>
-            </tr>
-            <tr>
-              <th colSpan={4} style={{ textAlign: 'right' }}>
-                Delivery
-              </th>
-              <td>
-                {order.deliveryTotal.toFixed(2)} {order.currency}
-              </td>
-            </tr>
-            <tr>
-              <th colSpan={4} style={{ textAlign: 'right' }}>
-                <strong>Total</strong>
-              </th>
-              <td>
-                <strong>
+              <tr>
+                <th colSpan={4} className="text-right font-medium text-muted-foreground">
+                  Tax
+                </th>
+                <td className="tabular-nums">
+                  {order.taxTotal.toFixed(2)} {order.currency}
+                </td>
+              </tr>
+              <tr>
+                <th colSpan={4} className="text-right font-medium text-muted-foreground">
+                  Delivery
+                </th>
+                <td className="tabular-nums">
+                  {order.deliveryTotal.toFixed(2)} {order.currency}
+                </td>
+              </tr>
+              <tr>
+                <th colSpan={4} className="text-right font-semibold">
+                  Total
+                </th>
+                <td className="tabular-nums font-semibold">
                   {order.total.toFixed(2)} {order.currency}
-                </strong>
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+                </td>
+              </tr>
+            </tfoot>
+          </Table>
+        </CardContent>
+      </Card>
 
-      <div className="card" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <div>
-          <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Delivery</h3>
-          <p>
-            {order.deliveryAddress.street}
-            <br />
-            {order.deliveryAddress.postalCode} {order.deliveryAddress.city}
-            <br />
-            {order.deliveryAddress.country}
-          </p>
-          <p className="muted">
-            via <strong>{order.deliveryMethod.code}</strong>
-          </p>
-        </div>
-        <div>
-          <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Billing</h3>
-          <p>
-            {order.billingAddress.street}
-            <br />
-            {order.billingAddress.postalCode} {order.billingAddress.city}
-            <br />
-            {order.billingAddress.country}
-          </p>
-          <p className="muted">
-            paid by <strong>{order.paymentMethod.code}</strong> ({order.paymentMethod.kind})
-          </p>
-        </div>
+      <div className="mb-4 grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Delivery</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p>
+              {order.deliveryAddress.street}
+              <br />
+              {order.deliveryAddress.postalCode} {order.deliveryAddress.city}
+              <br />
+              {order.deliveryAddress.country}
+            </p>
+            <p className="text-muted-foreground">
+              via <strong>{order.deliveryMethod.code}</strong>
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Billing</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p>
+              {order.billingAddress.street}
+              <br />
+              {order.billingAddress.postalCode} {order.billingAddress.city}
+              <br />
+              {order.billingAddress.country}
+            </p>
+            <p className="text-muted-foreground">
+              paid by <strong>{order.paymentMethod.code}</strong> ({order.paymentMethod.kind})
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {order.customerNote ? (
-        <div className="card">
-          <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Note from buyer</h3>
-          <p>{order.customerNote}</p>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Note from buyer</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm">{order.customerNote}</p>
+          </CardContent>
+        </Card>
       ) : null}
     </>
   );

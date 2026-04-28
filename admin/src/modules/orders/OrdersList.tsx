@@ -1,12 +1,23 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-import { formatDateTime } from '../../lib/format.js';
-
-/**
- * Orders list (T161). Read-only table; status changes happen on the
- * detail page where the operator can also see line items + addresses.
- */
+import { ArrowRight } from 'lucide-react';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { formatDateTime } from '@/lib/format';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface AdminOrderRow {
   id: string;
@@ -19,6 +30,15 @@ interface AdminOrderRow {
 }
 
 const STATUSES = ['new', 'confirmed', 'in_fulfilment', 'shipped', 'completed', 'cancelled'] as const;
+
+const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
+  new: 'warning',
+  confirmed: 'default',
+  in_fulfilment: 'default',
+  shipped: 'default',
+  completed: 'success',
+  cancelled: 'destructive',
+};
 
 export function OrdersList(): ReactNode {
   const [rows, setRows] = useState<AdminOrderRow[]>([]);
@@ -47,73 +67,90 @@ export function OrdersList(): ReactNode {
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>Orders</h1>
-          <p>All orders across organizations.</p>
-        </div>
-      </header>
+      <PageHeader title="Orders" description="All orders across organizations." />
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="card">
-        <div className="field">
-          <label>Status</label>
-          <select
-            className="input"
-            value={statusFilter}
-            onChange={(e): void => setStatusFilter(e.target.value as typeof statusFilter)}
-          >
-            <option value="">All</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <Card className="mb-4">
+        <CardContent className="pt-6">
+          <div className="space-y-2 md:max-w-xs">
+            <Label htmlFor="ostatus">Status</Label>
+            <Select
+              id="ostatus"
+              value={statusFilter}
+              onChange={(e): void => setStatusFilter(e.target.value as typeof statusFilter)}
+            >
+              <option value="">All</option>
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
-      {loading ? (
-        <p className="muted">Loading…</p>
-      ) : visible.length === 0 ? (
-        <p className="muted">No orders match the current filter.</p>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Placed</th>
-              <th>Order</th>
-              <th>Org</th>
-              <th>Status</th>
-              <th>Payment</th>
-              <th>Total</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((o) => (
-              <tr key={o.id}>
-                <td>{formatDateTime(o.placedAt)}</td>
-                <td>
-                  <Link to={`/orders/${o.id}`}>{o.id.slice(0, 8)}</Link>
-                </td>
-                <td>{o.organizationId.slice(0, 8)}</td>
-                <td>{o.status}</td>
-                <td>{o.paymentStatus}</td>
-                <td>
-                  {o.total.toFixed(2)} {o.currency}
-                </td>
-                <td>
-                  <Link className="btn" to={`/orders/${o.id}`}>
-                    Open
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <Card>
+        <CardContent className="pt-6">
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : visible.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No orders match the current filter.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Placed</TableHead>
+                  <TableHead>Order</TableHead>
+                  <TableHead>Org</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Payment</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visible.map((o) => (
+                  <TableRow key={o.id}>
+                    <TableCell>{formatDateTime(o.placedAt)}</TableCell>
+                    <TableCell>
+                      <Link
+                        to={`/orders/${o.id}`}
+                        className="font-mono text-xs underline underline-offset-2"
+                      >
+                        {o.id.slice(0, 8)}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {o.organizationId.slice(0, 8)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={STATUS_VARIANT[o.status] ?? 'secondary'}>{o.status}</Badge>
+                    </TableCell>
+                    <TableCell>{o.paymentStatus}</TableCell>
+                    <TableCell className="tabular-nums">
+                      {o.total.toFixed(2)} {o.currency}
+                    </TableCell>
+                    <TableCell>
+                      <Button asChild variant="outline" size="sm">
+                        <Link to={`/orders/${o.id}`}>
+                          Open
+                          <ArrowRight />
+                        </Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }

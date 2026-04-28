@@ -4,7 +4,15 @@
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "jsx": "react-jsx",
     "noEmit": true,
-    "types": ["vite/client", "react"]
+    "types": ["vite/client", "react"],
+    "baseUrl": ".",
+    "paths": {
+      "@b2b/contracts": ["../packages/contracts/src/index.ts"],
+      "@b2b/contracts/*": ["../packages/contracts/src/*"],
+      "@b2b/api-client": ["../packages/api-client/src/index.ts"],
+      "@b2b/api-client/*": ["../packages/api-client/src/*"],
+      "@/*": ["./src/*"]
+    }
   },
   "include": ["src/**/*", "test/**/*"],
   "exclude": ["node_modules", "dist"]

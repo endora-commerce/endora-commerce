@@ -1,14 +1,23 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-import { formatDateTime } from '../../lib/format.js';
-
-/**
- * Admin Users page (T193 / FR-080..FR-083). Lists every active admin user,
- * lets the operator create new ones and reassign role / status. Role
- * editing lives on a sibling page (`/admin-roles`) — this view only picks
- * an existing role from the dropdown.
- */
+import { Trash2 } from 'lucide-react';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { formatDateTime } from '@/lib/format';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface AdminUser {
   id: string;
@@ -20,7 +29,6 @@ interface AdminUser {
   status: 'active' | 'inactive';
   lastLoginAt: string | null;
 }
-
 interface AdminRole {
   id: string;
   code: string;
@@ -121,83 +129,100 @@ export function AdminUsersPage(): ReactNode {
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>Users</h1>
-          <p>
+      <PageHeader
+        title="Users"
+        description={
+          <>
             Supplier employees with admin access. Manage permission bundles in{' '}
-            <Link to="/admin-roles">Roles</Link>.
-          </p>
-        </div>
-      </header>
+            <Link to="/admin-roles" className="underline underline-offset-2">
+              Roles
+            </Link>
+            .
+          </>
+        }
+      />
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Create user</h2>
-        <CreateUserForm roles={roles} onSubmit={handleCreate} />
-      </div>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Create user</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CreateUserForm roles={roles} onSubmit={handleCreate} />
+        </CardContent>
+      </Card>
 
-      {loading ? (
-        <p className="muted">Loading…</p>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Email</th>
-              <th>Name</th>
-              <th>Role</th>
-              <th>Status</th>
-              <th>2FA</th>
-              <th>Last login</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id}>
-                <td>{u.email}</td>
-                <td>
-                  {u.firstName} {u.lastName}
-                </td>
-                <td>
-                  <select
-                    className="input"
-                    value={u.adminRoleId ?? ''}
-                    onChange={(e): void => void handleAssignRole(u.id, e.target.value)}
-                  >
-                    <option value="">— unassigned —</option>
-                    {roles.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td>{u.status}</td>
-                <td>{u.twoFactorEnabled ? 'on' : '—'}</td>
-                <td>{formatDateTime(u.lastLoginAt)}</td>
-                <td>
-                  <button
-                    className="btn"
-                    type="button"
-                    onClick={(): void => void handleToggleStatus(u)}
-                  >
-                    {u.status === 'active' ? 'Deactivate' : 'Reactivate'}
-                  </button>{' '}
-                  <button
-                    className="btn btn--danger"
-                    type="button"
-                    onClick={(): void => void handleRemove(u)}
-                  >
-                    Remove
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <Card>
+        <CardContent className="pt-6">
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>2FA</TableHead>
+                  <TableHead>Last login</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.map((u) => (
+                  <TableRow key={u.id}>
+                    <TableCell className="font-medium">{u.email}</TableCell>
+                    <TableCell>
+                      {u.firstName} {u.lastName}
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={u.adminRoleId ?? ''}
+                        onChange={(e): void => void handleAssignRole(u.id, e.target.value)}
+                      >
+                        <option value="">— unassigned —</option>
+                        {roles.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </TableCell>
+                    <TableCell>{u.status}</TableCell>
+                    <TableCell>{u.twoFactorEnabled ? 'on' : '—'}</TableCell>
+                    <TableCell>{formatDateTime(u.lastLoginAt)}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(): void => void handleToggleStatus(u)}
+                        >
+                          {u.status === 'active' ? 'Deactivate' : 'Reactivate'}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={(): void => void handleRemove(u)}
+                        >
+                          <Trash2 />
+                          Remove
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }
@@ -223,6 +248,7 @@ function CreateUserForm({
 
   return (
     <form
+      className="space-y-4"
       onSubmit={(e: FormEvent): void => {
         e.preventDefault();
         void onSubmit({
@@ -240,23 +266,21 @@ function CreateUserForm({
         });
       }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div className="field">
-          <label htmlFor="ne">Email</label>
-          <input
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="ne">Email</Label>
+          <Input
             id="ne"
-            className="input"
             type="email"
             value={email}
             onChange={(e): void => setEmail(e.target.value)}
             required
           />
         </div>
-        <div className="field">
-          <label htmlFor="np">Password (min 12 chars)</label>
-          <input
+        <div className="space-y-2">
+          <Label htmlFor="np">Password (min 12 chars)</Label>
+          <Input
             id="np"
-            className="input"
             type="password"
             value={password}
             onChange={(e): void => setPassword(e.target.value)}
@@ -264,31 +288,28 @@ function CreateUserForm({
             required
           />
         </div>
-        <div className="field">
-          <label htmlFor="nf">First name</label>
-          <input
+        <div className="space-y-2">
+          <Label htmlFor="nf">First name</Label>
+          <Input
             id="nf"
-            className="input"
             value={firstName}
             onChange={(e): void => setFirstName(e.target.value)}
             required
           />
         </div>
-        <div className="field">
-          <label htmlFor="nl">Last name</label>
-          <input
+        <div className="space-y-2">
+          <Label htmlFor="nl">Last name</Label>
+          <Input
             id="nl"
-            className="input"
             value={lastName}
             onChange={(e): void => setLastName(e.target.value)}
             required
           />
         </div>
-        <div className="field">
-          <label htmlFor="nr">Role</label>
-          <select
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="nr">Role</Label>
+          <Select
             id="nr"
-            className="input"
             value={adminRoleId}
             onChange={(e): void => setAdminRoleId(e.target.value)}
           >
@@ -298,12 +319,10 @@ function CreateUserForm({
                 {r.name}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
-      <button className="btn btn--primary" type="submit">
-        Create user
-      </button>
+      <Button type="submit">Create user</Button>
     </form>
   );
 }

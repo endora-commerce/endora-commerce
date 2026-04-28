@@ -1,16 +1,22 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-import { formatDateTime } from '../../lib/format.js';
-
-/**
- * Organization detail (T160). Shows the org, its members (CustomerAccount
- * rows), and lets the operator change `status` (active / suspended /
- * pending_verification) or `vatStatus` via PATCH.
- *
- * Member CRUD lives elsewhere — admins manage member roles via the
- * storefront's organization settings while impersonating an Org Admin.
- */
+import { ArrowLeft } from 'lucide-react';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { formatDateTime } from '@/lib/format';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface OrgMember {
   id: string;
@@ -76,93 +82,128 @@ export function OrganizationDetail(): ReactNode {
     [id, refresh],
   );
 
-  if (loading) return <p className="muted">Loading…</p>;
-  if (!org) return <p className="alert alert--warning">Organization not found.</p>;
+  if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  if (!org)
+    return (
+      <Alert variant="warning">
+        <AlertDescription>Organization not found.</AlertDescription>
+      </Alert>
+    );
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>{org.name}</h1>
-          <p>
-            <Link to="/organizations">← Back to list</Link> · Tax ID <code>{org.taxId}</code>
+      <PageHeader
+        title={org.name}
+        description={
+          <span>
+            Tax ID <code className="font-mono text-xs">{org.taxId}</code>
+          </span>
+        }
+        actions={
+          <Button asChild variant="outline">
+            <Link to="/organizations">
+              <ArrowLeft />
+              Back
+            </Link>
+          </Button>
+        }
+      />
+
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert variant="success" className="mb-4">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Status</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="ostatus">Account status</Label>
+            <Select
+              id="ostatus"
+              value={org.status}
+              onChange={(e): void => void handlePatch({ status: e.target.value })}
+            >
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="vstatus">VAT status</Label>
+            <Select
+              id="vstatus"
+              value={org.vatStatus}
+              onChange={(e): void => void handlePatch({ vatStatus: e.target.value })}
+            >
+              {VAT_STATUSES.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Registered address</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm">
+            {org.registeredAddress.street}
+            <br />
+            {org.registeredAddress.postalCode} {org.registeredAddress.city}
+            <br />
+            {org.registeredAddress.country}
           </p>
-        </div>
-      </header>
+        </CardContent>
+      </Card>
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      {info ? <div className="alert alert--success">{info}</div> : null}
-
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Status</h2>
-        <div className="field">
-          <label>Account status</label>
-          <select
-            className="input"
-            value={org.status}
-            onChange={(e): void => void handlePatch({ status: e.target.value })}
-          >
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label>VAT status</label>
-          <select
-            className="input"
-            value={org.vatStatus}
-            onChange={(e): void => void handlePatch({ vatStatus: e.target.value })}
-          >
-            {VAT_STATUSES.map((v) => (
-              <option key={v} value={v}>
-                {v}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Registered address</h2>
-        <p>
-          {org.registeredAddress.street}
-          <br />
-          {org.registeredAddress.postalCode} {org.registeredAddress.city}
-          <br />
-          {org.registeredAddress.country}
-        </p>
-      </div>
-
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Members</h2>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Email</th>
-              <th>Name</th>
-              <th>Role</th>
-              <th>Verified</th>
-              <th>2FA</th>
-            </tr>
-          </thead>
-          <tbody>
-            {org.members.map((m) => (
-              <tr key={m.id}>
-                <td>{m.email}</td>
-                <td>
-                  {m.firstName} {m.lastName}
-                </td>
-                <td>{m.role}</td>
-                <td>{m.emailVerifiedAt ? formatDateTime(m.emailVerifiedAt) : '—'}</td>
-                <td>{m.twoFactorEnabled ? 'on' : '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Members</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Email</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Verified</TableHead>
+                <TableHead>2FA</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {org.members.map((m) => (
+                <TableRow key={m.id}>
+                  <TableCell className="font-medium">{m.email}</TableCell>
+                  <TableCell>
+                    {m.firstName} {m.lastName}
+                  </TableCell>
+                  <TableCell>{m.role}</TableCell>
+                  <TableCell>
+                    {m.emailVerifiedAt ? formatDateTime(m.emailVerifiedAt) : '—'}
+                  </TableCell>
+                  <TableCell>{m.twoFactorEnabled ? 'on' : '—'}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </>
   );
 }

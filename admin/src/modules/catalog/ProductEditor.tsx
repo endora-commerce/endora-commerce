@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-
-/**
- * Admin Product editor (T089). Handles both create (`/catalog/products/new`)
- * and edit (`/catalog/products/:id`).
- *
- * Locale strategy: per-locale text fields are rendered for every locale
- * the seed catalogue surfaces (`en-US`, `pl-PL`); a future i18n config
- * call can drive this. For MVP we keep it static so the editor compiles
- * and ships even when a tenant hasn't yet configured locales.
- */
+import { ArrowLeft, Save, Trash2 } from 'lucide-react';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 const LOCALES = ['en-US', 'pl-PL'] as const;
 type Locale = (typeof LOCALES)[number];
@@ -178,163 +177,192 @@ export function ProductEditor(): ReactNode {
     [categories],
   );
 
-  if (loading) return <p className="muted">Loading…</p>;
+  if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>;
 
   return (
     <form onSubmit={handleSave}>
-      <header className="page-header">
-        <div>
-          <h1>{isNew ? 'New product' : `Edit ${sku}`}</h1>
-          <p>
-            <Link to="/catalog/products">← Back to list</Link>
-          </p>
-        </div>
-        <div>
-          <button className="btn btn--primary" type="submit">
-            Save
-          </button>{' '}
-          {!isNew ? (
-            <button className="btn btn--danger" type="button" onClick={(): void => void handleArchive()}>
-              Archive
-            </button>
-          ) : null}
-        </div>
-      </header>
+      <PageHeader
+        title={isNew ? 'New product' : `Edit ${sku}`}
+        actions={
+          <>
+            <Button asChild variant="outline">
+              <Link to="/catalog/products">
+                <ArrowLeft />
+                Back
+              </Link>
+            </Button>
+            <Button type="submit">
+              <Save />
+              Save
+            </Button>
+            {!isNew ? (
+              <Button
+                variant="destructive"
+                type="button"
+                onClick={(): void => void handleArchive()}
+              >
+                <Trash2 />
+                Archive
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      {info ? <div className="alert alert--success">{info}</div> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert variant="success" className="mb-4">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Identity</h2>
-        <div className="field">
-          <label htmlFor="sku">SKU (immutable after creation)</label>
-          <input
-            id="sku"
-            className="input"
-            value={sku}
-            onChange={(e): void => setSku(e.target.value)}
-            disabled={!isNew}
-            required
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="ptype">Type</label>
-          <select
-            id="ptype"
-            className="input"
-            value={type}
-            onChange={(e): void => setType(e.target.value as 'simple' | 'configurable')}
-            disabled={!isNew}
-          >
-            {PRODUCT_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="pstatus">Status</label>
-          <select
-            id="pstatus"
-            className="input"
-            value={status}
-            onChange={(e): void => setStatus(e.target.value as AdminProduct['status'])}
-            disabled
-            title="Status changes are made via dedicated transitions; archive is the only action exposed here."
-          >
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="pvis">Visibility</label>
-          <select
-            id="pvis"
-            className="input"
-            value={visibility}
-            onChange={(e): void => setVisibility(e.target.value as AdminProduct['visibility'])}
-          >
-            {VISIBILITIES.map((v) => (
-              <option key={v} value={v}>
-                {v}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Names + descriptions</h2>
-        {LOCALES.map((l) => (
-          <div key={l}>
-            <div className="field">
-              <label htmlFor={`name-${l}`}>Name [{l}]</label>
-              <input
-                id={`name-${l}`}
-                className="input"
-                value={name[l]}
-                onChange={(e): void => setName((prev) => ({ ...prev, [l]: e.target.value }))}
-              />
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Identity</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="sku">SKU (immutable after creation)</Label>
+            <Input
+              id="sku"
+              value={sku}
+              onChange={(e): void => setSku(e.target.value)}
+              disabled={!isNew}
+              required
+            />
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="ptype">Type</Label>
+              <Select
+                id="ptype"
+                value={type}
+                onChange={(e): void => setType(e.target.value as 'simple' | 'configurable')}
+                disabled={!isNew}
+              >
+                {PRODUCT_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </Select>
             </div>
-            <div className="field">
-              <label htmlFor={`desc-${l}`}>Description [{l}]</label>
-              <textarea
-                id={`desc-${l}`}
-                className="input"
-                rows={3}
-                value={description[l]}
-                onChange={(e): void => setDescription((prev) => ({ ...prev, [l]: e.target.value }))}
-              />
+            <div className="space-y-2">
+              <Label htmlFor="pstatus">Status</Label>
+              <Select
+                id="pstatus"
+                value={status}
+                onChange={(e): void => setStatus(e.target.value as AdminProduct['status'])}
+                disabled
+                title="Status transitions are managed elsewhere; archive is the only action here."
+              >
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pvis">Visibility</Label>
+              <Select
+                id="pvis"
+                value={visibility}
+                onChange={(e): void => setVisibility(e.target.value as AdminProduct['visibility'])}
+              >
+                {VISIBILITIES.map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </Select>
             </div>
           </div>
-        ))}
-      </div>
+        </CardContent>
+      </Card>
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Categories</h2>
-        <select
-          className="input"
-          multiple
-          value={categoryIds}
-          onChange={(e): void => {
-            const next: string[] = [];
-            for (const opt of e.target.selectedOptions) next.push(opt.value);
-            setCategoryIds(next);
-          }}
-          style={{ minHeight: 120 }}
-        >
-          {categoryOptions.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.label}
-            </option>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Names + descriptions</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {LOCALES.map((l) => (
+            <div key={l} className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor={`name-${l}`}>Name [{l}]</Label>
+                <Input
+                  id={`name-${l}`}
+                  value={name[l]}
+                  onChange={(e): void => setName((prev) => ({ ...prev, [l]: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`desc-${l}`}>Description [{l}]</Label>
+                <Textarea
+                  id={`desc-${l}`}
+                  rows={3}
+                  value={description[l]}
+                  onChange={(e): void =>
+                    setDescription((prev) => ({ ...prev, [l]: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
           ))}
-        </select>
-        <p className="muted">Hold Ctrl / ⌘ to multi-select.</p>
-      </div>
+        </CardContent>
+      </Card>
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Pricing (default)</h2>
-        <div className="field">
-          <label htmlFor="dp">Default unit price</label>
-          <input
-            id="dp"
-            className="input"
-            type="number"
-            step="0.01"
-            min="0"
-            value={defaultPrice}
-            onChange={(e): void => setDefaultPrice(e.target.value)}
-          />
-          <p className="muted">
-            Stored as <code>attributeValues.defaultPrice</code>; price-list overrides take
-            precedence at checkout.
-          </p>
-        </div>
-      </div>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Categories</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Select
+            multiple
+            value={categoryIds}
+            onChange={(e): void => {
+              const next: string[] = [];
+              for (const opt of e.target.selectedOptions) next.push(opt.value);
+              setCategoryIds(next);
+            }}
+            className="min-h-32"
+          >
+            {categoryOptions.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
+            ))}
+          </Select>
+          <p className="text-xs text-muted-foreground">Hold Ctrl / ⌘ to multi-select.</p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Pricing (default)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <Label htmlFor="dp">Default unit price</Label>
+            <Input
+              id="dp"
+              type="number"
+              step="0.01"
+              min="0"
+              value={defaultPrice}
+              onChange={(e): void => setDefaultPrice(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Stored as <code className="font-mono">attributeValues.defaultPrice</code>; price-list
+              overrides take precedence at checkout.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </form>
   );
 }

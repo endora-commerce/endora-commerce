@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-
-/**
- * Attributes manager (T091 / FR-004 / SC-006). The `isSearchable` and
- * `isFilterable` toggles are the high-leverage controls — flipping
- * `isSearchable` re-indexes the attribute into Meilisearch (via the
- * attribute.updated.v1 event); `isFilterable` decides if the storefront
- * surfaces it as a faceted filter.
- *
- * Variant-axis is a creation-time decision driven by the attribute's
- * value type; the toggle is editable but the backend may reject changes
- * once products use the attribute (handled by an error banner).
- */
+import { ApiError, apiClient } from '@/lib/api-client';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 const VALUE_TYPES = ['string', 'number', 'boolean', 'enum'] as const;
 type ValueType = (typeof VALUE_TYPES)[number];
@@ -113,82 +117,94 @@ export function AttributesManager(): ReactNode {
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>Attributes</h1>
-          <p>
-            Searchable + filterable attributes drive Meilisearch and the storefront filter
-            panel. Hot-toggle to see results within seconds.
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        title="Attributes"
+        description="Searchable + filterable attributes drive Meilisearch and the storefront filter panel. Hot-toggle to see results within seconds."
+      />
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      {info ? <div className="alert alert--success">{info}</div> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert variant="success" className="mb-4">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Create attribute</h2>
-        <CreateAttributeForm onSubmit={handleCreate} />
-      </div>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Create attribute</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CreateAttributeForm onSubmit={handleCreate} />
+        </CardContent>
+      </Card>
 
-      {loading ? (
-        <p className="muted">Loading…</p>
-      ) : attrs.length === 0 ? (
-        <p className="muted">No attributes yet.</p>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Key</th>
-              <th>Label</th>
-              <th>Type</th>
-              <th>Enum values</th>
-              <th>Searchable</th>
-              <th>Filterable</th>
-              <th>Variant axis</th>
-            </tr>
-          </thead>
-          <tbody>
-            {attrs.map((a) => (
-              <tr key={a.id}>
-                <td>
-                  <code>{a.key}</code>
-                </td>
-                <td>{a.label['en-US'] ?? Object.values(a.label)[0] ?? ''}</td>
-                <td>{a.valueType}</td>
-                <td>{a.enumValues ? a.enumValues.join(', ') : '—'}</td>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={a.isSearchable}
-                    onChange={(e): void =>
-                      void handleToggle(a, { isSearchable: e.target.checked })
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={a.isFilterable}
-                    onChange={(e): void =>
-                      void handleToggle(a, { isFilterable: e.target.checked })
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={a.isVariantAxis}
-                    onChange={(e): void =>
-                      void handleToggle(a, { isVariantAxis: e.target.checked })
-                    }
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <Card>
+        <CardContent className="pt-6">
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : attrs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No attributes yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Key</TableHead>
+                  <TableHead>Label</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Enum values</TableHead>
+                  <TableHead>Searchable</TableHead>
+                  <TableHead>Filterable</TableHead>
+                  <TableHead>Variant axis</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {attrs.map((a) => (
+                  <TableRow key={a.id}>
+                    <TableCell>
+                      <code className="font-mono text-xs">{a.key}</code>
+                    </TableCell>
+                    <TableCell>
+                      {a.label['en-US'] ?? Object.values(a.label)[0] ?? ''}
+                    </TableCell>
+                    <TableCell>{a.valueType}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {a.enumValues ? a.enumValues.join(', ') : '—'}
+                    </TableCell>
+                    <TableCell>
+                      <Checkbox
+                        checked={a.isSearchable}
+                        onChange={(e): void =>
+                          void handleToggle(a, { isSearchable: e.target.checked })
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Checkbox
+                        checked={a.isFilterable}
+                        onChange={(e): void =>
+                          void handleToggle(a, { isFilterable: e.target.checked })
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Checkbox
+                        checked={a.isVariantAxis}
+                        onChange={(e): void =>
+                          void handleToggle(a, { isVariantAxis: e.target.checked })
+                        }
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }
@@ -218,6 +234,7 @@ function CreateAttributeForm({
 
   return (
     <form
+      className="space-y-4"
       onSubmit={(e: FormEvent): void => {
         e.preventDefault();
         void onSubmit({
@@ -240,11 +257,11 @@ function CreateAttributeForm({
         });
       }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div className="field">
-          <label>Key (snake_case)</label>
-          <input
-            className="input"
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="akey">Key (snake_case)</Label>
+          <Input
+            id="akey"
             value={key}
             onChange={(e): void => setKey(e.target.value)}
             pattern="[a-z][a-z0-9_]*"
@@ -252,10 +269,10 @@ function CreateAttributeForm({
             maxLength={64}
           />
         </div>
-        <div className="field">
-          <label>Type</label>
-          <select
-            className="input"
+        <div className="space-y-2">
+          <Label htmlFor="atype">Type</Label>
+          <Select
+            id="atype"
             value={valueType}
             onChange={(e): void => setValueType(e.target.value as ValueType)}
           >
@@ -264,69 +281,52 @@ function CreateAttributeForm({
                 {v}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
-        <div className="field">
-          <label>Label [en-US]</label>
-          <input
-            className="input"
-            value={labelEn}
-            onChange={(e): void => setLabelEn(e.target.value)}
-          />
+        <div className="space-y-2">
+          <Label htmlFor="alen">Label [en-US]</Label>
+          <Input id="alen" value={labelEn} onChange={(e): void => setLabelEn(e.target.value)} />
         </div>
-        <div className="field">
-          <label>Label [pl-PL]</label>
-          <input
-            className="input"
-            value={labelPl}
-            onChange={(e): void => setLabelPl(e.target.value)}
-          />
+        <div className="space-y-2">
+          <Label htmlFor="alpl">Label [pl-PL]</Label>
+          <Input id="alpl" value={labelPl} onChange={(e): void => setLabelPl(e.target.value)} />
         </div>
       </div>
       {valueType === 'enum' ? (
-        <div className="field">
-          <label>Enum values (comma-separated)</label>
-          <input
-            className="input"
+        <div className="space-y-2">
+          <Label htmlFor="aenum">Enum values (comma-separated)</Label>
+          <Input
+            id="aenum"
             value={enumValues}
             onChange={(e): void => setEnumValues(e.target.value)}
             placeholder="red, green, blue"
           />
         </div>
       ) : null}
-      <div className="field">
-        <label>
-          <input
-            type="checkbox"
+      <div className="space-y-2">
+        <label className="inline-flex items-center gap-2 text-sm">
+          <Checkbox
             checked={isSearchable}
             onChange={(e): void => setIsSearchable(e.target.checked)}
-          />{' '}
+          />
           Searchable (indexed by Meilisearch)
         </label>
-      </div>
-      <div className="field">
-        <label>
-          <input
-            type="checkbox"
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox
             checked={isFilterable}
             onChange={(e): void => setIsFilterable(e.target.checked)}
-          />{' '}
+          />
           Filterable (shown as a facet on the storefront)
         </label>
-      </div>
-      <div className="field">
-        <label>
-          <input
-            type="checkbox"
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox
             checked={isVariantAxis}
             onChange={(e): void => setIsVariantAxis(e.target.checked)}
-          />{' '}
+          />
           Variant axis (configurable products discriminate by this attribute)
         </label>
       </div>
-      <button className="btn btn--primary" type="submit">
-        Create attribute
-      </button>
+      <Button type="submit">Create attribute</Button>
     </form>
   );
 }

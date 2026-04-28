@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   createAdminUserRequestSchema,
   updateAdminUserRequestSchema,
@@ -7,6 +7,7 @@ import {
 } from '@b2b/contracts';
 import type { AdminUserService } from './services/admin-user-service.js';
 import type { AdminRoleService } from '../admin_roles/services/admin-role-service.js';
+import type { PermissionService } from '../admin_roles/services/permission-service.js';
 import type { AdminUser } from './entities/admin-user.entity.js';
 import type { AdminRole } from '../admin_roles/entities/admin-role.entity.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
@@ -20,14 +21,45 @@ import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 export interface AdminUsersAdminDeps {
   adminUserService: AdminUserService;
   adminRoleService: AdminRoleService;
+  permissionService: PermissionService;
   requireAdmin: RequireAdminFactory;
+  /** Resolves the current admin's id — reads `request.actor` in production
+   *  and `request.testActor` under the test harness. */
+  resolveAdminContext: (req: FastifyRequest) => { adminUserId: string };
 }
 
 export async function registerAdminUsersAdminRoutes(
   app: FastifyInstance,
   deps: AdminUsersAdminDeps,
 ): Promise<void> {
-  const { adminUserService, adminRoleService, requireAdmin } = deps;
+  const {
+    adminUserService,
+    adminRoleService,
+    permissionService,
+    requireAdmin,
+    resolveAdminContext,
+  } = deps;
+
+  // --- Current admin (for the UI auth gate) ---------------------------------
+  app.get(
+    '/api/v1/admin/me',
+    { preHandler: requireAdmin() },
+    async (request) => {
+      const ctx = resolveAdminContext(request);
+      const adminUser = await adminUserService.getById(ctx.adminUserId);
+      const permissions = await permissionService.listPermissions(adminUser.id);
+      const role = adminUser.adminRoleId
+        ? await adminRoleService.getById(adminUser.adminRoleId).catch(() => null)
+        : null;
+      return {
+        data: {
+          adminUser: serializeAdminUser(adminUser),
+          role: role ? serializeAdminRole(role) : null,
+          permissions,
+        },
+      };
+    },
+  );
 
   // --- Permissions catalogue -------------------------------------------------
   app.get(

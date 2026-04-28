@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell.js';
+import { LoginPage } from './components/LoginPage.js';
+import { useAuth } from './lib/auth.js';
 import { ApiKeysPage } from './modules/api_keys/ApiKeysPage.js';
 import { WebhooksPage } from './modules/webhooks/WebhooksPage.js';
 import { IntegrationsPage } from './modules/integrations/IntegrationsPage.js';
@@ -32,6 +34,15 @@ import { InventoryPage } from './modules/inventory/InventoryPage.js';
 import { CreditLimitsPage } from './modules/credit_limits/CreditLimitsPage.js';
 
 export function App(): ReactNode {
+  const { status } = useAuth();
+  if (status === 'loading') {
+    return (
+      <div className="grid min-h-screen place-items-center bg-muted/40">
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      </div>
+    );
+  }
+  if (status === 'unauthenticated') return <LoginPage />;
   return (
     <Routes>
       <Route element={<AppShell />}>
@@ -68,7 +79,7 @@ export function App(): ReactNode {
         <Route
           path="*"
           element={
-            <div className="alert alert--warning">
+            <div className="rounded-md border border-amber-500/40 bg-amber-50 p-4 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
               Page not found. Pick a module from the sidebar.
             </div>
           }

@@ -1,5 +1,18 @@
 import { useCallback, useState, type ChangeEvent, type ReactNode } from 'react';
-import { ApiError, apiClient } from '../../lib/api-client.js';
+import { Download, Upload } from 'lucide-react';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface EntityConfig {
   slug: string;
@@ -32,30 +45,25 @@ const ENTITIES: EntityConfig[] = [
 ];
 
 const apiBaseUrl =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3000';
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
 
 export function ImportExportPage(): ReactNode {
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>Import / Export</h1>
-          <p>
-            CSV-only round-trips for the bulk-edit cases. Per-row errors roll the entire
-            upload back, so re-uploads are deterministic.
-          </p>
-        </div>
-      </header>
-
-      {ENTITIES.map((entity) => (
-        <EntityCard key={entity.slug} entity={entity} />
-      ))}
+      <PageHeader
+        title="Import / Export"
+        description="CSV-only round-trips for the bulk-edit cases. Per-row errors roll the entire upload back, so re-uploads are deterministic."
+      />
+      <div className="space-y-4">
+        {ENTITIES.map((entity) => (
+          <EntityCard key={entity.slug} entity={entity} />
+        ))}
+      </div>
     </>
   );
 }
 
-function EntityCard(props: { entity: EntityConfig }): ReactNode {
-  const { entity } = props;
+function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importErrors, setImportErrors] = useState<Array<{ rowNumber: number; reason: string }>>(
@@ -100,74 +108,82 @@ function EntityCard(props: { entity: EntityConfig }): ReactNode {
   const exportHref = `${apiBaseUrl}/api/v1/admin/export/${entity.slug}.csv`;
 
   return (
-    <div className="card">
-      <h2 style={{ marginTop: 0, fontSize: '1rem' }}>{entity.label}</h2>
-
-      <div className="toolbar">
-        <a className="btn" href={exportHref} download>
-          Export CSV
-        </a>
-
-        {entity.importable ? (
-          <label
-            className="btn btn--primary"
-            style={{
-              position: 'relative',
-              cursor: importing ? 'wait' : 'pointer',
-              opacity: importing ? 0.7 : 1,
-            }}
-          >
-            {importing ? 'Uploading…' : 'Import CSV'}
-            <input
-              type="file"
-              accept=".csv,text/csv"
-              onChange={(e): void => {
-                void onFileChange(e);
-              }}
+    <Card>
+      <CardHeader>
+        <CardTitle>{entity.label}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="outline" size="sm">
+            <a href={exportHref} download>
+              <Download />
+              Export CSV
+            </a>
+          </Button>
+          {entity.importable ? (
+            <Button
+              asChild
+              size="sm"
               disabled={importing}
-              style={{
-                position: 'absolute',
-                inset: 0,
-                opacity: 0,
-                cursor: 'inherit',
-              }}
-            />
-          </label>
-        ) : (
-          <span className="muted">Import not supported — see the docs site for the rationale.</span>
-        )}
-      </div>
-
-      {entity.importable && entity.importHeader ? (
-        <p className="muted" style={{ marginTop: 8 }}>
-          Required header: <span className="code">{entity.importHeader}</span>
-        </p>
-      ) : null}
-
-      {importError ? <div className="alert alert--error">{importError}</div> : null}
-      {importMessage ? (
-        <div className={`alert ${importErrors.length > 0 ? 'alert--warning' : 'alert--success'}`}>
-          {importMessage}
+              className={importing ? 'cursor-wait opacity-70' : 'cursor-pointer'}
+            >
+              <label className="relative">
+                <Upload />
+                {importing ? 'Uploading…' : 'Import CSV'}
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={(e): void => {
+                    void onFileChange(e);
+                  }}
+                  disabled={importing}
+                  className="absolute inset-0 cursor-[inherit] opacity-0"
+                />
+              </label>
+            </Button>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              Import not supported — see the docs site for the rationale.
+            </span>
+          )}
         </div>
-      ) : null}
-      {importErrors.length > 0 ? (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Row #</th>
-              <th>Reason</th>
-            </tr>
-          </thead>
-          <tbody>
-            {importErrors.map((err) => (
-              <tr key={`${err.rowNumber}-${err.reason}`}>
-                <td>{err.rowNumber}</td>
-                <td>{err.reason}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : null}
-    </div>
+
+        {entity.importable && entity.importHeader ? (
+          <p className="text-xs text-muted-foreground">
+            Required header:{' '}
+            <code className="rounded bg-muted px-1 font-mono">{entity.importHeader}</code>
+          </p>
+        ) : null}
+
+        {importError ? (
+          <Alert variant="destructive">
+            <AlertDescription>{importError}</AlertDescription>
+          </Alert>
+        ) : null}
+        {importMessage ? (
+          <Alert variant={importErrors.length > 0 ? 'warning' : 'success'}>
+            <AlertDescription>{importMessage}</AlertDescription>
+          </Alert>
+        ) : null}
+        {importErrors.length > 0 ? (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Row #</TableHead>
+                <TableHead>Reason</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {importErrors.map((err) => (
+                <TableRow key={`${err.rowNumber}-${err.reason}`}>
+                  <TableCell>{err.rowNumber}</TableCell>
+                  <TableCell>{err.reason}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }

@@ -1,7 +1,25 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
 import type { Webhook, WebhookDelivery } from '@b2b/contracts';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-import { formatDateTime } from '../../lib/format.js';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { formatDateTime } from '@/lib/format';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 const KNOWN_EVENT_TYPES = [
   'product.created.v1',
@@ -52,16 +70,13 @@ export function WebhooksPage(): ReactNode {
   const refreshDeliveries = useCallback(async (): Promise<void> => {
     setLoadingDeliveries(true);
     try {
-      const qs =
-        filter === 'all' ? '?limit=50' : `?status=${filter}&limit=50`;
+      const qs = filter === 'all' ? '?limit=50' : `?status=${filter}&limit=50`;
       const res = await apiClient.get<DeliveriesListResponse>(
         `/api/v1/admin/webhooks/deliveries${qs}`,
       );
       setDeliveries(res.data);
     } catch (err) {
-      setError(
-        err instanceof ApiError ? err.envelope.error.message : 'Failed to load deliveries.',
-      );
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load deliveries.');
     } finally {
       setLoadingDeliveries(false);
     }
@@ -92,9 +107,7 @@ export function WebhooksPage(): ReactNode {
     async (w: Webhook): Promise<void> => {
       const next = w.status === 'active' ? 'paused' : 'active';
       try {
-        await apiClient.patch<{ data: Webhook }>(`/api/v1/admin/webhooks/${w.id}`, {
-          status: next,
-        });
+        await apiClient.patch<{ data: Webhook }>(`/api/v1/admin/webhooks/${w.id}`, { status: next });
         await refreshWebhooks();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to update webhook.');
@@ -105,7 +118,11 @@ export function WebhooksPage(): ReactNode {
 
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
-      if (!confirm('Delete this webhook? Pending deliveries will continue but no new ones will be enqueued.')) {
+      if (
+        !confirm(
+          'Delete this webhook? Pending deliveries will continue but no new ones will be enqueued.',
+        )
+      ) {
         return;
       }
       try {
@@ -137,175 +154,197 @@ export function WebhooksPage(): ReactNode {
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>Webhooks</h1>
-          <p>HMAC-signed outbound notifications. Receivers must be idempotent on event id.</p>
-        </div>
-      </header>
+      <PageHeader
+        title="Webhooks"
+        description="HMAC-signed outbound notifications. Receivers must be idempotent on event id."
+      />
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      {info ? <div className="alert alert--success">{info}</div> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert variant="success" className="mb-4">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Subscribe to events</h2>
-        <CreateWebhookForm onSubmit={handleCreate} />
-      </div>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Subscribe to events</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CreateWebhookForm onSubmit={handleCreate} />
+        </CardContent>
+      </Card>
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Subscriptions</h2>
-        {loadingHooks ? (
-          <p className="muted">Loading…</p>
-        ) : webhooks.length === 0 ? (
-          <p className="muted">No subscriptions yet.</p>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>URL</th>
-                <th>Events</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {webhooks.map((w) => (
-                <tr key={w.id}>
-                  <td>{w.name}</td>
-                  <td className="code">{w.url}</td>
-                  <td>
-                    {w.eventTypes.map((e) => (
-                      <span key={e} className="badge" style={{ marginRight: 4 }}>
-                        {e}
-                      </span>
-                    ))}
-                  </td>
-                  <td>
-                    <span
-                      className={
-                        w.status === 'active' ? 'badge badge--success' : 'badge badge--warning'
-                      }
-                    >
-                      {w.status}
-                    </span>
-                  </td>
-                  <td className="row-actions">
-                    <button
-                      className="btn"
-                      onClick={(): void => {
-                        void handleToggleStatus(w);
-                      }}
-                    >
-                      {w.status === 'active' ? 'Pause' : 'Resume'}
-                    </button>
-                    <button
-                      className="btn btn--danger"
-                      onClick={(): void => {
-                        void handleDelete(w.id);
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Subscriptions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loadingHooks ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : webhooks.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No subscriptions yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>URL</TableHead>
+                  <TableHead>Events</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {webhooks.map((w) => (
+                  <TableRow key={w.id}>
+                    <TableCell className="font-medium">{w.name}</TableCell>
+                    <TableCell className="font-mono text-xs">{w.url}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {w.eventTypes.map((e) => (
+                          <Badge key={e} variant="outline" className="font-mono text-xs">
+                            {e}
+                          </Badge>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={w.status === 'active' ? 'success' : 'warning'}>
+                        {w.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(): void => {
+                            void handleToggleStatus(w);
+                          }}
+                        >
+                          {w.status === 'active' ? <Pause /> : <Play />}
+                          {w.status === 'active' ? 'Pause' : 'Resume'}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={(): void => {
+                            void handleDelete(w.id);
+                          }}
+                        >
+                          <Trash2 />
+                          Delete
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
-      <div className="card">
-        <div className="toolbar">
-          <h2 style={{ margin: 0, fontSize: '1rem' }}>Recent deliveries</h2>
-          <select
-            className="select"
-            style={{ width: 'auto' }}
-            value={filter}
-            onChange={(e): void =>
-              setFilter(e.target.value as 'all' | 'failed' | 'dead_lettered')
-            }
-          >
-            <option value="all">All statuses</option>
-            <option value="failed">Failed</option>
-            <option value="dead_lettered">Dead-lettered</option>
-          </select>
-          <button
-            className="btn"
-            onClick={(): void => {
-              void refreshDeliveries();
-            }}
-          >
-            Refresh
-          </button>
-        </div>
-        {loadingDeliveries ? (
-          <p className="muted">Loading…</p>
-        ) : deliveries.length === 0 ? (
-          <p className="muted">No deliveries match this filter.</p>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Webhook</th>
-                <th>Event</th>
-                <th>Status</th>
-                <th>Attempts</th>
-                <th>Last response</th>
-                <th>Last error</th>
-                <th>Created</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {deliveries.map((d) => (
-                <tr key={d.id}>
-                  <td>{webhookNameById.get(d.webhookId) ?? d.webhookId}</td>
-                  <td>
-                    <div>{d.eventType}</div>
-                    <div className="muted code" style={{ fontSize: '0.75rem' }}>
-                      {d.eventId}
-                    </div>
-                  </td>
-                  <td>
-                    <DeliveryStatusBadge status={d.status} />
-                  </td>
-                  <td>{d.attemptCount}</td>
-                  <td>{d.lastResponseStatus ?? '—'}</td>
-                  <td className="muted" style={{ maxWidth: 240 }}>
-                    {d.lastError ?? '—'}
-                  </td>
-                  <td>{formatDateTime(d.createdAt)}</td>
-                  <td>
-                    {d.status === 'failed' || d.status === 'dead_lettered' ? (
-                      <button
-                        className="btn"
-                        onClick={(): void => {
-                          void handleReplay(d.id);
-                        }}
-                      >
-                        Replay
-                      </button>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <CardTitle>Recent deliveries</CardTitle>
+          <div className="flex items-center gap-2">
+            <Select
+              className="w-auto"
+              value={filter}
+              onChange={(e): void =>
+                setFilter(e.target.value as 'all' | 'failed' | 'dead_lettered')
+              }
+            >
+              <option value="all">All statuses</option>
+              <option value="failed">Failed</option>
+              <option value="dead_lettered">Dead-lettered</option>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(): void => {
+                void refreshDeliveries();
+              }}
+            >
+              <RefreshCw />
+              Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loadingDeliveries ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : deliveries.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No deliveries match this filter.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Webhook</TableHead>
+                  <TableHead>Event</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Attempts</TableHead>
+                  <TableHead>Last response</TableHead>
+                  <TableHead>Last error</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {deliveries.map((d) => (
+                  <TableRow key={d.id}>
+                    <TableCell>{webhookNameById.get(d.webhookId) ?? d.webhookId}</TableCell>
+                    <TableCell>
+                      <div>{d.eventType}</div>
+                      <div className="font-mono text-xs text-muted-foreground">{d.eventId}</div>
+                    </TableCell>
+                    <TableCell>
+                      <DeliveryStatusBadge status={d.status} />
+                    </TableCell>
+                    <TableCell>{d.attemptCount}</TableCell>
+                    <TableCell>{d.lastResponseStatus ?? '—'}</TableCell>
+                    <TableCell className="max-w-[240px] truncate text-xs text-muted-foreground">
+                      {d.lastError ?? '—'}
+                    </TableCell>
+                    <TableCell>{formatDateTime(d.createdAt)}</TableCell>
+                    <TableCell>
+                      {d.status === 'failed' || d.status === 'dead_lettered' ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(): void => {
+                            void handleReplay(d.id);
+                          }}
+                        >
+                          Replay
+                        </Button>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }
 
-function DeliveryStatusBadge(props: { status: WebhookDelivery['status'] }): ReactNode {
-  const cls =
-    props.status === 'succeeded'
-      ? 'badge badge--success'
-      : props.status === 'failed' || props.status === 'dead_lettered'
-        ? 'badge badge--danger'
-        : 'badge badge--warning';
-  return <span className={cls}>{props.status}</span>;
+function DeliveryStatusBadge({ status }: { status: WebhookDelivery['status'] }): ReactNode {
+  const variant =
+    status === 'succeeded'
+      ? 'success'
+      : status === 'failed' || status === 'dead_lettered'
+        ? 'destructive'
+        : 'warning';
+  return <Badge variant={variant}>{status}</Badge>;
 }
 
 function CreateWebhookForm(props: {
@@ -330,11 +369,7 @@ function CreateWebhookForm(props: {
     if (!name.trim() || !url.trim() || events.size === 0) return;
     setSubmitting(true);
     try {
-      await props.onSubmit({
-        name: name.trim(),
-        url: url.trim(),
-        eventTypes: Array.from(events),
-      });
+      await props.onSubmit({ name: name.trim(), url: url.trim(), eventTypes: Array.from(events) });
       setName('');
       setUrl('');
       setEvents(new Set());
@@ -345,58 +380,54 @@ function CreateWebhookForm(props: {
 
   return (
     <form
+      className="space-y-4"
       onSubmit={(e): void => {
         void onSubmit(e);
       }}
     >
-      <div className="field">
-        <label htmlFor="webhook-name">Name</label>
-        <input
-          id="webhook-name"
-          className="input"
-          value={name}
-          onChange={(e): void => setName(e.target.value)}
-          placeholder="e.g. ERP order sync"
-          required
-        />
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="webhook-name">Name</Label>
+          <Input
+            id="webhook-name"
+            value={name}
+            onChange={(e): void => setName(e.target.value)}
+            placeholder="e.g. ERP order sync"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="webhook-url">Receiver URL</Label>
+          <Input
+            id="webhook-url"
+            type="url"
+            value={url}
+            onChange={(e): void => setUrl(e.target.value)}
+            placeholder="https://example.com/hooks"
+            required
+          />
+        </div>
       </div>
-      <div className="field">
-        <label htmlFor="webhook-url">Receiver URL</label>
-        <input
-          id="webhook-url"
-          className="input"
-          type="url"
-          value={url}
-          onChange={(e): void => setUrl(e.target.value)}
-          placeholder="https://example.com/hooks"
-          required
-        />
-      </div>
-      <div className="field">
-        <label>Events</label>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div className="space-y-2">
+        <Label>Events</Label>
+        <div className="flex flex-wrap gap-3">
           {KNOWN_EVENT_TYPES.map((event) => (
             <label
               key={event}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 'normal' }}
+              className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-xs"
             >
-              <input
-                type="checkbox"
-                checked={events.has(event)}
-                onChange={(): void => toggle(event)}
-              />
-              <span className="code">{event}</span>
+              <Checkbox checked={events.has(event)} onChange={(): void => toggle(event)} />
+              <code className="font-mono">{event}</code>
             </label>
           ))}
         </div>
       </div>
-      <button
+      <Button
         type="submit"
-        className="btn btn--primary"
         disabled={submitting || !name.trim() || !url.trim() || events.size === 0}
       >
         {submitting ? 'Creating…' : 'Subscribe'}
-      </button>
+      </Button>
     </form>
   );
 }

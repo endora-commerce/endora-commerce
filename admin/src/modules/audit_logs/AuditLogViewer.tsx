@@ -1,6 +1,20 @@
 import { Fragment, useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-import { formatDateTime } from '../../lib/format.js';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { formatDateTime } from '@/lib/format';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 /**
  * Audit Log viewer (T195 / FR-084). Append-only — no edit / delete UI.
@@ -45,8 +59,7 @@ export function AuditLogViewer(): ReactNode {
       if (objectType) params.set('filter[objectType]', objectType);
       if (objectId) params.set('filter[objectId]', objectId);
       if (impersonated) params.set('filter[customer]', impersonated);
-      const path =
-        '/api/v1/admin/audit-log' + (params.toString() ? `?${params.toString()}` : '');
+      const path = '/api/v1/admin/audit-log' + (params.toString() ? `?${params.toString()}` : '');
       const res = await apiClient.get<{ data: AuditLogRow[] }>(path);
       setRows(res.data);
     } catch (err) {
@@ -62,160 +75,175 @@ export function AuditLogViewer(): ReactNode {
 
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>Audit log</h1>
-          <p>Append-only log of sensitive operations. Read-only.</p>
-        </div>
-      </header>
+      <PageHeader
+        title="Audit log"
+        description="Append-only log of sensitive operations. Read-only."
+      />
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      <form
-        className="card"
-        onSubmit={(e: FormEvent): void => {
-          e.preventDefault();
-          void refresh();
-        }}
-      >
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-          <div className="field">
-            <label htmlFor="f-action">Action</label>
-            <input
-              id="f-action"
-              className="input"
-              placeholder="product.update"
-              value={action}
-              onChange={(e): void => setAction(e.target.value.trim())}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="f-otype">Object type</label>
-            <input
-              id="f-otype"
-              className="input"
-              placeholder="product"
-              value={objectType}
-              onChange={(e): void => setObjectType(e.target.value.trim())}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="f-oid">Object id</label>
-            <input
-              id="f-oid"
-              className="input"
-              placeholder="UUID"
-              value={objectId}
-              onChange={(e): void => setObjectId(e.target.value.trim())}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="f-actor">Actor (admin user id)</label>
-            <input
-              id="f-actor"
-              className="input"
-              placeholder="UUID"
-              value={actor}
-              onChange={(e): void => setActor(e.target.value.trim())}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="f-customer">Impersonated customer id</label>
-            <input
-              id="f-customer"
-              className="input"
-              placeholder="UUID"
-              value={impersonated}
-              onChange={(e): void => setImpersonated(e.target.value.trim())}
-            />
-          </div>
-        </div>
-        <button className="btn btn--primary" type="submit">
-          Apply filters
-        </button>{' '}
-        <button
-          className="btn"
-          type="button"
-          onClick={(): void => {
-            setActor('');
-            setAction('');
-            setObjectType('');
-            setObjectId('');
-            setImpersonated('');
-          }}
-        >
-          Clear
-        </button>
-      </form>
+      <Card className="mb-4">
+        <CardContent className="pt-6">
+          <form
+            onSubmit={(e: FormEvent): void => {
+              e.preventDefault();
+              void refresh();
+            }}
+            className="space-y-4"
+          >
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="f-action">Action</Label>
+                <Input
+                  id="f-action"
+                  placeholder="product.update"
+                  value={action}
+                  onChange={(e): void => setAction(e.target.value.trim())}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="f-otype">Object type</Label>
+                <Input
+                  id="f-otype"
+                  placeholder="product"
+                  value={objectType}
+                  onChange={(e): void => setObjectType(e.target.value.trim())}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="f-oid">Object id</Label>
+                <Input
+                  id="f-oid"
+                  placeholder="UUID"
+                  value={objectId}
+                  onChange={(e): void => setObjectId(e.target.value.trim())}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="f-actor">Actor (admin user id)</Label>
+                <Input
+                  id="f-actor"
+                  placeholder="UUID"
+                  value={actor}
+                  onChange={(e): void => setActor(e.target.value.trim())}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="f-customer">Impersonated customer id</Label>
+                <Input
+                  id="f-customer"
+                  placeholder="UUID"
+                  value={impersonated}
+                  onChange={(e): void => setImpersonated(e.target.value.trim())}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button type="submit">Apply filters</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={(): void => {
+                  setActor('');
+                  setAction('');
+                  setObjectType('');
+                  setObjectId('');
+                  setImpersonated('');
+                }}
+              >
+                Clear
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
 
-      {loading ? (
-        <p className="muted">Loading…</p>
-      ) : rows.length === 0 ? (
-        <p className="muted">No entries match the current filter.</p>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>Actor</th>
-              <th>Action</th>
-              <th>Object</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <Fragment key={r.id}>
-                <tr>
-                  <td>{formatDateTime(r.actedAt)}</td>
-                  <td>{r.actorAdminUserId ? r.actorAdminUserId.slice(0, 8) : 'system'}</td>
-                  <td>{r.action}</td>
-                  <td>
-                    {r.objectType}
-                    <br />
-                    <span className="muted">{r.objectId.slice(0, 8)}</span>
-                  </td>
-                  <td>
-                    <button
-                      className="btn"
-                      type="button"
-                      onClick={(): void => setExpandedId(expandedId === r.id ? null : r.id)}
-                    >
-                      {expandedId === r.id ? 'Hide' : 'Detail'}
-                    </button>
-                  </td>
-                </tr>
-                {expandedId === r.id ? (
-                  <tr>
-                    <td colSpan={5}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                        <div>
-                          <strong>Before</strong>
-                          <pre style={{ background: 'var(--color-bg)', padding: 8, overflow: 'auto' }}>
-                            {JSON.stringify(r.stateBefore ?? null, null, 2)}
-                          </pre>
-                        </div>
-                        <div>
-                          <strong>After</strong>
-                          <pre style={{ background: 'var(--color-bg)', padding: 8, overflow: 'auto' }}>
-                            {JSON.stringify(r.stateAfter ?? null, null, 2)}
-                          </pre>
-                        </div>
-                      </div>
-                      <div className="muted" style={{ marginTop: 8 }}>
-                        IP {r.ipAddress ?? '—'} · UA {r.userAgent ? r.userAgent.slice(0, 60) : '—'} · req {r.requestId ?? '—'}
-                        {r.impersonatedCustomerAccountId ? (
-                          <> · impersonated customer {r.impersonatedCustomerAccountId.slice(0, 8)}</>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ) : null}
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <Card>
+        <CardContent className="pt-6">
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No entries match the current filter.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>When</TableHead>
+                  <TableHead>Actor</TableHead>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Object</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((r) => (
+                  <Fragment key={r.id}>
+                    <TableRow>
+                      <TableCell>{formatDateTime(r.actedAt)}</TableCell>
+                      <TableCell>
+                        {r.actorAdminUserId ? r.actorAdminUserId.slice(0, 8) : 'system'}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{r.action}</TableCell>
+                      <TableCell>
+                        {r.objectType}
+                        <br />
+                        <span className="text-xs text-muted-foreground">
+                          {r.objectId.slice(0, 8)}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(): void => setExpandedId(expandedId === r.id ? null : r.id)}
+                        >
+                          {expandedId === r.id ? 'Hide' : 'Detail'}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                    {expandedId === r.id ? (
+                      <TableRow>
+                        <TableCell colSpan={5}>
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div>
+                              <strong>Before</strong>
+                              <pre className="mt-1 max-h-80 overflow-auto rounded-md bg-muted p-3 text-xs">
+                                {JSON.stringify(r.stateBefore ?? null, null, 2)}
+                              </pre>
+                            </div>
+                            <div>
+                              <strong>After</strong>
+                              <pre className="mt-1 max-h-80 overflow-auto rounded-md bg-muted p-3 text-xs">
+                                {JSON.stringify(r.stateAfter ?? null, null, 2)}
+                              </pre>
+                            </div>
+                          </div>
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            IP {r.ipAddress ?? '—'} · UA{' '}
+                            {r.userAgent ? r.userAgent.slice(0, 60) : '—'} · req{' '}
+                            {r.requestId ?? '—'}
+                            {r.impersonatedCustomerAccountId ? (
+                              <>
+                                {' '}
+                                · impersonated customer{' '}
+                                {r.impersonatedCustomerAccountId.slice(0, 8)}
+                              </>
+                            ) : null}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                  </Fragment>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }

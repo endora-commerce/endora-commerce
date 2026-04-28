@@ -5,17 +5,29 @@ import type {
   SitemapStatus,
   UpsertSeoMetaOverrideRequest,
 } from '@b2b/contracts';
-import { ApiError, apiClient } from '../../lib/api-client.js';
-import { formatDateTime } from '../../lib/format.js';
+import { ApiError, apiClient } from '@/lib/api-client';
+import { formatDateTime } from '@/lib/format';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+} from '@/components/ui/table';
 
 interface SitemapStatusEnvelope {
   data: SitemapStatus;
 }
-
 interface RegenerateEnvelope {
   data: { generatedAt: string; urlCount: number; byteSize: number };
 }
-
 interface MetaEnvelope {
   data: {
     resolved: ResolvedMeta;
@@ -34,15 +46,14 @@ const ENTITY_TYPES: SeoEntityType[] = ['product', 'category'];
 export function SeoPage(): ReactNode {
   return (
     <>
-      <header className="page-header">
-        <div>
-          <h1>SEO</h1>
-          <p>Sitemap regeneration and per-page meta-tag overrides.</p>
-        </div>
-      </header>
-
-      <SitemapCard />
-      <MetaEditorCard />
+      <PageHeader
+        title="SEO"
+        description="Sitemap regeneration and per-page meta-tag overrides."
+      />
+      <div className="space-y-4">
+        <SitemapCard />
+        <MetaEditorCard />
+      </div>
     </>
   );
 }
@@ -75,12 +86,8 @@ function SitemapCard(): ReactNode {
     setMessage(null);
     setError(null);
     try {
-      const res = await apiClient.post<RegenerateEnvelope>(
-        '/api/v1/admin/seo/sitemap/regenerate',
-      );
-      setMessage(
-        `Regenerated — ${res.data.urlCount} URLs (${formatBytes(res.data.byteSize)}).`,
-      );
+      const res = await apiClient.post<RegenerateEnvelope>('/api/v1/admin/seo/sitemap/regenerate');
+      setMessage(`Regenerated — ${res.data.urlCount} URLs (${formatBytes(res.data.byteSize)}).`);
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Regenerate failed.');
@@ -90,40 +97,51 @@ function SitemapCard(): ReactNode {
   }, [refresh]);
 
   return (
-    <div className="card">
-      <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Sitemap</h2>
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      {message ? <div className="alert alert--success">{message}</div> : null}
-      {loading ? (
-        <p className="muted">Loading…</p>
-      ) : (
-        <table className="table" style={{ marginBottom: 12 }}>
-          <tbody>
-            <tr>
-              <th>Last generated</th>
-              <td>{formatDateTime(status?.generatedAt ?? null)}</td>
-            </tr>
-            <tr>
-              <th>URL count</th>
-              <td>{status?.urlCount?.toLocaleString() ?? '—'}</td>
-            </tr>
-            <tr>
-              <th>Size</th>
-              <td>{status?.byteSize ? formatBytes(status.byteSize) : '—'}</td>
-            </tr>
-          </tbody>
-        </table>
-      )}
-      <button
-        className="btn btn--primary"
-        disabled={busy}
-        onClick={(): void => {
-          void regenerate();
-        }}
-      >
-        {busy ? 'Regenerating…' : 'Regenerate sitemap'}
-      </button>
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Sitemap</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        {message ? (
+          <Alert variant="success">
+            <AlertDescription>{message}</AlertDescription>
+          </Alert>
+        ) : null}
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : (
+          <Table>
+            <TableBody>
+              <TableRow>
+                <TableHead className="w-40">Last generated</TableHead>
+                <TableCell>{formatDateTime(status?.generatedAt ?? null)}</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableHead className="w-40">URL count</TableHead>
+                <TableCell>{status?.urlCount?.toLocaleString() ?? '—'}</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableHead className="w-40">Size</TableHead>
+                <TableCell>{status?.byteSize ? formatBytes(status.byteSize) : '—'}</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        )}
+        <Button
+          disabled={busy}
+          onClick={(): void => {
+            void regenerate();
+          }}
+        >
+          {busy ? 'Regenerating…' : 'Regenerate sitemap'}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -132,9 +150,7 @@ function MetaEditorCard(): ReactNode {
   const [entityId, setEntityId] = useState('');
   const [locale, setLocale] = useState('en-US');
   const [meta, setMeta] = useState<MetaEnvelope['data'] | null>(null);
-  const [draft, setDraft] = useState<UpsertSeoMetaOverrideRequest>({
-    locale: 'en-US',
-  });
+  const [draft, setDraft] = useState<UpsertSeoMetaOverrideRequest>({ locale: 'en-US' });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -182,142 +198,157 @@ function MetaEditorCard(): ReactNode {
   }, [entityType, entityId, draft, load]);
 
   return (
-    <div className="card">
-      <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Meta-tag overrides</h2>
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      {message ? <div className="alert alert--success">{message}</div> : null}
+    <Card>
+      <CardHeader>
+        <CardTitle>Meta-tag overrides</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        {message ? (
+          <Alert variant="success">
+            <AlertDescription>{message}</AlertDescription>
+          </Alert>
+        ) : null}
 
-      <div className="toolbar">
-        <select
-          className="select"
-          style={{ width: 'auto' }}
-          value={entityType}
-          onChange={(e): void => setEntityType(e.target.value as SeoEntityType)}
-        >
-          {ENTITY_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-        <input
-          className="input"
-          style={{ width: 320 }}
-          value={entityId}
-          onChange={(e): void => setEntityId(e.target.value)}
-          placeholder="Entity UUID"
-        />
-        <input
-          className="input"
-          style={{ width: 96 }}
-          value={locale}
-          onChange={(e): void => setLocale(e.target.value)}
-          placeholder="locale"
-        />
-        <button
-          className="btn"
-          onClick={(): void => {
-            void load();
-          }}
-          disabled={busy || !entityId.trim()}
-        >
-          Load
-        </button>
-      </div>
-
-      {meta ? (
-        <>
-          <div className="card" style={{ background: 'var(--color-bg)' }}>
-            <h3 style={{ marginTop: 0, fontSize: '0.95rem' }}>
-              Resolved (source: {meta.resolved.source})
-            </h3>
-            <table className="table">
-              <tbody>
-                <tr>
-                  <th style={{ width: 160 }}>Title</th>
-                  <td>{meta.resolved.title}</td>
-                </tr>
-                <tr>
-                  <th>Description</th>
-                  <td>{meta.resolved.description}</td>
-                </tr>
-                <tr>
-                  <th>OG title</th>
-                  <td>{meta.resolved.openGraph.title}</td>
-                </tr>
-                <tr>
-                  <th>OG description</th>
-                  <td>{meta.resolved.openGraph.description}</td>
-                </tr>
-                <tr>
-                  <th>OG image</th>
-                  <td className="code">{meta.resolved.openGraph.image ?? '—'}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <h3 style={{ fontSize: '0.95rem' }}>Override (leave blank to fall back to rule)</h3>
-          <div className="field">
-            <label>Title</label>
-            <input
-              className="input"
-              value={draft.title ?? ''}
-              onChange={(e): void => setDraft((d) => ({ ...d, title: e.target.value || null }))}
-            />
-          </div>
-          <div className="field">
-            <label>Description</label>
-            <input
-              className="input"
-              value={draft.description ?? ''}
-              onChange={(e): void =>
-                setDraft((d) => ({ ...d, description: e.target.value || null }))
-              }
-            />
-          </div>
-          <div className="field">
-            <label>OG title</label>
-            <input
-              className="input"
-              value={draft.ogTitle ?? ''}
-              onChange={(e): void => setDraft((d) => ({ ...d, ogTitle: e.target.value || null }))}
-            />
-          </div>
-          <div className="field">
-            <label>OG description</label>
-            <input
-              className="input"
-              value={draft.ogDescription ?? ''}
-              onChange={(e): void =>
-                setDraft((d) => ({ ...d, ogDescription: e.target.value || null }))
-              }
-            />
-          </div>
-          <div className="field">
-            <label>OG image URL</label>
-            <input
-              className="input"
-              type="url"
-              value={draft.ogImageUrl ?? ''}
-              onChange={(e): void =>
-                setDraft((d) => ({ ...d, ogImageUrl: e.target.value || null }))
-              }
-            />
-          </div>
-
-          <button
-            className="btn btn--primary"
-            disabled={busy}
-            onClick={(): void => {
-              void save();
-            }}
+        <div className="flex flex-wrap items-end gap-2">
+          <Select
+            className="w-auto"
+            value={entityType}
+            onChange={(e): void => setEntityType(e.target.value as SeoEntityType)}
           >
-            {busy ? 'Saving…' : 'Save override'}
-          </button>
-        </>
-      ) : null}
-    </div>
+            {ENTITY_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </Select>
+          <Input
+            className="w-80"
+            value={entityId}
+            onChange={(e): void => setEntityId(e.target.value)}
+            placeholder="Entity UUID"
+          />
+          <Input
+            className="w-24"
+            value={locale}
+            onChange={(e): void => setLocale(e.target.value)}
+            placeholder="locale"
+          />
+          <Button
+            variant="outline"
+            onClick={(): void => {
+              void load();
+            }}
+            disabled={busy || !entityId.trim()}
+          >
+            Load
+          </Button>
+        </div>
+
+        {meta ? (
+          <>
+            <Card className="bg-muted/30">
+              <CardHeader>
+                <CardTitle className="text-sm">
+                  Resolved (source: {meta.resolved.source})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableBody>
+                    <TableRow>
+                      <TableHead className="w-40">Title</TableHead>
+                      <TableCell>{meta.resolved.title}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableHead className="w-40">Description</TableHead>
+                      <TableCell>{meta.resolved.description}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableHead className="w-40">OG title</TableHead>
+                      <TableCell>{meta.resolved.openGraph.title}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableHead className="w-40">OG description</TableHead>
+                      <TableCell>{meta.resolved.openGraph.description}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableHead className="w-40">OG image</TableHead>
+                      <TableCell className="font-mono text-xs">
+                        {meta.resolved.openGraph.image ?? '—'}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            <h3 className="text-sm font-semibold">Override (leave blank to fall back to rule)</h3>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Title</Label>
+                <Input
+                  value={draft.title ?? ''}
+                  onChange={(e): void =>
+                    setDraft((d) => ({ ...d, title: e.target.value || null }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Input
+                  value={draft.description ?? ''}
+                  onChange={(e): void =>
+                    setDraft((d) => ({ ...d, description: e.target.value || null }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>OG title</Label>
+                <Input
+                  value={draft.ogTitle ?? ''}
+                  onChange={(e): void =>
+                    setDraft((d) => ({ ...d, ogTitle: e.target.value || null }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>OG description</Label>
+                <Input
+                  value={draft.ogDescription ?? ''}
+                  onChange={(e): void =>
+                    setDraft((d) => ({ ...d, ogDescription: e.target.value || null }))
+                  }
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label>OG image URL</Label>
+                <Input
+                  type="url"
+                  value={draft.ogImageUrl ?? ''}
+                  onChange={(e): void =>
+                    setDraft((d) => ({ ...d, ogImageUrl: e.target.value || null }))
+                  }
+                />
+              </div>
+            </div>
+
+            <Button
+              disabled={busy}
+              onClick={(): void => {
+                void save();
+              }}
+            >
+              {busy ? 'Saving…' : 'Save override'}
+            </Button>
+          </>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 
