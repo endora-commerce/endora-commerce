@@ -153,6 +153,46 @@ export const changeMemberRoleRequestSchema = z.object({
   role: organizationRoleSchema,
 });
 
+/** Platform admin — PATCH `/admin/organizations/:id` */
+export const adminPatchOrganizationRequestSchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  vatStatus: vatStatusSchema.optional(),
+  status: organizationStatusSchema.optional(),
+  expectedUpdatedAt: z.string().optional(),
+});
+
+/** Platform admin — POST `/admin/organizations/:id/recover-admin-access` */
+export const adminRecoverOrgAccessRequestSchema = z.object({
+  promoteCustomerAccountId: uuidSchema,
+});
+
+/** Platform admin — POST `/admin/organizations/:id/members` (direct create) */
+export const adminDirectMemberRequestSchema = z.object({
+  email: z.string().email(),
+  firstName: z.string().min(1).max(120),
+  lastName: z.string().min(1).max(120),
+  password: z.string().min(12).max(256),
+  role: organizationRoleSchema.optional(),
+});
+
+/** Platform admin — PATCH member role */
+export const adminPatchMemberRoleRequestSchema = z.object({
+  role: organizationRoleSchema,
+  expectedUpdatedAt: z.string().optional(),
+});
+
+/** Platform admin — PATCH `/admin/organizations/:id/members/:customerAccountId` (profile) */
+export const adminPatchMemberProfileRequestSchema = z
+  .object({
+    firstName: z.string().min(1).max(120).optional(),
+    lastName: z.string().min(1).max(120).optional(),
+    email: z.string().email().optional(),
+    expectedUpdatedAt: z.string().optional(),
+  })
+  .refine((b) => b.firstName !== undefined || b.lastName !== undefined || b.email !== undefined, {
+    message: 'At least one of firstName, lastName, email is required',
+  });
+
 // --- Responses (convenience) ------------------------------------------------
 
 export const registerOrganizationResponseSchema = z.object({

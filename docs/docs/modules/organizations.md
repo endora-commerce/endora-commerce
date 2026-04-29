@@ -37,8 +37,15 @@ gated by `customers:manage`.
 | `PATCH /api/v1/organizations/mine/addresses/:id` | customer | Update |
 | `DELETE /api/v1/organizations/mine/addresses/:id` | customer | Remove |
 | `GET /api/v1/admin/organizations` | admin | List with `filter[status]` / `filter[vatStatus]` / `q` |
-| `GET /api/v1/admin/organizations/:id` | admin | Org + member roster |
-| `PATCH /api/v1/admin/organizations/:id` | admin | Update name / `status` (suspend = `status='suspended'`) / `vatStatus` |
+| `GET /api/v1/admin/organizations/:id` | admin | Org + member roster (`updatedAt`, members include `lastLoginAt`) |
+| `PATCH /api/v1/admin/organizations/:id` | admin | Update name / `status` / `vatStatus`; optional `expectedUpdatedAt` → `409 VERSION_CONFLICT` when stale |
+| `POST /api/v1/admin/organizations/:id/members/invite` | admin | Invite by email + role (platform-scope) |
+| `POST /api/v1/admin/organizations/:id/members` | admin | Direct-create member with password |
+| `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/role` | admin | Change role; optional `expectedUpdatedAt` per member |
+| `DELETE /api/v1/admin/organizations/:id/members/:customerAccountId` | admin | Soft-remove member (last-admin guard) |
+| `POST /api/v1/admin/organizations/:id/recover-admin-access` | admin | Break-glass — promote existing member to `organization_admin` |
+
+Configure **`SMTP_URL`** in the backend environment so outbound mail uses SMTP instead of the console logger.
 
 ## Entities
 

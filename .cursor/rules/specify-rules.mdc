@@ -1,0 +1,35 @@
+---
+description: Project Development Guidelines
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# b2b-monorepo Development Guidelines
+
+Auto-generated from all feature plans. Last updated: 2026-04-29
+
+## Active Technologies
+
+- TypeScript 5.x strict, Node.js LTS per root `README` (≥ 22.x). + Existing stack — Fastify, MikroORM, Zod, Vitest. **New runtime dependency**: `nodemailer` (or similar minimal SMTP client) **only if** implementing production `Mailer` via SMTP — justified in PR per Principle IV (see `research.md` R-1). (003-org-client-admin-governance)
+
+## Project Structure
+
+```text
+src/
+tests/
+```
+
+## Commands
+
+npm test && npm run lint
+
+## Code Style
+
+TypeScript 5.x strict, Node.js LTS per root `README` (≥ 22.x).: Follow standard conventions
+
+## Recent Changes
+
+- 003-org-client-admin-governance: Added TypeScript 5.x strict, Node.js LTS per root `README` (≥ 22.x). + Existing stack — Fastify, MikroORM, Zod, Vitest. **New runtime dependency**: `nodemailer` (or similar minimal SMTP client) **only if** implementing production `Mailer` via SMTP — justified in PR per Principle IV (see `research.md` R-1).
+
+<!-- MANUAL ADDITIONS START -->
+<!-- MANUAL ADDITIONS END -->

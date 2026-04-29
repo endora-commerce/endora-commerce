@@ -95,6 +95,8 @@ cp admin/.env.example         admin/.env
 
 Values in the examples are safe defaults for local development against the Docker Compose stack. Production configuration is described in the [docs site](./docs/docs/deployment/production.md).
 
+**Transactional email (backend)** — Verification and invitation emails use the shared `Mailer` abstraction. Set **`SMTP_URL`** (for example `smtp://localhost:1025` against Mailhog, or your provider’s SMTP relay URL) so `composeApp` wires `SmtpMailer`; when unset, development uses `ConsoleMailer`. Optional: **`SMTP_FROM`** / **`MAIL_FROM`** for the visible sender address.
+
 ## Running the stack
 
 ```bash

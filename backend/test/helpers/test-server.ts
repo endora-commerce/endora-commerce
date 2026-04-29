@@ -25,6 +25,7 @@ import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
 import { taxesModule } from '../../src/modules/taxes/plugin.js';
 import { promotionsModule } from '../../src/modules/promotions/plugin.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
+import type { Mailer } from '../../src/modules/email/services/mailer.js';
 import { seedUs1Catalog } from './seed-catalog.js';
 import { seedTestOrganizations } from './seed-organizations.js';
 import { seedUs2Commerce } from './seed-commerce.js';
@@ -53,6 +54,8 @@ export async function setupTestServer(): Promise<FastifyInstance> {
 export interface BackendServerOptions {
   seed?: 'us1-catalog' | 'none';
   extraModules?: ModulePlugin[];
+  /** When set, injected into `organizationsModule` so tests can assert outbound mail (verification + invitations). */
+  organizationsMailer?: Mailer;
 }
 
 export interface BackendServerHandle {
@@ -316,7 +319,10 @@ export async function setupBackendServer(
       requireCustomer: requireTestCustomer(),
       requireAdmin: requireTestAdmin(permissionService),
       resolveCustomerContext: customerResolver,
+      auditLogService,
       exposeTestProbe: true,
+      ...(options.organizationsMailer ? { mailer: options.organizationsMailer } : {}),
+      storefrontBaseUrl: 'http://localhost:3000',
       onLogin: async (ctx) => {
         if (cartService && ctx.anonymousCartToken) {
           await cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {

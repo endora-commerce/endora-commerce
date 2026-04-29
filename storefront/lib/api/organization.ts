@@ -65,6 +65,24 @@ export async function inviteMember(
   return result.data!;
 }
 
+/**
+ * Anonymous — redeem invitation from email link (`POST .../invitations/:token/accept`).
+ */
+export async function acceptInvitation(
+  token: string,
+  payload: { password: string; firstName: string; lastName: string },
+): Promise<{ customerAccount: MemberSummary }> {
+  const result = await apiMutate<{ customerAccount: MemberSummary }>({
+    method: 'POST',
+    path: `/api/v1/organizations/invitations/${encodeURIComponent(token)}/accept`,
+    body: payload,
+  });
+  if (!result.data) {
+    throw new Error('Accept invitation returned no data.');
+  }
+  return result.data;
+}
+
 export async function changeMemberRole(
   sessionCookie: string,
   memberId: string,

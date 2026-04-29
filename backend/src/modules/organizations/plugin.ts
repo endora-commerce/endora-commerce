@@ -14,6 +14,7 @@ import { RoleService } from '../customer_accounts/services/role-service.js';
 import { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
 import { TotpEnrolmentService } from '../customer_accounts/services/totp-enrolment-service.js';
 import { ConsoleMailer, type Mailer } from '../email/services/mailer.js';
+import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import { registerOrganizationsPublicRoutes } from './routes.public.js';
 import { registerOrganizationsCustomerRoutes } from './routes.customer.js';
 import { registerMembersRoutes } from './routes.members.js';
@@ -46,14 +47,18 @@ export interface OrganizationsModuleOptions {
   }) => Promise<void>;
   /** Admin gate for /admin/organizations routes. */
   requireAdmin?: RequireAdminFactory;
-  /** Mailer used to dispatch invitation emails. Defaults to ConsoleMailer. */
+  /** Mailer used to dispatch invitation + verification emails. Defaults to ConsoleMailer. */
   mailer?: Mailer;
   /** Storefront base URL for the invitation accept link. */
   storefrontBaseUrl?: string;
+  /** Required when `requireAdmin` is set — audit trail for admin org mutations. */
+  auditLogService?: AuditLogService;
 }
 
 export function organizationsModule(options: OrganizationsModuleOptions) {
   return async (app: FastifyInstance): Promise<void> => {
+    const mailer = options.mailer ?? new ConsoleMailer();
+    const storefrontBaseUrl = options.storefrontBaseUrl ?? 'http://localhost:3000';
     const latestTokenByEmail = new Map<string, string>();
     const registrationService = new RegistrationService(
       options.emFactory,
@@ -70,8 +75,8 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
     const addressService = new AddressService(options.emFactory);
     const invitationService = new InvitationService(
       options.emFactory,
-      options.mailer ?? new ConsoleMailer(),
-      options.storefrontBaseUrl ? { acceptBaseUrl: options.storefrontBaseUrl } : {},
+      mailer,
+      { acceptBaseUrl: storefrontBaseUrl },
     );
     const roleService = new RoleService(options.emFactory);
     const passwordResetService = new PasswordResetService(options.emFactory);
@@ -85,6 +90,8 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       passwordResetService,
       exposeTestProbe: options.exposeTestProbe ?? false,
       latestTokenByEmail,
+      mailer,
+      storefrontBaseUrl,
       ...(options.onLogin ? { onLogin: options.onLogin } : {}),
     });
     await registerOrganizationsCustomerRoutes(app, {
@@ -105,9 +112,15 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       emFactory: options.emFactory,
     });
     if (options.requireAdmin) {
+      if (!options.auditLogService) {
+        throw new Error('organizationsModule: auditLogService is required when requireAdmin is set');
+      }
       await registerOrganizationsAdminRoutes(app, {
         emFactory: options.emFactory,
         requireAdmin: options.requireAdmin,
+        invitationService,
+        roleService,
+        auditLogService: options.auditLogService,
       });
     }
   };
