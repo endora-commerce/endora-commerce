@@ -7,6 +7,7 @@ import { CatalogAdminService, type CatalogEventBus } from './services/catalog-ad
 import { CategoryAdminService } from './services/category-admin.service.js';
 import { AttributeSetService } from './services/attribute-set.service.js';
 import { GalleryService } from './services/gallery.service.js';
+import { AttachmentService } from './services/attachment.service.js';
 import { SearchQueryService } from '../search/services/search-query.service.js';
 import { SearchIndexer } from '../search/services/search-indexer.js';
 import { SearchEventSubscriber } from '../search/services/search-event-subscriber.js';
@@ -80,6 +81,7 @@ export function catalogModule(options: CatalogModuleOptions) {
     const categoryAdminService = new CategoryAdminService(options.emFactory);
     const attributeSetService = new AttributeSetService(options.emFactory);
     const galleryService = new GalleryService(options.emFactory);
+    const attachmentService = new AttachmentService(options.emFactory);
     await registerCatalogApiKeyRoutes(app, {
       queryService,
       adminService,
@@ -92,6 +94,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       categoryAdminService,
       attributeSetService,
       galleryService,
+      attachmentService,
       requireAdmin:
         options.requireAdmin ??
         (() => async () => {

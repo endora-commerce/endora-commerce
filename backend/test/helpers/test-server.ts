@@ -110,6 +110,7 @@ const SEEDED_TABLES = [
   'attribute_set_attributes',
   'gallery_item_labels',
   'gallery_items',
+  'product_attachments',
   'product_attributes',
   // attribute_sets is NOT truncated — its system Default row is created
   // by migration 017 and the contract tests rely on it being present.
@@ -145,6 +146,13 @@ export async function setupBackendServer(
   // isn't in SEEDED_TABLES because the truncate-cascade would drop the
   // Default seed too.)
   await conn.execute('delete from "attribute_sets" where "is_system" = false');
+  // Feature 002 (US3): keep the 4 standard attachment_types seeded by
+  // migration 021; drop any custom ones the previous test may have
+  // added. attachment_types isn't in SEEDED_TABLES for the same reason
+  // as attribute_sets — truncate-cascade would drop the seed.
+  await conn.execute(
+    `delete from "attachment_types" where "code" not in ('certificate', 'tech_spec', 'product_card', 'pdf')`,
+  );
 
   // Reset the i18n config tables to a known state so parallel-running tests
   // don't inherit each other's mutations. We don't truncate them in

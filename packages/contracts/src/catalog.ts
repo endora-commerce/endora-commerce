@@ -473,3 +473,81 @@ export const reorderGalleryRequestSchema = z
   })
   .strict();
 export type ReorderGalleryRequest = z.infer<typeof reorderGalleryRequestSchema>;
+
+// --- Feature 002 — Attachments (US3) ----------------------------------------
+
+export const attachmentTypeSchema = z.object({
+  id: uuidSchema,
+  code: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z0-9_]+$/, 'must be snake_case'),
+  name: multilingualStringSchema,
+  position: z.number().int().nonnegative(),
+  usageCount: z.number().int().nonnegative(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type AttachmentType = z.infer<typeof attachmentTypeSchema>;
+
+export const createAttachmentTypeRequestSchema = z
+  .object({
+    code: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z0-9_]+$/, 'must be snake_case'),
+    name: multilingualStringSchema,
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type CreateAttachmentTypeRequest = z.infer<typeof createAttachmentTypeRequestSchema>;
+
+export const updateAttachmentTypeRequestSchema = z
+  .object({
+    code: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z0-9_]+$/, 'must be snake_case')
+      .optional(),
+    name: multilingualStringSchema.optional(),
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type UpdateAttachmentTypeRequest = z.infer<typeof updateAttachmentTypeRequestSchema>;
+
+export const productAttachmentSchema = z.object({
+  id: uuidSchema,
+  productId: uuidSchema,
+  assetId: uuidSchema,
+  attachmentTypeId: uuidSchema,
+  name: z.string().min(1).max(160),
+  description: z.string().nullable(),
+  position: z.number().int().nonnegative(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type ProductAttachment = z.infer<typeof productAttachmentSchema>;
+
+export const createAttachmentRequestSchema = z
+  .object({
+    assetId: uuidSchema,
+    attachmentTypeId: uuidSchema,
+    name: z.string().min(1).max(160),
+    description: z.string().nullable().optional(),
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type CreateAttachmentRequest = z.infer<typeof createAttachmentRequestSchema>;
+
+export const updateAttachmentRequestSchema = z
+  .object({
+    attachmentTypeId: uuidSchema.optional(),
+    name: z.string().min(1).max(160).optional(),
+    description: z.string().nullable().optional(),
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type UpdateAttachmentRequest = z.infer<typeof updateAttachmentRequestSchema>;

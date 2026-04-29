@@ -4,10 +4,14 @@ import {
   createAttributeRequestSchema,
   createAttributeSetRequestSchema,
   createCategoryRequestSchema,
+  createAttachmentRequestSchema,
+  createAttachmentTypeRequestSchema,
   createGalleryItemRequestSchema,
   createProductRequestSchema,
   createVariantRequestSchema,
   reorderGalleryRequestSchema,
+  updateAttachmentRequestSchema,
+  updateAttachmentTypeRequestSchema,
   updateAttributeRequestSchema,
   updateAttributeSetRequestSchema,
   updateCategoryRequestSchema,
@@ -19,6 +23,7 @@ import type { CatalogAdminService } from './services/catalog-admin.service.js';
 import type { CategoryAdminService } from './services/category-admin.service.js';
 import type { AttributeSetService } from './services/attribute-set.service.js';
 import type { GalleryService } from './services/gallery.service.js';
+import type { AttachmentService } from './services/attachment.service.js';
 import type { Product } from './entities/product.entity.js';
 import type { ProductAttribute } from './entities/product-attribute.entity.js';
 import type { Category } from './entities/category.entity.js';
@@ -48,6 +53,8 @@ export interface CatalogAdminDeps {
    * progressive-rollout reason as `attributeSetService`.
    */
   galleryService?: GalleryService;
+  /** Feature 002 — Attachments admin CRUD (US3). */
+  attachmentService?: AttachmentService;
   /**
    * PreHandler gate — supplied by the composition root. Set to the real
    * `requireAdmin('catalog:write')` factory at server boot. Optional so tests
@@ -396,6 +403,104 @@ export async function registerCatalogAdminRoutes(
       async (request, reply) => {
         const body = reorderGalleryRequestSchema.parse(request.body);
         await gallery.reorder(request.params.productId, body.orderedGalleryItemIds);
+        reply.status(204).send();
+      },
+    );
+  }
+
+  // ===== Feature 002 — Attachments admin CRUD (US3) ==========================
+  if (deps.attachmentService) {
+    const att = deps.attachmentService;
+
+    app.get(
+      '/api/v1/admin/catalog/attachment-types',
+      { preHandler: requireAdmin('catalog:read') },
+      async () => ({ data: await att.listTypes() }),
+    );
+
+    app.post(
+      '/api/v1/admin/catalog/attachment-types',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: createAttachmentTypeRequestSchema },
+      },
+      async (request, reply) => {
+        const body = createAttachmentTypeRequestSchema.parse(request.body);
+        const type = await att.createType(body);
+        reply.status(201);
+        return { data: type };
+      },
+    );
+
+    app.patch<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/attachment-types/:id',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: updateAttachmentTypeRequestSchema },
+      },
+      async (request) => {
+        const body = updateAttachmentTypeRequestSchema.parse(request.body);
+        const type = await att.updateType(request.params.id, body);
+        return { data: type };
+      },
+    );
+
+    app.delete<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/attachment-types/:id',
+      { preHandler: requireAdmin('catalog:write') },
+      async (request, reply) => {
+        await att.deleteType(request.params.id);
+        reply.status(204).send();
+      },
+    );
+
+    app.get<{ Params: { productId: string } }>(
+      '/api/v1/admin/catalog/products/:productId/attachments',
+      { preHandler: requireAdmin('catalog:read') },
+      async (request) => ({
+        data: await att.listAttachments(request.params.productId),
+      }),
+    );
+
+    app.post<{ Params: { productId: string } }>(
+      '/api/v1/admin/catalog/products/:productId/attachments',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: createAttachmentRequestSchema },
+      },
+      async (request, reply) => {
+        const body = createAttachmentRequestSchema.parse(request.body);
+        const a = await att.createAttachment(request.params.productId, body);
+        reply.status(201);
+        return { data: a };
+      },
+    );
+
+    app.patch<{ Params: { productId: string; attachmentId: string } }>(
+      '/api/v1/admin/catalog/products/:productId/attachments/:attachmentId',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: updateAttachmentRequestSchema },
+      },
+      async (request) => {
+        const body = updateAttachmentRequestSchema.parse(request.body);
+        const a = await att.updateAttachment(
+          request.params.productId,
+          request.params.attachmentId,
+          body,
+        );
+        return { data: a };
+      },
+    );
+
+    app.delete<{ Params: { productId: string; attachmentId: string } }>(
+      '/api/v1/admin/catalog/products/:productId/attachments/:attachmentId',
+      { preHandler: requireAdmin('catalog:write') },
+      async (request, reply) => {
+        await att.deleteAttachment(
+          request.params.productId,
+          request.params.attachmentId,
+        );
         reply.status(204).send();
       },
     );
