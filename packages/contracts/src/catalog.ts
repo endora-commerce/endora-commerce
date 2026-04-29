@@ -127,6 +127,25 @@ export const seoMetaSchema = z.object({
 });
 export type SeoMeta = z.infer<typeof seoMetaSchema>;
 
+/**
+ * Forward declaration so productDetailSchema can reference link summaries.
+ * The exported `productLinkSummarySchema` below is the canonical name —
+ * this `*Inline` alias exists only to avoid a circular import.
+ */
+const productLinkSummarySchemaInline = z.object({
+  id: uuidSchema,
+  kind: z.enum(['related', 'up_sell', 'cross_sell']),
+  position: z.number().int().nonnegative(),
+  product: z.object({
+    id: uuidSchema,
+    sku: z.string(),
+    slug: z.string(),
+    name: z.string(),
+    primaryAssetUrl: z.string().nullable(),
+    price: moneySchema.nullable(),
+  }),
+});
+
 export const productDetailSchema = productSummarySchema.extend({
   description: z.string(),
   attributeValues: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
@@ -173,6 +192,19 @@ export const productDetailSchema = productSummarySchema.extend({
         }),
       }),
     )
+    .optional(),
+  /**
+   * Feature 002 US4 — pre-grouped Product Links surfaced on the PDP.
+   * Optional for the same backwards-compat reason as the other US3/US4
+   * fields. Inactive targets and channel-restricted ones are pre-filtered
+   * by `ProductLinkService.listForStorefront`.
+   */
+  links: z
+    .object({
+      related: z.array(productLinkSummarySchemaInline),
+      upSell: z.array(productLinkSummarySchemaInline),
+      crossSell: z.array(productLinkSummarySchemaInline),
+    })
     .optional(),
   /**
    * Feature 002 US3 — product attachments with their type + Asset.
@@ -652,3 +684,63 @@ export const updateAttachmentRequestSchema = z
   })
   .strict();
 export type UpdateAttachmentRequest = z.infer<typeof updateAttachmentRequestSchema>;
+
+// --- Product Links (Feature 002 US4) ----------------------------------------
+
+export const productLinkKindSchema = z.enum(['related', 'up_sell', 'cross_sell']);
+export type ProductLinkKind = z.infer<typeof productLinkKindSchema>;
+
+export const productLinkSchema = z.object({
+  id: uuidSchema,
+  sourceProductId: uuidSchema,
+  targetProductId: uuidSchema,
+  kind: productLinkKindSchema,
+  position: z.number().int().nonnegative(),
+});
+export type ProductLink = z.infer<typeof productLinkSchema>;
+
+/**
+ * Bulk-create payload (T104). One transaction, all-or-nothing —
+ * partial inserts on a duplicate or self-link MUST roll back the
+ * entire batch (FR + research). Each entry pins its kind so admins
+ * can submit a mixed batch in a single round trip.
+ */
+export const bulkCreateLinksRequestSchema = z.object({
+  links: z
+    .array(
+      z.object({
+        targetProductId: uuidSchema,
+        kind: productLinkKindSchema,
+        position: z.number().int().nonnegative().optional(),
+      }),
+    )
+    .min(1),
+});
+export type BulkCreateLinksRequest = z.infer<typeof bulkCreateLinksRequestSchema>;
+
+export const reorderLinksRequestSchema = z.object({
+  /** Ordered list of link ids — index becomes `position` per (source, kind). */
+  linkIds: z.array(uuidSchema).min(1),
+});
+export type ReorderLinksRequest = z.infer<typeof reorderLinksRequestSchema>;
+
+/**
+ * Storefront-shape link entry (T107) — the listing carries enough Product
+ * fields for a card render without a follow-up fetch. Inactive targets
+ * are filtered out by `listForStorefront` so the storefront never sees
+ * `status='archived'` rows.
+ */
+export const productLinkSummarySchema = z.object({
+  id: uuidSchema,
+  kind: productLinkKindSchema,
+  position: z.number().int().nonnegative(),
+  product: z.object({
+    id: uuidSchema,
+    sku: z.string(),
+    slug: z.string(),
+    name: z.string(),
+    primaryAssetUrl: z.string().nullable(),
+    price: moneySchema.nullable(),
+  }),
+});
+export type ProductLinkSummary = z.infer<typeof productLinkSummarySchema>;

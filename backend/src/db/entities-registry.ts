@@ -11,6 +11,7 @@ import { GalleryItem } from '../modules/catalog/entities/gallery-item.entity.js'
 import { GalleryItemLabel } from '../modules/catalog/entities/gallery-item-label.entity.js';
 import { AttachmentType } from '../modules/catalog/entities/attachment-type.entity.js';
 import { ProductAttachment } from '../modules/catalog/entities/product-attachment.entity.js';
+import { ProductLink } from '../modules/catalog/entities/product-link.entity.js';
 import { SalesChannel } from '../modules/catalog/entities/sales-channel.entity.js';
 import { AvailabilityNotification } from '../modules/inventory/entities/availability-notification.entity.js';
 import { QuoteRequest } from '../modules/quote_requests/entities/quote-request.entity.js';
@@ -89,6 +90,7 @@ export const ALL_ENTITIES = [
   // Attachments (feature 002 US3)
   AttachmentType,
   ProductAttachment,
+  ProductLink,
   SalesChannel,
   // inventory
   AvailabilityNotification,

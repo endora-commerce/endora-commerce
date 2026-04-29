@@ -23,6 +23,7 @@ import { Migration018ProductAttributeExtensions } from '../modules/catalog/migra
 import { Migration019ProductTypeAndVirtualFields } from '../modules/catalog/migrations/019_product_type_and_virtual_fields.js';
 import { Migration020GalleryItemsAndLabels } from '../modules/catalog/migrations/020_gallery_items_and_labels.js';
 import { Migration021ProductAttachments } from '../modules/catalog/migrations/021_product_attachments.js';
+import { Migration022ProductLinks } from '../modules/catalog/migrations/022_product_links.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -86,6 +87,10 @@ export default defineConfig({
       {
         name: 'Migration021ProductAttachments',
         class: Migration021ProductAttachments,
+      },
+      {
+        name: 'Migration022ProductLinks',
+        class: Migration022ProductLinks,
       },
     ],
     transactional: true,

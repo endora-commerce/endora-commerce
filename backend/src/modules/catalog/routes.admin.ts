@@ -10,6 +10,9 @@ import {
   createProductRequestSchema,
   createVariantRequestSchema,
   reorderGalleryRequestSchema,
+  bulkCreateLinksRequestSchema,
+  reorderLinksRequestSchema,
+  productLinkKindSchema,
   updateAttachmentRequestSchema,
   updateAttachmentTypeRequestSchema,
   updateAttributeRequestSchema,
@@ -25,6 +28,7 @@ import type { CategoryAdminService } from './services/category-admin.service.js'
 import type { AttributeSetService } from './services/attribute-set.service.js';
 import type { GalleryService } from './services/gallery.service.js';
 import type { AttachmentService } from './services/attachment.service.js';
+import type { ProductLinkService } from './services/product-link.service.js';
 import type { Product } from './entities/product.entity.js';
 import type { ProductAttribute } from './entities/product-attribute.entity.js';
 import type { Category } from './entities/category.entity.js';
@@ -56,6 +60,8 @@ export interface CatalogAdminDeps {
   galleryService?: GalleryService;
   /** Feature 002 — Attachments admin CRUD (US3). */
   attachmentService?: AttachmentService;
+  /** Feature 002 — Product Links admin CRUD (US4). */
+  productLinkService?: ProductLinkService;
   /**
    * PreHandler gate — supplied by the composition root. Set to the real
    * `requireAdmin('catalog:write')` factory at server boot. Optional so tests
@@ -560,6 +566,61 @@ export async function registerCatalogAdminRoutes(
       reply.status(204).send();
     },
   );
+
+  // --- Product Links (Feature 002 US4) ----------------------------------
+
+  if (deps.productLinkService) {
+    const links = deps.productLinkService;
+
+    app.get<{ Params: { id: string }; Querystring: { kind?: string } }>(
+      '/api/v1/admin/catalog/products/:id/links',
+      { preHandler: requireAdmin('catalog:read') },
+      async (request) => {
+        const kind = request.query.kind
+          ? productLinkKindSchema.parse(request.query.kind)
+          : undefined;
+        const rows = await links.listForAdmin(request.params.id, kind);
+        return { data: rows };
+      },
+    );
+
+    app.post<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/products/:id/links',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: bulkCreateLinksRequestSchema },
+      },
+      async (request, reply) => {
+        const body = bulkCreateLinksRequestSchema.parse(request.body);
+        const rows = await links.bulkCreate(request.params.id, body.links);
+        reply.status(201);
+        return { data: rows };
+      },
+    );
+
+    app.delete<{ Params: { id: string; linkId: string } }>(
+      '/api/v1/admin/catalog/products/:id/links/:linkId',
+      { preHandler: requireAdmin('catalog:write') },
+      async (request, reply) => {
+        await links.removeLink(request.params.id, request.params.linkId);
+        reply.status(204).send();
+      },
+    );
+
+    app.put<{ Params: { id: string; kind: string } }>(
+      '/api/v1/admin/catalog/products/:id/links/:kind/order',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: reorderLinksRequestSchema },
+      },
+      async (request) => {
+        const kind = productLinkKindSchema.parse(request.params.kind);
+        const body = reorderLinksRequestSchema.parse(request.body);
+        await links.reorderForKind(request.params.id, kind, body.linkIds);
+        return { data: { ok: true } };
+      },
+    );
+  }
 }
 
 function serializeAdminProduct(p: Product) {

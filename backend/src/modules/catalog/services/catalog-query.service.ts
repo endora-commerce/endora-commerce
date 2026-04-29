@@ -10,6 +10,7 @@ import { ProductAttachment } from '../entities/product-attachment.entity.js';
 import { AttachmentType } from '../entities/attachment-type.entity.js';
 import { SalesChannel } from '../entities/sales-channel.entity.js';
 import { Asset } from '../../assets/entities/asset.entity.js';
+import type { ProductLinkService } from './product-link.service.js';
 import {
   ERROR_CODES,
   type CategoryNode,
@@ -76,7 +77,16 @@ export interface ListResult<T> {
 }
 
 export class CatalogQueryService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /**
+     * Feature 002 US4 — optional link provider so the PDP `productDetail`
+     * carries the pre-grouped Related/Up-sell/Cross-sell links. Optional
+     * so tests/composition that don't wire it stay green; when undefined,
+     * `productDetail.links` is omitted from the response.
+     */
+    private readonly productLinkService?: ProductLinkService,
+  ) {}
 
   // ------------------------------------------------------------------
   // Products
@@ -417,6 +427,37 @@ export class CatalogQueryService {
         ];
       }),
     };
+
+    // Feature 002 US4 — pre-grouped Product Links. Inactive targets and
+    // channel-restricted ones are filtered by listForStorefront. Default
+    // page sizes per spec.md US4 Assumptions: related=8, up-sell=4,
+    // cross-sell=4.
+    if (this.productLinkService) {
+      const linkRows = await this.productLinkService.listForStorefront(
+        product.id,
+        {
+          salesChannelCode: ctx.salesChannelCode ?? null,
+          ...(ctx.preferredLanguage ? { preferredLanguage: ctx.preferredLanguage } : {}),
+        },
+      );
+      const sliced = (rows: typeof linkRows, n: number): typeof linkRows =>
+        rows.slice(0, n);
+      detail.links = {
+        related: sliced(
+          linkRows.filter((l) => l.kind === 'related'),
+          8,
+        ),
+        upSell: sliced(
+          linkRows.filter((l) => l.kind === 'up_sell'),
+          4,
+        ),
+        crossSell: sliced(
+          linkRows.filter((l) => l.kind === 'cross_sell'),
+          4,
+        ),
+      };
+    }
+
     return detail;
   }
 

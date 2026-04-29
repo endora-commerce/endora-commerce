@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { CatalogQueryService } from './services/catalog-query.service.js';
+import type { ProductLinkService } from './services/product-link.service.js';
+import { productLinkKindSchema } from '@b2b/contracts';
 import {
   SearchBackendUnavailable,
   type SearchQueryService,
@@ -29,6 +31,12 @@ export interface CatalogPublicDeps {
   queryService: CatalogQueryService;
   /** Optional Meilisearch read backend; routed through when env enables it. */
   searchQueryService?: SearchQueryService;
+  /**
+   * Feature 002 US4 — public ProductLink reads. Optional so foundation-era
+   * tests/composition that don't wire it stay green; when undefined, the
+   * `/products/:id/links` route is not registered.
+   */
+  productLinkService?: ProductLinkService;
 }
 
 export async function registerCatalogPublicRoutes(
@@ -91,6 +99,26 @@ export async function registerCatalogPublicRoutes(
       return { data: product };
     },
   );
+
+  // Feature 002 US4 — public Product Links read.
+  if (deps.productLinkService) {
+    const links = deps.productLinkService;
+    app.get<{ Params: { idOrSlug: string }; Querystring: { kind?: string } }>(
+      '/api/v1/catalog/products/:idOrSlug/links',
+      async (request) => {
+        const ctx = readContext(request);
+        const product = await queryService.getProductByIdOrSlug(
+          request.params.idOrSlug,
+          ctx,
+        );
+        const kind = request.query.kind
+          ? productLinkKindSchema.parse(request.query.kind)
+          : undefined;
+        const rows = await links.listForStorefront(product.id, ctx, kind);
+        return { data: rows };
+      },
+    );
+  }
 
   // GET /api/v1/catalog/categories
   app.get('/api/v1/catalog/categories', async (request) => {
