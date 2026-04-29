@@ -14,7 +14,13 @@ import { Textarea } from '@/components/ui/textarea';
 const LOCALES = ['en-US', 'pl-PL'] as const;
 type Locale = (typeof LOCALES)[number];
 
-const PRODUCT_TYPES = ['simple', 'configurable'] as const;
+const PRODUCT_TYPES = [
+  'simple',
+  'configurable',
+  'grouped',
+  'bundle',
+  'virtual',
+] as const;
 const VISIBILITIES = ['public', 'logged_in_only', 'organization_restricted'] as const;
 const STATUSES = ['draft', 'active', 'archived'] as const;
 
@@ -22,7 +28,7 @@ interface AdminProduct {
   id: string;
   sku: string;
   slug: string;
-  type: 'simple' | 'configurable';
+  type: 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
   status: 'draft' | 'active' | 'archived';
   name: Record<string, string>;
   description: Record<string, string>;
@@ -55,7 +61,7 @@ export function ProductEditor(): ReactNode {
   const [info, setInfo] = useState<string | null>(null);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [sku, setSku] = useState('');
-  const [type, setType] = useState<'simple' | 'configurable'>('simple');
+  const [type, setType] = useState<'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual'>('simple');
   const [status, setStatus] = useState<'draft' | 'active' | 'archived'>('draft');
   const [visibility, setVisibility] = useState<AdminProduct['visibility']>('public');
   const [name, setName] = useState<Record<Locale, string>>({ 'en-US': '', 'pl-PL': '' });
@@ -262,7 +268,7 @@ export function ProductEditor(): ReactNode {
               <Select
                 id="ptype"
                 value={type}
-                onChange={(e): void => setType(e.target.value as 'simple' | 'configurable')}
+                onChange={(e): void => setType(e.target.value as 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual')}
                 disabled={!isNew}
               >
                 {PRODUCT_TYPES.map((t) => (
