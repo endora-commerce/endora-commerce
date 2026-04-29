@@ -91,16 +91,29 @@ export default async function ProductPage({ params }: PageProps): Promise<ReactN
           </div>
 
           {Object.keys(product.attributeValues).length > 0 ? (
-            <table className="b2b-pdp__attributes" style={{ marginTop: 24 }}>
-              <tbody>
-                {Object.entries(product.attributeValues).map(([key, value]) => (
-                  <tr key={key}>
-                    <th scope="row">{key}</th>
-                    <td>{String(value)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div style={{ marginTop: 24 }}>
+              {product.attributeSet ? (
+                <p
+                  className="b2b-pdp__attribute-set"
+                  style={{ fontSize: '0.875rem', color: 'var(--muted, #666)', marginBottom: 8 }}
+                >
+                  {product.attributeSet.name[locale] ??
+                    product.attributeSet.name['en-US'] ??
+                    Object.values(product.attributeSet.name)[0] ??
+                    product.attributeSet.code}
+                </p>
+              ) : null}
+              <table className="b2b-pdp__attributes">
+                <tbody>
+                  {Object.entries(product.attributeValues).map(([key, value]) => (
+                    <tr key={key}>
+                      <th scope="row">{key}</th>
+                      <td>{String(value)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : null}
         </div>
       </article>
