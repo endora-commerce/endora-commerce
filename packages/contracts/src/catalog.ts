@@ -26,8 +26,40 @@ export type StockMode = z.infer<typeof stockModeSchema>;
 export const stockIndicatorSchema = z.enum(['available', 'to_order', 'out_of_stock']);
 export type StockIndicator = z.infer<typeof stockIndicatorSchema>;
 
-export const attributeValueTypeSchema = z.enum(['string', 'number', 'boolean', 'enum', 'date']);
+/**
+ * DB-level attribute value types. Foundation 001 introduced the original
+ * 5-element enum (`string | number | boolean | enum | date`). Feature 002
+ * adds `multiselect` and `price` per data-model.md §1.2.
+ *
+ * The API-facing presentation form (`apiAttributeTypeSchema` below)
+ * surfaces additional affordances (`input`, `select`, `slider`) that
+ * map to this DB enum + the sibling `displayAsSlider` flag — see
+ * research.md R-4 / R-7.
+ */
+export const attributeValueTypeSchema = z.enum([
+  'string',
+  'number',
+  'boolean',
+  'enum',
+  'date',
+  'multiselect',
+  'price',
+]);
 export type AttributeValueType = z.infer<typeof attributeValueTypeSchema>;
+
+/**
+ * API-facing attribute type form for feature 002 contracts. Maps onto
+ * `attributeValueTypeSchema` + `displayAsSlider` in the service layer.
+ */
+export const apiAttributeTypeSchema = z.enum([
+  'input',
+  'number',
+  'select',
+  'multiselect',
+  'price',
+  'slider',
+]);
+export type ApiAttributeType = z.infer<typeof apiAttributeTypeSchema>;
 
 export const assetKindSchema = z.enum(['image', 'video', 'pdf', 'certificate', 'other']);
 export type AssetKind = z.infer<typeof assetKindSchema>;
@@ -96,6 +128,19 @@ export const productDetailSchema = productSummarySchema.extend({
   ),
   seo: seoMetaSchema,
   structuredDataJsonLd: z.record(z.string(), z.unknown()),
+  /**
+   * Feature 002 — the AttributeSet wired to this Product. Optional so
+   * foundation-era clients (and any storefront cache that hasn't been
+   * refreshed yet) keep parsing the response. Once admin UI + storefront
+   * consume this field everywhere, it can be tightened to required.
+   */
+  attributeSet: z
+    .object({
+      id: uuidSchema,
+      code: z.string(),
+      name: multilingualStringSchema,
+    })
+    .optional(),
 });
 export type ProductDetail = z.infer<typeof productDetailSchema>;
 
@@ -160,6 +205,12 @@ export const createProductRequestSchema = z.object({
   allowedOrganizationIds: z.array(uuidSchema).optional(),
   assetIds: z.array(uuidSchema).optional(),
   initialStock: z.number().int().nonnegative().optional(),
+  /**
+   * Feature 002 — Attribute Set the Product is wired to. Optional in the
+   * request: when omitted, the system Default Set is used. The value
+   * MUST be a valid AttributeSet id (T023 service rejects unknown sets).
+   */
+  attributeSetId: uuidSchema.optional(),
 });
 export type CreateProductRequest = z.infer<typeof createProductRequestSchema>;
 
@@ -190,11 +241,20 @@ export const createAttributeRequestSchema = z
     isSearchable: z.boolean(),
     isFilterable: z.boolean(),
     isVariantAxis: z.boolean(),
+    /**
+     * Feature 002 — presentation hint. Honored only when
+     * `valueType ∈ ('number', 'price')`. Service rejects with
+     * INVALID_DISPLAY_AS_SLIDER on any other valueType.
+     */
+    displayAsSlider: z.boolean().optional(),
   })
   .refine(
-    (v) => (v.valueType === 'enum' ? Array.isArray(v.enumValues) && v.enumValues.length > 0 : true),
+    (v) =>
+      v.valueType === 'enum' || v.valueType === 'multiselect'
+        ? Array.isArray(v.enumValues) && v.enumValues.length > 0
+        : true,
     {
-      message: 'enumValues is required when valueType=enum',
+      message: 'enumValues is required when valueType=enum or valueType=multiselect',
       path: ['enumValues'],
     },
   );
@@ -207,6 +267,7 @@ export const updateAttributeRequestSchema = z
     isSearchable: z.boolean().optional(),
     isFilterable: z.boolean().optional(),
     isVariantAxis: z.boolean().optional(),
+    displayAsSlider: z.boolean().optional(),
   })
   .strict();
 export type UpdateAttributeRequest = z.infer<typeof updateAttributeRequestSchema>;
@@ -261,3 +322,72 @@ export const notifyWhenAvailableResponseSchema = z.object({
   requestedAt: isoDateTimeSchema,
 });
 export type NotifyWhenAvailableResponse = z.infer<typeof notifyWhenAvailableResponseSchema>;
+
+// --- Feature 002 — Attribute Sets -------------------------------------------
+// See specs/002-catalog-module/contracts/catalog-002.contract.md.
+
+const attributeSetCodeSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9_]+$/, 'must be snake_case');
+
+export const attributeSetSchema = z.object({
+  id: uuidSchema,
+  code: attributeSetCodeSchema,
+  name: multilingualStringSchema,
+  description: multilingualStringSchema.nullable(),
+  isSystem: z.boolean(),
+  attributeCount: z.number().int().nonnegative(),
+  productCount: z.number().int().nonnegative(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type AttributeSet = z.infer<typeof attributeSetSchema>;
+
+export const attributeSetAssignedAttributeSchema = z.object({
+  id: uuidSchema,
+  key: z.string(),
+  label: multilingualStringSchema,
+  valueType: attributeValueTypeSchema,
+  position: z.number().int().nonnegative(),
+});
+export type AttributeSetAssignedAttribute = z.infer<typeof attributeSetAssignedAttributeSchema>;
+
+export const attributeSetDetailSchema = attributeSetSchema.extend({
+  attributes: z.array(attributeSetAssignedAttributeSchema),
+});
+export type AttributeSetDetail = z.infer<typeof attributeSetDetailSchema>;
+
+export const createAttributeSetRequestSchema = z
+  .object({
+    code: attributeSetCodeSchema,
+    name: multilingualStringSchema,
+    description: multilingualStringSchema.optional(),
+    attributeIds: z.array(uuidSchema).optional(),
+  })
+  .strict();
+export type CreateAttributeSetRequest = z.infer<typeof createAttributeSetRequestSchema>;
+
+export const updateAttributeSetRequestSchema = z
+  .object({
+    code: attributeSetCodeSchema.optional(),
+    name: multilingualStringSchema.optional(),
+    description: multilingualStringSchema.nullable().optional(),
+  })
+  .strict();
+export type UpdateAttributeSetRequest = z.infer<typeof updateAttributeSetRequestSchema>;
+
+export const assignAttributesRequestSchema = z
+  .object({
+    assignments: z
+      .array(
+        z.object({
+          attributeId: uuidSchema,
+          position: z.number().int().nonnegative().optional(),
+        }),
+      )
+      .min(1),
+  })
+  .strict();
+export type AssignAttributesRequest = z.infer<typeof assignAttributesRequestSchema>;

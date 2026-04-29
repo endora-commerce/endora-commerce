@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { createProductRequestSchema } from '@b2b/contracts';
 import type { CatalogQueryService } from './services/catalog-query.service.js';
 import type { CatalogAdminService } from './services/catalog-admin.service.js';
+import type { AttributeSetService } from './services/attribute-set.service.js';
 import { Product } from './entities/product.entity.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 
@@ -22,6 +23,12 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 export interface CatalogApiKeyDeps {
   queryService: CatalogQueryService;
   adminService: CatalogAdminService;
+  /**
+   * Feature 002 — read-only AttributeSet surface for api-key clients
+   * (PIM / ERP integrations sync per-product attribute schemas). Optional
+   * so dev/test composition roots can wire it progressively.
+   */
+  attributeSetService?: AttributeSetService;
   emFactory: () => EntityManager;
   /** Pre-handler that asserts api-key + scope; defaults to allow-all. */
   requireApiKey?: (
@@ -64,4 +71,30 @@ export async function registerCatalogApiKeyRoutes(
       return { data: created };
     },
   );
+
+  // ===== Feature 002 — Attribute Sets read surface ===========================
+  // contracts/catalog-002.contract.md: integrations may need to know which
+  // attributes apply to which Sets when syncing PIM data. Read-only, scoped
+  // to `catalog:read`.
+  if (deps.attributeSetService) {
+    const attrSetService = deps.attributeSetService;
+
+    app.get(
+      '/api/v1/catalog/attribute-sets',
+      { preHandler: requireApiKey('catalog:read') },
+      async () => {
+        const sets = await attrSetService.listSets();
+        return { data: sets };
+      },
+    );
+
+    app.get<{ Params: { id: string } }>(
+      '/api/v1/catalog/attribute-sets/:id',
+      { preHandler: requireApiKey('catalog:read') },
+      async (request) => {
+        const detail = await attrSetService.getSetDetail(request.params.id);
+        return { data: detail };
+      },
+    );
+  }
 }

@@ -105,7 +105,12 @@ const SEEDED_TABLES = [
   'product_categories',
   'availability_notifications',
   'product_variants',
+  // Feature 002 — bridge tables truncate before products so FK CASCADE
+  // cleanup is deterministic per-test.
+  'attribute_set_attributes',
   'product_attributes',
+  // attribute_sets is NOT truncated — its system Default row is created
+  // by migration 017 and the contract tests rely on it being present.
   'products',
   'categories',
   'sales_channels',
@@ -133,6 +138,11 @@ export async function setupBackendServer(
 
   const conn = orm.em.getConnection();
   await conn.execute(`truncate table ${SEEDED_TABLES.map((t) => `"${t}"`).join(', ')} cascade`);
+  // Feature 002: keep the system Default Attribute Set, drop everything
+  // else so contract tests start from a clean slate. (`attribute_sets`
+  // isn't in SEEDED_TABLES because the truncate-cascade would drop the
+  // Default seed too.)
+  await conn.execute('delete from "attribute_sets" where "is_system" = false');
 
   // Reset the i18n config tables to a known state so parallel-running tests
   // don't inherit each other's mutations. We don't truncate them in

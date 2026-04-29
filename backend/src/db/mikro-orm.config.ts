@@ -18,6 +18,8 @@ import { Migration013CmsPagesInit } from '../modules/cms_pages/migrations/013_cm
 import { Migration014PricingInit } from '../modules/price_lists/migrations/014_pricing_init.js';
 import { Migration015TaxesPromotionsInit } from '../modules/taxes/migrations/015_taxes_promotions_init.js';
 import { Migration016ShoppingListsInit } from '../modules/shopping_lists/migrations/016_shopping_lists_init.js';
+import { Migration017AttributeSetsInit } from '../modules/catalog/migrations/017_attribute_sets_init.js';
+import { Migration018ProductAttributeExtensions } from '../modules/catalog/migrations/018_product_attribute_extensions.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -65,6 +67,11 @@ export default defineConfig({
       { name: 'Migration014PricingInit', class: Migration014PricingInit },
       { name: 'Migration015TaxesPromotionsInit', class: Migration015TaxesPromotionsInit },
       { name: 'Migration016ShoppingListsInit', class: Migration016ShoppingListsInit },
+      { name: 'Migration017AttributeSetsInit', class: Migration017AttributeSetsInit },
+      {
+        name: 'Migration018ProductAttributeExtensions',
+        class: Migration018ProductAttributeExtensions,
+      },
     ],
     transactional: true,
     disableForeignKeys: false,

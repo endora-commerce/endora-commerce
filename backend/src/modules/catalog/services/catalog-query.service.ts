@@ -3,6 +3,7 @@ import { Product } from '../entities/product.entity.js';
 import { ProductVariant } from '../entities/product-variant.entity.js';
 import { Category } from '../entities/category.entity.js';
 import { ProductAttribute } from '../entities/product-attribute.entity.js';
+import { AttributeSet } from '../entities/attribute-set.entity.js';
 import { SalesChannel } from '../entities/sales-channel.entity.js';
 import { Asset } from '../../assets/entities/asset.entity.js';
 import {
@@ -245,6 +246,13 @@ export class CatalogQueryService {
     // Variants
     const variants = product.type === 'variant' ? await em.find(ProductVariant, { parentProductId: product.id }) : [];
 
+    // Feature 002 — Attribute Set wired to this Product. Pulled in a
+    // single findOne so PDP renders include the set's localized name
+    // without a follow-up call.
+    const attributeSetEntity = await em.findOne(AttributeSet, {
+      id: product.attributeSetId,
+    });
+
     const descriptionText = this.pickLang(product.description, ctx.preferredLanguage, channel);
     const nameText = this.pickLang(product.name, ctx.preferredLanguage, channel);
 
@@ -299,6 +307,15 @@ export class CatalogQueryService {
             }
           : {}),
       },
+      ...(attributeSetEntity
+        ? {
+            attributeSet: {
+              id: attributeSetEntity.id,
+              code: attributeSetEntity.code,
+              name: attributeSetEntity.name,
+            },
+          }
+        : {}),
     };
     return detail;
   }

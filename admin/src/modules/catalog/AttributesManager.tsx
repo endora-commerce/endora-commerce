@@ -17,7 +17,18 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-const VALUE_TYPES = ['string', 'number', 'boolean', 'enum'] as const;
+// Feature 002 (T035) — DB-level value types. Foundation 001 had
+// the original 5 (string, number, boolean, enum, date); 002 adds
+// `multiselect` and `price`. The presentation hint
+// `displayAsSlider` is honored only when valueType ∈ (number, price).
+const VALUE_TYPES = [
+  'string',
+  'number',
+  'boolean',
+  'enum',
+  'multiselect',
+  'price',
+] as const;
 type ValueType = (typeof VALUE_TYPES)[number];
 
 interface AdminAttribute {
@@ -29,6 +40,7 @@ interface AdminAttribute {
   isSearchable: boolean;
   isFilterable: boolean;
   isVariantAxis: boolean;
+  displayAsSlider: boolean;
 }
 
 export function AttributesManager(): ReactNode {
@@ -66,12 +78,15 @@ export function AttributesManager(): ReactNode {
       isSearchable: boolean;
       isFilterable: boolean;
       isVariantAxis: boolean;
+      displayAsSlider: boolean;
     }): Promise<void> => {
       const label: Record<string, string> = {};
       if (input.labelEn) label['en-US'] = input.labelEn;
       if (input.labelPl) label['pl-PL'] = input.labelPl;
+      // enumValues required for both `enum` (single-select / legacy) and
+      // `multiselect` (new in feature 002).
       const enumValues =
-        input.valueType === 'enum'
+        input.valueType === 'enum' || input.valueType === 'multiselect'
           ? input.enumValues
               .split(',')
               .map((s) => s.trim())
@@ -86,6 +101,12 @@ export function AttributesManager(): ReactNode {
           isSearchable: input.isSearchable,
           isFilterable: input.isFilterable,
           isVariantAxis: input.isVariantAxis,
+          // Honor displayAsSlider only on numeric types (matches the
+          // backend service-side guard); the form keeps the box hidden
+          // for non-numeric types so this branch rarely fires.
+          ...(input.displayAsSlider && (input.valueType === 'number' || input.valueType === 'price')
+            ? { displayAsSlider: true }
+            : {}),
         });
         setInfo(`Attribute "${input.key}" created.`);
         await refresh();
@@ -221,6 +242,7 @@ function CreateAttributeForm({
     isSearchable: boolean;
     isFilterable: boolean;
     isVariantAxis: boolean;
+    displayAsSlider: boolean;
   }) => Promise<void>;
 }): ReactNode {
   const [key, setKey] = useState('');
@@ -231,6 +253,8 @@ function CreateAttributeForm({
   const [isSearchable, setIsSearchable] = useState(false);
   const [isFilterable, setIsFilterable] = useState(false);
   const [isVariantAxis, setIsVariantAxis] = useState(false);
+  const [displayAsSlider, setDisplayAsSlider] = useState(false);
+  const isNumeric = valueType === 'number' || valueType === 'price';
 
   return (
     <form
@@ -246,6 +270,7 @@ function CreateAttributeForm({
           isSearchable,
           isFilterable,
           isVariantAxis,
+          displayAsSlider,
         }).then(() => {
           setKey('');
           setLabelEn('');
@@ -254,6 +279,7 @@ function CreateAttributeForm({
           setIsSearchable(false);
           setIsFilterable(false);
           setIsVariantAxis(false);
+          setDisplayAsSlider(false);
         });
       }}
     >
@@ -292,7 +318,7 @@ function CreateAttributeForm({
           <Input id="alpl" value={labelPl} onChange={(e): void => setLabelPl(e.target.value)} />
         </div>
       </div>
-      {valueType === 'enum' ? (
+      {valueType === 'enum' || valueType === 'multiselect' ? (
         <div className="space-y-2">
           <Label htmlFor="aenum">Enum values (comma-separated)</Label>
           <Input
@@ -300,7 +326,24 @@ function CreateAttributeForm({
             value={enumValues}
             onChange={(e): void => setEnumValues(e.target.value)}
             placeholder="red, green, blue"
+            required
           />
+          <p className="text-xs text-muted-foreground">
+            {valueType === 'multiselect'
+              ? 'Customers can pick multiple values for each Product.'
+              : 'Customers can pick exactly one value for each Product.'}
+          </p>
+        </div>
+      ) : null}
+      {isNumeric ? (
+        <div>
+          <label className="inline-flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={displayAsSlider}
+              onChange={(e): void => setDisplayAsSlider(e.target.checked)}
+            />
+            Render filter as a range slider (storefront UI hint)
+          </label>
         </div>
       ) : null}
       <div className="space-y-2">

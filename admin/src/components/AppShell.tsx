@@ -61,6 +61,7 @@ const NAV: NavSection[] = [
       { to: '/catalog/products', label: 'Products', icon: Package },
       { to: '/catalog/categories', label: 'Categories', icon: Boxes },
       { to: '/catalog/attributes', label: 'Attributes', icon: Tag },
+      { to: '/catalog/attribute-sets', label: 'Attribute Sets', icon: Tag },
       { to: '/inventory', label: 'Inventory', icon: Factory },
     ],
   },

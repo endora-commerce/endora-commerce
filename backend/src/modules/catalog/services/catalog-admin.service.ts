@@ -63,7 +63,19 @@ export class CatalogAdminService {
       visibility: req.visibility,
       attributeValues: req.attributeValues as Record<string, unknown>,
       allowedOrganizationIds: req.allowedOrganizationIds ?? [],
+      // Feature 002 (T034): use the requested AttributeSet, else fall
+      // back to the entity's compile-time default (system Default Set).
+      ...(req.attributeSetId ? { attributeSetId: req.attributeSetId } : {}),
     });
+    // Feature 002 (T023): the keys in `attributeValues` MUST belong to
+    // the Product's AttributeSet. The entity defaults `attributeSetId`
+    // to the system Default Set; future API surface revisions will let
+    // the admin pick a custom Set explicitly. See data-model.md §1.1.
+    await this.assertAttributeValueKeysAllowed(
+      em,
+      product.attributeSetId,
+      req.attributeValues as Record<string, unknown>,
+    );
     try {
       await em.persistAndFlush(product);
     } catch (err) {
@@ -105,7 +117,23 @@ export class CatalogAdminService {
     if (req.description) { product.description = req.description; changedFields.push('description'); }
     if (req.stockMode !== undefined) { product.stockMode = req.stockMode; changedFields.push('stockMode'); }
     if (req.visibility) { product.visibility = req.visibility; changedFields.push('visibility'); }
+    // Feature 002 (T034) — attribute_set_id swap. Persist BEFORE
+    // attribute_values so the validation sees the new set's allowed keys.
+    if (req.attributeSetId !== undefined && req.attributeSetId !== product.attributeSetId) {
+      product.attributeSetId = req.attributeSetId;
+      changedFields.push('attributeSetId');
+    }
     if (req.attributeValues) {
+      // Feature 002 (T023) — validate the patched keys against the
+      // Product's current AttributeSet. The merged object keys are all
+      // valid as long as both pre-existing and incoming keys live in
+      // the set; we validate the incoming patch only since the existing
+      // values were already validated at their time of write.
+      await this.assertAttributeValueKeysAllowed(
+        em,
+        product.attributeSetId,
+        req.attributeValues as Record<string, unknown>,
+      );
       product.attributeValues = { ...product.attributeValues, ...req.attributeValues };
       changedFields.push('attributeValues');
     }
@@ -171,6 +199,20 @@ export class CatalogAdminService {
 
   async createAttribute(req: CreateAttributeRequest): Promise<ProductAttribute> {
     const em = this.emFactory();
+    // Feature 002 (T035) — displayAsSlider is honored only on numeric
+    // value types. Reject with INVALID_DISPLAY_AS_SLIDER otherwise so
+    // bad UI inputs don't silently degrade.
+    if (
+      req.displayAsSlider &&
+      req.valueType !== 'number' &&
+      req.valueType !== 'price'
+    ) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.VALIDATION_FAILED,
+        `displayAsSlider is only valid for valueType="number" or "price"; got "${req.valueType}".`,
+      );
+    }
     const attr = em.create(ProductAttribute, {
       key: req.key,
       label: req.label,
@@ -179,6 +221,7 @@ export class CatalogAdminService {
       isSearchable: req.isSearchable,
       isFilterable: req.isFilterable,
       isVariantAxis: req.isVariantAxis,
+      displayAsSlider: req.displayAsSlider ?? false,
     });
     try {
       await em.persistAndFlush(attr);
@@ -209,6 +252,21 @@ export class CatalogAdminService {
     if (req.isSearchable !== undefined) attr.isSearchable = req.isSearchable;
     if (req.isFilterable !== undefined) attr.isFilterable = req.isFilterable;
     if (req.isVariantAxis !== undefined) attr.isVariantAxis = req.isVariantAxis;
+    if (req.displayAsSlider !== undefined) {
+      // Same valueType-vs-displayAsSlider rule as createAttribute.
+      if (
+        req.displayAsSlider &&
+        attr.valueType !== 'number' &&
+        attr.valueType !== 'price'
+      ) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          `displayAsSlider is only valid for valueType="number" or "price"; got "${attr.valueType}".`,
+        );
+      }
+      attr.displayAsSlider = req.displayAsSlider;
+    }
     await em.flush();
     this.events.emit('attribute.updated.v1', {
       eventId: randomUUID(),
@@ -244,6 +302,47 @@ export class CatalogAdminService {
   }
 
   // ------------------------------------------------------------------
+
+  /**
+   * Feature 002 (T023) — reject unknown keys in `attributeValues` against
+   * the Product's AttributeSet. Empty input is a no-op (a Product with
+   * zero attribute values is always valid).
+   *
+   * Throws 400 ATTRIBUTE_VALUE_REJECTED with `details: [{ path, issue }]`
+   * listing the rejected keys.
+   */
+  private async assertAttributeValueKeysAllowed(
+    em: EntityManager,
+    attributeSetId: string,
+    attributeValues: Record<string, unknown> | undefined,
+  ): Promise<void> {
+    if (!attributeValues) return;
+    const keys = Object.keys(attributeValues);
+    if (keys.length === 0) return;
+
+    const conn = em.getConnection();
+    const rows = (await conn.execute(
+      `select pa.key
+       from attribute_set_attributes asa
+       join product_attributes pa on pa.id = asa.product_attribute_id
+       where asa.attribute_set_id = ?`,
+      [attributeSetId],
+    )) as Array<{ key: string }>;
+    const allowed = new Set(rows.map((r) => r.key));
+
+    const rejected = keys.filter((k) => !allowed.has(k));
+    if (rejected.length > 0) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.ATTRIBUTE_VALUE_REJECTED,
+        `Attribute key(s) not in this Product's Attribute Set: ${rejected.join(', ')}.`,
+        rejected.map((k) => ({
+          path: `attributeValues.${k}`,
+          issue: 'attribute is not assigned to this Product\'s AttributeSet',
+        })),
+      );
+    }
+  }
 
   private slugify(value: string): string {
     // \p{Diacritic} strips combining marks left over from NFKD normalization

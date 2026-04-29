@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { Product } from '../../src/modules/catalog/entities/product.entity.js';
 import { Category } from '../../src/modules/catalog/entities/category.entity.js';
 import { ProductAttribute } from '../../src/modules/catalog/entities/product-attribute.entity.js';
+import { AttributeSetAttribute } from '../../src/modules/catalog/entities/attribute-set-attribute.entity.js';
 import { SalesChannel } from '../../src/modules/catalog/entities/sales-channel.entity.js';
 
 /** Fixed UUIDs for the three seeded Products — the RFQ tests reference these directly. */
@@ -93,6 +94,20 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
     isVariantAxis: false,
   });
   await em.persistAndFlush([color, internalNotes, material, certification]);
+
+  // Feature 002 (T023) — assign every seeded attribute to the system
+  // Default Attribute Set so the catalog-admin's attribute-values
+  // validation accepts these keys for the seeded Products.
+  const DEFAULT_ATTRIBUTE_SET_ID = 'defa0017-0000-4000-8000-000000000000';
+  await em.persistAndFlush(
+    [color, internalNotes, material, certification].map((attr, idx) =>
+      em.create(AttributeSetAttribute, {
+        attributeSetId: DEFAULT_ATTRIBUTE_SET_ID,
+        productAttributeId: attr.id,
+        position: idx,
+      }),
+    ),
+  );
 
   // --- Products ----------------------------------------------------------
   const exampleSimple = em.create(Product, {

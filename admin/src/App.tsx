@@ -20,6 +20,7 @@ import { ProductsList } from './modules/catalog/ProductsList.js';
 import { ProductEditor } from './modules/catalog/ProductEditor.js';
 import { CategoriesTree } from './modules/catalog/CategoriesTree.js';
 import { AttributesManager } from './modules/catalog/AttributesManager.js';
+import { AttributeSetsPage } from './modules/catalog/AttributeSetsPage.js';
 import { OrganizationsList } from './modules/organizations/OrganizationsList.js';
 import { OrganizationDetail } from './modules/organizations/OrganizationDetail.js';
 import { OrdersList } from './modules/orders/OrdersList.js';
@@ -51,6 +52,7 @@ export function App(): ReactNode {
         <Route path="/catalog/products/:id" element={<ProductEditor />} />
         <Route path="/catalog/categories" element={<CategoriesTree />} />
         <Route path="/catalog/attributes" element={<AttributesManager />} />
+        <Route path="/catalog/attribute-sets" element={<AttributeSetsPage />} />
         <Route path="/organizations" element={<OrganizationsList />} />
         <Route path="/organizations/:id" element={<OrganizationDetail />} />
         <Route path="/orders" element={<OrdersList />} />
