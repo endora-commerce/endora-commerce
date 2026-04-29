@@ -427,6 +427,7 @@ export function ProductEditor(): ReactNode {
       <>
         <GallerySection productId={id} />
         <AttachmentsSection productId={id} />
+        <ProductLinksSection productId={id} />
       </>
     ) : null}
     </>
@@ -1275,6 +1276,222 @@ function CreateAttachmentInline({
           }}
         >
           + Add attachment
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Product Links section (T109, US4) — Related / Up-sell / Cross-sell.
+// Three sub-lists, one product picker (paste id) + kind selector +
+// "Add" button per kind. Backend bulkCreate is all-or-nothing and
+// surfaces SELF_LINK_NOT_ALLOWED / LINK_ALREADY_EXISTS / TARGET_NOT_FOUND.
+// ---------------------------------------------------------------------------
+
+const LINK_KINDS = ['related', 'up_sell', 'cross_sell'] as const;
+type LinkKind = (typeof LINK_KINDS)[number];
+
+interface AdminProductLink {
+  id: string;
+  sourceProductId: string;
+  targetProductId: string;
+  kind: LinkKind;
+  position: number;
+}
+
+function ProductLinksSection({ productId }: { productId: string }): ReactNode {
+  const [links, setLinks] = useState<AdminProductLink[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+
+  const refresh = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await apiClient.get<{ data: AdminProductLink[] }>(
+        `/api/v1/admin/catalog/products/${productId}/links`,
+      );
+      setLinks(res.data);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Load failed.');
+    } finally {
+      setLoading(false);
+    }
+  }, [productId]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const handleCreate = useCallback(
+    async (input: { targetProductId: string; kind: LinkKind }): Promise<void> => {
+      try {
+        await apiClient.post(`/api/v1/admin/catalog/products/${productId}/links`, {
+          links: [{ targetProductId: input.targetProductId, kind: input.kind }],
+        });
+        setInfo(`Link added (${input.kind}).`);
+        await refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Add failed.');
+      }
+    },
+    [productId, refresh],
+  );
+
+  const handleDelete = useCallback(
+    async (linkId: string): Promise<void> => {
+      if (!confirm('Remove this link?')) return;
+      try {
+        await apiClient.delete(`/api/v1/admin/catalog/products/${productId}/links/${linkId}`);
+        setInfo('Link removed.');
+        await refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+      }
+    },
+    [productId, refresh],
+  );
+
+  const byKind = useMemo(() => {
+    const result: Record<LinkKind, AdminProductLink[]> = {
+      related: [],
+      up_sell: [],
+      cross_sell: [],
+    };
+    for (const link of links) result[link.kind].push(link);
+    for (const kind of LINK_KINDS) {
+      result[kind].sort((a, b) => a.position - b.position);
+    }
+    return result;
+  }, [links]);
+
+  return (
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle>Product links</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        {info ? (
+          <Alert>
+            <AlertDescription>{info}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : (
+          <div className="space-y-6">
+            {LINK_KINDS.map((kind) => (
+              <div key={kind} className="space-y-2">
+                <h3 className="text-sm font-medium uppercase tracking-wide">
+                  {kindLabel(kind)} ({byKind[kind].length})
+                </h3>
+                {byKind[kind].length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No links yet.</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Target product id</TableHead>
+                        <TableHead>Position</TableHead>
+                        <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {byKind[kind].map((link) => (
+                        <TableRow key={link.id}>
+                          <TableCell className="font-mono text-xs">
+                            {link.targetProductId}
+                          </TableCell>
+                          <TableCell>{link.position}</TableCell>
+                          <TableCell>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => void handleDelete(link.id)}
+                            >
+                              Remove
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <CreateProductLinkInline onCreate={handleCreate} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function kindLabel(kind: LinkKind): string {
+  switch (kind) {
+    case 'related':
+      return 'Related';
+    case 'up_sell':
+      return 'Up-sell';
+    case 'cross_sell':
+      return 'Cross-sell';
+  }
+}
+
+function CreateProductLinkInline({
+  onCreate,
+}: {
+  onCreate: (input: { targetProductId: string; kind: LinkKind }) => Promise<void>;
+}): ReactNode {
+  const [targetProductId, setTargetProductId] = useState('');
+  const [kind, setKind] = useState<LinkKind>('related');
+
+  return (
+    <div
+      className="grid gap-3 md:grid-cols-3 border-t pt-4"
+      role="group"
+      aria-label="Add product link"
+    >
+      <div className="space-y-1 md:col-span-2">
+        <Label htmlFor="ltarget">Target product id</Label>
+        <Input
+          id="ltarget"
+          value={targetProductId}
+          onChange={(e): void => setTargetProductId(e.target.value)}
+          placeholder="UUID of the product to link to"
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="lkind">Kind</Label>
+        <Select id="lkind" value={kind} onChange={(e): void => setKind(e.target.value as LinkKind)}>
+          {LINK_KINDS.map((k) => (
+            <option key={k} value={k}>
+              {kindLabel(k)}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <div className="md:col-span-3">
+        <Button
+          type="button"
+          onClick={() => {
+            if (!targetProductId) return;
+            void onCreate({ targetProductId, kind }).then(() => {
+              setTargetProductId('');
+            });
+          }}
+        >
+          + Add link
         </Button>
       </div>
     </div>

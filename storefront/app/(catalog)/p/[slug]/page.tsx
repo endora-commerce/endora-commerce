@@ -5,6 +5,7 @@ import { Breadcrumbs } from '../../../../components/Breadcrumbs';
 import { ProductGallery } from '../../../../components/ProductGallery';
 import { GallerySwitcher } from '../../../../components/GallerySwitcher';
 import { AttachmentsList } from '../../../../components/AttachmentsList';
+import { ProductLinksSections } from '../../../../components/ProductLinksSections';
 import { VariantPicker } from '../../../../components/VariantPicker';
 import { PriceTag } from '../../../../components/PriceTag';
 import { StockBadge } from '../../../../components/StockBadge';
@@ -167,6 +168,18 @@ export default async function ProductPage({
           ) : null}
         </div>
       </article>
+
+      {product.links ? (
+        <ProductLinksSections
+          related={product.links.related}
+          upSell={product.links.upSell}
+          labels={{
+            related: t('product.links.related'),
+            upSell: t('product.links.upSell'),
+            seeAll: t('product.links.seeAll'),
+          }}
+        />
+      ) : null}
 
       <script
         type="application/ld+json"

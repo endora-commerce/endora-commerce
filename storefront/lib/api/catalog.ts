@@ -67,6 +67,59 @@ export async function getProductBySlug(
   return res.data;
 }
 
+/**
+ * Feature 002 US4 — public Product Links read for cart cross-sell.
+ * Returns the storefront-shape link summaries (drops archived /
+ * channel-restricted targets server-side). Empty array when product
+ * has no links of the requested kind.
+ */
+export async function getProductLinks(
+  productIdOrSlug: string,
+  kind: 'related' | 'up_sell' | 'cross_sell',
+  ctx: RequestContext,
+): Promise<
+  Array<{
+    id: string;
+    kind: 'related' | 'up_sell' | 'cross_sell';
+    position: number;
+    product: {
+      id: string;
+      sku: string;
+      slug: string;
+      name: string;
+      primaryAssetUrl: string | null;
+      price: { amount: number; currency: string } | null;
+    };
+  }>
+> {
+  try {
+    const res = await apiGet<{
+      data: Array<{
+        id: string;
+        kind: 'related' | 'up_sell' | 'cross_sell';
+        position: number;
+        product: {
+          id: string;
+          sku: string;
+          slug: string;
+          name: string;
+          primaryAssetUrl: string | null;
+          price: { amount: number; currency: string } | null;
+        };
+      }>;
+    }>(
+      `/api/v1/catalog/products/${encodeURIComponent(productIdOrSlug)}/links?kind=${kind}`,
+      ctx,
+      { revalidate: 60, tags: ['catalog:links', `catalog:product:${productIdOrSlug}`] },
+    );
+    return res.data;
+  } catch {
+    // Cart cross-sell is decorative — silently degrade if the lookup fails
+    // so a flaky public links endpoint can't break the whole cart page.
+    return [];
+  }
+}
+
 export async function getCategoryTree(ctx: RequestContext): Promise<CategoryNode[]> {
   const res = await apiGet<{ data: CategoryNode[] }>(
     '/api/v1/catalog/categories',

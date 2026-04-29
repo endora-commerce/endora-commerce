@@ -29,6 +29,10 @@ type MessageKey =
   | 'product.variants.stockLevel'
   | 'product.variants.outOfStock'
   | 'product.variants.selectThisVariant'
+  | 'product.links.related'
+  | 'product.links.upSell'
+  | 'product.links.crossSell'
+  | 'product.links.seeAll'
   | 'search.placeholder'
   | 'common.searchAction'
   | 'pagination.next';
@@ -53,6 +57,10 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'product.variants.stockLevel': 'In stock',
     'product.variants.outOfStock': 'Out of stock',
     'product.variants.selectThisVariant': 'Currently selected',
+    'product.links.related': 'Related products',
+    'product.links.upSell': 'You might also like',
+    'product.links.crossSell': 'You may also need',
+    'product.links.seeAll': 'See all',
     'search.placeholder': 'Search products…',
     'common.searchAction': 'Search',
     'pagination.next': 'Next page',
@@ -76,6 +84,10 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'product.variants.stockLevel': 'Dostepne',
     'product.variants.outOfStock': 'Niedostepny',
     'product.variants.selectThisVariant': 'Wybrany',
+    'product.links.related': 'Powiazane produkty',
+    'product.links.upSell': 'Moze Cie zainteresowac',
+    'product.links.crossSell': 'Dokup takze',
+    'product.links.seeAll': 'Zobacz wszystkie',
     'search.placeholder': 'Szukaj produktow...',
     'common.searchAction': 'Szukaj',
     'pagination.next': 'Nastepna strona',
