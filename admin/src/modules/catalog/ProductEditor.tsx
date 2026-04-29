@@ -9,6 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 
 const LOCALES = ['en-US', 'pl-PL'] as const;
@@ -207,6 +215,7 @@ export function ProductEditor(): ReactNode {
   if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>;
 
   return (
+    <>
     <form onSubmit={handleSave}>
       <PageHeader
         title={isNew ? 'New product' : `Edit ${sku}`}
@@ -411,5 +420,251 @@ export function ProductEditor(): ReactNode {
         </CardContent>
       </Card>
     </form>
+    {!isNew && id && type === 'configurable' ? (
+      <VariantsSection productId={id} />
+    ) : null}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Variants section (T054) — admin CRUD for ProductVariants under a
+// configurable Product. Lives outside the Product editor's <form> so its
+// own buttons don't submit the parent.
+// ---------------------------------------------------------------------------
+
+interface AdminVariant {
+  id: string;
+  parentProductId: string;
+  sku: string;
+  variantAttributeValues: Record<string, unknown>;
+  priceOverride: number | null;
+  stockLevel: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function VariantsSection({ productId }: { productId: string }): ReactNode {
+  const [variants, setVariants] = useState<AdminVariant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+
+  const refresh = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    setError(null);
+    try {
+      // The PDP returns variants nested in productDetail; admin needs a
+      // standalone read to keep the forms quick. Foundation didn't ship
+      // a GET /admin/.../variants, but the public productDetail under
+      // /api/v1/catalog/products/<idOrSlug> includes them — use that.
+      const res = await apiClient.get<{ data: { variants: AdminVariant[] } }>(
+        `/api/v1/catalog/products/${productId}`,
+      );
+      setVariants(res.data.variants ?? []);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Load failed.');
+    } finally {
+      setLoading(false);
+    }
+  }, [productId]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const handleCreate = useCallback(
+    async (input: {
+      sku: string;
+      attrs: string;
+      priceOverride: string;
+      stockLevel: string;
+    }): Promise<void> => {
+      // attrs is a comma-separated list of `key=value` pairs.
+      const variantAttributeValues: Record<string, string> = {};
+      for (const pair of input.attrs.split(',')) {
+        const trimmed = pair.trim();
+        if (!trimmed) continue;
+        const [k, v] = trimmed.split('=');
+        if (k && v !== undefined) variantAttributeValues[k.trim()] = v.trim();
+      }
+      try {
+        const payload: Record<string, unknown> = {
+          sku: input.sku,
+          variantAttributeValues,
+        };
+        if (input.priceOverride.trim()) {
+          payload['priceOverride'] = Number(input.priceOverride);
+        }
+        if (input.stockLevel.trim()) {
+          payload['stockLevel'] = Number(input.stockLevel);
+        }
+        await apiClient.post<{ data: AdminVariant }>(
+          `/api/v1/admin/catalog/products/${productId}/variants`,
+          payload,
+        );
+        setInfo(`Variant "${input.sku}" created.`);
+        await refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Create failed.');
+      }
+    },
+    [productId, refresh],
+  );
+
+  const handleDelete = useCallback(
+    async (variantId: string, sku: string): Promise<void> => {
+      if (!confirm(`Delete variant "${sku}"?`)) return;
+      try {
+        await apiClient.delete<void>(
+          `/api/v1/admin/catalog/products/${productId}/variants/${variantId}`,
+        );
+        setInfo(`Variant "${sku}" deleted.`);
+        await refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+      }
+    },
+    [productId, refresh],
+  );
+
+  return (
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle>Variants</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        {info ? (
+          <Alert>
+            <AlertDescription>{info}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : variants.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No variants yet. A configurable Product MUST have at least one Variant before it can be activated.
+          </p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>SKU</TableHead>
+                <TableHead>Attributes</TableHead>
+                <TableHead>Price override</TableHead>
+                <TableHead>Stock</TableHead>
+                <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {variants.map((v) => (
+                <TableRow key={v.id}>
+                  <TableCell className="font-mono">{v.sku}</TableCell>
+                  <TableCell>
+                    {Object.entries(v.variantAttributeValues)
+                      .map(([k, val]) => `${k}=${String(val)}`)
+                      .join(', ') || '—'}
+                  </TableCell>
+                  <TableCell>{v.priceOverride ?? '—'}</TableCell>
+                  <TableCell>{v.stockLevel ?? '—'}</TableCell>
+                  <TableCell>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => void handleDelete(v.id, v.sku)}
+                    >
+                      Delete
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+
+        <CreateVariantInline onCreate={handleCreate} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function CreateVariantInline({
+  onCreate,
+}: {
+  onCreate: (input: {
+    sku: string;
+    attrs: string;
+    priceOverride: string;
+    stockLevel: string;
+  }) => Promise<void>;
+}): ReactNode {
+  const [sku, setSku] = useState('');
+  const [attrs, setAttrs] = useState('');
+  const [priceOverride, setPriceOverride] = useState('');
+  const [stockLevel, setStockLevel] = useState('');
+
+  return (
+    <div
+      className="grid gap-3 md:grid-cols-5 border-t pt-4"
+      role="group"
+      aria-label="Create variant"
+    >
+      <div className="space-y-1">
+        <Label htmlFor="vsku">SKU</Label>
+        <Input id="vsku" value={sku} onChange={(e): void => setSku(e.target.value)} required />
+      </div>
+      <div className="space-y-1 md:col-span-2">
+        <Label htmlFor="vattrs">Attributes</Label>
+        <Input
+          id="vattrs"
+          value={attrs}
+          onChange={(e): void => setAttrs(e.target.value)}
+          placeholder="color=red, size=M"
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="vprice">Price override</Label>
+        <Input
+          id="vprice"
+          type="number"
+          step="0.01"
+          min="0"
+          value={priceOverride}
+          onChange={(e): void => setPriceOverride(e.target.value)}
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="vstock">Stock</Label>
+        <Input
+          id="vstock"
+          type="number"
+          min="0"
+          value={stockLevel}
+          onChange={(e): void => setStockLevel(e.target.value)}
+        />
+      </div>
+      <div className="md:col-span-5">
+        <Button
+          type="button"
+          onClick={() => {
+            void onCreate({ sku, attrs, priceOverride, stockLevel }).then(() => {
+              setSku('');
+              setAttrs('');
+              setPriceOverride('');
+              setStockLevel('');
+            });
+          }}
+        >
+          + Add variant
+        </Button>
+      </div>
+    </div>
   );
 }

@@ -24,16 +24,33 @@ interface PageProps {
  * cart wiring by replacing them.
  */
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: PageProps): Promise<Metadata> {
   const { slug } = await params;
+  const search = searchParams ? await searchParams : {};
+  const variantSku = typeof search.variant === 'string' ? search.variant : null;
   const { ctx } = await getServerContext();
   try {
     const product = await getProductBySlug(slug, ctx);
+    // Feature 002 (T052) — if `?variant=<sku>` is present and the
+    // SKU is a known variant, surface the variant's identity in the
+    // social card title so different variants get distinct previews
+    // when shared. Foundation's ProductVariant entity does NOT have
+    // its own assets, so the OG image keeps coming from the parent
+    // Product (this is intentional — until variants get their own
+    // primary asset, sharing variant URLs reuses the parent image).
+    const selectedVariant =
+      variantSku != null
+        ? product.variants.find((v) => v.sku === variantSku) ?? null
+        : null;
+    const titleSuffix = selectedVariant ? ` — ${selectedVariant.sku}` : '';
     return {
-      title: product.seo.metaTitle,
+      title: `${product.seo.metaTitle}${titleSuffix}`,
       description: product.seo.metaDescription,
       openGraph: {
-        title: product.seo.openGraph.title,
+        title: `${product.seo.openGraph.title}${titleSuffix}`,
         description: product.seo.openGraph.description,
         images: product.seo.openGraph.imageUrl ? [product.seo.openGraph.imageUrl] : undefined,
       },
