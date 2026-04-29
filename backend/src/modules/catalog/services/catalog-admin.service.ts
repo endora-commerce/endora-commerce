@@ -64,6 +64,15 @@ export class CatalogAdminService {
       attributeValues: req.attributeValues as Record<string, unknown>,
       allowedOrganizationIds: req.allowedOrganizationIds ?? [],
     });
+    // Feature 002 (T023): the keys in `attributeValues` MUST belong to
+    // the Product's AttributeSet. The entity defaults `attributeSetId`
+    // to the system Default Set; future API surface revisions will let
+    // the admin pick a custom Set explicitly. See data-model.md §1.1.
+    await this.assertAttributeValueKeysAllowed(
+      em,
+      product.attributeSetId,
+      req.attributeValues as Record<string, unknown>,
+    );
     try {
       await em.persistAndFlush(product);
     } catch (err) {
@@ -106,6 +115,16 @@ export class CatalogAdminService {
     if (req.stockMode !== undefined) { product.stockMode = req.stockMode; changedFields.push('stockMode'); }
     if (req.visibility) { product.visibility = req.visibility; changedFields.push('visibility'); }
     if (req.attributeValues) {
+      // Feature 002 (T023) — validate the patched keys against the
+      // Product's current AttributeSet. The merged object keys are all
+      // valid as long as both pre-existing and incoming keys live in
+      // the set; we validate the incoming patch only since the existing
+      // values were already validated at their time of write.
+      await this.assertAttributeValueKeysAllowed(
+        em,
+        product.attributeSetId,
+        req.attributeValues as Record<string, unknown>,
+      );
       product.attributeValues = { ...product.attributeValues, ...req.attributeValues };
       changedFields.push('attributeValues');
     }
@@ -244,6 +263,47 @@ export class CatalogAdminService {
   }
 
   // ------------------------------------------------------------------
+
+  /**
+   * Feature 002 (T023) — reject unknown keys in `attributeValues` against
+   * the Product's AttributeSet. Empty input is a no-op (a Product with
+   * zero attribute values is always valid).
+   *
+   * Throws 400 ATTRIBUTE_VALUE_REJECTED with `details: [{ path, issue }]`
+   * listing the rejected keys.
+   */
+  private async assertAttributeValueKeysAllowed(
+    em: EntityManager,
+    attributeSetId: string,
+    attributeValues: Record<string, unknown> | undefined,
+  ): Promise<void> {
+    if (!attributeValues) return;
+    const keys = Object.keys(attributeValues);
+    if (keys.length === 0) return;
+
+    const conn = em.getConnection();
+    const rows = (await conn.execute(
+      `select pa.key
+       from attribute_set_attributes asa
+       join product_attributes pa on pa.id = asa.product_attribute_id
+       where asa.attribute_set_id = ?`,
+      [attributeSetId],
+    )) as Array<{ key: string }>;
+    const allowed = new Set(rows.map((r) => r.key));
+
+    const rejected = keys.filter((k) => !allowed.has(k));
+    if (rejected.length > 0) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.ATTRIBUTE_VALUE_REJECTED,
+        `Attribute key(s) not in this Product's Attribute Set: ${rejected.join(', ')}.`,
+        rejected.map((k) => ({
+          path: `attributeValues.${k}`,
+          issue: 'attribute is not assigned to this Product\'s AttributeSet',
+        })),
+      );
+    }
+  }
 
   private slugify(value: string): string {
     // \p{Diacritic} strips combining marks left over from NFKD normalization

@@ -21,7 +21,10 @@ describe('GET /api/v1/admin/audit-log', () => {
     await h.app.inject({
       method: 'PATCH',
       url: `/api/v1/admin/catalog/products/${SEED_PRODUCT_101_ID}`,
-      payload: { attributeValues: { defaultPrice: 12.34 } },
+      // Feature 002 (T023) — attributeValues keys MUST belong to the
+      // Product's AttributeSet. `internal_sku_notes` is seeded in the
+      // foundation test seed and assigned to the system Default set.
+      payload: { attributeValues: { internal_sku_notes: 'audit-trigger' } },
       cookies: { b2b_session: 'stub-admin-session' },
     });
   });

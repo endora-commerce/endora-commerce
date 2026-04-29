@@ -31,7 +31,10 @@ describe('Audit log on catalog product update', () => {
     const res = await h.app.inject({
       method: 'PATCH',
       url: `/api/v1/admin/catalog/products/${SEED_PRODUCT_101_ID}`,
-      payload: { attributeValues: { defaultPrice: 99.99 } },
+      // Feature 002 (T023) — attributeValues keys MUST belong to the
+      // Product's AttributeSet. `internal_sku_notes` is seeded in the
+      // foundation test seed and assigned to the system Default set.
+      payload: { attributeValues: { internal_sku_notes: 'audit-test-99.99' } },
       cookies: { b2b_session: 'stub-admin-session' },
     });
     expect(res.statusCode).toBe(200);
@@ -50,8 +53,8 @@ describe('Audit log on catalog product update', () => {
     expect(entry!.stateBefore).toBeDefined();
     expect(entry!.stateAfter).toBeDefined();
 
-    // Sanity: the row reflects the new price.
+    // Sanity: the row reflects the new attribute value.
     const product = await h.em().findOne(Product, { id: SEED_PRODUCT_101_ID });
-    expect(Number(product!.attributeValues['defaultPrice'])).toBe(99.99);
+    expect(product!.attributeValues['internal_sku_notes']).toBe('audit-test-99.99');
   });
 });
