@@ -9,6 +9,10 @@ export default mergeConfig(
       environment: 'node',
       include: ['test/**/*.test.ts', 'test/**/*.bench.ts', 'src/**/*.test.ts'],
       setupFiles: [],
+      // Forces DATABASE_URL → b2b_test, auto-creates the DB on first run, and
+      // applies migrations. Runs once in the parent process before any worker
+      // fork; workers inherit the env. See test/global-setup.ts.
+      globalSetup: ['./test/global-setup.ts'],
       // Integration/contract tests share a single Postgres database. Running
       // test files in parallel would race on truncate+seed — pin to a single
       // fork so they execute serially inside one worker.
