@@ -331,7 +331,26 @@ export class CatalogQueryService {
         openGraph: {
           title: nameText,
           description: descriptionText.slice(0, 240),
-          imageUrl: summary.primaryAssetUrl,
+          // T097 — OG image prefers gallery Base Image (then Thumbnail,
+          // then primaryAssetUrl). Base Image is the marketer's hero
+          // shot, so social shares should land on it.
+          imageUrl: (() => {
+            const base = galleryItems
+              .map((g) => ({
+                asset: galleryAssetsById.get(g.assetId) ?? null,
+                labels: labelsByItem.get(g.id) ?? [],
+              }))
+              .find((g) => g.asset && g.labels.includes('base_image'));
+            if (base?.asset) return base.asset.storageUrl;
+            const thumb = galleryItems
+              .map((g) => ({
+                asset: galleryAssetsById.get(g.assetId) ?? null,
+                labels: labelsByItem.get(g.id) ?? [],
+              }))
+              .find((g) => g.asset && g.labels.includes('thumbnail'));
+            if (thumb?.asset) return thumb.asset.storageUrl;
+            return summary.primaryAssetUrl;
+          })(),
         },
       },
       structuredDataJsonLd: {
@@ -606,12 +625,37 @@ export class CatalogQueryService {
     channel: SalesChannel | null,
     preferredLanguage?: string,
   ): Promise<ProductSummary> {
-    // Primary asset
-    const primary = await em.getConnection().execute<{ storage_url: string }[]>(
-      `select a.storage_url from product_assets pa join assets a on a.id = pa.asset_id where pa.product_id = ? order by pa.position asc limit 1`,
+    // Primary asset — for listings prefer the gallery's Thumbnail (US3),
+    // then Base Image, then any first gallery item, finally the legacy
+    // product_assets row. Resolution chain pinned by T096.
+    const galleryRows = await em.getConnection().execute<{
+      storage_url: string;
+      label: string | null;
+      position: number;
+    }[]>(
+      `select a.storage_url, gil.label, gi.position
+         from gallery_items gi
+         join assets a on a.id = gi.asset_id
+         left join gallery_item_labels gil on gil.gallery_item_id = gi.id
+         where gi.product_id = ?
+         order by gi.position asc, gi.id asc`,
       [product.id],
     );
-    const primaryAssetUrl = primary[0]?.storage_url ?? null;
+    let primaryAssetUrl: string | null = null;
+    const findByLabel = (label: string): string | null =>
+      galleryRows.find((r) => r.label === label)?.storage_url ?? null;
+    primaryAssetUrl =
+      findByLabel('thumbnail') ??
+      findByLabel('base_image') ??
+      galleryRows[0]?.storage_url ??
+      null;
+    if (!primaryAssetUrl) {
+      const primary = await em.getConnection().execute<{ storage_url: string }[]>(
+        `select a.storage_url from product_assets pa join assets a on a.id = pa.asset_id where pa.product_id = ? order by pa.position asc limit 1`,
+        [product.id],
+      );
+      primaryAssetUrl = primary[0]?.storage_url ?? null;
+    }
 
     // Category slugs
     const catRows = await em.getConnection().execute<{ slug: string }[]>(

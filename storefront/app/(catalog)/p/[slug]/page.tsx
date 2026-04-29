@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
 import { Breadcrumbs } from '../../../../components/Breadcrumbs';
 import { ProductGallery } from '../../../../components/ProductGallery';
+import { GallerySwitcher } from '../../../../components/GallerySwitcher';
+import { AttachmentsList } from '../../../../components/AttachmentsList';
 import { VariantPicker } from '../../../../components/VariantPicker';
 import { PriceTag } from '../../../../components/PriceTag';
 import { StockBadge } from '../../../../components/StockBadge';
@@ -94,7 +96,11 @@ export default async function ProductPage({
       />
 
       <article className="b2b-pdp">
-        <ProductGallery assets={product.assets} alt={product.name} />
+        {product.gallery && product.gallery.length > 0 ? (
+          <GallerySwitcher gallery={product.gallery} alt={product.name} />
+        ) : (
+          <ProductGallery assets={product.assets} alt={product.name} />
+        )}
         <div>
           <h1>{product.name}</h1>
           <small className="muted">SKU: {product.sku}</small>
@@ -128,6 +134,10 @@ export default async function ProductPage({
                 selectThisVariant: t('product.variants.selectThisVariant'),
               }}
             />
+          ) : null}
+
+          {product.attachments && product.attachments.length > 0 ? (
+            <AttachmentsList attachments={product.attachments} locale={locale} />
           ) : null}
 
           {Object.keys(product.attributeValues).length > 0 ? (
