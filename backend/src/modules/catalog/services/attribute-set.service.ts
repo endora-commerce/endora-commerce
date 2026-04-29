@@ -153,32 +153,170 @@ export class AttributeSetService {
   }
 
   async updateSet(
-    _id: string,
-    _input: UpdateAttributeSetRequest,
+    id: string,
+    input: UpdateAttributeSetRequest,
   ): Promise<AttributeSetDto> {
-    void _id;
-    void _input;
-    throw new Error('not implemented');
+    const em = this.emFactory();
+    const set = await em.findOne(AttributeSet, { id });
+    if (!set) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.ATTRIBUTE_SET_NOT_FOUND,
+        `Attribute Set ${id} not found.`,
+      );
+    }
+
+    // System set rule: `code` is immutable; `name` and `description` may
+    // still be edited. The pure helper raises a typed error which we map
+    // to HTTP 409.
+    try {
+      assertCodeNotImmutable({ isSystem: set.isSystem, code: set.code }, input.code);
+    } catch (err) {
+      if (err instanceof AttributeSetValidationError) {
+        throw new HttpError(409, ERROR_CODES.SYSTEM_ATTRIBUTE_SET_IMMUTABLE, err.message);
+      }
+      throw err;
+    }
+
+    if (input.code !== undefined) set.code = input.code;
+    if (input.name !== undefined) set.name = input.name;
+    if (input.description !== undefined) set.description = input.description;
+
+    try {
+      await em.flush();
+    } catch (err) {
+      if (err instanceof UniqueConstraintViolationException) {
+        throw new HttpError(
+          409,
+          ERROR_CODES.ATTRIBUTE_SET_CODE_TAKEN,
+          `Attribute Set with code "${input.code}" already exists.`,
+        );
+      }
+      throw err;
+    }
+
+    const counts = await this.#computeCounts(em, set.id);
+    return {
+      id: set.id,
+      code: set.code,
+      name: set.name,
+      description: set.description ?? null,
+      isSystem: set.isSystem,
+      attributeCount: counts.attributeCount,
+      productCount: counts.productCount,
+      createdAt: set.createdAt.toISOString(),
+      updatedAt: set.updatedAt.toISOString(),
+    };
   }
 
-  async deleteSet(_id: string): Promise<void> {
-    void _id;
-    throw new Error('not implemented');
+  async deleteSet(id: string): Promise<void> {
+    const em = this.emFactory();
+    const set = await em.findOne(AttributeSet, { id });
+    if (!set) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.ATTRIBUTE_SET_NOT_FOUND,
+        `Attribute Set ${id} not found.`,
+      );
+    }
+
+    // The system Default set is never deletable, even when nothing
+    // references it (the contract test expects this branch precedence
+    // — see specs/002-catalog-module/contracts/catalog-002.contract.md).
+    if (set.isSystem) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.SYSTEM_ATTRIBUTE_SET_IMMUTABLE,
+        `Attribute Set "${set.code}" is systemic and cannot be deleted.`,
+      );
+    }
+
+    const { productCount } = await this.#computeCounts(em, id);
+    try {
+      assertNotInUse(productCount);
+    } catch (err) {
+      if (err instanceof AttributeSetValidationError) {
+        throw new HttpError(409, ERROR_CODES.ATTRIBUTE_SET_IN_USE, err.message, [
+          { path: 'productCount', issue: String(productCount) },
+        ]);
+      }
+      throw err;
+    }
+
+    await em.removeAndFlush(set);
   }
 
   async assignAttributes(
-    _id: string,
-    _input: AssignAttributesRequest,
+    id: string,
+    input: AssignAttributesRequest,
   ): Promise<AttributeSetDetailDto> {
-    void _id;
-    void _input;
-    throw new Error('not implemented');
+    const em = this.emFactory();
+    const set = await em.findOne(AttributeSet, { id });
+    if (!set) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.ATTRIBUTE_SET_NOT_FOUND,
+        `Attribute Set ${id} not found.`,
+      );
+    }
+
+    // Validate every attribute id exists (single round-trip query).
+    const attributeIds = input.assignments.map((a) => a.attributeId);
+    const found = await em.find(ProductAttribute, { id: { $in: attributeIds } });
+    if (found.length !== attributeIds.length) {
+      const foundIds = new Set(found.map((a) => a.id));
+      const missing = attributeIds.filter((aid) => !foundIds.has(aid));
+      throw new HttpError(
+        404,
+        ERROR_CODES.ATTRIBUTE_NOT_FOUND,
+        `Attribute(s) not found: ${missing.join(', ')}.`,
+      );
+    }
+
+    // Default position when omitted: append at the end of the current
+    // assignments. We compute the next-position once per call rather
+    // than per-assignment to avoid a roundtrip per row.
+    const conn = em.getConnection();
+    const rows = (await conn.execute(
+      `select coalesce(max(position), -1) + 1 as next_position
+       from attribute_set_attributes where attribute_set_id = ?`,
+      [id],
+    )) as Array<{ next_position: number }>;
+    let runningTail = rows[0]?.next_position ?? 0;
+    const resolved = input.assignments.map((a) => {
+      if (a.position === undefined) {
+        const pos = runningTail;
+        runningTail += 1;
+        return { attributeId: a.attributeId, position: pos };
+      }
+      return { attributeId: a.attributeId, position: a.position };
+    });
+
+    await this.#insertAssignments(em, id, resolved);
+
+    const attrs = await this.#listAssignedAttributes(em, id);
+    const counts = await this.#computeCounts(em, id);
+    return this.#toDetailDto(set, attrs, counts);
   }
 
-  async unassignAttribute(_id: string, _attributeId: string): Promise<void> {
-    void _id;
-    void _attributeId;
-    throw new Error('not implemented');
+  async unassignAttribute(id: string, attributeId: string): Promise<void> {
+    const em = this.emFactory();
+    const set = await em.findOne(AttributeSet, { id });
+    if (!set) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.ATTRIBUTE_SET_NOT_FOUND,
+        `Attribute Set ${id} not found.`,
+      );
+    }
+    const conn = em.getConnection();
+    // DELETE is idempotent — a missing assignment is a no-op (matches
+    // the "DELETE returns 204 even if it wasn't there" REST convention).
+    await conn.execute(
+      `delete from attribute_set_attributes
+       where attribute_set_id = ? and product_attribute_id = ?`,
+      [id, attributeId],
+    );
   }
 
   // -- INTERNAL HELPERS ------------------------------------------------------
