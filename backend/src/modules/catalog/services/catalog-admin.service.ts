@@ -63,6 +63,9 @@ export class CatalogAdminService {
       visibility: req.visibility,
       attributeValues: req.attributeValues as Record<string, unknown>,
       allowedOrganizationIds: req.allowedOrganizationIds ?? [],
+      // Feature 002 (T034): use the requested AttributeSet, else fall
+      // back to the entity's compile-time default (system Default Set).
+      ...(req.attributeSetId ? { attributeSetId: req.attributeSetId } : {}),
     });
     // Feature 002 (T023): the keys in `attributeValues` MUST belong to
     // the Product's AttributeSet. The entity defaults `attributeSetId`
@@ -114,6 +117,12 @@ export class CatalogAdminService {
     if (req.description) { product.description = req.description; changedFields.push('description'); }
     if (req.stockMode !== undefined) { product.stockMode = req.stockMode; changedFields.push('stockMode'); }
     if (req.visibility) { product.visibility = req.visibility; changedFields.push('visibility'); }
+    // Feature 002 (T034) — attribute_set_id swap. Persist BEFORE
+    // attribute_values so the validation sees the new set's allowed keys.
+    if (req.attributeSetId !== undefined && req.attributeSetId !== product.attributeSetId) {
+      product.attributeSetId = req.attributeSetId;
+      changedFields.push('attributeSetId');
+    }
     if (req.attributeValues) {
       // Feature 002 (T023) — validate the patched keys against the
       // Product's current AttributeSet. The merged object keys are all

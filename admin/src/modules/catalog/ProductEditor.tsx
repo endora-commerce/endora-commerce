@@ -28,6 +28,14 @@ interface AdminProduct {
   description: Record<string, string>;
   visibility: 'public' | 'logged_in_only' | 'organization_restricted';
   attributeValues: Record<string, unknown>;
+  attributeSetId: string;
+}
+
+interface AdminAttributeSet {
+  id: string;
+  code: string;
+  name: Record<string, string>;
+  isSystem: boolean;
 }
 
 interface AdminCategory {
@@ -57,15 +65,25 @@ export function ProductEditor(): ReactNode {
   });
   const [defaultPrice, setDefaultPrice] = useState<string>('');
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
+  // Feature 002 (T034) — Attribute Set selector
+  const [attributeSets, setAttributeSets] = useState<AdminAttributeSet[]>([]);
+  const [attributeSetId, setAttributeSetId] = useState<string>('');
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
     try {
-      const cats = await apiClient.get<{ data: AdminCategory[] }>(
-        '/api/v1/admin/catalog/categories',
-      );
+      const [cats, sets] = await Promise.all([
+        apiClient.get<{ data: AdminCategory[] }>('/api/v1/admin/catalog/categories'),
+        apiClient.get<{ data: AdminAttributeSet[] }>(
+          '/api/v1/admin/catalog/attribute-sets',
+        ),
+      ]);
       setCategories(cats.data);
+      setAttributeSets(sets.data);
+      // Pick the system Default as the initial selection for new Products.
+      const defaultSet = sets.data.find((s) => s.code === 'default');
+      if (isNew && defaultSet) setAttributeSetId(defaultSet.id);
       if (id) {
         const res = await apiClient.get<{ data: AdminProduct }>(
           `/api/v1/admin/catalog/products/${id}`,
@@ -85,13 +103,14 @@ export function ProductEditor(): ReactNode {
         });
         const price = (p.attributeValues['defaultPrice'] as number | undefined) ?? null;
         setDefaultPrice(price != null ? String(price) : '');
+        setAttributeSetId(p.attributeSetId);
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, isNew]);
 
   useEffect(() => {
     void refresh();
@@ -133,6 +152,7 @@ export function ProductEditor(): ReactNode {
               categoryIds,
               attributeValues,
               visibility,
+              ...(attributeSetId ? { attributeSetId } : {}),
             },
           );
           navigate(`/catalog/products/${res.data.id}`);
@@ -145,6 +165,7 @@ export function ProductEditor(): ReactNode {
               categoryIds,
               attributeValues,
               visibility,
+              ...(attributeSetId ? { attributeSetId } : {}),
             },
           );
           setInfo('Saved.');
@@ -265,6 +286,26 @@ export function ProductEditor(): ReactNode {
                     {s}
                   </option>
                 ))}
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pattrset">Attribute Set</Label>
+              <Select
+                id="pattrset"
+                value={attributeSetId}
+                onChange={(e): void => setAttributeSetId(e.target.value)}
+                title="Defines which attributes can be set on this Product. Default ships with every install."
+              >
+                {attributeSets.length === 0 ? (
+                  <option value="">— loading —</option>
+                ) : (
+                  attributeSets.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.code}
+                      {s.isSystem ? ' (system)' : ''}
+                    </option>
+                  ))
+                )}
               </Select>
             </div>
             <div className="space-y-2">

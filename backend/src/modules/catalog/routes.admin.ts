@@ -331,6 +331,10 @@ function serializeAdminProduct(p: Product) {
     stockMode: p.stockMode ?? null,
     attributeValues: p.attributeValues,
     allowedOrganizationIds: p.allowedOrganizationIds ?? [],
+    // Feature 002 (T034) — surface the wired Attribute Set so the
+    // admin Product editor can render the selector with the right
+    // initial value.
+    attributeSetId: p.attributeSetId,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };

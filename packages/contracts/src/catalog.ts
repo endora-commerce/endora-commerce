@@ -205,6 +205,12 @@ export const createProductRequestSchema = z.object({
   allowedOrganizationIds: z.array(uuidSchema).optional(),
   assetIds: z.array(uuidSchema).optional(),
   initialStock: z.number().int().nonnegative().optional(),
+  /**
+   * Feature 002 — Attribute Set the Product is wired to. Optional in the
+   * request: when omitted, the system Default Set is used. The value
+   * MUST be a valid AttributeSet id (T023 service rejects unknown sets).
+   */
+  attributeSetId: uuidSchema.optional(),
 });
 export type CreateProductRequest = z.infer<typeof createProductRequestSchema>;
 
