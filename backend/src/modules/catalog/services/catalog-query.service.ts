@@ -11,6 +11,9 @@ import { AttachmentType } from '../entities/attachment-type.entity.js';
 import { SalesChannel } from '../entities/sales-channel.entity.js';
 import { Asset } from '../../assets/entities/asset.entity.js';
 import type { ProductLinkService } from './product-link.service.js';
+import { GroupedItem } from '../entities/grouped-item.entity.js';
+import { BundleSlot } from '../entities/bundle-slot.entity.js';
+import { BundleSlotOption } from '../entities/bundle-slot-option.entity.js';
 import {
   ERROR_CODES,
   type CategoryNode,
@@ -458,7 +461,185 @@ export class CatalogQueryService {
       };
     }
 
+    // Feature 002 US5 — type-discriminated composite payload. Only the
+    // branch matching `product.type` is populated; other branches are
+    // omitted so the response stays compact and the storefront can do a
+    // simple type switch.
+    if (product.type === 'grouped') {
+      const items = await em.find(
+        GroupedItem,
+        { parentProductId: product.id },
+        { orderBy: { position: 'asc', id: 'asc' } },
+      );
+      const childIds = items.map((i) => i.childProductId);
+      const summaries = await this.summariesForIds(em, childIds, ctx, channel);
+      detail.groupedItems = items.flatMap((i) => {
+        const summary = summaries.get(i.childProductId);
+        if (!summary) return [];
+        return [{ id: i.id, position: i.position, quantity: i.quantity, product: summary }];
+      });
+    } else if (product.type === 'bundle') {
+      const slots = await em.find(
+        BundleSlot,
+        { parentProductId: product.id },
+        { orderBy: { position: 'asc', id: 'asc' } },
+      );
+      const slotIds = slots.map((s) => s.id);
+      const options =
+        slotIds.length > 0
+          ? await em.find(
+              BundleSlotOption,
+              { slotId: { $in: slotIds } },
+              { orderBy: { position: 'asc', id: 'asc' } },
+            )
+          : [];
+      const optsBySlot = new Map<string, BundleSlotOption[]>();
+      for (const opt of options) {
+        const list = optsBySlot.get(opt.slotId) ?? [];
+        list.push(opt);
+        optsBySlot.set(opt.slotId, list);
+      }
+      const optionProductIds = [...new Set(options.map((o) => o.optionProductId))];
+      const summaries = await this.summariesForIds(em, optionProductIds, ctx, channel);
+      detail.bundleSlots = slots.map((s) => ({
+        id: s.id,
+        name: s.name,
+        minQuantity: s.minQuantity,
+        maxQuantity: s.maxQuantity,
+        position: s.position,
+        options: (optsBySlot.get(s.id) ?? []).flatMap((o) => {
+          const summary = summaries.get(o.optionProductId);
+          if (!summary) return [];
+          return [
+            {
+              id: o.id,
+              defaultQuantity: o.defaultQuantity,
+              position: o.position,
+              product: summary,
+            },
+          ];
+        }),
+      }));
+    } else if (product.type === 'virtual') {
+      detail.virtual = {
+        downloadAssetId: product.downloadAssetId ?? null,
+        downloadUrl: product.downloadUrl ?? null,
+      };
+    }
+
     return detail;
+  }
+
+  /**
+   * Resolve a batch of products into storefront-shape summaries (id, sku,
+   * slug, localized name, primary asset url via gallery thumb chain,
+   * price honoring sales-channel public flag). Used by US5 composite
+   * eager-load — keeps the per-product fanout to a constant 3-4 queries
+   * regardless of how many children/options a parent has.
+   */
+  private async summariesForIds(
+    em: EntityManager,
+    ids: string[],
+    ctx: CatalogQueryContext,
+    channel: SalesChannel | null,
+  ): Promise<
+    Map<
+      string,
+      {
+        id: string;
+        sku: string;
+        slug: string;
+        name: string;
+        primaryAssetUrl: string | null;
+        price: { amount: number; currency: string } | null;
+      }
+    >
+  > {
+    const result = new Map<string, {
+      id: string;
+      sku: string;
+      slug: string;
+      name: string;
+      primaryAssetUrl: string | null;
+      price: { amount: number; currency: string } | null;
+    }>();
+    if (ids.length === 0) return result;
+    const products = await em.find(Product, { id: { $in: ids } });
+
+    // Primary asset url via gallery thumb chain → base_image → first item
+    // → legacy product_assets first row (mirrors toSummary).
+    const galleryRows = await em.getConnection().execute<{
+      product_id: string;
+      storage_url: string;
+      label: string | null;
+      position: number;
+    }[]>(
+      `select gi.product_id, a.storage_url, gil.label, gi.position
+         from gallery_items gi
+         join assets a on a.id = gi.asset_id
+         left join gallery_item_labels gil on gil.gallery_item_id = gi.id
+         where gi.product_id in (${ids.map(() => '?').join(',')})
+         order by gi.product_id, gi.position asc, gi.id asc`,
+      ids,
+    );
+    const galleryByProduct = new Map<string, typeof galleryRows>();
+    for (const row of galleryRows) {
+      const list = galleryByProduct.get(row.product_id) ?? [];
+      list.push(row);
+      galleryByProduct.set(row.product_id, list);
+    }
+    const assetUrlByProduct = new Map<string, string | null>();
+    for (const id of ids) {
+      const gallery = galleryByProduct.get(id) ?? [];
+      const findByLabel = (label: string): string | null =>
+        gallery.find((r) => r.label === label)?.storage_url ?? null;
+      const url =
+        findByLabel('thumbnail') ??
+        findByLabel('base_image') ??
+        gallery[0]?.storage_url ??
+        null;
+      assetUrlByProduct.set(id, url);
+    }
+    const missing = ids.filter((id) => !assetUrlByProduct.get(id));
+    if (missing.length > 0) {
+      const legacy = await em.getConnection().execute<{
+        product_id: string;
+        storage_url: string;
+      }[]>(
+        `select pa.product_id, a.storage_url
+           from product_assets pa join assets a on a.id = pa.asset_id
+           where pa.product_id in (${missing.map(() => '?').join(',')})
+           order by pa.product_id, pa.position asc`,
+        missing,
+      );
+      const seen = new Set<string>();
+      for (const row of legacy) {
+        if (seen.has(row.product_id)) continue;
+        seen.add(row.product_id);
+        assetUrlByProduct.set(row.product_id, row.storage_url);
+      }
+    }
+
+    const isPublic = channel?.isPublic ?? true;
+    for (const p of products) {
+      const rawPrice = Number(
+        p.attributeValues['defaultPrice'] ??
+          p.attributeValues['price'] ??
+          Number.NaN,
+      );
+      const currency = channel?.defaultCurrency ?? 'PLN';
+      const price =
+        isPublic && Number.isFinite(rawPrice) ? { amount: rawPrice, currency } : null;
+      result.set(p.id, {
+        id: p.id,
+        sku: p.sku,
+        slug: p.slug,
+        name: this.pickLang(p.name, ctx.preferredLanguage, channel),
+        primaryAssetUrl: assetUrlByProduct.get(p.id) ?? null,
+        price,
+      });
+    }
+    return result;
   }
 
   // ------------------------------------------------------------------
