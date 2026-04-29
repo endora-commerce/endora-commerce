@@ -20,7 +20,8 @@ export class Product {
     | 'stockMode'
     | 'deletedAt'
     | 'archivedAt'
-    | 'allowedOrganizationIds';
+    | 'allowedOrganizationIds'
+    | 'attributeSetId';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -65,6 +66,19 @@ export class Product {
    */
   @Property({ type: 'json' })
   allowedOrganizationIds: string[] = [];
+
+  /**
+   * Attribute Set the Product is wired to (feature 002, data-model.md §1.1).
+   * Backfilled by migration 017 to the system Default set; never null.
+   * Validation of `attributeValues` is performed against this set's
+   * attributes by `catalog-admin.service.ts` (T023).
+   *
+   * Default value matches `Migration017AttributeSetsInit.DEFAULT_ATTRIBUTE_SET_ID`
+   * — the deterministic UUID of the system Default set. Inlined here as a
+   * literal so the entity has zero migration-package dependencies.
+   */
+  @Property({ type: 'uuid' })
+  attributeSetId: string = '00000000-0000-0000-0000-0000000a5e70';
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   @Index()
