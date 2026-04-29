@@ -122,6 +122,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       ...(options.resolveAdminAuditContext
         ? { resolveAdminAuditContext: options.resolveAdminAuditContext }
         : {}),
+      ...(options.auditLogService ? { auditLogService: options.auditLogService } : {}),
     });
   };
 }

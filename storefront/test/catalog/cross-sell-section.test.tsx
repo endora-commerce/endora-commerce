@@ -11,7 +11,7 @@ import { CrossSellSection } from '../../components/CrossSellSection';
  *   - One card per link with name + price + product link href
  *   - Deduplicates across cart items: when the same target appears via
  *     multiple cart entries, it's rendered once
- *   - Single section heading "Dokup także" / "You may also need"
+ *   - Single section heading "You may also need"
  */
 
 type LinkSummary = {

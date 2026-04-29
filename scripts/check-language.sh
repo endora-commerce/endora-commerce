@@ -4,21 +4,31 @@
 #
 # Constitution v2.0.0 narrowed Principle VIII: only **source code**
 # (in-code identifiers + inline comments + non-user-facing string literals)
-# must be English. Documentation, planning artifacts, governance documents,
-# commit messages, PR descriptions, and code-review comments MAY be in any
-# language. This script reflects that scope.
+# must be English. Specs, plans, governance documents, commit messages,
+# and PR descriptions MAY be in any language.
 #
-# Scanned file extensions:
+# Constitution v2.1.0 carved out a separate rule for the documentation
+# site: every page under `docs/docs/**/*.md` MUST be in English so the
+# generated docs read consistently regardless of the contributor's
+# native language. This script enforces both scopes.
+#
+# Scanned file extensions (source-code scope, Polish-diacritics regex):
 #   .ts .tsx .js .jsx .cjs .mjs .cts .mts   — TypeScript / JavaScript
 #   .css .scss                              — stylesheets
 #   .html                                   — HTML templates
 #   .sh                                     — shell scripts
-# Everything else (Markdown, YAML, JSON, SQL, Dockerfile, plain text,
-# images, lockfiles, …) is OUT OF SCOPE.
+# Everything else (YAML, JSON, SQL, Dockerfile, plain text, images,
+# lockfiles, ...) is OUT OF SCOPE for the source-code rule.
+#
+# Docs-site scope (Constitution v2.1.0, T154):
+#   docs/docs/**/*.md and docs/docs/**/*.mdx — same Polish-diacritics
+#   regex; documentation MUST be English. Spec markdown
+#   (specs/**/*.md), READMEs, and other project markdown stay
+#   out-of-scope per v2.0.0.
 #
 # Modes:
-#   --diff   scan only files changed against $BASE_REF (defaults to origin/main).
-#   (none)   full-tree scan over every tracked source file.
+#   --diff   scan only files changed against $BASE_REF (defaults to origin/master).
+#   (none)   full-tree scan over every tracked file in scope.
 
 set -euo pipefail
 
@@ -33,7 +43,7 @@ if [[ "${1:-}" == "--diff" ]]; then
   mode="diff"
 fi
 
-base_ref="${BASE_REF:-origin/main}"
+base_ref="${BASE_REF:-origin/master}"
 
 # Where source files MAY contain non-English content per Principle VIII's
 # end-customer-content carve-out:
@@ -42,6 +52,12 @@ base_ref="${BASE_REF:-origin/main}"
 #   - backend/src/modules/*/email-templates/locales/**
 #   - backend/test/helpers/seed-*.ts         — fixtures simulating customer
 #                                               content (Polish addresses, etc.)
+#   - backend/src/modules/*/migrations/**    — shipped seed rows often
+#                                               include pl-PL multilingual
+#                                               labels for customer-facing
+#                                               content (jsonb name/description)
+#   - backend/src/modules/*/seeds/**         — dev seed scripts for the same
+#                                               reason
 exceptions=(
   ':(exclude)node_modules/**'
   ':(exclude).pnpm-store/**'
@@ -53,6 +69,8 @@ exceptions=(
   ':(exclude)storefront/public/locales/**'
   ':(exclude)storefront/messages/**'
   ':(exclude)backend/src/modules/*/email-templates/locales/**'
+  ':(exclude)backend/src/modules/*/migrations/**'
+  ':(exclude)backend/src/modules/*/seeds/**'
   ':(exclude)backend/test/helpers/seed-*.ts'
   ':(exclude)scripts/check-language.sh'
 )
@@ -109,8 +127,38 @@ if [ "${#tracked[@]}" -gt 0 ]; then
   done
 fi
 
+# --- Docs-site scope (Constitution v2.1.0, T154) ---------------------------
+# Scan docs/docs/**/*.{md,mdx} for the same Polish diacritics. Specs and
+# other project markdown stay out-of-scope.
+
+docs_globs=(
+  'docs/docs/**/*.md'
+  'docs/docs/**/*.mdx'
+)
+
+if [[ "$mode" == "diff" ]] && git rev-parse --verify --quiet "$base_ref" >/dev/null; then
+  mapfile -t docs_files < <(
+    git diff --name-only --diff-filter=ACMR "$base_ref"...HEAD -- "${docs_globs[@]}" 2>/dev/null || true
+  )
+else
+  mapfile -t docs_files < <(
+    git ls-files --cached --others --exclude-standard -- "${docs_globs[@]}" 2>/dev/null || true
+  )
+fi
+
+if [ "${#docs_files[@]}" -gt 0 ]; then
+  for f in "${docs_files[@]}"; do
+    [ -f "$f" ] || continue
+    if LC_ALL=C.UTF-8 grep -nP "$pattern" "$f" >/dev/null 2>&1; then
+      red "✗ Non-English characters in docs file $f:"
+      LC_ALL=C.UTF-8 grep -nP "$pattern" "$f" | sed 's/^/    /'
+      fail=1
+    fi
+  done
+fi
+
 if [ "$fail" -eq 0 ]; then
-  green "✓ Working language OK ($mode mode) — source-code scope only per Constitution Principle VIII v2.0.0"
+  green "✓ Working language OK ($mode mode) — source-code (Principle VIII v2.0.0) + /docs/ (v2.1.0)"
   exit 0
 fi
 exit 1

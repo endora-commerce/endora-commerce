@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { ProductLinkSummary } from './ProductLinksSections';
 
 /**
- * Feature 002 US4 — "Dokup także" / "You may also need" section on the
+ * Feature 002 US4 — "You may also need" section on the
  * cart page. Receives the union of cross-sell links across all cart
  * items; deduplicates by product id so the same target shows up once
  * even when reached via multiple cart entries.

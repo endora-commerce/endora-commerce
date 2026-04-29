@@ -6,9 +6,9 @@ export type ProductLinkKind = 'related' | 'up_sell' | 'cross_sell';
 /**
  * ProductLink — directed link between two Products (feature 002 US4,
  * data-model.md §2.7). The link `kind` determines where it surfaces:
- *   - `related`  : "Powiązane" section on PDP
- *   - `up_sell`  : "Może Cię zainteresować" on PDP
- *   - `cross_sell`: "Dokup także" on cart
+ *   - `related`  : "Related products" section on PDP
+ *   - `up_sell`  : "You might also like" on PDP
+ *   - `cross_sell`: "You may also need" on cart
  *
  * DB-level guarantees (migration 022): self-link rejected by CHECK
  * constraint; duplicate (source, target, kind) rejected by UNIQUE; both

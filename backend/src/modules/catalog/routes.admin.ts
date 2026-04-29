@@ -36,6 +36,7 @@ import type { AttachmentService } from './services/attachment.service.js';
 import type { ProductLinkService } from './services/product-link.service.js';
 import type { GroupedService } from './services/grouped.service.js';
 import type { BundleService } from './services/bundle.service.js';
+import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { Product } from './entities/product.entity.js';
 import type { ProductAttribute } from './entities/product-attribute.entity.js';
 import type { Category } from './entities/category.entity.js';
@@ -87,6 +88,13 @@ export interface CatalogAdminDeps {
     actorAdminUserId: string;
     impersonatedCustomerAccountId?: string | null;
   };
+  /**
+   * Audit-log writer used by the route layer to emit FR-084 entries for
+   * every catalog mutation introduced in feature 002 (AttributeSet,
+   * Gallery, Attachment, ProductLink, GroupedItem, BundleSlot CRUD).
+   * Optional so tests that don't wire it up stay green.
+   */
+  auditLogService?: AuditLogService;
 }
 
 export async function registerCatalogAdminRoutes(
@@ -94,6 +102,47 @@ export async function registerCatalogAdminRoutes(
   deps: CatalogAdminDeps,
 ): Promise<void> {
   const { adminService, requireAdmin } = deps;
+
+  /**
+   * Feature 002 T155 — fire-and-forget audit log helper used by the
+   * sub-resource handlers (AttributeSet, Gallery, Attachment,
+   * ProductLink, GroupedItem, BundleSlot CRUD). The product CRUD path
+   * (T060/T065-era) does its own audit emission inside `CatalogAdminService`;
+   * this helper covers everything else without a service-layer rewrite.
+   *
+   * Silently no-ops when either `auditLogService` or
+   * `resolveAdminAuditContext` is missing (dev/test setups), so the
+   * call site is safe to drop in everywhere.
+   */
+  const auditEmit = async (
+    request: FastifyRequest,
+    opts: {
+      action: string;
+      objectType: string;
+      objectId: string;
+      stateAfter?: Record<string, unknown> | null;
+    },
+  ): Promise<void> => {
+    if (!deps.auditLogService) return;
+    const ctx = deps.resolveAdminAuditContext?.(request);
+    await deps.auditLogService.record({
+      action: opts.action,
+      objectType: opts.objectType,
+      objectId: opts.objectId,
+      ...(ctx?.actorAdminUserId !== undefined
+        ? { actorAdminUserId: ctx.actorAdminUserId }
+        : {}),
+      ...(ctx?.impersonatedCustomerAccountId !== undefined
+        ? { impersonatedCustomerAccountId: ctx.impersonatedCustomerAccountId }
+        : {}),
+      ...(opts.stateAfter !== undefined ? { stateAfter: opts.stateAfter } : {}),
+      ...(request.ip !== undefined ? { ipAddress: request.ip } : {}),
+      ...(typeof request.headers['user-agent'] === 'string'
+        ? { userAgent: request.headers['user-agent'] }
+        : {}),
+      requestId: request.id,
+    });
+  };
 
   app.post(
     '/api/v1/admin/catalog/products',
@@ -307,6 +356,11 @@ export async function registerCatalogAdminRoutes(
         const body = createAttributeSetRequestSchema.parse(request.body);
         const detail = await attrSetService.createSet(body);
         reply.status(201);
+        await auditEmit(request, {
+          action: 'attribute_set.create',
+          objectType: 'attribute_set',
+          objectId: detail.id,
+        });
         return { data: detail };
       },
     );
@@ -320,6 +374,11 @@ export async function registerCatalogAdminRoutes(
       async (request) => {
         const body = updateAttributeSetRequestSchema.parse(request.body);
         const set = await attrSetService.updateSet(request.params.id, body);
+        await auditEmit(request, {
+          action: 'attribute_set.update',
+          objectType: 'attribute_set',
+          objectId: request.params.id,
+        });
         return { data: set };
       },
     );
@@ -329,6 +388,11 @@ export async function registerCatalogAdminRoutes(
       { preHandler: requireAdmin('catalog:write') },
       async (request, reply) => {
         await attrSetService.deleteSet(request.params.id);
+        await auditEmit(request, {
+          action: 'attribute_set.delete',
+          objectType: 'attribute_set',
+          objectId: request.params.id,
+        });
         reply.status(204).send();
       },
     );
@@ -342,6 +406,11 @@ export async function registerCatalogAdminRoutes(
       async (request) => {
         const body = assignAttributesRequestSchema.parse(request.body);
         const detail = await attrSetService.assignAttributes(request.params.id, body);
+        await auditEmit(request, {
+          action: 'attribute_set.assign_attributes',
+          objectType: 'attribute_set',
+          objectId: request.params.id,
+        });
         return { data: detail };
       },
     );
@@ -354,6 +423,11 @@ export async function registerCatalogAdminRoutes(
           request.params.id,
           request.params.attributeId,
         );
+        await auditEmit(request, {
+          action: 'attribute_set.unassign_attribute',
+          objectType: 'attribute_set',
+          objectId: request.params.id,
+        });
         reply.status(204).send();
       },
     );
@@ -384,6 +458,11 @@ export async function registerCatalogAdminRoutes(
           replaceConflictingLabels: request.query.replace === 'true',
         });
         reply.status(201);
+        await auditEmit(request, {
+          action: 'gallery.create',
+          objectType: 'gallery_item',
+          objectId: item.id,
+        });
         return { data: item };
       },
     );
@@ -405,6 +484,11 @@ export async function registerCatalogAdminRoutes(
           body,
           { replaceConflictingLabels: request.query.replace === 'true' },
         );
+        await auditEmit(request, {
+          action: 'gallery.update',
+          objectType: 'gallery_item',
+          objectId: request.params.itemId,
+        });
         return { data: item };
       },
     );
@@ -414,6 +498,11 @@ export async function registerCatalogAdminRoutes(
       { preHandler: requireAdmin('catalog:write') },
       async (request, reply) => {
         await gallery.delete(request.params.productId, request.params.itemId);
+        await auditEmit(request, {
+          action: 'gallery.delete',
+          objectType: 'gallery_item',
+          objectId: request.params.itemId,
+        });
         reply.status(204).send();
       },
     );
@@ -427,6 +516,11 @@ export async function registerCatalogAdminRoutes(
       async (request, reply) => {
         const body = reorderGalleryRequestSchema.parse(request.body);
         await gallery.reorder(request.params.productId, body.orderedGalleryItemIds);
+        await auditEmit(request, {
+          action: 'gallery.reorder',
+          objectType: 'product',
+          objectId: request.params.productId,
+        });
         reply.status(204).send();
       },
     );
@@ -452,6 +546,11 @@ export async function registerCatalogAdminRoutes(
         const body = createAttachmentTypeRequestSchema.parse(request.body);
         const type = await att.createType(body);
         reply.status(201);
+        await auditEmit(request, {
+          action: 'attachment_type.create',
+          objectType: 'attachment_type',
+          objectId: type.id,
+        });
         return { data: type };
       },
     );
@@ -465,6 +564,11 @@ export async function registerCatalogAdminRoutes(
       async (request) => {
         const body = updateAttachmentTypeRequestSchema.parse(request.body);
         const type = await att.updateType(request.params.id, body);
+        await auditEmit(request, {
+          action: 'attachment_type.update',
+          objectType: 'attachment_type',
+          objectId: request.params.id,
+        });
         return { data: type };
       },
     );
@@ -474,6 +578,11 @@ export async function registerCatalogAdminRoutes(
       { preHandler: requireAdmin('catalog:write') },
       async (request, reply) => {
         await att.deleteType(request.params.id);
+        await auditEmit(request, {
+          action: 'attachment_type.delete',
+          objectType: 'attachment_type',
+          objectId: request.params.id,
+        });
         reply.status(204).send();
       },
     );
@@ -496,6 +605,11 @@ export async function registerCatalogAdminRoutes(
         const body = createAttachmentRequestSchema.parse(request.body);
         const a = await att.createAttachment(request.params.productId, body);
         reply.status(201);
+        await auditEmit(request, {
+          action: 'attachment.create',
+          objectType: 'product_attachment',
+          objectId: a.id,
+        });
         return { data: a };
       },
     );
@@ -513,6 +627,11 @@ export async function registerCatalogAdminRoutes(
           request.params.attachmentId,
           body,
         );
+        await auditEmit(request, {
+          action: 'attachment.update',
+          objectType: 'product_attachment',
+          objectId: request.params.attachmentId,
+        });
         return { data: a };
       },
     );
@@ -525,6 +644,11 @@ export async function registerCatalogAdminRoutes(
           request.params.productId,
           request.params.attachmentId,
         );
+        await auditEmit(request, {
+          action: 'attachment.delete',
+          objectType: 'product_attachment',
+          objectId: request.params.attachmentId,
+        });
         reply.status(204).send();
       },
     );
@@ -605,6 +729,18 @@ export async function registerCatalogAdminRoutes(
         const body = bulkCreateLinksRequestSchema.parse(request.body);
         const rows = await links.bulkCreate(request.params.id, body.links);
         reply.status(201);
+        for (const row of rows) {
+          await auditEmit(request, {
+            action: 'product_link.create',
+            objectType: 'product_link',
+            objectId: row.id,
+            stateAfter: {
+              sourceProductId: row.sourceProductId,
+              targetProductId: row.targetProductId,
+              kind: row.kind,
+            },
+          });
+        }
         return { data: rows };
       },
     );
@@ -614,6 +750,11 @@ export async function registerCatalogAdminRoutes(
       { preHandler: requireAdmin('catalog:write') },
       async (request, reply) => {
         await links.removeLink(request.params.id, request.params.linkId);
+        await auditEmit(request, {
+          action: 'product_link.delete',
+          objectType: 'product_link',
+          objectId: request.params.linkId,
+        });
         reply.status(204).send();
       },
     );
@@ -628,6 +769,12 @@ export async function registerCatalogAdminRoutes(
         const kind = productLinkKindSchema.parse(request.params.kind);
         const body = reorderLinksRequestSchema.parse(request.body);
         await links.reorderForKind(request.params.id, kind, body.linkIds);
+        await auditEmit(request, {
+          action: 'product_link.reorder',
+          objectType: 'product',
+          objectId: request.params.id,
+          stateAfter: { kind, linkIds: body.linkIds },
+        });
         return { data: { ok: true } };
       },
     );
@@ -661,6 +808,16 @@ export async function registerCatalogAdminRoutes(
           ...(body.position !== undefined ? { position: body.position } : {}),
         });
         reply.status(201);
+        await auditEmit(request, {
+          action: 'grouped_item.create',
+          objectType: 'grouped_item',
+          objectId: row.id,
+          stateAfter: {
+            parentProductId: row.parentProductId,
+            childProductId: row.childProductId,
+            quantity: row.quantity,
+          },
+        });
         return { data: row };
       },
     );
@@ -681,6 +838,11 @@ export async function registerCatalogAdminRoutes(
             ...(body.position !== undefined ? { position: body.position } : {}),
           },
         );
+        await auditEmit(request, {
+          action: 'grouped_item.update',
+          objectType: 'grouped_item',
+          objectId: request.params.itemId,
+        });
         return { data: row };
       },
     );
@@ -690,6 +852,11 @@ export async function registerCatalogAdminRoutes(
       { preHandler: requireAdmin('catalog:write') },
       async (request, reply) => {
         await grouped.removeItem(request.params.id, request.params.itemId);
+        await auditEmit(request, {
+          action: 'grouped_item.delete',
+          objectType: 'grouped_item',
+          objectId: request.params.itemId,
+        });
         reply.status(204).send();
       },
     );
@@ -724,6 +891,11 @@ export async function registerCatalogAdminRoutes(
           ...(body.position !== undefined ? { position: body.position } : {}),
         });
         reply.status(201);
+        await auditEmit(request, {
+          action: 'bundle_slot.create',
+          objectType: 'bundle_slot',
+          objectId: row.id,
+        });
         return { data: row };
       },
     );
@@ -746,6 +918,11 @@ export async function registerCatalogAdminRoutes(
             ...(body.position !== undefined ? { position: body.position } : {}),
           },
         );
+        await auditEmit(request, {
+          action: 'bundle_slot.update',
+          objectType: 'bundle_slot',
+          objectId: request.params.slotId,
+        });
         return { data: row };
       },
     );
@@ -755,6 +932,11 @@ export async function registerCatalogAdminRoutes(
       { preHandler: requireAdmin('catalog:write') },
       async (request, reply) => {
         await bundle.deleteSlot(request.params.id, request.params.slotId);
+        await auditEmit(request, {
+          action: 'bundle_slot.delete',
+          objectType: 'bundle_slot',
+          objectId: request.params.slotId,
+        });
         reply.status(204).send();
       },
     );
@@ -779,6 +961,15 @@ export async function registerCatalogAdminRoutes(
           },
         );
         reply.status(201);
+        await auditEmit(request, {
+          action: 'bundle_slot_option.create',
+          objectType: 'bundle_slot_option',
+          objectId: row.id,
+          stateAfter: {
+            slotId: row.slotId,
+            optionProductId: row.optionProductId,
+          },
+        });
         return { data: row };
       },
     );
@@ -792,6 +983,11 @@ export async function registerCatalogAdminRoutes(
           request.params.slotId,
           request.params.optionId,
         );
+        await auditEmit(request, {
+          action: 'bundle_slot_option.delete',
+          objectType: 'bundle_slot_option',
+          objectId: request.params.optionId,
+        });
         reply.status(204).send();
       },
     );
