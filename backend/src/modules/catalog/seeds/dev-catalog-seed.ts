@@ -80,8 +80,12 @@ async function main(): Promise<void> {
       sales_channel_products,
       product_categories,
       product_assets,
+      product_attachments,
+      gallery_item_labels,
+      gallery_items,
       product_attributes,
       products,
+      assets,
       categories,
       sales_channels,
       customer_accounts,
@@ -310,6 +314,43 @@ async function main(): Promise<void> {
     `insert into sales_channel_products (sales_channel_id, product_id) values ${salesChannelProductRows.join(', ')}`,
     salesChannelProductParams,
   );
+
+  // --- Sample Attachments (T080, US3) ---------------------------------
+  // Seed two PDF Assets and attach each to the first three simple
+  // products as Certificate / Tech spec respectively, so the storefront
+  // PDP renders the AttachmentsList without an admin needing to upload.
+  const certAssetId = crypto.randomUUID();
+  const specAssetId = crypto.randomUUID();
+  await conn.execute(
+    `insert into assets (id, kind, filename, mime_type, size_bytes, storage_url, created_at, updated_at)
+     values
+       (?, 'pdf', 'sample-certificate.pdf', 'application/pdf', 102400, 'https://example.test/sample-certificate.pdf', now(), now()),
+       (?, 'pdf', 'sample-tech-spec.pdf',   'application/pdf', 204800, 'https://example.test/sample-tech-spec.pdf',   now(), now())`,
+    [certAssetId, specAssetId],
+  );
+  const [certType] = await conn.execute<{ id: string }[]>(
+    `select id from attachment_types where code = 'certificate' limit 1`,
+  );
+  const [specType] = await conn.execute<{ id: string }[]>(
+    `select id from attachment_types where code = 'tech_spec' limit 1`,
+  );
+  if (certType && specType) {
+    const targetProducts = products.slice(0, Math.min(3, products.length));
+    for (const [idx, p] of targetProducts.entries()) {
+      await conn.execute(
+        `insert into product_attachments (id, product_id, asset_id, attachment_type_id, name, description, position, created_at, updated_at)
+         values
+           (?, ?, ?, ?, ?, ?, 0, now(), now()),
+           (?, ?, ?, ?, ?, ?, 1, now(), now())`,
+        [
+          crypto.randomUUID(), p.id, certAssetId, certType.id,
+          `CE Marking ${idx + 1}`, 'Manufacturer-issued conformity statement.',
+          crypto.randomUUID(), p.id, specAssetId, specType.id,
+          `Datasheet ${idx + 1}`, null,
+        ],
+      );
+    }
+  }
 
   // --- Demo Organization + buyer --------------------------------------
   const adminPasswordHash = await hashPassword(DEMO_ADMIN_PASSWORD);

@@ -62,6 +62,7 @@ const NAV: NavSection[] = [
       { to: '/catalog/categories', label: 'Categories', icon: Boxes },
       { to: '/catalog/attributes', label: 'Attributes', icon: Tag },
       { to: '/catalog/attribute-sets', label: 'Attribute Sets', icon: Tag },
+      { to: '/catalog/attachment-types', label: 'Attachment Types', icon: FileText },
       { to: '/inventory', label: 'Inventory', icon: Factory },
     ],
   },

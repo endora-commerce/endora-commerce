@@ -423,6 +423,12 @@ export function ProductEditor(): ReactNode {
     {!isNew && id && type === 'configurable' ? (
       <VariantsSection productId={id} />
     ) : null}
+    {!isNew && id ? (
+      <>
+        <GallerySection productId={id} />
+        <AttachmentsSection productId={id} />
+      </>
+    ) : null}
     </>
   );
 }
@@ -663,6 +669,612 @@ function CreateVariantInline({
           }}
         >
           + Add variant
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Gallery section (T085) — admin CRUD for the Product's gallery items.
+// Foundation lacks an admin Asset upload endpoint, so for now the form
+// accepts an existing assetId; future work adds drag-and-drop on top of
+// an Assets module admin upload route.
+// ---------------------------------------------------------------------------
+
+const GALLERY_LABELS = ['base_image', 'small_image', 'thumbnail'] as const;
+type GalleryLabel = (typeof GALLERY_LABELS)[number];
+
+interface AdminGalleryItem {
+  id: string;
+  productId: string;
+  assetId: string;
+  position: number;
+  labels: GalleryLabel[];
+  asset?: { url: string; kind: string };
+}
+
+function GallerySection({ productId }: { productId: string }): ReactNode {
+  const [items, setItems] = useState<AdminGalleryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+
+  const refresh = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Public PDP carries the resolved gallery (with asset urls) so
+      // admins see the same shape customers do; the admin GET returns
+      // bare ids without urls.
+      const res = await apiClient.get<{
+        data: {
+          gallery?: Array<{
+            id: string;
+            position: number;
+            labels: GalleryLabel[];
+            asset: { id: string; kind: string; url: string };
+          }>;
+        };
+      }>(`/api/v1/catalog/products/${productId}`);
+      const gallery = res.data.gallery ?? [];
+      setItems(
+        gallery.map((g) => ({
+          id: g.id,
+          productId,
+          assetId: g.asset.id,
+          position: g.position,
+          labels: g.labels,
+          asset: { url: g.asset.url, kind: g.asset.kind },
+        })),
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Load failed.');
+    } finally {
+      setLoading(false);
+    }
+  }, [productId]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const handleCreate = useCallback(
+    async (input: { assetId: string; labels: GalleryLabel[]; replace: boolean }): Promise<void> => {
+      try {
+        const url = `/api/v1/admin/catalog/products/${productId}/gallery${
+          input.replace ? '?replace=true' : ''
+        }`;
+        await apiClient.post(url, {
+          assetId: input.assetId,
+          labels: input.labels,
+        });
+        setInfo('Gallery item added.');
+        await refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Add failed.');
+      }
+    },
+    [productId, refresh],
+  );
+
+  const handleUpdateLabels = useCallback(
+    async (itemId: string, labels: GalleryLabel[], replace: boolean): Promise<void> => {
+      try {
+        const url = `/api/v1/admin/catalog/products/${productId}/gallery/${itemId}${
+          replace ? '?replace=true' : ''
+        }`;
+        await apiClient.patch(url, { labels });
+        setInfo('Labels updated.');
+        await refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Update failed.');
+      }
+    },
+    [productId, refresh],
+  );
+
+  const handleDelete = useCallback(
+    async (itemId: string): Promise<void> => {
+      if (!confirm('Remove this gallery item?')) return;
+      try {
+        await apiClient.delete(`/api/v1/admin/catalog/products/${productId}/gallery/${itemId}`);
+        setInfo('Gallery item removed.');
+        await refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+      }
+    },
+    [productId, refresh],
+  );
+
+  return (
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle>Gallery</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        {info ? (
+          <Alert>
+            <AlertDescription>{info}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : items.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No gallery items yet. Add one below by pasting an existing Asset id.
+          </p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Preview</TableHead>
+                <TableHead>Labels</TableHead>
+                <TableHead>Position</TableHead>
+                <TableHead>Asset id</TableHead>
+                <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((item) => (
+                <GalleryRow
+                  key={item.id}
+                  item={item}
+                  onUpdate={handleUpdateLabels}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </TableBody>
+          </Table>
+        )}
+
+        <CreateGalleryItemInline onCreate={handleCreate} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function GalleryRow({
+  item,
+  onUpdate,
+  onDelete,
+}: {
+  item: AdminGalleryItem;
+  onUpdate: (id: string, labels: GalleryLabel[], replace: boolean) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}): ReactNode {
+  const [labels, setLabels] = useState<GalleryLabel[]>(item.labels);
+  const [replace, setReplace] = useState(false);
+
+  const toggleLabel = (label: GalleryLabel): void => {
+    setLabels((prev) =>
+      prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label],
+    );
+  };
+
+  return (
+    <TableRow>
+      <TableCell>
+        {item.asset?.url ? (
+          <img
+            src={item.asset.url}
+            alt=""
+            className="h-12 w-12 rounded border object-cover"
+          />
+        ) : (
+          <span className="text-muted-foreground text-xs">—</span>
+        )}
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-wrap gap-2">
+          {GALLERY_LABELS.map((label) => (
+            <label key={label} className="flex items-center gap-1 text-xs">
+              <input
+                type="checkbox"
+                checked={labels.includes(label)}
+                onChange={() => toggleLabel(label)}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+        <label className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={replace}
+            onChange={() => setReplace((v) => !v)}
+          />
+          Replace conflicts
+        </label>
+      </TableCell>
+      <TableCell>{item.position}</TableCell>
+      <TableCell className="font-mono text-xs">{item.assetId.slice(0, 8)}…</TableCell>
+      <TableCell className="space-x-2 whitespace-nowrap">
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => void onUpdate(item.id, labels, replace)}
+        >
+          Save
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="destructive"
+          onClick={() => void onDelete(item.id)}
+        >
+          Remove
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function CreateGalleryItemInline({
+  onCreate,
+}: {
+  onCreate: (input: { assetId: string; labels: GalleryLabel[]; replace: boolean }) => Promise<void>;
+}): ReactNode {
+  const [assetId, setAssetId] = useState('');
+  const [labels, setLabels] = useState<GalleryLabel[]>([]);
+  const [replace, setReplace] = useState(false);
+
+  const toggleLabel = (label: GalleryLabel): void => {
+    setLabels((prev) =>
+      prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label],
+    );
+  };
+
+  return (
+    <div
+      className="grid gap-3 md:grid-cols-4 border-t pt-4"
+      role="group"
+      aria-label="Add gallery item"
+    >
+      <div className="space-y-1 md:col-span-2">
+        <Label htmlFor="gasset">Asset id</Label>
+        <Input
+          id="gasset"
+          value={assetId}
+          onChange={(e): void => setAssetId(e.target.value)}
+          placeholder="UUID of an existing image/video Asset"
+        />
+      </div>
+      <div className="space-y-1">
+        <Label>Labels</Label>
+        <div className="flex flex-wrap gap-2 text-xs">
+          {GALLERY_LABELS.map((label) => (
+            <label key={label} className="flex items-center gap-1">
+              <input
+                type="checkbox"
+                checked={labels.includes(label)}
+                onChange={() => toggleLabel(label)}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+        <label className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={replace}
+            onChange={() => setReplace((v) => !v)}
+          />
+          Replace conflicts
+        </label>
+      </div>
+      <div>
+        <Button
+          type="button"
+          onClick={() => {
+            if (!assetId) return;
+            void onCreate({ assetId, labels, replace }).then(() => {
+              setAssetId('');
+              setLabels([]);
+              setReplace(false);
+            });
+          }}
+        >
+          + Add to gallery
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Attachments section (T086) — admin CRUD for Product Attachments. Same
+// foundation gap as Gallery: no admin Asset upload endpoint, so we accept
+// an existing assetId. AttachmentTypes come from /admin/catalog/attachment-types.
+// ---------------------------------------------------------------------------
+
+interface AdminAttachmentType {
+  id: string;
+  code: string;
+  name: Record<string, string>;
+  position: number;
+}
+
+interface AdminAttachment {
+  id: string;
+  productId: string;
+  assetId: string;
+  attachmentTypeId: string;
+  name: string;
+  description: string | null;
+  position: number;
+  asset?: { url: string; filename: string; mimeType: string };
+  type?: { code: string; name: Record<string, string> };
+}
+
+function AttachmentsSection({ productId }: { productId: string }): ReactNode {
+  const [attachments, setAttachments] = useState<AdminAttachment[]>([]);
+  const [types, setTypes] = useState<AdminAttachmentType[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+
+  const refresh = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [detail, typesRes] = await Promise.all([
+        apiClient.get<{
+          data: {
+            attachments?: Array<{
+              id: string;
+              position: number;
+              name: string;
+              description: string | null;
+              type: { id: string; code: string; name: Record<string, string> };
+              asset: {
+                id: string;
+                kind: string;
+                url: string;
+                filename: string;
+                sizeBytes: number;
+                mimeType: string;
+              };
+            }>;
+          };
+        }>(`/api/v1/catalog/products/${productId}`),
+        apiClient.get<{ data: AdminAttachmentType[] }>(
+          '/api/v1/admin/catalog/attachment-types',
+        ),
+      ]);
+      const detailAttachments = detail.data.attachments ?? [];
+      setAttachments(
+        detailAttachments.map((a) => ({
+          id: a.id,
+          productId,
+          assetId: a.asset.id,
+          attachmentTypeId: a.type.id,
+          name: a.name,
+          description: a.description,
+          position: a.position,
+          asset: {
+            url: a.asset.url,
+            filename: a.asset.filename,
+            mimeType: a.asset.mimeType,
+          },
+          type: { code: a.type.code, name: a.type.name },
+        })),
+      );
+      setTypes(typesRes.data);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Load failed.');
+    } finally {
+      setLoading(false);
+    }
+  }, [productId]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const handleCreate = useCallback(
+    async (input: {
+      assetId: string;
+      attachmentTypeId: string;
+      name: string;
+      description: string;
+    }): Promise<void> => {
+      try {
+        await apiClient.post(`/api/v1/admin/catalog/products/${productId}/attachments`, {
+          assetId: input.assetId,
+          attachmentTypeId: input.attachmentTypeId,
+          name: input.name,
+          ...(input.description ? { description: input.description } : {}),
+        });
+        setInfo('Attachment added.');
+        await refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Add failed.');
+      }
+    },
+    [productId, refresh],
+  );
+
+  const handleDelete = useCallback(
+    async (attachmentId: string, name: string): Promise<void> => {
+      if (!confirm(`Delete attachment "${name}"?`)) return;
+      try {
+        await apiClient.delete(
+          `/api/v1/admin/catalog/products/${productId}/attachments/${attachmentId}`,
+        );
+        setInfo(`Attachment "${name}" deleted.`);
+        await refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+      }
+    },
+    [productId, refresh],
+  );
+
+  return (
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle>Attachments</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        {info ? (
+          <Alert>
+            <AlertDescription>{info}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : attachments.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No attachments yet. Use an existing pdf / certificate / other Asset id.
+          </p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Type</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>File</TableHead>
+                <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {attachments.map((att) => (
+                <TableRow key={att.id}>
+                  <TableCell>{att.type?.name['en-US'] ?? att.type?.code ?? '—'}</TableCell>
+                  <TableCell className="font-medium">{att.name}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {att.description ?? '—'}
+                  </TableCell>
+                  <TableCell>
+                    {att.asset?.url ? (
+                      <a
+                        href={att.asset.url}
+                        target="_blank"
+                        rel="noopener"
+                        className="text-xs underline"
+                      >
+                        {att.asset.filename}
+                      </a>
+                    ) : (
+                      '—'
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => void handleDelete(att.id, att.name)}
+                    >
+                      Delete
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+
+        <CreateAttachmentInline types={types} onCreate={handleCreate} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function CreateAttachmentInline({
+  types,
+  onCreate,
+}: {
+  types: AdminAttachmentType[];
+  onCreate: (input: {
+    assetId: string;
+    attachmentTypeId: string;
+    name: string;
+    description: string;
+  }) => Promise<void>;
+}): ReactNode {
+  const [assetId, setAssetId] = useState('');
+  const [attachmentTypeId, setAttachmentTypeId] = useState('');
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+
+  return (
+    <div
+      className="grid gap-3 md:grid-cols-4 border-t pt-4"
+      role="group"
+      aria-label="Add attachment"
+    >
+      <div className="space-y-1">
+        <Label htmlFor="aasset">Asset id</Label>
+        <Input
+          id="aasset"
+          value={assetId}
+          onChange={(e): void => setAssetId(e.target.value)}
+          placeholder="UUID of an existing pdf/certificate Asset"
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="atype">Type</Label>
+        <Select
+          id="atype"
+          value={attachmentTypeId}
+          onChange={(e): void => setAttachmentTypeId(e.target.value)}
+        >
+          <option value="">—</option>
+          {types.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name['en-US'] ?? t.code}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="aname">Name</Label>
+        <Input
+          id="aname"
+          value={name}
+          onChange={(e): void => setName(e.target.value)}
+          placeholder="CE Marking 2024"
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="adesc">Description</Label>
+        <Input
+          id="adesc"
+          value={description}
+          onChange={(e): void => setDescription(e.target.value)}
+          placeholder="(optional)"
+        />
+      </div>
+      <div className="md:col-span-4">
+        <Button
+          type="button"
+          onClick={() => {
+            if (!assetId || !attachmentTypeId || !name) return;
+            void onCreate({ assetId, attachmentTypeId, name, description }).then(() => {
+              setAssetId('');
+              setAttachmentTypeId('');
+              setName('');
+              setDescription('');
+            });
+          }}
+        >
+          + Add attachment
         </Button>
       </div>
     </div>
