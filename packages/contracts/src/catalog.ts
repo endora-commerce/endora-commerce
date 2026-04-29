@@ -127,6 +127,25 @@ export const seoMetaSchema = z.object({
 });
 export type SeoMeta = z.infer<typeof seoMetaSchema>;
 
+/**
+ * Forward declaration so productDetailSchema can reference link summaries.
+ * The exported `productLinkSummarySchema` below is the canonical name —
+ * this `*Inline` alias exists only to avoid a circular import.
+ */
+const productLinkSummarySchemaInline = z.object({
+  id: uuidSchema,
+  kind: z.enum(['related', 'up_sell', 'cross_sell']),
+  position: z.number().int().nonnegative(),
+  product: z.object({
+    id: uuidSchema,
+    sku: z.string(),
+    slug: z.string(),
+    name: z.string(),
+    primaryAssetUrl: z.string().nullable(),
+    price: moneySchema.nullable(),
+  }),
+});
+
 export const productDetailSchema = productSummarySchema.extend({
   description: z.string(),
   attributeValues: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
@@ -153,6 +172,123 @@ export const productDetailSchema = productSummarySchema.extend({
       code: z.string(),
       name: multilingualStringSchema,
     })
+    .optional(),
+  /**
+   * Feature 002 US3 — gallery items with their assigned labels. Each
+   * item carries the Asset's resolved url + kind so storefront PDP
+   * doesn't need a follow-up fetch. Optional for the same backwards-
+   * compat reason as attributeSet.
+   */
+  gallery: z
+    .array(
+      z.object({
+        id: uuidSchema,
+        position: z.number().int().nonnegative(),
+        labels: z.array(z.enum(['base_image', 'small_image', 'thumbnail'])),
+        asset: z.object({
+          id: uuidSchema,
+          kind: z.string(),
+          url: z.string(),
+        }),
+      }),
+    )
+    .optional(),
+  /**
+   * Feature 002 US5 — composite product payloads. Discriminated by
+   * `type`: only one of these is populated at a time. Optional so
+   * foundation-era simple/configurable products keep parsing.
+   *   - `groupedItems`: when type='grouped', children with quantities
+   *   - `bundleSlots`:  when type='bundle', slots with their options
+   *   - `virtual`:      when type='virtual', download asset/url
+   */
+  groupedItems: z
+    .array(
+      z.object({
+        id: uuidSchema,
+        position: z.number().int().nonnegative(),
+        quantity: z.number().int().positive(),
+        product: z.object({
+          id: uuidSchema,
+          sku: z.string(),
+          slug: z.string(),
+          name: z.string(),
+          primaryAssetUrl: z.string().nullable(),
+          price: moneySchema.nullable(),
+        }),
+      }),
+    )
+    .optional(),
+  bundleSlots: z
+    .array(
+      z.object({
+        id: uuidSchema,
+        name: multilingualStringSchema,
+        minQuantity: z.number().int().nonnegative(),
+        maxQuantity: z.number().int().positive(),
+        position: z.number().int().nonnegative(),
+        options: z.array(
+          z.object({
+            id: uuidSchema,
+            defaultQuantity: z.number().int().positive(),
+            position: z.number().int().nonnegative(),
+            product: z.object({
+              id: uuidSchema,
+              sku: z.string(),
+              slug: z.string(),
+              name: z.string(),
+              primaryAssetUrl: z.string().nullable(),
+              price: moneySchema.nullable(),
+            }),
+          }),
+        ),
+      }),
+    )
+    .optional(),
+  virtual: z
+    .object({
+      downloadAssetId: uuidSchema.nullable(),
+      downloadUrl: z.string().nullable(),
+    })
+    .optional(),
+  /**
+   * Feature 002 US4 — pre-grouped Product Links surfaced on the PDP.
+   * Optional for the same backwards-compat reason as the other US3/US4
+   * fields. Inactive targets and channel-restricted ones are pre-filtered
+   * by `ProductLinkService.listForStorefront`.
+   */
+  links: z
+    .object({
+      related: z.array(productLinkSummarySchemaInline),
+      upSell: z.array(productLinkSummarySchemaInline),
+      crossSell: z.array(productLinkSummarySchemaInline),
+    })
+    .optional(),
+  /**
+   * Feature 002 US3 — product attachments with their type + Asset.
+   * Optional like the rest.
+   */
+  attachments: z
+    .array(
+      z.object({
+        id: uuidSchema,
+        position: z.number().int().nonnegative(),
+        name: z.string(),
+        description: z.string().nullable(),
+        type: z.object({
+          id: uuidSchema,
+          code: z.string(),
+          name: multilingualStringSchema,
+        }),
+        asset: z.object({
+          id: uuidSchema,
+          kind: z.string(),
+          url: z.string(),
+          filename: z.string(),
+          sizeBytes: z.number(),
+          mimeType: z.string(),
+        }),
+      }),
+    )
     .optional(),
 });
 export type ProductDetail = z.infer<typeof productDetailSchema>;
@@ -265,34 +401,83 @@ export const createVariantRequestSchema = z.object({
 });
 export type CreateVariantRequest = z.infer<typeof createVariantRequestSchema>;
 
-export const createAttributeRequestSchema = z
-  .object({
-    key: z
-      .string()
-      .min(1)
-      .max(64)
-      .regex(/^[a-z][a-z0-9_]*$/, 'must be snake_case, start with a letter'),
-    label: multilingualStringSchema,
-    valueType: attributeValueTypeSchema,
-    enumValues: z.array(z.string()).optional(),
-    isSearchable: z.boolean(),
-    isFilterable: z.boolean(),
-    isVariantAxis: z.boolean(),
-    /**
-     * Feature 002 — presentation hint. Honored only when
-     * `valueType ∈ ('number', 'price')`. Service rejects with
-     * INVALID_DISPLAY_AS_SLIDER on any other valueType.
-     */
-    displayAsSlider: z.boolean().optional(),
+export const updateVariantRequestSchema = createVariantRequestSchema
+  .partial()
+  .omit({ sku: true });
+export type UpdateVariantRequest = z.infer<typeof updateVariantRequestSchema>;
+
+/**
+ * Slider-numeric-kind discriminant (feature 002 T013/T021/T022). The API
+ * `type=slider` form needs an extra hint so the service knows whether the
+ * underlying DB `valueType` is `number` or `price`.
+ */
+export const numericKindSchema = z.enum(['number', 'price']);
+export type NumericKind = z.infer<typeof numericKindSchema>;
+
+const baseCreateAttributeObject = z.object({
+  key: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z][a-z0-9_]*$/, 'must be snake_case, start with a letter'),
+  label: multilingualStringSchema,
+  /**
+   * Feature 002 — preferred API form. When `type` is present it wins over
+   * `valueType` (legacy form, kept for backward-compat). Service maps it
+   * onto the DB enum + `displayAsSlider` flag (research R-7):
+   *   input      → valueType=string
+   *   number     → valueType=number
+   *   select     → valueType=enum
+   *   multiselect→ valueType=multiselect (requires enumValues)
+   *   price      → valueType=price
+   *   slider     → valueType=number|price (per numericKind) + displayAsSlider=true
+   */
+  type: apiAttributeTypeSchema.optional(),
+  numericKind: numericKindSchema.optional(),
+  /** Legacy form. At least one of `type` or `valueType` MUST be set. */
+  valueType: attributeValueTypeSchema.optional(),
+  enumValues: z.array(z.string()).optional(),
+  isSearchable: z.boolean(),
+  isFilterable: z.boolean(),
+  isVariantAxis: z.boolean(),
+  /**
+   * Feature 002 — presentation hint. Honored only when the resolved
+   * underlying type is `number`/`price`. Implicitly `true` when
+   * `type=slider`. Service rejects with INVALID_DISPLAY_AS_SLIDER if
+   * supplied for an incompatible underlying type.
+   */
+  displayAsSlider: z.boolean().optional(),
+});
+
+export const createAttributeRequestSchema = baseCreateAttributeObject
+  .refine((v) => v.type !== undefined || v.valueType !== undefined, {
+    message: 'either `type` (preferred) or `valueType` (legacy) is required',
+    path: ['type'],
   })
   .refine(
-    (v) =>
-      v.valueType === 'enum' || v.valueType === 'multiselect'
+    (v) => {
+      // multiselect (whether spelled via `type` or `valueType`) needs
+      // enumValues. `select` is the same constraint via the legacy
+      // valueType=enum spelling.
+      const wantsEnum =
+        v.type === 'multiselect' ||
+        v.type === 'select' ||
+        v.valueType === 'enum' ||
+        v.valueType === 'multiselect';
+      return wantsEnum
         ? Array.isArray(v.enumValues) && v.enumValues.length > 0
-        : true,
+        : true;
+    },
     {
-      message: 'enumValues is required when valueType=enum or valueType=multiselect',
+      message: 'enumValues is required when type=multiselect/select or valueType=enum/multiselect',
       path: ['enumValues'],
+    },
+  )
+  .refine(
+    (v) => (v.type === 'slider' ? v.numericKind !== undefined : true),
+    {
+      message: 'numericKind is required when type=slider',
+      path: ['numericKind'],
     },
   );
 export type CreateAttributeRequest = z.infer<typeof createAttributeRequestSchema>;
@@ -300,13 +485,23 @@ export type CreateAttributeRequest = z.infer<typeof createAttributeRequestSchema
 export const updateAttributeRequestSchema = z
   .object({
     label: multilingualStringSchema.optional(),
+    /** Feature 002 — same API form as create. */
+    type: apiAttributeTypeSchema.optional(),
+    numericKind: numericKindSchema.optional(),
     enumValues: z.array(z.string()).optional(),
     isSearchable: z.boolean().optional(),
     isFilterable: z.boolean().optional(),
     isVariantAxis: z.boolean().optional(),
     displayAsSlider: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (v) => (v.type === 'slider' ? v.numericKind !== undefined : true),
+    {
+      message: 'numericKind is required when type=slider',
+      path: ['numericKind'],
+    },
+  );
 export type UpdateAttributeRequest = z.infer<typeof updateAttributeRequestSchema>;
 
 export const createCategoryRequestSchema = z.object({
@@ -428,3 +623,308 @@ export const assignAttributesRequestSchema = z
   })
   .strict();
 export type AssignAttributesRequest = z.infer<typeof assignAttributesRequestSchema>;
+
+// --- Feature 002 — Gallery (US3) --------------------------------------------
+
+export const galleryLabelSchema = z.enum(['base_image', 'small_image', 'thumbnail']);
+export type GalleryLabel = z.infer<typeof galleryLabelSchema>;
+
+export const galleryItemSchema = z.object({
+  id: uuidSchema,
+  productId: uuidSchema,
+  assetId: uuidSchema,
+  position: z.number().int().nonnegative(),
+  labels: z.array(galleryLabelSchema),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type GalleryItem = z.infer<typeof galleryItemSchema>;
+
+export const createGalleryItemRequestSchema = z
+  .object({
+    assetId: uuidSchema,
+    position: z.number().int().nonnegative().optional(),
+    labels: z.array(galleryLabelSchema).optional(),
+  })
+  .strict();
+export type CreateGalleryItemRequest = z.infer<typeof createGalleryItemRequestSchema>;
+
+export const updateGalleryItemRequestSchema = z
+  .object({
+    position: z.number().int().nonnegative().optional(),
+    labels: z.array(galleryLabelSchema).optional(),
+  })
+  .strict();
+export type UpdateGalleryItemRequest = z.infer<typeof updateGalleryItemRequestSchema>;
+
+export const reorderGalleryRequestSchema = z
+  .object({
+    orderedGalleryItemIds: z.array(uuidSchema).min(1),
+  })
+  .strict();
+export type ReorderGalleryRequest = z.infer<typeof reorderGalleryRequestSchema>;
+
+// --- Feature 002 — Attachments (US3) ----------------------------------------
+
+export const attachmentTypeSchema = z.object({
+  id: uuidSchema,
+  code: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z0-9_]+$/, 'must be snake_case'),
+  name: multilingualStringSchema,
+  position: z.number().int().nonnegative(),
+  usageCount: z.number().int().nonnegative(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type AttachmentType = z.infer<typeof attachmentTypeSchema>;
+
+export const createAttachmentTypeRequestSchema = z
+  .object({
+    code: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z0-9_]+$/, 'must be snake_case'),
+    name: multilingualStringSchema,
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type CreateAttachmentTypeRequest = z.infer<typeof createAttachmentTypeRequestSchema>;
+
+export const updateAttachmentTypeRequestSchema = z
+  .object({
+    code: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z0-9_]+$/, 'must be snake_case')
+      .optional(),
+    name: multilingualStringSchema.optional(),
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type UpdateAttachmentTypeRequest = z.infer<typeof updateAttachmentTypeRequestSchema>;
+
+export const productAttachmentSchema = z.object({
+  id: uuidSchema,
+  productId: uuidSchema,
+  assetId: uuidSchema,
+  attachmentTypeId: uuidSchema,
+  name: z.string().min(1).max(160),
+  description: z.string().nullable(),
+  position: z.number().int().nonnegative(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type ProductAttachment = z.infer<typeof productAttachmentSchema>;
+
+export const createAttachmentRequestSchema = z
+  .object({
+    assetId: uuidSchema,
+    attachmentTypeId: uuidSchema,
+    name: z.string().min(1).max(160),
+    description: z.string().nullable().optional(),
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type CreateAttachmentRequest = z.infer<typeof createAttachmentRequestSchema>;
+
+export const updateAttachmentRequestSchema = z
+  .object({
+    attachmentTypeId: uuidSchema.optional(),
+    name: z.string().min(1).max(160).optional(),
+    description: z.string().nullable().optional(),
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type UpdateAttachmentRequest = z.infer<typeof updateAttachmentRequestSchema>;
+
+// --- Product Links (Feature 002 US4) ----------------------------------------
+
+export const productLinkKindSchema = z.enum(['related', 'up_sell', 'cross_sell']);
+export type ProductLinkKind = z.infer<typeof productLinkKindSchema>;
+
+export const productLinkSchema = z.object({
+  id: uuidSchema,
+  sourceProductId: uuidSchema,
+  targetProductId: uuidSchema,
+  kind: productLinkKindSchema,
+  position: z.number().int().nonnegative(),
+});
+export type ProductLink = z.infer<typeof productLinkSchema>;
+
+/**
+ * Bulk-create payload (T104). One transaction, all-or-nothing —
+ * partial inserts on a duplicate or self-link MUST roll back the
+ * entire batch (FR + research). Each entry pins its kind so admins
+ * can submit a mixed batch in a single round trip.
+ */
+export const bulkCreateLinksRequestSchema = z.object({
+  links: z
+    .array(
+      z.object({
+        targetProductId: uuidSchema,
+        kind: productLinkKindSchema,
+        position: z.number().int().nonnegative().optional(),
+      }),
+    )
+    .min(1),
+});
+export type BulkCreateLinksRequest = z.infer<typeof bulkCreateLinksRequestSchema>;
+
+export const reorderLinksRequestSchema = z.object({
+  /** Ordered list of link ids — index becomes `position` per (source, kind). */
+  linkIds: z.array(uuidSchema).min(1),
+});
+export type ReorderLinksRequest = z.infer<typeof reorderLinksRequestSchema>;
+
+/**
+ * Storefront-shape link entry (T107) — the listing carries enough Product
+ * fields for a card render without a follow-up fetch. Inactive targets
+ * are filtered out by `listForStorefront` so the storefront never sees
+ * `status='archived'` rows.
+ */
+// --- Composite products (Feature 002 US5) -----------------------------------
+
+export const groupedItemSchema = z.object({
+  id: uuidSchema,
+  parentProductId: uuidSchema,
+  childProductId: uuidSchema,
+  quantity: z.number().int().positive(),
+  position: z.number().int().nonnegative(),
+});
+export type GroupedItem = z.infer<typeof groupedItemSchema>;
+
+export const createGroupedItemRequestSchema = z
+  .object({
+    childProductId: uuidSchema,
+    quantity: z.number().int().positive(),
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type CreateGroupedItemRequest = z.infer<typeof createGroupedItemRequestSchema>;
+
+export const updateGroupedItemRequestSchema = z
+  .object({
+    quantity: z.number().int().positive().optional(),
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type UpdateGroupedItemRequest = z.infer<typeof updateGroupedItemRequestSchema>;
+
+export const bundleSlotOptionSchema = z.object({
+  id: uuidSchema,
+  slotId: uuidSchema,
+  optionProductId: uuidSchema,
+  defaultQuantity: z.number().int().positive(),
+  position: z.number().int().nonnegative(),
+});
+export type BundleSlotOption = z.infer<typeof bundleSlotOptionSchema>;
+
+export const bundleSlotSchema = z.object({
+  id: uuidSchema,
+  parentProductId: uuidSchema,
+  name: multilingualStringSchema,
+  minQuantity: z.number().int().nonnegative(),
+  maxQuantity: z.number().int().positive(),
+  position: z.number().int().nonnegative(),
+  options: z.array(bundleSlotOptionSchema),
+});
+export type BundleSlot = z.infer<typeof bundleSlotSchema>;
+
+export const createBundleSlotRequestSchema = z
+  .object({
+    name: multilingualStringSchema,
+    minQuantity: z.number().int().nonnegative().optional(),
+    maxQuantity: z.number().int().positive(),
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict()
+  .refine((v) => (v.minQuantity ?? 0) <= v.maxQuantity, {
+    message: 'minQuantity must be <= maxQuantity',
+    path: ['minQuantity'],
+  });
+export type CreateBundleSlotRequest = z.infer<typeof createBundleSlotRequestSchema>;
+
+export const updateBundleSlotRequestSchema = z
+  .object({
+    name: multilingualStringSchema.optional(),
+    minQuantity: z.number().int().nonnegative().optional(),
+    maxQuantity: z.number().int().positive().optional(),
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type UpdateBundleSlotRequest = z.infer<typeof updateBundleSlotRequestSchema>;
+
+export const createBundleSlotOptionRequestSchema = z
+  .object({
+    optionProductId: uuidSchema,
+    defaultQuantity: z.number().int().positive().optional(),
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type CreateBundleSlotOptionRequest = z.infer<
+  typeof createBundleSlotOptionRequestSchema
+>;
+
+/**
+ * Buyer's bundle configuration — what the storefront posts to the
+ * `/bundle-configuration/validate` endpoint. One selection per slot,
+ * referencing the chosen option's id and the buyer-picked quantity.
+ */
+export const bundleConfigurationSelectionSchema = z.object({
+  slotId: uuidSchema,
+  optionId: uuidSchema,
+  quantity: z.number().int().positive(),
+});
+export type BundleConfigurationSelection = z.infer<
+  typeof bundleConfigurationSelectionSchema
+>;
+
+export const validateBundleConfigurationRequestSchema = z
+  .object({
+    selections: z.array(bundleConfigurationSelectionSchema),
+  })
+  .strict();
+export type ValidateBundleConfigurationRequest = z.infer<
+  typeof validateBundleConfigurationRequestSchema
+>;
+
+export const bundleValidationErrorSchema = z.object({
+  code: z.enum(['MIN_NOT_MET', 'MAX_EXCEEDED', 'UNKNOWN_OPTION']),
+  slotId: uuidSchema.optional(),
+  message: z.string(),
+});
+export type BundleValidationError = z.infer<typeof bundleValidationErrorSchema>;
+
+export const bundleValidationResultSchema = z.object({
+  valid: z.boolean(),
+  errors: z.array(bundleValidationErrorSchema),
+  resolvedSelections: z.array(
+    z.object({
+      slotId: uuidSchema,
+      optionId: uuidSchema,
+      optionProductId: uuidSchema,
+      quantity: z.number().int().positive(),
+    }),
+  ),
+});
+export type BundleValidationResult = z.infer<typeof bundleValidationResultSchema>;
+
+export const productLinkSummarySchema = z.object({
+  id: uuidSchema,
+  kind: productLinkKindSchema,
+  position: z.number().int().nonnegative(),
+  product: z.object({
+    id: uuidSchema,
+    sku: z.string(),
+    slug: z.string(),
+    name: z.string(),
+    primaryAssetUrl: z.string().nullable(),
+    price: moneySchema.nullable(),
+  }),
+});
+export type ProductLinkSummary = z.infer<typeof productLinkSummarySchema>;

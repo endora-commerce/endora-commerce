@@ -7,12 +7,16 @@ import {
   updateCartItem,
   type CartCookieJar,
 } from '../../../lib/api/cart';
+import { getProductLinks } from '../../../lib/api/catalog';
+import { getServerContext } from '../../../lib/server-context';
 import {
   getAnonCartCookie,
   getSessionCookie,
   setAnonCartCookie,
 } from '../../../lib/session';
 import { StorefrontApiError } from '../../../lib/api/client';
+import { CrossSellSection } from '../../../components/CrossSellSection';
+import { tForLocale } from '../../../lib/i18n/messages';
 
 /**
  * Cart page (T156). Lists the current cart's items and lets the buyer
@@ -31,6 +35,17 @@ export default async function CartPage({
   const result = await getCart(jar);
   if (result.newAnonCookie) await setAnonCartCookie(result.newAnonCookie);
   const cart = result.cart;
+
+  // Feature 002 US4 — cross-sell from cart items. We fan out one fetch
+  // per unique productId; CrossSellSection dedupes targets so the same
+  // suggestion never appears twice even when reached via multiple items.
+  const { ctx, locale } = await getServerContext();
+  const t = tForLocale(locale);
+  const uniqueProductIds = [...new Set(cart.items.map((it) => it.productId))];
+  const crossSellArrays = await Promise.all(
+    uniqueProductIds.map((id) => getProductLinks(id, 'cross_sell', ctx)),
+  );
+  const crossSellLinks = crossSellArrays.flat();
 
   if (cart.items.length === 0) {
     return (
@@ -118,6 +133,12 @@ export default async function CartPage({
           <button type="button">Proceed to checkout</button>
         </Link>
       </div>
+
+      <CrossSellSection
+        links={crossSellLinks}
+        heading={t('product.links.crossSell')}
+        locale={locale}
+      />
     </div>
   );
 }

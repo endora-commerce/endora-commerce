@@ -4,8 +4,16 @@ import { ProductVariant } from '../entities/product-variant.entity.js';
 import { Category } from '../entities/category.entity.js';
 import { ProductAttribute } from '../entities/product-attribute.entity.js';
 import { AttributeSet } from '../entities/attribute-set.entity.js';
+import { GalleryItem } from '../entities/gallery-item.entity.js';
+import { GalleryItemLabel } from '../entities/gallery-item-label.entity.js';
+import { ProductAttachment } from '../entities/product-attachment.entity.js';
+import { AttachmentType } from '../entities/attachment-type.entity.js';
 import { SalesChannel } from '../entities/sales-channel.entity.js';
 import { Asset } from '../../assets/entities/asset.entity.js';
+import type { ProductLinkService } from './product-link.service.js';
+import { GroupedItem } from '../entities/grouped-item.entity.js';
+import { BundleSlot } from '../entities/bundle-slot.entity.js';
+import { BundleSlotOption } from '../entities/bundle-slot-option.entity.js';
 import {
   ERROR_CODES,
   type CategoryNode,
@@ -72,7 +80,16 @@ export interface ListResult<T> {
 }
 
 export class CatalogQueryService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /**
+     * Feature 002 US4 — optional link provider so the PDP `productDetail`
+     * carries the pre-grouped Related/Up-sell/Cross-sell links. Optional
+     * so tests/composition that don't wire it stay green; when undefined,
+     * `productDetail.links` is omitted from the response.
+     */
+    private readonly productLinkService?: ProductLinkService,
+  ) {}
 
   // ------------------------------------------------------------------
   // Products
@@ -253,6 +270,49 @@ export class CatalogQueryService {
       id: product.attributeSetId,
     });
 
+    // Feature 002 US3 — eager-load gallery + attachments for the PDP.
+    // Gallery: items + label bridge zipped per item; Asset urls
+    // resolved into a flat shape the storefront can render directly.
+    const galleryItems = await em.find(
+      GalleryItem,
+      { productId: product.id },
+      { orderBy: { position: 'asc', id: 'asc' } },
+    );
+    const galleryAssetIds = galleryItems.map((g) => g.assetId);
+    const galleryAssetsById = new Map<string, Asset>();
+    if (galleryAssetIds.length > 0) {
+      const galleryAssets = await em.find(Asset, { id: { $in: galleryAssetIds } });
+      for (const a of galleryAssets) galleryAssetsById.set(a.id, a);
+    }
+    const galleryLabels = galleryItems.length > 0
+      ? await em.find(GalleryItemLabel, { productId: product.id })
+      : [];
+    const labelsByItem = new Map<string, ('base_image' | 'small_image' | 'thumbnail')[]>();
+    for (const l of galleryLabels) {
+      const existing = labelsByItem.get(l.galleryItemId) ?? [];
+      existing.push(l.label);
+      labelsByItem.set(l.galleryItemId, existing);
+    }
+
+    // Attachments + their types, eager-loaded in two queries.
+    const attachmentRows = await em.find(
+      ProductAttachment,
+      { productId: product.id },
+      { orderBy: { position: 'asc', id: 'asc' } },
+    );
+    const attachmentTypeIds = [...new Set(attachmentRows.map((a) => a.attachmentTypeId))];
+    const attachmentTypesById = new Map<string, AttachmentType>();
+    if (attachmentTypeIds.length > 0) {
+      const types = await em.find(AttachmentType, { id: { $in: attachmentTypeIds } });
+      for (const t of types) attachmentTypesById.set(t.id, t);
+    }
+    const attachmentAssetIds = [...new Set(attachmentRows.map((a) => a.assetId))];
+    const attachmentAssetsById = new Map<string, Asset>();
+    if (attachmentAssetIds.length > 0) {
+      const aAssets = await em.find(Asset, { id: { $in: attachmentAssetIds } });
+      for (const a of aAssets) attachmentAssetsById.set(a.id, a);
+    }
+
     const descriptionText = this.pickLang(product.description, ctx.preferredLanguage, channel);
     const nameText = this.pickLang(product.name, ctx.preferredLanguage, channel);
 
@@ -284,7 +344,26 @@ export class CatalogQueryService {
         openGraph: {
           title: nameText,
           description: descriptionText.slice(0, 240),
-          imageUrl: summary.primaryAssetUrl,
+          // T097 — OG image prefers gallery Base Image (then Thumbnail,
+          // then primaryAssetUrl). Base Image is the marketer's hero
+          // shot, so social shares should land on it.
+          imageUrl: (() => {
+            const base = galleryItems
+              .map((g) => ({
+                asset: galleryAssetsById.get(g.assetId) ?? null,
+                labels: labelsByItem.get(g.id) ?? [],
+              }))
+              .find((g) => g.asset && g.labels.includes('base_image'));
+            if (base?.asset) return base.asset.storageUrl;
+            const thumb = galleryItems
+              .map((g) => ({
+                asset: galleryAssetsById.get(g.assetId) ?? null,
+                labels: labelsByItem.get(g.id) ?? [],
+              }))
+              .find((g) => g.asset && g.labels.includes('thumbnail'));
+            if (thumb?.asset) return thumb.asset.storageUrl;
+            return summary.primaryAssetUrl;
+          })(),
         },
       },
       structuredDataJsonLd: {
@@ -316,8 +395,251 @@ export class CatalogQueryService {
             },
           }
         : {}),
+      gallery: galleryItems.flatMap((g) => {
+        const a = galleryAssetsById.get(g.assetId);
+        if (!a) return [];
+        return [
+          {
+            id: g.id,
+            position: g.position,
+            labels: [...(labelsByItem.get(g.id) ?? [])].sort(),
+            asset: { id: a.id, kind: a.kind, url: a.storageUrl },
+          },
+        ];
+      }),
+      attachments: attachmentRows.flatMap((row) => {
+        const t = attachmentTypesById.get(row.attachmentTypeId);
+        const a = attachmentAssetsById.get(row.assetId);
+        if (!t || !a) return [];
+        return [
+          {
+            id: row.id,
+            position: row.position,
+            name: row.name,
+            description: row.description ?? null,
+            type: { id: t.id, code: t.code, name: t.name },
+            asset: {
+              id: a.id,
+              kind: a.kind,
+              url: a.storageUrl,
+              filename: a.filename,
+              sizeBytes: Number(a.sizeBytes),
+              mimeType: a.mimeType,
+            },
+          },
+        ];
+      }),
     };
+
+    // Feature 002 US4 — pre-grouped Product Links. Inactive targets and
+    // channel-restricted ones are filtered by listForStorefront. Default
+    // page sizes per spec.md US4 Assumptions: related=8, up-sell=4,
+    // cross-sell=4.
+    if (this.productLinkService) {
+      const linkRows = await this.productLinkService.listForStorefront(
+        product.id,
+        {
+          salesChannelCode: ctx.salesChannelCode ?? null,
+          ...(ctx.preferredLanguage ? { preferredLanguage: ctx.preferredLanguage } : {}),
+        },
+      );
+      const sliced = (rows: typeof linkRows, n: number): typeof linkRows =>
+        rows.slice(0, n);
+      detail.links = {
+        related: sliced(
+          linkRows.filter((l) => l.kind === 'related'),
+          8,
+        ),
+        upSell: sliced(
+          linkRows.filter((l) => l.kind === 'up_sell'),
+          4,
+        ),
+        crossSell: sliced(
+          linkRows.filter((l) => l.kind === 'cross_sell'),
+          4,
+        ),
+      };
+    }
+
+    // Feature 002 US5 — type-discriminated composite payload. Only the
+    // branch matching `product.type` is populated; other branches are
+    // omitted so the response stays compact and the storefront can do a
+    // simple type switch.
+    if (product.type === 'grouped') {
+      const items = await em.find(
+        GroupedItem,
+        { parentProductId: product.id },
+        { orderBy: { position: 'asc', id: 'asc' } },
+      );
+      const childIds = items.map((i) => i.childProductId);
+      const summaries = await this.summariesForIds(em, childIds, ctx, channel);
+      detail.groupedItems = items.flatMap((i) => {
+        const summary = summaries.get(i.childProductId);
+        if (!summary) return [];
+        return [{ id: i.id, position: i.position, quantity: i.quantity, product: summary }];
+      });
+    } else if (product.type === 'bundle') {
+      const slots = await em.find(
+        BundleSlot,
+        { parentProductId: product.id },
+        { orderBy: { position: 'asc', id: 'asc' } },
+      );
+      const slotIds = slots.map((s) => s.id);
+      const options =
+        slotIds.length > 0
+          ? await em.find(
+              BundleSlotOption,
+              { slotId: { $in: slotIds } },
+              { orderBy: { position: 'asc', id: 'asc' } },
+            )
+          : [];
+      const optsBySlot = new Map<string, BundleSlotOption[]>();
+      for (const opt of options) {
+        const list = optsBySlot.get(opt.slotId) ?? [];
+        list.push(opt);
+        optsBySlot.set(opt.slotId, list);
+      }
+      const optionProductIds = [...new Set(options.map((o) => o.optionProductId))];
+      const summaries = await this.summariesForIds(em, optionProductIds, ctx, channel);
+      detail.bundleSlots = slots.map((s) => ({
+        id: s.id,
+        name: s.name,
+        minQuantity: s.minQuantity,
+        maxQuantity: s.maxQuantity,
+        position: s.position,
+        options: (optsBySlot.get(s.id) ?? []).flatMap((o) => {
+          const summary = summaries.get(o.optionProductId);
+          if (!summary) return [];
+          return [
+            {
+              id: o.id,
+              defaultQuantity: o.defaultQuantity,
+              position: o.position,
+              product: summary,
+            },
+          ];
+        }),
+      }));
+    } else if (product.type === 'virtual') {
+      detail.virtual = {
+        downloadAssetId: product.downloadAssetId ?? null,
+        downloadUrl: product.downloadUrl ?? null,
+      };
+    }
+
     return detail;
+  }
+
+  /**
+   * Resolve a batch of products into storefront-shape summaries (id, sku,
+   * slug, localized name, primary asset url via gallery thumb chain,
+   * price honoring sales-channel public flag). Used by US5 composite
+   * eager-load — keeps the per-product fanout to a constant 3-4 queries
+   * regardless of how many children/options a parent has.
+   */
+  private async summariesForIds(
+    em: EntityManager,
+    ids: string[],
+    ctx: CatalogQueryContext,
+    channel: SalesChannel | null,
+  ): Promise<
+    Map<
+      string,
+      {
+        id: string;
+        sku: string;
+        slug: string;
+        name: string;
+        primaryAssetUrl: string | null;
+        price: { amount: number; currency: string } | null;
+      }
+    >
+  > {
+    const result = new Map<string, {
+      id: string;
+      sku: string;
+      slug: string;
+      name: string;
+      primaryAssetUrl: string | null;
+      price: { amount: number; currency: string } | null;
+    }>();
+    if (ids.length === 0) return result;
+    const products = await em.find(Product, { id: { $in: ids } });
+
+    // Primary asset url via gallery thumb chain → base_image → first item
+    // → legacy product_assets first row (mirrors toSummary).
+    const galleryRows = await em.getConnection().execute<{
+      product_id: string;
+      storage_url: string;
+      label: string | null;
+      position: number;
+    }[]>(
+      `select gi.product_id, a.storage_url, gil.label, gi.position
+         from gallery_items gi
+         join assets a on a.id = gi.asset_id
+         left join gallery_item_labels gil on gil.gallery_item_id = gi.id
+         where gi.product_id in (${ids.map(() => '?').join(',')})
+         order by gi.product_id, gi.position asc, gi.id asc`,
+      ids,
+    );
+    const galleryByProduct = new Map<string, typeof galleryRows>();
+    for (const row of galleryRows) {
+      const list = galleryByProduct.get(row.product_id) ?? [];
+      list.push(row);
+      galleryByProduct.set(row.product_id, list);
+    }
+    const assetUrlByProduct = new Map<string, string | null>();
+    for (const id of ids) {
+      const gallery = galleryByProduct.get(id) ?? [];
+      const findByLabel = (label: string): string | null =>
+        gallery.find((r) => r.label === label)?.storage_url ?? null;
+      const url =
+        findByLabel('thumbnail') ??
+        findByLabel('base_image') ??
+        gallery[0]?.storage_url ??
+        null;
+      assetUrlByProduct.set(id, url);
+    }
+    const missing = ids.filter((id) => !assetUrlByProduct.get(id));
+    if (missing.length > 0) {
+      const legacy = await em.getConnection().execute<{
+        product_id: string;
+        storage_url: string;
+      }[]>(
+        `select pa.product_id, a.storage_url
+           from product_assets pa join assets a on a.id = pa.asset_id
+           where pa.product_id in (${missing.map(() => '?').join(',')})
+           order by pa.product_id, pa.position asc`,
+        missing,
+      );
+      const seen = new Set<string>();
+      for (const row of legacy) {
+        if (seen.has(row.product_id)) continue;
+        seen.add(row.product_id);
+        assetUrlByProduct.set(row.product_id, row.storage_url);
+      }
+    }
+
+    const isPublic = channel?.isPublic ?? true;
+    for (const p of products) {
+      const rawPrice = Number(
+        p.attributeValues['defaultPrice'] ??
+          p.attributeValues['price'] ??
+          Number.NaN,
+      );
+      const currency = channel?.defaultCurrency ?? 'PLN';
+      const price =
+        isPublic && Number.isFinite(rawPrice) ? { amount: rawPrice, currency } : null;
+      result.set(p.id, {
+        id: p.id,
+        sku: p.sku,
+        slug: p.slug,
+        name: this.pickLang(p.name, ctx.preferredLanguage, channel),
+        primaryAssetUrl: assetUrlByProduct.get(p.id) ?? null,
+        price,
+      });
+    }
+    return result;
   }
 
   // ------------------------------------------------------------------
@@ -525,12 +847,37 @@ export class CatalogQueryService {
     channel: SalesChannel | null,
     preferredLanguage?: string,
   ): Promise<ProductSummary> {
-    // Primary asset
-    const primary = await em.getConnection().execute<{ storage_url: string }[]>(
-      `select a.storage_url from product_assets pa join assets a on a.id = pa.asset_id where pa.product_id = ? order by pa.position asc limit 1`,
+    // Primary asset — for listings prefer the gallery's Thumbnail (US3),
+    // then Base Image, then any first gallery item, finally the legacy
+    // product_assets row. Resolution chain pinned by T096.
+    const galleryRows = await em.getConnection().execute<{
+      storage_url: string;
+      label: string | null;
+      position: number;
+    }[]>(
+      `select a.storage_url, gil.label, gi.position
+         from gallery_items gi
+         join assets a on a.id = gi.asset_id
+         left join gallery_item_labels gil on gil.gallery_item_id = gi.id
+         where gi.product_id = ?
+         order by gi.position asc, gi.id asc`,
       [product.id],
     );
-    const primaryAssetUrl = primary[0]?.storage_url ?? null;
+    let primaryAssetUrl: string | null = null;
+    const findByLabel = (label: string): string | null =>
+      galleryRows.find((r) => r.label === label)?.storage_url ?? null;
+    primaryAssetUrl =
+      findByLabel('thumbnail') ??
+      findByLabel('base_image') ??
+      galleryRows[0]?.storage_url ??
+      null;
+    if (!primaryAssetUrl) {
+      const primary = await em.getConnection().execute<{ storage_url: string }[]>(
+        `select a.storage_url from product_assets pa join assets a on a.id = pa.asset_id where pa.product_id = ? order by pa.position asc limit 1`,
+        [product.id],
+      );
+      primaryAssetUrl = primary[0]?.storage_url ?? null;
+    }
 
     // Category slugs
     const catRows = await em.getConnection().execute<{ slug: string }[]>(

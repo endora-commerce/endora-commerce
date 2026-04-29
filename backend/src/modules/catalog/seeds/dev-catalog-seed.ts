@@ -80,8 +80,16 @@ async function main(): Promise<void> {
       sales_channel_products,
       product_categories,
       product_assets,
+      product_attachments,
+      bundle_slot_options,
+      bundle_slots,
+      grouped_items,
+      product_links,
+      gallery_item_labels,
+      gallery_items,
       product_attributes,
       products,
+      assets,
       categories,
       sales_channels,
       customer_accounts,
@@ -290,6 +298,50 @@ async function main(): Promise<void> {
   }
   await em.persistAndFlush(products);
 
+  // --- Composite products (T133, US5) ---------------------------------
+  // 1 grouped product (with 2 simple children), 1 bundle product (with
+  // 1 slot + 2 options), 1 virtual product (with downloadUrl). Wired
+  // into the same retail channel and the first leaf category so they
+  // surface on the storefront without manual setup.
+  const groupedProduct = em.create(Product, {
+    sku: 'DEMO-GROUPED-0001',
+    slug: 'demo-grouped-set-0001',
+    type: 'grouped',
+    status: 'active',
+    name: { 'en-US': 'Starter set (grouped)' },
+    description: {
+      'en-US': 'Starter set bundling two products with fixed quantities.',
+    },
+    visibility: 'public',
+    attributeValues: { defaultPrice: 49.99 },
+  });
+  const bundleProduct = em.create(Product, {
+    sku: 'DEMO-BUNDLE-0001',
+    slug: 'demo-bundle-config-0001',
+    type: 'bundle',
+    status: 'active',
+    name: { 'en-US': 'Configurable bundle' },
+    description: {
+      'en-US': 'Pick a color and quantity to configure your bundle.',
+    },
+    visibility: 'public',
+    attributeValues: { defaultPrice: 99.99 },
+  });
+  const virtualProduct = em.create(Product, {
+    sku: 'DEMO-VIRTUAL-0001',
+    slug: 'demo-virtual-ebook-0001',
+    type: 'virtual',
+    status: 'active',
+    name: { 'en-US': 'B2B Buyer Handbook (e-book)' },
+    description: {
+      'en-US': 'Digital e-book — instant download after purchase.',
+    },
+    visibility: 'public',
+    attributeValues: { defaultPrice: 19.99 },
+    downloadUrl: 'https://example.test/b2b-buyer-handbook.pdf',
+  });
+  await em.persistAndFlush([groupedProduct, bundleProduct, virtualProduct]);
+
   // --- Bridges (raw SQL for speed) ------------------------------------
   const productCategoryRows: string[] = [];
   const salesChannelProductRows: string[] = [];
@@ -310,6 +362,87 @@ async function main(): Promise<void> {
     `insert into sales_channel_products (sales_channel_id, product_id) values ${salesChannelProductRows.join(', ')}`,
     salesChannelProductParams,
   );
+
+  // --- Composite product wiring (T133, US5) ---------------------------
+  // Hook composites into the same first-leaf category + retail channel.
+  const firstLeaf = leaves[0]!;
+  for (const composite of [groupedProduct, bundleProduct, virtualProduct]) {
+    await conn.execute(
+      `insert into product_categories (product_id, category_id) values (?, ?)`,
+      [composite.id, firstLeaf.id],
+    );
+    await conn.execute(
+      `insert into sales_channel_products (sales_channel_id, product_id) values (?, ?)`,
+      [retail.id, composite.id],
+    );
+  }
+  // Grouped: two children, take the first two simple products.
+  await conn.execute(
+    `insert into grouped_items (id, parent_product_id, child_product_id, quantity, position, created_at, updated_at)
+     values (?, ?, ?, 2, 0, now(), now()),
+            (?, ?, ?, 1, 1, now(), now())`,
+    [
+      crypto.randomUUID(), groupedProduct.id, products[0]!.id,
+      crypto.randomUUID(), groupedProduct.id, products[1]!.id,
+    ],
+  );
+  // Bundle: one slot with two options (next two simple products).
+  const bundleSlotId = crypto.randomUUID();
+  await conn.execute(
+    `insert into bundle_slots (id, parent_product_id, name, min_quantity, max_quantity, position, created_at, updated_at)
+     values (?, ?, ?::jsonb, 1, 1, 0, now(), now())`,
+    [
+      bundleSlotId,
+      bundleProduct.id,
+      JSON.stringify({ 'en-US': 'Color', 'pl-PL': 'Kolor' }),
+    ],
+  );
+  await conn.execute(
+    `insert into bundle_slot_options (id, slot_id, option_product_id, default_quantity, position, created_at, updated_at)
+     values (?, ?, ?, 1, 0, now(), now()),
+            (?, ?, ?, 1, 1, now(), now())`,
+    [
+      crypto.randomUUID(), bundleSlotId, products[2]!.id,
+      crypto.randomUUID(), bundleSlotId, products[3]!.id,
+    ],
+  );
+
+  // --- Sample Attachments (T080, US3) ---------------------------------
+  // Seed two PDF Assets and attach each to the first three simple
+  // products as Certificate / Tech spec respectively, so the storefront
+  // PDP renders the AttachmentsList without an admin needing to upload.
+  const certAssetId = crypto.randomUUID();
+  const specAssetId = crypto.randomUUID();
+  await conn.execute(
+    `insert into assets (id, kind, filename, mime_type, size_bytes, storage_url, created_at, updated_at)
+     values
+       (?, 'pdf', 'sample-certificate.pdf', 'application/pdf', 102400, 'https://example.test/sample-certificate.pdf', now(), now()),
+       (?, 'pdf', 'sample-tech-spec.pdf',   'application/pdf', 204800, 'https://example.test/sample-tech-spec.pdf',   now(), now())`,
+    [certAssetId, specAssetId],
+  );
+  const [certType] = await conn.execute<{ id: string }[]>(
+    `select id from attachment_types where code = 'certificate' limit 1`,
+  );
+  const [specType] = await conn.execute<{ id: string }[]>(
+    `select id from attachment_types where code = 'tech_spec' limit 1`,
+  );
+  if (certType && specType) {
+    const targetProducts = products.slice(0, Math.min(3, products.length));
+    for (const [idx, p] of targetProducts.entries()) {
+      await conn.execute(
+        `insert into product_attachments (id, product_id, asset_id, attachment_type_id, name, description, position, created_at, updated_at)
+         values
+           (?, ?, ?, ?, ?, ?, 0, now(), now()),
+           (?, ?, ?, ?, ?, ?, 1, now(), now())`,
+        [
+          crypto.randomUUID(), p.id, certAssetId, certType.id,
+          `CE Marking ${idx + 1}`, 'Manufacturer-issued conformity statement.',
+          crypto.randomUUID(), p.id, specAssetId, specType.id,
+          `Datasheet ${idx + 1}`, null,
+        ],
+      );
+    }
+  }
 
   // --- Demo Organization + buyer --------------------------------------
   const adminPasswordHash = await hashPassword(DEMO_ADMIN_PASSWORD);
