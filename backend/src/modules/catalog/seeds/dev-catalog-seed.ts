@@ -22,6 +22,7 @@ import { initOrm, closeOrm } from '../../../db/index.js';
 import { Product } from '../entities/product.entity.js';
 import { Category } from '../entities/category.entity.js';
 import { ProductAttribute } from '../entities/product-attribute.entity.js';
+import { AttributeSetAttribute } from '../entities/attribute-set-attribute.entity.js';
 import { SalesChannel } from '../entities/sales-channel.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
@@ -69,8 +70,13 @@ async function main(): Promise<void> {
   const conn = em.getConnection();
 
   // Wipe in dependency order so re-runs work without manual cleanup.
+  // attribute_set_attributes is truncated FIRST so the FK to
+  // product_attributes can be dropped via cascade. attribute_sets is
+  // preserved (the system Default row from migration 017 stays); custom
+  // sets are removed below.
   await conn.execute(`
     truncate table
+      attribute_set_attributes,
       sales_channel_products,
       product_categories,
       product_assets,
@@ -198,13 +204,58 @@ async function main(): Promise<void> {
     isFilterable: false,
     isVariantAxis: false,
   });
+  // Feature 002 — sample attributes of the new API-form types so the
+  // admin UI editor can demonstrate `multiselect` and `price` paths.
+  const attrCompatibleSystems = em.create(ProductAttribute, {
+    key: 'compatible_systems',
+    label: { 'en-US': 'Compatible systems' },
+    valueType: 'multiselect',
+    enumValues: ['windows', 'macos', 'linux'],
+    isSearchable: true,
+    isFilterable: true,
+    isVariantAxis: false,
+  });
+  const attrManufacturerPrice = em.create(ProductAttribute, {
+    key: 'manufacturer_price',
+    label: { 'en-US': 'Manufacturer price' },
+    valueType: 'price',
+    isSearchable: false,
+    isFilterable: true,
+    isVariantAxis: false,
+    displayAsSlider: true,
+  });
   await em.persistAndFlush([
     attrColor,
     attrMaterial,
     attrWeight,
     attrCertification,
     attrInternalNotes,
+    attrCompatibleSystems,
+    attrManufacturerPrice,
   ]);
+
+  // Feature 002 — assign every seeded attribute to the system Default
+  // Attribute Set so the admin Product editor lists them out of the box.
+  // The Default set itself is created/preserved by migration 017 with
+  // a deterministic UUID; we never re-create it from this seed.
+  const DEFAULT_ATTRIBUTE_SET_ID = 'defa0017-0000-4000-8000-000000000000';
+  const allSeededAttributes = [
+    attrColor,
+    attrMaterial,
+    attrWeight,
+    attrCertification,
+    attrInternalNotes,
+    attrCompatibleSystems,
+    attrManufacturerPrice,
+  ];
+  const assignments = allSeededAttributes.map((attr, idx) =>
+    em.create(AttributeSetAttribute, {
+      attributeSetId: DEFAULT_ATTRIBUTE_SET_ID,
+      productAttributeId: attr.id,
+      position: idx,
+    }),
+  );
+  await em.persistAndFlush(assignments);
 
   // --- Products --------------------------------------------------------
   const products: Product[] = [];
