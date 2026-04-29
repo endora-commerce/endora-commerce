@@ -56,3 +56,25 @@ webhook subscribers.
 - **Slug uniqueness** — the slug is unique across all Sales Channels by
   default; override the slugifier in `catalog-admin.service.ts` if locale
   collisions become a concern.
+
+## Feature 002 extensions
+
+The catalog grew several capability surfaces in feature 002. Each has its
+own page:
+
+- [Attribute Sets](./catalog/attribute-sets.md) — reusable attribute
+  schemas pinned to Products, with a system Default
+- [Product Gallery](./catalog/gallery-and-labels.md) — image / video
+  gallery with Base / Small / Thumbnail label invariants enforced at
+  the database level
+- [Attachments](./catalog/attachments.md) — downloadable files
+  (certificates, tech specs, ...) with a typed dictionary
+- [Product Links](./catalog/product-links.md) — Related, Up-sell,
+  Cross-sell pairings driving cross-merchandising on the PDP and cart
+- [Composite Products](./catalog/composite-products.md) — `grouped`
+  (fixed children), `bundle` (configurable slots), `virtual` (digital
+  delivery)
+
+Five product types are now supported: `simple`, `configurable`,
+`grouped`, `bundle`, `virtual`. `simple` and `configurable` are the
+foundation 001 originals; the other three are added in 002.
