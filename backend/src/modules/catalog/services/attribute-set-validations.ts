@@ -41,9 +41,13 @@ export function assertCodeNotImmutable(
   currentSet: SystemSetMarker,
   newCode: string | undefined,
 ): void {
-  void currentSet;
-  void newCode;
-  throw new Error('not implemented');
+  if (!currentSet.isSystem) return;
+  if (newCode === undefined) return;
+  if (newCode === currentSet.code) return;
+  throw new AttributeSetValidationError(
+    `Cannot change code of the system Attribute Set "${currentSet.code}".`,
+    'SYSTEM_ATTRIBUTE_SET_IMMUTABLE',
+  );
 }
 
 /**
@@ -53,10 +57,19 @@ export function assertCodeNotImmutable(
  *
  * Throws AttributeSetValidationError with code ATTRIBUTE_SET_IN_USE
  * (and `details: { productCount }`) when productCount > 0.
+ *
+ * Defensive on negative or fractional inputs: anything other than
+ * exactly `0` is treated as "in use". A negative count is nonsense from
+ * the caller's side, but we'd rather refuse the delete than silently
+ * allow it.
  */
 export function assertNotInUse(productCount: number): void {
-  void productCount;
-  throw new Error('not implemented');
+  if (productCount === 0) return;
+  throw new AttributeSetValidationError(
+    `Attribute Set is referenced by ${productCount} Product(s).`,
+    'ATTRIBUTE_SET_IN_USE',
+    { productCount },
+  );
 }
 
 export interface AttributePartition {
@@ -85,8 +98,20 @@ export function partitionAttributesForSetChange(
   oldSetAttributeKeys: string[],
   newSetAttributeKeys: string[],
 ): AttributePartition {
-  void currentValueKeys;
-  void oldSetAttributeKeys;
-  void newSetAttributeKeys;
-  throw new Error('not implemented');
+  const oldSet = new Set(oldSetAttributeKeys);
+  const newSet = new Set(newSetAttributeKeys);
+  const preservedKeys: string[] = [];
+  const archivedKeys: string[] = [];
+  for (const key of currentValueKeys) {
+    if (!oldSet.has(key)) {
+      // Orphan — wasn't in the old Set either; partition does not move it.
+      continue;
+    }
+    if (newSet.has(key)) {
+      preservedKeys.push(key);
+    } else {
+      archivedKeys.push(key);
+    }
+  }
+  return { preservedKeys, archivedKeys };
 }
