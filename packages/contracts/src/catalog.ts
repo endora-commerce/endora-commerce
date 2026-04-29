@@ -241,11 +241,20 @@ export const createAttributeRequestSchema = z
     isSearchable: z.boolean(),
     isFilterable: z.boolean(),
     isVariantAxis: z.boolean(),
+    /**
+     * Feature 002 — presentation hint. Honored only when
+     * `valueType ∈ ('number', 'price')`. Service rejects with
+     * INVALID_DISPLAY_AS_SLIDER on any other valueType.
+     */
+    displayAsSlider: z.boolean().optional(),
   })
   .refine(
-    (v) => (v.valueType === 'enum' ? Array.isArray(v.enumValues) && v.enumValues.length > 0 : true),
+    (v) =>
+      v.valueType === 'enum' || v.valueType === 'multiselect'
+        ? Array.isArray(v.enumValues) && v.enumValues.length > 0
+        : true,
     {
-      message: 'enumValues is required when valueType=enum',
+      message: 'enumValues is required when valueType=enum or valueType=multiselect',
       path: ['enumValues'],
     },
   );
@@ -258,6 +267,7 @@ export const updateAttributeRequestSchema = z
     isSearchable: z.boolean().optional(),
     isFilterable: z.boolean().optional(),
     isVariantAxis: z.boolean().optional(),
+    displayAsSlider: z.boolean().optional(),
   })
   .strict();
 export type UpdateAttributeRequest = z.infer<typeof updateAttributeRequestSchema>;

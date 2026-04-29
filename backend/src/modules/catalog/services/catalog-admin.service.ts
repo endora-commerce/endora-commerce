@@ -199,6 +199,20 @@ export class CatalogAdminService {
 
   async createAttribute(req: CreateAttributeRequest): Promise<ProductAttribute> {
     const em = this.emFactory();
+    // Feature 002 (T035) — displayAsSlider is honored only on numeric
+    // value types. Reject with INVALID_DISPLAY_AS_SLIDER otherwise so
+    // bad UI inputs don't silently degrade.
+    if (
+      req.displayAsSlider &&
+      req.valueType !== 'number' &&
+      req.valueType !== 'price'
+    ) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.VALIDATION_FAILED,
+        `displayAsSlider is only valid for valueType="number" or "price"; got "${req.valueType}".`,
+      );
+    }
     const attr = em.create(ProductAttribute, {
       key: req.key,
       label: req.label,
@@ -207,6 +221,7 @@ export class CatalogAdminService {
       isSearchable: req.isSearchable,
       isFilterable: req.isFilterable,
       isVariantAxis: req.isVariantAxis,
+      displayAsSlider: req.displayAsSlider ?? false,
     });
     try {
       await em.persistAndFlush(attr);
@@ -237,6 +252,21 @@ export class CatalogAdminService {
     if (req.isSearchable !== undefined) attr.isSearchable = req.isSearchable;
     if (req.isFilterable !== undefined) attr.isFilterable = req.isFilterable;
     if (req.isVariantAxis !== undefined) attr.isVariantAxis = req.isVariantAxis;
+    if (req.displayAsSlider !== undefined) {
+      // Same valueType-vs-displayAsSlider rule as createAttribute.
+      if (
+        req.displayAsSlider &&
+        attr.valueType !== 'number' &&
+        attr.valueType !== 'price'
+      ) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          `displayAsSlider is only valid for valueType="number" or "price"; got "${attr.valueType}".`,
+        );
+      }
+      attr.displayAsSlider = req.displayAsSlider;
+    }
     await em.flush();
     this.events.emit('attribute.updated.v1', {
       eventId: randomUUID(),

@@ -350,6 +350,7 @@ function serializeAdminAttribute(a: ProductAttribute) {
     isSearchable: a.isSearchable,
     isFilterable: a.isFilterable,
     isVariantAxis: a.isVariantAxis,
+    displayAsSlider: a.displayAsSlider,
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
   };
