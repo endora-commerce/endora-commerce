@@ -5,10 +5,12 @@ import {
   createAttributeSetRequestSchema,
   createCategoryRequestSchema,
   createProductRequestSchema,
+  createVariantRequestSchema,
   updateAttributeRequestSchema,
   updateAttributeSetRequestSchema,
   updateCategoryRequestSchema,
   updateProductRequestSchema,
+  updateVariantRequestSchema,
 } from '@b2b/contracts';
 import type { CatalogAdminService } from './services/catalog-admin.service.js';
 import type { CategoryAdminService } from './services/category-admin.service.js';
@@ -316,6 +318,54 @@ export async function registerCatalogAdminRoutes(
       },
     );
   }
+
+  // ===== Feature 002 — Variants admin CRUD ===================================
+  // contracts/catalog-002.contract.md / spec.md US2: configurable Products
+  // need an admin write surface for Variants. Foundation 001 shipped the
+  // ProductVariant entity but no routes.
+
+  app.post<{ Params: { productId: string } }>(
+    '/api/v1/admin/catalog/products/:productId/variants',
+    {
+      preHandler: requireAdmin('catalog:write'),
+      schema: { body: createVariantRequestSchema },
+    },
+    async (request, reply) => {
+      const body = createVariantRequestSchema.parse(request.body);
+      const variant = await adminService.createVariant(request.params.productId, body);
+      reply.status(201);
+      return { data: serializeAdminVariant(variant) };
+    },
+  );
+
+  app.patch<{ Params: { productId: string; variantId: string } }>(
+    '/api/v1/admin/catalog/products/:productId/variants/:variantId',
+    {
+      preHandler: requireAdmin('catalog:write'),
+      schema: { body: updateVariantRequestSchema },
+    },
+    async (request) => {
+      const body = updateVariantRequestSchema.parse(request.body);
+      const variant = await adminService.updateVariant(
+        request.params.productId,
+        request.params.variantId,
+        body,
+      );
+      return { data: serializeAdminVariant(variant) };
+    },
+  );
+
+  app.delete<{ Params: { productId: string; variantId: string } }>(
+    '/api/v1/admin/catalog/products/:productId/variants/:variantId',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request, reply) => {
+      await adminService.deleteVariant(
+        request.params.productId,
+        request.params.variantId,
+      );
+      reply.status(204).send();
+    },
+  );
 }
 
 function serializeAdminProduct(p: Product) {
@@ -353,6 +403,19 @@ function serializeAdminAttribute(a: ProductAttribute) {
     displayAsSlider: a.displayAsSlider,
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
+  };
+}
+
+function serializeAdminVariant(v: import('./entities/product-variant.entity.js').ProductVariant) {
+  return {
+    id: v.id,
+    parentProductId: v.parentProductId,
+    sku: v.sku,
+    variantAttributeValues: v.variantAttributeValues,
+    priceOverride: v.priceOverride != null ? Number(v.priceOverride) : null,
+    stockLevel: v.stockLevel ?? null,
+    createdAt: v.createdAt.toISOString(),
+    updatedAt: v.updatedAt.toISOString(),
   };
 }
 

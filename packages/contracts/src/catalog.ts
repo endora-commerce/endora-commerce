@@ -265,6 +265,11 @@ export const createVariantRequestSchema = z.object({
 });
 export type CreateVariantRequest = z.infer<typeof createVariantRequestSchema>;
 
+export const updateVariantRequestSchema = createVariantRequestSchema
+  .partial()
+  .omit({ sku: true });
+export type UpdateVariantRequest = z.infer<typeof updateVariantRequestSchema>;
+
 export const createAttributeRequestSchema = z
   .object({
     key: z

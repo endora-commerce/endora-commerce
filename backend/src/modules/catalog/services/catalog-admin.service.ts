@@ -5,8 +5,10 @@ import {
   ERROR_CODES,
   type CreateAttributeRequest,
   type CreateProductRequest,
+  type CreateVariantRequest,
   type UpdateAttributeRequest,
   type UpdateProductRequest,
+  type UpdateVariantRequest,
 } from '@b2b/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 
@@ -25,6 +27,7 @@ export type CatalogEventBus = EventBus<CatalogEvents>;
 import { HttpError } from '../../../http/error-envelope.js';
 import { Product } from '../entities/product.entity.js';
 import { ProductAttribute } from '../entities/product-attribute.entity.js';
+import { ProductVariant } from '../entities/product-variant.entity.js';
 import {
   assertVirtualDownloadFields,
   ProductTypeValidationError,
@@ -327,6 +330,128 @@ export class CatalogAdminService {
   }
 
   // ------------------------------------------------------------------
+
+  // ===== Feature 002 (T054 backend prereq) — Variants CRUD =================
+
+  async createVariant(
+    parentProductId: string,
+    req: CreateVariantRequest,
+  ): Promise<ProductVariant> {
+    const em = this.emFactory();
+    const parent = await em.findOne(Product, { id: parentProductId });
+    if (!parent) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.PRODUCT_NOT_FOUND,
+        `Product ${parentProductId} not found.`,
+      );
+    }
+    if (parent.type !== 'configurable') {
+      throw new HttpError(
+        400,
+        ERROR_CODES.VALIDATION_FAILED,
+        `Variants can only be added to configurable Products; this Product is ${parent.type}.`,
+      );
+    }
+    // SKU uniqueness MUST hold across both products and variants.
+    const existingProduct = await em.findOne(Product, { sku: req.sku });
+    if (existingProduct) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.SKU_ALREADY_EXISTS,
+        `SKU "${req.sku}" already taken by an existing Product.`,
+      );
+    }
+    const variant = em.create(ProductVariant, {
+      parentProductId,
+      sku: req.sku,
+      variantAttributeValues: req.variantAttributeValues,
+      ...(req.priceOverride !== undefined
+        ? { priceOverride: String(req.priceOverride) }
+        : {}),
+      ...(req.stockLevel !== undefined ? { stockLevel: req.stockLevel } : {}),
+    });
+    try {
+      await em.persistAndFlush(variant);
+    } catch (err) {
+      if (err instanceof UniqueConstraintViolationException) {
+        throw new HttpError(
+          409,
+          ERROR_CODES.SKU_ALREADY_EXISTS,
+          `SKU "${req.sku}" already taken by an existing Variant.`,
+        );
+      }
+      throw err;
+    }
+    this.events.emit('product.updated.v1', {
+      eventId: randomUUID(),
+      occurredAt: new Date().toISOString(),
+      productId: parentProductId,
+      changedFields: ['variants'],
+    });
+    return variant;
+  }
+
+  async updateVariant(
+    parentProductId: string,
+    variantId: string,
+    req: UpdateVariantRequest,
+  ): Promise<ProductVariant> {
+    const em = this.emFactory();
+    const variant = await em.findOne(ProductVariant, {
+      id: variantId,
+      parentProductId,
+    });
+    if (!variant) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.NOT_FOUND,
+        `Variant ${variantId} not found under Product ${parentProductId}.`,
+      );
+    }
+    if (req.variantAttributeValues !== undefined) {
+      variant.variantAttributeValues = req.variantAttributeValues;
+    }
+    if (req.priceOverride !== undefined) {
+      variant.priceOverride = String(req.priceOverride);
+    }
+    if (req.stockLevel !== undefined) {
+      variant.stockLevel = req.stockLevel;
+    }
+    await em.flush();
+    this.events.emit('product.updated.v1', {
+      eventId: randomUUID(),
+      occurredAt: new Date().toISOString(),
+      productId: parentProductId,
+      changedFields: ['variants'],
+    });
+    return variant;
+  }
+
+  async deleteVariant(parentProductId: string, variantId: string): Promise<void> {
+    const em = this.emFactory();
+    const variant = await em.findOne(ProductVariant, {
+      id: variantId,
+      parentProductId,
+    });
+    if (!variant) {
+      // DELETE is idempotent — but we still 404 here so admins notice
+      // typo'd ids. Foundation pattern (admin DELETE on missing rows
+      // returns 404 too, e.g. category soft-delete).
+      throw new HttpError(
+        404,
+        ERROR_CODES.NOT_FOUND,
+        `Variant ${variantId} not found under Product ${parentProductId}.`,
+      );
+    }
+    await em.removeAndFlush(variant);
+    this.events.emit('product.updated.v1', {
+      eventId: randomUUID(),
+      occurredAt: new Date().toISOString(),
+      productId: parentProductId,
+      changedFields: ['variants'],
+    });
+  }
 
   /**
    * Feature 002 (T023) — reject unknown keys in `attributeValues` against
