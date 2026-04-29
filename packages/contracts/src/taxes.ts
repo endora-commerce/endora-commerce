@@ -22,7 +22,7 @@ export const taxSchema = z.object({
   name: z.string().min(1).max(160),
   rate: z.number().finite().nonnegative(),
   country: z.string().length(2).nullable(),
-  productType: z.enum(['simple', 'variant', 'grouped', 'virtual']).nullable(),
+  productType: z.enum(['simple', 'configurable', 'grouped', 'bundle', 'virtual']).nullable(),
   appliesToVatStatuses: z.array(VAT_STATUS),
   isDefault: z.boolean(),
   priority: z.number().int(),
@@ -37,7 +37,7 @@ export const upsertTaxRequestSchema = z.object({
   rate: z.number().finite().nonnegative(),
   country: z.string().length(2).nullable().optional(),
   productType: z
-    .enum(['simple', 'variant', 'grouped', 'virtual'])
+    .enum(['simple', 'configurable', 'grouped', 'bundle', 'virtual'])
     .nullable()
     .optional(),
   appliesToVatStatuses: z.array(VAT_STATUS).optional(),
@@ -47,7 +47,7 @@ export const upsertTaxRequestSchema = z.object({
 
 export const taxResolutionInputSchema = z.object({
   country: z.string().length(2),
-  productType: z.enum(['simple', 'variant', 'grouped', 'virtual']),
+  productType: z.enum(['simple', 'configurable', 'grouped', 'bundle', 'virtual']),
   vatStatus: VAT_STATUS,
 });
 export type TaxResolutionInput = z.infer<typeof taxResolutionInputSchema>;

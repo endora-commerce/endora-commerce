@@ -244,7 +244,7 @@ export class CatalogQueryService {
     const assets = await em.find(Asset, { id: { $in: assetIds } });
 
     // Variants
-    const variants = product.type === 'variant' ? await em.find(ProductVariant, { parentProductId: product.id }) : [];
+    const variants = product.type === 'configurable' ? await em.find(ProductVariant, { parentProductId: product.id }) : [];
 
     // Feature 002 — Attribute Set wired to this Product. Pulled in a
     // single findOne so PDP renders include the set's localized name

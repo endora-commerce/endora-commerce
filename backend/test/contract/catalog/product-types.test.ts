@@ -31,20 +31,23 @@ describe('Admin Products contract — feature 002 type enum (T039)', () => {
 
   const adminCookie = { b2b_session: 'stub-admin-session' };
 
-  const baseProduct = {
-    sku: 'TYPETEST-001',
-    name: { 'en-US': 'Type test', 'pl-PL': 'Test typu' },
+  // Each test must use a unique `name` because slug is derived from it
+  // (catalog-admin.service.slugify); reusing the same name across tests
+  // would trigger a slug-uniqueness conflict on the second insert.
+  const productPayload = (suffix: string) => ({
+    sku: `TYPETEST-${suffix}`,
+    name: { 'en-US': `Type test ${suffix}`, 'pl-PL': `Test typu ${suffix}` },
     description: { 'en-US': 'For T039', 'pl-PL': 'Dla T039' },
     categoryIds: [] as string[],
     attributeValues: {},
     visibility: 'public',
-  };
+  });
 
   it('POST accepts type=configurable (rename of legacy `variant`)', async () => {
     const res = await h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/catalog/products',
-      payload: { ...baseProduct, sku: 'TYPETEST-CONFIGURABLE', type: 'configurable' },
+      payload: { ...productPayload('CONFIGURABLE'), type: 'configurable' },
       cookies: adminCookie,
     });
     expect(res.statusCode).toBe(201);
@@ -54,7 +57,7 @@ describe('Admin Products contract — feature 002 type enum (T039)', () => {
     const res = await h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/catalog/products',
-      payload: { ...baseProduct, sku: 'TYPETEST-BUNDLE', type: 'bundle' },
+      payload: { ...productPayload('BUNDLE'), type: 'bundle' },
       cookies: adminCookie,
     });
     expect(res.statusCode).toBe(201);
@@ -64,7 +67,7 @@ describe('Admin Products contract — feature 002 type enum (T039)', () => {
     const res = await h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/catalog/products',
-      payload: { ...baseProduct, sku: 'TYPETEST-LEGACY-VARIANT', type: 'variant' },
+      payload: { ...productPayload('LEGACY-VARIANT'), type: 'variant' },
       cookies: adminCookie,
     });
     expect(res.statusCode).toBe(400);
@@ -75,8 +78,7 @@ describe('Admin Products contract — feature 002 type enum (T039)', () => {
       method: 'POST',
       url: '/api/v1/admin/catalog/products',
       payload: {
-        ...baseProduct,
-        sku: 'TYPETEST-VIRTUAL-URL',
+        ...productPayload('VIRTUAL-URL'),
         type: 'virtual',
         downloadUrl: 'https://files.example.com/ebook.pdf',
       },
@@ -90,8 +92,7 @@ describe('Admin Products contract — feature 002 type enum (T039)', () => {
       method: 'POST',
       url: '/api/v1/admin/catalog/products',
       payload: {
-        ...baseProduct,
-        sku: 'TYPETEST-VIRTUAL-EMPTY',
+        ...productPayload('VIRTUAL-EMPTY'),
         type: 'virtual',
       },
       cookies: adminCookie,
@@ -106,8 +107,7 @@ describe('Admin Products contract — feature 002 type enum (T039)', () => {
       method: 'POST',
       url: '/api/v1/admin/catalog/products',
       payload: {
-        ...baseProduct,
-        sku: 'TYPETEST-VIRTUAL-BOTH',
+        ...productPayload('VIRTUAL-BOTH'),
         type: 'virtual',
         downloadUrl: 'https://files.example.com/ebook.pdf',
         downloadAssetId: '00000000-0000-4000-8000-000000000aaa',

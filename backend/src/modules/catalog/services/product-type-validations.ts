@@ -35,9 +35,14 @@ export interface ProductTypeForVariantCheck {
  * CONFIGURABLE_REQUIRES_VARIANT.
  */
 export function assertConfigurableHasVariants(
-  _input: ProductTypeForVariantCheck,
+  input: ProductTypeForVariantCheck,
 ): void {
-  throw new Error('not implemented');
+  if (input.type !== 'configurable') return;
+  if (input.variantCount > 0) return;
+  throw new ProductTypeValidationError(
+    'configurable products require at least one Variant.',
+    'CONFIGURABLE_REQUIRES_VARIANT',
+  );
 }
 
 export interface ProductTypeForDownloadCheck {
@@ -57,7 +62,25 @@ export interface ProductTypeForDownloadCheck {
  *   - NON_VIRTUAL_HAS_DOWNLOAD_FIELDS
  */
 export function assertVirtualDownloadFields(
-  _input: ProductTypeForDownloadCheck,
+  input: ProductTypeForDownloadCheck,
 ): void {
-  throw new Error('not implemented');
+  const hasAsset = input.downloadAssetId !== null;
+  const hasUrl = input.downloadUrl !== null;
+
+  if (input.type === 'virtual') {
+    if (hasAsset !== hasUrl) return; // exactly one of
+    throw new ProductTypeValidationError(
+      hasAsset && hasUrl
+        ? 'virtual products MUST set exactly one of downloadAssetId / downloadUrl, not both.'
+        : 'virtual products MUST set exactly one of downloadAssetId / downloadUrl.',
+      'VIRTUAL_DOWNLOAD_EXACTLY_ONE',
+    );
+  }
+
+  if (hasAsset || hasUrl) {
+    throw new ProductTypeValidationError(
+      `non-virtual products (type=${input.type}) MUST have both downloadAssetId and downloadUrl null.`,
+      'NON_VIRTUAL_HAS_DOWNLOAD_FIELDS',
+    );
+  }
 }

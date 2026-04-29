@@ -36,7 +36,7 @@ export class Tax {
   country?: string | null;
 
   @Property({ type: 'string', length: 16, nullable: true })
-  productType?: 'simple' | 'variant' | 'grouped' | 'virtual' | null;
+  productType?: 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual' | null;
 
   @Property({ type: 'json' })
   appliesToVatStatuses: Array<'vat_payer' | 'vat_exempt' | 'reverse_charge'> = [];

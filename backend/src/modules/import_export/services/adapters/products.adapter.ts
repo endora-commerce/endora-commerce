@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { Product } from '../../../catalog/entities/product.entity.js';
 import type { ImportExportAdapter, ImportRowResult } from '../adapter.js';
 
-const PRODUCT_TYPES = new Set(['simple', 'variant', 'grouped', 'virtual']);
+const PRODUCT_TYPES = new Set(['simple', 'configurable', 'grouped', 'bundle', 'virtual']);
 const PRODUCT_STATUSES = new Set(['draft', 'active', 'archived']);
 const PRODUCT_VISIBILITIES = new Set([
   'public',

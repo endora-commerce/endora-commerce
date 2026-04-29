@@ -25,6 +25,10 @@ export type CatalogEventBus = EventBus<CatalogEvents>;
 import { HttpError } from '../../../http/error-envelope.js';
 import { Product } from '../entities/product.entity.js';
 import { ProductAttribute } from '../entities/product-attribute.entity.js';
+import {
+  assertVirtualDownloadFields,
+  ProductTypeValidationError,
+} from './product-type-validations.js';
 import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /** Optional metadata used to attach audit entries to admin mutations. */
@@ -51,6 +55,22 @@ export class CatalogAdminService {
 
   async createProduct(req: CreateProductRequest): Promise<Product> {
     const em = this.emFactory();
+    // Feature 002 (T047): cross-field validation for virtual download
+    // fields. Zod's .refine() catches most cases at the boundary; the
+    // service-level guard is the belt-and-braces backstop for any
+    // call path that bypasses the schema (e.g. internal seeding).
+    try {
+      assertVirtualDownloadFields({
+        type: req.type,
+        downloadAssetId: req.downloadAssetId ?? null,
+        downloadUrl: req.downloadUrl ?? null,
+      });
+    } catch (err) {
+      if (err instanceof ProductTypeValidationError) {
+        throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, err.message);
+      }
+      throw err;
+    }
     const slug = this.slugify(this.anyValue(req.name) || req.sku);
     const product = em.create(Product, {
       sku: req.sku,
@@ -66,6 +86,11 @@ export class CatalogAdminService {
       // Feature 002 (T034): use the requested AttributeSet, else fall
       // back to the entity's compile-time default (system Default Set).
       ...(req.attributeSetId ? { attributeSetId: req.attributeSetId } : {}),
+      // Feature 002 (T047): persist virtual download fields when set.
+      ...(req.downloadAssetId !== undefined
+        ? { downloadAssetId: req.downloadAssetId }
+        : {}),
+      ...(req.downloadUrl !== undefined ? { downloadUrl: req.downloadUrl } : {}),
     });
     // Feature 002 (T023): the keys in `attributeValues` MUST belong to
     // the Product's AttributeSet. The entity defaults `attributeSetId`

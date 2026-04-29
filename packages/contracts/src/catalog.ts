@@ -14,7 +14,20 @@ import {
 
 // --- Primitives --------------------------------------------------------------
 
-export const productTypeSchema = z.enum(['simple', 'variant', 'grouped', 'virtual']);
+/**
+ * Product types. Foundation 001 used `simple | variant | grouped |
+ * virtual`; feature 002 (data-model.md §1.1) renames `variant` →
+ * `configurable` and adds `bundle`. The application enum is the only
+ * source of truth — the DB column is `varchar(16)` with no CHECK
+ * constraint (research.md R-1).
+ */
+export const productTypeSchema = z.enum([
+  'simple',
+  'configurable',
+  'grouped',
+  'bundle',
+  'virtual',
+]);
 export type ProductType = z.infer<typeof productTypeSchema>;
 
 export const productStatusSchema = z.enum(['draft', 'active', 'archived']);
@@ -193,7 +206,10 @@ export type FilterDefinition = z.infer<typeof filterDefinitionSchema>;
 
 // --- Admin write-surface requests -------------------------------------------
 
-export const createProductRequestSchema = z.object({
+// Base shape (no cross-field refine) so updateProductRequestSchema can
+// `.partial()` it. The cross-field rule for virtual download fields is
+// applied as a separate refine on the create variant below.
+const baseProductRequestObject = z.object({
   sku: z.string().min(1).max(64),
   type: productTypeSchema,
   name: multilingualStringSchema,
@@ -207,16 +223,37 @@ export const createProductRequestSchema = z.object({
   initialStock: z.number().int().nonnegative().optional(),
   /**
    * Feature 002 — Attribute Set the Product is wired to. Optional in the
-   * request: when omitted, the system Default Set is used. The value
-   * MUST be a valid AttributeSet id (T023 service rejects unknown sets).
+   * request: when omitted, the system Default Set is used.
    */
   attributeSetId: uuidSchema.optional(),
+  /**
+   * Feature 002 — virtual product download fields (data-model.md §1.1).
+   * Exactly one MUST be set when type='virtual'; both MUST be null on
+   * any other type. Refine below enforces the cross-field rule on the
+   * create-side; updates land it via service-layer guard (T047).
+   */
+  downloadAssetId: uuidSchema.nullable().optional(),
+  downloadUrl: z.string().url().max(2048).nullable().optional(),
 });
+
+export const createProductRequestSchema = baseProductRequestObject.refine(
+  (v) => {
+    const hasAsset = v.downloadAssetId != null;
+    const hasUrl = v.downloadUrl != null;
+    if (v.type === 'virtual') return hasAsset !== hasUrl; // exactly one of
+    return !hasAsset && !hasUrl; // non-virtual must have neither
+  },
+  {
+    message:
+      'virtual products require exactly one of `downloadAssetId` or `downloadUrl`; non-virtual products MUST have neither.',
+    path: ['downloadUrl'],
+  },
+);
 export type CreateProductRequest = z.infer<typeof createProductRequestSchema>;
 
-export const updateProductRequestSchema = createProductRequestSchema
+// sku and type are immutable after creation (409 FIELD_IMMUTABLE if sent)
+export const updateProductRequestSchema = baseProductRequestObject
   .partial()
-  // sku and type are immutable after creation (409 FIELD_IMMUTABLE if sent)
   .omit({ sku: true, type: true });
 export type UpdateProductRequest = z.infer<typeof updateProductRequestSchema>;
 
