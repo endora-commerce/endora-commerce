@@ -23,6 +23,12 @@ type MessageKey =
   | 'product.requestQuote'
   | 'product.addToCart'
   | 'product.inStock'
+  | 'product.variants.heading'
+  | 'product.variants.sku'
+  | 'product.variants.priceOverride'
+  | 'product.variants.stockLevel'
+  | 'product.variants.outOfStock'
+  | 'product.variants.selectThisVariant'
   | 'search.placeholder'
   | 'common.searchAction'
   | 'pagination.next';
@@ -41,6 +47,12 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'product.requestQuote': 'Request a quote',
     'product.addToCart': 'Add to cart',
     'product.inStock': 'In stock',
+    'product.variants.heading': 'Variants',
+    'product.variants.sku': 'SKU',
+    'product.variants.priceOverride': 'Price',
+    'product.variants.stockLevel': 'In stock',
+    'product.variants.outOfStock': 'Out of stock',
+    'product.variants.selectThisVariant': 'Currently selected',
     'search.placeholder': 'Search products…',
     'common.searchAction': 'Search',
     'pagination.next': 'Next page',
@@ -58,6 +70,12 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'product.requestQuote': 'Zapytaj o oferte',
     'product.addToCart': 'Dodaj do koszyka',
     'product.inStock': 'Dostepny',
+    'product.variants.heading': 'Warianty',
+    'product.variants.sku': 'Kod',
+    'product.variants.priceOverride': 'Cena',
+    'product.variants.stockLevel': 'Dostepne',
+    'product.variants.outOfStock': 'Niedostepny',
+    'product.variants.selectThisVariant': 'Wybrany',
     'search.placeholder': 'Szukaj produktow...',
     'common.searchAction': 'Szukaj',
     'pagination.next': 'Nastepna strona',

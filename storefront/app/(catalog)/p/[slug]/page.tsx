@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
 import { Breadcrumbs } from '../../../../components/Breadcrumbs';
 import { ProductGallery } from '../../../../components/ProductGallery';
+import { VariantPicker } from '../../../../components/VariantPicker';
 import { PriceTag } from '../../../../components/PriceTag';
 import { StockBadge } from '../../../../components/StockBadge';
 import { AddToRfqForm } from '../../../../components/rfq/AddToRfqForm';
@@ -13,6 +14,7 @@ import { StorefrontApiError } from '../../../../lib/api/client';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
+  searchParams?: Promise<{ variant?: string | string[] }>;
 }
 
 /**
@@ -41,8 +43,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 }
 
-export default async function ProductPage({ params }: PageProps): Promise<ReactNode> {
+export default async function ProductPage({
+  params,
+  searchParams,
+}: PageProps): Promise<ReactNode> {
   const { slug } = await params;
+  const search = searchParams ? await searchParams : {};
+  const selectedVariantSku = typeof search.variant === 'string' ? search.variant : null;
   const { ctx, locale } = await getServerContext();
   const t = tForLocale(locale);
 
@@ -89,6 +96,22 @@ export default async function ProductPage({ params }: PageProps): Promise<ReactN
             ) : null}
             <AddToRfqForm productId={product.id} productSlug={product.slug} />
           </div>
+
+          {product.type === 'configurable' && product.variants.length > 0 ? (
+            <VariantPicker
+              productSlug={product.slug}
+              variants={product.variants}
+              selectedSku={selectedVariantSku}
+              labels={{
+                heading: t('product.variants.heading'),
+                sku: t('product.variants.sku'),
+                priceOverride: t('product.variants.priceOverride'),
+                stockLevel: t('product.variants.stockLevel'),
+                outOfStock: t('product.variants.outOfStock'),
+                selectThisVariant: t('product.variants.selectThisVariant'),
+              }}
+            />
+          ) : null}
 
           {Object.keys(product.attributeValues).length > 0 ? (
             <div style={{ marginTop: 24 }}>
