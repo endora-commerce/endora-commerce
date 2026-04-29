@@ -47,9 +47,10 @@ fail=0
 # 1. Backend module folder shape.
 # Plural snake_case, with a small explicit allow-list of singular-mass nouns
 # whose plural forms read worse than the singular (catalog, inventory, search,
-# auth, example).
+# auth, example, email — service modules; quick_order — a single named
+# user flow rather than a collection).
 # ──────────────────────────────────────────────────────────────────────────
-allowed_singular="^(auth|catalog|example|import_export|inventory|search|seo)$"
+allowed_singular="^(auth|catalog|email|example|import_export|inventory|quick_order|search|seo)$"
 
 if [ -d backend/src/modules ]; then
   while IFS= read -r -d '' dir; do

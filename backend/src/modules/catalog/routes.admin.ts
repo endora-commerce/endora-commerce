@@ -37,6 +37,7 @@ import type { ProductLinkService } from './services/product-link.service.js';
 import type { GroupedService } from './services/grouped.service.js';
 import type { BundleService } from './services/bundle.service.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { ProductVariant } from './entities/product-variant.entity.js';
 import type { Product } from './entities/product.entity.js';
 import type { ProductAttribute } from './entities/product-attribute.entity.js';
 import type { Category } from './entities/category.entity.js';
@@ -1037,7 +1038,7 @@ function serializeAdminAttribute(a: ProductAttribute) {
   };
 }
 
-function serializeAdminVariant(v: import('./entities/product-variant.entity.js').ProductVariant) {
+function serializeAdminVariant(v: ProductVariant) {
   return {
     id: v.id,
     parentProductId: v.parentProductId,
