@@ -20,6 +20,7 @@ import {
   updateVariantRequestSchema,
 } from '@b2b/contracts';
 import type { CatalogAdminService } from './services/catalog-admin.service.js';
+import { dbToApiAttributeType } from './services/catalog-admin.service.js';
 import type { CategoryAdminService } from './services/category-admin.service.js';
 import type { AttributeSetService } from './services/attribute-set.service.js';
 import type { GalleryService } from './services/gallery.service.js';
@@ -139,20 +140,26 @@ export async function registerCatalogAdminRoutes(
       const body = createAttributeRequestSchema.parse(request.body);
       const attr = await adminService.createAttribute(body);
       reply.status(201);
-      return { data: attr };
+      return { data: serializeAdminAttribute(attr) };
     },
   );
 
-  app.patch<{ Params: { key: string } }>(
-    '/api/v1/admin/catalog/attributes/:key',
+  app.patch<{ Params: { idOrKey: string } }>(
+    '/api/v1/admin/catalog/attributes/:idOrKey',
     {
       preHandler: requireAdmin('catalog:write'),
       schema: { body: updateAttributeRequestSchema },
     },
     async (request) => {
       const body = updateAttributeRequestSchema.parse(request.body);
-      const attr = await adminService.updateAttribute(request.params.key, body);
-      return { data: attr };
+      // Accept either UUID (id) or snake_case key — admin UI consumes
+      // the API by key, but contract tests round-trip through the id
+      // returned on create.
+      const attr = await adminService.updateAttributeByIdOrKey(
+        request.params.idOrKey,
+        body,
+      );
+      return { data: serializeAdminAttribute(attr) };
     },
   );
 
@@ -578,10 +585,15 @@ function serializeAdminProduct(p: Product) {
 }
 
 function serializeAdminAttribute(a: ProductAttribute) {
+  const api = dbToApiAttributeType(a.valueType, a.displayAsSlider);
   return {
     id: a.id,
     key: a.key,
     label: a.label,
+    // API-form (feature 002 T013/T021/T022): admin UI can read either
+    // `type` or the legacy `valueType` — both are emitted.
+    type: api.type,
+    numericKind: api.numericKind,
     valueType: a.valueType,
     enumValues: a.enumValues ?? null,
     isSearchable: a.isSearchable,

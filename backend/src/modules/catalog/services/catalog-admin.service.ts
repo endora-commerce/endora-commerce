@@ -3,9 +3,12 @@ import { randomUUID } from 'crypto';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
   ERROR_CODES,
+  type ApiAttributeType,
+  type AttributeValueType,
   type CreateAttributeRequest,
   type CreateProductRequest,
   type CreateVariantRequest,
+  type NumericKind,
   type UpdateAttributeRequest,
   type UpdateProductRequest,
   type UpdateVariantRequest,
@@ -227,29 +230,29 @@ export class CatalogAdminService {
 
   async createAttribute(req: CreateAttributeRequest): Promise<ProductAttribute> {
     const em = this.emFactory();
-    // Feature 002 (T035) — displayAsSlider is honored only on numeric
-    // value types. Reject with INVALID_DISPLAY_AS_SLIDER otherwise so
-    // bad UI inputs don't silently degrade.
+    // Feature 002 T013/T021/T022 — resolve API `type` (or legacy
+    // `valueType`) to the persisted `valueType` + `displayAsSlider`.
+    const resolved = resolveAttributeApiType(req);
     if (
-      req.displayAsSlider &&
-      req.valueType !== 'number' &&
-      req.valueType !== 'price'
+      resolved.displayAsSlider &&
+      resolved.valueType !== 'number' &&
+      resolved.valueType !== 'price'
     ) {
       throw new HttpError(
         400,
         ERROR_CODES.VALIDATION_FAILED,
-        `displayAsSlider is only valid for valueType="number" or "price"; got "${req.valueType}".`,
+        `displayAsSlider is only valid for valueType="number" or "price"; got "${resolved.valueType}".`,
       );
     }
     const attr = em.create(ProductAttribute, {
       key: req.key,
       label: req.label,
-      valueType: req.valueType,
+      valueType: resolved.valueType,
       enumValues: req.enumValues ?? null,
       isSearchable: req.isSearchable,
       isFilterable: req.isFilterable,
       isVariantAxis: req.isVariantAxis,
-      displayAsSlider: req.displayAsSlider ?? false,
+      displayAsSlider: resolved.displayAsSlider,
     });
     try {
       await em.persistAndFlush(attr);
@@ -269,18 +272,58 @@ export class CatalogAdminService {
     return attr;
   }
 
+  async updateAttributeByIdOrKey(
+    idOrKey: string,
+    req: UpdateAttributeRequest,
+  ): Promise<ProductAttribute> {
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrKey);
+    const em = this.emFactory();
+    const attr = await em.findOne(
+      ProductAttribute,
+      isUuid ? { id: idOrKey } : { key: idOrKey },
+    );
+    if (!attr) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.NOT_FOUND,
+        `Attribute "${idOrKey}" not found.`,
+      );
+    }
+    return this.applyAttributeUpdate(em, attr, req);
+  }
+
   async updateAttribute(key: string, req: UpdateAttributeRequest): Promise<ProductAttribute> {
     const em = this.emFactory();
     const attr = await em.findOne(ProductAttribute, { key });
     if (!attr) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute "${key}" not found.`);
     }
+    return this.applyAttributeUpdate(em, attr, req);
+  }
+
+  private async applyAttributeUpdate(
+    em: EntityManager,
+    attr: ProductAttribute,
+    req: UpdateAttributeRequest,
+  ): Promise<ProductAttribute> {
     if (req.label !== undefined) attr.label = req.label;
     if (req.enumValues !== undefined) attr.enumValues = req.enumValues;
     if (req.isSearchable !== undefined) attr.isSearchable = req.isSearchable;
     if (req.isFilterable !== undefined) attr.isFilterable = req.isFilterable;
     if (req.isVariantAxis !== undefined) attr.isVariantAxis = req.isVariantAxis;
-    if (req.displayAsSlider !== undefined) {
+    if (req.type !== undefined) {
+      // Feature 002 — patching `type` re-derives valueType + displayAsSlider.
+      const resolved = resolveAttributeApiType({
+        type: req.type,
+        ...(req.numericKind !== undefined ? { numericKind: req.numericKind } : {}),
+        ...(req.displayAsSlider !== undefined
+          ? { displayAsSlider: req.displayAsSlider }
+          : {}),
+      });
+      attr.valueType = resolved.valueType;
+      attr.displayAsSlider = resolved.displayAsSlider;
+    } else if (req.displayAsSlider !== undefined) {
       // Same valueType-vs-displayAsSlider rule as createAttribute.
       if (
         req.displayAsSlider &&
@@ -510,5 +553,89 @@ export class CatalogAdminService {
   private anyValue(blob: Record<string, string>): string {
     const key = Object.keys(blob)[0];
     return key ? (blob[key] ?? '') : '';
+  }
+}
+
+/**
+ * Maps an API-form attribute request onto the persisted `valueType` +
+ * `displayAsSlider` pair (research R-7). Either `type` (preferred) or
+ * `valueType` (legacy) MUST be set — Zod refines guarantee it for create;
+ * update callers pass `type` explicitly so it's always present here.
+ */
+export function resolveAttributeApiType(req: {
+  type?: ApiAttributeType | undefined;
+  valueType?: AttributeValueType | undefined;
+  numericKind?: NumericKind | undefined;
+  displayAsSlider?: boolean | undefined;
+}): { valueType: AttributeValueType; displayAsSlider: boolean } {
+  if (req.type === undefined) {
+    if (req.valueType === undefined) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.VALIDATION_FAILED,
+        'either type or valueType is required',
+      );
+    }
+    return {
+      valueType: req.valueType,
+      displayAsSlider: req.displayAsSlider ?? false,
+    };
+  }
+  switch (req.type) {
+    case 'input':
+      return { valueType: 'string', displayAsSlider: false };
+    case 'number':
+      return { valueType: 'number', displayAsSlider: req.displayAsSlider ?? false };
+    case 'select':
+      return { valueType: 'enum', displayAsSlider: false };
+    case 'multiselect':
+      return { valueType: 'multiselect', displayAsSlider: false };
+    case 'price':
+      return { valueType: 'price', displayAsSlider: req.displayAsSlider ?? false };
+    case 'slider': {
+      // Zod refine catches the missing-numericKind path; this is a
+      // belt-and-braces guard for direct service callers (seeders, etc).
+      if (req.numericKind === undefined) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          'numericKind is required when type=slider',
+        );
+      }
+      return {
+        valueType: req.numericKind === 'price' ? 'price' : 'number',
+        displayAsSlider: true,
+      };
+    }
+  }
+}
+
+/**
+ * Inverse of `resolveAttributeApiType` — derives the API-form `type` +
+ * `numericKind` from the persisted (`valueType`, `displayAsSlider`) pair
+ * so list/detail responses surface the form admins authored against.
+ */
+export function dbToApiAttributeType(
+  valueType: AttributeValueType,
+  displayAsSlider: boolean,
+): { type: ApiAttributeType; numericKind: NumericKind | null } {
+  if (displayAsSlider && (valueType === 'number' || valueType === 'price')) {
+    return { type: 'slider', numericKind: valueType };
+  }
+  switch (valueType) {
+    case 'string':
+      return { type: 'input', numericKind: null };
+    case 'number':
+      return { type: 'number', numericKind: null };
+    case 'enum':
+      return { type: 'select', numericKind: null };
+    case 'multiselect':
+      return { type: 'multiselect', numericKind: null };
+    case 'price':
+      return { type: 'price', numericKind: null };
+    case 'boolean':
+    case 'date':
+      // These DB-only types have no API alias; surface the legacy form.
+      return { type: 'input', numericKind: null };
   }
 }

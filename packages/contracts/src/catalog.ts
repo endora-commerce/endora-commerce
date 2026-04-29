@@ -317,34 +317,78 @@ export const updateVariantRequestSchema = createVariantRequestSchema
   .omit({ sku: true });
 export type UpdateVariantRequest = z.infer<typeof updateVariantRequestSchema>;
 
-export const createAttributeRequestSchema = z
-  .object({
-    key: z
-      .string()
-      .min(1)
-      .max(64)
-      .regex(/^[a-z][a-z0-9_]*$/, 'must be snake_case, start with a letter'),
-    label: multilingualStringSchema,
-    valueType: attributeValueTypeSchema,
-    enumValues: z.array(z.string()).optional(),
-    isSearchable: z.boolean(),
-    isFilterable: z.boolean(),
-    isVariantAxis: z.boolean(),
-    /**
-     * Feature 002 — presentation hint. Honored only when
-     * `valueType ∈ ('number', 'price')`. Service rejects with
-     * INVALID_DISPLAY_AS_SLIDER on any other valueType.
-     */
-    displayAsSlider: z.boolean().optional(),
+/**
+ * Slider-numeric-kind discriminant (feature 002 T013/T021/T022). The API
+ * `type=slider` form needs an extra hint so the service knows whether the
+ * underlying DB `valueType` is `number` or `price`.
+ */
+export const numericKindSchema = z.enum(['number', 'price']);
+export type NumericKind = z.infer<typeof numericKindSchema>;
+
+const baseCreateAttributeObject = z.object({
+  key: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z][a-z0-9_]*$/, 'must be snake_case, start with a letter'),
+  label: multilingualStringSchema,
+  /**
+   * Feature 002 — preferred API form. When `type` is present it wins over
+   * `valueType` (legacy form, kept for backward-compat). Service maps it
+   * onto the DB enum + `displayAsSlider` flag (research R-7):
+   *   input      → valueType=string
+   *   number     → valueType=number
+   *   select     → valueType=enum
+   *   multiselect→ valueType=multiselect (requires enumValues)
+   *   price      → valueType=price
+   *   slider     → valueType=number|price (per numericKind) + displayAsSlider=true
+   */
+  type: apiAttributeTypeSchema.optional(),
+  numericKind: numericKindSchema.optional(),
+  /** Legacy form. At least one of `type` or `valueType` MUST be set. */
+  valueType: attributeValueTypeSchema.optional(),
+  enumValues: z.array(z.string()).optional(),
+  isSearchable: z.boolean(),
+  isFilterable: z.boolean(),
+  isVariantAxis: z.boolean(),
+  /**
+   * Feature 002 — presentation hint. Honored only when the resolved
+   * underlying type is `number`/`price`. Implicitly `true` when
+   * `type=slider`. Service rejects with INVALID_DISPLAY_AS_SLIDER if
+   * supplied for an incompatible underlying type.
+   */
+  displayAsSlider: z.boolean().optional(),
+});
+
+export const createAttributeRequestSchema = baseCreateAttributeObject
+  .refine((v) => v.type !== undefined || v.valueType !== undefined, {
+    message: 'either `type` (preferred) or `valueType` (legacy) is required',
+    path: ['type'],
   })
   .refine(
-    (v) =>
-      v.valueType === 'enum' || v.valueType === 'multiselect'
+    (v) => {
+      // multiselect (whether spelled via `type` or `valueType`) needs
+      // enumValues. `select` is the same constraint via the legacy
+      // valueType=enum spelling.
+      const wantsEnum =
+        v.type === 'multiselect' ||
+        v.type === 'select' ||
+        v.valueType === 'enum' ||
+        v.valueType === 'multiselect';
+      return wantsEnum
         ? Array.isArray(v.enumValues) && v.enumValues.length > 0
-        : true,
+        : true;
+    },
     {
-      message: 'enumValues is required when valueType=enum or valueType=multiselect',
+      message: 'enumValues is required when type=multiselect/select or valueType=enum/multiselect',
       path: ['enumValues'],
+    },
+  )
+  .refine(
+    (v) => (v.type === 'slider' ? v.numericKind !== undefined : true),
+    {
+      message: 'numericKind is required when type=slider',
+      path: ['numericKind'],
     },
   );
 export type CreateAttributeRequest = z.infer<typeof createAttributeRequestSchema>;
@@ -352,13 +396,23 @@ export type CreateAttributeRequest = z.infer<typeof createAttributeRequestSchema
 export const updateAttributeRequestSchema = z
   .object({
     label: multilingualStringSchema.optional(),
+    /** Feature 002 — same API form as create. */
+    type: apiAttributeTypeSchema.optional(),
+    numericKind: numericKindSchema.optional(),
     enumValues: z.array(z.string()).optional(),
     isSearchable: z.boolean().optional(),
     isFilterable: z.boolean().optional(),
     isVariantAxis: z.boolean().optional(),
     displayAsSlider: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (v) => (v.type === 'slider' ? v.numericKind !== undefined : true),
+    {
+      message: 'numericKind is required when type=slider',
+      path: ['numericKind'],
+    },
+  );
 export type UpdateAttributeRequest = z.infer<typeof updateAttributeRequestSchema>;
 
 export const createCategoryRequestSchema = z.object({
