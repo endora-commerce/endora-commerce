@@ -423,6 +423,12 @@ export function ProductEditor(): ReactNode {
     {!isNew && id && type === 'configurable' ? (
       <VariantsSection productId={id} />
     ) : null}
+    {!isNew && id && type === 'grouped' ? (
+      <GroupedItemsSection productId={id} />
+    ) : null}
+    {!isNew && id && type === 'bundle' ? (
+      <BundleSlotsSection productId={id} />
+    ) : null}
     {!isNew && id ? (
       <>
         <GallerySection productId={id} />
@@ -1492,6 +1498,515 @@ function CreateProductLinkInline({
           }}
         >
           + Add link
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Grouped items section (T136, US5) — admin CRUD for a grouped product's
+// children. Service-side enforces parent.type='grouped' (PRODUCT_TYPE_MISMATCH)
+// + child.type∉{grouped,bundle} (NESTED_COMPOSITE_NOT_ALLOWED), so the form
+// surfaces those errors directly when an admin pastes a bad child id.
+// ---------------------------------------------------------------------------
+
+interface AdminGroupedItem {
+  id: string;
+  parentProductId: string;
+  childProductId: string;
+  quantity: number;
+  position: number;
+}
+
+function GroupedItemsSection({ productId }: { productId: string }): ReactNode {
+  const [items, setItems] = useState<AdminGroupedItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+
+  const refresh = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await apiClient.get<{ data: AdminGroupedItem[] }>(
+        `/api/v1/admin/catalog/products/${productId}/grouped-items`,
+      );
+      setItems(res.data);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Load failed.');
+    } finally {
+      setLoading(false);
+    }
+  }, [productId]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const handleCreate = useCallback(
+    async (input: { childProductId: string; quantity: string }): Promise<void> => {
+      const qty = Number(input.quantity);
+      if (!Number.isFinite(qty) || qty <= 0) {
+        setError('Quantity must be a positive integer.');
+        return;
+      }
+      try {
+        await apiClient.post(
+          `/api/v1/admin/catalog/products/${productId}/grouped-items`,
+          { childProductId: input.childProductId, quantity: qty },
+        );
+        setInfo('Child added.');
+        await refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Add failed.');
+      }
+    },
+    [productId, refresh],
+  );
+
+  const handleDelete = useCallback(
+    async (itemId: string): Promise<void> => {
+      if (!confirm('Remove this child from the group?')) return;
+      try {
+        await apiClient.delete(
+          `/api/v1/admin/catalog/products/${productId}/grouped-items/${itemId}`,
+        );
+        setInfo('Child removed.');
+        await refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+      }
+    },
+    [productId, refresh],
+  );
+
+  return (
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle>Grouped children</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        {info ? (
+          <Alert>
+            <AlertDescription>{info}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : items.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No children yet. Add one by pasting a non-composite product id.
+          </p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Child product id</TableHead>
+                <TableHead>Quantity</TableHead>
+                <TableHead>Position</TableHead>
+                <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="font-mono text-xs">{item.childProductId}</TableCell>
+                  <TableCell>{item.quantity}</TableCell>
+                  <TableCell>{item.position}</TableCell>
+                  <TableCell>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => void handleDelete(item.id)}
+                    >
+                      Remove
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+
+        <CreateGroupedItemInline onCreate={handleCreate} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function CreateGroupedItemInline({
+  onCreate,
+}: {
+  onCreate: (input: { childProductId: string; quantity: string }) => Promise<void>;
+}): ReactNode {
+  const [childProductId, setChildProductId] = useState('');
+  const [quantity, setQuantity] = useState('1');
+
+  return (
+    <div
+      className="grid gap-3 md:grid-cols-3 border-t pt-4"
+      role="group"
+      aria-label="Add grouped child"
+    >
+      <div className="space-y-1 md:col-span-2">
+        <Label htmlFor="gchild">Child product id</Label>
+        <Input
+          id="gchild"
+          value={childProductId}
+          onChange={(e): void => setChildProductId(e.target.value)}
+          placeholder="UUID of a non-grouped, non-bundle product"
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="gquantity">Quantity</Label>
+        <Input
+          id="gquantity"
+          type="number"
+          min="1"
+          value={quantity}
+          onChange={(e): void => setQuantity(e.target.value)}
+        />
+      </div>
+      <div className="md:col-span-3">
+        <Button
+          type="button"
+          onClick={() => {
+            if (!childProductId) return;
+            void onCreate({ childProductId, quantity }).then(() => {
+              setChildProductId('');
+              setQuantity('1');
+            });
+          }}
+        >
+          + Add child
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Bundle slots section (T137, US5) — admin CRUD for bundle slots and
+// their options. Service enforces parent.type='bundle', INVALID_QUANTITY_RANGE
+// on min>max, OPTION_ALREADY_EXISTS on duplicate option in a slot,
+// NESTED_COMPOSITE_NOT_ALLOWED on grouped/bundle option product.
+// ---------------------------------------------------------------------------
+
+interface AdminBundleSlot {
+  id: string;
+  parentProductId: string;
+  name: Record<string, string>;
+  minQuantity: number;
+  maxQuantity: number;
+  position: number;
+  options: Array<{
+    id: string;
+    slotId: string;
+    optionProductId: string;
+    defaultQuantity: number;
+    position: number;
+  }>;
+}
+
+function BundleSlotsSection({ productId }: { productId: string }): ReactNode {
+  const [slots, setSlots] = useState<AdminBundleSlot[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+
+  const refresh = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await apiClient.get<{ data: AdminBundleSlot[] }>(
+        `/api/v1/admin/catalog/products/${productId}/bundle-slots`,
+      );
+      setSlots(res.data);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Load failed.');
+    } finally {
+      setLoading(false);
+    }
+  }, [productId]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const handleCreateSlot = useCallback(
+    async (input: { name: string; minQuantity: string; maxQuantity: string }): Promise<void> => {
+      const min = Number(input.minQuantity);
+      const max = Number(input.maxQuantity);
+      if (!Number.isFinite(max) || max <= 0) {
+        setError('Max quantity must be a positive integer.');
+        return;
+      }
+      try {
+        await apiClient.post(
+          `/api/v1/admin/catalog/products/${productId}/bundle-slots`,
+          {
+            name: { 'en-US': input.name },
+            ...(Number.isFinite(min) ? { minQuantity: min } : {}),
+            maxQuantity: max,
+          },
+        );
+        setInfo(`Slot "${input.name}" added.`);
+        await refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Add slot failed.');
+      }
+    },
+    [productId, refresh],
+  );
+
+  const handleDeleteSlot = useCallback(
+    async (slotId: string): Promise<void> => {
+      if (!confirm('Remove this slot (and its options)?')) return;
+      try {
+        await apiClient.delete(
+          `/api/v1/admin/catalog/products/${productId}/bundle-slots/${slotId}`,
+        );
+        setInfo('Slot removed.');
+        await refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+      }
+    },
+    [productId, refresh],
+  );
+
+  const handleAddOption = useCallback(
+    async (slotId: string, optionProductId: string): Promise<void> => {
+      if (!optionProductId) return;
+      try {
+        await apiClient.post(
+          `/api/v1/admin/catalog/products/${productId}/bundle-slots/${slotId}/options`,
+          { optionProductId },
+        );
+        setInfo('Option added.');
+        await refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Add option failed.');
+      }
+    },
+    [productId, refresh],
+  );
+
+  const handleRemoveOption = useCallback(
+    async (slotId: string, optionId: string): Promise<void> => {
+      if (!confirm('Remove this option?')) return;
+      try {
+        await apiClient.delete(
+          `/api/v1/admin/catalog/products/${productId}/bundle-slots/${slotId}/options/${optionId}`,
+        );
+        setInfo('Option removed.');
+        await refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+      }
+    },
+    [productId, refresh],
+  );
+
+  return (
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle>Bundle slots</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        {info ? (
+          <Alert>
+            <AlertDescription>{info}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : slots.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No slots yet. Each slot lets buyers choose between option products.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {slots.map((slot) => (
+              <BundleSlotCard
+                key={slot.id}
+                slot={slot}
+                onAddOption={handleAddOption}
+                onRemoveOption={handleRemoveOption}
+                onDeleteSlot={handleDeleteSlot}
+              />
+            ))}
+          </div>
+        )}
+
+        <CreateBundleSlotInline onCreate={handleCreateSlot} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function BundleSlotCard({
+  slot,
+  onAddOption,
+  onRemoveOption,
+  onDeleteSlot,
+}: {
+  slot: AdminBundleSlot;
+  onAddOption: (slotId: string, optionProductId: string) => Promise<void>;
+  onRemoveOption: (slotId: string, optionId: string) => Promise<void>;
+  onDeleteSlot: (slotId: string) => Promise<void>;
+}): ReactNode {
+  const [optionId, setOptionId] = useState('');
+
+  return (
+    <div className="rounded border p-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-medium">
+          {slot.name['en-US'] ?? Object.values(slot.name)[0] ?? '—'}{' '}
+          <span className="text-xs text-muted-foreground">
+            (min {slot.minQuantity} / max {slot.maxQuantity}, position {slot.position})
+          </span>
+        </h3>
+        <Button
+          type="button"
+          size="sm"
+          variant="destructive"
+          onClick={() => void onDeleteSlot(slot.id)}
+        >
+          Delete slot
+        </Button>
+      </div>
+      <div className="mt-2">
+        {slot.options.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No options yet.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Option product id</TableHead>
+                <TableHead>Default quantity</TableHead>
+                <TableHead>Position</TableHead>
+                <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {slot.options.map((opt) => (
+                <TableRow key={opt.id}>
+                  <TableCell className="font-mono text-xs">{opt.optionProductId}</TableCell>
+                  <TableCell>{opt.defaultQuantity}</TableCell>
+                  <TableCell>{opt.position}</TableCell>
+                  <TableCell>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => void onRemoveOption(slot.id, opt.id)}
+                    >
+                      Remove
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+      <div className="mt-3 flex items-end gap-2">
+        <div className="flex-1 space-y-1">
+          <Label htmlFor={`opt-${slot.id}`}>Option product id</Label>
+          <Input
+            id={`opt-${slot.id}`}
+            value={optionId}
+            onChange={(e): void => setOptionId(e.target.value)}
+            placeholder="UUID of a non-composite product"
+          />
+        </div>
+        <Button
+          type="button"
+          onClick={() => {
+            void onAddOption(slot.id, optionId).then(() => {
+              setOptionId('');
+            });
+          }}
+        >
+          + Add option
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function CreateBundleSlotInline({
+  onCreate,
+}: {
+  onCreate: (input: { name: string; minQuantity: string; maxQuantity: string }) => Promise<void>;
+}): ReactNode {
+  const [name, setName] = useState('');
+  const [minQuantity, setMinQuantity] = useState('0');
+  const [maxQuantity, setMaxQuantity] = useState('1');
+
+  return (
+    <div
+      className="grid gap-3 md:grid-cols-4 border-t pt-4"
+      role="group"
+      aria-label="Add bundle slot"
+    >
+      <div className="space-y-1 md:col-span-2">
+        <Label htmlFor="bsname">Slot name (en-US)</Label>
+        <Input
+          id="bsname"
+          value={name}
+          onChange={(e): void => setName(e.target.value)}
+          placeholder="Color"
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="bsmin">Min</Label>
+        <Input
+          id="bsmin"
+          type="number"
+          min="0"
+          value={minQuantity}
+          onChange={(e): void => setMinQuantity(e.target.value)}
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="bsmax">Max</Label>
+        <Input
+          id="bsmax"
+          type="number"
+          min="1"
+          value={maxQuantity}
+          onChange={(e): void => setMaxQuantity(e.target.value)}
+        />
+      </div>
+      <div className="md:col-span-4">
+        <Button
+          type="button"
+          onClick={() => {
+            if (!name) return;
+            void onCreate({ name, minQuantity, maxQuantity }).then(() => {
+              setName('');
+              setMinQuantity('0');
+              setMaxQuantity('1');
+            });
+          }}
+        >
+          + Add slot
         </Button>
       </div>
     </div>
