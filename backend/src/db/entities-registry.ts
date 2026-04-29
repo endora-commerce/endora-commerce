@@ -12,6 +12,9 @@ import { GalleryItemLabel } from '../modules/catalog/entities/gallery-item-label
 import { AttachmentType } from '../modules/catalog/entities/attachment-type.entity.js';
 import { ProductAttachment } from '../modules/catalog/entities/product-attachment.entity.js';
 import { ProductLink } from '../modules/catalog/entities/product-link.entity.js';
+import { GroupedItem } from '../modules/catalog/entities/grouped-item.entity.js';
+import { BundleSlot } from '../modules/catalog/entities/bundle-slot.entity.js';
+import { BundleSlotOption } from '../modules/catalog/entities/bundle-slot-option.entity.js';
 import { SalesChannel } from '../modules/catalog/entities/sales-channel.entity.js';
 import { AvailabilityNotification } from '../modules/inventory/entities/availability-notification.entity.js';
 import { QuoteRequest } from '../modules/quote_requests/entities/quote-request.entity.js';
@@ -91,6 +94,9 @@ export const ALL_ENTITIES = [
   AttachmentType,
   ProductAttachment,
   ProductLink,
+  GroupedItem,
+  BundleSlot,
+  BundleSlotOption,
   SalesChannel,
   // inventory
   AvailabilityNotification,

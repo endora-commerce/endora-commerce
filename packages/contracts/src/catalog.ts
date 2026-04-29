@@ -194,6 +194,63 @@ export const productDetailSchema = productSummarySchema.extend({
     )
     .optional(),
   /**
+   * Feature 002 US5 — composite product payloads. Discriminated by
+   * `type`: only one of these is populated at a time. Optional so
+   * foundation-era simple/configurable products keep parsing.
+   *   - `groupedItems`: when type='grouped', children with quantities
+   *   - `bundleSlots`:  when type='bundle', slots with their options
+   *   - `virtual`:      when type='virtual', download asset/url
+   */
+  groupedItems: z
+    .array(
+      z.object({
+        id: uuidSchema,
+        position: z.number().int().nonnegative(),
+        quantity: z.number().int().positive(),
+        product: z.object({
+          id: uuidSchema,
+          sku: z.string(),
+          slug: z.string(),
+          name: z.string(),
+          primaryAssetUrl: z.string().nullable(),
+          price: moneySchema.nullable(),
+        }),
+      }),
+    )
+    .optional(),
+  bundleSlots: z
+    .array(
+      z.object({
+        id: uuidSchema,
+        name: multilingualStringSchema,
+        minQuantity: z.number().int().nonnegative(),
+        maxQuantity: z.number().int().positive(),
+        position: z.number().int().nonnegative(),
+        options: z.array(
+          z.object({
+            id: uuidSchema,
+            defaultQuantity: z.number().int().positive(),
+            position: z.number().int().nonnegative(),
+            product: z.object({
+              id: uuidSchema,
+              sku: z.string(),
+              slug: z.string(),
+              name: z.string(),
+              primaryAssetUrl: z.string().nullable(),
+              price: moneySchema.nullable(),
+            }),
+          }),
+        ),
+      }),
+    )
+    .optional(),
+  virtual: z
+    .object({
+      downloadAssetId: uuidSchema.nullable(),
+      downloadUrl: z.string().nullable(),
+    })
+    .optional(),
+  /**
    * Feature 002 US4 — pre-grouped Product Links surfaced on the PDP.
    * Optional for the same backwards-compat reason as the other US3/US4
    * fields. Inactive targets and channel-restricted ones are pre-filtered
@@ -730,6 +787,133 @@ export type ReorderLinksRequest = z.infer<typeof reorderLinksRequestSchema>;
  * are filtered out by `listForStorefront` so the storefront never sees
  * `status='archived'` rows.
  */
+// --- Composite products (Feature 002 US5) -----------------------------------
+
+export const groupedItemSchema = z.object({
+  id: uuidSchema,
+  parentProductId: uuidSchema,
+  childProductId: uuidSchema,
+  quantity: z.number().int().positive(),
+  position: z.number().int().nonnegative(),
+});
+export type GroupedItem = z.infer<typeof groupedItemSchema>;
+
+export const createGroupedItemRequestSchema = z
+  .object({
+    childProductId: uuidSchema,
+    quantity: z.number().int().positive(),
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type CreateGroupedItemRequest = z.infer<typeof createGroupedItemRequestSchema>;
+
+export const updateGroupedItemRequestSchema = z
+  .object({
+    quantity: z.number().int().positive().optional(),
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type UpdateGroupedItemRequest = z.infer<typeof updateGroupedItemRequestSchema>;
+
+export const bundleSlotOptionSchema = z.object({
+  id: uuidSchema,
+  slotId: uuidSchema,
+  optionProductId: uuidSchema,
+  defaultQuantity: z.number().int().positive(),
+  position: z.number().int().nonnegative(),
+});
+export type BundleSlotOption = z.infer<typeof bundleSlotOptionSchema>;
+
+export const bundleSlotSchema = z.object({
+  id: uuidSchema,
+  parentProductId: uuidSchema,
+  name: multilingualStringSchema,
+  minQuantity: z.number().int().nonnegative(),
+  maxQuantity: z.number().int().positive(),
+  position: z.number().int().nonnegative(),
+  options: z.array(bundleSlotOptionSchema),
+});
+export type BundleSlot = z.infer<typeof bundleSlotSchema>;
+
+export const createBundleSlotRequestSchema = z
+  .object({
+    name: multilingualStringSchema,
+    minQuantity: z.number().int().nonnegative().optional(),
+    maxQuantity: z.number().int().positive(),
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict()
+  .refine((v) => (v.minQuantity ?? 0) <= v.maxQuantity, {
+    message: 'minQuantity must be <= maxQuantity',
+    path: ['minQuantity'],
+  });
+export type CreateBundleSlotRequest = z.infer<typeof createBundleSlotRequestSchema>;
+
+export const updateBundleSlotRequestSchema = z
+  .object({
+    name: multilingualStringSchema.optional(),
+    minQuantity: z.number().int().nonnegative().optional(),
+    maxQuantity: z.number().int().positive().optional(),
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type UpdateBundleSlotRequest = z.infer<typeof updateBundleSlotRequestSchema>;
+
+export const createBundleSlotOptionRequestSchema = z
+  .object({
+    optionProductId: uuidSchema,
+    defaultQuantity: z.number().int().positive().optional(),
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type CreateBundleSlotOptionRequest = z.infer<
+  typeof createBundleSlotOptionRequestSchema
+>;
+
+/**
+ * Buyer's bundle configuration — what the storefront posts to the
+ * `/bundle-configuration/validate` endpoint. One selection per slot,
+ * referencing the chosen option's id and the buyer-picked quantity.
+ */
+export const bundleConfigurationSelectionSchema = z.object({
+  slotId: uuidSchema,
+  optionId: uuidSchema,
+  quantity: z.number().int().positive(),
+});
+export type BundleConfigurationSelection = z.infer<
+  typeof bundleConfigurationSelectionSchema
+>;
+
+export const validateBundleConfigurationRequestSchema = z
+  .object({
+    selections: z.array(bundleConfigurationSelectionSchema),
+  })
+  .strict();
+export type ValidateBundleConfigurationRequest = z.infer<
+  typeof validateBundleConfigurationRequestSchema
+>;
+
+export const bundleValidationErrorSchema = z.object({
+  code: z.enum(['MIN_NOT_MET', 'MAX_EXCEEDED', 'UNKNOWN_OPTION']),
+  slotId: uuidSchema.optional(),
+  message: z.string(),
+});
+export type BundleValidationError = z.infer<typeof bundleValidationErrorSchema>;
+
+export const bundleValidationResultSchema = z.object({
+  valid: z.boolean(),
+  errors: z.array(bundleValidationErrorSchema),
+  resolvedSelections: z.array(
+    z.object({
+      slotId: uuidSchema,
+      optionId: uuidSchema,
+      optionProductId: uuidSchema,
+      quantity: z.number().int().positive(),
+    }),
+  ),
+});
+export type BundleValidationResult = z.infer<typeof bundleValidationResultSchema>;
+
 export const productLinkSummarySchema = z.object({
   id: uuidSchema,
   kind: productLinkKindSchema,

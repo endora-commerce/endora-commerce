@@ -112,6 +112,9 @@ const SEEDED_TABLES = [
   'gallery_items',
   'product_attachments',
   'product_links',
+  'bundle_slot_options',
+  'bundle_slots',
+  'grouped_items',
   'product_attributes',
   // attribute_sets is NOT truncated — its system Default row is created
   // by migration 017 and the contract tests rely on it being present.
