@@ -1,14 +1,18 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
+  assignAttributesRequestSchema,
   createAttributeRequestSchema,
+  createAttributeSetRequestSchema,
   createCategoryRequestSchema,
   createProductRequestSchema,
   updateAttributeRequestSchema,
+  updateAttributeSetRequestSchema,
   updateCategoryRequestSchema,
   updateProductRequestSchema,
 } from '@b2b/contracts';
 import type { CatalogAdminService } from './services/catalog-admin.service.js';
 import type { CategoryAdminService } from './services/category-admin.service.js';
+import type { AttributeSetService } from './services/attribute-set.service.js';
 import type { Product } from './entities/product.entity.js';
 import type { ProductAttribute } from './entities/product-attribute.entity.js';
 import type { Category } from './entities/category.entity.js';
@@ -27,6 +31,12 @@ export interface CatalogAdminDeps {
   adminService: CatalogAdminService;
   /** Optional — wired by the catalog plugin once instantiated. */
   categoryAdminService?: CategoryAdminService;
+  /**
+   * Feature 002 — AttributeSet admin CRUD. Optional so dev/test composition
+   * roots can wire it up progressively without breaking foundation-era
+   * setups. When omitted, the attribute-set endpoints are NOT registered.
+   */
+  attributeSetService?: AttributeSetService;
   /**
    * PreHandler gate — supplied by the composition root. Set to the real
    * `requireAdmin('catalog:write')` factory at server boot. Optional so tests
@@ -215,6 +225,93 @@ export async function registerCatalogAdminRoutes(
       { preHandler: requireAdmin('catalog:write') },
       async (request, reply) => {
         await categoryService.softDelete(request.params.id);
+        reply.status(204).send();
+      },
+    );
+  }
+
+  // ===== Feature 002 — Attribute Sets =========================================
+  // contracts/catalog-002.contract.md → 7 endpoints. Wired only when the
+  // composition root supplies `attributeSetService` (test-server.ts +
+  // production composition root both do; dev shims may opt out).
+  if (deps.attributeSetService) {
+    const attrSetService = deps.attributeSetService;
+
+    app.get(
+      '/api/v1/admin/catalog/attribute-sets',
+      { preHandler: requireAdmin('catalog:read') },
+      async () => {
+        const sets = await attrSetService.listSets();
+        return { data: sets };
+      },
+    );
+
+    app.get<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/attribute-sets/:id',
+      { preHandler: requireAdmin('catalog:read') },
+      async (request) => {
+        const detail = await attrSetService.getSetDetail(request.params.id);
+        return { data: detail };
+      },
+    );
+
+    app.post(
+      '/api/v1/admin/catalog/attribute-sets',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: createAttributeSetRequestSchema },
+      },
+      async (request, reply) => {
+        const body = createAttributeSetRequestSchema.parse(request.body);
+        const detail = await attrSetService.createSet(body);
+        reply.status(201);
+        return { data: detail };
+      },
+    );
+
+    app.patch<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/attribute-sets/:id',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: updateAttributeSetRequestSchema },
+      },
+      async (request) => {
+        const body = updateAttributeSetRequestSchema.parse(request.body);
+        const set = await attrSetService.updateSet(request.params.id, body);
+        return { data: set };
+      },
+    );
+
+    app.delete<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/attribute-sets/:id',
+      { preHandler: requireAdmin('catalog:write') },
+      async (request, reply) => {
+        await attrSetService.deleteSet(request.params.id);
+        reply.status(204).send();
+      },
+    );
+
+    app.post<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/attribute-sets/:id/attributes',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: assignAttributesRequestSchema },
+      },
+      async (request) => {
+        const body = assignAttributesRequestSchema.parse(request.body);
+        const detail = await attrSetService.assignAttributes(request.params.id, body);
+        return { data: detail };
+      },
+    );
+
+    app.delete<{ Params: { id: string; attributeId: string } }>(
+      '/api/v1/admin/catalog/attribute-sets/:id/attributes/:attributeId',
+      { preHandler: requireAdmin('catalog:write') },
+      async (request, reply) => {
+        await attrSetService.unassignAttribute(
+          request.params.id,
+          request.params.attributeId,
+        );
         reply.status(204).send();
       },
     );

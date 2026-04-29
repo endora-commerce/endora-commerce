@@ -78,7 +78,7 @@ export class Product {
    * literal so the entity has zero migration-package dependencies.
    */
   @Property({ type: 'uuid' })
-  attributeSetId: string = '00000000-0000-0000-0000-0000000a5e70';
+  attributeSetId: string = 'defa0017-0000-4000-8000-000000000000';
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   @Index()

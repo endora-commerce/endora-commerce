@@ -5,6 +5,7 @@ import type { AuditLogService } from '../audit_logs/services/audit-log-service.j
 import { CatalogQueryService } from './services/catalog-query.service.js';
 import { CatalogAdminService, type CatalogEventBus } from './services/catalog-admin.service.js';
 import { CategoryAdminService } from './services/category-admin.service.js';
+import { AttributeSetService } from './services/attribute-set.service.js';
 import { SearchQueryService } from '../search/services/search-query.service.js';
 import { SearchIndexer } from '../search/services/search-indexer.js';
 import { SearchEventSubscriber } from '../search/services/search-event-subscriber.js';
@@ -82,9 +83,11 @@ export function catalogModule(options: CatalogModuleOptions) {
       ...(options.requireApiKey ? { requireApiKey: options.requireApiKey } : {}),
     });
     const categoryAdminService = new CategoryAdminService(options.emFactory);
+    const attributeSetService = new AttributeSetService(options.emFactory);
     await registerCatalogAdminRoutes(app, {
       adminService,
       categoryAdminService,
+      attributeSetService,
       requireAdmin:
         options.requireAdmin ??
         (() => async () => {

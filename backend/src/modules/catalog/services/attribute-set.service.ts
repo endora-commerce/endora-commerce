@@ -73,8 +73,8 @@ export class AttributeSetService {
       isSystem: r.is_system,
       attributeCount: r.attribute_count,
       productCount: r.product_count,
-      createdAt: typeof r.created_at === 'string' ? r.created_at : r.created_at.toISOString(),
-      updatedAt: typeof r.updated_at === 'string' ? r.updated_at : r.updated_at.toISOString(),
+      createdAt: new Date(r.created_at).toISOString(),
+      updatedAt: new Date(r.updated_at).toISOString(),
     }));
   }
 
@@ -378,13 +378,9 @@ export class AttributeSetService {
     setId: string,
     assignments: Array<{ attributeId: string; position: number }>,
   ): Promise<void> {
+    if (assignments.length === 0) return;
     const conn = em.getConnection();
-    const values = assignments
-      .map(
-        (_, i) =>
-          `($${i * 3 + 1}, $${i * 3 + 2}, $${i * 3 + 3})`,
-      )
-      .join(', ');
+    const values = assignments.map(() => '(?, ?, ?)').join(', ');
     const params = assignments.flatMap((a) => [setId, a.attributeId, a.position]);
     await conn.execute(
       `insert into attribute_set_attributes (attribute_set_id, product_attribute_id, position) values ${values}

@@ -28,7 +28,7 @@ export class Migration017AttributeSetsInit extends Migration {
    * migration is a single UPDATE rather than two queries.
    */
   static readonly DEFAULT_ATTRIBUTE_SET_ID =
-    '00000000-0000-0000-0000-0000000a5e70'; // "a5e7" ≈ "aset"
+    'defa0017-0000-4000-8000-000000000000'; // mnemonic: default + migration 017; valid UUID v4 (version=4, variant=8)
 
   override async up(): Promise<void> {
     // -- attribute_sets -------------------------------------------------------
