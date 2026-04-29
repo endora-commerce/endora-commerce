@@ -9,6 +9,8 @@ import { AttributeSetService } from './services/attribute-set.service.js';
 import { GalleryService } from './services/gallery.service.js';
 import { AttachmentService } from './services/attachment.service.js';
 import { ProductLinkService } from './services/product-link.service.js';
+import { GroupedService } from './services/grouped.service.js';
+import { BundleService } from './services/bundle.service.js';
 import { SearchQueryService } from '../search/services/search-query.service.js';
 import { SearchIndexer } from '../search/services/search-indexer.js';
 import { SearchEventSubscriber } from '../search/services/search-event-subscriber.js';
@@ -82,16 +84,20 @@ export function catalogModule(options: CatalogModuleOptions) {
       app.addHook('onClose', async () => teardown());
     }
 
+    const bundleServicePublic = new BundleService(options.emFactory);
     await registerCatalogPublicRoutes(app, {
       queryService,
       searchQueryService,
       productLinkService: productLinkServiceForRead,
+      bundleService: bundleServicePublic,
     });
     const categoryAdminService = new CategoryAdminService(options.emFactory);
     const attributeSetService = new AttributeSetService(options.emFactory);
     const galleryService = new GalleryService(options.emFactory);
     const attachmentService = new AttachmentService(options.emFactory);
     const productLinkService = new ProductLinkService(options.emFactory);
+    const groupedService = new GroupedService(options.emFactory);
+    const bundleService = new BundleService(options.emFactory);
     await registerCatalogApiKeyRoutes(app, {
       queryService,
       adminService,
@@ -106,6 +112,8 @@ export function catalogModule(options: CatalogModuleOptions) {
       galleryService,
       attachmentService,
       productLinkService,
+      groupedService,
+      bundleService,
       requireAdmin:
         options.requireAdmin ??
         (() => async () => {

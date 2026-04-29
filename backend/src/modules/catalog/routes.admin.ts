@@ -13,6 +13,11 @@ import {
   bulkCreateLinksRequestSchema,
   reorderLinksRequestSchema,
   productLinkKindSchema,
+  createGroupedItemRequestSchema,
+  updateGroupedItemRequestSchema,
+  createBundleSlotRequestSchema,
+  updateBundleSlotRequestSchema,
+  createBundleSlotOptionRequestSchema,
   updateAttachmentRequestSchema,
   updateAttachmentTypeRequestSchema,
   updateAttributeRequestSchema,
@@ -29,6 +34,8 @@ import type { AttributeSetService } from './services/attribute-set.service.js';
 import type { GalleryService } from './services/gallery.service.js';
 import type { AttachmentService } from './services/attachment.service.js';
 import type { ProductLinkService } from './services/product-link.service.js';
+import type { GroupedService } from './services/grouped.service.js';
+import type { BundleService } from './services/bundle.service.js';
 import type { Product } from './entities/product.entity.js';
 import type { ProductAttribute } from './entities/product-attribute.entity.js';
 import type { Category } from './entities/category.entity.js';
@@ -62,6 +69,10 @@ export interface CatalogAdminDeps {
   attachmentService?: AttachmentService;
   /** Feature 002 — Product Links admin CRUD (US4). */
   productLinkService?: ProductLinkService;
+  /** Feature 002 — Grouped product children admin CRUD (US5). */
+  groupedService?: GroupedService;
+  /** Feature 002 — Bundle slots + options admin CRUD (US5). */
+  bundleService?: BundleService;
   /**
    * PreHandler gate — supplied by the composition root. Set to the real
    * `requireAdmin('catalog:write')` factory at server boot. Optional so tests
@@ -618,6 +629,170 @@ export async function registerCatalogAdminRoutes(
         const body = reorderLinksRequestSchema.parse(request.body);
         await links.reorderForKind(request.params.id, kind, body.linkIds);
         return { data: { ok: true } };
+      },
+    );
+  }
+
+  // --- Grouped items (Feature 002 US5) ----------------------------------
+
+  if (deps.groupedService) {
+    const grouped = deps.groupedService;
+
+    app.get<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/products/:id/grouped-items',
+      { preHandler: requireAdmin('catalog:read') },
+      async (request) => {
+        const rows = await grouped.list(request.params.id);
+        return { data: rows };
+      },
+    );
+
+    app.post<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/products/:id/grouped-items',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: createGroupedItemRequestSchema },
+      },
+      async (request, reply) => {
+        const body = createGroupedItemRequestSchema.parse(request.body);
+        const row = await grouped.addItem(request.params.id, {
+          childProductId: body.childProductId,
+          quantity: body.quantity,
+          ...(body.position !== undefined ? { position: body.position } : {}),
+        });
+        reply.status(201);
+        return { data: row };
+      },
+    );
+
+    app.patch<{ Params: { id: string; itemId: string } }>(
+      '/api/v1/admin/catalog/products/:id/grouped-items/:itemId',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: updateGroupedItemRequestSchema },
+      },
+      async (request) => {
+        const body = updateGroupedItemRequestSchema.parse(request.body);
+        const row = await grouped.updateItem(
+          request.params.id,
+          request.params.itemId,
+          {
+            ...(body.quantity !== undefined ? { quantity: body.quantity } : {}),
+            ...(body.position !== undefined ? { position: body.position } : {}),
+          },
+        );
+        return { data: row };
+      },
+    );
+
+    app.delete<{ Params: { id: string; itemId: string } }>(
+      '/api/v1/admin/catalog/products/:id/grouped-items/:itemId',
+      { preHandler: requireAdmin('catalog:write') },
+      async (request, reply) => {
+        await grouped.removeItem(request.params.id, request.params.itemId);
+        reply.status(204).send();
+      },
+    );
+  }
+
+  // --- Bundle slots + options (Feature 002 US5) -------------------------
+
+  if (deps.bundleService) {
+    const bundle = deps.bundleService;
+
+    app.get<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/products/:id/bundle-slots',
+      { preHandler: requireAdmin('catalog:read') },
+      async (request) => {
+        const rows = await bundle.listSlots(request.params.id);
+        return { data: rows };
+      },
+    );
+
+    app.post<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/products/:id/bundle-slots',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: createBundleSlotRequestSchema },
+      },
+      async (request, reply) => {
+        const body = createBundleSlotRequestSchema.parse(request.body);
+        const row = await bundle.createSlot(request.params.id, {
+          name: body.name,
+          ...(body.minQuantity !== undefined ? { minQuantity: body.minQuantity } : {}),
+          maxQuantity: body.maxQuantity,
+          ...(body.position !== undefined ? { position: body.position } : {}),
+        });
+        reply.status(201);
+        return { data: row };
+      },
+    );
+
+    app.patch<{ Params: { id: string; slotId: string } }>(
+      '/api/v1/admin/catalog/products/:id/bundle-slots/:slotId',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: updateBundleSlotRequestSchema },
+      },
+      async (request) => {
+        const body = updateBundleSlotRequestSchema.parse(request.body);
+        const row = await bundle.updateSlot(
+          request.params.id,
+          request.params.slotId,
+          {
+            ...(body.name !== undefined ? { name: body.name } : {}),
+            ...(body.minQuantity !== undefined ? { minQuantity: body.minQuantity } : {}),
+            ...(body.maxQuantity !== undefined ? { maxQuantity: body.maxQuantity } : {}),
+            ...(body.position !== undefined ? { position: body.position } : {}),
+          },
+        );
+        return { data: row };
+      },
+    );
+
+    app.delete<{ Params: { id: string; slotId: string } }>(
+      '/api/v1/admin/catalog/products/:id/bundle-slots/:slotId',
+      { preHandler: requireAdmin('catalog:write') },
+      async (request, reply) => {
+        await bundle.deleteSlot(request.params.id, request.params.slotId);
+        reply.status(204).send();
+      },
+    );
+
+    app.post<{ Params: { id: string; slotId: string } }>(
+      '/api/v1/admin/catalog/products/:id/bundle-slots/:slotId/options',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: createBundleSlotOptionRequestSchema },
+      },
+      async (request, reply) => {
+        const body = createBundleSlotOptionRequestSchema.parse(request.body);
+        const row = await bundle.addOption(
+          request.params.id,
+          request.params.slotId,
+          {
+            optionProductId: body.optionProductId,
+            ...(body.defaultQuantity !== undefined
+              ? { defaultQuantity: body.defaultQuantity }
+              : {}),
+            ...(body.position !== undefined ? { position: body.position } : {}),
+          },
+        );
+        reply.status(201);
+        return { data: row };
+      },
+    );
+
+    app.delete<{ Params: { id: string; slotId: string; optionId: string } }>(
+      '/api/v1/admin/catalog/products/:id/bundle-slots/:slotId/options/:optionId',
+      { preHandler: requireAdmin('catalog:write') },
+      async (request, reply) => {
+        await bundle.removeOption(
+          request.params.id,
+          request.params.slotId,
+          request.params.optionId,
+        );
+        reply.status(204).send();
       },
     );
   }

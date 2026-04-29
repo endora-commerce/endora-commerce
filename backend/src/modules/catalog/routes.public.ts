@@ -2,7 +2,11 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { CatalogQueryService } from './services/catalog-query.service.js';
 import type { ProductLinkService } from './services/product-link.service.js';
-import { productLinkKindSchema } from '@b2b/contracts';
+import type { BundleService } from './services/bundle.service.js';
+import {
+  productLinkKindSchema,
+  validateBundleConfigurationRequestSchema,
+} from '@b2b/contracts';
 import {
   SearchBackendUnavailable,
   type SearchQueryService,
@@ -37,6 +41,11 @@ export interface CatalogPublicDeps {
    * `/products/:id/links` route is not registered.
    */
   productLinkService?: ProductLinkService;
+  /**
+   * Feature 002 US5 — public bundle-configuration validation. Optional
+   * for the same reason as productLinkService.
+   */
+  bundleService?: BundleService;
 }
 
 export async function registerCatalogPublicRoutes(
@@ -116,6 +125,31 @@ export async function registerCatalogPublicRoutes(
           : undefined;
         const rows = await links.listForStorefront(product.id, ctx, kind);
         return { data: rows };
+      },
+    );
+  }
+
+  // Feature 002 US5 — public bundle-configuration validation. Pure
+  // compute, no state mutation; only POST on the public surface. Errors
+  // are returned inside the data envelope so the storefront can highlight
+  // each offending slot — except PRODUCT_TYPE_MISMATCH (400) and
+  // PRODUCT_NOT_FOUND (404), which are HTTP-level rejections.
+  if (deps.bundleService) {
+    const bundle = deps.bundleService;
+    app.post<{ Params: { idOrSlug: string } }>(
+      '/api/v1/catalog/products/:idOrSlug/bundle-configuration/validate',
+      {
+        schema: { body: validateBundleConfigurationRequestSchema },
+      },
+      async (request) => {
+        const ctx = readContext(request);
+        const product = await queryService.getProductByIdOrSlug(
+          request.params.idOrSlug,
+          ctx,
+        );
+        const body = validateBundleConfigurationRequestSchema.parse(request.body);
+        const result = await bundle.validateConfiguration(product.id, body.selections);
+        return { data: result };
       },
     );
   }
