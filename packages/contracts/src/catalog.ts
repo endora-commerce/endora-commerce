@@ -26,8 +26,40 @@ export type StockMode = z.infer<typeof stockModeSchema>;
 export const stockIndicatorSchema = z.enum(['available', 'to_order', 'out_of_stock']);
 export type StockIndicator = z.infer<typeof stockIndicatorSchema>;
 
-export const attributeValueTypeSchema = z.enum(['string', 'number', 'boolean', 'enum', 'date']);
+/**
+ * DB-level attribute value types. Foundation 001 introduced the original
+ * 5-element enum (`string | number | boolean | enum | date`). Feature 002
+ * adds `multiselect` and `price` per data-model.md §1.2.
+ *
+ * The API-facing presentation form (`apiAttributeTypeSchema` below)
+ * surfaces additional affordances (`input`, `select`, `slider`) that
+ * map to this DB enum + the sibling `displayAsSlider` flag — see
+ * research.md R-4 / R-7.
+ */
+export const attributeValueTypeSchema = z.enum([
+  'string',
+  'number',
+  'boolean',
+  'enum',
+  'date',
+  'multiselect',
+  'price',
+]);
 export type AttributeValueType = z.infer<typeof attributeValueTypeSchema>;
+
+/**
+ * API-facing attribute type form for feature 002 contracts. Maps onto
+ * `attributeValueTypeSchema` + `displayAsSlider` in the service layer.
+ */
+export const apiAttributeTypeSchema = z.enum([
+  'input',
+  'number',
+  'select',
+  'multiselect',
+  'price',
+  'slider',
+]);
+export type ApiAttributeType = z.infer<typeof apiAttributeTypeSchema>;
 
 export const assetKindSchema = z.enum(['image', 'video', 'pdf', 'certificate', 'other']);
 export type AssetKind = z.infer<typeof assetKindSchema>;
