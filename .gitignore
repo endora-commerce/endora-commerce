@@ -56,3 +56,12 @@ packages/contracts/src/generated/
 # PDFs and uploaded assets (dev only)
 uploads/
 tmp/
+
+# Claude Code local agent state (skills/ stays tracked)
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
+
+# Vite transient transpiled-config shadows
+*/vite.config.ts.timestamp-*.mjs
+*/vite.config.ts.timestamp-*.cjs
+*/vite.config.ts.timestamp-*.js
