@@ -261,3 +261,72 @@ export const notifyWhenAvailableResponseSchema = z.object({
   requestedAt: isoDateTimeSchema,
 });
 export type NotifyWhenAvailableResponse = z.infer<typeof notifyWhenAvailableResponseSchema>;
+
+// --- Feature 002 — Attribute Sets -------------------------------------------
+// See specs/002-catalog-module/contracts/catalog-002.contract.md.
+
+const attributeSetCodeSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9_]+$/, 'must be snake_case');
+
+export const attributeSetSchema = z.object({
+  id: uuidSchema,
+  code: attributeSetCodeSchema,
+  name: multilingualStringSchema,
+  description: multilingualStringSchema.nullable(),
+  isSystem: z.boolean(),
+  attributeCount: z.number().int().nonnegative(),
+  productCount: z.number().int().nonnegative(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type AttributeSet = z.infer<typeof attributeSetSchema>;
+
+export const attributeSetAssignedAttributeSchema = z.object({
+  id: uuidSchema,
+  key: z.string(),
+  label: multilingualStringSchema,
+  valueType: attributeValueTypeSchema,
+  position: z.number().int().nonnegative(),
+});
+export type AttributeSetAssignedAttribute = z.infer<typeof attributeSetAssignedAttributeSchema>;
+
+export const attributeSetDetailSchema = attributeSetSchema.extend({
+  attributes: z.array(attributeSetAssignedAttributeSchema),
+});
+export type AttributeSetDetail = z.infer<typeof attributeSetDetailSchema>;
+
+export const createAttributeSetRequestSchema = z
+  .object({
+    code: attributeSetCodeSchema,
+    name: multilingualStringSchema,
+    description: multilingualStringSchema.optional(),
+    attributeIds: z.array(uuidSchema).optional(),
+  })
+  .strict();
+export type CreateAttributeSetRequest = z.infer<typeof createAttributeSetRequestSchema>;
+
+export const updateAttributeSetRequestSchema = z
+  .object({
+    code: attributeSetCodeSchema.optional(),
+    name: multilingualStringSchema.optional(),
+    description: multilingualStringSchema.nullable().optional(),
+  })
+  .strict();
+export type UpdateAttributeSetRequest = z.infer<typeof updateAttributeSetRequestSchema>;
+
+export const assignAttributesRequestSchema = z
+  .object({
+    assignments: z
+      .array(
+        z.object({
+          attributeId: uuidSchema,
+          position: z.number().int().nonnegative().optional(),
+        }),
+      )
+      .min(1),
+  })
+  .strict();
+export type AssignAttributesRequest = z.infer<typeof assignAttributesRequestSchema>;
