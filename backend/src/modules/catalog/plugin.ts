@@ -6,6 +6,7 @@ import { CatalogQueryService } from './services/catalog-query.service.js';
 import { CatalogAdminService, type CatalogEventBus } from './services/catalog-admin.service.js';
 import { CategoryAdminService } from './services/category-admin.service.js';
 import { AttributeSetService } from './services/attribute-set.service.js';
+import { GalleryService } from './services/gallery.service.js';
 import { SearchQueryService } from '../search/services/search-query.service.js';
 import { SearchIndexer } from '../search/services/search-indexer.js';
 import { SearchEventSubscriber } from '../search/services/search-event-subscriber.js';
@@ -78,6 +79,7 @@ export function catalogModule(options: CatalogModuleOptions) {
     await registerCatalogPublicRoutes(app, { queryService, searchQueryService });
     const categoryAdminService = new CategoryAdminService(options.emFactory);
     const attributeSetService = new AttributeSetService(options.emFactory);
+    const galleryService = new GalleryService(options.emFactory);
     await registerCatalogApiKeyRoutes(app, {
       queryService,
       adminService,
@@ -89,6 +91,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       adminService,
       categoryAdminService,
       attributeSetService,
+      galleryService,
       requireAdmin:
         options.requireAdmin ??
         (() => async () => {

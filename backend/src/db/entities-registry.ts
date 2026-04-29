@@ -7,6 +7,8 @@ import { Category } from '../modules/catalog/entities/category.entity.js';
 import { ProductAttribute } from '../modules/catalog/entities/product-attribute.entity.js';
 import { AttributeSet } from '../modules/catalog/entities/attribute-set.entity.js';
 import { AttributeSetAttribute } from '../modules/catalog/entities/attribute-set-attribute.entity.js';
+import { GalleryItem } from '../modules/catalog/entities/gallery-item.entity.js';
+import { GalleryItemLabel } from '../modules/catalog/entities/gallery-item-label.entity.js';
 import { SalesChannel } from '../modules/catalog/entities/sales-channel.entity.js';
 import { AvailabilityNotification } from '../modules/inventory/entities/availability-notification.entity.js';
 import { QuoteRequest } from '../modules/quote_requests/entities/quote-request.entity.js';
@@ -79,6 +81,9 @@ export const ALL_ENTITIES = [
   // Attribute Sets (feature 002)
   AttributeSet,
   AttributeSetAttribute,
+  // Gallery (feature 002 US3)
+  GalleryItem,
+  GalleryItemLabel,
   SalesChannel,
   // inventory
   AvailabilityNotification,

@@ -21,6 +21,7 @@ import { Migration016ShoppingListsInit } from '../modules/shopping_lists/migrati
 import { Migration017AttributeSetsInit } from '../modules/catalog/migrations/017_attribute_sets_init.js';
 import { Migration018ProductAttributeExtensions } from '../modules/catalog/migrations/018_product_attribute_extensions.js';
 import { Migration019ProductTypeAndVirtualFields } from '../modules/catalog/migrations/019_product_type_and_virtual_fields.js';
+import { Migration020GalleryItemsAndLabels } from '../modules/catalog/migrations/020_gallery_items_and_labels.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -76,6 +77,10 @@ export default defineConfig({
       {
         name: 'Migration019ProductTypeAndVirtualFields',
         class: Migration019ProductTypeAndVirtualFields,
+      },
+      {
+        name: 'Migration020GalleryItemsAndLabels',
+        class: Migration020GalleryItemsAndLabels,
       },
     ],
     transactional: true,

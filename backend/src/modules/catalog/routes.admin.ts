@@ -4,17 +4,21 @@ import {
   createAttributeRequestSchema,
   createAttributeSetRequestSchema,
   createCategoryRequestSchema,
+  createGalleryItemRequestSchema,
   createProductRequestSchema,
   createVariantRequestSchema,
+  reorderGalleryRequestSchema,
   updateAttributeRequestSchema,
   updateAttributeSetRequestSchema,
   updateCategoryRequestSchema,
+  updateGalleryItemRequestSchema,
   updateProductRequestSchema,
   updateVariantRequestSchema,
 } from '@b2b/contracts';
 import type { CatalogAdminService } from './services/catalog-admin.service.js';
 import type { CategoryAdminService } from './services/category-admin.service.js';
 import type { AttributeSetService } from './services/attribute-set.service.js';
+import type { GalleryService } from './services/gallery.service.js';
 import type { Product } from './entities/product.entity.js';
 import type { ProductAttribute } from './entities/product-attribute.entity.js';
 import type { Category } from './entities/category.entity.js';
@@ -39,6 +43,11 @@ export interface CatalogAdminDeps {
    * setups. When omitted, the attribute-set endpoints are NOT registered.
    */
   attributeSetService?: AttributeSetService;
+  /**
+   * Feature 002 — Gallery admin CRUD (US3). Optional for the same
+   * progressive-rollout reason as `attributeSetService`.
+   */
+  galleryService?: GalleryService;
   /**
    * PreHandler gate — supplied by the composition root. Set to the real
    * `requireAdmin('catalog:write')` factory at server boot. Optional so tests
@@ -314,6 +323,79 @@ export async function registerCatalogAdminRoutes(
           request.params.id,
           request.params.attributeId,
         );
+        reply.status(204).send();
+      },
+    );
+  }
+
+  // ===== Feature 002 — Gallery admin CRUD (US3) ==============================
+  if (deps.galleryService) {
+    const gallery = deps.galleryService;
+
+    app.get<{ Params: { productId: string } }>(
+      '/api/v1/admin/catalog/products/:productId/gallery',
+      { preHandler: requireAdmin('catalog:read') },
+      async (request) => {
+        const items = await gallery.list(request.params.productId);
+        return { data: items };
+      },
+    );
+
+    app.post<{ Params: { productId: string }; Querystring: { replace?: string } }>(
+      '/api/v1/admin/catalog/products/:productId/gallery',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: createGalleryItemRequestSchema },
+      },
+      async (request, reply) => {
+        const body = createGalleryItemRequestSchema.parse(request.body);
+        const item = await gallery.create(request.params.productId, body, {
+          replaceConflictingLabels: request.query.replace === 'true',
+        });
+        reply.status(201);
+        return { data: item };
+      },
+    );
+
+    app.patch<{
+      Params: { productId: string; itemId: string };
+      Querystring: { replace?: string };
+    }>(
+      '/api/v1/admin/catalog/products/:productId/gallery/:itemId',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: updateGalleryItemRequestSchema },
+      },
+      async (request) => {
+        const body = updateGalleryItemRequestSchema.parse(request.body);
+        const item = await gallery.update(
+          request.params.productId,
+          request.params.itemId,
+          body,
+          { replaceConflictingLabels: request.query.replace === 'true' },
+        );
+        return { data: item };
+      },
+    );
+
+    app.delete<{ Params: { productId: string; itemId: string } }>(
+      '/api/v1/admin/catalog/products/:productId/gallery/:itemId',
+      { preHandler: requireAdmin('catalog:write') },
+      async (request, reply) => {
+        await gallery.delete(request.params.productId, request.params.itemId);
+        reply.status(204).send();
+      },
+    );
+
+    app.put<{ Params: { productId: string } }>(
+      '/api/v1/admin/catalog/products/:productId/gallery/order',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: reorderGalleryRequestSchema },
+      },
+      async (request, reply) => {
+        const body = reorderGalleryRequestSchema.parse(request.body);
+        await gallery.reorder(request.params.productId, body.orderedGalleryItemIds);
         reply.status(204).send();
       },
     );

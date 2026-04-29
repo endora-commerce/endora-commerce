@@ -108,6 +108,8 @@ const SEEDED_TABLES = [
   // Feature 002 — bridge tables truncate before products so FK CASCADE
   // cleanup is deterministic per-test.
   'attribute_set_attributes',
+  'gallery_item_labels',
+  'gallery_items',
   'product_attributes',
   // attribute_sets is NOT truncated — its system Default row is created
   // by migration 017 and the contract tests rely on it being present.

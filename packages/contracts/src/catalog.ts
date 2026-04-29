@@ -433,3 +433,43 @@ export const assignAttributesRequestSchema = z
   })
   .strict();
 export type AssignAttributesRequest = z.infer<typeof assignAttributesRequestSchema>;
+
+// --- Feature 002 — Gallery (US3) --------------------------------------------
+
+export const galleryLabelSchema = z.enum(['base_image', 'small_image', 'thumbnail']);
+export type GalleryLabel = z.infer<typeof galleryLabelSchema>;
+
+export const galleryItemSchema = z.object({
+  id: uuidSchema,
+  productId: uuidSchema,
+  assetId: uuidSchema,
+  position: z.number().int().nonnegative(),
+  labels: z.array(galleryLabelSchema),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type GalleryItem = z.infer<typeof galleryItemSchema>;
+
+export const createGalleryItemRequestSchema = z
+  .object({
+    assetId: uuidSchema,
+    position: z.number().int().nonnegative().optional(),
+    labels: z.array(galleryLabelSchema).optional(),
+  })
+  .strict();
+export type CreateGalleryItemRequest = z.infer<typeof createGalleryItemRequestSchema>;
+
+export const updateGalleryItemRequestSchema = z
+  .object({
+    position: z.number().int().nonnegative().optional(),
+    labels: z.array(galleryLabelSchema).optional(),
+  })
+  .strict();
+export type UpdateGalleryItemRequest = z.infer<typeof updateGalleryItemRequestSchema>;
+
+export const reorderGalleryRequestSchema = z
+  .object({
+    orderedGalleryItemIds: z.array(uuidSchema).min(1),
+  })
+  .strict();
+export type ReorderGalleryRequest = z.infer<typeof reorderGalleryRequestSchema>;
