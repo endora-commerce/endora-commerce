@@ -33,6 +33,11 @@ type MessageKey =
   | 'product.links.upSell'
   | 'product.links.crossSell'
   | 'product.links.seeAll'
+  | 'product.bundle.addToCart'
+  | 'product.bundle.requiredSlot'
+  | 'product.grouped.addBundleToCart'
+  | 'product.virtual.buyAndDownload'
+  | 'product.virtual.digitalDelivery'
   | 'search.placeholder'
   | 'common.searchAction'
   | 'pagination.next';
@@ -61,6 +66,11 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'product.links.upSell': 'You might also like',
     'product.links.crossSell': 'You may also need',
     'product.links.seeAll': 'See all',
+    'product.bundle.addToCart': 'Add bundle to cart',
+    'product.bundle.requiredSlot': 'required',
+    'product.grouped.addBundleToCart': 'Add bundle to cart',
+    'product.virtual.buyAndDownload': 'Buy and download',
+    'product.virtual.digitalDelivery': 'Digital delivery — instant access after purchase',
     'search.placeholder': 'Search products…',
     'common.searchAction': 'Search',
     'pagination.next': 'Next page',
@@ -88,6 +98,11 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'product.links.upSell': 'Moze Cie zainteresowac',
     'product.links.crossSell': 'Dokup takze',
     'product.links.seeAll': 'Zobacz wszystkie',
+    'product.bundle.addToCart': 'Dodaj zestaw do koszyka',
+    'product.bundle.requiredSlot': 'wymagane',
+    'product.grouped.addBundleToCart': 'Dodaj zestaw do koszyka',
+    'product.virtual.buyAndDownload': 'Kup i pobierz',
+    'product.virtual.digitalDelivery': 'Dostawa cyfrowa — dostep natychmiast po zakupie',
     'search.placeholder': 'Szukaj produktow...',
     'common.searchAction': 'Szukaj',
     'pagination.next': 'Nastepna strona',

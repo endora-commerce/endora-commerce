@@ -6,6 +6,9 @@ import { ProductGallery } from '../../../../components/ProductGallery';
 import { GallerySwitcher } from '../../../../components/GallerySwitcher';
 import { AttachmentsList } from '../../../../components/AttachmentsList';
 import { ProductLinksSections } from '../../../../components/ProductLinksSections';
+import { BundleConfigurator } from '../../../../components/BundleConfigurator';
+import { GroupedSummary } from '../../../../components/GroupedSummary';
+import { VirtualCta } from '../../../../components/VirtualCta';
 import { VariantPicker } from '../../../../components/VariantPicker';
 import { PriceTag } from '../../../../components/PriceTag';
 import { StockBadge } from '../../../../components/StockBadge';
@@ -113,12 +116,31 @@ export default async function ProductPage({
           </div>
 
           <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
-            {product.price ? (
-              <a href="/cart" className="b2b-cta">
-                {t('product.addToCart')}
-              </a>
+            {/* Feature 002 US5 — type switch for the action zone:
+              * - simple/configurable keep the legacy Add-to-cart + RFQ
+              * - grouped → GroupedSummary
+              * - bundle → BundleConfigurator
+              * - virtual → VirtualCta
+              */}
+            {product.type === 'simple' || product.type === 'configurable' ? (
+              <>
+                {product.price ? (
+                  <a href="/cart" className="b2b-cta">
+                    {t('product.addToCart')}
+                  </a>
+                ) : null}
+                <AddToRfqForm productId={product.id} productSlug={product.slug} />
+              </>
             ) : null}
-            <AddToRfqForm productId={product.id} productSlug={product.slug} />
+            {product.type === 'virtual' && product.virtual ? (
+              <VirtualCta
+                virtual={product.virtual}
+                labels={{
+                  buyAndDownload: t('product.virtual.buyAndDownload'),
+                  digitalDelivery: t('product.virtual.digitalDelivery'),
+                }}
+              />
+            ) : null}
           </div>
 
           {product.type === 'configurable' && product.variants.length > 0 ? (
@@ -134,6 +156,25 @@ export default async function ProductPage({
                 outOfStock: t('product.variants.outOfStock'),
                 selectThisVariant: t('product.variants.selectThisVariant'),
               }}
+            />
+          ) : null}
+
+          {product.type === 'grouped' && product.groupedItems ? (
+            <GroupedSummary
+              items={product.groupedItems}
+              addToCartLabel={t('product.grouped.addBundleToCart')}
+            />
+          ) : null}
+
+          {product.type === 'bundle' && product.bundleSlots ? (
+            <BundleConfigurator
+              productSlug={product.slug}
+              slots={product.bundleSlots}
+              labels={{
+                addToCart: t('product.bundle.addToCart'),
+                requiredSlot: t('product.bundle.requiredSlot'),
+              }}
+              locale={locale}
             />
           ) : null}
 
