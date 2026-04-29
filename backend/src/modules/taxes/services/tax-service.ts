@@ -34,7 +34,7 @@ export class TaxService {
     name: string;
     rate: number;
     country?: string | null;
-    productType?: 'simple' | 'variant' | 'grouped' | 'virtual' | null;
+    productType?: 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual' | null;
     appliesToVatStatuses?: Array<'vat_payer' | 'vat_exempt' | 'reverse_charge'>;
     isDefault?: boolean;
     priority?: number;

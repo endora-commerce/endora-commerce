@@ -21,7 +21,9 @@ export class Product {
     | 'deletedAt'
     | 'archivedAt'
     | 'allowedOrganizationIds'
-    | 'attributeSetId';
+    | 'attributeSetId'
+    | 'downloadAssetId'
+    | 'downloadUrl';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -36,7 +38,7 @@ export class Product {
   slug!: string;
 
   @Property({ type: 'string', length: 16 })
-  type!: 'simple' | 'variant' | 'grouped' | 'virtual';
+  type!: 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
 
   @Property({ type: 'string', length: 16 })
   @Index()
@@ -79,6 +81,17 @@ export class Product {
    */
   @Property({ type: 'uuid' })
   attributeSetId: string = 'defa0017-0000-4000-8000-000000000000';
+
+  /**
+   * Feature 002 — virtual product download fields (data-model.md §1.1).
+   * Exactly one MUST be set when type='virtual'; both MUST be null
+   * otherwise. Cross-field rule enforced at the service layer (T047).
+   */
+  @Property({ type: 'uuid', nullable: true })
+  downloadAssetId?: string | null;
+
+  @Property({ type: 'string', length: 2048, nullable: true })
+  downloadUrl?: string | null;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   @Index()
