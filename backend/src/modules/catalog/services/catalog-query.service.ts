@@ -4,6 +4,10 @@ import { ProductVariant } from '../entities/product-variant.entity.js';
 import { Category } from '../entities/category.entity.js';
 import { ProductAttribute } from '../entities/product-attribute.entity.js';
 import { AttributeSet } from '../entities/attribute-set.entity.js';
+import { GalleryItem } from '../entities/gallery-item.entity.js';
+import { GalleryItemLabel } from '../entities/gallery-item-label.entity.js';
+import { ProductAttachment } from '../entities/product-attachment.entity.js';
+import { AttachmentType } from '../entities/attachment-type.entity.js';
 import { SalesChannel } from '../entities/sales-channel.entity.js';
 import { Asset } from '../../assets/entities/asset.entity.js';
 import {
@@ -253,6 +257,49 @@ export class CatalogQueryService {
       id: product.attributeSetId,
     });
 
+    // Feature 002 US3 — eager-load gallery + attachments for the PDP.
+    // Gallery: items + label bridge zipped per item; Asset urls
+    // resolved into a flat shape the storefront can render directly.
+    const galleryItems = await em.find(
+      GalleryItem,
+      { productId: product.id },
+      { orderBy: { position: 'asc', id: 'asc' } },
+    );
+    const galleryAssetIds = galleryItems.map((g) => g.assetId);
+    const galleryAssetsById = new Map<string, Asset>();
+    if (galleryAssetIds.length > 0) {
+      const galleryAssets = await em.find(Asset, { id: { $in: galleryAssetIds } });
+      for (const a of galleryAssets) galleryAssetsById.set(a.id, a);
+    }
+    const galleryLabels = galleryItems.length > 0
+      ? await em.find(GalleryItemLabel, { productId: product.id })
+      : [];
+    const labelsByItem = new Map<string, ('base_image' | 'small_image' | 'thumbnail')[]>();
+    for (const l of galleryLabels) {
+      const existing = labelsByItem.get(l.galleryItemId) ?? [];
+      existing.push(l.label);
+      labelsByItem.set(l.galleryItemId, existing);
+    }
+
+    // Attachments + their types, eager-loaded in two queries.
+    const attachmentRows = await em.find(
+      ProductAttachment,
+      { productId: product.id },
+      { orderBy: { position: 'asc', id: 'asc' } },
+    );
+    const attachmentTypeIds = [...new Set(attachmentRows.map((a) => a.attachmentTypeId))];
+    const attachmentTypesById = new Map<string, AttachmentType>();
+    if (attachmentTypeIds.length > 0) {
+      const types = await em.find(AttachmentType, { id: { $in: attachmentTypeIds } });
+      for (const t of types) attachmentTypesById.set(t.id, t);
+    }
+    const attachmentAssetIds = [...new Set(attachmentRows.map((a) => a.assetId))];
+    const attachmentAssetsById = new Map<string, Asset>();
+    if (attachmentAssetIds.length > 0) {
+      const aAssets = await em.find(Asset, { id: { $in: attachmentAssetIds } });
+      for (const a of aAssets) attachmentAssetsById.set(a.id, a);
+    }
+
     const descriptionText = this.pickLang(product.description, ctx.preferredLanguage, channel);
     const nameText = this.pickLang(product.name, ctx.preferredLanguage, channel);
 
@@ -316,6 +363,40 @@ export class CatalogQueryService {
             },
           }
         : {}),
+      gallery: galleryItems.flatMap((g) => {
+        const a = galleryAssetsById.get(g.assetId);
+        if (!a) return [];
+        return [
+          {
+            id: g.id,
+            position: g.position,
+            labels: [...(labelsByItem.get(g.id) ?? [])].sort(),
+            asset: { id: a.id, kind: a.kind, url: a.storageUrl },
+          },
+        ];
+      }),
+      attachments: attachmentRows.flatMap((row) => {
+        const t = attachmentTypesById.get(row.attachmentTypeId);
+        const a = attachmentAssetsById.get(row.assetId);
+        if (!t || !a) return [];
+        return [
+          {
+            id: row.id,
+            position: row.position,
+            name: row.name,
+            description: row.description ?? null,
+            type: { id: t.id, code: t.code, name: t.name },
+            asset: {
+              id: a.id,
+              kind: a.kind,
+              url: a.storageUrl,
+              filename: a.filename,
+              sizeBytes: Number(a.sizeBytes),
+              mimeType: a.mimeType,
+            },
+          },
+        ];
+      }),
     };
     return detail;
   }

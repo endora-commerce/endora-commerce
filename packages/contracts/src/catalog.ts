@@ -154,6 +154,53 @@ export const productDetailSchema = productSummarySchema.extend({
       name: multilingualStringSchema,
     })
     .optional(),
+  /**
+   * Feature 002 US3 — gallery items with their assigned labels. Each
+   * item carries the Asset's resolved url + kind so storefront PDP
+   * doesn't need a follow-up fetch. Optional for the same backwards-
+   * compat reason as attributeSet.
+   */
+  gallery: z
+    .array(
+      z.object({
+        id: uuidSchema,
+        position: z.number().int().nonnegative(),
+        labels: z.array(z.enum(['base_image', 'small_image', 'thumbnail'])),
+        asset: z.object({
+          id: uuidSchema,
+          kind: z.string(),
+          url: z.string(),
+        }),
+      }),
+    )
+    .optional(),
+  /**
+   * Feature 002 US3 — product attachments with their type + Asset.
+   * Optional like the rest.
+   */
+  attachments: z
+    .array(
+      z.object({
+        id: uuidSchema,
+        position: z.number().int().nonnegative(),
+        name: z.string(),
+        description: z.string().nullable(),
+        type: z.object({
+          id: uuidSchema,
+          code: z.string(),
+          name: multilingualStringSchema,
+        }),
+        asset: z.object({
+          id: uuidSchema,
+          kind: z.string(),
+          url: z.string(),
+          filename: z.string(),
+          sizeBytes: z.number(),
+          mimeType: z.string(),
+        }),
+      }),
+    )
+    .optional(),
 });
 export type ProductDetail = z.infer<typeof productDetailSchema>;
 
