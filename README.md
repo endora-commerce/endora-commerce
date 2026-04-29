@@ -33,11 +33,12 @@ The repository is a **pnpm monorepo** with three independently buildable applica
 
 ## Capability status
 
-Foundation feature 001 is complete. Each capability below is exercised by contract / integration tests in `backend/test/` and surfaced through the storefront (Next.js) and admin panel (Vite + React).
+Foundation feature 001 is complete; feature 002 (catalog module extension) ships Attribute Sets, Gallery with Base/Small/Thumbnail labels, Product Attachments, Product Links (related / up-sell / cross-sell), and three new product types (`grouped`, `bundle`, `virtual`). Each capability below is exercised by contract / integration tests in `backend/test/` and surfaced through the storefront (Next.js) and admin panel (Vite + React).
 
 **Customer-facing (storefront)**
 
-- Catalog browsing with multi-locale name/description, category tree, faceted filters, Meilisearch-backed full-text search, and a server-rendered PDP with stock badge + structured-data JSON-LD.
+- Catalog browsing with multi-locale name/description, category tree, faceted filters, Meilisearch-backed full-text search, and a server-rendered PDP with stock badge + structured-data JSON-LD. Five product types: `simple`, `configurable` (with variant picker), `grouped` (fixed children + Add-bundle CTA), `bundle` (configurable slots with min/max + per-slot validation), `virtual` (digital delivery CTA).
+- Product Gallery with curated Base / Small / Thumbnail label invariants (atomic swap on conflict), product Attachments grouped by type (Certificate, Tech spec, …), and Related / Up-sell / Cross-sell sections rendered on the PDP and cart.
 - Account flows — register, email verification, login (with optional 2FA challenge field), password reset, profile, change password, two-factor enrolment.
 - Organization settings — members list with role change / remove, pending-invitation list with revoke, addresses CRUD.
 - Cart that supports anonymous → logged-in merge, full checkout (address → delivery → payment → review → submit), order confirmation with the bank-transfer next-action panel, and an orders history view.
@@ -49,7 +50,7 @@ Foundation feature 001 is complete. Each capability below is exercised by contra
 
 **Supplier-operated (admin panel)**
 
-- Catalog admin: Products list + editor (per-locale fields, category multi-select, default price, archive), Categories tree editor with cycle guard + non-empty-delete refusal, Attributes manager with hot-toggle searchable / filterable / variant-axis checkboxes.
+- Catalog admin: Products list + editor (per-locale fields, category multi-select, default price, archive), Categories tree editor with cycle guard + non-empty-delete refusal, Attributes manager with hot-toggle searchable / filterable / variant-axis checkboxes, Attribute Sets manager with assign/unassign and system-Default protection, Attachment Types dictionary, plus per-product inline sections for Variants, Gallery (with replace-conflict toggle), Attachments, Product Links, Grouped children and Bundle slots.
 - Inventory: read with hydrated SKU / name, absolute on-hand set form (reserved counters are read-only — driven by orders).
 - Customer organizations: list with status / VAT / search filters, detail with status + VAT-status patches and members table.
 - Orders: list with status filter, detail with order/payment-status transitions, addresses, methods, and a PDF link.
