@@ -51,7 +51,7 @@ export class InvitationService {
   }
 
   async invite(
-    actor: { customerAccountId: string; organizationId: string },
+    actor: { organizationId: string; customerAccountId?: string | null },
     input: { email: string; role?: 'organization_admin' | 'regular_user' },
   ): Promise<InvitationResult> {
     const em = this.emFactory();
@@ -78,7 +78,7 @@ export class InvitationService {
     const rawToken = randomBytes(32).toString('base64url');
     const invitation = em.create(OrganizationInvitation, {
       organizationId: actor.organizationId,
-      invitedByCustomerAccountId: actor.customerAccountId,
+      invitedByCustomerAccountId: actor.customerAccountId ?? null,
       email: lowercaseEmail,
       role,
       tokenHash: sha256Hex(rawToken),
@@ -98,13 +98,13 @@ export class InvitationService {
     }
 
     if (this.mailer) {
-      const [organization, inviter] = await Promise.all([
-        em.findOne(Organization, { id: actor.organizationId }),
-        em.findOne(CustomerAccount, { id: actor.customerAccountId }),
-      ]);
+      const organization = await em.findOne(Organization, { id: actor.organizationId });
+      const inviter = actor.customerAccountId
+        ? await em.findOne(CustomerAccount, { id: actor.customerAccountId })
+        : null;
       const inviterName = inviter
         ? [inviter.firstName, inviter.lastName].filter(Boolean).join(' ').trim() || inviter.email
-        : 'An organization admin';
+        : 'Platform support';
       const message = buildInvitationEmail({
         invitationId: invitation.id,
         rawToken,
@@ -152,6 +152,31 @@ export class InvitationService {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invitation not found.');
     }
     if (invitation.consumedAt || invitation.revokedAt) return;
+
+    if (invitation.role === 'organization_admin') {
+      const adminCount = await em.count(CustomerAccount, {
+        organizationId: actor.organizationId,
+        role: 'organization_admin',
+        deletedAt: null,
+      });
+      if (adminCount === 0) {
+        const otherPending = await em.count(OrganizationInvitation, {
+          organizationId: actor.organizationId,
+          role: 'organization_admin',
+          consumedAt: null,
+          revokedAt: null,
+          id: { $ne: invitation.id },
+        });
+        if (otherPending === 0) {
+          throw new HttpError(
+            409,
+            ERROR_CODES.CANNOT_REVOKE_LAST_ADMIN_INVITE,
+            'Cannot revoke the only pending administrator invitation while the organization has no active administrator.',
+          );
+        }
+      }
+    }
+
     invitation.revokedAt = new Date();
     await em.flush();
   }

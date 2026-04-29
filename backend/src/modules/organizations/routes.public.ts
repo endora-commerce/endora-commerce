@@ -11,6 +11,8 @@ import type { EmailVerificationService } from './services/email-verification-ser
 import type { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
 import type { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
 import { SESSION_COOKIE_NAME } from '../auth/plugin.js';
+import type { Mailer } from '../email/services/mailer.js';
+import { buildVerificationEmail } from './email-templates/verification.js';
 
 /**
  * Anonymous endpoints: registration, email verification, customer login /
@@ -43,6 +45,10 @@ export interface OrganizationsPublicDeps {
     organizationId: string;
     anonymousCartToken?: string;
   }) => Promise<void>;
+  /** Dispatches verification email after registration. */
+  mailer: Mailer;
+  /** Storefront URL for verify link in the email body. */
+  storefrontBaseUrl: string;
 }
 
 export async function registerOrganizationsPublicRoutes(
@@ -64,12 +70,27 @@ export async function registerOrganizationsPublicRoutes(
         deps.latestTokenByEmail.set(result.customerAccount.email, result.verificationToken);
         deps.latestTokenByEmail.set('__latest__', result.verificationToken);
       }
+      let emailVerificationSent = false;
+      try {
+        await deps.mailer.send(
+          buildVerificationEmail({
+            customerAccountId: result.customerAccount.id,
+            rawToken: result.verificationToken,
+            recipientEmail: result.customerAccount.email,
+            organizationName: result.organization.name,
+            storefrontBaseUrl: deps.storefrontBaseUrl,
+          }),
+        );
+        emailVerificationSent = true;
+      } catch (err) {
+        request.log.error({ err }, 'Failed to send verification email');
+      }
       reply.status(201);
       return {
         data: {
           organization: serializeOrganization(result.organization),
           customerAccount: serializeCustomerAccount(result.customerAccount),
-          emailVerificationSent: true,
+          emailVerificationSent,
         },
       };
     },

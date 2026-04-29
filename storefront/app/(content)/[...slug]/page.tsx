@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
 import { Breadcrumbs } from '../../../components/Breadcrumbs';
-import { getCmsPage } from '../../../lib/api/cms';
+import { getCmsPage, normalizeCmsUrlPath } from '../../../lib/api/cms';
 import { getServerContext } from '../../../lib/server-context';
 import { pickLocalizedString } from '../../../lib/i18n/locale';
 import { tForLocale } from '../../../lib/i18n/messages';
@@ -20,7 +20,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const path = slug.join('/');
+  const path = normalizeCmsUrlPath(slug.join('/'));
   const { ctx, locale } = await getServerContext();
   const page = await getCmsPage(path, ctx);
   if (!page) return { title: 'Not found' };
@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function CmsContentPage({ params }: PageProps): Promise<ReactNode> {
   const { slug } = await params;
-  const path = slug.join('/');
+  const path = normalizeCmsUrlPath(slug.join('/'));
   const { ctx, locale } = await getServerContext();
   const t = tForLocale(locale);
 

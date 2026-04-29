@@ -14,6 +14,9 @@ import { PermissionService } from './modules/admin_roles/services/permission-ser
 import { catalogModule } from './modules/catalog/plugin.js';
 import { quoteRequestsModule } from './modules/quote_requests/plugin.js';
 import { organizationsModule } from './modules/organizations/plugin.js';
+import { ConsoleMailer } from './modules/email/services/mailer.js';
+import { resolveSmtpUrlFromEnv } from './modules/email/resolve-smtp-url.js';
+import { SmtpMailer } from './modules/email/services/smtp-mailer.js';
 import { commerceModule } from './modules/orders/plugin.js';
 import { adminModule } from './modules/admin_users/plugin.js';
 import { inventoryModule } from './modules/inventory/plugin.js';
@@ -171,6 +174,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   let cartService: CartService | null = null;
 
+  const organizationsSmtpUrl = resolveSmtpUrlFromEnv();
+  const organizationsMailer = organizationsSmtpUrl
+    ? new SmtpMailer(organizationsSmtpUrl)
+    : new ConsoleMailer();
+
   const modules: ModulePlugin[] = [
     authModulePlugin,
     admin.plugin,
@@ -217,7 +225,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireCustomer,
       requireAdmin,
       resolveCustomerContext: customerResolver,
-      // ConsoleMailer is the organizationsModule default; SMTP transport wires here in prod
+      mailer: organizationsMailer,
+      auditLogService,
       ...(process.env['STOREFRONT_BASE_URL']
         ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
         : {}),

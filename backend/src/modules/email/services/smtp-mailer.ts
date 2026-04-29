@@ -1,0 +1,24 @@
+import nodemailer from 'nodemailer';
+import type { Mailer, MailerSendInput } from './mailer.js';
+
+/**
+ * Production SMTP mailer using `nodemailer`. Configure via `SMTP_URL`
+ * (e.g. `smtps://user:pass@smtp.example.com:465` or SendGrid SMTP relay).
+ */
+export class SmtpMailer implements Mailer {
+  private readonly transport;
+
+  constructor(smtpUrl: string) {
+    this.transport = nodemailer.createTransport(smtpUrl);
+  }
+
+  async send(input: MailerSendInput): Promise<void> {
+    await this.transport.sendMail({
+      from: process.env['SMTP_FROM'] ?? process.env['MAIL_FROM'] ?? 'noreply@localhost',
+      to: input.to,
+      subject: input.subject,
+      text: input.text,
+      messageId: input.messageId,
+    });
+  }
+}
