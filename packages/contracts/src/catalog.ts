@@ -128,6 +128,19 @@ export const productDetailSchema = productSummarySchema.extend({
   ),
   seo: seoMetaSchema,
   structuredDataJsonLd: z.record(z.string(), z.unknown()),
+  /**
+   * Feature 002 — the AttributeSet wired to this Product. Optional so
+   * foundation-era clients (and any storefront cache that hasn't been
+   * refreshed yet) keep parsing the response. Once admin UI + storefront
+   * consume this field everywhere, it can be tightened to required.
+   */
+  attributeSet: z
+    .object({
+      id: uuidSchema,
+      code: z.string(),
+      name: multilingualStringSchema,
+    })
+    .optional(),
 });
 export type ProductDetail = z.infer<typeof productDetailSchema>;
 

@@ -76,14 +76,15 @@ export function catalogModule(options: CatalogModuleOptions) {
     }
 
     await registerCatalogPublicRoutes(app, { queryService, searchQueryService });
+    const categoryAdminService = new CategoryAdminService(options.emFactory);
+    const attributeSetService = new AttributeSetService(options.emFactory);
     await registerCatalogApiKeyRoutes(app, {
       queryService,
       adminService,
+      attributeSetService,
       emFactory: options.emFactory,
       ...(options.requireApiKey ? { requireApiKey: options.requireApiKey } : {}),
     });
-    const categoryAdminService = new CategoryAdminService(options.emFactory);
-    const attributeSetService = new AttributeSetService(options.emFactory);
     await registerCatalogAdminRoutes(app, {
       adminService,
       categoryAdminService,
