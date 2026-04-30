@@ -31,6 +31,7 @@ import { cmsPagesModule } from './modules/cms_pages/plugin.js';
 import { priceListsModule } from './modules/price_lists/plugin.js';
 import { taxesModule } from './modules/taxes/plugin.js';
 import { promotionsModule } from './modules/promotions/plugin.js';
+import { settingsModule } from './modules/settings/plugin.js';
 import type { CartService } from './modules/carts/services/cart-service.js';
 
 /**
@@ -276,6 +277,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       eventBus,
       requireCustomer,
       resolveCustomerContext: customerResolver,
+    }),
+    // Feature 004 — Settings module. Plugin is a no-op skeleton today; routes
+    // and the manifest reconciler land in US1/US2/US3 per tasks.md.
+    settingsModule({
+      emFactory: em,
+      eventBus,
+      auditLogService,
+      requireAdmin,
     }),
   ];
 

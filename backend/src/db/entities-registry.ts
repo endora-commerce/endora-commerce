@@ -56,6 +56,9 @@ import { Tax } from '../modules/taxes/entities/tax.entity.js';
 import { Promotion } from '../modules/promotions/entities/promotion.entity.js';
 import { ShoppingList } from '../modules/shopping_lists/entities/shopping-list.entity.js';
 import { ShoppingListItem } from '../modules/shopping_lists/entities/shopping-list-item.entity.js';
+import { SettingGroup } from '../modules/settings/entities/setting-group.entity.js';
+import { Setting } from '../modules/settings/entities/setting.entity.js';
+import { SettingValue } from '../modules/settings/entities/setting-value.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -154,4 +157,8 @@ export const ALL_ENTITIES = [
   // shopping lists (US5 / T200)
   ShoppingList,
   ShoppingListItem,
+  // settings (feature 004)
+  SettingGroup,
+  Setting,
+  SettingValue,
 ] as const;
