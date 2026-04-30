@@ -2,13 +2,14 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import { SettingsAdminService, type AdminAuditContext } from './services/settings-admin.service.js';
+import { registerSettingsAdminRoutes } from './routes.admin.js';
 
 /**
- * Composition root for the settings module.
+ * Composition root for the settings module — feature 004.
  *
- * Routes are added in feature 004 / US2 (T035–T036). The plugin exists from
- * Phase 2 onwards so `composition.ts` can wire the module while the rest of
- * the implementation lands incrementally.
+ * Today exposes the admin HTTP surface (US2). The boot-time manifest
+ * reconciler runs from `composition.ts` directly (T024).
  */
 
 export type RequireAdminFactory = (
@@ -20,14 +21,43 @@ export interface SettingsModuleOptions {
   eventBus: EventBus;
   auditLogService?: AuditLogService;
   requireAdmin?: RequireAdminFactory;
-  resolveAdminAuditContext?: (req: FastifyRequest) => {
-    actorAdminUserId: string;
-    impersonatedCustomerAccountId?: string | null;
-  };
+  resolveAdminAuditContext?: (req: FastifyRequest) => AdminAuditContext;
 }
 
-export function settingsModule(_options: SettingsModuleOptions) {
-  return async function register(_app: FastifyInstance): Promise<void> {
-    // Routes added in T035–T036.
+export interface SettingsModuleHandle {
+  adminService: SettingsAdminService;
+}
+
+export interface SettingsModuleResult {
+  plugin: (app: FastifyInstance) => Promise<void>;
+  handle: SettingsModuleHandle;
+}
+
+export function settingsModule(
+  options: SettingsModuleOptions,
+): SettingsModuleResult {
+  const adminService = new SettingsAdminService(
+    options.emFactory,
+    options.eventBus,
+    options.auditLogService,
+  );
+
+  const noOpRequireAdmin: RequireAdminFactory =
+    () => async (_req, _reply) => {
+      /* permissive default — production wiring overrides */
+    };
+
+  return {
+    handle: { adminService },
+    plugin: async (app) => {
+      const requireAdminFn = options.requireAdmin ?? noOpRequireAdmin;
+      await registerSettingsAdminRoutes(app, {
+        adminService,
+        requireAdmin: requireAdminFn,
+        ...(options.resolveAdminAuditContext !== undefined
+          ? { resolveAdminAuditContext: options.resolveAdminAuditContext }
+          : {}),
+      });
+    },
   };
 }

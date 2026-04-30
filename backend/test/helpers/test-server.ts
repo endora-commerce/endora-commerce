@@ -24,6 +24,9 @@ import { cmsPagesModule } from '../../src/modules/cms_pages/plugin.js';
 import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
 import { taxesModule } from '../../src/modules/taxes/plugin.js';
 import { promotionsModule } from '../../src/modules/promotions/plugin.js';
+import { settingsModule } from '../../src/modules/settings/plugin.js';
+import { settingsManifest as settingsModuleManifest } from '../../src/modules/settings/manifest.js';
+import { ManifestReconciler } from '../../src/modules/settings/services/manifest-reconciler.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
 import type { Mailer } from '../../src/modules/email/services/mailer.js';
 import { seedUs1Catalog } from './seed-catalog.js';
@@ -370,8 +373,23 @@ export async function setupBackendServer(
       requireCustomer: requireTestCustomer(),
       resolveCustomerContext: customerResolver,
     }),
+    settingsModule({
+      emFactory: em,
+      eventBus,
+      auditLogService,
+      requireAdmin: requireTestAdmin(permissionService),
+      resolveAdminAuditContext: (request) => ({
+        actorAdminUserId:
+          request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+      }),
+    }).plugin,
   ];
   if (options.extraModules) modules.push(...options.extraModules);
+
+  // Feature 004 — boot-time manifest reconciliation (settings module's own
+  // built-in `general` group). Runs before app.ready() so contract tests
+  // start from a consistent settings catalog.
+  await new ManifestReconciler(em()).apply([settingsModuleManifest]);
 
   const app = await buildServer({
     sessionCookieSecret: 'test-secret-do-not-use-in-production',

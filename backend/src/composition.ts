@@ -281,14 +281,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireCustomer,
       resolveCustomerContext: customerResolver,
     }),
-    // Feature 004 — Settings module. Plugin is a no-op skeleton today; routes
-    // and the manifest reconciler land in US1/US2/US3 per tasks.md.
+    // Feature 004 — Settings module. Routes (US2) live behind requireAdmin;
+    // the boot-time manifest reconciler runs below before HTTP comes up.
     settingsModule({
       emFactory: em,
       eventBus,
       auditLogService,
       requireAdmin,
-    }),
+      resolveAdminAuditContext: (request) => {
+        if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
+        return { actorAdminUserId: request.actor.adminUserId };
+      },
+    }).plugin,
   ];
 
   // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every

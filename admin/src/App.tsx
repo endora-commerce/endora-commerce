@@ -34,6 +34,8 @@ import { DeliveryMethodsPage } from './modules/delivery_methods/DeliveryMethodsP
 import { PaymentMethodsPage } from './modules/payment_methods/PaymentMethodsPage.js';
 import { InventoryPage } from './modules/inventory/InventoryPage.js';
 import { CreditLimitsPage } from './modules/credit_limits/CreditLimitsPage.js';
+import { SettingsPage } from './modules/settings/pages/SettingsPage.js';
+import { GroupsPage as SettingsGroupsPage } from './modules/settings/pages/GroupsPage.js';
 
 export function App(): ReactNode {
   const { status } = useAuth();
@@ -80,6 +82,8 @@ export function App(): ReactNode {
         <Route path="/seo" element={<SeoPage />} />
         <Route path="/i18n" element={<I18nPage />} />
         <Route path="/cms" element={<CmsPagesPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings/groups" element={<SettingsGroupsPage />} />
         <Route
           path="*"
           element={
