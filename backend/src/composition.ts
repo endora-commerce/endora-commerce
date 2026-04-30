@@ -281,19 +281,24 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireCustomer,
       resolveCustomerContext: customerResolver,
     }),
-    // Feature 004 — Settings module. Routes (US2) live behind requireAdmin;
-    // the boot-time manifest reconciler runs below before HTTP comes up.
-    settingsModule({
-      emFactory: em,
-      eventBus,
-      auditLogService,
-      requireAdmin,
-      resolveAdminAuditContext: (request) => {
-        if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
-        return { actorAdminUserId: request.actor.adminUserId };
-      },
-    }).plugin,
   ];
+
+  // Feature 004 — Settings module. Routes (US2) live behind requireAdmin; the
+  // universal getter (US3) is exposed via `settings.handle.settingsService`
+  // for other modules to consume. The boot-time reconciler runs below before
+  // HTTP comes up.
+  const settings = settingsModule({
+    emFactory: em,
+    eventBus,
+    auditLogService,
+    requireAdmin,
+    redis,
+    resolveAdminAuditContext: (request) => {
+      if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
+      return { actorAdminUserId: request.actor.adminUserId };
+    },
+  });
+  modules.push(settings.plugin);
 
   // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every
   // module's settings manifest and inserts any missing groups/settings

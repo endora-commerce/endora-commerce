@@ -70,6 +70,8 @@ export interface BackendServerHandle {
   sessionService: SessionService;
   auditLogService: AuditLogService;
   permissionService: PermissionService;
+  /** Feature 004 — exposes the universal getter and cache invalidator for tests. */
+  settings: ReturnType<typeof settingsModule>['handle'];
 }
 
 const SEEDED_TABLES = [
@@ -373,17 +375,20 @@ export async function setupBackendServer(
       requireCustomer: requireTestCustomer(),
       resolveCustomerContext: customerResolver,
     }),
-    settingsModule({
-      emFactory: em,
-      eventBus,
-      auditLogService,
-      requireAdmin: requireTestAdmin(permissionService),
-      resolveAdminAuditContext: (request) => ({
-        actorAdminUserId:
-          request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-      }),
-    }).plugin,
   ];
+
+  const settings = settingsModule({
+    emFactory: em,
+    eventBus,
+    auditLogService,
+    redis,
+    requireAdmin: requireTestAdmin(permissionService),
+    resolveAdminAuditContext: (request) => ({
+      actorAdminUserId:
+        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+    }),
+  });
+  modules.push(settings.plugin);
   if (options.extraModules) modules.push(...options.extraModules);
 
   // Feature 004 — boot-time manifest reconciliation (settings module's own
@@ -412,6 +417,7 @@ export async function setupBackendServer(
     sessionService,
     auditLogService,
     permissionService,
+    settings: settings.handle,
   };
 }
 
