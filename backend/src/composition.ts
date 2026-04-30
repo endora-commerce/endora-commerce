@@ -34,6 +34,9 @@ import { promotionsModule } from './modules/promotions/plugin.js';
 import { settingsModule } from './modules/settings/plugin.js';
 import { settingsManifest as settingsModuleManifest } from './modules/settings/manifest.js';
 import { ManifestReconciler } from './modules/settings/services/manifest-reconciler.js';
+import { salesChannelsModule } from './modules/sales_channels/plugin.js';
+import { salesChannelsManifest } from './modules/sales_channels/manifest.js';
+import { DefaultChannelReconciler } from './modules/sales_channels/services/default-channel-reconciler.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
 import type { CartService } from './modules/carts/services/cart-service.js';
 
@@ -283,6 +286,26 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     }),
   ];
 
+  // Feature 005 — Sales Channels module. The boot-time
+  // DefaultChannelReconciler runs FIRST so every other module can rely on a
+  // system-default channel existing; it must precede the settings reconciler
+  // because settings rows reference sales_channels by id. The plugin
+  // registers the resolver Fastify middleware on every /api/v1/* request;
+  // admin CRUD routes (US2 / T034) and per-entity membership routes
+  // (US3 / T049-T058) wire in here as they land.
+  const salesChannelsReconciler = new DefaultChannelReconciler(em, auditLogService);
+  const salesChannelsReconciliation = await salesChannelsReconciler.run();
+  if (salesChannelsReconciliation.action === 'warning' && salesChannelsReconciliation.warning) {
+    console.warn(salesChannelsReconciliation.warning);
+  }
+  const salesChannels = salesChannelsModule({
+    emFactory: em,
+    eventBus,
+    redis,
+    auditLogService,
+  });
+  modules.push(salesChannels.plugin);
+
   // Feature 004 — Settings module. Routes (US2) live behind requireAdmin; the
   // universal getter (US3) is exposed via `settings.handle.settingsService`
   // for other modules to consume. The boot-time reconciler runs below before
@@ -306,6 +329,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // (R-1); destructive uninstall is CLI-only.
   const settingsManifests: ModuleSettingsManifest[] = [
     settingsModuleManifest,
+    salesChannelsManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();
