@@ -116,6 +116,7 @@ export function salesChannelsModule(
       if (options.requireAdmin) {
         await registerSalesChannelsAdminRoutes(app, {
           salesChannelsService,
+          membershipService,
           requireAdmin: options.requireAdmin,
           ...(options.resolveAdminAuditContext !== undefined
             ? { resolveAdminAuditContext: options.resolveAdminAuditContext }

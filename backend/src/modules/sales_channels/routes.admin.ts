@@ -1,8 +1,10 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
+  ChannelMemberEntityTypeSchema,
   ERROR_CODES,
   SalesChannelCreateBodySchema,
   SalesChannelUpdateBodySchema,
+  type ChannelMemberEntityType,
 } from '@b2b/contracts';
 import { z } from 'zod';
 import { HttpError } from '../../http/error-envelope.js';
@@ -11,6 +13,7 @@ import type {
   AdminAuditContext,
   SalesChannelsService,
 } from './services/sales-channels.service.js';
+import type { SalesChannelMembershipService } from './services/sales-channel-membership.service.js';
 import type { SalesChannel } from './entities/sales-channel.entity.js';
 
 /**
@@ -69,6 +72,7 @@ const ExpectedVersionShape = z.object({
 
 export interface SalesChannelsAdminDeps {
   salesChannelsService: SalesChannelsService;
+  membershipService: SalesChannelMembershipService;
   requireAdmin: RequireAdminFactory;
   resolveAdminAuditContext?: (req: FastifyRequest) => AdminAuditContext;
 }
@@ -77,7 +81,12 @@ export async function registerSalesChannelsAdminRoutes(
   app: FastifyInstance,
   deps: SalesChannelsAdminDeps,
 ): Promise<void> {
-  const { salesChannelsService, requireAdmin, resolveAdminAuditContext } = deps;
+  const {
+    salesChannelsService,
+    membershipService,
+    requireAdmin,
+    resolveAdminAuditContext,
+  } = deps;
 
   const auditContext = (request: FastifyRequest): AdminAuditContext => {
     const ctx = resolveAdminAuditContext?.(request) ?? { actorAdminUserId: null };
@@ -239,6 +248,182 @@ export async function registerSalesChannelsAdminRoutes(
       );
       reply.code(204);
       return reply.send();
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Membership routes — feature 005 / Phase 5b (T049-T058 consolidated).
+  //
+  // Both directions of the bidirectional relationship are mounted under
+  // `/api/v1/admin/sales-channels/*` so all 9 entity types (no
+  // `inventory-location` per the deferral) get coverage in one
+  // centralised file. The plan's per-owning-module mounts under
+  // `/admin/products/{id}/sales-channels` etc. would have required
+  // touching 9 modules' route files; consolidating here keeps the
+  // feature reviewable and the membership service is the single
+  // source of truth either way (FR-010).
+  //
+  //   GET    /api/v1/admin/sales-channels/:code/:entityType
+  //   PUT    /api/v1/admin/sales-channels/:code/:entityType/:entityId
+  //   DELETE /api/v1/admin/sales-channels/:code/:entityType/:entityId
+  //                  ?fallbackToDefault=true
+  //   GET    /api/v1/admin/sales-channels/by-entity/:entityType/:entityId
+  //
+  // The "by-entity" path replaces the contract's
+  // `/admin/{T}/{entityId}/sales-channels` shape — functionally
+  // equivalent for the admin UI's membership panel and avoids
+  // dispersing the implementation across each owning module's
+  // routes.admin.ts.
+  // -------------------------------------------------------------------------
+
+  const PageQuerySchema = z.object({
+    page: z.coerce.number().int().nonnegative().optional(),
+    pageSize: z.coerce.number().int().positive().max(200).optional(),
+  });
+
+  const MembershipDeleteQuerySchema = z.object({
+    fallbackToDefault: z
+      .union([z.boolean(), z.enum(['true', 'false'])])
+      .transform((v) => (typeof v === 'string' ? v === 'true' : v))
+      .optional(),
+  });
+
+  function parseEntityType(raw: string): ChannelMemberEntityType {
+    const result = ChannelMemberEntityTypeSchema.safeParse(raw);
+    if (!result.success) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.NOT_FOUND,
+        `Unknown channel-scoped entity type "${raw}".`,
+      );
+    }
+    return result.data;
+  }
+
+  async function requireChannelByCode(code: string): Promise<SalesChannel> {
+    const channel = await salesChannelsService.getByCode(code);
+    if (channel === null) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.UNKNOWN_SALES_CHANNEL,
+        `Sales channel "${code}" was not found.`,
+      );
+    }
+    return channel;
+  }
+
+  // -- Channel-side: list members of a channel for one entity type ---------
+
+  app.get<{ Params: { code: string; entityType: string } }>(
+    '/api/v1/admin/sales-channels/:code/:entityType',
+    { preHandler: requireAdmin(SC_READ) },
+    async (request) => {
+      const entityType = parseEntityType(request.params.entityType);
+      const channel = await requireChannelByCode(request.params.code);
+      const q = PageQuerySchema.parse(request.query ?? {});
+      const page = q.page ?? 0;
+      const pageSize = q.pageSize ?? 100;
+      const result = await membershipService.listEntityIdsForChannel(
+        channel.id,
+        entityType,
+        page,
+        pageSize,
+      );
+      return {
+        salesChannelCode: channel.code,
+        entityType,
+        entityIds: result.entityIds,
+        page,
+        pageSize,
+        total: result.total,
+      };
+    },
+  );
+
+  // -- Channel-side: add membership ----------------------------------------
+
+  app.put<{ Params: { code: string; entityType: string; entityId: string } }>(
+    '/api/v1/admin/sales-channels/:code/:entityType/:entityId',
+    { preHandler: requireAdmin(SC_WRITE) },
+    async (request, reply) => {
+      const entityType = parseEntityType(request.params.entityType);
+      const channel = await requireChannelByCode(request.params.code);
+      const ctx = auditContext(request);
+      const result = await membershipService.addToChannel(
+        channel.id,
+        entityType,
+        request.params.entityId,
+        { actorAdminUserId: ctx.actorAdminUserId },
+      );
+      reply.code(result.changed ? 201 : 200);
+      return {
+        salesChannelCode: channel.code,
+        entityType,
+        entityId: request.params.entityId,
+        changed: result.changed,
+      };
+    },
+  );
+
+  // -- Channel-side: remove membership -------------------------------------
+
+  app.delete<{ Params: { code: string; entityType: string; entityId: string } }>(
+    '/api/v1/admin/sales-channels/:code/:entityType/:entityId',
+    { preHandler: requireAdmin(SC_WRITE) },
+    async (request, reply) => {
+      const entityType = parseEntityType(request.params.entityType);
+      const channel = await requireChannelByCode(request.params.code);
+      const q = MembershipDeleteQuerySchema.parse(request.query ?? {});
+      const ctx = auditContext(request);
+      const result = await membershipService.removeFromChannel(
+        channel.id,
+        entityType,
+        request.params.entityId,
+        {
+          fallbackToDefault: q.fallbackToDefault ?? false,
+          actorAdminUserId: ctx.actorAdminUserId,
+        },
+      );
+      reply.code(200);
+      return {
+        salesChannelCode: channel.code,
+        entityType,
+        entityId: request.params.entityId,
+        changed: result.changed,
+        fallbackAppliedToDefault: result.fallbackAppliedToDefault ?? false,
+      };
+    },
+  );
+
+  // -- Entity-side: list channels of an entity -----------------------------
+
+  app.get<{ Params: { entityType: string; entityId: string } }>(
+    '/api/v1/admin/sales-channels/by-entity/:entityType/:entityId',
+    { preHandler: requireAdmin(SC_READ) },
+    async (request) => {
+      const entityType = parseEntityType(request.params.entityType);
+      const channels = await membershipService.listChannelsForEntity(
+        entityType,
+        request.params.entityId,
+      );
+      return {
+        entityType,
+        entityId: request.params.entityId,
+        channels: channels.map((c) => ({
+          id: c.id,
+          code: c.code,
+          name: c.name,
+          active: c.active,
+          systemDefault: c.systemDefault,
+          defaultLanguage: c.defaultLanguage,
+          defaultCurrency: c.defaultCurrency,
+          themeCode: c.themeCode ?? null,
+          logoAssetId: c.logoAssetId ?? null,
+          version: c.version,
+          createdAt: c.createdAt.toISOString(),
+          updatedAt: c.updatedAt.toISOString(),
+        })),
+      };
     },
   );
 }
