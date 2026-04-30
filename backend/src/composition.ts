@@ -186,6 +186,24 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     ? new SmtpMailer(organizationsSmtpUrl)
     : new ConsoleMailer();
 
+  // Feature 005 — Sales Channels module. The boot-time
+  // DefaultChannelReconciler runs FIRST so every other module can rely on a
+  // system-default channel existing; it must precede the modules array
+  // because catalog (and later other modules) consume
+  // `salesChannels.handle.membershipService` in their composition. The
+  // plugin itself (resolver middleware) is pushed into `modules` below.
+  const salesChannelsReconciler = new DefaultChannelReconciler(em, auditLogService);
+  const salesChannelsReconciliation = await salesChannelsReconciler.run();
+  if (salesChannelsReconciliation.action === 'warning' && salesChannelsReconciliation.warning) {
+    console.warn(salesChannelsReconciliation.warning);
+  }
+  const salesChannels = salesChannelsModule({
+    emFactory: em,
+    eventBus,
+    redis,
+    auditLogService,
+  });
+
   const modules: ModulePlugin[] = [
     authModulePlugin,
     admin.plugin,
@@ -252,6 +270,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireAdmin,
       auditLogService,
       requireApiKey: integrations.handle.requireApiKey,
+      salesChannelMembership: salesChannels.handle.membershipService,
       resolveAdminAuditContext: (request) => {
         if (request.actor.kind !== 'admin') {
           // Auditing an anonymous mutation shouldn't happen — the admin gate
@@ -286,24 +305,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     }),
   ];
 
-  // Feature 005 — Sales Channels module. The boot-time
-  // DefaultChannelReconciler runs FIRST so every other module can rely on a
-  // system-default channel existing; it must precede the settings reconciler
-  // because settings rows reference sales_channels by id. The plugin
-  // registers the resolver Fastify middleware on every /api/v1/* request;
-  // admin CRUD routes (US2 / T034) and per-entity membership routes
-  // (US3 / T049-T058) wire in here as they land.
-  const salesChannelsReconciler = new DefaultChannelReconciler(em, auditLogService);
-  const salesChannelsReconciliation = await salesChannelsReconciler.run();
-  if (salesChannelsReconciliation.action === 'warning' && salesChannelsReconciliation.warning) {
-    console.warn(salesChannelsReconciliation.warning);
-  }
-  const salesChannels = salesChannelsModule({
-    emFactory: em,
-    eventBus,
-    redis,
-    auditLogService,
-  });
+  // Feature 005 — Sales Channels plugin (resolver middleware on every
+  // /api/v1/* request). The reconciler + module instantiation happen
+  // earlier so other modules' compositions can consume the membership
+  // service; here we only push the plugin into the routes array.
   modules.push(salesChannels.plugin);
 
   // Feature 004 — Settings module. Routes (US2) live behind requireAdmin; the

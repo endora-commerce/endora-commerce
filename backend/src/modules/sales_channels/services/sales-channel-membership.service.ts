@@ -14,31 +14,29 @@ import { SalesChannel } from '../entities/sales-channel.entity.js';
  *
  * Single mutator for every M:N bridge between Sales Channels and the
  * channel-scoped entity types (FR-009). Going through this service is
- * mandatory; the lint rule {@link
- * eslint-rules/no-unscoped-channel-query.js} ensures owning modules
- * cannot reach for the bridge tables directly.
+ * mandatory; the lint rule `no-unscoped-channel-query` ensures owning
+ * modules cannot reach for the bridge tables directly.
  *
  * Responsibilities:
  *
  *   - {@link addToChannel} / {@link removeFromChannel} — idempotent
- *     mutations against the right bridge table for each entity type.
+ *     mutations against the right bridge table.
  *   - The "at-least-one-channel" invariant (FR-008) — `removeFromChannel`
  *     refuses when it would leave an entity with zero channels, unless
  *     the caller passes `fallbackToDefault: true`, in which case the
  *     entity is re-bound to the system-default channel inside the
  *     same transaction.
  *   - {@link bindToDefaultIfEmpty} — wired into every owning module's
- *     create-path (T027) so entities created without explicit channels
- *     land in Default automatically (FR-011).
- *   - {@link listChannelsForEntity} / {@link listEntitiesForChannel} —
- *     symmetric reads from either side of the relationship.
+ *     create-path so entities created without explicit channels land
+ *     in Default automatically (FR-011).
+ *   - {@link listChannelsForEntity} / {@link listEntityIdsForChannel}
+ *     — symmetric reads from either side of the relationship.
  *
  * Bridges are tracked through a single map ({@link BRIDGE_TABLES}) so
  * adding a new channel-scoped entity type is a one-line edit. The
- * service uses raw knex queries through the EntityManager's connection
- * because the bridge tables are owned by the owning modules' entity
- * classes (which arrive in Phase 5 / T049-T058); the service stays
- * decoupled from those classes by never importing them.
+ * service uses `em.getConnection().execute()` (which honours the EM's
+ * active transaction — knex's `getKnex()` would bypass it via its own
+ * connection pool, breaking transactional integration tests).
  *
  * Every successful add / remove writes one audit row through
  * {@link AuditLogService} and emits one EventBus event. Idempotent
@@ -46,7 +44,6 @@ import { SalesChannel } from '../entities/sales-channel.entity.js';
  * NOT audited because they did not change state.
  */
 
-/** Maps the public entity-type vocabulary to the underlying bridge table. */
 interface BridgeShape {
   table: string;
   entityIdColumn: string;
@@ -116,16 +113,18 @@ export class SalesChannelMembershipService {
   ): Promise<MembershipMutationResult> {
     const bridge = BRIDGE_TABLES[entityType];
     const em = this.emFactory();
-    const knex = em.getConnection().getKnex();
 
-    const inserted = await knex(bridge.table)
-      .insert({
-        sales_channel_id: channelId,
-        [bridge.entityIdColumn]: entityId,
-      })
-      .onConflict(['sales_channel_id', bridge.entityIdColumn])
-      .ignore()
-      .returning(bridge.entityIdColumn);
+    const inserted = await em
+      .getConnection()
+      .execute<Array<Record<string, unknown>>>(
+        `insert into "${bridge.table}" ("sales_channel_id", "${bridge.entityIdColumn}") ` +
+          `values (?, ?) ` +
+          `on conflict ("sales_channel_id", "${bridge.entityIdColumn}") do nothing ` +
+          `returning "${bridge.entityIdColumn}"`,
+        [channelId, entityId],
+        'all',
+        em.getTransactionContext(),
+      );
 
     if (inserted.length === 0) {
       return { changed: false };
@@ -142,10 +141,10 @@ export class SalesChannelMembershipService {
    *   - when `fallbackToDefault = true`: re-bind to the system-default
    *     channel inside the same transaction; mark the result with
    *     `fallbackAppliedToDefault: true`.
-   *   - otherwise: throw `EntityWouldHaveZeroChannels`.
+   *   - otherwise: throw `ENTITY_WOULD_HAVE_ZERO_CHANNELS` (HTTP 422).
    *
    * Idempotent on the row itself: removing a missing membership returns
-   * `{ changed: false }` without touching anything else.
+   * `{ changed: false }`.
    */
   async removeFromChannel(
     channelId: string,
@@ -155,70 +154,72 @@ export class SalesChannelMembershipService {
   ): Promise<MembershipMutationResult> {
     const bridge = BRIDGE_TABLES[entityType];
     const em = this.emFactory();
-    const knex = em.getConnection().getKnex();
 
-    return await knex.transaction(async (trx) => {
-      const deleted = await trx(bridge.table)
-        .where({
-          sales_channel_id: channelId,
-          [bridge.entityIdColumn]: entityId,
-        })
-        .delete();
+    // Step 1: check existence so the no-op path is idempotent and so FR-008
+    // can be evaluated BEFORE we delete anything.
+    const existing = await em
+      .getConnection()
+      .execute<Array<Record<string, unknown>>>(
+        `select 1 as present from "${bridge.table}" ` +
+          `where "sales_channel_id" = ? and "${bridge.entityIdColumn}" = ? limit 1`,
+        [channelId, entityId],
+        'all',
+        em.getTransactionContext(),
+      );
+    if (existing.length === 0) {
+      return { changed: false };
+    }
 
-      if (deleted === 0) {
-        // Idempotent — nothing was there to remove.
-        return { changed: false };
-      }
+    // Step 2: count total memberships for the entity. If this is the last
+    // one, FR-008 either refuses (default) or rebinds to Default (when the
+    // caller opted in).
+    const totalChannels = await this.countMembershipsForEntity(em, bridge, entityId);
+    const wouldOrphan = totalChannels === 1;
 
-      // Count remaining channels for this entity.
-      const [{ count }] = (await trx(bridge.table)
-        .where({ [bridge.entityIdColumn]: entityId })
-        .count<[{ count: string }]>('* as count')) as [{ count: string }];
-      const remaining = Number(count);
+    if (wouldOrphan && !options.fallbackToDefault) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.ENTITY_WOULD_HAVE_ZERO_CHANNELS,
+        `Removing this membership would leave the ${entityType} with zero sales channels. ` +
+          `Pass fallbackToDefault=true to rebind it to the system default instead.`,
+        [{ path: 'entityId', issue: entityId }],
+      );
+    }
 
-      if (remaining > 0) {
-        await this.auditMembership(channelId, entityType, entityId, 'remove', options);
-        this.emitMembershipChanged(channelId, entityType, entityId, 'remove');
-        return { changed: true };
-      }
+    // Step 3: when we get here either the entity has another channel left or
+    // the caller asked for the rebind. The actual DELETE is now safe.
+    await em
+      .getConnection()
+      .execute(
+        `delete from "${bridge.table}" ` +
+          `where "sales_channel_id" = ? and "${bridge.entityIdColumn}" = ?`,
+        [channelId, entityId],
+        'run',
+        em.getTransactionContext(),
+      );
 
-      // remaining === 0 → FR-008 enforcement.
-      if (!options.fallbackToDefault) {
-        throw new HttpError(
-          422,
-          ERROR_CODES.ENTITY_WOULD_HAVE_ZERO_CHANNELS,
-          `Removing this membership would leave the ${entityType} with zero sales channels. ` +
-            `Pass fallbackToDefault=true to rebind it to the system default instead.`,
-          [{ path: 'entityId', issue: entityId }],
-        );
-      }
-
-      // Rebind to Default in the same transaction.
-      const defaultChannelRow = await trx('sales_channels')
-        .select('id')
-        .where({ system_default: true })
-        .first();
-      if (!defaultChannelRow) {
-        throw new HttpError(
-          500,
-          ERROR_CODES.INTERNAL,
-          'No system-default sales channel found; cannot apply fallback.',
-        );
-      }
-      const defaultId = defaultChannelRow.id as string;
-
-      await trx(bridge.table)
-        .insert({
-          sales_channel_id: defaultId,
-          [bridge.entityIdColumn]: entityId,
-        })
-        .onConflict(['sales_channel_id', bridge.entityIdColumn])
-        .ignore();
-
-      await this.auditMembership(channelId, entityType, entityId, 'remove', options, true);
+    if (!wouldOrphan) {
+      await this.auditMembership(channelId, entityType, entityId, 'remove', options);
       this.emitMembershipChanged(channelId, entityType, entityId, 'remove');
-      return { changed: true, fallbackAppliedToDefault: true };
-    });
+      return { changed: true };
+    }
+
+    // wouldOrphan && fallbackToDefault — rebind in the same transaction.
+    const defaultId = await this.requireSystemDefaultId(em);
+    await em
+      .getConnection()
+      .execute(
+        `insert into "${bridge.table}" ("sales_channel_id", "${bridge.entityIdColumn}") ` +
+          `values (?, ?) ` +
+          `on conflict ("sales_channel_id", "${bridge.entityIdColumn}") do nothing`,
+        [defaultId, entityId],
+        'run',
+        em.getTransactionContext(),
+      );
+
+    await this.auditMembership(channelId, entityType, entityId, 'remove', options, true);
+    this.emitMembershipChanged(channelId, entityType, entityId, 'remove');
+    return { changed: true, fallbackAppliedToDefault: true };
   }
 
   /**
@@ -232,38 +233,25 @@ export class SalesChannelMembershipService {
   ): Promise<MembershipMutationResult> {
     const bridge = BRIDGE_TABLES[entityType];
     const em = this.emFactory();
-    const knex = em.getConnection().getKnex();
 
-    const [{ count }] = (await knex(bridge.table)
-      .where({ [bridge.entityIdColumn]: entityId })
-      .count<[{ count: string }]>('* as count')) as [{ count: string }];
-    if (Number(count) > 0) return { changed: false };
+    const remaining = await this.countMembershipsForEntity(em, bridge, entityId);
+    if (remaining > 0) return { changed: false };
 
-    const defaultChannel = await em.findOne(SalesChannel, { systemDefault: true });
-    if (defaultChannel === null) {
-      throw new HttpError(
-        500,
-        ERROR_CODES.INTERNAL,
-        'No system-default sales channel found; cannot bind new entity to Default.',
+    const defaultId = await this.requireSystemDefaultId(em);
+
+    await em
+      .getConnection()
+      .execute(
+        `insert into "${bridge.table}" ("sales_channel_id", "${bridge.entityIdColumn}") ` +
+          `values (?, ?) ` +
+          `on conflict ("sales_channel_id", "${bridge.entityIdColumn}") do nothing`,
+        [defaultId, entityId],
+        'run',
+        em.getTransactionContext(),
       );
-    }
 
-    await knex(bridge.table)
-      .insert({
-        sales_channel_id: defaultChannel.id,
-        [bridge.entityIdColumn]: entityId,
-      })
-      .onConflict(['sales_channel_id', bridge.entityIdColumn])
-      .ignore();
-
-    await this.auditMembership(
-      defaultChannel.id,
-      entityType,
-      entityId,
-      'add',
-      {},
-    );
-    this.emitMembershipChanged(defaultChannel.id, entityType, entityId, 'add');
+    await this.auditMembership(defaultId, entityType, entityId, 'add', {});
+    this.emitMembershipChanged(defaultId, entityType, entityId, 'add');
     return { changed: true };
   }
 
@@ -274,11 +262,15 @@ export class SalesChannelMembershipService {
   ): Promise<SalesChannel[]> {
     const bridge = BRIDGE_TABLES[entityType];
     const em = this.emFactory();
-    const knex = em.getConnection().getKnex();
-    const rows = await knex(bridge.table)
-      .select('sales_channel_id')
-      .where({ [bridge.entityIdColumn]: entityId });
-    const ids = rows.map((r) => r.sales_channel_id as string);
+    const rows = await em
+      .getConnection()
+      .execute<Array<{ sales_channel_id: string }>>(
+        `select "sales_channel_id" from "${bridge.table}" where "${bridge.entityIdColumn}" = ?`,
+        [entityId],
+        'all',
+        em.getTransactionContext(),
+      );
+    const ids = rows.map((r) => r.sales_channel_id);
     if (ids.length === 0) return [];
     return em.find(SalesChannel, { id: { $in: ids } });
   }
@@ -292,26 +284,70 @@ export class SalesChannelMembershipService {
   ): Promise<{ entityIds: string[]; total: number }> {
     const bridge = BRIDGE_TABLES[entityType];
     const em = this.emFactory();
-    const knex = em.getConnection().getKnex();
 
-    const [{ count }] = (await knex(bridge.table)
-      .where({ sales_channel_id: channelId })
-      .count<[{ count: string }]>('* as count')) as [{ count: string }];
-    const total = Number(count);
+    const totalRows = await em
+      .getConnection()
+      .execute<Array<{ count: string }>>(
+        `select count(*)::text as count from "${bridge.table}" where "sales_channel_id" = ?`,
+        [channelId],
+        'all',
+        em.getTransactionContext(),
+      );
+    const total = Number(totalRows[0]?.count ?? '0');
 
-    const rows = await knex(bridge.table)
-      .select(bridge.entityIdColumn)
-      .where({ sales_channel_id: channelId })
-      .orderBy(bridge.entityIdColumn, 'asc')
-      .offset(page * pageSize)
-      .limit(pageSize);
-    const entityIds = rows.map((r) => r[bridge.entityIdColumn] as string);
+    const rows = await em
+      .getConnection()
+      .execute<Array<Record<string, string>>>(
+        `select "${bridge.entityIdColumn}" from "${bridge.table}" ` +
+          `where "sales_channel_id" = ? order by "${bridge.entityIdColumn}" asc ` +
+          `offset ? limit ?`,
+        [channelId, page * pageSize, pageSize],
+        'all',
+        em.getTransactionContext(),
+      );
+    const entityIds = rows.map((r) => r[bridge.entityIdColumn]!);
     return { entityIds, total };
   }
 
   // -------------------------------------------------------------------------
   // Internals
   // -------------------------------------------------------------------------
+
+  private async countMembershipsForEntity(
+    em: EntityManager,
+    bridge: BridgeShape,
+    entityId: string,
+  ): Promise<number> {
+    const rows = await em
+      .getConnection()
+      .execute<Array<{ count: string }>>(
+        `select count(*)::text as count from "${bridge.table}" where "${bridge.entityIdColumn}" = ?`,
+        [entityId],
+        'all',
+        em.getTransactionContext(),
+      );
+    return Number(rows[0]?.count ?? '0');
+  }
+
+  private async requireSystemDefaultId(em: EntityManager): Promise<string> {
+    const rows = await em
+      .getConnection()
+      .execute<Array<{ id: string }>>(
+        `select "id" from "sales_channels" where "system_default" = true limit 1`,
+        [],
+        'all',
+        em.getTransactionContext(),
+      );
+    const id = rows[0]?.id;
+    if (!id) {
+      throw new HttpError(
+        500,
+        ERROR_CODES.INTERNAL,
+        'No system-default sales channel found; cannot apply fallback.',
+      );
+    }
+    return id;
+  }
 
   private async auditMembership(
     channelId: string,

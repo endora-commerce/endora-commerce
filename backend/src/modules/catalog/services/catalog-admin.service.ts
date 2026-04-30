@@ -36,6 +36,7 @@ import {
   ProductTypeValidationError,
 } from './product-type-validations.js';
 import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 
 /** Optional metadata used to attach audit entries to admin mutations. */
 export interface AdminAuditContext {
@@ -57,6 +58,14 @@ export class CatalogAdminService {
     private readonly emFactory: () => EntityManager,
     private readonly events: CatalogEventBus,
     private readonly auditLog?: AuditLogService,
+    /**
+     * Feature 005 / T027 — when injected, every newly-created Product
+     * that does not declare explicit channel membership lands in the
+     * system-default Sales Channel automatically (FR-011). Optional so
+     * existing tests that construct this service without sales-channels
+     * keep compiling; production composition.ts always provides it.
+     */
+    private readonly salesChannelMembership?: SalesChannelMembershipService,
   ) {}
 
   async createProduct(req: CreateProductRequest): Promise<Product> {
@@ -114,6 +123,12 @@ export class CatalogAdminService {
         throw new HttpError(409, ERROR_CODES.SKU_ALREADY_EXISTS, `SKU "${req.sku}" already exists.`);
       }
       throw err;
+    }
+
+    // Feature 005 / FR-011 — bind to Default unless this product was
+    // already given memberships through some other path.
+    if (this.salesChannelMembership) {
+      await this.salesChannelMembership.bindToDefaultIfEmpty('product', product.id);
     }
 
     this.events.emit('product.created.v1', {
