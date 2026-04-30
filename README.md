@@ -97,6 +97,8 @@ Values in the examples are safe defaults for local development against the Docke
 
 **Transactional email (backend)** — Verification and invitation emails use the shared `Mailer` abstraction. Set **`SMTP_URL`** (for example `smtp://localhost:1025` against Mailhog, or your provider’s SMTP relay URL) so `composeApp` wires `SmtpMailer`; when unset, development uses `ConsoleMailer`. Optional: **`SMTP_FROM`** / **`MAIL_FROM`** for the visible sender address.
 
+**Sales Channels (backend)** — Both env vars are optional. **`DEFAULT_SALES_CHANNEL_CODE`** sets which channel the backend boot reconciles as the platform's system-default (FR-002 of feature 005); when unset, defaults to `default`. **`SALES_CHANNEL_HOST_MAP`** maps incoming HTTP `Host` headers to channel codes when no explicit `X-Sales-Channel` header is provided — comma-separated list of `host=channelCode` pairs (e.g. `serwisA.com=channel-a,serwisB.com=channel-b`); empty disables host resolution. Storefront and integration paths fall back to the system-default when no resolution succeeds; admin paths refuse with `missing_sales_channel_context`.
+
 ## Running the stack
 
 ```bash
