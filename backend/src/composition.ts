@@ -31,6 +31,10 @@ import { cmsPagesModule } from './modules/cms_pages/plugin.js';
 import { priceListsModule } from './modules/price_lists/plugin.js';
 import { taxesModule } from './modules/taxes/plugin.js';
 import { promotionsModule } from './modules/promotions/plugin.js';
+import { settingsModule } from './modules/settings/plugin.js';
+import { settingsManifest as settingsModuleManifest } from './modules/settings/manifest.js';
+import { ManifestReconciler } from './modules/settings/services/manifest-reconciler.js';
+import type { ModuleSettingsManifest } from '@b2b/contracts';
 import type { CartService } from './modules/carts/services/cart-service.js';
 
 /**
@@ -278,6 +282,52 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCustomerContext: customerResolver,
     }),
   ];
+
+  // Feature 004 — Settings module. Routes (US2) live behind requireAdmin; the
+  // universal getter (US3) is exposed via `settings.handle.settingsService`
+  // for other modules to consume. The boot-time reconciler runs below before
+  // HTTP comes up.
+  const settings = settingsModule({
+    emFactory: em,
+    eventBus,
+    auditLogService,
+    requireAdmin,
+    redis,
+    resolveAdminAuditContext: (request) => {
+      if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
+      return { actorAdminUserId: request.actor.adminUserId };
+    },
+  });
+  modules.push(settings.plugin);
+
+  // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every
+  // module's settings manifest and inserts any missing groups/settings
+  // idempotently before the HTTP layer starts serving requests. NEVER deletes
+  // (R-1); destructive uninstall is CLI-only.
+  const settingsManifests: ModuleSettingsManifest[] = [
+    settingsModuleManifest,
+    // Other modules' manifests are appended here as they start using settings.
+  ];
+  const reconcilerEm = em();
+  const reconciler = new ManifestReconciler(reconcilerEm);
+  const reconciliation = await reconciler.apply(settingsManifests);
+  for (const m of reconciliation.perModule) {
+    if (m.orphanSettings.length > 0 || m.orphanGroups.length > 0) {
+      // Boot-time logging path; the Fastify logger is not yet available here.
+      console.warn(
+        `[settings] orphan rows for module "${m.moduleCode}": ` +
+          `${m.orphanSettings.length} settings, ${m.orphanGroups.length} groups`,
+      );
+    }
+    eventBus.emit('settings.module_reconciled', {
+      eventId: `settings.module_reconciled:${m.moduleCode}:${Date.now()}`,
+      occurredAt: new Date().toISOString(),
+      moduleCode: m.moduleCode,
+      addedCount: m.addedGroups + m.addedSettings,
+      updatedCount: m.updatedGroups + m.updatedSettings,
+      orphanCount: m.orphanGroups.length + m.orphanSettings.length,
+    } as never);
+  }
 
   return {
     orm,

@@ -103,6 +103,8 @@ const NAV: NavSection[] = [
       { to: '/seo', label: 'SEO', icon: Search },
       { to: '/i18n', label: 'Languages', icon: Languages },
       { to: '/cms', label: 'CMS pages', icon: Newspaper },
+      { to: '/settings', label: 'Settings', icon: Settings },
+      { to: '/settings/groups', label: 'Setting groups', icon: Settings },
     ],
   },
 ];
