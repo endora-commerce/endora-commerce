@@ -313,8 +313,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const reconciliation = await reconciler.apply(settingsManifests);
   for (const m of reconciliation.perModule) {
     if (m.orphanSettings.length > 0 || m.orphanGroups.length > 0) {
-      // eslint-disable-next-line no-console -- boot-time logging path; logger
-      // is wired further in (Fastify) and not yet available here.
+      // Boot-time logging path; the Fastify logger is not yet available here.
       console.warn(
         `[settings] orphan rows for module "${m.moduleCode}": ` +
           `${m.orphanSettings.length} settings, ${m.orphanGroups.length} groups`,

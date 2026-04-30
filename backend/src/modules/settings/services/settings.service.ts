@@ -2,8 +2,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { z } from 'zod';
 import { Setting } from '../entities/setting.entity.js';
 import { SettingValue } from '../entities/setting-value.entity.js';
-import { SalesChannel } from '../../catalog/entities/sales-channel.entity.js';
-import { SettingsCache } from './settings-cache.js';
+import type { SalesChannel } from '../../catalog/entities/sales-channel.entity.js';
+import type { SettingsCache } from './settings-cache.js';
 
 /**
  * SettingsService — the universal getter (US3 / T049).
