@@ -49,10 +49,25 @@ const DEFAULT_CODE_FALLBACK = 'default';
 const DEFAULT_LANGUAGE_FALLBACK = 'en';
 const DEFAULT_CURRENCY_FALLBACK = 'EUR';
 
+export interface DefaultChannelReconcilerOptions {
+  /**
+   * Used by tests whose `languages` / `currencies` seed differs from the
+   * `en` / `EUR` fallbacks. Production always uses the env-driven
+   * fallbacks (research R-4); these overrides are not exposed in
+   * `composition.ts`.
+   */
+  bootstrapDefaults?: {
+    code?: string;
+    language?: string;
+    currency?: string;
+  };
+}
+
 export class DefaultChannelReconciler {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly auditLogService?: AuditLogService,
+    private readonly options: DefaultChannelReconcilerOptions = {},
   ) {}
 
   async run(): Promise<DefaultChannelReconciliationResult> {
@@ -108,9 +123,14 @@ export class DefaultChannelReconciler {
   }
 
   private async insertDefault(em: EntityManager): Promise<SalesChannel> {
-    const code = process.env['DEFAULT_SALES_CHANNEL_CODE'] ?? DEFAULT_CODE_FALLBACK;
-    const language = DEFAULT_LANGUAGE_FALLBACK;
-    const currency = DEFAULT_CURRENCY_FALLBACK;
+    const code =
+      this.options.bootstrapDefaults?.code ??
+      process.env['DEFAULT_SALES_CHANNEL_CODE'] ??
+      DEFAULT_CODE_FALLBACK;
+    const language =
+      this.options.bootstrapDefaults?.language ?? DEFAULT_LANGUAGE_FALLBACK;
+    const currency =
+      this.options.bootstrapDefaults?.currency ?? DEFAULT_CURRENCY_FALLBACK;
 
     const channel = em.create(SalesChannel, {
       code,

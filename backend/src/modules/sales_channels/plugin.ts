@@ -1,8 +1,9 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { RequireAdminFactory } from '../settings/plugin.js';
 import {
   SalesChannelsCache,
   type CachedChannel,
@@ -14,8 +15,12 @@ import {
 import { DefaultChannelReconciler } from './services/default-channel-reconciler.js';
 import { SalesChannelResolverService } from './services/sales-channel-resolver.service.js';
 import { SalesChannelMembershipService } from './services/sales-channel-membership.service.js';
-import { SalesChannelsService } from './services/sales-channels.service.js';
+import {
+  SalesChannelsService,
+  type AdminAuditContext,
+} from './services/sales-channels.service.js';
 import { registerSalesChannelResolverMiddleware } from './middleware/sales-channel-resolver.js';
+import { registerSalesChannelsAdminRoutes } from './routes.admin.js';
 
 /**
  * Composition root for the sales-channels module — feature 005 / T018.
@@ -44,6 +49,14 @@ export interface SalesChannelsModuleOptions {
   eventBus: EventBus;
   redis: Redis;
   auditLogService?: AuditLogService;
+  /**
+   * When provided, admin CRUD + lifecycle routes mount under
+   * `/api/v1/admin/sales-channels/*`. When omitted, only the resolver
+   * middleware is registered — useful for tests that don't want the
+   * full admin surface.
+   */
+  requireAdmin?: RequireAdminFactory;
+  resolveAdminAuditContext?: (req: FastifyRequest) => AdminAuditContext;
   /**
    * Forwarded to the resolver middleware. Defaults to `false` so admin
    * routes keep working without `X-Sales-Channel` until the admin UI is
@@ -76,7 +89,12 @@ export function salesChannelsModule(
     options.eventBus,
     options.auditLogService,
   );
-  const salesChannelsService = new SalesChannelsService(options.emFactory);
+  const salesChannelsService = new SalesChannelsService(
+    options.emFactory,
+    options.eventBus,
+    options.auditLogService,
+    cache,
+  );
   const cacheInvalidator = attachSalesChannelsCacheInvalidator(
     options.eventBus,
     cache,
@@ -95,7 +113,16 @@ export function salesChannelsModule(
         resolver,
         ...(options.strictAdmin !== undefined ? { strictAdmin: options.strictAdmin } : {}),
       });
-      // Admin / per-entity routes mount in US2 / US3 — not here.
+      if (options.requireAdmin) {
+        await registerSalesChannelsAdminRoutes(app, {
+          salesChannelsService,
+          requireAdmin: options.requireAdmin,
+          ...(options.resolveAdminAuditContext !== undefined
+            ? { resolveAdminAuditContext: options.resolveAdminAuditContext }
+            : {}),
+        });
+      }
+      // Per-entity membership routes (US3 / T049-T058) mount on owning modules.
     },
   };
 }

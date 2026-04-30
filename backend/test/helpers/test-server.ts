@@ -26,6 +26,8 @@ import { taxesModule } from '../../src/modules/taxes/plugin.js';
 import { promotionsModule } from '../../src/modules/promotions/plugin.js';
 import { settingsModule } from '../../src/modules/settings/plugin.js';
 import { settingsManifest as settingsModuleManifest } from '../../src/modules/settings/manifest.js';
+import { salesChannelsModule } from '../../src/modules/sales_channels/plugin.js';
+import { DefaultChannelReconciler } from '../../src/modules/sales_channels/services/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/modules/settings/services/manifest-reconciler.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
 import type { Mailer } from '../../src/modules/email/services/mailer.js';
@@ -72,6 +74,8 @@ export interface BackendServerHandle {
   permissionService: PermissionService;
   /** Feature 004 — exposes the universal getter and cache invalidator for tests. */
   settings: ReturnType<typeof settingsModule>['handle'];
+  /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
+  salesChannels: ReturnType<typeof salesChannelsModule>['handle'];
 }
 
 const SEEDED_TABLES = [
@@ -182,6 +186,13 @@ export async function setupBackendServer(
             ('EUR', 'Euro', U&'\\20AC', false, true, 1, now(), now())`,
   );
 
+  // Feature 005 — guarantee the system-default Sales Channel exists before
+  // any seed runs. Test-server uses 'en-US' / 'PLN' to match the language /
+  // currency seed above (production uses the 'en' / 'EUR' fallback).
+  await new DefaultChannelReconciler(em, undefined, {
+    bootstrapDefaults: { code: 'default', language: 'en-US', currency: 'PLN' },
+  }).run();
+
   if ((options.seed ?? 'us1-catalog') === 'us1-catalog') {
     await seedUs1Catalog(em());
   }
@@ -278,6 +289,21 @@ export async function setupBackendServer(
     requireAdmin: requireTestAdmin(permissionService),
   });
 
+  // Feature 005 — sales-channels module is built BEFORE the modules array
+  // because catalog (and later other modules) consume its membership
+  // service in their composition.
+  const salesChannels = salesChannelsModule({
+    emFactory: em,
+    eventBus,
+    redis,
+    auditLogService,
+    requireAdmin: requireTestAdmin(permissionService),
+    resolveAdminAuditContext: (request) => ({
+      actorAdminUserId:
+        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+    }),
+  });
+
   const modules: ModulePlugin[] = [
     async (app) => registerTestAuth(app, { sessionService, emFactory: em }),
     admin.plugin,
@@ -343,6 +369,7 @@ export async function setupBackendServer(
       requireAdmin: requireTestAdmin(permissionService),
       auditLogService,
       requireApiKey: integrations.handle.requireApiKey,
+      salesChannelMembership: salesChannels.handle.membershipService,
       resolveAdminAuditContext: (request) => {
         if (request.testActor?.kind !== 'admin') {
           return { actorAdminUserId: TEST_ADMIN_ID };
@@ -388,6 +415,7 @@ export async function setupBackendServer(
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
     }),
   });
+  modules.push(salesChannels.plugin);
   modules.push(settings.plugin);
   if (options.extraModules) modules.push(...options.extraModules);
 
@@ -418,6 +446,7 @@ export async function setupBackendServer(
     auditLogService,
     permissionService,
     settings: settings.handle,
+    salesChannels: salesChannels.handle,
   };
 }
 

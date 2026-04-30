@@ -202,6 +202,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     eventBus,
     redis,
     auditLogService,
+    requireAdmin,
+    resolveAdminAuditContext: (request) => {
+      if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
+      return { actorAdminUserId: request.actor.adminUserId };
+    },
   });
 
   const modules: ModulePlugin[] = [

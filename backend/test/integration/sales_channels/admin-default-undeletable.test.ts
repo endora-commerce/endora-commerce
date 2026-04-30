@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@b2b/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
+import { EventBus } from '../../../src/events/bus.js';
 import { SalesChannelsService } from '../../../src/modules/sales_channels/services/sales-channels.service.js';
 import { DefaultChannelReconciler } from '../../../src/modules/sales_channels/services/default-channel-reconciler.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
@@ -41,7 +42,7 @@ describe('Default channel is undeletable / undeactivatable (T023)', () => {
   it('refuses deactivate(systemDefaultCode) with CANNOT_MODIFY_SYSTEM_DEFAULT', async () => {
     try {
       const code = await ensureDefault();
-      const svc = new SalesChannelsService(() => db.em());
+      const svc = new SalesChannelsService(() => db.em(), new EventBus());
 
       let caught: unknown;
       try {
@@ -61,7 +62,7 @@ describe('Default channel is undeletable / undeactivatable (T023)', () => {
   it('refuses delete(systemDefaultCode) with CANNOT_MODIFY_SYSTEM_DEFAULT', async () => {
     try {
       const code = await ensureDefault();
-      const svc = new SalesChannelsService(() => db.em());
+      const svc = new SalesChannelsService(() => db.em(), new EventBus());
 
       let caught: unknown;
       try {
@@ -81,7 +82,7 @@ describe('Default channel is undeletable / undeactivatable (T023)', () => {
   it('refuses delete on a non-existent code with NOT_FOUND', async () => {
     try {
       await ensureDefault();
-      const svc = new SalesChannelsService(() => db.em());
+      const svc = new SalesChannelsService(() => db.em(), new EventBus());
 
       let caught: unknown;
       try {
