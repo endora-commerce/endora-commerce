@@ -23,7 +23,7 @@ import { Product } from '../entities/product.entity.js';
 import { Category } from '../entities/category.entity.js';
 import { ProductAttribute } from '../entities/product-attribute.entity.js';
 import { AttributeSetAttribute } from '../entities/attribute-set-attribute.entity.js';
-import { SalesChannel } from '../entities/sales-channel.entity.js';
+import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { AdminUser } from '../../admin_users/entities/admin-user.entity.js';

@@ -5,7 +5,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { Asset } from '../../assets/entities/asset.entity.js';
 import { Product } from '../entities/product.entity.js';
 import { ProductLink, type ProductLinkKind } from '../entities/product-link.entity.js';
-import { SalesChannel } from '../entities/sales-channel.entity.js';
+import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 
 interface StorefrontContext {
   salesChannelCode?: string | null | undefined;

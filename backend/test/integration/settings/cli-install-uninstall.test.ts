@@ -7,7 +7,7 @@ import { settingsManifest } from '../../../src/modules/settings/manifest.js';
 import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
 import { SettingGroup } from '../../../src/modules/settings/entities/setting-group.entity.js';
 import { SettingValue } from '../../../src/modules/settings/entities/setting-value.entity.js';
-import { SalesChannel } from '../../../src/modules/catalog/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
 import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
 import { resolve } from 'node:path';
 

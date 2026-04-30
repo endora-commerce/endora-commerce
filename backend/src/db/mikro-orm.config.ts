@@ -26,6 +26,7 @@ import { Migration021ProductAttachments } from '../modules/catalog/migrations/02
 import { Migration022ProductLinks } from '../modules/catalog/migrations/022_product_links.js';
 import { Migration023GroupedAndBundle } from '../modules/catalog/migrations/023_grouped_and_bundle.js';
 import { Migration024SettingsInit } from './migrations/024_settings_init.js';
+import { Migration025SalesChannelsPromote } from '../modules/sales_channels/migrations/025_sales_channels_promote.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -101,6 +102,10 @@ export default defineConfig({
       {
         name: 'Migration024SettingsInit',
         class: Migration024SettingsInit,
+      },
+      {
+        name: 'Migration025SalesChannelsPromote',
+        class: Migration025SalesChannelsPromote,
       },
     ],
     transactional: true,

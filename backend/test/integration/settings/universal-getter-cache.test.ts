@@ -9,7 +9,7 @@ import {
 import { ManifestReconciler } from '../../../src/modules/settings/services/manifest-reconciler.js';
 import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
 import { SettingValue } from '../../../src/modules/settings/entities/setting-value.entity.js';
-import { SalesChannel } from '../../../src/modules/catalog/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
 
 /**
  * T047 — Redis cache + EventBus invalidator test for the universal getter.

@@ -5,7 +5,7 @@ import { ManifestReconciler } from '../../../src/modules/settings/services/manif
 import { settingsManifest } from '../../../src/modules/settings/manifest.js';
 import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
 import { SettingValue } from '../../../src/modules/settings/entities/setting-value.entity.js';
-import { SalesChannel } from '../../../src/modules/catalog/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
 
 /**
  * T019 — Boot-time idempotency for the manifest reconciler.
