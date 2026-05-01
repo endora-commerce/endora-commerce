@@ -227,6 +227,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     ? new SmtpMailer(organizationsSmtpUrl)
     : new ConsoleMailer();
 
+  // Forward-reference for the onLogin hook below — the comparisons module
+  // is constructed further down (it depends on services declared after
+  // this point), but the post-login hook needs to call into it. The
+  // closure captures the binding, not its value, so the late assignment
+  // is safe at request time.
+  let comparisonAdoption: ((customerAccountId: string, anonymousToken: string) => Promise<void>) | null = null;
+
   const modules: ModulePlugin[] = [
     authModulePlugin,
     admin.plugin,
@@ -285,6 +292,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
             customerAccountId: ctx.customerAccountId,
             organizationId: ctx.organizationId,
           });
+        }
+        // Comparisons module's anonymous→authenticated adoption (R-2 /
+        // FR-005). The hook is late-bound below once `comparisons` is
+        // constructed; before then it's a no-op.
+        if (comparisonAdoption && ctx.anonymousCompareToken) {
+          await comparisonAdoption(
+            ctx.customerAccountId,
+            ctx.anonymousCompareToken,
+          );
         }
       },
     }),
@@ -381,6 +397,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdmin,
   });
   modules.push(comparisons.plugin);
+  // Late-bind the adoption hook captured by organizationsModule.onLogin
+  // above; from this point onwards customer logins also adopt the
+  // anonymous Comparison the caller was carrying (R-2 / spec FR-005).
+  comparisonAdoption = comparisons.handle.comparisonService.adoptAnonymousComparison.bind(
+    comparisons.handle.comparisonService,
+  );
 
   // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every
   // module's settings manifest and inserts any missing groups/settings

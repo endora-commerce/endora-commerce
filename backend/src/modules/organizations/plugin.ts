@@ -39,11 +39,18 @@ export interface OrganizationsModuleOptions {
   };
   /** Expose the /api/v1/_test/latest-verification-token probe (test-only). */
   exposeTestProbe?: boolean;
-  /** Optional post-login hook — the commerce module uses this to merge carts. */
+  /**
+   * Optional post-login hook — the commerce module uses this to merge
+   * carts; the comparisons module uses it to adopt the customer's
+   * anonymous Comparison (R-2). Each token is extracted from the request
+   * cookies if present and forwarded to the hook.
+   */
   onLogin?: (ctx: {
     customerAccountId: string;
     organizationId: string;
     anonymousCartToken?: string;
+    /** `compare_token` cookie value, if the caller was building an anonymous comparison. */
+    anonymousCompareToken?: string;
   }) => Promise<void>;
   /** Admin gate for /admin/organizations routes. */
   requireAdmin?: RequireAdminFactory;

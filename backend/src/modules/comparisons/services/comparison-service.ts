@@ -77,6 +77,40 @@ export class ComparisonService {
   }
 
   /**
+   * Anonymous → authenticated merge (research.md R-2 / spec FR-005).
+   * Called from the post-login hook with the cookie-bound
+   * `anonymousToken` the caller was carrying. Behaviour:
+   *
+   *   - customer has no Comparison → reassign the anonymous one
+   *     (set customer_account_id, clear anonymous_token).
+   *   - customer already has a Comparison → discard the anonymous one
+   *     (the customer's existing curated set wins, per R-2 — merging
+   *     two sets is more surprising than honouring the persistent
+   *     identity).
+   *
+   * No-op when neither side resolves.
+   */
+  async adoptAnonymousComparison(
+    customerAccountId: string,
+    anonymousToken: string,
+  ): Promise<void> {
+    const em = this.emFactory();
+    const anon = await em.findOne(Comparison, { anonymousToken });
+    if (!anon) return;
+
+    const existing = await em.findOne(Comparison, { customerAccountId });
+    if (existing) {
+      await em.removeAndFlush(anon);
+      return;
+    }
+
+    anon.customerAccountId = customerAccountId;
+    anon.anonymousToken = null;
+    anon.updatedAt = new Date();
+    await em.flush();
+  }
+
+  /**
    * True when the supplied owner identity matches the Comparison's
    * stored owner. Used by the share-token endpoint to populate
    * `meta.viewerIsOwner`.
