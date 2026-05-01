@@ -378,6 +378,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     catalogQueryService: catalogQueryServiceForCompare,
     settingsService: settings.handle.settingsService,
+    requireAdmin,
   });
   modules.push(comparisons.plugin);
 

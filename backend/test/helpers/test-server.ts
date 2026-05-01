@@ -462,6 +462,7 @@ export async function setupBackendServer(
     emFactory: em,
     catalogQueryService: new CatalogQueryService(em),
     settingsService: settings.handle.settingsService,
+    requireAdmin: requireTestAdmin(permissionService),
   });
   modules.push(comparisons.plugin);
 

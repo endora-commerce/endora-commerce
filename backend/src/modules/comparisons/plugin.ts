@@ -5,9 +5,12 @@ import type { SettingsService } from '../settings/services/settings.service.js';
 import { ShareTokenGenerator } from './services/share-token-generator.js';
 import { ComparableAttributeProjection } from './services/comparable-attribute-projection.js';
 import { ComparisonService } from './services/comparison-service.js';
+import { ComparisonAdminService } from './services/comparison-admin.service.js';
 import { ComparisonPdfRenderer } from './services/comparison-pdf-renderer.js';
 import { registerComparisonsPublicRoutes } from './routes.public.js';
 import { registerComparisonsShareRoutes } from './routes.share.js';
+import { registerComparisonsAdminRoutes } from './routes.admin.js';
+import type { RequireAdminFactory } from '../settings/plugin.js';
 
 /**
  * Composition root for the comparisons module — feature 007.
@@ -31,10 +34,13 @@ export interface ComparisonsModuleOptions {
   emFactory: () => EntityManager;
   catalogQueryService: CatalogQueryService;
   settingsService?: SettingsService;
+  /** When provided, admin routes mount under `/api/v1/admin/comparisons/*` (US5). */
+  requireAdmin?: RequireAdminFactory;
 }
 
 export interface ComparisonsModuleHandle {
   comparisonService: ComparisonService;
+  adminService: ComparisonAdminService;
   tokens: ShareTokenGenerator;
   projection: ComparableAttributeProjection;
   pdfRenderer: ComparisonPdfRenderer;
@@ -58,9 +64,13 @@ export function comparisonsModule(
     options.settingsService,
   );
   const pdfRenderer = new ComparisonPdfRenderer();
+  const adminService = new ComparisonAdminService(
+    options.emFactory,
+    comparisonService,
+  );
 
   return {
-    handle: { comparisonService, tokens, projection, pdfRenderer },
+    handle: { comparisonService, adminService, tokens, projection, pdfRenderer },
     plugin: async (app: FastifyInstance): Promise<void> => {
       await registerComparisonsPublicRoutes(app, {
         comparisonService,
@@ -68,6 +78,15 @@ export function comparisonsModule(
         pdfRenderer,
       });
       await registerComparisonsShareRoutes(app, { comparisonService });
+      // US5 — admin routes only mount when the gate factory is wired.
+      // Foundation tests that omit `requireAdmin` get a backend without
+      // the admin surface, which keeps their fixtures small.
+      if (options.requireAdmin) {
+        await registerComparisonsAdminRoutes(app, {
+          adminService,
+          requireAdmin: options.requireAdmin,
+        });
+      }
     },
   };
 }

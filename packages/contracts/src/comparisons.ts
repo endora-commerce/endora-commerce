@@ -153,3 +153,74 @@ export const comparisonSharedResponseSchema = z.object({
   }),
 });
 export type ComparisonSharedResponse = z.infer<typeof comparisonSharedResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// US5 — admin overview (read-only).
+// ---------------------------------------------------------------------------
+
+export const comparisonAdminOwnerSchema = z.object({
+  kind: z.enum(['customer', 'anonymous']),
+  customerAccountId: uuidSchema.nullable(),
+  /** Human-readable identifier for the list (email or display name). */
+  email: z.string().nullable(),
+  /** The opaque cookie token; null for authenticated owners. */
+  anonymousToken: z.string().nullable(),
+});
+export type ComparisonAdminOwner = z.infer<typeof comparisonAdminOwnerSchema>;
+
+export const comparisonAdminSalesChannelSchema = z.object({
+  id: uuidSchema,
+  code: z.string(),
+});
+
+export const comparisonAdminListItemSchema = z.object({
+  id: uuidSchema,
+  shareToken: z.string(),
+  owner: comparisonAdminOwnerSchema,
+  salesChannel: comparisonAdminSalesChannelSchema,
+  displayMode: comparisonDisplayModeSchema,
+  productCount: z.number().int().nonnegative(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type ComparisonAdminListItem = z.infer<typeof comparisonAdminListItemSchema>;
+
+export const comparisonAdminListQuerySchema = z.object({
+  salesChannelId: uuidSchema.optional(),
+  customerAccountId: uuidSchema.optional(),
+  ownerType: z.enum(['customer', 'anonymous']).optional(),
+  createdAfter: z.string().datetime().optional(),
+  createdBefore: z.string().datetime().optional(),
+  cursor: z.string().optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+});
+export type ComparisonAdminListQuery = z.infer<typeof comparisonAdminListQuerySchema>;
+
+export const comparisonAdminListResponseSchema = z.object({
+  data: z.array(comparisonAdminListItemSchema),
+  meta: z.object({
+    limit: z.number().int().positive(),
+    nextCursor: z.string().nullable(),
+  }),
+});
+export type ComparisonAdminListResponse = z.infer<typeof comparisonAdminListResponseSchema>;
+
+/**
+ * Admin detail — same shape the storefront owner sees, plus the admin
+ * metadata block (owner identity, sales channel, raw shareToken). The
+ * detail endpoint renders prices in the comparison's RECORDED channel
+ * (the creator's), not the admin's preferred channel — so a support
+ * investigation matches what the customer reported.
+ */
+export const comparisonAdminDetailSchema = z.object({
+  id: uuidSchema,
+  shareToken: z.string(),
+  owner: comparisonAdminOwnerSchema,
+  salesChannel: comparisonAdminSalesChannelSchema,
+  displayMode: comparisonDisplayModeSchema,
+  products: z.array(comparisonProductSummarySchema),
+  comparableAttributes: z.array(comparisonAttributeRowSchema),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type ComparisonAdminDetail = z.infer<typeof comparisonAdminDetailSchema>;

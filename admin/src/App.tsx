@@ -38,6 +38,8 @@ import { SettingsPage } from './modules/settings/pages/SettingsPage.js';
 import { GroupsPage as SettingsGroupsPage } from './modules/settings/pages/GroupsPage.js';
 import { SalesChannelsListPage } from './modules/sales_channels/pages/SalesChannelsListPage.js';
 import { SalesChannelEditPage } from './modules/sales_channels/pages/SalesChannelEditPage.js';
+import { ComparisonsListPage } from './modules/comparisons/pages/ComparisonsListPage.js';
+import { ComparisonDetailPage } from './modules/comparisons/pages/ComparisonDetailPage.js';
 
 export function App(): ReactNode {
   const { status } = useAuth();
@@ -73,6 +75,8 @@ export function App(): ReactNode {
         <Route path="/credit-limits" element={<CreditLimitsPage />} />
         <Route path="/quote-requests" element={<RfqList />} />
         <Route path="/quote-requests/:id" element={<RfqDetail />} />
+        <Route path="/comparisons" element={<ComparisonsListPage />} />
+        <Route path="/comparisons/:id" element={<ComparisonDetailPage />} />
         <Route path="/admin-users" element={<AdminUsersPage />} />
         <Route path="/admin-roles" element={<AdminRolesPage />} />
         <Route path="/audit-log" element={<AuditLogViewer />} />
