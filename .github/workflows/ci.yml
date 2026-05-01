@@ -96,6 +96,6 @@ jobs:
       - name: Check naming conventions (Principle VI)
         run: |
           if [ -n "$BASE_REF" ]; then bash scripts/check-naming.sh --diff; else bash scripts/check-naming.sh; fi
-      - name: Check working language — English only (Principle VIII)
+      - name: Check working language — English comments + /docs/ (Principle VIII)
         run: |
           if [ -n "$BASE_REF" ]; then bash scripts/check-language.sh --diff; else bash scripts/check-language.sh; fi

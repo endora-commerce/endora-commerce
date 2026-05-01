@@ -1,31 +1,28 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 2.0.0 → 2.1.0
-Rationale: MINOR bump. Principle VIII gains an explicit carve-out:
-the generated project documentation site under `/docs` (the
-Docusaurus tree consumed by both developers and Product Owners) is
-moved from the v2.0.0 "MAY be in any language" allowance back into
-the "MUST be English" scope. No principle is removed or redefined;
-the loosening introduced by v2.0.0 stands for every other prose
-artifact (specs, plans, tasks, research, README's body, governance
-docs, commit messages, code-review comments). The change adds one
-specific obligation. The `/docs` tree was already authored in English
-under the v1.1.1 → v2.0.0 transition (verified at amendment time),
-so no prior compliant work is invalidated; this amendment formalises
-the existing state and resolves the residual contradiction between
-Principle VIII (v2.0.0) and the Documentation Requirements section
-(which has continuously required English for both documentation
-artifacts).
+Version change: 2.1.0 → 3.0.0
+Rationale: MAJOR bump. Principle VIII is redefined and substantially
+narrowed. The previous version required English for in-code
+identifiers, file/folder names, DB tables and columns, API field
+names, URL path segments, non-user-facing string literals (logs,
+error codes, route definitions, migration SQL), inline comments
+and docstrings, AND the entire `/docs/` Docusaurus site. The new
+version requires English ONLY for (a) inline comments and
+docstrings inside source files and (b) every page authored under
+the `/docs/` documentation site. Identifiers, file names, DB
+columns, API fields, log strings, and other prose are no longer
+language-constrained by this principle (case style is still
+governed by Principle VI). Because this lifts obligations from
+prior compliant work and redefines a NON-NEGOTIABLE rule, the
+versioning policy mandates a MAJOR bump.
 
 Modified principles:
   - VIII. Working Language — English (NON-NEGOTIABLE)
-        the bullet "The root `README.md`, every other Markdown file,
-        and the generated project documentation site" in the
-        Out-of-scope list is split: README (and other Markdown
-        outside `/docs/`) stays out of scope; the `/docs/`
-        documentation site moves into the In-scope list with its own
-        bullet and rationale.
+        Scope reduced from "source code + `/docs/`" to
+        "source-code comments + `/docs/`". All identifier-,
+        filename-, DB-, API-, and string-literal obligations
+        removed. Out-of-scope catalogue trimmed accordingly.
 
 Added sections:
   - (none)
@@ -38,22 +35,19 @@ Templates / artifacts requiring alignment:
        Check generically; no edits required.
   - ✅ .specify/templates/spec-template.md      — no edits required.
   - ✅ .specify/templates/tasks-template.md     — no edits required.
-  - ✅ README.md — Principle VIII quick-reference line updated to
-       call out the `/docs/` exception.
-  - ✅ .github/pull_request_template.md — gate #5 updated to call out
-       the `/docs/` exception.
-  - ⚠ scripts/check-language.sh — currently scans only source-code
-       file extensions (.ts, .tsx, .css, .html, .sh) and skips
-       Markdown. To enforce the new `/docs/` MUST-be-English rule it
-       SHOULD additionally scan `docs/docs/**/*.md` (and equivalent
-       Docusaurus content paths) for non-Latin / non-ASCII prose.
-       Flagged as a follow-up commit.
+  - ✅ README.md — Principle VIII quick-reference line rewritten to
+       the comments-only + /docs/ scope.
+  - ✅ .github/pull_request_template.md — gate #5 rewritten to the
+       comments-only + /docs/ scope.
+  - ✅ .github/workflows/ci.yml — Constitution Check step label
+       refreshed.
+  - ✅ scripts/check-language.sh — narrowed to flag (a) non-English
+       comments inside source files and (b) non-English prose under
+       `docs/docs/**/*.{md,mdx}`. Identifier and string-literal
+       scanning removed.
 
 Deferred items / TODOs:
-  - TODO(DOCS_LANGUAGE_CHECK): extend `scripts/check-language.sh`
-    with a Markdown-scan step limited to the `/docs/` Docusaurus tree,
-    so the new Principle VIII obligation is enforced in CI rather than
-    only at code-review time.
+  - (none)
 -->
 
 # B2B Platform Constitution
@@ -182,82 +176,98 @@ mobile erodes the platform's primary acquisition channel.
 
 ### VIII. Working Language — English (NON-NEGOTIABLE)
 
-The English-only requirement applies to **source code, inline code
-comments, and the generated project documentation site under `/docs/`**.
-Every other prose artifact — specs, plans, tasks, research notes,
-the root README's body, governance documents, commit messages,
-code-review comments — MAY be authored in any language the team
-chooses.
+The English-only requirement applies to exactly two artifacts:
+**(a) inline comments and docstrings inside source files**, and
+**(b) every page authored under the `/docs/` Docusaurus site**.
+Nothing else is constrained by this principle. Identifiers, file
+and folder names, database tables and columns, API field names,
+URL path segments, internal log messages, error codes, route
+definitions, migration SQL, specs, plans, tasks, research notes,
+the root README's body, module READMEs, ADRs, RFCs, governance
+documents, commit messages, PR descriptions, and code-review
+prose MAY all be authored in any language the team chooses.
+(Case style for identifiers is still governed by Principle VI;
+this principle says nothing about which natural language they use.)
 
 **In scope (MUST be English)**:
 
-- All in-code identifiers: variable, function, class, type, file, and folder
-  names; database tables, columns, and constraint names; API field names
-  and URL path segments.
-- Inline code comments and docstrings inside source files
-  (`*.ts`, `*.tsx`, `*.js`, `*.jsx`, `*.cjs`, `*.mjs`, `*.css`, `*.html`,
-  shell scripts, and equivalents).
-- Inline string literals that are NOT user-facing (e.g. internal log
-  messages, error codes, route definitions, migration SQL).
-- The **generated project documentation site** (the Docusaurus tree
-  rooted at `/docs/`, including every Markdown file under `docs/docs/`,
-  sidebar labels, and authored `src/` content). Every page authored
-  for this site MUST be written in English — both developer-facing
-  module documentation and Product Owner / end-user "Usage" pages.
-  The exception covers the contents of the docs site itself; tooling
-  configuration (`docusaurus.config.js`, `package.json`, build
-  scripts) is governed by the source-code rules above.
+- **Inline code comments and docstrings inside source files** —
+  `// …`, `/* … */`, JSDoc/TSDoc blocks (`/** … */`), `<!-- … -->`
+  in HTML/JSX, `# …` in shell scripts, and equivalent comment
+  syntax in any other source-file format the project introduces.
+  This covers every file extension treated as source code by the
+  build (`*.ts`, `*.tsx`, `*.cts`, `*.mts`, `*.js`, `*.jsx`,
+  `*.cjs`, `*.mjs`, `*.css`, `*.scss`, `*.html`, `*.sh`, and
+  equivalents). The rule applies regardless of where the file
+  lives — application code, migrations, seeds, scripts, tests,
+  and tooling all share the same comment-language rule.
+- **The generated project documentation site** — the Docusaurus
+  tree rooted at `/docs/`, including every Markdown/MDX file under
+  `docs/docs/`, sidebar labels, and authored `src/` content. Every
+  page authored for this site MUST be written in English — both
+  developer-facing module documentation and Product Owner /
+  end-user "Usage" pages. Tooling configuration that lives next to
+  the site (`docusaurus.config.js`, `package.json`, build scripts)
+  is source code, not authored prose; comments inside it follow
+  the source-comment rule, but its identifiers and strings are
+  free.
 
 **Out of scope (MAY be in any language)**:
 
-- Specifications (`spec.md`), implementation plans (`plan.md`), task lists
-  (`tasks.md`), research notes (`research.md`), data models (`data-model.md`),
-  interface contracts (`contracts/`), quickstart guides (`quickstart.md`),
-  validation reports.
-- The root `README.md` body and every other Markdown file **outside
-  the `/docs/` documentation site** (e.g. module READMEs, ADRs, RFCs,
-  in-repo design notes).
+- Source-code identifiers of every kind: variable, function, class,
+  type, file, and folder names; database tables, columns, and
+  constraint names; API field names; URL path segments. (Case
+  conventions are still mandated by Principle VI.)
+- String literals of every kind: user-facing copy, log messages,
+  error codes, route definitions, migration SQL, seed data,
+  fixture content, locale catalogues.
+- Specifications (`spec.md`), implementation plans (`plan.md`),
+  task lists (`tasks.md`), research notes (`research.md`), data
+  models (`data-model.md`), interface contracts (`contracts/`),
+  quickstart guides (`quickstart.md`), validation reports.
+- The root `README.md` body and every other Markdown file
+  **outside the `/docs/` documentation site** (e.g. module
+  READMEs, ADRs, RFCs, in-repo design notes).
 - The constitution itself and any other governance documents.
-- Commit messages, pull-request titles and descriptions, code-review
-  comments, issue templates, CI/CD configuration labels.
-- All localized end-customer content — storefront copy, admin UI labels,
-  notification emails, CMS pages, locale-specific seed fixtures simulating
-  customer content. This category is also governed by the localization
-  mechanism required by Principle VII; translation keys and message
-  identifiers used by that mechanism MUST still be English (because they
-  are code identifiers).
-- Foreign-language proper nouns inside any artifact (e.g. *Comarch Optima*,
-  *Subiekt GT*, *enova365*, *Symfonia*, regulatory terms like *NIP*).
+- Commit messages, pull-request titles and descriptions,
+  code-review comments, issue templates, CI/CD configuration
+  labels.
+- Foreign-language proper nouns inside any artifact (e.g. *Comarch
+  Optima*, *Subiekt GT*, *enova365*, *Symfonia*, regulatory terms
+  like *NIP*).
 
-**Rationale for keeping code in English**: Source code is the single
-artifact every contributor, every code reviewer, every linter, every
-LLM-assisted tool, and every stack trace touches. English is the working
-language of the entire ecosystem the platform depends on (Node.js,
-MikroORM, PostgreSQL, Meilisearch documentation; GitHub; LLM tooling;
-error messages from the runtime). Keeping identifiers and inline comments
-in one language preserves grep-ability, code-review fluency, and
-LLM-assisted refactoring across a team that spans multiple human
-languages.
+**Rationale for keeping comments in English**: Comments are the
+one place inside source code where contributors write free-form
+human prose explaining intent. They are read by every reviewer,
+every LLM-assisted tool, and every future maintainer who lands in
+the file via `git blame` or a stack trace. Keeping them in a
+single working language preserves review fluency across a
+multilingual contributor base and makes LLM-assisted refactoring
+predictable. Identifiers and string literals do not need the same
+rule — identifiers are governed by Principle VI's case
+conventions and rarely carry untranslated prose, and string
+literals are either user-facing (where they MUST be localised) or
+operational (where their language has no review impact).
 
-**Rationale for loosening the prose scope**: Documentation, planning, and
-review prose are read primarily by people, not tooling. A team whose
-working language is not English is better served by writing planning
-artifacts in their own language than by translating every spec into
-English at the cost of nuance and review speed. The product also remains
-free to speak whatever customer-facing languages the business requires.
+**Rationale for keeping the `/docs/` site in English**: The
+`/docs/` Docusaurus site is the project's **public, long-lived
+knowledge base**. Unlike specs and plans (which live next to the
+work that produced them and decay quickly), the docs site is the
+artifact a third-party integrator, an LLM-assisted contributor,
+an auditor, or a future maintainer reads months or years after
+the team that wrote it has moved on. The same arguments that
+justify English comments apply: review fluency across a
+multilingual contributor base, LLM-tool fluency, and alignment
+with the ecosystem's working language.
 
-**Rationale for keeping the `/docs/` site in English**: The `/docs/`
-Docusaurus site is the project's **public, long-lived knowledge base**.
-Unlike specs and plans (which live next to the work that produced them
-and decay quickly), the docs site is the artifact a third-party
-integrator, an LLM-assisted contributor, an auditor, or a future
-maintainer reads months or years after the team that wrote it has
-moved on. The same arguments that justify English source code apply:
-grep-ability, reviewability across a multilingual contributor base,
-LLM tool fluency, and alignment with the ecosystem's working
-language. The carve-out is bounded — it covers the docs site only,
-not specs, ADRs, module READMEs, or any other authored prose — so
-the v2.0.0 freedom stands everywhere it was intended.
+**Rationale for keeping every other prose artifact free**:
+Documentation, planning, and review prose outside `/docs/` are
+read primarily by the team that produced them, not by long-term
+external readers. A team whose working language is not English is
+better served by writing those artifacts in its own language than
+by translating every spec at the cost of nuance and review speed.
+The product also remains free to speak whatever customer-facing
+languages the business requires.
 
 ## Technology Stack
 
@@ -333,7 +343,9 @@ shippable:
    etc.) is a plan-level decision; the mandate is the artifact, not the
    tool.
 
-Both artifacts MUST be authored in English per Principle VIII.
+The Project Documentation Site MUST be authored in English per Principle VIII.
+The README MAY be authored in any language; only its inline comments inside
+fenced code blocks fall under the source-comment rule.
 
 ## Performance & Scale Targets
 
@@ -380,9 +392,10 @@ Every change MUST pass the following gates before merge:
 4. **Naming conventions** — reviewers MUST reject any PR that violates
    Principle VI.
 5. **Working language** — reviewers MUST reject any PR that introduces
-   non-English artifacts, identifiers, comments, or commit messages in
-   violation of Principle VIII, aside from the scope exceptions listed
-   in that principle.
+   non-English **comments inside source files** or non-English **prose
+   on a `/docs/` Docusaurus page**, in violation of Principle VIII.
+   Identifiers, string literals, specs, plans, READMEs, commit
+   messages, and code-review prose are not constrained by this gate.
 6. **Docs sync** — if a module is added or an infrastructure-relevant
    change is made, the PR MUST update `README.md` and the documentation
    site in the same commit range.
@@ -426,4 +439,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 2.1.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-04-28
+**Version**: 3.0.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-05-01
