@@ -37,3 +37,4 @@ export * from './quick-order.js';
 export * from './settings.js';
 export * from './sales-channels.js';
 export * from './search.js';
+export * from './comparisons.js';

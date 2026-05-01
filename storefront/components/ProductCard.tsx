@@ -31,7 +31,7 @@ export function ProductCard(props: {
         <StockBadge product={product} locale={locale} />
       </div>
       <small className="b2b-card__sku">{product.sku}</small>
-      <CompareToggle slug={product.slug} locale={locale} />
+      <CompareToggle productId={product.id} />
     </article>
   );
 }

@@ -1033,6 +1033,7 @@ function serializeAdminAttribute(a: ProductAttribute) {
     isFilterable: a.isFilterable,
     isVariantAxis: a.isVariantAxis,
     displayAsSlider: a.displayAsSlider,
+    isComparable: a.isComparable,
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
   };

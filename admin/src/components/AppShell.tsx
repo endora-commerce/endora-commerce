@@ -10,6 +10,7 @@ import {
   CreditCard,
   Factory,
   FileText,
+  Scale,
   Globe,
   Image,
   KeyRound,
@@ -76,6 +77,7 @@ const NAV: NavSection[] = [
       { to: '/invoices', label: 'Invoices', icon: Receipt },
       { to: '/credit-limits', label: 'Credit limits', icon: CreditCard },
       { to: '/quote-requests', label: 'Quote requests', icon: FileText },
+      { to: '/comparisons', label: 'Comparisons', icon: Scale },
     ],
   },
   {

@@ -447,6 +447,12 @@ const baseCreateAttributeObject = z.object({
    * supplied for an incompatible underlying type.
    */
   displayAsSlider: z.boolean().optional(),
+  /**
+   * Feature 007 — selects whether the attribute appears as a body row on
+   * the Compare module's comparison page. Independent of isSearchable /
+   * isFilterable. Defaults to false on create when omitted.
+   */
+  isComparable: z.boolean().optional(),
 });
 
 export const createAttributeRequestSchema = baseCreateAttributeObject
@@ -493,6 +499,8 @@ export const updateAttributeRequestSchema = z
     isFilterable: z.boolean().optional(),
     isVariantAxis: z.boolean().optional(),
     displayAsSlider: z.boolean().optional(),
+    /** Feature 007 — toggles the Compare-page row for this attribute. */
+    isComparable: z.boolean().optional(),
   })
   .strict()
   .refine(

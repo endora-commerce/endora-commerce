@@ -37,13 +37,15 @@ export interface OrganizationsPublicDeps {
    */
   latestTokenByEmail?: Map<string, string>;
   /**
-   * Optional post-login hook — the commerce module registers one to merge an
-   * anonymous cart (cookie `b2b_cart_anon`) into the authenticated cart.
+   * Optional post-login hook — the commerce module merges anonymous carts
+   * (`b2b_cart_anon`) and the comparisons module adopts the anonymous
+   * Comparison (`compare_token`) into the authenticated identity.
    */
   onLogin?: (ctx: {
     customerAccountId: string;
     organizationId: string;
     anonymousCartToken?: string;
+    anonymousCompareToken?: string;
   }) => Promise<void>;
   /** Dispatches verification email after registration. */
   mailer: Mailer;
@@ -131,10 +133,12 @@ export async function registerOrganizationsPublicRoutes(
       if (deps.onLogin) {
         const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
         const anon = cookies?.['b2b_cart_anon'];
+        const compareAnon = cookies?.['compare_token'];
         await deps.onLogin({
           customerAccountId: result.customerAccount.id,
           organizationId: result.customerAccount.organizationId,
           ...(anon ? { anonymousCartToken: anon } : {}),
+          ...(compareAnon ? { anonymousCompareToken: compareAnon } : {}),
         });
       }
       return { data: { customerAccount: serializeCustomerAccount(result.customerAccount) } };

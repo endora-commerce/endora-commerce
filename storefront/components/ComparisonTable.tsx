@@ -1,90 +1,100 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import type {
+  ComparisonOwnerView,
+  ComparisonAttributeRow,
+  ComparisonDisplayMode,
+} from '@b2b/contracts';
 import {
-  clearCompare,
-  readCompareSlugs,
-  subscribeCompare,
-  toggleCompare,
-} from '../lib/compare/store';
-import type { ProductDetail } from '@b2b/contracts';
+  ComparisonApiError,
+  deleteMyComparison,
+  exportComparisonPdf,
+  getMyComparison,
+  removeProductFromCompare,
+  setComparisonDisplayMode,
+} from '../lib/api/comparisons';
+import { CompareModeSwitcher } from './CompareModeSwitcher';
+import { CompareAddToCartButton } from './CompareAddToCartButton';
 
 /**
- * Comparison table rendered on `/compare`. Reads slugs from localStorage,
- * fetches each product through the public catalog endpoint, and renders
- * a side-by-side attribute matrix. All client-side — there is no server
- * state to keep in sync.
+ * Comparison table — feature 007 / T032.
+ *
+ * Reads the live `ComparisonOwnerView` from the backend, renders the
+ * always-on header (name / price / base image), filters the body rows
+ * by the active display mode, and offers per-product *Remove* + a
+ * top-level *Delete comparison* affordance.
+ *
+ * Mode switching is instantaneous: the full attribute projection is in
+ * the initial response, so changing mode just re-filters which rows
+ * are visible. Each switch also fires `PATCH /me` so the customer's
+ * choice is persisted across visits (spec FR-008 + the data-model's
+ * persisted `displayMode`).
  */
-export function ComparisonTable(props: { apiBaseUrl: string }): ReactNode {
-  const [slugs, setSlugs] = useState<string[]>([]);
-  const [products, setProducts] = useState<ProductDetail[] | null>(null);
+export function ComparisonTable(): ReactNode {
+  const [view, setView] = useState<ComparisonOwnerView | null | 'loading'>('loading');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const refresh = (): void => setSlugs(readCompareSlugs());
-    refresh();
-    return subscribeCompare(refresh);
-  }, []);
-
-  useEffect(() => {
     let cancelled = false;
-    if (slugs.length === 0) {
-      setProducts([]);
-      return () => {
-        cancelled = true;
-      };
-    }
-    (async () => {
-      try {
-        const fetched = await Promise.all(
-          slugs.map(async (slug) => {
-            const res = await fetch(
-              `${props.apiBaseUrl}/api/v1/catalog/products/${encodeURIComponent(slug)}`,
-              { credentials: 'include' },
-            );
-            if (!res.ok) throw new Error(`HTTP ${res.status} for ${slug}`);
-            const body = (await res.json()) as { data: ProductDetail };
-            return body.data;
-          }),
-        );
-        if (!cancelled) {
-          setProducts(fetched);
-          setError(null);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load comparison.');
-        }
-      }
-    })();
+    getMyComparison()
+      .then((v) => {
+        if (!cancelled) setView(v);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(toMessage(err));
+      });
     return () => {
       cancelled = true;
     };
-  }, [slugs, props.apiBaseUrl]);
+  }, []);
 
-  const attributeKeys = useMemo(() => {
-    const keys = new Set<string>();
-    for (const p of products ?? []) {
-      Object.keys(p.attributeValues).forEach((k) => keys.add(k));
-    }
-    return Array.from(keys).sort();
-  }, [products]);
-
-  if (slugs.length === 0) {
-    return (
-      <p className="muted">
-        Add up to four products from the catalog to compare them side by side.
-      </p>
-    );
-  }
   if (error) return <div className="alert alert--error">{error}</div>;
-  if (!products) return <p className="muted">Loading…</p>;
+  if (view === 'loading') return <p className="muted">Loading…</p>;
+  if (!view || view.products.length === 0) return <EmptyState />;
+
+  const visibleRows = filterRowsByMode(view.comparableAttributes, view.displayMode);
+
+  const onRemove = async (productId: string): Promise<void> => {
+    try {
+      const next = await removeProductFromCompare(productId);
+      // If the removal emptied the set, the API still returns the empty
+      // shell — the empty-state branch above renders next time.
+      setView(next);
+    } catch (err) {
+      setError(toMessage(err));
+    }
+  };
+
+  const onDelete = async (): Promise<void> => {
+    try {
+      await deleteMyComparison();
+      setView(null);
+    } catch (err) {
+      setError(toMessage(err));
+    }
+  };
+
+  const onSetMode = async (mode: ComparisonDisplayMode): Promise<void> => {
+    // Optimistically update so the switch feels instantaneous; reconcile
+    // with the server response when it returns.
+    setView({ ...view, displayMode: mode });
+    try {
+      const next = await setComparisonDisplayMode(mode);
+      setView(next);
+    } catch (err) {
+      setError(toMessage(err));
+    }
+  };
 
   return (
     <>
       <div className="toolbar">
-        <button type="button" className="btn" onClick={(): void => clearCompare()}>
-          Clear all
+        <CompareModeSwitcher value={view.displayMode} onChange={onSetMode} />
+        <CopyShareLinkButton shareToken={view.shareToken} />
+        <ExportPdfButton disabled={view.products.length === 0} />
+        <button type="button" className="btn" onClick={(): void => void onDelete()}>
+          Delete comparison
         </button>
       </div>
       <div className="b2b-compare">
@@ -92,53 +102,143 @@ export function ComparisonTable(props: { apiBaseUrl: string }): ReactNode {
           <thead>
             <tr>
               <th></th>
-              {products.map((p) => (
+              {view.products.map((p) => (
                 <th key={p.id}>
-                  <a href={`/p/${p.slug}`}>{p.name}</a>
+                  <a href={`/p/${p.slug}`}>
+                    {p.primaryAssetUrl ? (
+                      <img
+                        src={p.primaryAssetUrl}
+                        alt={localised(p.name)}
+                        loading="lazy"
+                      />
+                    ) : null}
+                    <div>{localised(p.name)}</div>
+                  </a>
+                  <div className="b2b-compare__price">
+                    {p.price ? `${p.price.amount} ${p.price.currency}` : '—'}
+                  </div>
+                  <div className="b2b-compare__col-actions">
+                    <CompareAddToCartButton
+                      productId={p.id}
+                      disabled={!p.available}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn--small"
+                      onClick={(): void => void onRemove(p.id)}
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <th scope="row">SKU</th>
-              {products.map((p) => (
-                <td key={p.id}>{p.sku}</td>
-              ))}
-            </tr>
-            <tr>
-              <th scope="row">Price</th>
-              {products.map((p) => (
-                <td key={p.id}>{p.price ? `${p.price.amount} ${p.price.currency}` : '—'}</td>
-              ))}
-            </tr>
-            {attributeKeys.map((key) => (
-              <tr key={key}>
-                <th scope="row">{key}</th>
-                {products.map((p) => (
-                  <td key={p.id}>{String(p.attributeValues[key] ?? '—')}</td>
-                ))}
-              </tr>
-            ))}
-            <tr>
-              <th scope="row"></th>
-              {products.map((p) => (
-                <td key={p.id}>
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={(): void => {
-                      toggleCompare(p.slug);
-                    }}
-                  >
-                    Remove
-                  </button>
+            {visibleRows.length === 0 ? (
+              <tr>
+                <td colSpan={view.products.length + 1} className="muted">
+                  No attribute rows match the current display mode.
                 </td>
-              ))}
-            </tr>
+              </tr>
+            ) : (
+              visibleRows.map((row) => (
+                <tr
+                  key={row.key}
+                  className={`b2b-compare__row b2b-compare__row--${row.rowClass}`}
+                >
+                  <th scope="row">{localised(row.label)}</th>
+                  {row.values.map((v, idx) => (
+                    <td key={`${row.key}-${idx}`}>
+                      {v === null ? '—' : v}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
     </>
   );
+}
+
+function ExportPdfButton(props: { disabled: boolean }): ReactNode {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const onClick = async (): Promise<void> => {
+    if (busy || props.disabled) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await exportComparisonPdf();
+    } catch (err) {
+      setError(
+        err instanceof ComparisonApiError ? err.message : 'Could not generate PDF.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <button
+        type="button"
+        className="btn"
+        disabled={busy || props.disabled}
+        onClick={(): void => void onClick()}
+      >
+        {busy ? 'Generating…' : 'Export to PDF'}
+      </button>
+      {error ? <span className="b2b-compare__pdf-error">{error}</span> : null}
+    </>
+  );
+}
+
+function CopyShareLinkButton(props: { shareToken: string }): ReactNode {
+  const [copied, setCopied] = useState(false);
+  const onCopy = async (): Promise<void> => {
+    const url =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/compare/share/${props.shareToken}`
+        : '';
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Best-effort — Safari without clipboard permission falls through.
+    }
+  };
+  return (
+    <button type="button" className="btn" onClick={(): void => void onCopy()}>
+      {copied ? '✓ Link copied' : 'Copy share link'}
+    </button>
+  );
+}
+
+function EmptyState(): ReactNode {
+  return (
+    <p className="muted">
+      Add at least two products from the catalog to compare them side by side.
+    </p>
+  );
+}
+
+function filterRowsByMode(
+  rows: ComparisonAttributeRow[],
+  mode: ComparisonDisplayMode,
+): ComparisonAttributeRow[] {
+  if (mode === 'all') return rows;
+  if (mode === 'common') return rows.filter((r) => r.rowClass === 'common');
+  return rows.filter((r) => r.rowClass === 'different');
+}
+
+function localised(value: Record<string, string>): string {
+  return value['en-US'] ?? value['en'] ?? Object.values(value)[0] ?? '';
+}
+
+function toMessage(err: unknown): string {
+  if (err instanceof ComparisonApiError) return err.message;
+  return err instanceof Error ? err.message : 'Unexpected error.';
 }

@@ -39,6 +39,9 @@ import { salesChannelsManifest } from './modules/sales_channels/manifest.js';
 import { DefaultChannelReconciler } from './modules/sales_channels/services/default-channel-reconciler.js';
 import { searchModule } from './modules/search/plugin.js';
 import { searchManifest } from './modules/search/manifest.js';
+import { comparisonsModule } from './modules/comparisons/plugin.js';
+import { comparisonsManifest } from './modules/comparisons/manifest.js';
+import { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
 import type { CartService } from './modules/carts/services/cart-service.js';
 
@@ -224,6 +227,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     ? new SmtpMailer(organizationsSmtpUrl)
     : new ConsoleMailer();
 
+  // Forward-reference for the onLogin hook below — the comparisons module
+  // is constructed further down (it depends on services declared after
+  // this point), but the post-login hook needs to call into it. The
+  // closure captures the binding, not its value, so the late assignment
+  // is safe at request time.
+  let comparisonAdoption: ((customerAccountId: string, anonymousToken: string) => Promise<void>) | null = null;
+
   const modules: ModulePlugin[] = [
     authModulePlugin,
     admin.plugin,
@@ -282,6 +292,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
             customerAccountId: ctx.customerAccountId,
             organizationId: ctx.organizationId,
           });
+        }
+        // Comparisons module's anonymous→authenticated adoption (R-2 /
+        // FR-005). The hook is late-bound below once `comparisons` is
+        // constructed; before then it's a no-op.
+        if (comparisonAdoption && ctx.anonymousCompareToken) {
+          await comparisonAdoption(
+            ctx.customerAccountId,
+            ctx.anonymousCompareToken,
+          );
         }
       },
     }),
@@ -365,6 +384,26 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
   modules.push(search.plugin);
 
+  // Feature 007 — Comparisons module. US1 wires the customer-facing CRUD
+  // endpoints; US2/US4/US5 extend the plugin with share, PDF, and admin
+  // routes respectively. Reads catalog through CatalogQueryService (the
+  // documented service port — Constitution I) and `compare.max_products`
+  // through SettingsService.
+  const catalogQueryServiceForCompare = new CatalogQueryService(em);
+  const comparisons = comparisonsModule({
+    emFactory: em,
+    catalogQueryService: catalogQueryServiceForCompare,
+    settingsService: settings.handle.settingsService,
+    requireAdmin,
+  });
+  modules.push(comparisons.plugin);
+  // Late-bind the adoption hook captured by organizationsModule.onLogin
+  // above; from this point onwards customer logins also adopt the
+  // anonymous Comparison the caller was carrying (R-2 / spec FR-005).
+  comparisonAdoption = comparisons.handle.comparisonService.adoptAnonymousComparison.bind(
+    comparisons.handle.comparisonService,
+  );
+
   // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every
   // module's settings manifest and inserts any missing groups/settings
   // idempotently before the HTTP layer starts serving requests. NEVER deletes
@@ -373,6 +412,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     settingsModuleManifest,
     salesChannelsManifest,
     searchManifest,
+    comparisonsManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();
