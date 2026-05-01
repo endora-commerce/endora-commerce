@@ -52,8 +52,10 @@ how to consume it.
 | [promotions](./promotions) | Cart-level percentage / amount / free-delivery discounts with eligibility filters | yes |
 | [quick_order](./quick_order) | CSV-import + type-ahead helpers for buyers ordering by SKU | yes |
 | [quote_requests](./quote_requests) | RFQ lifecycle (draft → quote → accept/reject) | yes |
+| [sales_channels](./sales_channels) | Channel registry, request resolver, bidirectional membership for every channel-scoped entity | yes |
 | [search](./search) | Meilisearch indexer + query bridge | no |
 | [seo](./seo) | Meta-tag resolver + cached XML sitemap | yes |
+| [settings](./settings) | Manifest-driven, per-sales-channel platform configuration with cached read API | yes |
 | [shopping_lists](./shopping_lists) | Per-customer named bundles convertible to Cart or RFQ | yes |
 | [taxes](./taxes) | Tax-rate resolver narrowed by country / product type / VAT status | yes |
 | [webhooks](./webhooks) | Outbound HMAC-signed event subscriptions | yes |
