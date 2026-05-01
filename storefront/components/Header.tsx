@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import type { I18nConfigResponse } from '@b2b/contracts';
 import { tForLocale } from '../lib/i18n/messages';
 import { CompareCounterLink } from './CompareToggle';
+import { SearchAutocomplete } from './SearchAutocomplete';
 
 /**
  * Reference-theme header. Themes replace this component with their own
@@ -12,8 +13,18 @@ import { CompareCounterLink } from './CompareToggle';
 export function Header(props: {
   config: I18nConfigResponse;
   locale: string;
+  /** Optional sales-channel code for the autocomplete's `X-Sales-Channel` header. */
+  salesChannelCode?: string;
 }): ReactNode {
   const t = tForLocale(props.locale);
+  // The browser-side autocomplete needs to reach the backend directly.
+  // Server reads BACKEND_BASE_URL once and hands it down as a prop —
+  // matches the convention used by `<ComparisonTable>`.
+  const apiBaseUrl =
+    process.env['NEXT_PUBLIC_BACKEND_BASE_URL'] ??
+    process.env['BACKEND_BASE_URL'] ??
+    'http://localhost:3001';
+
   return (
     <header className="b2b-header">
       <div className="b2b-header__inner">
@@ -28,13 +39,16 @@ export function Header(props: {
           <Link href="/account">{t('nav.account')}</Link>
         </nav>
         <form action="/search" method="GET" className="b2b-header__search" role="search">
-          <input
-            type="search"
-            name="q"
+          <SearchAutocomplete
+            apiBaseUrl={apiBaseUrl}
             placeholder={t('search.placeholder')}
-            aria-label={t('common.searchAction')}
+            searchActionLabel={t('common.searchAction')}
+            seeAllResultsLabel={(): string => t('search.seeAllResults')}
+            unavailableLabel={t('search.unavailable')}
+            {...(props.salesChannelCode !== undefined
+              ? { salesChannelCode: props.salesChannelCode }
+              : {})}
           />
-          <button type="submit">{t('common.searchAction')}</button>
         </form>
         <LocaleSwitcher config={props.config} locale={props.locale} />
       </div>

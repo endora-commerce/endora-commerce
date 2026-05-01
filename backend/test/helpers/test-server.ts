@@ -27,6 +27,7 @@ import { promotionsModule } from '../../src/modules/promotions/plugin.js';
 import { settingsModule } from '../../src/modules/settings/plugin.js';
 import { settingsManifest as settingsModuleManifest } from '../../src/modules/settings/manifest.js';
 import { salesChannelsModule } from '../../src/modules/sales_channels/plugin.js';
+import { searchModule } from '../../src/modules/search/plugin.js';
 import { DefaultChannelReconciler } from '../../src/modules/sales_channels/services/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/modules/settings/services/manifest-reconciler.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
@@ -76,6 +77,9 @@ export interface BackendServerHandle {
   settings: ReturnType<typeof settingsModule>['handle'];
   /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
   salesChannels: ReturnType<typeof salesChannelsModule>['handle'];
+  /** Feature 006 — exposes the indexer + suggest service for tests that
+   *  want deterministic teardown or to exercise embedder attach/detach. */
+  search: ReturnType<typeof searchModule>['handle'];
 }
 
 const SEEDED_TABLES = [
@@ -421,6 +425,14 @@ export async function setupBackendServer(
   });
   modules.push(salesChannels.plugin);
   modules.push(settings.plugin);
+
+  // Feature 006 — Search module. Owns the Meilisearch indexer + event
+  // subscriber lifecycle. Foundation tests don't need Meilisearch up;
+  // the subscriber's handlers swallow Meilisearch errors so a missing
+  // backend doesn't break catalog writes.
+  const search = searchModule({ emFactory: em, eventBus });
+  modules.push(search.plugin);
+
   if (options.extraModules) modules.push(...options.extraModules);
 
   // Feature 004 — boot-time manifest reconciliation (settings module's own
@@ -451,6 +463,7 @@ export async function setupBackendServer(
     permissionService,
     settings: settings.handle,
     salesChannels: salesChannels.handle,
+    search: search.handle,
   };
 }
 

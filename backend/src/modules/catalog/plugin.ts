@@ -13,8 +13,6 @@ import { ProductLinkService } from './services/product-link.service.js';
 import { GroupedService } from './services/grouped.service.js';
 import { BundleService } from './services/bundle.service.js';
 import { SearchQueryService } from '../search/services/search-query.service.js';
-import { SearchIndexer } from '../search/services/search-indexer.js';
-import { SearchEventSubscriber } from '../search/services/search-event-subscriber.js';
 import { registerCatalogPublicRoutes } from './routes.public.js';
 import { registerCatalogAdminRoutes, type RequireAdminFactory } from './routes.admin.js';
 import { registerCatalogApiKeyRoutes } from './routes.api-key.js';
@@ -48,14 +46,6 @@ export interface CatalogModuleOptions {
    */
   requireApiKey?: RequireApiKeyFactory;
   /**
-   * Subscribe the SearchEventSubscriber to product/attribute events so the
-   * Meilisearch index incrementally tracks Postgres mutations (T067).
-   * Defaults to `false` so tests that don't have Meilisearch up don't pay
-   * the per-mutation outbound HTTP cost. Production composition roots set
-   * this to `true`.
-   */
-  enableSearchEventSubscriber?: boolean;
-  /**
    * Feature 005 / T027 — when provided, every newly-created Product is
    * automatically bound to the system-default Sales Channel unless it
    * already had memberships set through some other path (FR-011).
@@ -80,19 +70,10 @@ export function catalogModule(options: CatalogModuleOptions) {
     );
     // SearchQueryService is wired even when the env var picks Postgres so that
     // an operator can flip CATALOG_SEARCH_BACKEND=meilisearch at runtime
-    // without restarting (R-08 reserved-fallback still applies).
+    // without restarting (R-08 reserved-fallback still applies). Lifecycle
+    // for the indexer + event subscriber lives in `searchModule` (feature
+    // 006 / R-3); catalog only owns the read-side adapter here.
     const searchQueryService = new SearchQueryService(options.emFactory);
-
-    if (options.enableSearchEventSubscriber) {
-      const indexer = new SearchIndexer();
-      const subscriber = new SearchEventSubscriber({
-        eventBus: options.eventBus as never,
-        emFactory: options.emFactory,
-        indexer,
-      });
-      const teardown = subscriber.subscribe();
-      app.addHook('onClose', async () => teardown());
-    }
 
     const bundleServicePublic = new BundleService(options.emFactory);
     await registerCatalogPublicRoutes(app, {
