@@ -43,7 +43,7 @@ export function Header(props: {
             apiBaseUrl={apiBaseUrl}
             placeholder={t('search.placeholder')}
             searchActionLabel={t('common.searchAction')}
-            seeAllResultsLabel={(): string => t('search.seeAllResults')}
+            seeAllResultsLabel={t('search.seeAllResults')}
             unavailableLabel={t('search.unavailable')}
             {...(props.salesChannelCode !== undefined
               ? { salesChannelCode: props.salesChannelCode }
