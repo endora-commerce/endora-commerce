@@ -105,3 +105,30 @@ export const LlmToggleResponseSchema = z.object({
 });
 export type LlmToggleResponse = z.infer<typeof LlmToggleResponseSchema>;
 
+// ---------------------------------------------------------------------------
+// (3) POST /api/v1/search/record — US3 / T030
+// ---------------------------------------------------------------------------
+
+/**
+ * Fire-and-forget analytics ingest. The storefront's `/search` page
+ * fires this on render, AFTER `listProducts` resolves so `resultCount`
+ * is meaningful. The endpoint always returns `202 { ok: true }` once
+ * the input passes shape validation; persistence failures degrade to a
+ * warn log (FR-015 — recording must never delay or fail the search
+ * response).
+ */
+export const RecordPhraseRequestSchema = z.object({
+  phrase: z
+    .string()
+    .min(1)
+    .max(SEARCH_PHRASE_MAX_LENGTH),
+  /** Result-page count; `0` for dead-end phrases (FR-014). */
+  resultCount: z.number().int().nonnegative().optional(),
+});
+export type RecordPhraseRequest = z.infer<typeof RecordPhraseRequestSchema>;
+
+export const RecordPhraseResponseSchema = z.object({
+  ok: z.literal(true),
+});
+export type RecordPhraseResponse = z.infer<typeof RecordPhraseResponseSchema>;
+

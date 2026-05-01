@@ -59,6 +59,7 @@ import { ShoppingListItem } from '../modules/shopping_lists/entities/shopping-li
 import { SettingGroup } from '../modules/settings/entities/setting-group.entity.js';
 import { Setting } from '../modules/settings/entities/setting.entity.js';
 import { SettingValue } from '../modules/settings/entities/setting-value.entity.js';
+import { SearchPhraseRecord } from '../modules/search/entities/search-phrase-record.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -161,4 +162,6 @@ export const ALL_ENTITIES = [
   SettingGroup,
   Setting,
   SettingValue,
+  // search analytics ingest (feature 006 / US3)
+  SearchPhraseRecord,
 ] as const;

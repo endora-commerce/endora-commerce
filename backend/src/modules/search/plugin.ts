@@ -12,6 +12,7 @@ import {
   DEFAULT_MINIMUM_QUERY_LENGTH,
 } from './services/search-suggest.service.js';
 import { LlmToggleService } from './services/llm-toggle.service.js';
+import { SearchPhraseRecorder } from './services/search-phrase-recorder.service.js';
 import { registerSearchPublicRoutes } from './routes.public.js';
 import { registerSearchAdminRoutes } from './routes.admin.js';
 import type { RequireAdminFactory } from '../settings/plugin.js';
@@ -72,6 +73,7 @@ export interface SearchModuleHandle {
   searchQueryService: SearchQueryService;
   suggestService: SearchSuggestService;
   llmToggleService?: LlmToggleService;
+  phraseRecorder: SearchPhraseRecorder;
 }
 
 export interface SearchModuleResult {
@@ -141,19 +143,29 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
         )
       : undefined;
 
+  const phraseRecorder = new SearchPhraseRecorder(
+    options.emFactory,
+    options.settingsService,
+  );
+
   return {
     handle: {
       indexer,
       subscriber,
       searchQueryService,
       suggestService,
+      phraseRecorder,
       ...(llmToggleService !== undefined ? { llmToggleService } : {}),
     },
     plugin: async (app) => {
       const teardown = subscriber.subscribe();
       app.addHook('onClose', async () => teardown());
       // US1 — typeahead popup feed.
-      await registerSearchPublicRoutes(app, { suggestService });
+      // US3 — analytics ingest. Both live in routes.public.ts.
+      await registerSearchPublicRoutes(app, {
+        suggestService,
+        phraseRecorder,
+      });
       // US2 — LLM toggle wrapper. Mounts only when the admin gate +
       // settings admin service are both wired (test-server passes them).
       if (llmToggleService && options.requireAdmin) {
@@ -165,7 +177,6 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
             : {}),
         });
       }
-      // US3 record route (T037) wires here later.
     },
   };
 }

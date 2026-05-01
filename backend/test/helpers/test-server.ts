@@ -143,6 +143,10 @@ const SEEDED_TABLES = [
   'quote_requests',
   'shopping_list_items',
   'shopping_lists',
+  // Feature 006 — search analytics ingest. Append-only; clear between
+  // tests so contract assertions ("exactly one row was inserted") are
+  // deterministic.
+  'search_phrase_records',
 ];
 
 export async function setupBackendServer(

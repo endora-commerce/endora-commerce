@@ -6,8 +6,6 @@ import {
 } from '../../helpers/test-server.js';
 import { SearchEventSubscriber } from '../../../src/modules/search/services/search-event-subscriber.js';
 import type { SearchIndexer } from '../../../src/modules/search/services/search-indexer.js';
-import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
-import { SettingValue } from '../../../src/modules/settings/entities/setting-value.entity.js';
 import { SEARCH_SETTING_CODES } from '../../../src/modules/search/manifest.js';
 
 /**

@@ -2,9 +2,11 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
   ERROR_CODES,
+  RecordPhraseRequestSchema,
   SearchSuggestQuerySchema,
   SEARCH_PHRASE_MAX_LENGTH,
   SEARCH_SUGGEST_LIMIT_MAX,
+  type RecordPhraseResponse,
   type SearchSuggestResponse,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
@@ -13,19 +15,22 @@ import {
   SearchBackendUnavailable,
   type SearchSuggestService,
 } from './services/search-suggest.service.js';
+import type { SearchPhraseRecorder } from './services/search-phrase-recorder.service.js';
 
 /**
  * Public HTTP surface — feature 006 / US1 (T013) and US3 (T036).
  *
  * Routes mounted under `/api/v1/search/*`:
  *   - GET  /suggest  — typeahead popup feed.
- *   - POST /record   — analytics ingest (US3, registered when the recorder
- *                      is wired in via `SearchPublicDeps.phraseRecorder`).
+ *   - POST /record   — analytics ingest. Returns 202 immediately;
+ *                      persistence is queued via the recorder service
+ *                      so the storefront response is never delayed
+ *                      (FR-015).
  *
- * Sales-channel scoping mirrors the catalog public routes: the channel is
- * resolved from the `X-Sales-Channel` header (the `sales_channels`
- * resolver middleware will eventually hydrate `request.salesChannel`
- * directly; until then we read the header in here, same as catalog).
+ * Sales-channel scoping mirrors the catalog public routes: the channel
+ * is resolved from `request.salesChannel` (set by the resolver
+ * middleware) with a header fallback for the contract-level read in
+ * `readContext`.
  */
 
 const salesChannelHeaderSchema = z.string().optional();
@@ -33,14 +38,69 @@ const acceptLanguageHeaderSchema = z.string().optional();
 
 export interface SearchPublicDeps {
   suggestService: SearchSuggestService;
-  // phraseRecorder?: SearchPhraseRecorder;  // wired in T037 (US3)
+  /** When provided, `POST /api/v1/search/record` is mounted (US3). */
+  phraseRecorder?: SearchPhraseRecorder;
 }
 
 export async function registerSearchPublicRoutes(
   app: FastifyInstance,
   deps: SearchPublicDeps,
 ): Promise<void> {
-  const { suggestService } = deps;
+  const { suggestService, phraseRecorder } = deps;
+
+  // POST /api/v1/search/record — feature 006 / US3 / T036.
+  // Mounted only when a recorder was wired (search/plugin.ts gates
+  // this on `settingsService` being provided so the recorder can read
+  // the per-channel minimum-length threshold).
+  if (phraseRecorder) {
+    app.post('/api/v1/search/record', async (request, reply) => {
+      const parseResult = RecordPhraseRequestSchema.safeParse(request.body);
+      if (!parseResult.success) {
+        // The two negative paths the contract calls out
+        // (PHRASE_REQUIRED, PHRASE_TOO_LONG) are derived from the Zod
+        // issue codes so the wire surface is stable.
+        const issue = parseResult.error.issues[0];
+        const code =
+          issue?.path[0] === 'phrase' && issue?.code === 'too_big'
+            ? ERROR_CODES.PHRASE_TOO_LONG
+            : issue?.path[0] === 'resultCount'
+              ? ERROR_CODES.RESULT_COUNT_INVALID
+              : ERROR_CODES.PHRASE_REQUIRED;
+        throw new HttpError(
+          400,
+          code,
+          issue?.message ?? 'Invalid record phrase request.',
+          parseResult.error.issues.map((i) => ({
+            path: i.path.join('.') || '(root)',
+            issue: i.message,
+          })),
+        );
+      }
+
+      // The resolver middleware (sales_channels module) attaches
+      // `request.salesChannel`. Storefront paths fall back to the
+      // system-default channel; admin paths refuse with
+      // MISSING_SALES_CHANNEL_CONTEXT before reaching this handler.
+      const salesChannelId = request.salesChannel?.id;
+      if (!salesChannelId) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.MISSING_SALES_CHANNEL_CONTEXT,
+          'No sales channel could be resolved for this request.',
+        );
+      }
+
+      // Fire-and-forget: the recorder swallows its own errors and the
+      // storefront response is not delayed by persistence (FR-015).
+      void phraseRecorder.record({
+        phrase: parseResult.data.phrase,
+        salesChannelId,
+        resultCount: parseResult.data.resultCount ?? 0,
+      });
+
+      return reply.code(202).send({ ok: true } satisfies RecordPhraseResponse);
+    });
+  }
 
   // GET /api/v1/search/suggest
   app.get('/api/v1/search/suggest', async (request) => {
