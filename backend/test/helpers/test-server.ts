@@ -28,6 +28,7 @@ import { settingsModule } from '../../src/modules/settings/plugin.js';
 import { settingsManifest as settingsModuleManifest } from '../../src/modules/settings/manifest.js';
 import { salesChannelsModule } from '../../src/modules/sales_channels/plugin.js';
 import { searchModule } from '../../src/modules/search/plugin.js';
+import { searchManifest } from '../../src/modules/search/manifest.js';
 import { DefaultChannelReconciler } from '../../src/modules/sales_channels/services/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/modules/settings/services/manifest-reconciler.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
@@ -427,18 +428,32 @@ export async function setupBackendServer(
   modules.push(settings.plugin);
 
   // Feature 006 — Search module. Owns the Meilisearch indexer + event
-  // subscriber lifecycle. Foundation tests don't need Meilisearch up;
-  // the subscriber's handlers swallow Meilisearch errors so a missing
-  // backend doesn't break catalog writes.
-  const search = searchModule({ emFactory: em, eventBus });
+  // subscriber lifecycle. Wires the same settings-aware path the
+  // production composition uses so contract tests can exercise the
+  // LLM-toggle wrapper end-to-end. Foundation tests don't need
+  // Meilisearch up; the subscriber's handlers swallow Meilisearch
+  // errors so a missing backend doesn't break catalog writes.
+  const search = searchModule({
+    emFactory: em,
+    eventBus,
+    settingsService: settings.handle.settingsService,
+    settingsAdminService: settings.handle.adminService,
+    requireAdmin: requireTestAdmin(permissionService),
+    resolveAdminAuditContext: (request) => ({
+      actorAdminUserId:
+        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+    }),
+  });
   modules.push(search.plugin);
 
   if (options.extraModules) modules.push(...options.extraModules);
 
-  // Feature 004 — boot-time manifest reconciliation (settings module's own
-  // built-in `general` group). Runs before app.ready() so contract tests
-  // start from a consistent settings catalog.
-  await new ManifestReconciler(em()).apply([settingsModuleManifest]);
+  // Feature 004 — boot-time manifest reconciliation. Runs before
+  // app.ready() so contract tests start from a consistent settings
+  // catalog.
+  //   - settingsModuleManifest: built-in `general` group.
+  //   - searchManifest:         feature-006 search group + 6 settings.
+  await new ManifestReconciler(em()).apply([settingsModuleManifest, searchManifest]);
 
   const app = await buildServer({
     sessionCookieSecret: 'test-secret-do-not-use-in-production',

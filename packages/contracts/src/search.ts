@@ -61,3 +61,47 @@ export const SearchSuggestResponseSchema = z.object({
   meta: SearchSuggestMetaSchema,
 });
 export type SearchSuggestResponse = z.infer<typeof SearchSuggestResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// (2) POST /api/v1/admin/search/llm/toggle — US2 / T021
+// ---------------------------------------------------------------------------
+
+/**
+ * The four `search.llm.*` settings whose values are inspected by the
+ * toggle wrapper. `enabled` must be present; the other three must be
+ * non-empty when `enabled=true`. The wrapper itself only writes the
+ * `enabled` setting — the embedder fields are written through the
+ * generic Settings admin route and read by the wrapper at validation
+ * time.
+ */
+export const LlmToggleRequestSchema = z.object({
+  enabled: z.boolean(),
+  /**
+   * When omitted, applies to every channel in the setting's scope
+   * (parallels SettingsAdminService.setValueForAllChannels). When
+   * present, applies only to the listed channels.
+   */
+  salesChannelCodes: z.array(z.string().min(1)).optional(),
+  /**
+   * Optimistic-concurrency token from the latest GET of
+   * `search.llm.enabled`. When stale, the call rejects with
+   * `409 VERSION_CONFLICT` (mirrors Settings' existing model).
+   */
+  expectedVersion: z.string().nullable().optional(),
+});
+export type LlmToggleRequest = z.infer<typeof LlmToggleRequestSchema>;
+
+export const LlmToggleResponseSchema = z.object({
+  /** Always `search.llm.enabled` — present for parity with the generic Settings route. */
+  code: z.literal('search.llm.enabled'),
+  enabled: z.boolean(),
+  /** New optimistic-concurrency token; the admin UI stores it for the next save. */
+  newVersion: z.string(),
+  /**
+   * Channel UUIDs whose `setting_values` row was written. Mirrors the
+   * `affectedChannelIds` SetValueResult shape from feature 004.
+   */
+  appliedChannelIds: z.array(z.uuid()),
+});
+export type LlmToggleResponse = z.infer<typeof LlmToggleResponseSchema>;
+

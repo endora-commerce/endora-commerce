@@ -1,6 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import type { SearchIndexer } from './search-indexer.js';
+import type { SettingsService } from '../../settings/services/settings.service.js';
+import { z } from 'zod';
+import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SEARCH_SETTING_CODES } from '../manifest.js';
 
 /**
  * SearchEventSubscriber (T067 — incremental upsert path).
@@ -13,6 +17,16 @@ import type { SearchIndexer } from './search-indexer.js';
  *   - `product.updated.v1`  → upsertProduct
  *   - `product.archived.v1` → deleteProduct
  *   - `attribute.updated.v1` → refreshAttributeSettings
+ *
+ * Feature 006 / T027 also attaches the LLM-augmented-search reactor:
+ *
+ *   - `settings.value_changed` (settingCode = `search.llm.enabled`)
+ *      → attach or detach a Meilisearch embedder per affected channel,
+ *        depending on the new boolean value. When `enabled=true` and any
+ *        of the embedder.* config values are empty, the handler logs and
+ *        no-ops — the toggle's pre-write validator (LlmToggleService) is
+ *        the user-visible refusal path; this handler is the
+ *        belt-and-braces guard for direct generic-Settings writes.
  *
  * Handlers swallow their own errors so a transient Meilisearch outage
  * doesn't break the catalog write path. The reserved-fallback in the read
@@ -29,6 +43,11 @@ interface CatalogEvents extends Record<string, EventBase> {
     isSearchable: boolean;
     isFilterable: boolean;
   };
+  'settings.value_changed': EventBase & {
+    settingCode: string;
+    salesChannelIds: string[];
+    valueType: string;
+  };
 }
 
 export interface SearchEventSubscriberDeps {
@@ -36,11 +55,21 @@ export interface SearchEventSubscriberDeps {
   emFactory: () => EntityManager;
   indexer: SearchIndexer;
   /**
+   * Universal-getter for Settings — required when the LLM-toggle reactor
+   * is enabled (feature 006). When undefined, the `settings.value_changed`
+   * handler is not attached; foundation tests that don't have settings
+   * wired stay green.
+   */
+  settingsService?: SettingsService;
+  /**
    * Logger hook for failures. Defaults to console.warn so production logs
    * still surface them; tests pass a vi.fn() to assert.
    */
   onError?: (err: unknown, eventName: string) => void;
 }
+
+const booleanSchema = z.boolean();
+const stringSchema = z.string();
 
 export class SearchEventSubscriber {
   private unsubscribers: Array<() => void> = [];
@@ -87,6 +116,68 @@ export class SearchEventSubscriber {
         }
       }),
     );
+
+    if (this.deps.settingsService) {
+      const settingsService = this.deps.settingsService;
+      this.unsubscribers.push(
+        eventBus.on('settings.value_changed', async (payload) => {
+          if (payload.settingCode !== SEARCH_SETTING_CODES.LLM_ENABLED) return;
+          try {
+            const em = emFactory();
+            const channels = await em.find(SalesChannel, {
+              id: { $in: payload.salesChannelIds },
+            });
+            for (const channel of channels) {
+              const enabled = await settingsService.get(
+                SEARCH_SETTING_CODES.LLM_ENABLED,
+                channel.id,
+                booleanSchema,
+              );
+              if (enabled) {
+                const [url, apiKey, model] = await Promise.all([
+                  settingsService.get(
+                    SEARCH_SETTING_CODES.LLM_EMBEDDER_URL,
+                    channel.id,
+                    stringSchema,
+                  ),
+                  settingsService.get(
+                    SEARCH_SETTING_CODES.LLM_EMBEDDER_API_KEY,
+                    channel.id,
+                    stringSchema,
+                  ),
+                  settingsService.get(
+                    SEARCH_SETTING_CODES.LLM_EMBEDDER_MODEL,
+                    channel.id,
+                    stringSchema,
+                  ),
+                ]);
+                if (url && apiKey && model) {
+                  await indexer.attachEmbedderForChannel(channel.code, {
+                    url,
+                    apiKey,
+                    model,
+                  });
+                } else {
+                  // Direct generic-Settings write bypassed the toggle
+                  // validator; surface for ops, leave the index alone so
+                  // we don't poison Meilisearch with empty creds.
+                  log(
+                    new Error(
+                      `LLM enabled on channel ${channel.code} without complete embedder config; embedder NOT attached`,
+                    ),
+                    'settings.value_changed',
+                  );
+                }
+              } else {
+                await indexer.detachEmbedderForChannel(channel.code);
+              }
+            }
+          } catch (err) {
+            log(err, 'settings.value_changed');
+          }
+        }),
+      );
+    }
 
     return () => this.teardown();
   }

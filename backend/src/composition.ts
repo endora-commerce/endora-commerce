@@ -350,10 +350,19 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   modules.push(settings.plugin);
 
   // Feature 006 — Search module. Owns Meilisearch indexer + event-subscriber
-  // lifecycle (R-3 — moved out of catalog). Public + admin routes are mounted
-  // by the per-story phases as they land; the foundation plugin only installs
-  // the event-driven incremental-indexing pipeline.
-  const search = searchModule({ emFactory: em, eventBus });
+  // lifecycle (R-3 — moved out of catalog). Settings-aware suggest config
+  // resolution + LLM-toggle wrapper hook in via the same handle.
+  const search = searchModule({
+    emFactory: em,
+    eventBus,
+    settingsService: settings.handle.settingsService,
+    settingsAdminService: settings.handle.adminService,
+    requireAdmin,
+    resolveAdminAuditContext: (request) => {
+      if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
+      return { actorAdminUserId: request.actor.adminUserId };
+    },
+  });
   modules.push(search.plugin);
 
   // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every

@@ -1,0 +1,80 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
+import { ManifestReconciler } from '../../../src/modules/settings/services/manifest-reconciler.js';
+import { searchManifest } from '../../../src/modules/search/manifest.js';
+import { settingsManifest } from '../../../src/modules/settings/manifest.js';
+import { SettingGroup } from '../../../src/modules/settings/entities/setting-group.entity.js';
+import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
+import { SEARCH_SETTING_CODES } from '../../../src/modules/search/manifest.js';
+
+/**
+ * T020 — Manifest reconciliation for the search module (feature 006).
+ *
+ * Asserts:
+ *   - The `search` group exists after boot.
+ *   - All six declared settings exist with the right defaults + value types.
+ *   - The reconciliation is idempotent: re-running it adds no rows.
+ *
+ * test-server applies the manifest once during setup; this test re-runs
+ * the reconciler with a fresh `ManifestReconciler` to verify the
+ * idempotency contract.
+ */
+describe('search manifest reconciliation (T020)', () => {
+  let h: BackendServerHandle;
+
+  beforeAll(async () => {
+    h = await setupBackendServer();
+  });
+
+  afterAll(async () => {
+    await teardownBackendServer(h);
+  });
+
+  it('seeds the search group and its six settings on boot', async () => {
+    const em = h.em();
+    const group = await em.findOne(SettingGroup, { code: 'search' });
+    expect(group).not.toBeNull();
+    expect(group?.name).toBe('Search');
+
+    const settings = await em.find(Setting, { group });
+    const codes = settings.map((s) => s.code).sort();
+    expect(codes).toEqual(
+      [
+        SEARCH_SETTING_CODES.LLM_EMBEDDER_API_KEY,
+        SEARCH_SETTING_CODES.LLM_EMBEDDER_MODEL,
+        SEARCH_SETTING_CODES.LLM_EMBEDDER_URL,
+        SEARCH_SETTING_CODES.LLM_ENABLED,
+        SEARCH_SETTING_CODES.POPUP_MINIMUM_QUERY_LENGTH,
+        SEARCH_SETTING_CODES.POPUP_SUGGESTION_COUNT,
+      ].sort(),
+    );
+
+    const byCode = new Map(settings.map((s) => [s.code, s]));
+    expect(byCode.get(SEARCH_SETTING_CODES.POPUP_SUGGESTION_COUNT)?.valueType).toBe(
+      'number',
+    );
+    expect(byCode.get(SEARCH_SETTING_CODES.POPUP_SUGGESTION_COUNT)?.defaultValue).toBe(8);
+    expect(byCode.get(SEARCH_SETTING_CODES.POPUP_MINIMUM_QUERY_LENGTH)?.defaultValue).toBe(
+      3,
+    );
+    expect(byCode.get(SEARCH_SETTING_CODES.LLM_ENABLED)?.valueType).toBe('boolean');
+    expect(byCode.get(SEARCH_SETTING_CODES.LLM_ENABLED)?.defaultValue).toBe(false);
+    expect(byCode.get(SEARCH_SETTING_CODES.LLM_EMBEDDER_URL)?.valueType).toBe('string');
+    expect(byCode.get(SEARCH_SETTING_CODES.LLM_EMBEDDER_URL)?.defaultValue).toBe('');
+  });
+
+  it('is idempotent on re-apply', async () => {
+    const reconciler = new ManifestReconciler(h.em());
+    const r = await reconciler.apply([settingsManifest, searchManifest]);
+    const searchModule = r.perModule.find((m) => m.moduleCode === 'search');
+    expect(searchModule).toBeDefined();
+    expect(searchModule!.addedGroups).toBe(0);
+    expect(searchModule!.addedSettings).toBe(0);
+    expect(searchModule!.orphanGroups).toEqual([]);
+    expect(searchModule!.orphanSettings).toEqual([]);
+  });
+});
