@@ -1,39 +1,40 @@
 import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { CatalogQueryService } from '../catalog/services/catalog-query.service.js';
+import type { SettingsService } from '../settings/services/settings.service.js';
+import { ShareTokenGenerator } from './services/share-token-generator.js';
+import { ComparableAttributeProjection } from './services/comparable-attribute-projection.js';
+import { ComparisonService } from './services/comparison-service.js';
+import { registerComparisonsPublicRoutes } from './routes.public.js';
 
 /**
  * Composition root for the comparisons module — feature 007.
  *
- * Phase 2 (foundational) introduces the module shell: a registered
- * Fastify plugin, a typed handle, and the wiring point for the manifest
- * (`comparisonsManifest`, exported from `./manifest.js` and appended to
- * the platform's `settingsManifests` array in `composition.ts`).
+ * Phase 2 introduced the module shell; US1 (T028) wires the
+ * customer-facing CRUD endpoints. Per-story phases extend the handle:
  *
- * Per-user-story phases populate the handle:
- *   - US1 (T021–T028): adds {@link ShareTokenGenerator},
- *     {@link ComparableAttributeProjection}, {@link ComparisonService}
- *     and registers `routes.public.ts`.
- *   - US2 (T038–T041): registers `routes.share.ts`.
- *   - US4 (T055–T056): adds {@link ComparisonPdfRenderer} +
- *     {@link AssetByteFetcher} and the `GET /me/pdf` route.
- *   - US5 (T063–T065): adds {@link ComparisonAdminService} and
- *     registers `routes.admin.ts`.
+ *   - US2: registers `routes.share.ts`.
+ *   - US4: adds {@link ComparisonPdfRenderer} and the `GET /me/pdf` route.
+ *   - US5: adds {@link ComparisonAdminService} and `routes.admin.ts`.
  *
- * Module isolation (Constitution I): the comparisons module reads
- * catalog through `CatalogQueryService` (a documented service port,
- * never internal entity imports), reads settings through
- * `SettingsService.get(...)`, and reads `request.salesChannel` via the
- * sales-channels resolver middleware. It does **not** depend on the
- * carts module — the storefront calls `/cart/items` directly from the
- * comparison page (research.md R-9).
+ * Module isolation (Constitution I):
+ *   - Reads catalog through {@link CatalogQueryService}.
+ *   - Reads settings through {@link SettingsService}.
+ *   - Reads `request.salesChannel` via the sales-channels resolver.
+ *   - Does NOT depend on the carts module — the storefront calls
+ *     `/cart/items` directly from the comparison page (research.md R-9).
  */
 
 export interface ComparisonsModuleOptions {
   emFactory: () => EntityManager;
+  catalogQueryService: CatalogQueryService;
+  settingsService?: SettingsService;
 }
 
 export interface ComparisonsModuleHandle {
-  // Populated by per-user-story phases. Empty in Phase 2.
+  comparisonService: ComparisonService;
+  tokens: ShareTokenGenerator;
+  projection: ComparableAttributeProjection;
 }
 
 export interface ComparisonsModuleResult {
@@ -42,19 +43,22 @@ export interface ComparisonsModuleResult {
 }
 
 export function comparisonsModule(
-  // Underscore-prefixed because Phase 2 does not yet consume the EM —
-  // the route/service tasks in US1 / US2 / US4 / US5 will replace this
-  // signature with the live consumers. Keeping the parameter shape now
-  // means `composition.ts` does not have to change again when those
-  // services land.
-  _options: ComparisonsModuleOptions,
+  options: ComparisonsModuleOptions,
 ): ComparisonsModuleResult {
+  const tokens = new ShareTokenGenerator();
+  const projection = new ComparableAttributeProjection();
+  const comparisonService = new ComparisonService(
+    options.emFactory,
+    options.catalogQueryService,
+    projection,
+    tokens,
+    options.settingsService,
+  );
+
   return {
-    handle: {},
-    plugin: async (_app: FastifyInstance): Promise<void> => {
-      // Routes are registered by per-user-story phases. The foundational
-      // plugin exists so `composition.ts` can wire the module today and
-      // every later phase only edits this file.
+    handle: { comparisonService, tokens, projection },
+    plugin: async (app: FastifyInstance): Promise<void> => {
+      await registerComparisonsPublicRoutes(app, { comparisonService, tokens });
     },
   };
 }

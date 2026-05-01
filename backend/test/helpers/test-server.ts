@@ -29,6 +29,9 @@ import { settingsManifest as settingsModuleManifest } from '../../src/modules/se
 import { salesChannelsModule } from '../../src/modules/sales_channels/plugin.js';
 import { searchModule } from '../../src/modules/search/plugin.js';
 import { searchManifest } from '../../src/modules/search/manifest.js';
+import { comparisonsModule } from '../../src/modules/comparisons/plugin.js';
+import { comparisonsManifest } from '../../src/modules/comparisons/manifest.js';
+import { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
 import { DefaultChannelReconciler } from '../../src/modules/sales_channels/services/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/modules/settings/services/manifest-reconciler.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
@@ -81,6 +84,8 @@ export interface BackendServerHandle {
   /** Feature 006 — exposes the indexer + suggest service for tests that
    *  want deterministic teardown or to exercise embedder attach/detach. */
   search: ReturnType<typeof searchModule>['handle'];
+  /** Feature 007 — exposes the ComparisonService for tests. */
+  comparisons: ReturnType<typeof comparisonsModule>['handle'];
 }
 
 const SEEDED_TABLES = [
@@ -450,6 +455,16 @@ export async function setupBackendServer(
   });
   modules.push(search.plugin);
 
+  // Feature 007 — Comparisons module. Customer-facing CRUD endpoints
+  // exercised by US1 contract + integration tests; share/PDF/admin land
+  // in subsequent stories.
+  const comparisons = comparisonsModule({
+    emFactory: em,
+    catalogQueryService: new CatalogQueryService(em),
+    settingsService: settings.handle.settingsService,
+  });
+  modules.push(comparisons.plugin);
+
   if (options.extraModules) modules.push(...options.extraModules);
 
   // Feature 004 — boot-time manifest reconciliation. Runs before
@@ -457,7 +472,11 @@ export async function setupBackendServer(
   // catalog.
   //   - settingsModuleManifest: built-in `general` group.
   //   - searchManifest:         feature-006 search group + 6 settings.
-  await new ManifestReconciler(em()).apply([settingsModuleManifest, searchManifest]);
+  await new ManifestReconciler(em()).apply([
+    settingsModuleManifest,
+    searchManifest,
+    comparisonsManifest,
+  ]);
 
   const app = await buildServer({
     sessionCookieSecret: 'test-secret-do-not-use-in-production',
@@ -483,6 +502,7 @@ export async function setupBackendServer(
     settings: settings.handle,
     salesChannels: salesChannels.handle,
     search: search.handle,
+    comparisons: comparisons.handle,
   };
 }
 

@@ -2,56 +2,117 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import {
-  COMPARE_MAX_ITEMS,
-  readCompareSlugs,
-  subscribeCompare,
-  toggleCompare,
-} from '../lib/compare/store';
+  ComparisonApiError,
+  addProductToCompare,
+  getMyComparison,
+  removeProductFromCompare,
+} from '../lib/api/comparisons';
 
 /**
- * Small client-side toggle that lets the customer add a product to the
- * comparison list. Renders inert SSR-side so non-JS visitors never see a
- * non-functional control (Constitution Principle VII).
+ * `<CompareToggle>` — feature 007 / T030.
+ *
+ * Per-product Compare button mounted on product cards and the product
+ * detail page. Clicking it adds the product to the customer's
+ * Comparison or removes it if it's already there. State is the
+ * authoritative server state — no localStorage cache; the button
+ * refreshes from the backend on mount and after each toggle.
+ *
+ * Renders inert SSR-side so non-JS visitors never see a non-functional
+ * control (Constitution Principle VII).
  */
-export function CompareToggle(props: { slug: string; locale: string }): ReactNode {
+export function CompareToggle(props: { productId: string }): ReactNode {
   const [hydrated, setHydrated] = useState(false);
   const [active, setActive] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const refresh = (): void => setActive(readCompareSlugs().includes(props.slug));
-    refresh();
-    setHydrated(true);
-    return subscribeCompare(refresh);
-  }, [props.slug]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const view = await getMyComparison();
+        if (!cancelled) {
+          setActive(view?.products.some((p) => p.id === props.productId) ?? false);
+          setHydrated(true);
+        }
+      } catch {
+        if (!cancelled) setHydrated(true); // hide the "loading…" but don't paint an error inline
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [props.productId]);
 
   if (!hydrated) return null;
 
-  return (
-    <button
-      type="button"
-      className={`b2b-compare-toggle${active ? ' is-active' : ''}`}
-      aria-pressed={active}
-      onClick={(): void => {
-        toggleCompare(props.slug);
-      }}
-      title={
-        active
-          ? 'Remove from comparison'
-          : `Add to comparison (max ${COMPARE_MAX_ITEMS})`
+  const onClick = async (): Promise<void> => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (active) {
+        await removeProductFromCompare(props.productId);
+        setActive(false);
+      } else {
+        await addProductToCompare(props.productId);
+        setActive(true);
       }
-    >
-      {active ? '✓ Compared' : 'Compare'}
-    </button>
+      // Notify any listening counter pill to refresh.
+      window.dispatchEvent(new CustomEvent('b2b:compare:changed'));
+    } catch (err) {
+      setError(
+        err instanceof ComparisonApiError ? err.message : 'Could not update compare set.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        className={`b2b-compare-toggle${active ? ' is-active' : ''}`}
+        aria-pressed={active}
+        disabled={busy}
+        onClick={(): void => void onClick()}
+        title={active ? 'Remove from comparison' : 'Add to comparison'}
+      >
+        {active ? '✓ Compared' : 'Compare'}
+      </button>
+      {error ? <span className="b2b-compare-toggle__error">{error}</span> : null}
+    </>
   );
 }
 
+/**
+ * Header pill showing the current Comparison size with a link to
+ * `/compare`. Hidden when the size is 0. Refreshes on mount and on the
+ * `b2b:compare:changed` custom event the toggle dispatches.
+ */
 export function CompareCounterLink(props: { href: string }): ReactNode {
   const [size, setSize] = useState(0);
+
   useEffect(() => {
-    const refresh = (): void => setSize(readCompareSlugs().length);
-    refresh();
-    return subscribeCompare(refresh);
+    let cancelled = false;
+    const refresh = async (): Promise<void> => {
+      try {
+        const view = await getMyComparison();
+        if (!cancelled) setSize(view?.products.length ?? 0);
+      } catch {
+        if (!cancelled) setSize(0);
+      }
+    };
+    void refresh();
+    const onChange = (): void => void refresh();
+    window.addEventListener('b2b:compare:changed', onChange);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('b2b:compare:changed', onChange);
+    };
   }, []);
+
   if (size === 0) return null;
   return (
     <a href={props.href} className="b2b-compare-counter">

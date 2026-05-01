@@ -41,6 +41,7 @@ import { searchModule } from './modules/search/plugin.js';
 import { searchManifest } from './modules/search/manifest.js';
 import { comparisonsModule } from './modules/comparisons/plugin.js';
 import { comparisonsManifest } from './modules/comparisons/manifest.js';
+import { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
 import type { CartService } from './modules/carts/services/cart-service.js';
 
@@ -367,9 +368,17 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
   modules.push(search.plugin);
 
-  // Feature 007 — Comparisons module. Phase 2 foundational shell; per-story
-  // phases populate routes + services in subsequent PRs.
-  const comparisons = comparisonsModule({ emFactory: em });
+  // Feature 007 — Comparisons module. US1 wires the customer-facing CRUD
+  // endpoints; US2/US4/US5 extend the plugin with share, PDF, and admin
+  // routes respectively. Reads catalog through CatalogQueryService (the
+  // documented service port — Constitution I) and `compare.max_products`
+  // through SettingsService.
+  const catalogQueryServiceForCompare = new CatalogQueryService(em);
+  const comparisons = comparisonsModule({
+    emFactory: em,
+    catalogQueryService: catalogQueryServiceForCompare,
+    settingsService: settings.handle.settingsService,
+  });
   modules.push(comparisons.plugin);
 
   // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every
