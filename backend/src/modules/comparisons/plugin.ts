@@ -6,6 +6,7 @@ import { ShareTokenGenerator } from './services/share-token-generator.js';
 import { ComparableAttributeProjection } from './services/comparable-attribute-projection.js';
 import { ComparisonService } from './services/comparison-service.js';
 import { registerComparisonsPublicRoutes } from './routes.public.js';
+import { registerComparisonsShareRoutes } from './routes.share.js';
 
 /**
  * Composition root for the comparisons module — feature 007.
@@ -59,6 +60,7 @@ export function comparisonsModule(
     handle: { comparisonService, tokens, projection },
     plugin: async (app: FastifyInstance): Promise<void> => {
       await registerComparisonsPublicRoutes(app, { comparisonService, tokens });
+      await registerComparisonsShareRoutes(app, { comparisonService });
     },
   };
 }

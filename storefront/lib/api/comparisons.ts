@@ -2,6 +2,7 @@
 
 import type {
   ComparisonOwnerView,
+  ComparisonSharedView,
   ComparisonDisplayMode,
 } from '@b2b/contracts';
 
@@ -39,30 +40,41 @@ async function call<T>(
   path: string,
   body?: unknown,
 ): Promise<T | null> {
+  const res = await rawFetch(method, path, body);
+  if (res.status === 204) return null;
+  await throwOnError(res);
+  const json = (await res.json()) as { data: T };
+  return json.data;
+}
+
+async function rawFetch(
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  path: string,
+  body?: unknown,
+): Promise<Response> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
-  const res = await fetch(`${apiBase}${path}`, {
+  return fetch(`${apiBase}${path}`, {
     method,
     credentials: 'include',
     headers,
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
-  if (res.status === 204) return null;
-  if (!res.ok) {
-    let envelope: ErrorEnvelope | undefined;
-    try {
-      envelope = (await res.json()) as ErrorEnvelope;
-    } catch {
-      // Non-JSON error — fall through.
-    }
-    throw new ComparisonApiError(
-      res.status,
-      envelope?.error.code ?? 'UNKNOWN',
-      envelope?.error.message ?? `HTTP ${res.status}`,
-    );
+}
+
+async function throwOnError(res: Response): Promise<void> {
+  if (res.ok) return;
+  let envelope: ErrorEnvelope | undefined;
+  try {
+    envelope = (await res.json()) as ErrorEnvelope;
+  } catch {
+    // Non-JSON error — fall through.
   }
-  const json = (await res.json()) as { data: T };
-  return json.data;
+  throw new ComparisonApiError(
+    res.status,
+    envelope?.error.code ?? 'UNKNOWN',
+    envelope?.error.message ?? `HTTP ${res.status}`,
+  );
 }
 
 export async function getMyComparison(): Promise<ComparisonOwnerView | null> {
@@ -104,4 +116,23 @@ export async function setComparisonDisplayMode(
 
 export async function deleteMyComparison(): Promise<void> {
   await call('DELETE', '/api/v1/comparisons/me');
+}
+
+/**
+ * US2 — recipient view by share token. Returns the comparison plus a
+ * `viewerIsOwner` flag the storefront uses to decide whether to render
+ * owner-only affordances. Returns `null` on 404 (deleted comparison or
+ * never existed) so the page can render the "no longer exists" state.
+ */
+export async function getSharedComparison(
+  token: string,
+): Promise<{ data: ComparisonSharedView; viewerIsOwner: boolean } | null> {
+  const res = await rawFetch('GET', `/api/v1/comparisons/share/${encodeURIComponent(token)}`);
+  if (res.status === 404) return null;
+  await throwOnError(res);
+  const json = (await res.json()) as {
+    data: ComparisonSharedView;
+    meta: { viewerIsOwner: boolean };
+  };
+  return { data: json.data, viewerIsOwner: json.meta.viewerIsOwner };
 }

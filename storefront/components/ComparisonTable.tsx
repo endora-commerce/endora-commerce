@@ -89,6 +89,7 @@ export function ComparisonTable(): ReactNode {
     <>
       <div className="toolbar">
         <CompareModeSwitcher value={view.displayMode} onChange={onSetMode} />
+        <CopyShareLinkButton shareToken={view.shareToken} />
         <button type="button" className="btn" onClick={(): void => void onDelete()}>
           Delete comparison
         </button>
@@ -150,6 +151,28 @@ export function ComparisonTable(): ReactNode {
         </table>
       </div>
     </>
+  );
+}
+
+function CopyShareLinkButton(props: { shareToken: string }): ReactNode {
+  const [copied, setCopied] = useState(false);
+  const onCopy = async (): Promise<void> => {
+    const url =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/compare/share/${props.shareToken}`
+        : '';
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Best-effort — Safari without clipboard permission falls through.
+    }
+  };
+  return (
+    <button type="button" className="btn" onClick={(): void => void onCopy()}>
+      {copied ? '✓ Link copied' : 'Copy share link'}
+    </button>
   );
 }
 

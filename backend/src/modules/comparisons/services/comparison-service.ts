@@ -76,6 +76,19 @@ export class ComparisonService {
     return em.findOne(Comparison, { shareToken: token });
   }
 
+  /**
+   * True when the supplied owner identity matches the Comparison's
+   * stored owner. Used by the share-token endpoint to populate
+   * `meta.viewerIsOwner`.
+   */
+  isOwnedBy(comparison: Comparison, owner: ComparisonOwner | null): boolean {
+    if (!owner) return false;
+    if (owner.kind === 'customer') {
+      return comparison.customerAccountId === owner.customerAccountId;
+    }
+    return comparison.anonymousToken === owner.anonymousToken;
+  }
+
   // ------------------------------------------------------------------
   // Writes
   // ------------------------------------------------------------------

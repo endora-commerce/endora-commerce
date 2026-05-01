@@ -123,3 +123,33 @@ export const comparisonSetDisplayModeInputSchema = z.object({
   displayMode: comparisonDisplayModeSchema,
 });
 export type ComparisonSetDisplayModeInput = z.infer<typeof comparisonSetDisplayModeInputSchema>;
+
+// ---------------------------------------------------------------------------
+// US2 — recipient (share-token) view.
+// ---------------------------------------------------------------------------
+
+/**
+ * Recipient-side projection. Same column shape as the owner view minus
+ * `maxProducts` (the recipient cannot mutate the comparison, so the cap
+ * is irrelevant) plus `meta.viewerIsOwner` so the storefront knows
+ * whether to render owner-only affordances (Add to cart, Remove,
+ * Delete, Copy share link).
+ */
+export const comparisonSharedViewSchema = z.object({
+  id: uuidSchema,
+  shareToken: z.string().min(8).max(32),
+  displayMode: comparisonDisplayModeSchema,
+  products: z.array(comparisonProductSummarySchema),
+  comparableAttributes: z.array(comparisonAttributeRowSchema),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type ComparisonSharedView = z.infer<typeof comparisonSharedViewSchema>;
+
+export const comparisonSharedResponseSchema = z.object({
+  data: comparisonSharedViewSchema,
+  meta: z.object({
+    viewerIsOwner: z.boolean(),
+  }),
+});
+export type ComparisonSharedResponse = z.infer<typeof comparisonSharedResponseSchema>;
