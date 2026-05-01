@@ -33,7 +33,7 @@ The repository is a **pnpm monorepo** with three independently buildable applica
 
 ## Capability status
 
-Foundation feature 001 is complete; feature 002 (catalog module extension) ships Attribute Sets, Gallery with Base/Small/Thumbnail labels, Product Attachments, Product Links (related / up-sell / cross-sell), and three new product types (`grouped`, `bundle`, `virtual`). Each capability below is exercised by contract / integration tests in `backend/test/` and surfaced through the storefront (Next.js) and admin panel (Vite + React).
+Foundation feature 001 is complete; feature 002 (catalog module extension) ships Attribute Sets, Gallery with Base/Small/Thumbnail labels, Product Attachments, Product Links (related / up-sell / cross-sell), and three new product types (`grouped`, `bundle`, `virtual`). Feature 006 (search module) closes the loop on the foundation's Meilisearch scaffolding: typeahead popup feed, fire-and-forget analytics ingest into `search_phrase_records`, and an opt-in LLM-augmented hybrid lexical + semantic mode driven by six settings registered through the Settings module. Each capability below is exercised by contract / integration tests in `backend/test/` and surfaced through the storefront (Next.js) and admin panel (Vite + React).
 
 **Customer-facing (storefront)**
 

@@ -5,30 +5,189 @@ title: search
 # `search`
 
 Meilisearch-backed catalog search. Owns the indexer that mirrors Catalog
-events into per-Sales-Channel indexes and the query bridge that translates
-storefront search requests into Meilisearch calls.
+events into per-Sales-Channel indexes, the typed query bridge, the
+typeahead-popup feed, the analytics ingest for committed search phrases,
+and the LLM-augmented-search opt-in.
 
-## Status
+The module composition root subscribes to Catalog events
+(`product.created.v1`, `product.updated.v1`, `product.archived.v1`,
+`attribute.updated.v1`) and to Settings events
+(`settings.value_changed`) without imports into either module's
+internals — Constitution Principle I.
 
-Module skeleton exists; the indexer (`search-indexer.ts`) and query
-service (`search-query.service.ts`) are tracked under tasks T067 and T068
-and not yet shipped. Until they are, `GET /api/v1/catalog/products` runs
-its filters against Postgres directly via `catalog-query.service.ts`.
+## Public surface
 
-## Planned surface
+| Verb + Path | Audience | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/search/suggest?q=…&limit=N` | storefront (no auth) | Typeahead popup feed; returns up to `limit` `ProductSummary` rows ordered by Meilisearch relevance |
+| `POST /api/v1/search/record` | storefront (no auth) | Fire-and-forget analytics ingest; persists one verbatim row in `search_phrase_records` per committed search |
+| `POST /api/v1/admin/search/llm/toggle` | admin (`search:write`) | Cross-setting-validating wrapper around `search.llm.enabled`; refuses to enable when any embedder.* field is empty for any targeted channel |
 
-- **Indexer** — subscribes to `product.created.v1`, `product.updated.v1`,
-  `product.archived.v1`, `attribute.updated.v1`. Upserts documents into a
-  per-Sales-Channel index.
-- **Query service** — translates `?q=…&filter[attr.X]=…` into a
-  Meilisearch query, merges results with Postgres for fields the index
-  does not hold (e.g. live stock).
+The full search results page reuses `GET /api/v1/catalog/products?q=…` —
+catalog owns that contract, and the storefront `/search` route just
+re-exports `CatalogPage`. There is no parallel results-page contract.
 
-## Extension points (when shipped)
+## Settings
+
+Six knobs live under the `search` group, registered by
+`backend/src/modules/search/manifest.ts`:
+
+| Code | Type | Default | Purpose |
+| --- | --- | --- | --- |
+| `search.popup.suggestion_count` | `number` | `8` | How many products the storefront popup shows; `0` suppresses the popup but committed search still navigates |
+| `search.popup.minimum_query_length` | `number` | `3` | Minimum characters before the storefront fires a suggest request and before the recorder persists a row |
+| `search.llm.enabled` | `boolean` | `false` | Enables Meilisearch's hybrid lexical + semantic search on this channel |
+| `search.llm.embedder_url` | `string` | `""` | OpenAI-compatible embedder endpoint URL (used by Meilisearch) |
+| `search.llm.embedder_api_key` | `string` | `""` | Embedder API key (admin UI masks the input) |
+| `search.llm.embedder_model` | `string` | `""` | Embedder model identifier (e.g. `text-embedding-3-small`) |
+
+All six are sales-channel-scoped via the existing Settings model. The
+storefront popup reads its count + threshold per request via the
+universal getter (`SettingsService.get`); on any read error (cache
+miss, `SettingNotRegistered`) the suggest service falls back to the
+manifest defaults so a Settings hiccup never 500s the popup.
+
+## LLM-augmented search
+
+Toggling `search.llm.enabled` on for a channel attaches a Meilisearch
+embedder to that channel's index. We register the embedder under the
+well-known name `default` with `source: 'openAi'`; the `url` parameter
+makes it work against any OpenAI-compatible endpoint (OpenAI itself,
+Azure OpenAI, Ollama's OpenAI shim, …).
+
+The toggle wrapper (`POST /api/v1/admin/search/llm/toggle`) refuses to
+flip `enabled=true` for any channel whose three embedder.* fields
+aren't all populated (FR-011). The error envelope's `details[]` lists
+every missing `(channelCode, settingCode)` pair so the admin UI can
+highlight the gaps.
+
+The reactor (in `SearchEventSubscriber`) is belt-and-braces: a power
+user PUTting `search.llm.enabled=true` directly through the generic
+Settings admin route (bypassing the wrapper) does **not** poison
+Meilisearch — the reactor warn-logs and leaves the index alone if the
+embedder.* triplet is incomplete.
+
+Disabling never refuses; the reactor calls `index.resetEmbedders()` so
+the channel falls back to plain lexical ranking.
+
+Meilisearch v1.11 gates `embedders` behind the `vectorStore`
+experimental feature; v1.13+ treats embedders as stable. Both are
+supported transparently — the admin endpoint does not gate on the
+Meilisearch version.
+
+## Analytics ingest
+
+Every committed storefront search lands one row in
+`search_phrase_records` for the future Analytics module to aggregate:
+
+| Column | Notes |
+| --- | --- |
+| `phrase` | Verbatim — no typo correction or LLM expansion (FR-013) |
+| `phrase_normalized` | `lower(trim(phrase))`, maintained at insert time; supports case-insensitive aggregation without rewriting the verbatim phrase |
+| `sales_channel_id` | FK → `sales_channels.id` (`ON DELETE RESTRICT` — dropping a channel must surface as a deliberate decision rather than silently delete history) |
+| `result_count` | Number of products the search returned; `0` for dead-end phrases (FR-014) |
+| `recorded_at` | `timestamptz default now()` |
+
+Indexes:
+
+- `idx_search_phrase_records_aggr` on `(sales_channel_id, phrase_normalized, recorded_at desc)` — supports the analytics-module's "phrases by channel and frequency over a window" query.
+- `idx_search_phrase_records_recent` on `(recorded_at desc)` — for ops dashboards.
+
+The recorder is fire-and-forget (`SearchPhraseRecorder.record(...)`):
+it returns once the row has been queued, not once persisted, and
+swallows every exception via warn-log. The route hands off the
+promise without awaiting (`void recorder.record(...)`) and returns
+`202 { ok: true }` immediately. The storefront response is therefore
+never delayed or failed by analytics persistence (FR-015).
+
+Below-threshold phrases (shorter than the channel's
+`minimum_query_length`) are silently no-op'd server-side as a
+belt-and-braces against a UI bug flooding the table with stub
+phrases.
+
+## Indexer + event subscriber
+
+`SearchIndexer` writes one document per product into a per-channel
+index named `products_<channel_code>`. Document shape carries the
+catalog product surface (id, sku, name, description, type, status,
+slug, primaryAssetUrl, price, categoryIds, categorySlugs, attributes,
+updatedAt). The indexer also drives Meilisearch's `searchableAttributes`
++ `filterableAttributes` from the live `product_attributes.is_searchable`
++ `is_filterable` flags.
+
+`SearchEventSubscriber` keeps the indexes in sync:
+
+| Event | Handler |
+| --- | --- |
+| `product.created.v1` | `indexer.upsertProduct(productId)` |
+| `product.updated.v1` | `indexer.upsertProduct(productId)` |
+| `product.archived.v1` | `indexer.deleteProduct(productId)` |
+| `attribute.updated.v1` | `indexer.refreshAttributeSettings()` |
+| `settings.value_changed` (when `settingCode === 'search.llm.enabled'`) | `indexer.attachEmbedderForChannel` / `detachEmbedderForChannel` |
+
+All handlers swallow their own errors — a transient Meilisearch
+outage does not break the catalog write path. The reserved fallback
+in the read path (`catalog/routes.public.ts`) keeps storefront search
+functional with a stale index until the next offline `search:reindex`.
+
+## Storefront integration
+
+The page header (`storefront/components/Header.tsx`) renders a
+`<form action="/search" method="GET">` with a progressively-enhanced
+`<SearchAutocomplete>` client component inside it:
+
+- 200 ms debounce; AbortController cancels stale fetches.
+- Below the channel's `minimum_query_length`, no request fires.
+- Keyboard model: ArrowUp/Down to move selection, Enter to navigate
+  to the selected suggestion, Escape to close, click outside to
+  dismiss.
+- 503 from `/search/suggest` surfaces a "search temporarily
+  unavailable" item in the popup without breaking the static form.
+- With JS disabled, the form posts `?q=…` to `/search` natively
+  (Constitution Principle VII — no JS required for crawlability).
+
+The `/search` page (`storefront/app/(catalog)/search/page.tsx`)
+re-exports `CatalogPage` — the listing, filters, sort, pagination,
+and empty state are identical to `/catalog`. The only search-specific
+behaviour is the analytics fire-and-forget: when `?q=` is present,
+the page awaits `listProducts` (so `resultCount` is meaningful), then
+`void recordPhrase(...)` BEFORE delegating to `CatalogPage`.
+
+## Reindex CLI
+
+`backend/src/modules/search/scripts/reindex.ts` walks every Sales
+Channel and pushes its public product surface into Meilisearch.
+Idempotent — safe to run after a fresh `seed:dev` or whenever the
+index drifts from Postgres.
+
+```bash
+pnpm --filter backend exec ts-node src/modules/search/scripts/reindex.ts
+```
+
+## Testing
+
+Per Constitution III:
+
+- `backend/test/contract/search/public-suggest.contract.test.ts` (7 cases) — happy path, limit override, threshold, oversize, missing q, limit OOB.
+- `backend/test/contract/search/public-record.contract.test.ts` (7 cases) — happy path, default `result_count`, channel pinning, empty/oversize/negative validation, below-threshold no-op.
+- `backend/test/contract/search/admin-llm-toggle.contract.test.ts` (5 cases) — incomplete-config refusal (every embedder.* permutation), full-config success, disable always succeeds, unauthenticated → 401.
+- `backend/test/integration/search/manifest-reconcile.test.ts` (2 cases) — group + 6 settings seeded with correct defaults; idempotent re-apply.
+- `backend/test/integration/search/embedder-reactor.test.ts` (3 cases) — attach on enable=true, detach on flip-back-to-false, no event-fire when wrapper refuses the toggle.
+- `backend/test/integration/search/event-subscriber.test.ts` (existing) — catalog-event-driven indexing.
+- `backend/test/integration/search/catalog-via-meilisearch.test.ts` (existing) — env-flag-dispatched read path.
+
+Total: 28 tests. All run against real Postgres + real Meilisearch.
+
+## Extension points
 
 - **Custom rankers** — Meilisearch supports custom ranking rules per
-  index; the indexer will push the rule set so admins can tune weighting
-  per Sales Channel.
-- **Reserved-fallback** — if Meilisearch is unavailable, the query
-  service degrades to the Postgres path so search is never fully broken
-  (R-08).
+  index; the indexer can push the rule set when the admin UI grows a
+  per-channel weighting affordance.
+- **Embedder-source enum** — `search.llm.embedder_source` with values
+  `openAi | huggingFace | rest | userProvided` would let a single
+  channel pick a non-OpenAI-compatible provider without renaming the
+  three credential settings.
+- **Reserved fallback** — already implemented: when Meilisearch is
+  unavailable, the catalog read path degrades to Postgres ILIKE
+  search via `catalog-query.service.ts` so the storefront is never
+  fully broken (R-08).

@@ -77,4 +77,24 @@ describe('search manifest reconciliation (T020)', () => {
     expect(searchModule!.orphanGroups).toEqual([]);
     expect(searchModule!.orphanSettings).toEqual([]);
   });
+
+  // T046 — feature 006 / Phase 6 polish.
+  it('reports zero orphan rows for module="search" on every apply', async () => {
+    // Manifest drift = a Setting / SettingGroup row in the DB with
+    // ownerModule="search" that no longer appears in the live manifest.
+    // The reconciler reports drift in `perModule[*].orphanGroups` /
+    // `orphanSettings` so ops can investigate. This test asserts that
+    // a clean codebase + clean DB never reports drift, no matter how
+    // many times the reconciler runs.
+    const reconciler = new ManifestReconciler(h.em());
+    for (let i = 0; i < 3; i++) {
+      const r = await reconciler.apply([settingsManifest, searchManifest]);
+      const searchModule = r.perModule.find((m) => m.moduleCode === 'search');
+      expect(searchModule, `pass #${i + 1}`).toBeDefined();
+      expect(searchModule!.orphanGroups, `pass #${i + 1} groups`).toEqual([]);
+      expect(searchModule!.orphanSettings, `pass #${i + 1} settings`).toEqual(
+        [],
+      );
+    }
+  });
 });
