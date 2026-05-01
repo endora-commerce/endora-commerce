@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import { CatalogQueryService } from './services/catalog-query.service.js';
 import { CatalogAdminService, type CatalogEventBus } from './services/catalog-admin.service.js';
 import { CategoryAdminService } from './services/category-admin.service.js';
@@ -54,6 +55,14 @@ export interface CatalogModuleOptions {
    * this to `true`.
    */
   enableSearchEventSubscriber?: boolean;
+  /**
+   * Feature 005 / T027 — when provided, every newly-created Product is
+   * automatically bound to the system-default Sales Channel unless it
+   * already had memberships set through some other path (FR-011).
+   * Production composition.ts always provides this; tests omit it for
+   * pre-feature-005 fixtures.
+   */
+  salesChannelMembership?: SalesChannelMembershipService;
 }
 
 export function catalogModule(options: CatalogModuleOptions) {
@@ -67,6 +76,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.emFactory,
       options.eventBus as CatalogEventBus,
       options.auditLogService,
+      options.salesChannelMembership,
     );
     // SearchQueryService is wired even when the env var picks Postgres so that
     // an operator can flip CATALOG_SEARCH_BACKEND=meilisearch at runtime
@@ -91,7 +101,10 @@ export function catalogModule(options: CatalogModuleOptions) {
       productLinkService: productLinkServiceForRead,
       bundleService: bundleServicePublic,
     });
-    const categoryAdminService = new CategoryAdminService(options.emFactory);
+    const categoryAdminService = new CategoryAdminService(
+      options.emFactory,
+      options.salesChannelMembership,
+    );
     const attributeSetService = new AttributeSetService(options.emFactory);
     const galleryService = new GalleryService(options.emFactory);
     const attachmentService = new AttachmentService(options.emFactory);

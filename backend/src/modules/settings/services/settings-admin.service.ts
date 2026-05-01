@@ -6,7 +6,7 @@ import type { AuditLogService } from '../../audit_logs/services/audit-log-servic
 import { SettingGroup } from '../entities/setting-group.entity.js';
 import { Setting } from '../entities/setting.entity.js';
 import { SettingValue } from '../entities/setting-value.entity.js';
-import { SalesChannel } from '../../catalog/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 
 /**
  * SettingsAdminService — feature 004 / US2 (T034).

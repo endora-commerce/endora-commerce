@@ -36,6 +36,8 @@ import { InventoryPage } from './modules/inventory/InventoryPage.js';
 import { CreditLimitsPage } from './modules/credit_limits/CreditLimitsPage.js';
 import { SettingsPage } from './modules/settings/pages/SettingsPage.js';
 import { GroupsPage as SettingsGroupsPage } from './modules/settings/pages/GroupsPage.js';
+import { SalesChannelsListPage } from './modules/sales_channels/pages/SalesChannelsListPage.js';
+import { SalesChannelEditPage } from './modules/sales_channels/pages/SalesChannelEditPage.js';
 
 export function App(): ReactNode {
   const { status } = useAuth();
@@ -84,6 +86,9 @@ export function App(): ReactNode {
         <Route path="/cms" element={<CmsPagesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/groups" element={<SettingsGroupsPage />} />
+        <Route path="/sales-channels" element={<SalesChannelsListPage />} />
+        <Route path="/sales-channels/new" element={<SalesChannelEditPage />} />
+        <Route path="/sales-channels/:code" element={<SalesChannelEditPage />} />
         <Route
           path="*"
           element={

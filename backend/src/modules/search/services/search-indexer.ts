@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { Meilisearch, type Index } from 'meilisearch';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { ProductAttribute } from '../../catalog/entities/product-attribute.entity.js';
-import { SalesChannel } from '../../catalog/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 
 /**
  * SearchIndexer (T067 — initial offline path).

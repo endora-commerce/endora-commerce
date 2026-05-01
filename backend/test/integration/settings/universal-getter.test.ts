@@ -12,7 +12,7 @@ import {
   SettingOutOfScopeForChannel,
 } from '../../../src/modules/settings/services/settings.service.js';
 import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
-import { SalesChannel } from '../../../src/modules/catalog/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
 
 /**
  * T046 — End-to-end test for the universal getter via the composed

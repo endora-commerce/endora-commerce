@@ -15,7 +15,7 @@ import { ProductLink } from '../modules/catalog/entities/product-link.entity.js'
 import { GroupedItem } from '../modules/catalog/entities/grouped-item.entity.js';
 import { BundleSlot } from '../modules/catalog/entities/bundle-slot.entity.js';
 import { BundleSlotOption } from '../modules/catalog/entities/bundle-slot-option.entity.js';
-import { SalesChannel } from '../modules/catalog/entities/sales-channel.entity.js';
+import { SalesChannel } from '../modules/sales_channels/entities/sales-channel.entity.js';
 import { AvailabilityNotification } from '../modules/inventory/entities/availability-notification.entity.js';
 import { QuoteRequest } from '../modules/quote_requests/entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../modules/quote_requests/entities/quote-request-item.entity.js';

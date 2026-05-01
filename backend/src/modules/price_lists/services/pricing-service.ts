@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Money, ResolvedPrice } from '@b2b/contracts';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
-import { SalesChannel } from '../../catalog/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import { PriceList } from '../entities/price-list.entity.js';
 import { PriceListItem } from '../entities/price-list-item.entity.js';
 import { PriceListAssignment } from '../entities/price-list-assignment.entity.js';

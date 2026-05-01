@@ -9,7 +9,7 @@ import {
 } from '@mikro-orm/core';
 import { randomUUID } from 'crypto';
 import { Setting } from './setting.entity.js';
-import { SalesChannel } from '../../catalog/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 
 /**
  * SettingValue — feature 004 / data-model.md.

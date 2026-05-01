@@ -12,7 +12,7 @@ import {
 } from '@mikro-orm/core';
 import { randomUUID } from 'crypto';
 import { SettingGroup } from './setting-group.entity.js';
-import { SalesChannel } from '../../catalog/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 
 export const SETTING_VALUE_TYPES = [
   'string',

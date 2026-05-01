@@ -8,7 +8,7 @@ import { ManifestReconciler } from '../../../src/modules/settings/services/manif
 import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
 import { SettingValue } from '../../../src/modules/settings/entities/setting-value.entity.js';
 import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
-import { SalesChannel } from '../../../src/modules/catalog/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
 
 /**
  * T030 — Contract test: PUT /api/v1/admin/settings/:code/value with

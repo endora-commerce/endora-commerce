@@ -16,7 +16,7 @@ import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Product } from '../catalog/entities/product.entity.js';
 import { Organization } from '../organizations/entities/organization.entity.js';
-import { SalesChannel } from '../catalog/entities/sales-channel.entity.js';
+import { SalesChannel } from '../sales_channels/entities/sales-channel.entity.js';
 
 export interface PricingRoutesDeps {
   customerGroupService: CustomerGroupService;

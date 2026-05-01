@@ -18,6 +18,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import { EntityChannelMembership } from '../sales_channels/components/EntityChannelMembership';
 
 const LOCALES = ['en-US', 'pl-PL'] as const;
 type Locale = (typeof LOCALES)[number];
@@ -434,6 +435,7 @@ export function ProductEditor(): ReactNode {
         <GallerySection productId={id} />
         <AttachmentsSection productId={id} />
         <ProductLinksSection productId={id} />
+        <EntityChannelMembership entityType="product" entityId={id} />
       </>
     ) : null}
     </>

@@ -3,7 +3,7 @@ import { Product } from '../../src/modules/catalog/entities/product.entity.js';
 import { Category } from '../../src/modules/catalog/entities/category.entity.js';
 import { ProductAttribute } from '../../src/modules/catalog/entities/product-attribute.entity.js';
 import { AttributeSetAttribute } from '../../src/modules/catalog/entities/attribute-set-attribute.entity.js';
-import { SalesChannel } from '../../src/modules/catalog/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../src/modules/sales_channels/entities/sales-channel.entity.js';
 
 /** Fixed UUIDs for the three seeded Products — the RFQ tests reference these directly. */
 export const SEED_PRODUCT_101_ID = '00000000-0000-4000-8000-000000000101';

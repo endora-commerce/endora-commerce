@@ -4,7 +4,7 @@ import { ERROR_CODES, type ProductSummary } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { ProductAttribute } from '../../catalog/entities/product-attribute.entity.js';
-import { SalesChannel } from '../../catalog/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import { encodeCursor, decodeCursor } from '../../../http/cursor.js';
 import { indexUidFor, type IndexedDocument } from './search-indexer.js';
 

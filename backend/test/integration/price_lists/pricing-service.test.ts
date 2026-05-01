@@ -11,7 +11,7 @@ import { PriceListAssignment } from '../../../src/modules/price_lists/entities/p
 import { CustomerGroup } from '../../../src/modules/price_lists/entities/customer-group.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { SalesChannel } from '../../../src/modules/catalog/entities/sales-channel.entity.js';
+import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
 import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
 
 /**
