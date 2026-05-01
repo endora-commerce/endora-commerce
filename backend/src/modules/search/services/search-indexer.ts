@@ -258,6 +258,55 @@ export class SearchIndexer {
     return results;
   }
 
+  /**
+   * Attach a Meilisearch embedder to a single channel index — feature 006 / T026.
+   *
+   * Wires Meilisearch's hybrid lexical + semantic search ("AI-augmented
+   * search"). Once attached, queries automatically blend keyword and
+   * vector scoring; the storefront does not change behaviour beyond
+   * ranking. We register the embedder under the well-known name
+   * `default` so callers do not have to thread the name through.
+   *
+   * Uses the `openAi` embedder source — accepts a custom `url`, so it
+   * works against any OpenAI-compatible endpoint (OpenAI itself, Azure
+   * OpenAI, Ollama's OpenAI shim, etc.). When the operator needs a
+   * non-OpenAI-shaped provider, the manifest can later expose
+   * `search.llm.embedder_source` with a discriminated union; out of
+   * scope for the MVP toggle.
+   */
+  async attachEmbedderForChannel(
+    channelCode: string,
+    config: { url: string; apiKey: string; model: string },
+  ): Promise<void> {
+    const indexUid = indexUidFor({ code: channelCode });
+    const index = await this.ensureIndex(indexUid);
+    const task = await index.updateEmbedders({
+      default: {
+        source: 'openAi',
+        url: config.url,
+        apiKey: config.apiKey,
+        model: config.model,
+      },
+    });
+    // Embedder operations can take longer than the JS client's default
+    // 5 s task wait — Meilisearch may validate the embedder URL on the
+    // server side. Bump to 30 s so the operator does not silently
+    // observe stale index state on slow paths.
+    await this.client.tasks.waitForTask(task.taskUid, { timeout: 30_000 });
+  }
+
+  /**
+   * Detach the embedder from a single channel index — feature 006 / T026.
+   * Reverses {@link attachEmbedderForChannel} so the channel falls back
+   * to plain lexical ranking.
+   */
+  async detachEmbedderForChannel(channelCode: string): Promise<void> {
+    const indexUid = indexUidFor({ code: channelCode });
+    const index = await this.ensureIndex(indexUid);
+    const task = await index.resetEmbedders();
+    await this.client.tasks.waitForTask(task.taskUid, { timeout: 30_000 });
+  }
+
   private async ensureIndex(uid: string): Promise<Index> {
     try {
       return await this.client.getIndex(uid);

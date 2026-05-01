@@ -37,6 +37,8 @@ import { ManifestReconciler } from './modules/settings/services/manifest-reconci
 import { salesChannelsModule } from './modules/sales_channels/plugin.js';
 import { salesChannelsManifest } from './modules/sales_channels/manifest.js';
 import { DefaultChannelReconciler } from './modules/sales_channels/services/default-channel-reconciler.js';
+import { searchModule } from './modules/search/plugin.js';
+import { searchManifest } from './modules/search/manifest.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
 import type { CartService } from './modules/carts/services/cart-service.js';
 
@@ -347,6 +349,22 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
   modules.push(settings.plugin);
 
+  // Feature 006 — Search module. Owns Meilisearch indexer + event-subscriber
+  // lifecycle (R-3 — moved out of catalog). Settings-aware suggest config
+  // resolution + LLM-toggle wrapper hook in via the same handle.
+  const search = searchModule({
+    emFactory: em,
+    eventBus,
+    settingsService: settings.handle.settingsService,
+    settingsAdminService: settings.handle.adminService,
+    requireAdmin,
+    resolveAdminAuditContext: (request) => {
+      if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
+      return { actorAdminUserId: request.actor.adminUserId };
+    },
+  });
+  modules.push(search.plugin);
+
   // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every
   // module's settings manifest and inserts any missing groups/settings
   // idempotently before the HTTP layer starts serving requests. NEVER deletes
@@ -354,6 +372,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const settingsManifests: ModuleSettingsManifest[] = [
     settingsModuleManifest,
     salesChannelsManifest,
+    searchManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();

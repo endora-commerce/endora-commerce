@@ -39,6 +39,8 @@ type MessageKey =
   | 'product.virtual.buyAndDownload'
   | 'product.virtual.digitalDelivery'
   | 'search.placeholder'
+  | 'search.unavailable'
+  | 'search.seeAllResults'
   | 'common.searchAction'
   | 'pagination.next';
 
@@ -72,6 +74,8 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'product.virtual.buyAndDownload': 'Buy and download',
     'product.virtual.digitalDelivery': 'Digital delivery — instant access after purchase',
     'search.placeholder': 'Search products…',
+    'search.unavailable': 'Search is temporarily unavailable.',
+    'search.seeAllResults': 'See all results',
     'common.searchAction': 'Search',
     'pagination.next': 'Next page',
   },
@@ -104,6 +108,8 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'product.virtual.buyAndDownload': 'Kup i pobierz',
     'product.virtual.digitalDelivery': 'Dostawa cyfrowa — dostep natychmiast po zakupie',
     'search.placeholder': 'Szukaj produktow...',
+    'search.unavailable': 'Wyszukiwarka chwilowo niedostepna.',
+    'search.seeAllResults': 'Pokaz wszystkie wyniki',
     'common.searchAction': 'Szukaj',
     'pagination.next': 'Nastepna strona',
   },
