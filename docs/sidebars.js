@@ -43,6 +43,7 @@ const sidebars = {
           ],
         },
         'modules/cms_pages',
+        'modules/comparisons',
         'modules/credit_limits',
         'modules/currencies',
         'modules/customer_accounts',
@@ -82,6 +83,12 @@ const sidebars = {
         'modules/taxes',
         'modules/webhooks',
       ],
+    },
+    {
+      type: 'category',
+      label: 'Usage',
+      link: { type: 'generated-index', title: 'End-user usage guides' },
+      items: ['usage/compare'],
     },
     {
       type: 'category',
