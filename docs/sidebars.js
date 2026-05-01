@@ -61,8 +61,23 @@ const sidebars = {
         'modules/promotions',
         'modules/quote_requests',
         'modules/quick_order',
+        {
+          type: 'category',
+          label: 'Sales channels',
+          link: { type: 'doc', id: 'modules/sales_channels/index' },
+          items: [
+            'modules/sales_channels/admin-usage',
+            'modules/sales_channels/developer-guide',
+          ],
+        },
         'modules/search',
         'modules/seo',
+        {
+          type: 'category',
+          label: 'Settings',
+          link: { type: 'doc', id: 'modules/settings/index' },
+          items: [],
+        },
         'modules/shopping_lists',
         'modules/taxes',
         'modules/webhooks',
