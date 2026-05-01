@@ -739,6 +739,24 @@ export class CatalogQueryService {
   }
 
   /**
+   * Feature 007 — list of attribute keys flagged `is_comparable=true`,
+   * sorted alphabetically. Consumed by the comparisons module's
+   * comparison-page projection (`ComparableAttributeProjection`). Public
+   * because it crosses a module boundary (Constitution I — comparisons
+   * MUST consume catalog through a documented service port, not by
+   * importing internals).
+   */
+  async comparableAttributeKeys(): Promise<string[]> {
+    const em = this.emFactory();
+    const attrs = await em.find(
+      ProductAttribute,
+      { isComparable: true },
+      { orderBy: { key: 'asc' } },
+    );
+    return attrs.map((a) => a.key);
+  }
+
+  /**
    * Build a MikroORM where-clause for "attributeValues[key] contains query
    * (case-insensitive)". MikroORM doesn't have a first-class JSONB query
    * helper for the `->>` operator, so we use `$jsonb` style by selecting the

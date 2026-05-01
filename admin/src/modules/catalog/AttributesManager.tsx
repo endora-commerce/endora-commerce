@@ -41,6 +41,7 @@ interface AdminAttribute {
   isFilterable: boolean;
   isVariantAxis: boolean;
   displayAsSlider: boolean;
+  isComparable: boolean;
 }
 
 export function AttributesManager(): ReactNode {
@@ -79,6 +80,7 @@ export function AttributesManager(): ReactNode {
       isFilterable: boolean;
       isVariantAxis: boolean;
       displayAsSlider: boolean;
+      isComparable: boolean;
     }): Promise<void> => {
       const label: Record<string, string> = {};
       if (input.labelEn) label['en-US'] = input.labelEn;
@@ -101,6 +103,7 @@ export function AttributesManager(): ReactNode {
           isSearchable: input.isSearchable,
           isFilterable: input.isFilterable,
           isVariantAxis: input.isVariantAxis,
+          ...(input.isComparable ? { isComparable: true } : {}),
           // Honor displayAsSlider only on numeric types (matches the
           // backend service-side guard); the form keeps the box hidden
           // for non-numeric types so this branch rarely fires.
@@ -120,7 +123,12 @@ export function AttributesManager(): ReactNode {
   const handleToggle = useCallback(
     async (
       attr: AdminAttribute,
-      patch: { isSearchable?: boolean; isFilterable?: boolean; isVariantAxis?: boolean },
+      patch: {
+        isSearchable?: boolean;
+        isFilterable?: boolean;
+        isVariantAxis?: boolean;
+        isComparable?: boolean;
+      },
     ): Promise<void> => {
       try {
         await apiClient.patch<{ data: AdminAttribute }>(
@@ -180,6 +188,7 @@ export function AttributesManager(): ReactNode {
                   <TableHead>Searchable</TableHead>
                   <TableHead>Filterable</TableHead>
                   <TableHead>Variant axis</TableHead>
+                  <TableHead>Comparable</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -219,6 +228,14 @@ export function AttributesManager(): ReactNode {
                         }
                       />
                     </TableCell>
+                    <TableCell>
+                      <Checkbox
+                        checked={a.isComparable}
+                        onChange={(e): void =>
+                          void handleToggle(a, { isComparable: e.target.checked })
+                        }
+                      />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -243,6 +260,7 @@ function CreateAttributeForm({
     isFilterable: boolean;
     isVariantAxis: boolean;
     displayAsSlider: boolean;
+    isComparable: boolean;
   }) => Promise<void>;
 }): ReactNode {
   const [key, setKey] = useState('');
@@ -254,6 +272,7 @@ function CreateAttributeForm({
   const [isFilterable, setIsFilterable] = useState(false);
   const [isVariantAxis, setIsVariantAxis] = useState(false);
   const [displayAsSlider, setDisplayAsSlider] = useState(false);
+  const [isComparable, setIsComparable] = useState(false);
   const isNumeric = valueType === 'number' || valueType === 'price';
 
   return (
@@ -271,6 +290,7 @@ function CreateAttributeForm({
           isFilterable,
           isVariantAxis,
           displayAsSlider,
+          isComparable,
         }).then(() => {
           setKey('');
           setLabelEn('');
@@ -280,6 +300,7 @@ function CreateAttributeForm({
           setIsFilterable(false);
           setIsVariantAxis(false);
           setDisplayAsSlider(false);
+          setIsComparable(false);
         });
       }}
     >
@@ -367,6 +388,13 @@ function CreateAttributeForm({
             onChange={(e): void => setIsVariantAxis(e.target.checked)}
           />
           Variant axis (configurable products discriminate by this attribute)
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox
+            checked={isComparable}
+            onChange={(e): void => setIsComparable(e.target.checked)}
+          />
+          Comparable (shown as a row on the Compare page)
         </label>
       </div>
       <Button type="submit">Create attribute</Button>

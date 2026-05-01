@@ -39,6 +39,8 @@ import { salesChannelsManifest } from './modules/sales_channels/manifest.js';
 import { DefaultChannelReconciler } from './modules/sales_channels/services/default-channel-reconciler.js';
 import { searchModule } from './modules/search/plugin.js';
 import { searchManifest } from './modules/search/manifest.js';
+import { comparisonsModule } from './modules/comparisons/plugin.js';
+import { comparisonsManifest } from './modules/comparisons/manifest.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
 import type { CartService } from './modules/carts/services/cart-service.js';
 
@@ -365,6 +367,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
   modules.push(search.plugin);
 
+  // Feature 007 — Comparisons module. Phase 2 foundational shell; per-story
+  // phases populate routes + services in subsequent PRs.
+  const comparisons = comparisonsModule({ emFactory: em });
+  modules.push(comparisons.plugin);
+
   // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every
   // module's settings manifest and inserts any missing groups/settings
   // idempotently before the HTTP layer starts serving requests. NEVER deletes
@@ -373,6 +380,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     settingsModuleManifest,
     salesChannelsManifest,
     searchManifest,
+    comparisonsManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();

@@ -268,6 +268,7 @@ export class CatalogAdminService {
       isFilterable: req.isFilterable,
       isVariantAxis: req.isVariantAxis,
       displayAsSlider: resolved.displayAsSlider,
+      isComparable: req.isComparable ?? false,
     });
     try {
       await em.persistAndFlush(attr);
@@ -327,6 +328,7 @@ export class CatalogAdminService {
     if (req.isSearchable !== undefined) attr.isSearchable = req.isSearchable;
     if (req.isFilterable !== undefined) attr.isFilterable = req.isFilterable;
     if (req.isVariantAxis !== undefined) attr.isVariantAxis = req.isVariantAxis;
+    if (req.isComparable !== undefined) attr.isComparable = req.isComparable;
     if (req.type !== undefined) {
       // Feature 002 — patching `type` re-derives valueType + displayAsSlider.
       const resolved = resolveAttributeApiType({
