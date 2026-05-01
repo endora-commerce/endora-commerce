@@ -174,17 +174,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
   });
   const i18n = i18nModule({ emFactory: em, requireAdmin });
-  const cmsPages = cmsPagesModule({ emFactory: em, requireAdmin });
-  const priceLists = priceListsModule({ emFactory: em, requireAdmin });
-  const taxes = taxesModule({ emFactory: em, requireAdmin });
-  const promotions = promotionsModule({ emFactory: em, requireAdmin });
-
-  let cartService: CartService | null = null;
-
-  const organizationsSmtpUrl = resolveSmtpUrlFromEnv();
-  const organizationsMailer = organizationsSmtpUrl
-    ? new SmtpMailer(organizationsSmtpUrl)
-    : new ConsoleMailer();
 
   // Feature 005 — Sales Channels module. The boot-time
   // DefaultChannelReconciler runs FIRST so every other module can rely on a
@@ -209,6 +198,30 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
   });
 
+  const cmsPages = cmsPagesModule({
+    emFactory: em,
+    requireAdmin,
+    salesChannelMembership: salesChannels.handle.membershipService,
+  });
+  const priceLists = priceListsModule({ emFactory: em, requireAdmin });
+  const taxes = taxesModule({
+    emFactory: em,
+    requireAdmin,
+    salesChannelMembership: salesChannels.handle.membershipService,
+  });
+  const promotions = promotionsModule({
+    emFactory: em,
+    requireAdmin,
+    salesChannelMembership: salesChannels.handle.membershipService,
+  });
+
+  let cartService: CartService | null = null;
+
+  const organizationsSmtpUrl = resolveSmtpUrlFromEnv();
+  const organizationsMailer = organizationsSmtpUrl
+    ? new SmtpMailer(organizationsSmtpUrl)
+    : new ConsoleMailer();
+
   const modules: ModulePlugin[] = [
     authModulePlugin,
     admin.plugin,
@@ -230,6 +243,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireCustomer,
       requireAdmin,
       resolveCustomerContext: customerResolver,
+      salesChannelMembership: salesChannels.handle.membershipService,
       resolveCartActor: (request) => {
         if (request.actor.kind === 'customer') {
           return {

@@ -5,6 +5,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { DeliveryMethod } from './entities/delivery-method.entity.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 
 /**
  * Public read endpoint: list active delivery methods.
@@ -19,6 +20,8 @@ export interface DeliveryMethodsPublicDeps {
 export interface DeliveryMethodsAdminDeps {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
+  /** Feature 005 / T027b — when injected, new delivery methods auto-bind to the system default. */
+  salesChannelMembership?: SalesChannelMembershipService;
 }
 
 const upsertDeliveryMethodSchema = z.object({
@@ -70,6 +73,7 @@ export async function registerDeliveryMethodsAdminRoutes(
       const body = upsertDeliveryMethodSchema.parse(request.body);
       const em = deps.emFactory();
       let row = await em.findOne(DeliveryMethod, { code: request.params.code });
+      let isNew = false;
       if (row) {
         row.name = body.name;
         row.cost = body.cost.toFixed(2);
@@ -83,8 +87,12 @@ export async function registerDeliveryMethodsAdminRoutes(
           currency: body.currency,
           status: body.status ?? 'active',
         });
+        isNew = true;
       }
       await em.persistAndFlush(row);
+      if (isNew && deps.salesChannelMembership) {
+        await deps.salesChannelMembership.bindToDefaultIfEmpty('delivery-method', row.id);
+      }
       return { data: serializeDeliveryMethod(row) };
     },
   );

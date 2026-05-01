@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, type ResolvedTax, type TaxResolutionInput } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 import { Tax } from '../entities/tax.entity.js';
 
 /**
@@ -17,7 +18,11 @@ import { Tax } from '../entities/tax.entity.js';
  *     `{ rate: 0, source: 'none' }`.
  */
 export class TaxService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /** Feature 005 / T027b — auto-bind newly-created Taxes to the system default. */
+    private readonly salesChannelMembership?: SalesChannelMembershipService,
+  ) {}
 
   async list(): Promise<Tax[]> {
     return this.emFactory().find(Tax, {}, { orderBy: { priority: 'desc', code: 'asc' } });
@@ -73,6 +78,9 @@ export class TaxService {
       ...(input.priority !== undefined ? { priority: input.priority } : {}),
     });
     await em.persistAndFlush(row);
+    if (this.salesChannelMembership) {
+      await this.salesChannelMembership.bindToDefaultIfEmpty('tax', row.id);
+    }
     return row;
   }
 

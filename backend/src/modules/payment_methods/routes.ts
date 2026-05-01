@@ -5,6 +5,7 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { PaymentMethod } from './entities/payment-method.entity.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 
 /**
  * Public read endpoint: list active payment methods.
@@ -20,6 +21,8 @@ export interface PaymentMethodsPublicDeps {
 export interface PaymentMethodsAdminDeps {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
+  /** Feature 005 / T027b — when injected, new payment methods auto-bind to the system default. */
+  salesChannelMembership?: SalesChannelMembershipService;
 }
 
 const upsertPaymentMethodSchema = z.object({
@@ -70,6 +73,7 @@ export async function registerPaymentMethodsAdminRoutes(
       const body = upsertPaymentMethodSchema.parse(request.body);
       const em = deps.emFactory();
       let row = await em.findOne(PaymentMethod, { code: request.params.code });
+      let isNew = false;
       if (row) {
         row.name = body.name;
         row.kind = body.kind;
@@ -81,8 +85,12 @@ export async function registerPaymentMethodsAdminRoutes(
           kind: body.kind,
           status: body.status ?? 'active',
         });
+        isNew = true;
       }
       await em.persistAndFlush(row);
+      if (isNew && deps.salesChannelMembership) {
+        await deps.salesChannelMembership.bindToDefaultIfEmpty('payment-method', row.id);
+      }
       return { data: serializePaymentMethod(row) };
     },
   );
