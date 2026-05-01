@@ -101,7 +101,10 @@ export function catalogModule(options: CatalogModuleOptions) {
       productLinkService: productLinkServiceForRead,
       bundleService: bundleServicePublic,
     });
-    const categoryAdminService = new CategoryAdminService(options.emFactory);
+    const categoryAdminService = new CategoryAdminService(
+      options.emFactory,
+      options.salesChannelMembership,
+    );
     const attributeSetService = new AttributeSetService(options.emFactory);
     const galleryService = new GalleryService(options.emFactory);
     const attachmentService = new AttachmentService(options.emFactory);

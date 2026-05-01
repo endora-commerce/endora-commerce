@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { ERROR_CODES, type CreateCategoryRequest } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 import { Category } from '../entities/category.entity.js';
 
 /**
@@ -24,7 +25,17 @@ export interface UpdateCategoryInput {
 }
 
 export class CategoryAdminService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /**
+     * Feature 005 / T027b — when injected, every newly-created Category
+     * that does not declare explicit channel membership lands in the
+     * system-default Sales Channel automatically (FR-011). Optional so
+     * existing tests that construct this service without sales-channels
+     * keep compiling; production composition.ts always provides it.
+     */
+    private readonly salesChannelMembership?: SalesChannelMembershipService,
+  ) {}
 
   async listAll(): Promise<Category[]> {
     const em = this.emFactory();
@@ -57,6 +68,11 @@ export class CategoryAdminService {
         );
       }
       throw err;
+    }
+    // Feature 005 / FR-011 — bind to Default unless this category was
+    // already given memberships through some other path.
+    if (this.salesChannelMembership) {
+      await this.salesChannelMembership.bindToDefaultIfEmpty('category', cat.id);
     }
     return cat;
   }

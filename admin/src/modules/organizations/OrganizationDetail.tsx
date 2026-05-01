@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { EntityChannelMembership } from '../sales_channels/components/EntityChannelMembership';
 
 interface OrgMember {
   id: string;
@@ -535,6 +536,8 @@ export function OrganizationDetail(): ReactNode {
           </Table>
         </CardContent>
       </Card>
+
+      <EntityChannelMembership entityType="organization" entityId={id || null} />
     </>
   );
 }
