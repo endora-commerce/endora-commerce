@@ -14,6 +14,7 @@ import {
   setComparisonDisplayMode,
 } from '../lib/api/comparisons';
 import { CompareModeSwitcher } from './CompareModeSwitcher';
+import { CompareAddToCartButton } from './CompareAddToCartButton';
 
 /**
  * Comparison table — feature 007 / T032.
@@ -114,13 +115,19 @@ export function ComparisonTable(): ReactNode {
                   <div className="b2b-compare__price">
                     {p.price ? `${p.price.amount} ${p.price.currency}` : '—'}
                   </div>
-                  <button
-                    type="button"
-                    className="btn btn--small"
-                    onClick={(): void => void onRemove(p.id)}
-                  >
-                    Remove
-                  </button>
+                  <div className="b2b-compare__col-actions">
+                    <CompareAddToCartButton
+                      productId={p.id}
+                      disabled={!p.available}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn--small"
+                      onClick={(): void => void onRemove(p.id)}
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </th>
               ))}
             </tr>
