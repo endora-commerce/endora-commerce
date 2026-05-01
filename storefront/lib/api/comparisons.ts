@@ -119,6 +119,40 @@ export async function deleteMyComparison(): Promise<void> {
 }
 
 /**
+ * US4 — Owner-only PDF export. Triggers the browser's download flow by
+ * synthesising an `<a download>` click on a same-origin Blob URL. The
+ * resulting filename is whatever the backend's Content-Disposition
+ * header declared (`comparison-{shortToken}.pdf`).
+ */
+export async function exportComparisonPdf(): Promise<void> {
+  const res = await rawFetch('GET', '/api/v1/comparisons/me/pdf');
+  if (!res.ok) {
+    await throwOnError(res);
+    return;
+  }
+  const blob = await res.blob();
+  const filename = parseDispositionFilename(res.headers.get('content-disposition')) ??
+    'comparison.pdf';
+  const url = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function parseDispositionFilename(value: string | null): string | null {
+  if (!value) return null;
+  const match = /filename="([^"]+)"/.exec(value);
+  return match ? match[1] ?? null : null;
+}
+
+/**
  * US2 — recipient view by share token. Returns the comparison plus a
  * `viewerIsOwner` flag the storefront uses to decide whether to render
  * owner-only affordances. Returns `null` on 404 (deleted comparison or

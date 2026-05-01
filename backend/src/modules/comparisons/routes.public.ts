@@ -15,6 +15,7 @@ import {
   type ComparisonOwner,
   type ComparisonService,
 } from './services/comparison-service.js';
+import type { ComparisonPdfRenderer } from './services/comparison-pdf-renderer.js';
 import {
   COMPARE_TOKEN_COOKIE,
   readAnonymousToken,
@@ -46,13 +47,15 @@ import type { Comparison } from './entities/comparison.entity.js';
 export interface ComparisonsPublicDeps {
   comparisonService: ComparisonService;
   tokens: ShareTokenGenerator;
+  /** Optional — when omitted, `GET /me/pdf` is not mounted (foundation tests). */
+  pdfRenderer?: ComparisonPdfRenderer;
 }
 
 export async function registerComparisonsPublicRoutes(
   app: FastifyInstance,
   deps: ComparisonsPublicDeps,
 ): Promise<void> {
-  const { comparisonService, tokens } = deps;
+  const { comparisonService, tokens, pdfRenderer } = deps;
 
   // -----------------------------------------------------------------
   // GET /me — read
@@ -138,6 +141,46 @@ export async function registerComparisonsPublicRoutes(
     reply.header('cache-control', 'no-store');
     return { data: await comparisonService.buildOwnerView(comparison, channel.id) };
   });
+
+  // -----------------------------------------------------------------
+  // GET /me/pdf — owner-only export (US4)
+  // -----------------------------------------------------------------
+
+  if (pdfRenderer) {
+    app.get('/api/v1/comparisons/me/pdf', async (request, reply) => {
+      const owner = readOwner(request);
+      if (!owner) throw notFoundComparison();
+      const comparison = await comparisonService.getForOwner(owner);
+      if (!comparison) throw notFoundComparison();
+      const channel = getResolvedChannel(request);
+      const view = await comparisonService.buildOwnerView(comparison, channel.id);
+      if (view.products.length === 0) {
+        throw new HttpError(
+          409,
+          ERROR_CODES.COMPARISON_EMPTY,
+          'Cannot export an empty comparison.',
+        );
+      }
+      let bytes: Buffer;
+      try {
+        bytes = await pdfRenderer.render(view);
+      } catch {
+        throw new HttpError(
+          503,
+          ERROR_CODES.PDF_GENERATION_FAILED,
+          'PDF generation failed.',
+        );
+      }
+      const shortToken = comparison.shareToken.slice(0, 8);
+      reply.header('content-type', 'application/pdf');
+      reply.header(
+        'content-disposition',
+        `attachment; filename="comparison-${shortToken}.pdf"`,
+      );
+      reply.header('cache-control', 'no-store');
+      return reply.send(bytes);
+    });
+  }
 
   // -----------------------------------------------------------------
   // DELETE /me — hard-delete

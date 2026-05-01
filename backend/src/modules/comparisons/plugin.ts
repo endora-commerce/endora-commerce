@@ -5,6 +5,7 @@ import type { SettingsService } from '../settings/services/settings.service.js';
 import { ShareTokenGenerator } from './services/share-token-generator.js';
 import { ComparableAttributeProjection } from './services/comparable-attribute-projection.js';
 import { ComparisonService } from './services/comparison-service.js';
+import { ComparisonPdfRenderer } from './services/comparison-pdf-renderer.js';
 import { registerComparisonsPublicRoutes } from './routes.public.js';
 import { registerComparisonsShareRoutes } from './routes.share.js';
 
@@ -36,6 +37,7 @@ export interface ComparisonsModuleHandle {
   comparisonService: ComparisonService;
   tokens: ShareTokenGenerator;
   projection: ComparableAttributeProjection;
+  pdfRenderer: ComparisonPdfRenderer;
 }
 
 export interface ComparisonsModuleResult {
@@ -55,11 +57,16 @@ export function comparisonsModule(
     tokens,
     options.settingsService,
   );
+  const pdfRenderer = new ComparisonPdfRenderer();
 
   return {
-    handle: { comparisonService, tokens, projection },
+    handle: { comparisonService, tokens, projection, pdfRenderer },
     plugin: async (app: FastifyInstance): Promise<void> => {
-      await registerComparisonsPublicRoutes(app, { comparisonService, tokens });
+      await registerComparisonsPublicRoutes(app, {
+        comparisonService,
+        tokens,
+        pdfRenderer,
+      });
       await registerComparisonsShareRoutes(app, { comparisonService });
     },
   };

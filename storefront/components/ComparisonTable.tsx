@@ -9,6 +9,7 @@ import type {
 import {
   ComparisonApiError,
   deleteMyComparison,
+  exportComparisonPdf,
   getMyComparison,
   removeProductFromCompare,
   setComparisonDisplayMode,
@@ -91,6 +92,7 @@ export function ComparisonTable(): ReactNode {
       <div className="toolbar">
         <CompareModeSwitcher value={view.displayMode} onChange={onSetMode} />
         <CopyShareLinkButton shareToken={view.shareToken} />
+        <ExportPdfButton disabled={view.products.length === 0} />
         <button type="button" className="btn" onClick={(): void => void onDelete()}>
           Delete comparison
         </button>
@@ -157,6 +159,38 @@ export function ComparisonTable(): ReactNode {
           </tbody>
         </table>
       </div>
+    </>
+  );
+}
+
+function ExportPdfButton(props: { disabled: boolean }): ReactNode {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const onClick = async (): Promise<void> => {
+    if (busy || props.disabled) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await exportComparisonPdf();
+    } catch (err) {
+      setError(
+        err instanceof ComparisonApiError ? err.message : 'Could not generate PDF.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <button
+        type="button"
+        className="btn"
+        disabled={busy || props.disabled}
+        onClick={(): void => void onClick()}
+      >
+        {busy ? 'Generating…' : 'Export to PDF'}
+      </button>
+      {error ? <span className="b2b-compare__pdf-error">{error}</span> : null}
     </>
   );
 }
