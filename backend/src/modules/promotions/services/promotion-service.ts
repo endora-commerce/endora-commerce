@@ -5,6 +5,7 @@ import {
   type PromotionApplication,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 import { Promotion } from '../entities/promotion.entity.js';
 
 /**
@@ -20,7 +21,11 @@ import { Promotion } from '../entities/promotion.entity.js';
  * Discounts never push the subtotal below zero or delivery below zero.
  */
 export class PromotionService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /** Feature 005 / T027b — auto-bind newly-created Promotions to the system default. */
+    private readonly salesChannelMembership?: SalesChannelMembershipService,
+  ) {}
 
   async list(): Promise<Promotion[]> {
     return this.emFactory().find(Promotion, {}, { orderBy: { name: 'asc' } });
@@ -79,6 +84,9 @@ export class PromotionService {
     }
     const row = em.create(Promotion, data);
     await em.persistAndFlush(row);
+    if (this.salesChannelMembership) {
+      await this.salesChannelMembership.bindToDefaultIfEmpty('promotion', row.id);
+    }
     return row;
   }
 

@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import { CartService } from '../carts/services/cart-service.js';
 import {
   OrderService,
@@ -52,6 +53,11 @@ export interface OrdersModuleOptions {
   };
   /** Hook — returned cart service so the login route can merge anonymous baskets. */
   exposeCartService?: (service: CartService) => void;
+  /**
+   * Feature 005 / T027b — when injected, newly-created PaymentMethods and
+   * DeliveryMethods auto-bind to the system-default Sales Channel (FR-011).
+   */
+  salesChannelMembership?: SalesChannelMembershipService;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -82,10 +88,16 @@ export function commerceModule(options: OrdersModuleOptions) {
     await registerDeliveryMethodsAdminRoutes(app, {
       emFactory: options.emFactory,
       requireAdmin: options.requireAdmin,
+      ...(options.salesChannelMembership
+        ? { salesChannelMembership: options.salesChannelMembership }
+        : {}),
     });
     await registerPaymentMethodsAdminRoutes(app, {
       emFactory: options.emFactory,
       requireAdmin: options.requireAdmin,
+      ...(options.salesChannelMembership
+        ? { salesChannelMembership: options.salesChannelMembership }
+        : {}),
     });
     await registerInvoicesAdminRoutes(app, {
       emFactory: options.emFactory,

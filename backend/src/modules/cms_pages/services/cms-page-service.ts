@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 import { CmsPage } from '../entities/cms-page.entity.js';
 
 /**
@@ -15,7 +16,11 @@ import { CmsPage } from '../entities/cms-page.entity.js';
  *     historical references survive.
  */
 export class CmsPageService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /** Feature 005 / T027b — auto-bind newly-created CMS Pages to the system default. */
+    private readonly salesChannelMembership?: SalesChannelMembershipService,
+  ) {}
 
   async list(): Promise<CmsPage[]> {
     const em = this.emFactory();
@@ -65,6 +70,9 @@ export class CmsPageService {
       body: input.body,
     });
     await em.persistAndFlush(row);
+    if (this.salesChannelMembership) {
+      await this.salesChannelMembership.bindToDefaultIfEmpty('cms-page', row.id);
+    }
     return row;
   }
 

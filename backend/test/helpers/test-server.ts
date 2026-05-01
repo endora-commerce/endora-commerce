@@ -267,10 +267,26 @@ export async function setupBackendServer(
     requireAdmin: requireTestAdmin(permissionService),
   });
 
+  // Feature 005 — sales-channels module is built BEFORE every other module
+  // that consumes its membership service in their composition (catalog,
+  // cms, taxes, promotions, commerce for payment + delivery methods).
+  const salesChannels = salesChannelsModule({
+    emFactory: em,
+    eventBus,
+    redis,
+    auditLogService,
+    requireAdmin: requireTestAdmin(permissionService),
+    resolveAdminAuditContext: (request) => ({
+      actorAdminUserId:
+        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+    }),
+  });
+
   // CMS pages (Phase 10 / T234). Hooked by SEO + sitemap.
   const cmsPages = cmsPagesModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
+    salesChannelMembership: salesChannels.handle.membershipService,
   });
 
   // Pricing (T127 / FR-050).
@@ -283,25 +299,12 @@ export async function setupBackendServer(
   const taxes = taxesModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
+    salesChannelMembership: salesChannels.handle.membershipService,
   });
   const promotions = promotionsModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
-  });
-
-  // Feature 005 — sales-channels module is built BEFORE the modules array
-  // because catalog (and later other modules) consume its membership
-  // service in their composition.
-  const salesChannels = salesChannelsModule({
-    emFactory: em,
-    eventBus,
-    redis,
-    auditLogService,
-    requireAdmin: requireTestAdmin(permissionService),
-    resolveAdminAuditContext: (request) => ({
-      actorAdminUserId:
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-    }),
+    salesChannelMembership: salesChannels.handle.membershipService,
   });
 
   const modules: ModulePlugin[] = [
@@ -325,6 +328,7 @@ export async function setupBackendServer(
       requireCustomer: requireTestCustomer(),
       requireAdmin: requireTestAdmin(permissionService),
       resolveCustomerContext: customerResolver,
+      salesChannelMembership: salesChannels.handle.membershipService,
       resolveCartActor: (request) => {
         if (request.testActor?.kind === 'customer') {
           return {
