@@ -4,6 +4,8 @@ import { BrowserRouter } from 'react-router-dom';
 import { App } from './App.js';
 import { AuthProvider } from './lib/auth.js';
 import './index.css';
+import './styles/design-tokens.css';
+import './styles/components.css';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

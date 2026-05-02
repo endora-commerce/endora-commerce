@@ -1,0 +1,152 @@
+/* ============================================================
+   Admin design system (feature 008)
+   ============================================================
+   Shopify-leaning palette with Shadcn-compatible semantic tokens.
+   Imported AFTER index.css so these values take precedence over
+   the default shadcn HSL vars.
+   ============================================================ */
+
+:root {
+  /* ---------- Brand / accent (Shopify green) ---------- */
+  --accent-h: 142;
+  --accent-s: 56%;
+  --accent-l: 33%;
+
+  --primary-color: hsl(var(--accent-h) var(--accent-s) var(--accent-l));
+  --primary-hover: hsl(var(--accent-h) var(--accent-s) calc(var(--accent-l) - 4%));
+  --primary-active: hsl(var(--accent-h) var(--accent-s) calc(var(--accent-l) - 8%));
+  --primary-fg: #ffffff;
+  --primary-soft: hsl(var(--accent-h) calc(var(--accent-s) - 10%) 96%);
+  --primary-soft-fg: hsl(var(--accent-h) calc(var(--accent-s) + 4%) 22%);
+  --ring-color: hsla(var(--accent-h), 70%, 38%, 0.35);
+
+  /* ---------- Neutrals (warm-ish gray, Shopify-leaning) ---------- */
+  --bg: #f6f6f7;
+  --bg-elevated: #ffffff;
+  --bg-sidebar: #1a1c1e;
+  --bg-sidebar-hover: #25282b;
+  --bg-sidebar-active: #2f3337;
+  --sidebar-fg: #d7d9dc;
+  --sidebar-fg-muted: #8b9097;
+  --sidebar-fg-active: #ffffff;
+
+  --surface: #ffffff;
+  --surface-muted: #fafbfb;
+  --surface-sunken: #f1f2f4;
+
+  --fg: #1a1c1e;
+  --fg-muted: #5b636d;
+  --fg-subtle: #8a9099;
+  --fg-disabled: #b5bac1;
+
+  --border-color: #e3e5e8;
+  --border-strong: #d3d6da;
+  --border-subtle: #ecedef;
+
+  /* ---------- Status colors (cards, badges, alerts) ---------- */
+  --success: #008060;
+  --success-soft: #e3f1df;
+  --success-soft-fg: #0c5132;
+
+  --warn: #b54708;
+  --warn-soft: #fff1e6;
+  --warn-soft-fg: #8a4a06;
+
+  --danger: #d72c0d;
+  --danger-soft: #fee9e7;
+  --danger-soft-fg: #8e1f0b;
+
+  --info: #1f6feb;
+  --info-soft: #e7f0ff;
+  --info-soft-fg: #134397;
+
+  --neutral-soft: #ebedef;
+  --neutral-soft-fg: #4a525c;
+
+  /* ---------- Radii ---------- */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 10px;
+  --r-xl: 14px;
+  --r-pill: 999px;
+
+  /* ---------- Shadows ---------- */
+  --sh-1: 0 1px 0 rgba(0, 0, 0, 0.05);
+  --sh-2: 0 1px 2px rgba(13, 16, 19, 0.08), 0 0 0 1px rgba(13, 16, 19, 0.04);
+  --sh-3: 0 4px 12px rgba(13, 16, 19, 0.10), 0 0 0 1px rgba(13, 16, 19, 0.04);
+  --sh-pop: 0 12px 32px rgba(13, 16, 19, 0.18), 0 0 0 1px rgba(13, 16, 19, 0.08);
+
+  /* ---------- Density (regular default) ---------- */
+  --row-h: 44px;
+  --row-pad: 12px;
+  --field-h: 36px;
+  --field-pad: 10px;
+
+  /* ---------- Typography ---------- */
+  --ff: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ff-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+[data-density="compact"] {
+  --row-h: 36px;
+  --row-pad: 8px;
+  --field-h: 32px;
+  --field-pad: 8px;
+}
+
+/* ============================================================
+   Shadcn token re-mapping
+   ============================================================
+   Re-tone the shadcn HSL palette so every existing shadcn primitive
+   in the admin (Button, Card, Badge, Table, Alert, …) inherits the
+   new accent + neutrals automatically. Out-of-scope pages get the
+   redesign for free through this single hop. */
+:root {
+  --background: 220 9% 97%;          /* matches --bg */
+  --foreground: 220 7% 11%;           /* matches --fg */
+  --card: 0 0% 100%;                  /* matches --surface */
+  --card-foreground: 220 7% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 7% 11%;
+
+  --primary: var(--accent-h) var(--accent-s) var(--accent-l);
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 220 7% 95%;            /* matches --surface-sunken */
+  --secondary-foreground: 220 7% 11%;
+  --muted: 220 7% 97%;                /* matches --surface-muted */
+  --muted-foreground: 218 8% 39%;     /* matches --fg-muted */
+  --accent: 220 7% 95%;
+  --accent-foreground: 220 7% 11%;
+
+  --destructive: 8 89% 45%;           /* matches --danger */
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 220 7% 90%;               /* matches --border-color */
+  --input: 220 7% 90%;
+  --ring: var(--accent-h) 70% 38%;
+  --radius: 0.5rem;
+}
+
+/* Body picks up the design background + font stack. */
+body {
+  font-family: var(--ff);
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Custom scrollbars across the app — small, matches Shopify-style admin. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: #c8ccd1; border-radius: 999px;
+  border: 2px solid transparent; background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a9aeb5; background-clip: padding-box;
+  border: 2px solid transparent;
+}
+::-webkit-scrollbar-track { background: transparent; }
