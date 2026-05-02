@@ -87,7 +87,7 @@ export default async function ProductPage({
   const primaryCategory = product.categories[0];
 
   return (
-    <>
+    <div className="container industria-pdp">
       <Breadcrumbs
         crumbs={[
           { href: '/', label: t('nav.home') },
@@ -228,6 +228,6 @@ export default async function ProductPage({
         // strings come from a typed source — no XSS risk.
         dangerouslySetInnerHTML={{ __html: JSON.stringify(product.structuredDataJsonLd) }}
       />
-    </>
+    </div>
   );
 }

@@ -27,16 +27,19 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
     getFilters(ctx),
   ]);
 
+  const heading = query.list.q
+    ? `${t('common.searchAction')}: ${query.list.q}`
+    : t('catalog.heading');
+
   return (
-    <>
+    <div className="container">
       <Breadcrumbs
         crumbs={[
           { href: '/', label: t('nav.home') },
           { href: '/catalog', label: t('catalog.heading') },
         ]}
       />
-      <h1>{query.list.q ? `${t('common.searchAction')}: ${query.list.q}` : t('catalog.heading')}</h1>
-      <div className="b2b-listing">
+      <div className="industria-catalog">
         <FilterPanel
           filters={filters}
           selected={query.list.attributeFilters ?? {}}
@@ -44,7 +47,26 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
           locale={locale}
         />
         <div>
-          <ProductGrid products={products.data} locale={locale} />
+          <div className="industria-catalog__title">
+            <div>
+              <h1>{heading}</h1>
+              <p>{products.data.length.toLocaleString('pl-PL')} produktów</p>
+            </div>
+          </div>
+          <div className="industria-toolbar">
+            <div className="industria-toolbar__left">
+              Pokazuję <strong>1–{products.data.length}</strong> wyników
+            </div>
+            <div className="industria-toolbar__right">
+              <select className="industria-select" name="sort" defaultValue={query.list.sort ?? 'relevance'}>
+                <option value="relevance">Sortuj: trafność</option>
+                <option value="-createdAt">Najnowsze</option>
+                <option value="name">Nazwa A–Z</option>
+                <option value="-name">Nazwa Z–A</option>
+              </select>
+            </div>
+          </div>
+          <ProductGrid products={products.data} locale={locale} columns={3} />
           <Pagination
             basePath="/catalog"
             baseQuery={query.baseQuery}
@@ -54,7 +76,7 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
           />
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
