@@ -93,6 +93,7 @@ async function acceptInvitationAction(formData: FormData): Promise<void> {
     });
     if (!login.sessionCookieValue) {
       redirectWithError('Account created but session could not be started. Sign in manually.');
+      return;
     }
     await setSessionCookie(login.sessionCookieValue);
   } catch (err) {

@@ -280,7 +280,10 @@ export function OrganizationDetail(): ReactNode {
               id="ostatus"
               value={org.status}
               onChange={(e): void =>
-                void handlePatch({ status: e.target.value, expectedUpdatedAt: org.updatedAt })
+                void handlePatch({
+                  status: e.target.value,
+                  ...(org.updatedAt !== undefined ? { expectedUpdatedAt: org.updatedAt } : {}),
+                })
               }
             >
               {STATUSES.map((s) => (
@@ -296,7 +299,10 @@ export function OrganizationDetail(): ReactNode {
               id="vstatus"
               value={org.vatStatus}
               onChange={(e): void =>
-                void handlePatch({ vatStatus: e.target.value, expectedUpdatedAt: org.updatedAt })
+                void handlePatch({
+                  vatStatus: e.target.value,
+                  ...(org.updatedAt !== undefined ? { expectedUpdatedAt: org.updatedAt } : {}),
+                })
               }
             >
               {VAT_STATUSES.map((v) => (
