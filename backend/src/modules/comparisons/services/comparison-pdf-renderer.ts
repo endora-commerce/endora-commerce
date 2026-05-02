@@ -242,8 +242,10 @@ function imageDataUri(bytes: Buffer): string {
  */
 function buildFontDictionary(): TFontDictionary {
   // pdfmake/.../fonts/Roboto/* — the path is stable across the package's
-  // releases.
-  const fontsDir = require.resolve('pdfmake/package.json').replace(
+  // releases. Use `requireFromHere` (createRequire-wrapped) because the
+  // backend runs as an ES module and bare `require` is not defined in
+  // that scope.
+  const fontsDir = requireFromHere.resolve('pdfmake/package.json').replace(
     /package\.json$/,
     `fonts${path.sep}Roboto${path.sep}`,
   );
