@@ -201,11 +201,20 @@
 
 /* ============================================================
    Page header
-   ============================================================ */
+   ============================================================
+   The outer gutter (24/28/64px) lives on `.b2b-main` so every page
+   inside the AppShell — both in-scope redesigned pages (Home,
+   Products, Product editor, Inventory, Price lists) and adapted
+   pages that still render shadcn primitives without a `.b2b-page`
+   wrapper — gets the same spacing. `.b2b-page` only re-centers the
+   content and caps its width. */
+.b2b-main {
+  padding: 24px 28px 64px;
+  max-width: 100%;
+}
 .b2b-page {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 24px 28px 64px;
 }
 .b2b-page--wide { max-width: 1600px; }
 

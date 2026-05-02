@@ -385,7 +385,7 @@ export function AppShell(): ReactNode {
             ) : null}
           </div>
         </div>
-        <main style={{ flex: 1, overflow: 'auto' }}>
+        <main className="b2b-main" style={{ flex: 1, overflow: 'auto' }}>
           <Outlet />
         </main>
       </div>
