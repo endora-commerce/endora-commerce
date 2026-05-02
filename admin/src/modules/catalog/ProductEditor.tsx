@@ -1,14 +1,29 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, Trash2 } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import {
+  Archive as ArchiveIcon,
+  ChevronLeft,
+  Copy,
+  Eye,
+  FileText as FileTextIcon,
+  Globe,
+  Image as ImageIcon,
+  CircleDollarSign,
+  Layers,
+  Link as LinkIcon,
+  Paperclip,
+  Save,
+  Store as StoreIcon,
+  Warehouse as WarehouseIcon,
+} from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 import {
   Table,
   TableBody,
@@ -17,7 +32,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
 import { EntityChannelMembership } from '../sales_channels/components/EntityChannelMembership';
 
 const LOCALES = ['en-US', 'pl-PL'] as const;
@@ -80,6 +94,7 @@ export function ProductEditor(): ReactNode {
   });
   const [defaultPrice, setDefaultPrice] = useState<string>('');
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<string>('details');
   // Feature 002 (T034) — Attribute Set selector
   const [attributeSets, setAttributeSets] = useState<AdminAttributeSet[]>([]);
   const [attributeSetId, setAttributeSetId] = useState<string>('');
@@ -213,38 +228,87 @@ export function ProductEditor(): ReactNode {
     [categories],
   );
 
-  if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  if (loading)
+    return (
+      <div className="b2b-page b2b-page--wide">
+        <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>Loading…</div>
+      </div>
+    );
+
+  const tabs: Array<{ id: string; label: string; icon: ReactNode; show: boolean }> = [
+    { id: 'details', label: 'Details', icon: <FileTextIcon size={14} />, show: true },
+    { id: 'pricing', label: 'Pricing', icon: <CircleDollarSign size={14} />, show: !isNew },
+    {
+      id: 'variants',
+      label: 'Variants',
+      icon: <Layers size={14} />,
+      show: !isNew && type === 'configurable',
+    },
+    {
+      id: 'composite',
+      label: type === 'grouped' ? 'Grouped items' : 'Bundle slots',
+      icon: <Layers size={14} />,
+      show: !isNew && (type === 'grouped' || type === 'bundle'),
+    },
+    { id: 'media', label: 'Media', icon: <ImageIcon size={14} />, show: !isNew },
+    { id: 'inventory', label: 'Inventory', icon: <WarehouseIcon size={14} />, show: !isNew },
+    { id: 'attachments', label: 'Attachments', icon: <Paperclip size={14} />, show: !isNew },
+    { id: 'links', label: 'Related', icon: <LinkIcon size={14} />, show: !isNew },
+    { id: 'channels', label: 'Channels', icon: <StoreIcon size={14} />, show: !isNew },
+    { id: 'seo', label: 'SEO', icon: <Globe size={14} />, show: !isNew },
+  ];
+  const visibleTabs = tabs.filter((t) => t.show);
 
   return (
-    <>
-    <form onSubmit={handleSave}>
-      <PageHeader
-        title={isNew ? 'New product' : `Edit ${sku}`}
-        actions={
-          <>
-            <Button asChild variant="outline">
-              <Link to="/catalog/products">
-                <ArrowLeft />
-                Back
-              </Link>
-            </Button>
-            <Button type="submit">
-              <Save />
-              Save
-            </Button>
-            {!isNew ? (
-              <Button
-                variant="destructive"
+    <div className="b2b-page b2b-page--wide">
+      <div className="b2b-page-head">
+        <div className="b2b-grow">
+          <button
+            type="button"
+            className="b2b-page-head__back"
+            onClick={(): void => { navigate('/catalog/products'); }}
+          >
+            <ChevronLeft size={14} /> Products
+          </button>
+          <div className="b2b-page-head__title">
+            <span>{isNew ? 'New product' : pickName(name) || sku}</span>
+            {!isNew ? <StatusPill status={status} /> : null}
+          </div>
+          {!isNew ? (
+            <div className="b2b-page-head__sub">
+              <span className="b2b-mono">{sku}</span> · <span style={{ textTransform: 'capitalize' }}>{type}</span>
+            </div>
+          ) : null}
+        </div>
+        <div className="b2b-page-head__actions">
+          {!isNew ? (
+            <>
+              <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm">
+                <Eye size={13} /> Preview
+              </button>
+              <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm">
+                <Copy size={13} /> Duplicate
+              </button>
+              <button
                 type="button"
+                className="b2b-btn b2b-btn--danger b2b-btn--sm"
                 onClick={(): void => void handleArchive()}
               >
-                <Trash2 />
-                Archive
-              </Button>
-            ) : null}
-          </>
-        }
-      />
+                <ArchiveIcon size={13} /> Archive
+              </button>
+            </>
+          ) : null}
+          <button
+            type="button"
+            className="b2b-btn b2b-btn--primary"
+            onClick={(e): void => {
+              void handleSave(e as unknown as FormEvent);
+            }}
+          >
+            <Save size={14} /> Save
+          </button>
+        </div>
+      </div>
 
       {error ? (
         <Alert variant="destructive" className="mb-4">
@@ -257,188 +321,292 @@ export function ProductEditor(): ReactNode {
         </Alert>
       ) : null}
 
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>Identity</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="sku">SKU (immutable after creation)</Label>
-            <Input
-              id="sku"
-              value={sku}
-              onChange={(e): void => setSku(e.target.value)}
-              disabled={!isNew}
-              required
-            />
-          </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label htmlFor="ptype">Type</Label>
-              <Select
-                id="ptype"
-                value={type}
-                onChange={(e): void => setType(e.target.value as 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual')}
-                disabled={!isNew}
+      <div className="b2b-card">
+        <div style={{ padding: '4px 4px 0' }}>
+          <div className="b2b-tabs" role="tablist">
+            {visibleTabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === t.id}
+                className={cn('b2b-tab', activeTab === t.id && 'is-active')}
+                onClick={(): void => setActiveTab(t.id)}
               >
-                {PRODUCT_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="pstatus">Status</Label>
-              <Select
-                id="pstatus"
-                value={status}
-                onChange={(e): void => setStatus(e.target.value as AdminProduct['status'])}
-                disabled
-                title="Status transitions are managed elsewhere; archive is the only action here."
-              >
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="pattrset">Attribute Set</Label>
-              <Select
-                id="pattrset"
-                value={attributeSetId}
-                onChange={(e): void => setAttributeSetId(e.target.value)}
-                title="Defines which attributes can be set on this Product. Default ships with every install."
-              >
-                {attributeSets.length === 0 ? (
-                  <option value="">— loading —</option>
-                ) : (
-                  attributeSets.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.code}
-                      {s.isSystem ? ' (system)' : ''}
-                    </option>
-                  ))
-                )}
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="pvis">Visibility</Label>
-              <Select
-                id="pvis"
-                value={visibility}
-                onChange={(e): void => setVisibility(e.target.value as AdminProduct['visibility'])}
-              >
-                {VISIBILITIES.map((v) => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>Names + descriptions</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {LOCALES.map((l) => (
-            <div key={l} className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor={`name-${l}`}>Name [{l}]</Label>
-                <Input
-                  id={`name-${l}`}
-                  value={name[l]}
-                  onChange={(e): void => setName((prev) => ({ ...prev, [l]: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor={`desc-${l}`}>Description [{l}]</Label>
-                <Textarea
-                  id={`desc-${l}`}
-                  rows={3}
-                  value={description[l]}
-                  onChange={(e): void =>
-                    setDescription((prev) => ({ ...prev, [l]: e.target.value }))
-                  }
-                />
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>Categories</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Select
-            multiple
-            value={categoryIds}
-            onChange={(e): void => {
-              const next: string[] = [];
-              for (const opt of e.target.selectedOptions) next.push(opt.value);
-              setCategoryIds(next);
-            }}
-            className="min-h-32"
-          >
-            {categoryOptions.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.label}
-              </option>
+                {t.icon}
+                {t.label}
+              </button>
             ))}
-          </Select>
-          <p className="text-xs text-muted-foreground">Hold Ctrl / ⌘ to multi-select.</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Pricing (default)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <Label htmlFor="dp">Default unit price</Label>
-            <Input
-              id="dp"
-              type="number"
-              step="0.01"
-              min="0"
-              value={defaultPrice}
-              onChange={(e): void => setDefaultPrice(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Stored as <code className="font-mono">attributeValues.defaultPrice</code>; price-list
-              overrides take precedence at checkout.
-            </p>
           </div>
-        </CardContent>
-      </Card>
-    </form>
-    {!isNew && id && type === 'configurable' ? (
-      <VariantsSection productId={id} />
-    ) : null}
-    {!isNew && id && type === 'grouped' ? (
-      <GroupedItemsSection productId={id} />
-    ) : null}
-    {!isNew && id && type === 'bundle' ? (
-      <BundleSlotsSection productId={id} />
-    ) : null}
-    {!isNew && id ? (
-      <>
-        <GallerySection productId={id} />
-        <AttachmentsSection productId={id} />
-        <ProductLinksSection productId={id} />
-        <EntityChannelMembership entityType="product" entityId={id} />
-      </>
-    ) : null}
-    </>
+        </div>
+
+        <div className="b2b-card__body">
+          {activeTab === 'details' ? (
+            <form id="product-details-form" onSubmit={handleSave}>
+              <div className="b2b-col" style={{ gap: 18 }}>
+                <div>
+                  <div className="b2b-label">Identity</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                    <div>
+                      <Label htmlFor="sku">SKU (immutable after creation)</Label>
+                      <Input
+                        id="sku"
+                        value={sku}
+                        onChange={(e): void => setSku(e.target.value)}
+                        disabled={!isNew}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="ptype">Type</Label>
+                      <Select
+                        id="ptype"
+                        value={type}
+                        onChange={(e): void =>
+                          setType(
+                            e.target.value as
+                              | 'simple'
+                              | 'configurable'
+                              | 'grouped'
+                              | 'bundle'
+                              | 'virtual',
+                          )
+                        }
+                        disabled={!isNew}
+                      >
+                        {PRODUCT_TYPES.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="pvis">Visibility</Label>
+                      <Select
+                        id="pvis"
+                        value={visibility}
+                        onChange={(e): void =>
+                          setVisibility(e.target.value as AdminProduct['visibility'])
+                        }
+                      >
+                        {VISIBILITIES.map((v) => (
+                          <option key={v} value={v}>
+                            {v}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="pattrset">Attribute Set</Label>
+                      <Select
+                        id="pattrset"
+                        value={attributeSetId}
+                        onChange={(e): void => setAttributeSetId(e.target.value)}
+                      >
+                        {attributeSets.length === 0 ? (
+                          <option value="">— loading —</option>
+                        ) : (
+                          attributeSets.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.code}
+                              {s.isSystem ? ' (system)' : ''}
+                            </option>
+                          ))
+                        )}
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="pstatus">Status</Label>
+                      <Select id="pstatus" value={status} disabled>
+                        {STATUSES.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </Select>
+                      <p className="b2b-help">
+                        Use Archive (top right) to deactivate; lifecycle is managed elsewhere.
+                      </p>
+                    </div>
+                    <div>
+                      <Label htmlFor="dp">Default unit price</Label>
+                      <Input
+                        id="dp"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={defaultPrice}
+                        onChange={(e): void => setDefaultPrice(e.target.value)}
+                      />
+                      <p className="b2b-help">
+                        Price-list overrides take precedence at checkout.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <hr className="b2b-hr" />
+
+                <div>
+                  <div className="b2b-label">Localized content</div>
+                  <p className="b2b-help" style={{ marginTop: 0, marginBottom: 12 }}>
+                    Edit per language. Untranslated fields fall back to the default locale.
+                  </p>
+                  <div className="b2b-col" style={{ gap: 18 }}>
+                    {LOCALES.map((l) => (
+                      <div key={l} className="b2b-col" style={{ gap: 8 }}>
+                        <div>
+                          <Label htmlFor={`name-${l}`}>Name [{l}]</Label>
+                          <Input
+                            id={`name-${l}`}
+                            value={name[l]}
+                            onChange={(e): void =>
+                              setName((prev) => ({ ...prev, [l]: e.target.value }))
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor={`desc-${l}`}>Description [{l}]</Label>
+                          <textarea
+                            id={`desc-${l}`}
+                            rows={3}
+                            className="b2b-field"
+                            value={description[l]}
+                            onChange={(e): void =>
+                              setDescription((prev) => ({ ...prev, [l]: e.target.value }))
+                            }
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <hr className="b2b-hr" />
+
+                <div>
+                  <div className="b2b-label">Categories</div>
+                  <Select
+                    multiple
+                    value={categoryIds}
+                    onChange={(e): void => {
+                      const next: string[] = [];
+                      for (const opt of e.target.selectedOptions) next.push(opt.value);
+                      setCategoryIds(next);
+                    }}
+                    className="min-h-32"
+                  >
+                    {categoryOptions.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </Select>
+                  <p className="b2b-help">Hold Ctrl / ⌘ to multi-select.</p>
+                </div>
+              </div>
+            </form>
+          ) : null}
+
+          {activeTab === 'pricing' && id ? <PricingPlaceholder /> : null}
+
+          {activeTab === 'variants' && id ? <VariantsSection productId={id} /> : null}
+
+          {activeTab === 'composite' && id ? (
+            type === 'grouped' ? (
+              <GroupedItemsSection productId={id} />
+            ) : (
+              <BundleSlotsSection productId={id} />
+            )
+          ) : null}
+
+          {activeTab === 'media' && id ? <GallerySection productId={id} /> : null}
+
+          {activeTab === 'inventory' && id ? <InventoryStub /> : null}
+
+          {activeTab === 'attachments' && id ? <AttachmentsSection productId={id} /> : null}
+
+          {activeTab === 'links' && id ? <ProductLinksSection productId={id} /> : null}
+
+          {activeTab === 'channels' && id ? (
+            <EntityChannelMembership entityType="product" entityId={id} />
+          ) : null}
+
+          {activeTab === 'seo' ? <SeoStub name={name} /> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusPill({ status }: { status: AdminProduct['status'] }): ReactNode {
+  const map = {
+    active: { cls: 'b2b-badge--success', label: 'Active' },
+    draft: { cls: 'b2b-badge--warn', label: 'Draft' },
+    archived: { cls: '', label: 'Archived' },
+  } as const;
+  const v = map[status];
+  return <span className={cn('b2b-badge', 'b2b-badge--dot', v.cls)}>{v.label}</span>;
+}
+
+function pickName(name: Record<string, string>): string {
+  return name['en-US'] ?? Object.values(name)[0] ?? '';
+}
+
+function PricingPlaceholder(): ReactNode {
+  return (
+    <div
+      className="b2b-card"
+      style={{
+        padding: 16,
+        background: 'var(--info-soft)',
+        border: '1px solid hsl(217 70% 88%)',
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--info-soft-fg)' }}>
+        Pricing rules live in the Price lists module
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--info-soft-fg)', marginTop: 4 }}>
+        The default catalog price is on the Details tab. Tier prices, customer-group overrides,
+        and per-organization contracts are managed in <b>Pricing → Price lists</b>.
+      </div>
+    </div>
+  );
+}
+
+function InventoryStub(): ReactNode {
+  return (
+    <div
+      className="b2b-card"
+      style={{
+        padding: 16,
+        background: 'var(--surface-muted)',
+        border: '1px solid var(--border-color)',
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 600 }}>Stock by warehouse</div>
+      <div className="b2b-help" style={{ marginTop: 4 }}>
+        Open the <b>Inventory</b> page (sidebar → Catalog → Inventory) to see live stock per
+        warehouse for this product. Future iteration will inline the per-warehouse table here.
+      </div>
+    </div>
+  );
+}
+
+function SeoStub({ name }: { name: Record<string, string> }): ReactNode {
+  return (
+    <div className="b2b-col" style={{ gap: 12 }}>
+      <div className="b2b-label">Per-locale SEO</div>
+      <div className="b2b-help" style={{ marginTop: 0 }}>
+        Per-page meta overrides live in the SEO module — this panel will surface them here in a
+        future iteration.
+      </div>
+      <div>
+        <Label htmlFor="seo-title">Page title (preview)</Label>
+        <Input id="seo-title" defaultValue={pickName(name)} />
+      </div>
+    </div>
   );
 }
 

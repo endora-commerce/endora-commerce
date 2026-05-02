@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell.js';
 import { LoginPage } from './components/LoginPage.js';
 import { useAuth } from './lib/auth.js';
@@ -30,6 +30,8 @@ import { InvoicesList } from './modules/invoices/InvoicesList.js';
 import { TaxesPage } from './modules/taxes/TaxesPage.js';
 import { PromotionsPage } from './modules/promotions/PromotionsPage.js';
 import { PriceListsPage } from './modules/price_lists/PriceListsPage.js';
+import { PriceListDetailPage } from './modules/price_lists/PriceListDetailPage.js';
+import { HomePage } from './modules/home/HomePage.js';
 import { DeliveryMethodsPage } from './modules/delivery_methods/DeliveryMethodsPage.js';
 import { PaymentMethodsPage } from './modules/payment_methods/PaymentMethodsPage.js';
 import { InventoryPage } from './modules/inventory/InventoryPage.js';
@@ -54,7 +56,7 @@ export function App(): ReactNode {
   return (
     <Routes>
       <Route element={<AppShell />}>
-        <Route index element={<Navigate to="/catalog/products" replace />} />
+        <Route index element={<HomePage />} />
         <Route path="/catalog/products" element={<ProductsList />} />
         <Route path="/catalog/products/:id" element={<ProductEditor />} />
         <Route path="/catalog/categories" element={<CategoriesTree />} />
@@ -69,6 +71,7 @@ export function App(): ReactNode {
         <Route path="/taxes" element={<TaxesPage />} />
         <Route path="/promotions" element={<PromotionsPage />} />
         <Route path="/price-lists" element={<PriceListsPage />} />
+        <Route path="/price-lists/:id" element={<PriceListDetailPage />} />
         <Route path="/delivery-methods" element={<DeliveryMethodsPage />} />
         <Route path="/payment-methods" element={<PaymentMethodsPage />} />
         <Route path="/inventory" element={<InventoryPage />} />
