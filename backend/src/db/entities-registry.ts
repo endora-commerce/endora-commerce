@@ -60,6 +60,8 @@ import { SettingGroup } from '../modules/settings/entities/setting-group.entity.
 import { Setting } from '../modules/settings/entities/setting.entity.js';
 import { SettingValue } from '../modules/settings/entities/setting-value.entity.js';
 import { SearchPhraseRecord } from '../modules/search/entities/search-phrase-record.entity.js';
+import { Comparison } from '../modules/comparisons/entities/comparison.entity.js';
+import { ComparisonProduct } from '../modules/comparisons/entities/comparison-product.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -164,4 +166,7 @@ export const ALL_ENTITIES = [
   SettingValue,
   // search analytics ingest (feature 006 / US3)
   SearchPhraseRecord,
+  // comparisons (feature 007)
+  Comparison,
+  ComparisonProduct,
 ] as const;

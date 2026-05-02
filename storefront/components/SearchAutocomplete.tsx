@@ -47,7 +47,13 @@ export interface SearchAutocompleteProps {
   /** Translated placeholder + button label (matches the server-rendered fallback). */
   placeholder: string;
   searchActionLabel: string;
-  seeAllResultsLabel: (queryEcho: string) => string;
+  /**
+   * Translated "see all results" link label. Kept as a plain string so
+   * the prop is serialisable across the Server → Client component
+   * boundary (Next.js 15+ rejects functions as props from Server
+   * Components).
+   */
+  seeAllResultsLabel: string;
   unavailableLabel: string;
 }
 
@@ -211,7 +217,7 @@ export function SearchAutocomplete(props: SearchAutocompleteProps): ReactNode {
               ))}
               <li className="b2b-search-autocomplete__see-all">
                 <a href={`/search?q=${encodeURIComponent(value.trim())}`}>
-                  {props.seeAllResultsLabel(response?.meta.queryEcho ?? value.trim())}
+                  {props.seeAllResultsLabel}
                 </a>
               </li>
             </>
