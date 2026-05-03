@@ -7,9 +7,9 @@
     "node": ">=22.17.0"
   },
   "scripts": {
-    "dev": "docusaurus start --port 3003",
+    "dev": "node --env-file-if-exists=.env node_modules/@docusaurus/core/bin/docusaurus.mjs start",
     "build": "docusaurus build",
-    "start": "docusaurus serve --port 3003",
+    "start": "node --env-file-if-exists=.env node_modules/@docusaurus/core/bin/docusaurus.mjs serve",
     "typecheck": "tsc --noEmit",
     "lint": "echo 'docs site has no linter job'",
     "test": "echo 'docs site has no tests'"
