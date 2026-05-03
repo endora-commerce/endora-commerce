@@ -30,6 +30,8 @@ export interface MutateOptions {
    * Wins over `sessionCookie` when both are supplied.
    */
   rawCookieHeader?: string | null;
+  /** Extra request headers to forward (e.g. `If-Match` for optimistic concurrency). */
+  headers?: Record<string, string>;
 }
 
 export interface MutateResult<T> {
@@ -50,6 +52,7 @@ export async function apiMutate<T>(opts: MutateOptions): Promise<MutateResult<T>
   } else if (opts.sessionCookie) {
     headers['Cookie'] = `b2b_session=${opts.sessionCookie}`;
   }
+  if (opts.headers) Object.assign(headers, opts.headers);
 
   const init: RequestInit = {
     method: opts.method,

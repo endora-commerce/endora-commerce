@@ -1,13 +1,12 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Send, XCircle } from 'lucide-react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { ArrowLeft, Check, XCircle } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,93 +19,103 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
+/**
+ * Admin Quote Request detail (feature 008 / T043). Renders status,
+ * line items, change history, and exposes Approve / Cancel actions
+ * for Pending and Created from admin RFQs. The modify pane (US3) is
+ * accessible through the same approve/cancel scaffold once added.
+ */
+
+type RfqStatus =
+  | 'Created from admin'
+  | 'Pending'
+  | 'Canceled'
+  | 'Approved'
+  | 'Completed'
+  | 'Expired';
+
 interface AdminRfqItem {
   id: string;
   productId: string;
   productName: string;
+  productSlug: string | null;
   variantLabel: string | null;
   quantity: number;
-  requesterNote: string | null;
-  quotedUnitPrice: number | null;
-  quotedDiscountPercent: number | null;
+  desiredUnitPrice: number | null;
+  agreedUnitPrice: number | null;
+  lineNote: string | null;
+  lineCurrency: string;
+  discountPercent: number | null;
+}
+
+interface AdminRfqEvent {
+  id: string;
+  eventType: string;
+  actorAdminUserId: string | null;
+  actorCustomerAccountId: string | null;
+  actorRoleLabel: string | null;
+  payload: Record<string, unknown>;
+  createdAt: string;
 }
 
 interface AdminRfqDetail {
   id: string;
   organizationId: string;
   customerAccountId: string;
-  assignedAdminUserId?: string;
-  status: string;
-  requesterNote: string | null;
+  createdByAdminUserId: string | null;
+  assignedAdminUserId: string | null;
+  status: RfqStatus;
+  awaitingCustomerRevisionAcceptance: boolean;
+  currentRevisionNumber: number;
+  headerNote: string | null;
+  cancellationReason: string | null;
   items: AdminRfqItem[];
-  quoteTerms: {
-    leadTimeDays: number;
-    validityDays: number;
-    deliveryTerms: string | null;
-    remarks: string | null;
-  } | null;
+  events: AdminRfqEvent[];
   submittedAt: string | null;
-  quotedAt: string | null;
-  respondedAt: string | null;
+  approvedAt: string | null;
+  canceledAt: string | null;
+  completedAt: string | null;
+  expiredAt: string | null;
   expiresAt: string | null;
+  convertedOrderId: string | null;
   updatedAt: string;
+  version: number;
 }
 
-interface QuoteLineDraft {
-  unitPrice: string;
-  discountPercent: string;
-}
+const TERMINAL: RfqStatus[] = ['Approved', 'Completed', 'Canceled', 'Expired'];
 
-const QUOTABLE_STATUSES = ['submitted', 'in_review'];
+const STATUS_VARIANT: Record<
+  RfqStatus,
+  'default' | 'secondary' | 'success' | 'warning' | 'destructive'
+> = {
+  'Created from admin': 'warning',
+  Pending: 'warning',
+  Approved: 'success',
+  Completed: 'default',
+  Canceled: 'destructive',
+  Expired: 'secondary',
+};
 
 export function RfqDetail(): ReactNode {
-  const { id = '' } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
   const [rfq, setRfq] = useState<AdminRfqDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [lines, setLines] = useState<Record<string, QuoteLineDraft>>({});
-  const [terms, setTerms] = useState({
-    leadTimeDays: '7',
-    validityDays: '14',
-    deliveryTerms: '',
-    remarks: '',
-  });
-  const [declineMessage, setDeclineMessage] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async (): Promise<void> => {
+    if (!id) return;
     setLoading(true);
     setError(null);
     try {
       const res = await apiClient.get<{ data: AdminRfqDetail }>(
         `/api/v1/admin/quote-requests/${id}`,
       );
-      const found = res.data;
-      setRfq(found);
-      const draft: Record<string, QuoteLineDraft> = {};
-      for (const it of found.items) {
-        draft[it.id] = {
-          unitPrice: it.quotedUnitPrice != null ? String(it.quotedUnitPrice) : '',
-          discountPercent:
-            it.quotedDiscountPercent != null ? String(it.quotedDiscountPercent) : '',
-        };
-      }
-      setLines(draft);
-      if (found.quoteTerms) {
-        setTerms({
-          leadTimeDays: String(found.quoteTerms.leadTimeDays),
-          validityDays: String(found.quoteTerms.validityDays),
-          deliveryTerms: found.quoteTerms.deliveryTerms ?? '',
-          remarks: found.quoteTerms.remarks ?? '',
-        });
-      }
+      setRfq(res.data);
     } catch (err) {
-      if (err instanceof ApiError && err.envelope.error.code === 'NOT_FOUND') {
-        setRfq(null);
-      } else {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load RFQ.');
-      }
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
     } finally {
       setLoading(false);
     }
@@ -116,183 +125,115 @@ export function RfqDetail(): ReactNode {
     void refresh();
   }, [refresh]);
 
-  const canQuote = useMemo(() => rfq && QUOTABLE_STATUSES.includes(rfq.status), [rfq]);
-
-  const handleClaim = useCallback(async (): Promise<void> => {
+  const approve = async (): Promise<void> => {
     if (!rfq) return;
-    setError(null);
-    try {
-      await apiClient.post<{ data: AdminRfqDetail }>(
-        `/api/v1/admin/quote-requests/${rfq.id}/claim`,
-        {},
-      );
-      setInfo('Claimed.');
-      await refresh();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Claim failed.');
-    }
-  }, [rfq, refresh]);
-
-  const handleSendQuote = useCallback(async (): Promise<void> => {
-    if (!rfq) return;
+    setBusy(true);
     setError(null);
     setInfo(null);
-    const itemsPayload: Array<{
-      itemId: string;
-      quotedUnitPrice: number;
-      quotedDiscountPercent?: number;
-    }> = [];
-    for (const it of rfq.items) {
-      const draft = lines[it.id];
-      const unit = Number(draft?.unitPrice);
-      if (!Number.isFinite(unit) || unit < 0) {
-        setError(`Item "${it.productName}": unit price is required and must be ≥ 0.`);
-        return;
-      }
-      const disc = draft?.discountPercent ? Number(draft.discountPercent) : null;
-      if (disc != null && (!Number.isFinite(disc) || disc < 0 || disc > 100)) {
-        setError(`Item "${it.productName}": discount must be 0..100.`);
-        return;
-      }
-      itemsPayload.push({
-        itemId: it.id,
-        quotedUnitPrice: unit,
-        ...(disc != null ? { quotedDiscountPercent: disc } : {}),
-      });
-    }
-    const lead = Number(terms.leadTimeDays);
-    const valid = Number(terms.validityDays);
-    if (!Number.isFinite(lead) || lead < 0) {
-      setError('Lead time must be 0 days or more.');
-      return;
-    }
-    if (!Number.isFinite(valid) || valid < 1) {
-      setError('Validity must be at least 1 day.');
-      return;
-    }
     try {
-      await apiClient.post<{ data: AdminRfqDetail }>(
-        `/api/v1/admin/quote-requests/${rfq.id}/quote`,
-        {
-          items: itemsPayload,
-          terms: {
-            leadTimeDays: lead,
-            validityDays: valid,
-            ...(terms.deliveryTerms ? { deliveryTerms: terms.deliveryTerms } : {}),
-            ...(terms.remarks ? { remarks: terms.remarks } : {}),
-          },
-        },
+      await apiClient.post(
+        `/api/v1/admin/quote-requests/${rfq.id}/approve`,
+        {},
+        { headers: { 'If-Match': `"${rfq.version}"` } },
       );
-      setInfo('Quote sent — buyer will see it on their RFQ.');
+      setInfo('Quote Request approved.');
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Send-quote failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Approve failed.');
+    } finally {
+      setBusy(false);
     }
-  }, [rfq, lines, terms, refresh]);
+  };
 
-  const handleDecline = useCallback(async (): Promise<void> => {
+  const cancel = async (): Promise<void> => {
     if (!rfq) return;
-    if (!declineMessage.trim()) {
-      setError('Decline message is required.');
-      return;
-    }
-    if (!confirm('Decline this RFQ? The buyer will see your message.')) return;
+    setBusy(true);
+    setError(null);
+    setInfo(null);
     try {
-      await apiClient.post<{ data: AdminRfqDetail }>(
-        `/api/v1/admin/quote-requests/${rfq.id}/decline`,
-        { message: declineMessage },
+      const body = cancelReason.trim().length > 0 ? { reason: cancelReason.trim() } : {};
+      await apiClient.post(
+        `/api/v1/admin/quote-requests/${rfq.id}/cancel`,
+        body,
+        { headers: { 'If-Match': `"${rfq.version}"` } },
       );
-      setInfo('Declined.');
-      setDeclineMessage('');
+      setInfo('Quote Request canceled.');
+      setCancelReason('');
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Decline failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Cancel failed.');
+    } finally {
+      setBusy(false);
     }
-  }, [rfq, declineMessage, refresh]);
+  };
 
-  if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>;
-  if (!rfq) {
+  if (loading)
     return (
-      <>
-        <Alert variant="warning" className="mb-4">
-          <AlertDescription>RFQ not found.</AlertDescription>
-        </Alert>
-        <Button variant="outline" onClick={(): void => { navigate('/quote-requests'); }}>
-          <ArrowLeft />
-          Back to list
-        </Button>
-      </>
+      <div className="b2b-page b2b-page--wide">
+        <p style={{ padding: 32, color: 'var(--b2b-muted)' }}>Loading…</p>
+      </div>
     );
-  }
+
+  if (!rfq)
+    return (
+      <div className="b2b-page b2b-page--wide">
+        <Alert variant="destructive">
+          <AlertDescription>{error ?? 'Quote Request not found.'}</AlertDescription>
+        </Alert>
+      </div>
+    );
+
+  const isTerminal = TERMINAL.includes(rfq.status);
+  const total = rfq.items.every((it) => it.agreedUnitPrice !== null)
+    ? rfq.items.reduce((s, it) => s + (it.agreedUnitPrice ?? 0) * it.quantity, 0)
+    : null;
 
   return (
-    <>
+    <div className="b2b-page b2b-page--wide">
+      <Button asChild variant="ghost" size="sm" style={{ marginBottom: 8 }}>
+        <Link to="/quote-requests">
+          <ArrowLeft size={14} style={{ marginRight: 4 }} /> Back to list
+        </Link>
+      </Button>
+
       <PageHeader
-        title={`RFQ ${rfq.id.slice(0, 8)}`}
-        description={
-          <span className="inline-flex items-center gap-2">
-            <Badge variant="secondary">{rfq.status}</Badge>
-            {rfq.expiresAt ? <span>expires {formatDateTime(rfq.expiresAt)}</span> : null}
-          </span>
-        }
-        actions={
-          <Button asChild variant="outline">
-            <Link to="/quote-requests">
-              <ArrowLeft />
-              Back
-            </Link>
-          </Button>
-        }
+        title={`Quote Request ${rfq.id.slice(0, 8)}`}
+        description={`Organization ${rfq.organizationId.slice(0, 8)} · Customer ${rfq.customerAccountId.slice(0, 8)}`}
       />
 
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <Badge variant={STATUS_VARIANT[rfq.status]}>{rfq.status}</Badge>
+        {rfq.awaitingCustomerRevisionAcceptance ? (
+          <Badge variant="warning">Awaiting customer acceptance of revision</Badge>
+        ) : null}
+        {rfq.cancellationReason ? (
+          <Badge variant="destructive">Cancel reason: {rfq.cancellationReason}</Badge>
+        ) : null}
+      </div>
+
       {error ? (
-        <Alert variant="destructive" className="mb-4">
+        <Alert variant="destructive" style={{ marginBottom: 16 }}>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
       {info ? (
-        <Alert variant="success" className="mb-4">
+        <Alert variant="default" style={{ marginBottom: 16 }}>
           <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
 
-      <Card className="mb-4">
-        <CardContent className="space-y-3 pt-6 text-sm">
-          <div>
-            <div className="font-semibold">Buyer</div>
-            <div className="font-mono text-xs text-muted-foreground">
-              org {rfq.organizationId.slice(0, 8)} · user {rfq.customerAccountId.slice(0, 8)}
-            </div>
-          </div>
-          <div>
-            <div className="font-semibold">Assigned</div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <span className="font-mono text-xs">
-                {rfq.assignedAdminUserId ?? 'unassigned'}
-              </span>
-              {!rfq.assignedAdminUserId && QUOTABLE_STATUSES.includes(rfq.status) ? (
-                <Button
-                  size="sm"
-                  type="button"
-                  onClick={(): void => void handleClaim()}
-                >
-                  Claim
-                </Button>
-              ) : null}
-            </div>
-          </div>
-          {rfq.requesterNote ? (
-            <div>
-              <div className="font-semibold">Requester note</div>
-              <p className="text-muted-foreground">{rfq.requesterNote}</p>
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
+      {rfq.headerNote ? (
+        <Card style={{ marginBottom: 16 }}>
+          <CardHeader>
+            <CardTitle>Header note</CardTitle>
+          </CardHeader>
+          <CardContent>{rfq.headerNote}</CardContent>
+        </Card>
+      ) : null}
 
-      <Card className="mb-4">
+      <Card style={{ marginBottom: 16 }}>
         <CardHeader>
-          <CardTitle>Items + quote</CardTitle>
+          <CardTitle>Line items ({rfq.items.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
@@ -300,155 +241,300 @@ export function RfqDetail(): ReactNode {
               <TableRow>
                 <TableHead>Product</TableHead>
                 <TableHead>Qty</TableHead>
-                <TableHead>Unit price</TableHead>
-                <TableHead>Discount %</TableHead>
-                <TableHead>Note</TableHead>
+                <TableHead>Desired</TableHead>
+                <TableHead>Agreed</TableHead>
+                <TableHead>Line total</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rfq.items.map((it) => (
-                <TableRow key={it.id}>
-                  <TableCell>
-                    <div className="font-medium">{it.productName}</div>
-                    {it.variantLabel ? (
-                      <div className="text-xs text-muted-foreground">{it.variantLabel}</div>
-                    ) : null}
+              {rfq.items.map((it) => {
+                const lineTotal =
+                  it.agreedUnitPrice !== null
+                    ? it.agreedUnitPrice * it.quantity
+                    : it.desiredUnitPrice !== null
+                      ? it.desiredUnitPrice * it.quantity
+                      : null;
+                return (
+                  <TableRow key={it.id}>
+                    <TableCell>
+                      <strong>{it.productName}</strong>
+                      {it.variantLabel ? <small> ({it.variantLabel})</small> : null}
+                      {it.lineNote ? <div style={{ fontSize: 11, color: 'var(--b2b-muted)' }}>{it.lineNote}</div> : null}
+                    </TableCell>
+                    <TableCell>{it.quantity}</TableCell>
+                    <TableCell>{it.desiredUnitPrice !== null ? it.desiredUnitPrice.toFixed(2) : '—'}</TableCell>
+                    <TableCell>{it.agreedUnitPrice !== null ? it.agreedUnitPrice.toFixed(2) : '—'}</TableCell>
+                    <TableCell>
+                      {lineTotal !== null
+                        ? `${lineTotal.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} ${it.lineCurrency}`
+                        : '—'}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {total !== null ? (
+                <TableRow>
+                  <TableCell colSpan={4} style={{ textAlign: 'right', fontWeight: 600 }}>
+                    Total
                   </TableCell>
-                  <TableCell>{it.quantity}</TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      className="w-28"
-                      value={lines[it.id]?.unitPrice ?? ''}
-                      onChange={(e): void =>
-                        setLines((prev) => ({
-                          ...prev,
-                          [it.id]: {
-                            unitPrice: e.target.value,
-                            discountPercent: prev[it.id]?.discountPercent ?? '',
-                          },
-                        }))
-                      }
-                      disabled={!canQuote}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="100"
-                      className="w-20"
-                      value={lines[it.id]?.discountPercent ?? ''}
-                      onChange={(e): void =>
-                        setLines((prev) => ({
-                          ...prev,
-                          [it.id]: {
-                            unitPrice: prev[it.id]?.unitPrice ?? '',
-                            discountPercent: e.target.value,
-                          },
-                        }))
-                      }
-                      disabled={!canQuote}
-                    />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {it.requesterNote ?? ''}
+                  <TableCell style={{ fontWeight: 600 }}>
+                    {total.toLocaleString('pl-PL', { minimumFractionDigits: 2 })}{' '}
+                    {rfq.items[0]?.lineCurrency}
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : null}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      {canQuote ? (
-        <>
-          <Card className="mb-4">
-            <CardHeader>
-              <CardTitle>Quote terms</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="lead">Lead time (days)</Label>
-                  <Input
-                    id="lead"
-                    type="number"
-                    min="0"
-                    value={terms.leadTimeDays}
-                    onChange={(e): void =>
-                      setTerms((t) => ({ ...t, leadTimeDays: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="valid">Validity (days)</Label>
-                  <Input
-                    id="valid"
-                    type="number"
-                    min="1"
-                    value={terms.validityDays}
-                    onChange={(e): void =>
-                      setTerms((t) => ({ ...t, validityDays: e.target.value }))
-                    }
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="dterms">Delivery terms (optional)</Label>
-                <Input
-                  id="dterms"
-                  value={terms.deliveryTerms}
-                  onChange={(e): void =>
-                    setTerms((t) => ({ ...t, deliveryTerms: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="remarks">Remarks (optional)</Label>
-                <Textarea
-                  id="remarks"
-                  rows={3}
-                  value={terms.remarks}
-                  onChange={(e): void => setTerms((t) => ({ ...t, remarks: e.target.value }))}
-                />
-              </div>
-              <Button type="button" onClick={(): void => void handleSendQuote()}>
-                <Send />
-                Send quote
+      {!isTerminal ? (
+        <Card style={{ marginBottom: 16 }}>
+          <CardHeader>
+            <CardTitle>Actions</CardTitle>
+          </CardHeader>
+          <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {rfq.status === 'Pending' ? (
+              <Button onClick={(): void => void approve()} disabled={busy}>
+                <Check size={14} style={{ marginRight: 4 }} /> Approve
               </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Decline</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="dmsg">Message to the buyer</Label>
+            ) : null}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+              <div style={{ flex: 1 }}>
+                <Label htmlFor="cancel-reason">Cancellation reason (optional)</Label>
                 <Textarea
-                  id="dmsg"
-                  rows={3}
-                  value={declineMessage}
-                  onChange={(e): void => setDeclineMessage(e.target.value)}
+                  id="cancel-reason"
+                  value={cancelReason}
+                  onChange={(e): void => setCancelReason(e.target.value)}
+                  placeholder="What should we tell the customer?"
+                  rows={2}
                 />
               </div>
-              <Button
-                variant="destructive"
-                type="button"
-                onClick={(): void => void handleDecline()}
-              >
-                <XCircle />
-                Decline RFQ
+              <Button variant="destructive" onClick={(): void => void cancel()} disabled={busy}>
+                <XCircle size={14} style={{ marginRight: 4 }} /> Cancel RFQ
               </Button>
-            </CardContent>
-          </Card>
-        </>
+            </div>
+          </CardContent>
+        </Card>
       ) : null}
-    </>
+
+      {!isTerminal ? (
+        <ModifyCard rfq={rfq} onSaved={refresh} setError={setError} setInfo={setInfo} />
+      ) : null}
+
+      {rfq.status === 'Approved' ? (
+        <Card style={{ marginBottom: 16 }}>
+          <CardHeader>
+            <CardTitle>Convert to order</CardTitle>
+          </CardHeader>
+          <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <p style={{ fontSize: 13, color: 'var(--b2b-muted)', margin: 0 }}>
+              Loads the negotiated lines into the customer&apos;s cart at the agreed unit prices and
+              opens checkout. The Quote Request flips to Completed once the order is placed.
+            </p>
+            <div>
+              <Button
+                onClick={async (): Promise<void> => {
+                  setBusy(true);
+                  setError(null);
+                  setInfo(null);
+                  try {
+                    const res = await apiClient.post<{ data: { cartId: string; checkoutUrl: string } }>(
+                      `/api/v1/quote-requests/${rfq.id}/convert-to-order`,
+                      {},
+                    );
+                    setInfo(`Cart prepared: ${res.data.cartId.slice(0, 8)} — open ${res.data.checkoutUrl}`);
+                  } catch (err) {
+                    setError(err instanceof ApiError ? err.envelope.error.message : 'Convert failed.');
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                disabled={busy}
+              >
+                Place order from this quote
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Change history</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {rfq.events.length === 0 ? (
+            <p style={{ color: 'var(--b2b-muted)' }}>No events.</p>
+          ) : (
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {rfq.events.map((e) => (
+                <li
+                  key={e.id}
+                  style={{ padding: '8px 0', borderBottom: '1px dashed var(--b2b-border, #e5e7eb)' }}
+                >
+                  <div style={{ fontSize: 11, color: 'var(--b2b-muted)' }}>
+                    {formatDateTime(e.createdAt)}
+                    {e.actorRoleLabel ? ` · ${e.actorRoleLabel}` : null}
+                  </div>
+                  <div style={{ fontWeight: 500 }}>{e.eventType}</div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+interface ModifyLineDraft {
+  productId: string;
+  quantity: string;
+  agreedUnitPrice: string;
+}
+
+function ModifyCard({
+  rfq,
+  onSaved,
+  setError,
+  setInfo,
+}: {
+  rfq: AdminRfqDetail;
+  onSaved: () => Promise<void>;
+  setError: (msg: string | null) => void;
+  setInfo: (msg: string | null) => void;
+}): ReactNode {
+  const [headerNote, setHeaderNote] = useState(rfq.headerNote ?? '');
+  const [lines, setLines] = useState<ModifyLineDraft[]>(
+    rfq.items.map((it) => ({
+      productId: it.productId,
+      quantity: String(it.quantity),
+      agreedUnitPrice: it.agreedUnitPrice !== null ? it.agreedUnitPrice.toFixed(2) : '',
+    })),
+  );
+  const [busy, setBusy] = useState(false);
+
+  const save = async (): Promise<void> => {
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const items = lines
+        .filter((l) => l.productId.trim().length > 0 && Number(l.quantity) > 0)
+        .map((l) => ({
+          productId: l.productId.trim(),
+          quantity: Number(l.quantity),
+          ...(l.agreedUnitPrice.trim().length > 0
+            ? { agreedUnitPrice: Number(l.agreedUnitPrice) }
+            : {}),
+        }));
+      if (items.length === 0) {
+        setError('At least one line is required.');
+        setBusy(false);
+        return;
+      }
+      await apiClient.patch(
+        `/api/v1/admin/quote-requests/${rfq.id}`,
+        { headerNote: headerNote.trim().length > 0 ? headerNote.trim() : null, items },
+        { headers: { 'If-Match': `"${rfq.version}"` } },
+      );
+      setInfo('Quote Request modified — customer notified.');
+      await onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Modify failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const updateLine = (idx: number, patch: Partial<ModifyLineDraft>): void => {
+    setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
+  };
+
+  return (
+    <Card style={{ marginBottom: 16 }}>
+      <CardHeader>
+        <CardTitle>Modify (negotiation)</CardTitle>
+      </CardHeader>
+      <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div>
+          <Label htmlFor="modify-note">Header note</Label>
+          <Textarea
+            id="modify-note"
+            value={headerNote}
+            onChange={(e): void => setHeaderNote(e.target.value)}
+            rows={2}
+          />
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Product id</TableHead>
+              <TableHead>Quantity</TableHead>
+              <TableHead>Agreed unit price</TableHead>
+              <TableHead></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {lines.map((l, i) => (
+              <TableRow key={i}>
+                <TableCell>
+                  <input
+                    value={l.productId}
+                    onChange={(e): void => updateLine(i, { productId: e.target.value })}
+                    style={{ width: '100%', padding: 6, border: '1px solid var(--border)', borderRadius: 4 }}
+                  />
+                </TableCell>
+                <TableCell>
+                  <input
+                    type="number"
+                    min={1}
+                    value={l.quantity}
+                    onChange={(e): void => updateLine(i, { quantity: e.target.value })}
+                    style={{ width: 80, padding: 6, border: '1px solid var(--border)', borderRadius: 4 }}
+                  />
+                </TableCell>
+                <TableCell>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={l.agreedUnitPrice}
+                    onChange={(e): void => updateLine(i, { agreedUnitPrice: e.target.value })}
+                    style={{ width: 100, padding: 6, border: '1px solid var(--border)', borderRadius: 4 }}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(): void => setLines((prev) => prev.filter((_, j) => j !== i))}
+                  >
+                    Remove
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        <div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(): void =>
+              setLines((prev) => [...prev, { productId: '', quantity: '1', agreedUnitPrice: '' }])
+            }
+          >
+            + Add line
+          </Button>
+        </div>
+        <div>
+          <Button onClick={(): void => void save()} disabled={busy}>
+            Save revision (notifies customer)
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

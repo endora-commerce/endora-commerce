@@ -62,6 +62,10 @@ import { SettingValue } from '../modules/settings/entities/setting-value.entity.
 import { SearchPhraseRecord } from '../modules/search/entities/search-phrase-record.entity.js';
 import { Comparison } from '../modules/comparisons/entities/comparison.entity.js';
 import { ComparisonProduct } from '../modules/comparisons/entities/comparison-product.entity.js';
+import { QuoteRequestRevision } from '../modules/quote_requests/entities/quote-request-revision.entity.js';
+import { QuoteRequestEvent } from '../modules/quote_requests/entities/quote-request-event.entity.js';
+import { QuoteRequestNotificationEvent } from '../modules/quote_requests/entities/quote-request-notification-event.entity.js';
+import { OrganizationSalesRepAssignment } from '../modules/organizations/entities/organization-sales-rep-assignment.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -169,4 +173,9 @@ export const ALL_ENTITIES = [
   // comparisons (feature 007)
   Comparison,
   ComparisonProduct,
+  // quote_requests workflow (feature 008)
+  QuoteRequestRevision,
+  QuoteRequestEvent,
+  QuoteRequestNotificationEvent,
+  OrganizationSalesRepAssignment,
 ] as const;

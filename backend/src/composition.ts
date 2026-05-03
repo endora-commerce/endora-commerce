@@ -1,6 +1,8 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import Redis from 'ioredis';
 import { CustomerAccount } from './modules/customer_accounts/entities/customer-account.entity.js';
+import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';
+import { AdminRole } from './modules/admin_roles/entities/admin-role.entity.js';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from './http/error-envelope.js';
@@ -41,6 +43,7 @@ import { searchModule } from './modules/search/plugin.js';
 import { searchManifest } from './modules/search/manifest.js';
 import { comparisonsModule } from './modules/comparisons/plugin.js';
 import { comparisonsManifest } from './modules/comparisons/manifest.js';
+import { quoteRequestsManifest, QUOTE_REQUESTS_SETTING_CODES } from './modules/quote_requests/manifest.js';
 import { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
 import type { CartService } from './modules/carts/services/cart-service.js';
@@ -323,25 +326,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         };
       },
     }),
-    quoteRequestsModule({
-      emFactory: em,
-      eventBus,
-      requireCustomer,
-      requireAdmin,
-      resolveCustomerContext: customerResolver,
-      resolveAdminContext: adminContextResolver,
-    }),
     inventoryModule({
       emFactory: em,
       requireCustomer,
       resolveCustomerContext: customerResolver,
       requireAdmin,
-    }),
-    shoppingListsModule({
-      emFactory: em,
-      eventBus,
-      requireCustomer,
-      resolveCustomerContext: customerResolver,
     }),
   ];
 
@@ -404,6 +393,86 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     comparisons.handle.comparisonService,
   );
 
+  // Feature 008 — Quote Requests workflow. Built after Settings so the
+  // expiry worker can read `quote_requests.expiryDays` through the
+  // settings service. Customer + admin context resolvers look up the
+  // caller's role for visibility scoping (research §R2 / FR-011 / FR-013).
+  const quoteRequests = quoteRequestsModule({
+    emFactory: em,
+    eventBus,
+    requireCustomer,
+    requireAdmin,
+    resolveCustomerContext: async (request) => {
+      if (request.actor.kind !== 'customer') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+      }
+      const account = await em().findOne(CustomerAccount, {
+        id: request.actor.customerAccountId,
+      });
+      return {
+        customerAccountId: request.actor.customerAccountId,
+        organizationId: request.actor.organizationId,
+        isOrgAdmin: account?.role === 'organization_admin',
+      };
+    },
+    resolveAdminContext: async (request) => {
+      if (request.actor.kind !== 'admin') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+      }
+      const adminUser = await em().findOne(AdminUser, { id: request.actor.adminUserId });
+      const role = adminUser?.adminRoleId
+        ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
+        : null;
+      return {
+        adminUserId: request.actor.adminUserId,
+        isPlatformAdmin: role?.code === 'platform_admin',
+        roleLabel:
+          role?.code === 'platform_admin'
+            ? 'Platform administrator'
+            : role?.code === 'sales_representative'
+              ? 'Sales representative'
+              : (role?.name ?? 'Administrator'),
+      };
+    },
+    resolveExpiryDays: async () => {
+      try {
+        const { z } = await import('zod');
+        const value = await settings.handle.settingsService.get(
+          QUOTE_REQUESTS_SETTING_CODES.EXPIRY_DAYS,
+          'default',
+          z.number().int().nonnegative(),
+        );
+        return value;
+      } catch {
+        return 0;
+      }
+    },
+    resolveBoolSetting: async (key) => {
+      try {
+        const { z } = await import('zod');
+        const code =
+          key === 'show_add_to_quote_on_card'
+            ? QUOTE_REQUESTS_SETTING_CODES.SHOW_ADD_TO_QUOTE_ON_CARD
+            : QUOTE_REQUESTS_SETTING_CODES.SHOW_ADD_TO_QUOTE_ON_PDP;
+        return await settings.handle.settingsService.get(code, 'default', z.boolean());
+      } catch {
+        return true;
+      }
+    },
+  });
+  modules.push(quoteRequests.register);
+
+  // Shopping lists / quick order — depends on the RFQ service built above
+  // so the "convert to RFQ" flow goes through the new createForCustomer API.
+  modules.push(
+    shoppingListsModule({
+      emFactory: em,
+      rfqService: quoteRequests.handle().rfqService,
+      requireCustomer,
+      resolveCustomerContext: customerResolver,
+    }),
+  );
+
   // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every
   // module's settings manifest and inserts any missing groups/settings
   // idempotently before the HTTP layer starts serving requests. NEVER deletes
@@ -413,6 +482,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     salesChannelsManifest,
     searchManifest,
     comparisonsManifest,
+    quoteRequestsManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();

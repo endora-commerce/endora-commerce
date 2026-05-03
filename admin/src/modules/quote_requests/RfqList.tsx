@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
@@ -20,54 +20,62 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-const STATUSES = [
-  'draft',
-  'submitted',
-  'in_review',
-  'quoted',
-  'accepted',
-  'rejected',
-  'expired',
-  'cancelled',
-] as const;
+/**
+ * Admin Quote Requests list (feature 008 / T042). Surfaces every RFQ
+ * the caller is authorized to see (assignment-scoped server-side) and
+ * deep-links to the detail view for approve / cancel / modify actions.
+ */
 
-type RfqStatus = (typeof STATUSES)[number];
+type RfqStatus =
+  | 'Created from admin'
+  | 'Pending'
+  | 'Canceled'
+  | 'Approved'
+  | 'Completed'
+  | 'Expired';
+
+type AssignmentScope = 'mine' | 'unassigned' | 'all';
 
 interface AdminRfqRow {
   id: string;
   organizationId: string;
+  organizationName?: string;
   customerAccountId: string;
-  assignedAdminUserId?: string;
+  customerDisplayName?: string | null;
   status: RfqStatus;
-  items: Array<{ id: string; productName: string; quantity: number }>;
+  awaitingCustomerRevisionAcceptance: boolean;
+  lineCount: number;
+  totalAtCustomerPrice: number | null;
+  totalAtAgreedPrice: number | null;
+  currency: string;
   submittedAt: string | null;
-  quotedAt: string | null;
   expiresAt: string | null;
   updatedAt: string;
+  version: number;
 }
 
 interface AdminRfqListResponse {
   data: AdminRfqRow[];
 }
 
-const OPEN_STATUSES: RfqStatus[] = ['submitted', 'in_review'];
-
-const STATUS_VARIANT: Record<RfqStatus, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
-  draft: 'secondary',
-  submitted: 'warning',
-  in_review: 'warning',
-  quoted: 'default',
-  accepted: 'success',
-  rejected: 'destructive',
-  expired: 'secondary',
-  cancelled: 'secondary',
+const STATUS_VARIANT: Record<
+  RfqStatus,
+  'default' | 'secondary' | 'success' | 'warning' | 'destructive'
+> = {
+  'Created from admin': 'warning',
+  Pending: 'warning',
+  Approved: 'success',
+  Completed: 'default',
+  Canceled: 'destructive',
+  Expired: 'secondary',
 };
 
 export function RfqList(): ReactNode {
   const [rows, setRows] = useState<AdminRfqRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'open' | RfqStatus | 'all'>('open');
+  const [statusFilter, setStatusFilter] = useState<'all' | RfqStatus>('all');
+  const [scope, setScope] = useState<AssignmentScope>('mine');
   const [organizationId, setOrganizationId] = useState<string>('');
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -75,153 +83,146 @@ export function RfqList(): ReactNode {
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (statusFilter !== 'all' && statusFilter !== 'open') {
-        params.set('filter[status]', statusFilter);
-      }
-      if (organizationId) params.set('filter[organizationId]', organizationId);
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (scope) params.set('assignmentScope', scope);
+      if (organizationId) params.set('organizationId', organizationId);
       const path =
         '/api/v1/admin/quote-requests' + (params.toString() ? `?${params.toString()}` : '');
       const res = await apiClient.get<AdminRfqListResponse>(path);
       setRows(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load RFQs.');
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, organizationId]);
+  }, [statusFilter, scope, organizationId]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  const handleClaim = useCallback(
-    async (id: string): Promise<void> => {
-      try {
-        await apiClient.post<{ data: AdminRfqRow }>(
-          `/api/v1/admin/quote-requests/${id}/claim`,
-          {},
-        );
-        await refresh();
-      } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Claim failed.');
-      }
-    },
-    [refresh],
-  );
-
-  const visible = useMemo(() => {
-    if (statusFilter === 'open') return rows.filter((r) => OPEN_STATUSES.includes(r.status));
-    return rows;
-  }, [rows, statusFilter]);
-
   return (
-    <>
-      <PageHeader
-        title="Quote requests"
-        description="Triage incoming RFQs, claim them, send a quote, or decline."
-      />
-
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card className="mb-4">
-        <CardContent className="grid gap-4 pt-6 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="rfq-status">Status</Label>
-            <Select
-              id="rfq-status"
-              value={statusFilter}
-              onChange={(e): void => setStatusFilter(e.target.value as 'open' | RfqStatus | 'all')}
-            >
-              <option value="open">Open (submitted + in_review)</option>
-              <option value="all">All</option>
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="rfq-org">Organization ID (optional)</Label>
-            <Input
-              id="rfq-org"
-              placeholder="UUID"
-              value={organizationId}
-              onChange={(e): void => setOrganizationId(e.target.value.trim())}
-            />
-          </div>
-        </CardContent>
-      </Card>
+    <div className="b2b-page b2b-page--wide">
+      <PageHeader title="Quote Requests" description="Customer enquiries waiting on a response." />
 
       <Card>
-        <CardContent className="pt-6">
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
-          ) : visible.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No RFQs match the current filter.</p>
-          ) : (
-            <Table>
-              <TableHeader>
+        <CardContent className="b2b-stack" style={{ gap: 16 }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '180px 180px 1fr auto',
+              gap: 12,
+              alignItems: 'end',
+            }}
+          >
+            <div>
+              <Label htmlFor="rfq-scope">Visibility</Label>
+              <Select
+                id="rfq-scope"
+                value={scope}
+                onChange={(e): void => setScope(e.target.value as AssignmentScope)}
+              >
+                <option value="mine">My organizations</option>
+                <option value="unassigned">Unassigned organizations</option>
+                <option value="all">All (platform admin)</option>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="rfq-status">Status</Label>
+              <Select
+                id="rfq-status"
+                value={statusFilter}
+                onChange={(e): void => setStatusFilter(e.target.value as 'all' | RfqStatus)}
+              >
+                <option value="all">All</option>
+                <option value="Pending">Pending</option>
+                <option value="Created from admin">Created from admin</option>
+                <option value="Approved">Approved</option>
+                <option value="Completed">Completed</option>
+                <option value="Canceled">Canceled</option>
+                <option value="Expired">Expired</option>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="rfq-org">Organization id (optional)</Label>
+              <Input
+                id="rfq-org"
+                value={organizationId}
+                onChange={(e): void => setOrganizationId(e.target.value)}
+                placeholder="UUID"
+              />
+            </div>
+            <Button variant="default" onClick={(): void => void refresh()} disabled={loading}>
+              Refresh
+            </Button>
+          </div>
+
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>RFQ</TableHead>
+                <TableHead>Organization</TableHead>
+                <TableHead>Customer</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Lines</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead>Updated</TableHead>
+                <TableHead style={{ width: 80 }}></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 && !loading ? (
                 <TableRow>
-                  <TableHead>RFQ</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Items</TableHead>
-                  <TableHead>Submitted</TableHead>
-                  <TableHead>Expires</TableHead>
-                  <TableHead>Assigned</TableHead>
-                  <TableHead />
+                  <TableCell colSpan={8} style={{ textAlign: 'center', color: 'var(--b2b-muted)' }}>
+                    No Quote Requests match the current filter.
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visible.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell>
-                      <Link
-                        to={`/quote-requests/${r.id}`}
-                        className="font-mono text-xs underline underline-offset-2"
-                      >
-                        {r.id.slice(0, 8)}
+              ) : null}
+              {rows.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell>
+                    <code>{r.id.slice(0, 8)}</code>
+                  </TableCell>
+                  <TableCell>{r.organizationName ?? r.organizationId.slice(0, 8)}</TableCell>
+                  <TableCell>{r.customerDisplayName ?? '—'}</TableCell>
+                  <TableCell>
+                    <Badge variant={STATUS_VARIANT[r.status] ?? 'default'}>{r.status}</Badge>
+                    {r.awaitingCustomerRevisionAcceptance ? (
+                      <Badge variant="warning" style={{ marginLeft: 4 }}>
+                        Awaiting customer
+                      </Badge>
+                    ) : null}
+                  </TableCell>
+                  <TableCell>{r.lineCount}</TableCell>
+                  <TableCell>
+                    {formatTotal(r)}
+                  </TableCell>
+                  <TableCell>{formatDateTime(r.updatedAt)}</TableCell>
+                  <TableCell>
+                    <Button asChild variant="ghost" size="sm">
+                      <Link to={`/quote-requests/${r.id}`}>
+                        Open <ArrowRight size={14} style={{ marginLeft: 4 }} />
                       </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={STATUS_VARIANT[r.status]}>{r.status}</Badge>
-                    </TableCell>
-                    <TableCell>{r.items.length}</TableCell>
-                    <TableCell>{formatDateTime(r.submittedAt)}</TableCell>
-                    <TableCell>{formatDateTime(r.expiresAt)}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {r.assignedAdminUserId ? r.assignedAdminUserId.slice(0, 8) : '—'}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        {OPEN_STATUSES.includes(r.status) && !r.assignedAdminUserId ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={(): void => void handleClaim(r.id)}
-                          >
-                            Claim
-                          </Button>
-                        ) : null}
-                        <Button asChild variant="outline" size="sm">
-                          <Link to={`/quote-requests/${r.id}`}>
-                            Open
-                            <ArrowRight />
-                          </Link>
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
-    </>
+    </div>
   );
+}
+
+function formatTotal(r: AdminRfqRow): string {
+  const total = r.totalAtAgreedPrice ?? r.totalAtCustomerPrice;
+  if (total === null) return '—';
+  return `${total.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} ${r.currency}`;
 }

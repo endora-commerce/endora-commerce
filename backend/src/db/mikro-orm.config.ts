@@ -28,6 +28,9 @@ import { Migration023GroupedAndBundle } from '../modules/catalog/migrations/023_
 import { Migration024SettingsInit } from './migrations/024_settings_init.js';
 import { Migration025SalesChannelsPromote } from '../modules/sales_channels/migrations/025_sales_channels_promote.js';
 import { Migration026SearchPhraseRecordsInit } from '../modules/search/migrations/026_search_phrase_records_init.js';
+import { Migration027ComparisonsInit } from '../modules/comparisons/migrations/027_comparisons_init.js';
+import { Migration028ProductAttributeIsComparable } from '../modules/catalog/migrations/028_product_attribute_is_comparable.js';
+import { Migration029QuoteRequestsWorkflow } from '../modules/quote_requests/migrations/029_quote_requests_workflow.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -111,6 +114,18 @@ export default defineConfig({
       {
         name: 'Migration026SearchPhraseRecordsInit',
         class: Migration026SearchPhraseRecordsInit,
+      },
+      {
+        name: 'Migration027ComparisonsInit',
+        class: Migration027ComparisonsInit,
+      },
+      {
+        name: 'Migration028ProductAttributeIsComparable',
+        class: Migration028ProductAttributeIsComparable,
+      },
+      {
+        name: 'Migration029QuoteRequestsWorkflow',
+        class: Migration029QuoteRequestsWorkflow,
       },
     ],
     transactional: true,

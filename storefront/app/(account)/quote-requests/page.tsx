@@ -1,72 +1,118 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { listRfqs, type RfqSummary } from '../../../lib/api/rfq';
+import { listRfqs, type RfqStatus, type RfqSummary } from '../../../lib/api/rfq';
 import { getSessionCookie } from '../../../lib/session';
 
 /**
- * Customer RFQ list (T088). The list groups by status — drafts first
- * (still actionable), then awaiting/quoted (waiting on either side),
- * then closed (accepted / rejected / expired). Buyers click through to
- * the detail page; the active draft is also linked from the PDP widget.
+ * Customer Quote Requests list (feature 008 / T033). Renders every
+ * RFQ visible to the caller with status, line count, total at the
+ * customer's price list, and a deep-link to the detail page.
  */
-
-const ACTIVE_STATUSES: RfqSummary['status'][] = ['draft', 'submitted', 'in_review', 'quoted'];
-
 export default async function QuoteRequestsPage(): Promise<ReactNode> {
   const session = await getSessionCookie();
   if (!session) redirect('/login?next=/account/quote-requests');
   const rfqs = await listRfqs(session);
 
-  const active = rfqs.filter((r) => ACTIVE_STATUSES.includes(r.status));
-  const closed = rfqs.filter((r) => !ACTIVE_STATUSES.includes(r.status));
-
   return (
-    <>
-      <h2>Quote requests</h2>
-      <p className="b2b-auth__hint">
-        <Link href="/quote-requests/current">Open my draft</Link> · {' '}
-        <Link href="/catalog">Browse products to add</Link>
-      </p>
+    <div className="container" style={{ paddingTop: 24, paddingBottom: 48 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          marginBottom: 18,
+        }}
+      >
+        <h1>Zapytania ofertowe</h1>
+        <Link href="/catalog" className="btn btn--outline btn--sm">
+          Przeglądaj katalog
+        </Link>
+      </div>
 
-      {active.length === 0 && closed.length === 0 ? (
-        <p>You don&apos;t have any quote requests yet.</p>
-      ) : null}
-
-      {active.length > 0 ? <RfqTable title="In progress" rfqs={active} /> : null}
-      {closed.length > 0 ? <RfqTable title="Closed" rfqs={closed} /> : null}
-    </>
+      {rfqs.length === 0 ? (
+        <p className="muted">Nie masz jeszcze żadnych zapytań ofertowych.</p>
+      ) : (
+        <div
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--line)',
+            borderRadius: 'var(--r-lg)',
+            overflow: 'hidden',
+          }}
+        >
+          <table className="industria-orders" style={{ width: '100%' }}>
+            <thead>
+              <tr>
+                <th>Numer</th>
+                <th>Data</th>
+                <th>Pozycji</th>
+                <th>Wartość</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rfqs.map((r) => (
+                <tr key={r.id}>
+                  <td>
+                    <strong>{r.id.slice(0, 8)}</strong>
+                  </td>
+                  <td>{new Date(r.createdAt).toLocaleDateString('pl-PL')}</td>
+                  <td>{r.lineCount}</td>
+                  <td style={{ fontWeight: 600 }}>{formatTotal(r)}</td>
+                  <td>
+                    <RfqStatusBadge
+                      status={r.status}
+                      awaiting={r.awaitingCustomerRevisionAcceptance}
+                    />
+                  </td>
+                  <td>
+                    <Link
+                      href={`/account/quote-requests/${r.id}`}
+                      className="btn btn--outline btn--sm"
+                    >
+                      Szczegóły
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 
-function RfqTable({ title, rfqs }: { title: string; rfqs: RfqSummary[] }): ReactNode {
-  return (
-    <>
-      <h3>{title}</h3>
-      <table className="b2b-account__table">
-        <thead>
-          <tr>
-            <th>RFQ</th>
-            <th>Items</th>
-            <th>Status</th>
-            <th>Updated</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {rfqs.map((r) => (
-            <tr key={r.id}>
-              <td>{r.id.slice(0, 8)}</td>
-              <td>{r.items.length}</td>
-              <td>{r.status}</td>
-              <td>{new Date(r.updatedAt).toLocaleString()}</td>
-              <td>
-                <Link href={`/quote-requests/${r.id}`}>Open</Link>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </>
-  );
+function formatTotal(r: RfqSummary): string {
+  const total = r.totalAtAgreedPrice ?? r.totalAtCustomerPrice;
+  if (total === null) return '—';
+  return `${total.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} ${r.currency}`;
+}
+
+function RfqStatusBadge({
+  status,
+  awaiting,
+}: {
+  status: RfqStatus;
+  awaiting: boolean;
+}): ReactNode {
+  if (awaiting) {
+    return (
+      <span className="industria-status industria-status--processing">
+        Oczekuje akceptacji
+      </span>
+    );
+  }
+  const map: Record<RfqStatus, { cls: string; label: string }> = {
+    Pending: { cls: 'industria-status--processing', label: 'Oczekuje' },
+    'Created from admin': { cls: 'industria-status--processing', label: 'Od opiekuna' },
+    Approved: { cls: 'industria-status--paid', label: 'Zatwierdzone' },
+    Completed: { cls: 'industria-status--delivered', label: 'Zrealizowane' },
+    Canceled: { cls: 'industria-status--draft', label: 'Anulowane' },
+    Expired: { cls: 'industria-status--draft', label: 'Wygasłe' },
+  };
+  const entry = map[status] ?? { cls: 'industria-status--draft', label: status };
+  return <span className={`industria-status ${entry.cls}`}>{entry.label}</span>;
 }

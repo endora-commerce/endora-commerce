@@ -1,17 +1,18 @@
 import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
-import { addRfqItem } from '../../lib/api/rfq';
+import { createRfq } from '../../lib/api/rfq';
 import { getSessionCookie } from '../../lib/session';
 import { StorefrontApiError } from '../../lib/api/client';
 
 /**
- * "Request a quote" form (T086 / FR-016, FR-018). Lives on the PDP and
- * inside any drawer a theme builds. Adds the current product to the
- * caller's active draft RFQ; on success redirects to
- * `/quote-requests/current` so the buyer sees the running draft.
+ * "Add to quote" widget on the PDP (feature 008). One-shot create:
+ * the new workflow does not have a server-held draft, so the form
+ * immediately creates a Pending Quote Request with the single line
+ * the customer is currently viewing. The customer can then add more
+ * lines from the RFQ detail page or use Quick Order for bulk inputs.
  *
- * Anonymous shoppers are bounced to /login first because RFQs are tied
- * to a (customer, organization).
+ * Anonymous shoppers are bounced to /login first because Quote
+ * Requests are tied to a (customer, organization).
  */
 
 export interface AddToRfqFormProps {
@@ -28,12 +29,12 @@ export function AddToRfqForm({
   defaultQuantity = 1,
 }: AddToRfqFormProps): ReactNode {
   return (
-    <form action={addToRfqAction} className="b2b-rfq-widget">
+    <form action={addToQuoteAction} className="industria-rfq-widget" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
       <input type="hidden" name="productId" value={productId} />
       <input type="hidden" name="productSlug" value={productSlug} />
       {variantId ? <input type="hidden" name="variantId" value={variantId} /> : null}
-      <label htmlFor={`rfq-qty-${productId}`} className="b2b-rfq-widget__label">
-        Qty
+      <label htmlFor={`rfq-qty-${productId}`} style={{ fontSize: 12 }}>
+        Ilość
       </label>
       <input
         id={`rfq-qty-${productId}`}
@@ -42,14 +43,16 @@ export function AddToRfqForm({
         min={1}
         max={9999}
         defaultValue={defaultQuantity}
-        style={{ width: '4rem' }}
+        style={{ width: '5rem', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '6px 8px' }}
       />
-      <button type="submit">Request a quote</button>
+      <button type="submit" className="btn btn--outline btn--sm">
+        Dodaj do zapytania
+      </button>
     </form>
   );
 }
 
-async function addToRfqAction(formData: FormData): Promise<void> {
+async function addToQuoteAction(formData: FormData): Promise<void> {
   'use server';
   const session = await getSessionCookie();
   const productSlug = (formData.get('productSlug') as string) ?? '';
@@ -62,14 +65,18 @@ async function addToRfqAction(formData: FormData): Promise<void> {
     redirect(`/p/${encodeURIComponent(productSlug)}?rfqError=invalid-quantity`);
   }
   try {
-    await addRfqItem(session, {
-      productId,
-      ...(variantId ? { variantId } : {}),
-      quantity,
+    const created = await createRfq(session, {
+      items: [
+        {
+          productId,
+          quantity,
+          ...(variantId ? { variantId } : {}),
+        },
+      ],
     });
+    redirect(`/account/quote-requests/${created.id}`);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.message : 'Could not add to RFQ.';
+    const message = err instanceof StorefrontApiError ? err.message : 'Nie udało się dodać do zapytania.';
     redirect(`/p/${encodeURIComponent(productSlug)}?rfqError=${encodeURIComponent(message)}`);
   }
-  redirect('/quote-requests/current');
 }

@@ -201,3 +201,29 @@ export const registerOrganizationResponseSchema = z.object({
   emailVerificationSent: z.boolean(),
 });
 export type RegisterOrganizationResponse = z.infer<typeof registerOrganizationResponseSchema>;
+
+// --- Sales-rep ↔ organization assignment (feature 008) ---------------------
+
+export const salesRepAssignmentSchema = z.object({
+  id: uuidSchema,
+  organizationId: uuidSchema,
+  adminUserId: uuidSchema,
+  displayName: z.string(),
+  email: z.string().email(),
+  assignedAt: isoDateTimeSchema,
+  assignedByAdminUserId: uuidSchema.nullable(),
+});
+export type SalesRepAssignment = z.infer<typeof salesRepAssignmentSchema>;
+
+export const assignSalesRepRequestSchema = z.object({
+  adminUserId: uuidSchema,
+});
+export type AssignSalesRepRequest = z.infer<typeof assignSalesRepRequestSchema>;
+
+export const salesRepOrganizationSchema = z.object({
+  organizationId: uuidSchema,
+  name: z.string(),
+  openRfqCount: z.number().int().nonnegative(),
+  assignedAt: isoDateTimeSchema,
+});
+export type SalesRepOrganization = z.infer<typeof salesRepOrganizationSchema>;

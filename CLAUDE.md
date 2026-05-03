@@ -1,6 +1,6 @@
 # b2b-platform Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-05-01
+Auto-generated from all feature plans. Last updated: 2026-05-03
 
 ## Active Technologies
 - TypeScript 5.x (strict mode) na Node.js LTS (≥ 22.17, jak w README po update foundation 001). + bez nowych runtime — wszystkie wymagane już są: (002-catalog-module)
@@ -13,6 +13,8 @@ Auto-generated from all feature plans. Last updated: 2026-05-01
 - PostgreSQL — one new MikroORM migration (`026_search_phrase_records_init.ts`) creating `search_phrase_records` and its indexes; no other schema change. Meilisearch (existing) hosts the per-channel `products_<channel_code>` indexes; `search.llm.enabled=true` attaches a Meilisearch embedder per channel index. (006-search-module)
 - TypeScript 5.x (strict) on Node.js LTS ≥ 22.17, per `backend/package.json` engines and the project README. + Fastify, MikroORM (PostgreSQL driver), Zod (boundary validation), ioredis, BullMQ-class queues, Next.js (storefront), React (admin) — **plus** one new dependency, `pdfmake`, used exclusively by the comparison-PDF service. No other addition. (007-compare-module)
 - PostgreSQL — three new MikroORM migrations: (007-compare-module)
+- TypeScript 5.x (strict) on Node.js LTS ≥ 22.17. + Fastify, MikroORM (PostgreSQL driver), Zod, ioredis, BullMQ-class repeating jobs, Next.js (storefront), React + Vite (admin) — **no new runtime dependency**. (008-quote-requests)
+- PostgreSQL via MikroORM. New migration `028_quote_requests_workflow.ts` (next available number after the existing `027_*` from feature 007) introduces: (008-quote-requests)
 
 - TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x) + MikroORM (PostgreSQL driver) for persistence; Zod for boundary validation; Next.js for the storefront; React for the admin panel; Meilisearch client; Redis client (cache + BullMQ-class queue). Backend HTTP layer intentionally minimal (a small, well-known Node/TypeScript HTTP router; choice deferred to Phase 0 research with a bias toward the smallest dependency footprint compatible with TDD, Zod, and modular routing). (001-b2b-platform-foundation)
 
@@ -32,9 +34,9 @@ npm test && npm run lint
 TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x): Follow standard conventions
 
 ## Recent Changes
+- 008-quote-requests: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17. + Fastify, MikroORM (PostgreSQL driver), Zod, ioredis, BullMQ-class repeating jobs, Next.js (storefront), React + Vite (admin) — **no new runtime dependency**.
 - 007-compare-module: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17, per `backend/package.json` engines and the project README. + Fastify, MikroORM (PostgreSQL driver), Zod (boundary validation), ioredis, BullMQ-class queues, Next.js (storefront), React (admin) — **plus** one new dependency, `pdfmake`, used exclusively by the comparison-PDF service. No other addition.
 - 006-search-module: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17, per `backend/package.json` engines and the project README. + Fastify, MikroORM (PostgreSQL driver), Zod (boundary validation), Meilisearch JS client, ioredis, BullMQ-class queues, Next.js (storefront) and React (admin) — **no new runtime dependency**.
-- 005-sales-channels: Added TypeScript 5.x strict; Node.js LTS ≥ 22.17 per repo `README` and engines field in `backend/package.json`. + Existing stack only — Fastify, MikroORM, Zod, Vitest, ioredis, BullMQ-class queues. **No new runtime dependency** is justified for this feature.
 
 
 <!-- MANUAL ADDITIONS START -->

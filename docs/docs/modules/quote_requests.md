@@ -4,56 +4,129 @@ title: quote_requests
 
 # `quote_requests`
 
-The RFQ lifecycle. A Customer drafts a Quote Request, submits it, a Supplier
-employee claims and sends a quote, the Customer accepts or rejects, and the
-RFQ either converts to an Order or expires.
+The Quote Requests module — feature 008 — implements the B2B
+negotiation loop. A customer (or sales representative on the
+customer's behalf) drafts a Quote Request, the other side reviews it,
+either side may modify the request and require explicit re-acceptance,
+and an approved Quote Request can be turned into an order through the
+standard checkout. Every transition is captured in an append-only
+event log so the customer-facing detail page and the admin detail page
+both render the same chronological history.
+
+## Statuses
+
+Six values, replacing the foundation-era set:
+
+- `Created from admin` — drafted by a sales rep / admin, awaiting customer acceptance.
+- `Pending` — submitted by the customer, awaiting internal-side response.
+- `Approved` — green-lit by the responsible party.
+- `Completed` — an order has been placed from this Quote Request.
+- `Canceled` — rejected by either party (with optional reason).
+- `Expired` — auto-flipped by the expiry worker when the configured threshold elapses.
+
+`Canceled`, `Completed`, and `Expired` are terminal.
 
 ## Public surface
 
-Admin routes are gated by `rfqs:handle`. ETags on draft routes give the
-customer a `If-Match` optimistic-concurrency hook.
+Customer endpoints require a customer session; admin endpoints are
+gated by `rfqs:handle`. PATCH-shaped endpoints accept `If-Match`
+versions for optimistic concurrency, and customer accept/reject
+revision additionally pin `expectedRevisionNumber`.
 
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
-| `GET /api/v1/quote-requests/current` | customer | Get / lazy-create the open draft |
-| `POST /api/v1/quote-requests/current/items` | customer | Add line item |
-| `PATCH /api/v1/quote-requests/current/items/:itemId` | customer | Update qty / requester note |
-| `DELETE /api/v1/quote-requests/current/items/:itemId` | customer | Remove an item |
-| `POST /api/v1/quote-requests/current/submit` | customer | Submit draft → `submitted` |
-| `GET /api/v1/quote-requests` | customer | List own RFQs |
-| `GET /api/v1/quote-requests/:id` | customer | Detail of any RFQ the buyer owns |
-| `POST /api/v1/quote-requests/:id/accept` | customer | Accept a `quoted` RFQ → `accepted` (spawns an Order) |
-| `POST /api/v1/quote-requests/:id/reject` | customer | Reject with reason `price` / `terms` / `other` and optional message |
-| `GET /api/v1/admin/quote-requests` | admin | Roster with `filter[status]` / `filter[organizationId]` / `filter[assignedAdminUserId]` |
-| `GET /api/v1/admin/quote-requests/:id` | admin | Detail (T092) |
-| `POST /api/v1/admin/quote-requests/:id/claim` | admin | Assign to the current admin |
-| `POST /api/v1/admin/quote-requests/:id/quote` | admin | Send a quote with per-item unit prices + optional discount + lead-time / validity terms |
-| `POST /api/v1/admin/quote-requests/:id/decline` | admin | Decline with a free-text message surfaced to the buyer |
+| `GET /api/v1/quote-requests` | customer | List visible Quote Requests (org-admin role expands to whole-org visibility). |
+| `GET /api/v1/quote-requests/:id` | customer | Detail with optional `comparisonAgainstLastSeen` block while awaiting acceptance. |
+| `POST /api/v1/quote-requests` | customer | Create + submit in one call. |
+| `PATCH /api/v1/quote-requests/:id` | customer | Edit a Pending RFQ that the internal side has not yet touched. |
+| `POST /api/v1/quote-requests/:id/accept-revision` | customer | Accept the latest revision (also covers `Created from admin`). |
+| `POST /api/v1/quote-requests/:id/reject-revision` | customer | Reject the latest revision with optional reason. |
+| `POST /api/v1/quote-requests/:id/resubmit` | customer | Clone an old Quote Request into a new Pending one at the customer's current price list. |
+| `GET /api/v1/admin/quote-requests` | admin | List, scoped by sales-rep assignment + filterable by status / organization. |
+| `GET /api/v1/admin/quote-requests/:id` | admin | Detail with full actor identity in the event log. |
+| `POST /api/v1/admin/quote-requests` | admin | Create on customer's behalf → status `Created from admin`. |
+| `PATCH /api/v1/admin/quote-requests/:id` | admin | Modify a Pending or Created from admin RFQ → triggers customer re-acceptance. |
+| `POST /api/v1/admin/quote-requests/:id/approve` | admin | Approve a Pending RFQ. |
+| `POST /api/v1/admin/quote-requests/:id/cancel` | admin | Cancel with optional reason. |
+| `POST /api/v1/admin/quote-requests/:id/assign` | admin | Set `assignedAdminUserId` (informational). |
+| `GET /api/v1/admin/organizations/:id/sales-reps` | platform admin | List sales reps assigned to the organization. |
+| `POST /api/v1/admin/organizations/:id/sales-reps` | platform admin | Assign a sales rep. |
+| `DELETE /api/v1/admin/organizations/:id/sales-reps/:adminUserId` | platform admin | Remove an assignment. |
+| `GET /api/v1/admin/sales-reps/:adminUserId/organizations` | platform admin | Reverse view — orgs a rep is responsible for. |
+| `GET /api/v1/storefront/settings/quote-requests` | public | Returns the two storefront visibility flags. |
 
-## State machine
+## Visibility model
 
-`draft → submitted → in_review → quoted → (accepted | rejected | expired | cancelled)`.
-Transitions are enforced inside `rfq-service.ts` and `rfq-admin-service.ts`;
-invalid transitions return `409 INVALID_TRANSITION`.
+A sales representative is a platform administrator with the
+`sales_representative` role. The
+`SalesRepAssignmentService.canSeeOrganization(adminUserId, organizationId)`
+predicate centralises the visibility rule:
 
-## Entities
+1. `platform_admin` role → sees every organization.
+2. Otherwise the admin sees an organization iff a row in
+   `organization_sales_rep_assignments` ties them together, OR the
+   organization has zero rows in that table (the "unassigned-org
+   fallback" — visible to every sales rep).
 
-`QuoteRequest`, `QuoteRequestItem`, plus an embedded `QuoteTerms` value
-object. A partial unique index `(organization_id, customer_account_id) WHERE
-status='draft'` keeps each Customer to one open draft.
+A customer with the `org_admin` role on their own organization sees
+every Quote Request in the organization, not just their own.
 
-## Events emitted
+## Settings
 
-`rfq.created.v1`, `rfq.submitted.v1`, `rfq.quoted.v1`, `rfq.accepted.v1`,
-`rfq.rejected.v1`, `rfq.expired.v1`.
+Three settings drive the module — all live under the `quote_requests`
+group and are configured through the existing settings module.
 
-## Extension points
+| Code | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `quote_requests.expiry_days` | integer | `0` | Auto-expire Pending / Created from admin RFQs after N days. `0` disables. |
+| `quote_requests.show_add_to_quote_on_card` | boolean | `true` | Toggle the "Add to quote" button on storefront product cards. |
+| `quote_requests.show_add_to_quote_on_pdp` | boolean | `true` | Toggle the "Add to quote" button on product detail pages. |
 
-- **Expiry policy** — `rfq-expiry-worker.ts` walks RFQs whose `expiresAt`
-  has passed and transitions them; change the cadence or grace window
-  there.
-- **Quote → Order conversion** — accept emits the convert; new
-  pre-conversion validation hooks belong in `rfq-service.ts#accept`.
-- **Storefront entry point** — `components/rfq/AddToRfqForm.tsx` on the
-  PDP is the canonical buyer-facing widget; themes can replace it
-  without changing the API.
+## Background jobs
+
+`RfqExpiryWorker.sweep()` runs every 30 minutes via the foundation
+BullMQ scheduler. It reads `quote_requests.expiry_days` from the
+settings module's resolved snapshot; if that value is 0 the sweep is
+a no-op. Otherwise it transitions every Pending and Created from
+admin row whose `updated_at < now() - INTERVAL <expiryDays> days` to
+`Expired`, writes one `expired` event per row, and fans out
+notifications to both parties.
+
+## Data model
+
+Five tables on top of the foundation `quote_requests` and
+`quote_request_items`:
+
+- `quote_request_revisions` — full snapshot per modify event.
+- `quote_request_events` — append-only history (one row per state
+  transition or modification, with discriminated-union payload).
+- `quote_request_notification_events` — one row per recipient ×
+  channel; unique on `(quote_request_id, source_event_id, recipient*,
+  channel)` so retries are idempotent.
+- `organization_sales_rep_assignments` — m:n between organizations
+  and admin users (the sales-rep visibility relation).
+
+The canonical `quote_requests` row carries the current state plus
+`current_revision_number`, `last_customer_seen_revision_number`, and
+`awaiting_customer_revision_acceptance`. The customer's "what changed
+since I last visited" diff is computed on read by comparing the
+revision identified by `last_customer_seen_revision_number` against
+the revision identified by `current_revision_number`.
+
+## Notifications
+
+Every state transition fans out through `RfqNotificationService` to
+the appropriate recipients (customer for admin-side actions, sales
+reps + platform admins for customer-side actions, both parties on
+expiry). Email and in-account channels both fire. The unique
+constraint on `quote_request_notification_events` guarantees once-only
+delivery per (transition, recipient, channel).
+
+## Conversion to order
+
+When an order is created with a populated `source_quote_request_id`,
+an event subscriber inside the module flips the originating Quote
+Request to `Completed`, populates `converted_order_id`, and fires the
+`completed` notification. The cart-creation step that locks RFQ
+agreed prices into a checkout cart is delivered through the existing
+cart and checkout flows.

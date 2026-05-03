@@ -13,6 +13,7 @@ import { VariantPicker } from '../../../../components/VariantPicker';
 import { PriceTag } from '../../../../components/PriceTag';
 import { StockBadge } from '../../../../components/StockBadge';
 import { AddToRfqForm } from '../../../../components/rfq/AddToRfqForm';
+import { getStorefrontQuoteRequestSettings } from '../../../../lib/api/rfq';
 import { getProductBySlug } from '../../../../lib/api/catalog';
 import { getServerContext } from '../../../../lib/server-context';
 import { tForLocale } from '../../../../lib/i18n/messages';
@@ -85,6 +86,7 @@ export default async function ProductPage({
   }
 
   const primaryCategory = product.categories[0];
+  const rfqSettings = await getStorefrontQuoteRequestSettings();
 
   return (
     <div className="container industria-pdp">
@@ -129,7 +131,9 @@ export default async function ProductPage({
                     {t('product.addToCart')}
                   </a>
                 ) : null}
-                <AddToRfqForm productId={product.id} productSlug={product.slug} />
+                {rfqSettings.showAddToQuoteOnPdp ? (
+                  <AddToRfqForm productId={product.id} productSlug={product.slug} />
+                ) : null}
               </>
             ) : null}
             {product.type === 'virtual' && product.virtual ? (

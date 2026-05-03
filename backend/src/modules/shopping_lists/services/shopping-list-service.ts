@@ -37,7 +37,7 @@ export interface ConvertToCartResult {
 
 export interface ConvertToRfqResult {
   shoppingListId: string;
-  rfqId: string;
+  rfqId: string | null;
   added: number;
   skipped: ConversionSkip[];
 }
@@ -194,20 +194,20 @@ export class ShoppingListService {
 
     let rfqId: string | null = null;
     let added = 0;
-    for (const item of kept) {
-      const rfq = await this.rfqService.addItem(ctx, {
-        productId: item.productId,
-        ...(item.variantId ? { variantId: item.variantId } : {}),
-        quantity: item.quantity,
-        ...(item.note ? { requesterNote: item.note } : {}),
-      });
+    if (kept.length > 0) {
+      const rfq = await this.rfqService.createForCustomer(
+        { ...ctx, isOrgAdmin: false },
+        {
+          items: kept.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            ...(item.variantId ? { variantId: item.variantId } : {}),
+            ...(item.note ? { lineNote: item.note } : {}),
+          })),
+        },
+      );
       rfqId = rfq.id;
-      added += 1;
-    }
-    if (!rfqId) {
-      // Conversion ran but every item was skipped — surface the open draft anyway.
-      const draft = await this.rfqService.getOrCreateDraft(ctx);
-      rfqId = draft.id;
+      added = kept.length;
     }
 
     return { shoppingListId: list.id, rfqId, added, skipped };
