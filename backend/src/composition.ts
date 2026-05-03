@@ -43,6 +43,7 @@ import { searchModule } from './modules/search/plugin.js';
 import { searchManifest } from './modules/search/manifest.js';
 import { comparisonsModule } from './modules/comparisons/plugin.js';
 import { comparisonsManifest } from './modules/comparisons/manifest.js';
+import { quoteRequestsManifest, QUOTE_REQUESTS_SETTING_CODES } from './modules/quote_requests/manifest.js';
 import { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
 import type { CartService } from './modules/carts/services/cart-service.js';
@@ -433,9 +434,19 @@ export async function composeApp(): Promise<ComposeAppHandle> {
               : (role?.name ?? 'Administrator'),
       };
     },
-    // Real wiring lands in US7 / T076 (settings.handle.settingsService).
-    // Until then expiry is disabled (matches the spec default of 0).
-    resolveExpiryDays: async () => 0,
+    resolveExpiryDays: async () => {
+      try {
+        const { z } = await import('zod');
+        const value = await settings.handle.settingsService.get(
+          QUOTE_REQUESTS_SETTING_CODES.EXPIRY_DAYS,
+          'default',
+          z.number().int().nonnegative(),
+        );
+        return value;
+      } catch {
+        return 0;
+      }
+    },
   });
   modules.push(quoteRequests.register);
 
@@ -459,6 +470,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     salesChannelsManifest,
     searchManifest,
     comparisonsManifest,
+    quoteRequestsManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();

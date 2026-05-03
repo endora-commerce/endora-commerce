@@ -120,6 +120,26 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
         requireAdmin: options.requireAdmin,
         resolveAdminContext: options.resolveAdminContext,
       });
+      const { registerOrganizationsSalesRepRoutes } = await import(
+        '../organizations/routes.sales-reps.js'
+      );
+      await registerOrganizationsSalesRepRoutes(app, {
+        emFactory: options.emFactory,
+        requireAdmin: options.requireAdmin,
+        salesRepAssignment,
+      });
+
+      // Storefront-public Quote Requests settings (FR-032 / FR-033) so the
+      // storefront can show/hide "Add to quote" buttons without going through
+      // the admin-gated settings endpoint.
+      app.get('/api/v1/storefront/settings/quote-requests', async () => {
+        return {
+          data: {
+            showAddToQuoteOnCard: true,
+            showAddToQuoteOnPdp: true,
+          },
+        };
+      });
     },
     handle: (): QuoteRequestsModuleHandle => ({
       expiryWorker,
