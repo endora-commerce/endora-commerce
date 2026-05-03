@@ -104,14 +104,20 @@ export class RfqService {
     const em = this.deps.emFactory();
     const rfq = await this.findVisibleForCustomer(em, rfqId, ctx);
 
-    // Side-effect on read: bump last_customer_seen_revision_number so the
-    // comparison view shrinks once the customer has seen a revision (FR-035 + US3).
+    // Compute the response BEFORE bumping last_customer_seen_revision_number.
+    // The comparison block must diff against the revision the customer last
+    // saw, which is the value as-of-this-read; bumping first would always
+    // produce an empty diff.
+    const dto = await this.serializeFull(em, rfq, /* includeFullActorIdentity */ false);
+
+    // Side-effect on read: advance last_customer_seen so the next visit
+    // reflects what the customer has now seen (FR-035 + US3).
     if (rfq.lastCustomerSeenRevisionNumber < rfq.currentRevisionNumber) {
       rfq.lastCustomerSeenRevisionNumber = rfq.currentRevisionNumber;
       await em.flush();
     }
 
-    return this.serializeFull(em, rfq, /* includeFullActorIdentity */ false);
+    return dto;
   }
 
   // -------------------------------------------------------------------------

@@ -318,6 +318,10 @@ export function RfqDetail(): ReactNode {
         </Card>
       ) : null}
 
+      {!isTerminal ? (
+        <ModifyCard rfq={rfq} onSaved={refresh} setError={setError} setInfo={setInfo} />
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle>Change history</CardTitle>
@@ -344,5 +348,156 @@ export function RfqDetail(): ReactNode {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+interface ModifyLineDraft {
+  productId: string;
+  quantity: string;
+  agreedUnitPrice: string;
+}
+
+function ModifyCard({
+  rfq,
+  onSaved,
+  setError,
+  setInfo,
+}: {
+  rfq: AdminRfqDetail;
+  onSaved: () => Promise<void>;
+  setError: (msg: string | null) => void;
+  setInfo: (msg: string | null) => void;
+}): ReactNode {
+  const [headerNote, setHeaderNote] = useState(rfq.headerNote ?? '');
+  const [lines, setLines] = useState<ModifyLineDraft[]>(
+    rfq.items.map((it) => ({
+      productId: it.productId,
+      quantity: String(it.quantity),
+      agreedUnitPrice: it.agreedUnitPrice !== null ? it.agreedUnitPrice.toFixed(2) : '',
+    })),
+  );
+  const [busy, setBusy] = useState(false);
+
+  const save = async (): Promise<void> => {
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const items = lines
+        .filter((l) => l.productId.trim().length > 0 && Number(l.quantity) > 0)
+        .map((l) => ({
+          productId: l.productId.trim(),
+          quantity: Number(l.quantity),
+          ...(l.agreedUnitPrice.trim().length > 0
+            ? { agreedUnitPrice: Number(l.agreedUnitPrice) }
+            : {}),
+        }));
+      if (items.length === 0) {
+        setError('At least one line is required.');
+        setBusy(false);
+        return;
+      }
+      await apiClient.patch(
+        `/api/v1/admin/quote-requests/${rfq.id}`,
+        { headerNote: headerNote.trim().length > 0 ? headerNote.trim() : null, items },
+        { headers: { 'If-Match': `"${rfq.version}"` } },
+      );
+      setInfo('Quote Request modified — customer notified.');
+      await onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Modify failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const updateLine = (idx: number, patch: Partial<ModifyLineDraft>): void => {
+    setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
+  };
+
+  return (
+    <Card style={{ marginBottom: 16 }}>
+      <CardHeader>
+        <CardTitle>Modify (negotiation)</CardTitle>
+      </CardHeader>
+      <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div>
+          <Label htmlFor="modify-note">Header note</Label>
+          <Textarea
+            id="modify-note"
+            value={headerNote}
+            onChange={(e): void => setHeaderNote(e.target.value)}
+            rows={2}
+          />
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Product id</TableHead>
+              <TableHead>Quantity</TableHead>
+              <TableHead>Agreed unit price</TableHead>
+              <TableHead></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {lines.map((l, i) => (
+              <TableRow key={i}>
+                <TableCell>
+                  <input
+                    value={l.productId}
+                    onChange={(e): void => updateLine(i, { productId: e.target.value })}
+                    style={{ width: '100%', padding: 6, border: '1px solid var(--border)', borderRadius: 4 }}
+                  />
+                </TableCell>
+                <TableCell>
+                  <input
+                    type="number"
+                    min={1}
+                    value={l.quantity}
+                    onChange={(e): void => updateLine(i, { quantity: e.target.value })}
+                    style={{ width: 80, padding: 6, border: '1px solid var(--border)', borderRadius: 4 }}
+                  />
+                </TableCell>
+                <TableCell>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={l.agreedUnitPrice}
+                    onChange={(e): void => updateLine(i, { agreedUnitPrice: e.target.value })}
+                    style={{ width: 100, padding: 6, border: '1px solid var(--border)', borderRadius: 4 }}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(): void => setLines((prev) => prev.filter((_, j) => j !== i))}
+                  >
+                    Remove
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        <div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(): void =>
+              setLines((prev) => [...prev, { productId: '', quantity: '1', agreedUnitPrice: '' }])
+            }
+          >
+            + Add line
+          </Button>
+        </div>
+        <div>
+          <Button onClick={(): void => void save()} disabled={busy}>
+            Save revision (notifies customer)
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

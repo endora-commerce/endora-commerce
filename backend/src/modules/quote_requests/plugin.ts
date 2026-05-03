@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
@@ -8,6 +9,8 @@ import { RfqRevisionService } from './services/rfq-revision-service.js';
 import { RfqNotificationService } from './services/rfq-notification-service.js';
 import { RfqExpiryWorker } from './services/rfq-expiry-worker.js';
 import { SalesRepAssignmentService } from '../organizations/services/sales-rep-assignment-service.js';
+import { QuoteRequest } from './entities/quote-request.entity.js';
+import { Order } from '../orders/entities/order.entity.js';
 import {
   registerQuoteRequestsCustomerRoutes,
   type CustomerContextResolver,
@@ -72,6 +75,37 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     notificationService,
     salesRepAssignment,
     resolveExpiryDays: options.resolveExpiryDays,
+  });
+
+  // US5 — when an order is created with sourceQuoteRequestId set, flip
+  // the originating RFQ to Completed and notify both parties (FR-007 +
+  // FR-028). The order-creation flow itself lives in orders/, so we
+  // observe `order.created.v1` rather than coupling the modules.
+  options.eventBus.on('order.created.v1', async (payload) => {
+    const em = options.emFactory();
+    const orderId = (payload as unknown as { orderId: string }).orderId;
+    const order = await em.findOne(Order, { id: orderId });
+    if (!order || !order.sourceQuoteRequestId) return;
+    const rfq = await em.findOne(QuoteRequest, { id: order.sourceQuoteRequestId });
+    if (!rfq || rfq.status === 'Completed') return;
+    rfq.status = 'Completed';
+    rfq.completedAt = new Date();
+    rfq.convertedOrderId = order.id;
+    rfq.version += 1;
+    await em.flush();
+    const evt = await eventService.append({
+      quoteRequestId: rfq.id,
+      eventType: 'completed',
+      actor: { roleLabel: 'System' },
+      payload: { type: 'completed', orderId: order.id },
+    });
+    await notificationService.enqueue({
+      quoteRequestId: rfq.id,
+      sourceEventId: evt.id,
+      recipients: [{ customerAccountId: rfq.customerAccountId }],
+      channels: ['email', 'in_app'],
+    });
+    void randomUUID; // silence unused-import in some build configs
   });
 
   return {

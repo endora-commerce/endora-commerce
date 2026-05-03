@@ -51,10 +51,13 @@ export class RfqRevisionService {
   async record(input: RecordRevisionInput): Promise<QuoteRequestRevision> {
     const em = this.emFactory();
     const itemsSnapshot = input.items.map(toSnapshotLine);
-    const nextNumber = input.rfq.currentRevisionNumber + 1;
+    // Caller sets `rfq.currentRevisionNumber` to the number of the
+    // revision being recorded BEFORE calling record(). This service
+    // never auto-bumps so the number on the rfq row and on the
+    // revision row are guaranteed to match.
     const rev = em.create(QuoteRequestRevision, {
       quoteRequestId: input.rfq.id,
-      revisionNumber: nextNumber,
+      revisionNumber: input.rfq.currentRevisionNumber,
       createdByAdminUserId: input.actor.adminUserId ?? null,
       createdByCustomerAccountId: input.actor.customerAccountId ?? null,
       headerNoteSnapshot: input.rfq.headerNote ?? null,
