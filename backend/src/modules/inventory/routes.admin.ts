@@ -2,7 +2,10 @@ import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import {
+  assignWarehouseToChannelRequestSchema,
   createWarehouseRequestSchema,
+  patchInventoryThresholdsRequestSchema,
+  patchWarehouseChannelAssignmentRequestSchema,
   setStockLevelRequestSchema,
   updateWarehouseRequestSchema,
 } from '@b2b/contracts';
@@ -11,6 +14,9 @@ import { Product } from '../catalog/entities/product.entity.js';
 import { DEFAULT_WAREHOUSE_ID } from './entities/warehouse.entity.js';
 import { WarehouseService } from './services/warehouse-service.js';
 import { StockLevelService } from './services/stock-level-service.js';
+import { WarehouseChannelService } from './services/warehouse-channel-service.js';
+import { ThresholdAdminService } from './services/threshold-admin-service.js';
+import { LowStockAlertService } from './services/low-stock-alert-service.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
 /**
@@ -27,6 +33,9 @@ export interface InventoryAdminDeps {
   emFactory: () => EntityManager;
   warehouseService: WarehouseService;
   stockLevelService: StockLevelService;
+  warehouseChannelService: WarehouseChannelService;
+  thresholdAdminService: ThresholdAdminService;
+  lowStockAlertService: LowStockAlertService;
   requireAdmin: RequireAdminFactory;
 }
 
@@ -40,7 +49,15 @@ export async function registerInventoryAdminRoutes(
   app: FastifyInstance,
   deps: InventoryAdminDeps,
 ): Promise<void> {
-  const { emFactory, warehouseService, stockLevelService, requireAdmin } = deps;
+  const {
+    emFactory,
+    warehouseService,
+    stockLevelService,
+    warehouseChannelService,
+    thresholdAdminService,
+    lowStockAlertService,
+    requireAdmin,
+  } = deps;
 
   // ---------------------------------------------------------------------------
   // Inventory landing KPIs (US2)
@@ -178,6 +195,115 @@ export async function registerInventoryAdminRoutes(
     async (request, reply) => {
       const { id } = request.params as { id: string };
       await warehouseService.delete(id);
+      reply.status(204);
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Low-stock alerts (US4)
+  // ---------------------------------------------------------------------------
+
+  app.get(
+    '/api/v1/admin/inventory/low-stock',
+    { preHandler: requireAdmin('orders:read') },
+    async () => {
+      const items = await lowStockAlertService.listLowStock();
+      return { items };
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Display-band thresholds (US5)
+  // ---------------------------------------------------------------------------
+
+  app.get(
+    '/api/v1/admin/inventory/thresholds',
+    { preHandler: requireAdmin('orders:read') },
+    async () => {
+      const data = await thresholdAdminService.read();
+      return { data };
+    },
+  );
+
+  app.patch(
+    '/api/v1/admin/inventory/thresholds',
+    {
+      preHandler: requireAdmin('catalog:write'),
+      schema: { body: patchInventoryThresholdsRequestSchema },
+    },
+    async (request) => {
+      const body = patchInventoryThresholdsRequestSchema.parse(request.body);
+      const data = await thresholdAdminService.patch({
+        ...(body.global ? { global: body.global } : {}),
+        ...(body.perCategory ? { perCategory: body.perCategory } : {}),
+        ...(body.perProduct ? { perProduct: body.perProduct } : {}),
+      });
+      return { data };
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Sales channel ↔ warehouse binding (US3)
+  // ---------------------------------------------------------------------------
+
+  app.get(
+    '/api/v1/admin/sales-channels/:channelId/warehouses',
+    { preHandler: requireAdmin('orders:read') },
+    async (request) => {
+      const { channelId } = request.params as { channelId: string };
+      const items = await warehouseChannelService.listForChannel(channelId);
+      return { items };
+    },
+  );
+
+  app.post(
+    '/api/v1/admin/sales-channels/:channelId/warehouses',
+    {
+      preHandler: requireAdmin('catalog:write'),
+      schema: { body: assignWarehouseToChannelRequestSchema },
+    },
+    async (request, reply) => {
+      const { channelId } = request.params as { channelId: string };
+      const body = assignWarehouseToChannelRequestSchema.parse(request.body);
+      const data = await warehouseChannelService.assign(channelId, {
+        warehouseId: body.warehouseId,
+        ...(body.isDefault !== undefined ? { isDefault: body.isDefault } : {}),
+        ...(body.sortOrder !== undefined ? { sortOrder: body.sortOrder } : {}),
+      });
+      reply.status(201);
+      return { data };
+    },
+  );
+
+  app.patch(
+    '/api/v1/admin/sales-channels/:channelId/warehouses/:assignmentId',
+    {
+      preHandler: requireAdmin('catalog:write'),
+      schema: { body: patchWarehouseChannelAssignmentRequestSchema },
+    },
+    async (request) => {
+      const { channelId, assignmentId } = request.params as {
+        channelId: string;
+        assignmentId: string;
+      };
+      const body = patchWarehouseChannelAssignmentRequestSchema.parse(request.body);
+      const data = await warehouseChannelService.patch(channelId, assignmentId, {
+        ...(body.isDefault !== undefined ? { isDefault: body.isDefault } : {}),
+        ...(body.sortOrder !== undefined ? { sortOrder: body.sortOrder } : {}),
+      });
+      return { data };
+    },
+  );
+
+  app.delete(
+    '/api/v1/admin/sales-channels/:channelId/warehouses/:assignmentId',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request, reply) => {
+      const { channelId, assignmentId } = request.params as {
+        channelId: string;
+        assignmentId: string;
+      };
+      await warehouseChannelService.unassign(channelId, assignmentId);
       reply.status(204);
     },
   );

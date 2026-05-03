@@ -232,6 +232,21 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     salesChannelMembership: salesChannels.handle.membershipService,
   });
 
+  // Settings module is constructed up here (rather than further down) so its
+  // SettingsService handle can be threaded into inventory + search at module
+  // construction time. The plugin itself is still pushed onto `modules` below.
+  const settings = settingsModule({
+    emFactory: em,
+    eventBus,
+    auditLogService,
+    requireAdmin,
+    redis,
+    resolveAdminAuditContext: (request) => {
+      if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
+      return { actorAdminUserId: request.actor.adminUserId };
+    },
+  });
+
   let cartService: CartService | null = null;
 
   const organizationsSmtpUrl = resolveSmtpUrlFromEnv();
@@ -340,6 +355,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireCustomer,
       resolveCustomerContext: customerResolver,
       requireAdmin,
+      eventBus,
+      channelResolver: salesChannels.handle.resolver,
+      settingsService: settings.handle.settingsService,
     }),
   ];
 
@@ -349,21 +367,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // service; here we only push the plugin into the routes array.
   modules.push(salesChannels.plugin);
 
-  // Feature 004 — Settings module. Routes (US2) live behind requireAdmin; the
-  // universal getter (US3) is exposed via `settings.handle.settingsService`
-  // for other modules to consume. The boot-time reconciler runs below before
-  // HTTP comes up.
-  const settings = settingsModule({
-    emFactory: em,
-    eventBus,
-    auditLogService,
-    requireAdmin,
-    redis,
-    resolveAdminAuditContext: (request) => {
-      if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
-      return { actorAdminUserId: request.actor.adminUserId };
-    },
-  });
+  // Feature 004 — Settings module. The plugin is pushed here; the
+  // service handle was constructed up at the inventory site so other
+  // modules can read it at construction time. The boot-time reconciler
+  // runs below before HTTP comes up.
   modules.push(settings.plugin);
 
   // Feature 006 — Search module. Owns Meilisearch indexer + event-subscriber
