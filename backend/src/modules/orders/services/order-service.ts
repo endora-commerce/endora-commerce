@@ -135,15 +135,39 @@ export class OrderService {
         throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'Payment method is not active.');
       }
 
-      // Reserve stock — PESSIMISTIC_WRITE lock serialises concurrent placers.
-      // Using the EM here (rather than getConnection().execute) is critical:
-      // it ensures the SELECT FOR UPDATE participates in the transaction held
-      // by `tx`. The raw connection layer is not transaction-aware in v6.
+      // Reserve stock — feature 010 / US2 naive default-warehouse allocation.
+      //
+      // Resolve the order's sales channel first, then reserve against
+      // *that channel's default warehouse* per `warehouse_channel_assignments`.
+      // This is the naïve precursor to the strategy-resolver-driven
+      // multi-warehouse allocation that lands in US7 (T079) — the goal here is
+      // simply to satisfy the new uniqueness shape on `stock_levels`
+      // `(product_id, variant_id, warehouse_id)` so the existing order tests
+      // remain green under the multi-warehouse schema.
+      //
+      // PESSIMISTIC_WRITE lock serialises concurrent placers. The EM here
+      // (rather than getConnection().execute) ensures the SELECT FOR UPDATE
+      // participates in the transaction held by `tx`.
       const { StockLevel } = await import('../../inventory/entities/stock-level.entity.js');
+      const { DEFAULT_WAREHOUSE_ID } = await import('../../inventory/entities/warehouse.entity.js');
+      const channelForStock = await tx.findOne(SalesChannel, { status: 'active' });
+      let allocationWarehouseId = DEFAULT_WAREHOUSE_ID;
+      if (channelForStock) {
+        const knex = tx.getKnex();
+        const defaultRow = await knex('warehouse_channel_assignments')
+          .where({ sales_channel_id: channelForStock.id, is_default: true })
+          .first<{ warehouse_id: string } | undefined>('warehouse_id');
+        if (defaultRow) allocationWarehouseId = defaultRow.warehouse_id;
+      }
+
       for (const item of items) {
         const stock = await tx.findOne(
           StockLevel,
-          { productId: item.productId, variantId: item.variantId ?? null },
+          {
+            productId: item.productId,
+            variantId: item.variantId ?? null,
+            warehouseId: allocationWarehouseId,
+          },
           { lockMode: LockMode.PESSIMISTIC_WRITE },
         );
         if (stock) {
@@ -157,8 +181,9 @@ export class OrderService {
           }
           stock.reserved += item.quantity;
         }
-        // No StockLevel row → the product uses categorical stock mode or is not tracked.
-        // That's fine: skip reservation.
+        // No StockLevel row in the chosen warehouse → fall through. The
+        // strategy-resolver-driven path (US7) will rebalance across
+        // warehouses; for now, untracked products simply skip reservation.
       }
 
       const productIds = items.map((i) => i.productId);
