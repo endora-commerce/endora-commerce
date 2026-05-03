@@ -4,6 +4,7 @@ import type { EventBus } from '../../events/bus.js';
 import { AvailabilityNotificationService } from './services/availability-notification-service.js';
 import { AvailabilityWorker } from './services/availability-worker.js';
 import { CsvStockImporter } from './services/csv-stock-importer.js';
+import { ThresholdSettingsMirror } from './services/threshold-settings-mirror.js';
 import { WarehouseService } from './services/warehouse-service.js';
 import { StockLevelService } from './services/stock-level-service.js';
 import { WarehouseChannelService } from './services/warehouse-channel-service.js';
@@ -44,6 +45,10 @@ export interface InventoryModuleOptions {
   mailer?: Mailer;
   /** Channel id used to read inventory.* settings for low-stock alerts. */
   settingsChannelId?: string;
+  /** Lazy lookup for the system-default channel id; used by the
+   *  threshold-settings mirror. Falls back to {@link channelResolver}
+   *  when omitted. */
+  resolveSystemDefaultChannelId?: () => Promise<string | null>;
 }
 
 export function inventoryModule(options: InventoryModuleOptions) {
@@ -52,6 +57,23 @@ export function inventoryModule(options: InventoryModuleOptions) {
     const availabilityService = new AvailabilityNotificationService(options.emFactory, mailer);
     const availabilityWorker = new AvailabilityWorker(options.emFactory, mailer);
     if (options.eventBus) availabilityWorker.attach(options.eventBus);
+
+    if (options.eventBus && options.settingsService) {
+      const resolveChannelId =
+        options.resolveSystemDefaultChannelId ??
+        (async (): Promise<string | null> => {
+          if (options.settingsChannelId) return options.settingsChannelId;
+          if (!options.channelResolver) return null;
+          const sysDefault = await options.channelResolver.getSystemDefault();
+          return sysDefault?.id ?? null;
+        });
+      const mirror = new ThresholdSettingsMirror(
+        options.emFactory,
+        options.settingsService,
+        resolveChannelId,
+      );
+      mirror.attach(options.eventBus);
+    }
     const warehouseChannelService = new WarehouseChannelService(options.emFactory);
     const stockLevelService = new StockLevelService(options.emFactory, options.eventBus);
     const thresholdAdminService = new ThresholdAdminService(options.emFactory);
