@@ -12,6 +12,7 @@ import {
   type ChannelIdentityFormValue,
 } from '../components/ChannelIdentityForm';
 import { DefaultChannelBadge } from '../components/DefaultChannelBadge';
+import { ChannelMembershipPanel } from '../../warehouses/ChannelMembershipPanel';
 
 /**
  * SalesChannelEditPage — feature 005 / T042.
@@ -245,6 +246,11 @@ export function SalesChannelEditPage(): ReactNode {
         onSubmit={(v) => void handleSubmit(v)}
         onCancel={() => navigate('/sales-channels')}
       />
+      {channel && !isCreate ? (
+        <div style={{ marginTop: 24 }}>
+          <ChannelMembershipPanel channelId={channel.id} />
+        </div>
+      ) : null}
     </>
   );
 }
