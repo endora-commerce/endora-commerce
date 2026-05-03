@@ -37,6 +37,7 @@ import { PaymentMethodsPage } from './modules/payment_methods/PaymentMethodsPage
 import { InventoryPage } from './modules/inventory/InventoryPage.js';
 import { LowStockPage } from './modules/inventory/LowStockPage.js';
 import { AvailabilityNotificationsPage } from './modules/inventory/AvailabilityNotificationsPage.js';
+import { StockImportWizard } from './modules/inventory/StockImportWizard.js';
 import { WarehousesList } from './modules/warehouses/WarehousesList.js';
 import { WarehouseEditor } from './modules/warehouses/WarehouseEditor.js';
 import { CreditLimitsPage } from './modules/credit_limits/CreditLimitsPage.js';
@@ -81,6 +82,7 @@ export function App(): ReactNode {
         <Route path="/inventory" element={<InventoryPage />} />
         <Route path="/inventory/low-stock" element={<LowStockPage />} />
         <Route path="/inventory/notifications" element={<AvailabilityNotificationsPage />} />
+        <Route path="/inventory/import" element={<StockImportWizard />} />
         <Route path="/warehouses" element={<WarehousesList />} />
         <Route path="/warehouses/new" element={<WarehouseEditor />} />
         <Route path="/warehouses/:id" element={<WarehouseEditor />} />

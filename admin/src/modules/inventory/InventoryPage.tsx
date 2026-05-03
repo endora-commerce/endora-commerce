@@ -91,9 +91,13 @@ export function InventoryPage(): ReactNode {
           </div>
         </div>
         <div className="b2b-page-head__actions">
-          <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm" disabled>
-            <Upload size={13} /> Import counts (US7)
-          </button>
+          <Link
+            to="/inventory/import"
+            className="b2b-btn b2b-btn--default b2b-btn--sm"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <Upload size={13} /> Import stock
+          </Link>
         </div>
       </div>
 
