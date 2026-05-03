@@ -2,22 +2,28 @@ import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/c
 import { randomUUID } from 'crypto';
 
 /**
- * QuoteRequest (RFQ) — data-model.md § Domain 4.
+ * QuoteRequest — feature 008 workflow rewrite.
  *
- * State transitions:
- *   draft → new (Customer submits)
- *   new → under_review (Admin claims)
- *   under_review → quoted (Admin sends quote; expiresAt set)
- *   quoted → accepted | rejected | expired
+ * Statuses (replacing the foundation 001 set):
+ *   Created from admin → Approved | Canceled | Expired
+ *   Pending            → Approved | Canceled | Expired
+ *   Approved           → Completed
+ *   Canceled, Completed, Expired are terminal.
  *
- * `version` is bumped on every row mutation; `PATCH` handlers use it to enforce
- * optimistic concurrency via the `If-Match` header (contracts/quote_requests.contract.md).
- *
- * FK targets (customerAccountId, organizationId, assignedAdminUserId) are stored
- * as plain uuid columns without FK constraints — the target tables live in
- * US2/US3/US4. Referential integrity gets enabled by migrations shipped with
- * those stories.
+ * `version` is bumped on every row mutation; PATCH-shaped endpoints
+ * enforce optimistic concurrency via the `If-Match` header (foundation
+ * 001 convention). Customer accept/reject revision additionally pin
+ * `expectedRevisionNumber` against `current_revision_number`
+ * (research §R3).
  */
+export type QuoteRequestStatus =
+  | 'Created from admin'
+  | 'Pending'
+  | 'Canceled'
+  | 'Approved'
+  | 'Completed'
+  | 'Expired';
+
 @Entity({ tableName: 'quote_requests' })
 export class QuoteRequest {
   [OptionalProps]?:
@@ -25,13 +31,20 @@ export class QuoteRequest {
     | 'createdAt'
     | 'updatedAt'
     | 'status'
-    | 'requesterNote'
+    | 'headerNote'
+    | 'createdByAdminUserId'
+    | 'cancellationReason'
+    | 'awaitingCustomerRevisionAcceptance'
+    | 'lastCustomerSeenRevisionNumber'
+    | 'currentRevisionNumber'
     | 'assignedAdminUserId'
     | 'submittedAt'
-    | 'quotedAt'
-    | 'respondedAt'
+    | 'approvedAt'
+    | 'canceledAt'
+    | 'completedAt'
+    | 'expiredAt'
     | 'expiresAt'
-    | 'quoteTerms'
+    | 'convertedOrderId'
     | 'version';
 
   @PrimaryKey({ type: 'uuid' })
@@ -45,12 +58,27 @@ export class QuoteRequest {
   @Index()
   customerAccountId!: string;
 
+  @Property({ type: 'uuid', nullable: true })
+  createdByAdminUserId?: string | null;
+
   @Property({ type: 'string', length: 32 })
   @Index()
-  status: 'draft' | 'new' | 'under_review' | 'quoted' | 'accepted' | 'rejected' | 'expired' = 'draft';
+  status: QuoteRequestStatus = 'Pending';
+
+  @Property({ type: 'text', nullable: true, fieldName: 'header_note' })
+  headerNote?: string | null;
 
   @Property({ type: 'text', nullable: true })
-  requesterNote?: string | null;
+  cancellationReason?: string | null;
+
+  @Property({ type: 'boolean' })
+  awaitingCustomerRevisionAcceptance: boolean = false;
+
+  @Property({ type: 'integer' })
+  lastCustomerSeenRevisionNumber: number = 0;
+
+  @Property({ type: 'integer' })
+  currentRevisionNumber: number = 0;
 
   @Property({ type: 'uuid', nullable: true })
   assignedAdminUserId?: string | null;
@@ -59,26 +87,22 @@ export class QuoteRequest {
   submittedAt?: Date | null;
 
   @Property({ type: 'datetime', nullable: true })
-  quotedAt?: Date | null;
+  approvedAt?: Date | null;
 
   @Property({ type: 'datetime', nullable: true })
-  respondedAt?: Date | null;
+  canceledAt?: Date | null;
+
+  @Property({ type: 'datetime', nullable: true })
+  completedAt?: Date | null;
+
+  @Property({ type: 'datetime', nullable: true })
+  expiredAt?: Date | null;
 
   @Property({ type: 'datetime', nullable: true })
   expiresAt?: Date | null;
 
-  /**
-   * Embedded quote terms populated on `quoted` — leadTimeDays, validityDays,
-   * deliveryTerms, remarks. JSONB so the data-model.md "embedded" shape is
-   * faithful without a sibling table.
-   */
-  @Property({ type: 'json', nullable: true })
-  quoteTerms?: {
-    leadTimeDays: number;
-    validityDays: number;
-    deliveryTerms?: string | null;
-    remarks?: string | null;
-  } | null;
+  @Property({ type: 'uuid', nullable: true })
+  convertedOrderId?: string | null;
 
   @Property({ type: 'integer' })
   version: number = 0;

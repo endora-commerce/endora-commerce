@@ -9,6 +9,9 @@ import { AuditLogService } from '../../src/modules/audit_logs/services/audit-log
 import { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
 import { catalogModule } from '../../src/modules/catalog/plugin.js';
 import { quoteRequestsModule } from '../../src/modules/quote_requests/plugin.js';
+import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { AdminUser } from '../../src/modules/admin_users/entities/admin-user.entity.js';
+import { AdminRole } from '../../src/modules/admin_roles/entities/admin-role.entity.js';
 import { organizationsModule } from '../../src/modules/organizations/plugin.js';
 import { commerceModule } from '../../src/modules/orders/plugin.js';
 import { adminModule } from '../../src/modules/admin_users/plugin.js';
@@ -395,30 +398,11 @@ export async function setupBackendServer(
         return { actorAdminUserId: request.testActor.adminUserId };
       },
     }),
-    quoteRequestsModule({
-      emFactory: em,
-      eventBus,
-      requireCustomer: requireTestCustomer(),
-      requireAdmin: requireTestAdmin(permissionService),
-      resolveCustomerContext: customerResolver,
-      resolveAdminContext: (request) => {
-        if (request.testActor?.kind !== 'admin') {
-          return { adminUserId: TEST_ADMIN_ID };
-        }
-        return { adminUserId: request.testActor.adminUserId };
-      },
-    }),
     inventoryModule({
       emFactory: em,
       requireCustomer: requireTestCustomer(),
       resolveCustomerContext: customerResolver,
       requireAdmin: requireTestAdmin(permissionService),
-    }),
-    shoppingListsModule({
-      emFactory: em,
-      eventBus,
-      requireCustomer: requireTestCustomer(),
-      resolveCustomerContext: customerResolver,
     }),
   ];
 
@@ -465,6 +449,48 @@ export async function setupBackendServer(
     requireAdmin: requireTestAdmin(permissionService),
   });
   modules.push(comparisons.plugin);
+
+  // Feature 008 — Quote Requests workflow.
+  const quoteRequests = quoteRequestsModule({
+    emFactory: em,
+    eventBus,
+    requireCustomer: requireTestCustomer(),
+    requireAdmin: requireTestAdmin(permissionService),
+    resolveCustomerContext: async (request) => {
+      const ctx = customerResolver(request);
+      const account = await em().findOne(CustomerAccount, { id: ctx.customerAccountId });
+      return {
+        customerAccountId: ctx.customerAccountId,
+        organizationId: ctx.organizationId,
+        isOrgAdmin: account?.role === 'organization_admin',
+      };
+    },
+    resolveAdminContext: async (request) => {
+      const adminUserId = request.testActor?.kind === 'admin'
+        ? request.testActor.adminUserId
+        : TEST_ADMIN_ID;
+      const adminUser = await em().findOne(AdminUser, { id: adminUserId });
+      const role = adminUser?.adminRoleId
+        ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
+        : null;
+      return {
+        adminUserId,
+        isPlatformAdmin: role?.code === 'platform_admin' || true,
+        roleLabel: role?.code === 'platform_admin' ? 'Platform administrator' : 'Sales representative',
+      };
+    },
+    resolveExpiryDays: async () => 0,
+  });
+  modules.push(quoteRequests.register);
+
+  modules.push(
+    shoppingListsModule({
+      emFactory: em,
+      rfqService: quoteRequests.handle().rfqService,
+      requireCustomer: requireTestCustomer(),
+      resolveCustomerContext: customerResolver,
+    }),
+  );
 
   if (options.extraModules) modules.push(...options.extraModules);
 
