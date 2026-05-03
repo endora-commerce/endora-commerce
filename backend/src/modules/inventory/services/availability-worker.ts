@@ -49,16 +49,26 @@ export class AvailabilityWorker {
     if (subscriptions.length === 0) return { notified: 0 };
 
     const customerIds = Array.from(
-      new Set(subscriptions.map((s) => s.customerAccountId)),
+      new Set(
+        subscriptions
+          .map((s) => s.customerAccountId)
+          .filter((id): id is string => typeof id === 'string'),
+      ),
     );
-    const customers = await em.find(CustomerAccount, { id: { $in: customerIds } });
+    const customers =
+      customerIds.length > 0
+        ? await em.find(CustomerAccount, { id: { $in: customerIds } })
+        : [];
     const emailById = new Map(customers.map((c) => [c.id, c.email]));
 
     const productName = product.name['en-US'] ?? Object.values(product.name)[0] ?? product.sku;
     const now = new Date();
 
     for (const sub of subscriptions) {
-      const to = emailById.get(sub.customerAccountId);
+      // Feature 010: subscriptions can carry an `email` directly
+      // (anonymous path). Prefer that; otherwise fall back to the
+      // customer-account email.
+      const to = sub.email ?? (sub.customerAccountId ? emailById.get(sub.customerAccountId) : null);
       if (!to) {
         // Customer was deleted; mark consumed anyway so we stop retrying.
         sub.notifiedAt = now;

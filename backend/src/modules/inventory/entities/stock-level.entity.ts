@@ -2,10 +2,15 @@ import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/c
 import { randomUUID } from 'crypto';
 
 /**
- * StockLevel — onHand + reserved counters per (productId, variantId?).
- * Unique per pair is enforced by a partial unique index in the migration.
- * `reserved` increments on order placement; it decrements on order cancellation
- * or on shipment (when onHand also decrements).
+ * StockLevel — onHand + reserved counters per
+ * `(productId, variantId?, warehouseId)` triplet (feature 010).
+ *
+ * The unique-key shape changed in migration 030: previously the index
+ * was on `(product_id, variant_id_bucket)`, now it includes
+ * `warehouse_id` so multiple warehouses can hold the same product.
+ * The partial-unique index lives in migration 030 (Postgres `coalesce`
+ * trick on the variant column); this entity does not declare a
+ * database-level unique constraint.
  */
 @Entity({ tableName: 'stock_levels' })
 export class StockLevel {
@@ -20,6 +25,10 @@ export class StockLevel {
 
   @Property({ type: 'uuid', nullable: true })
   variantId?: string | null;
+
+  @Property({ type: 'uuid' })
+  @Index()
+  warehouseId!: string;
 
   @Property({ type: 'integer' })
   onHand!: number;

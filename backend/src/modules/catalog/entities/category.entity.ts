@@ -16,7 +16,10 @@ export class Category {
     | 'sortOrder'
     | 'metaTitleOverride'
     | 'metaDescriptionOverride'
-    | 'deletedAt';
+    | 'deletedAt'
+    | 'inventoryThresholdHigh'
+    | 'inventoryThresholdMedium'
+    | 'inventoryThresholdLow';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -49,4 +52,16 @@ export class Category {
 
   @Property({ type: 'datetime', nullable: true })
   deletedAt?: Date | null;
+
+  // Inventory module (feature 010) — display-band thresholds at the
+  // category level. The threshold-resolver consults these BEFORE
+  // falling back to the global `inventory_thresholds` row (FR-017).
+  @Property({ type: 'integer', nullable: true })
+  inventoryThresholdHigh?: number | null;
+
+  @Property({ type: 'integer', nullable: true })
+  inventoryThresholdMedium?: number | null;
+
+  @Property({ type: 'integer', nullable: true })
+  inventoryThresholdLow?: number | null;
 }

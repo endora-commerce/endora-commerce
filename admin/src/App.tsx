@@ -35,6 +35,8 @@ import { HomePage } from './modules/home/HomePage.js';
 import { DeliveryMethodsPage } from './modules/delivery_methods/DeliveryMethodsPage.js';
 import { PaymentMethodsPage } from './modules/payment_methods/PaymentMethodsPage.js';
 import { InventoryPage } from './modules/inventory/InventoryPage.js';
+import { WarehousesList } from './modules/warehouses/WarehousesList.js';
+import { WarehouseEditor } from './modules/warehouses/WarehouseEditor.js';
 import { CreditLimitsPage } from './modules/credit_limits/CreditLimitsPage.js';
 import { SettingsPage } from './modules/settings/pages/SettingsPage.js';
 import { GroupsPage as SettingsGroupsPage } from './modules/settings/pages/GroupsPage.js';
@@ -75,6 +77,9 @@ export function App(): ReactNode {
         <Route path="/delivery-methods" element={<DeliveryMethodsPage />} />
         <Route path="/payment-methods" element={<PaymentMethodsPage />} />
         <Route path="/inventory" element={<InventoryPage />} />
+        <Route path="/warehouses" element={<WarehousesList />} />
+        <Route path="/warehouses/new" element={<WarehouseEditor />} />
+        <Route path="/warehouses/:id" element={<WarehouseEditor />} />
         <Route path="/credit-limits" element={<CreditLimitsPage />} />
         <Route path="/quote-requests" element={<RfqList />} />
         <Route path="/quote-requests/:id" element={<RfqDetail />} />

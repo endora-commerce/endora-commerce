@@ -74,6 +74,7 @@ const NAV: NavSection[] = [
       { to: '/catalog/attribute-sets', label: 'Attribute Sets', icon: Tag },
       { to: '/catalog/attachment-types', label: 'Attachment Types', icon: FileText },
       { to: '/inventory', label: 'Inventory', icon: Factory },
+      { to: '/warehouses', label: 'Warehouses', icon: Factory },
     ],
   },
   {
@@ -165,6 +166,9 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => string[]
   { test: /^\/catalog\/attribute-sets\/?$/, build: () => ['Catalog', 'Attribute Sets'] },
   { test: /^\/catalog\/attachment-types\/?$/, build: () => ['Catalog', 'Attachment Types'] },
   { test: /^\/inventory\/?$/, build: () => ['Catalog', 'Inventory'] },
+  { test: /^\/warehouses\/?$/, build: () => ['Catalog', 'Warehouses'] },
+  { test: /^\/warehouses\/new\/?$/, build: () => ['Catalog', 'Warehouses', 'New'] },
+  { test: /^\/warehouses\/[^/]+\/?$/, build: () => ['Catalog', 'Warehouses', 'Edit'] },
   { test: /^\/price-lists\/?$/, build: () => ['Pricing', 'Price lists'] },
   { test: /^\/price-lists\/[^/]+\/?$/, build: () => ['Pricing', 'Price lists', 'Detail'] },
   { test: /^\/promotions\/?$/, build: () => ['Pricing', 'Promotions'] },

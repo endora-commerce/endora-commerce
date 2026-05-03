@@ -23,7 +23,12 @@ export class Product {
     | 'allowedOrganizationIds'
     | 'attributeSetId'
     | 'downloadAssetId'
-    | 'downloadUrl';
+    | 'downloadUrl'
+    | 'manageStock'
+    | 'backorderEnabled'
+    | 'lowStockThreshold'
+    | 'fulfilmentStrategy'
+    | 'fulfilmentStrategyWarehouseOrder';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -107,4 +112,38 @@ export class Product {
 
   @Property({ type: 'datetime', nullable: true })
   deletedAt?: Date | null;
+
+  // ----------------------------------------------------------------
+  // Inventory module (feature 010) — per-product stock-management flags
+  // ----------------------------------------------------------------
+
+  /** When false, the storefront always shows the product as available
+   *  and the cart accepts any quantity (FR-022). */
+  @Property({ type: 'boolean' })
+  manageStock: boolean = true;
+
+  /** When true, the storefront accepts zero-stock checkout and the
+   *  resulting allocation is flagged `is_backorder` (FR-023). */
+  @Property({ type: 'boolean' })
+  backorderEnabled: boolean = false;
+
+  /** Optional integer; when null the product is exempt from
+   *  low-stock alerts (FR-013). */
+  @Property({ type: 'integer', nullable: true })
+  lowStockThreshold?: number | null;
+
+  /** Per-product override of the global fulfilment strategy (FR-030). */
+  @Property({ type: 'string', length: 32, nullable: true })
+  fulfilmentStrategy?:
+    | 'any'
+    | 'default_first'
+    | 'lowest_stock_first'
+    | 'highest_stock_first'
+    | 'defined_order'
+    | null;
+
+  /** When `fulfilment_strategy = 'defined_order'`, the ordered list
+   *  of warehouse UUIDs to walk. */
+  @Property({ type: 'json', nullable: true })
+  fulfilmentStrategyWarehouseOrder?: string[] | null;
 }
