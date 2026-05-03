@@ -481,6 +481,7 @@ export async function setupBackendServer(
       };
     },
     resolveExpiryDays: async () => 0,
+    resolveBoolSetting: async () => true,
   });
   modules.push(quoteRequests.register);
 

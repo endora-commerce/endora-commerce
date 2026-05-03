@@ -29,8 +29,10 @@ export interface QuoteRequestsModuleOptions {
   requireAdmin: RequireAdminFactory;
   resolveCustomerContext: CustomerContextResolver;
   resolveAdminContext: AdminContextResolver;
-  /** Reads the current `quote_requests.expiryDays` from the settings module. */
+  /** Reads the current `quote_requests.expiry_days` from the settings module. */
   resolveExpiryDays: () => Promise<number>;
+  /** Reads the storefront-visibility flags from settings. */
+  resolveBoolSetting: (key: 'show_add_to_quote_on_card' | 'show_add_to_quote_on_pdp') => Promise<boolean>;
 }
 
 export interface QuoteRequestsModuleHandle {
@@ -131,14 +133,19 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
 
       // Storefront-public Quote Requests settings (FR-032 / FR-033) so the
       // storefront can show/hide "Add to quote" buttons without going through
-      // the admin-gated settings endpoint.
-      app.get('/api/v1/storefront/settings/quote-requests', async () => {
-        return {
-          data: {
-            showAddToQuoteOnCard: true,
-            showAddToQuoteOnPdp: true,
-          },
-        };
+      // the admin-gated settings endpoint. Reads through `resolveBoolSetting`,
+      // a callback supplied by composition.ts that consults the settings
+      // service. Falls back to `true` for both flags on any read error so a
+      // settings outage cannot disable storefront affordances.
+      app.get('/api/v1/storefront/settings/quote-requests', async (_request, reply) => {
+        reply.header('cache-control', 'public, max-age=60');
+        try {
+          const card = await options.resolveBoolSetting('show_add_to_quote_on_card');
+          const pdp = await options.resolveBoolSetting('show_add_to_quote_on_pdp');
+          return { data: { showAddToQuoteOnCard: card, showAddToQuoteOnPdp: pdp } };
+        } catch {
+          return { data: { showAddToQuoteOnCard: true, showAddToQuoteOnPdp: true } };
+        }
       });
     },
     handle: (): QuoteRequestsModuleHandle => ({

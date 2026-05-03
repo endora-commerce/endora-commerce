@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
+import { OrganizationSalesRepsTab } from './OrganizationSalesRepsTab';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -544,6 +545,8 @@ export function OrganizationDetail(): ReactNode {
       </Card>
 
       <EntityChannelMembership entityType="organization" entityId={id || null} />
+
+      {id ? <OrganizationSalesRepsTab organizationId={id} /> : null}
     </>
   );
 }

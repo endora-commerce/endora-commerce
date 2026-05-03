@@ -126,6 +126,18 @@ export async function registerQuoteRequestsCustomerRoutes(
     },
   );
 
+  // POST /api/v1/quote-requests/:id/convert-to-order — start checkout
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/quote-requests/:id/convert-to-order',
+    { preHandler: requireCustomer },
+    async (request, reply) => {
+      const ctx = await resolveCustomerContext(request);
+      const result = await rfqService.convertToOrder(request.params.id, ctx);
+      reply.code(200);
+      return { data: result };
+    },
+  );
+
   // POST /api/v1/quote-requests/:id/resubmit — clone into a new Pending RFQ
   app.post<{ Params: { id: string } }>(
     '/api/v1/quote-requests/:id/resubmit',

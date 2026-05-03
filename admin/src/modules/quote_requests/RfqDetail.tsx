@@ -322,6 +322,43 @@ export function RfqDetail(): ReactNode {
         <ModifyCard rfq={rfq} onSaved={refresh} setError={setError} setInfo={setInfo} />
       ) : null}
 
+      {rfq.status === 'Approved' ? (
+        <Card style={{ marginBottom: 16 }}>
+          <CardHeader>
+            <CardTitle>Convert to order</CardTitle>
+          </CardHeader>
+          <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <p style={{ fontSize: 13, color: 'var(--b2b-muted)', margin: 0 }}>
+              Loads the negotiated lines into the customer&apos;s cart at the agreed unit prices and
+              opens checkout. The Quote Request flips to Completed once the order is placed.
+            </p>
+            <div>
+              <Button
+                onClick={async (): Promise<void> => {
+                  setBusy(true);
+                  setError(null);
+                  setInfo(null);
+                  try {
+                    const res = await apiClient.post<{ data: { cartId: string; checkoutUrl: string } }>(
+                      `/api/v1/quote-requests/${rfq.id}/convert-to-order`,
+                      {},
+                    );
+                    setInfo(`Cart prepared: ${res.data.cartId.slice(0, 8)} — open ${res.data.checkoutUrl}`);
+                  } catch (err) {
+                    setError(err instanceof ApiError ? err.envelope.error.message : 'Convert failed.');
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                disabled={busy}
+              >
+                Place order from this quote
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle>Change history</CardTitle>

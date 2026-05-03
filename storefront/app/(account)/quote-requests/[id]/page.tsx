@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
   acceptRevision,
+  convertRfqToOrder,
   getRfqById,
   rejectRevision,
   resubmitRfq,
@@ -214,9 +215,12 @@ export default async function QuoteRequestDetailPage({
         ) : null}
 
         {rfq.status === 'Approved' ? (
-          <Link href={`/account/quote-requests/${rfq.id}/checkout`} className="btn btn--dark">
-            Złóż zamówienie z tej oferty
-          </Link>
+          <form action={convertAction}>
+            <input type="hidden" name="rfqId" value={rfq.id} />
+            <button type="submit" className="btn btn--dark">
+              Złóż zamówienie z tej oferty
+            </button>
+          </form>
         ) : null}
 
         <form action={resubmitAction}>
@@ -372,6 +376,22 @@ async function rejectAction(formData: FormData): Promise<void> {
     redirect(`/account/quote-requests/${rfqId}?error=${encodeURIComponent(msg)}`);
   }
   redirect(`/account/quote-requests/${rfqId}`);
+}
+
+async function convertAction(formData: FormData): Promise<void> {
+  'use server';
+  const rfqId = formData.get('rfqId') as string;
+  const session = await getSessionCookie();
+  if (!session) redirect('/login');
+  try {
+    const { checkoutUrl } = await convertRfqToOrder(session, rfqId);
+    redirect(checkoutUrl);
+  } catch (err) {
+    if (err instanceof StorefrontApiError) {
+      redirect(`/account/quote-requests/${rfqId}?error=${encodeURIComponent(err.message)}`);
+    }
+    throw err;
+  }
 }
 
 async function resubmitAction(formData: FormData): Promise<void> {

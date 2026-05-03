@@ -20,6 +20,8 @@ import {
 import type { QuoteRequestRevisionLine } from '../entities/quote-request-revision.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
+import { Cart } from '../../carts/entities/cart.entity.js';
+import { CartItem } from '../../carts/entities/cart-item.entity.js';
 import { RfqEventService } from './rfq-event-service.js';
 import { RfqRevisionService } from './rfq-revision-service.js';
 import { RfqNotificationService, type NotificationRecipient } from './rfq-notification-service.js';
@@ -478,6 +480,77 @@ export class RfqService {
     }
 
     return this.serializeFull(em, rfq, false);
+  }
+
+  // -------------------------------------------------------------------------
+  // Convert to order (US5)
+  // -------------------------------------------------------------------------
+
+  async convertToOrder(
+    rfqId: string,
+    ctx: CustomerContext,
+  ): Promise<{ cartId: string; checkoutUrl: string }> {
+    const em = this.deps.emFactory();
+    const rfq = await this.findVisibleForCustomer(em, rfqId, ctx);
+
+    if (rfq.status !== 'Approved') {
+      throw new HttpError(409, ERROR_CODES.RFQ_NOT_QUOTED, 'Quote Request is not approved.');
+    }
+
+    const items = await em.find(QuoteRequestItem, { quoteRequestId: rfq.id });
+    if (items.length === 0) {
+      throw new HttpError(409, ERROR_CODES.RFQ_EMPTY, 'Quote Request has no items.');
+    }
+
+    // Validate every line's product is still resolvable. The spec edge
+    // case "product archived between approve and convert" maps to a 409
+    // here so the customer is forced to contact the rep.
+    const productIds = items.map((it) => it.productId);
+    const products = await em.find(Product, { id: { $in: productIds } });
+    if (products.length !== new Set(productIds).size) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.PRODUCT_NOT_FOUND,
+        'One or more Quote Request line products are no longer available.',
+      );
+    }
+
+    // Get-or-create the customer's active cart, clear it, and reseed at
+    // the RFQ's agreed unit prices. The orders module copies
+    // CartItem.unitPrice straight onto OrderItem.unitPrice (no
+    // recomputation), so the negotiated price flows through unchanged.
+    let cart = await em.findOne(Cart, {
+      customerAccountId: ctx.customerAccountId,
+      organizationId: ctx.organizationId,
+      status: 'active',
+    });
+    if (!cart) {
+      cart = em.create(Cart, {
+        customerAccountId: ctx.customerAccountId,
+        organizationId: ctx.organizationId,
+      });
+      await em.persistAndFlush(cart);
+    } else {
+      const existing = await em.find(CartItem, { cartId: cart.id });
+      if (existing.length > 0) await em.removeAndFlush(existing);
+    }
+
+    const newCartItems: CartItem[] = items.map((it) =>
+      em.create(CartItem, {
+        cartId: cart!.id,
+        productId: it.productId,
+        ...(it.variantId ? { variantId: it.variantId } : {}),
+        quantity: it.quantity,
+        unitPrice: (it.agreedUnitPrice ?? '0').toString(),
+        currency: it.lineCurrency,
+      }),
+    );
+    await em.persistAndFlush(newCartItems);
+
+    return {
+      cartId: cart.id,
+      checkoutUrl: `/checkout?cartId=${cart.id}&fromRfq=${rfq.id}`,
+    };
   }
 
   // -------------------------------------------------------------------------

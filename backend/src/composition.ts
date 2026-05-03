@@ -447,6 +447,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return 0;
       }
     },
+    resolveBoolSetting: async (key) => {
+      try {
+        const { z } = await import('zod');
+        const code =
+          key === 'show_add_to_quote_on_card'
+            ? QUOTE_REQUESTS_SETTING_CODES.SHOW_ADD_TO_QUOTE_ON_CARD
+            : QUOTE_REQUESTS_SETTING_CODES.SHOW_ADD_TO_QUOTE_ON_PDP;
+        return await settings.handle.settingsService.get(code, 'default', z.boolean());
+      } catch {
+        return true;
+      }
+    },
   });
   modules.push(quoteRequests.register);
 

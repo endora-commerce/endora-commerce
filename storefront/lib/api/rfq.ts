@@ -220,3 +220,35 @@ export async function resubmitRfq(
   });
   return result.data!;
 }
+
+export async function convertRfqToOrder(
+  sessionCookie: string,
+  id: string,
+): Promise<{ cartId: string; checkoutUrl: string }> {
+  const result = await apiMutate<{ cartId: string; checkoutUrl: string }>({
+    method: 'POST',
+    path: `/api/v1/quote-requests/${id}/convert-to-order`,
+    body: {},
+    sessionCookie,
+  });
+  return result.data!;
+}
+
+export async function getStorefrontQuoteRequestSettings(): Promise<{
+  showAddToQuoteOnCard: boolean;
+  showAddToQuoteOnPdp: boolean;
+}> {
+  const baseUrl = process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001';
+  try {
+    const res = await fetch(`${baseUrl}/api/v1/storefront/settings/quote-requests`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return { showAddToQuoteOnCard: true, showAddToQuoteOnPdp: true };
+    const body = (await res.json()) as {
+      data: { showAddToQuoteOnCard: boolean; showAddToQuoteOnPdp: boolean };
+    };
+    return body.data;
+  } catch {
+    return { showAddToQuoteOnCard: true, showAddToQuoteOnPdp: true };
+  }
+}
