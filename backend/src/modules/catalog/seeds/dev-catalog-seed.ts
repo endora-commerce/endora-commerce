@@ -465,6 +465,37 @@ async function main(): Promise<void> {
   });
   await em.persistAndFlush(demoAdmin);
 
+  // Feature 008 — sales_representative role + two demo accounts so the
+  // quickstart can exercise assignment-scoped visibility.
+  const salesRepRole = em.create(AdminRole, {
+    code: 'sales_representative',
+    name: 'Sales representative',
+    permissions: [
+      'rfqs:handle',
+      'organizations:read.assigned',
+      'catalog:read',
+    ],
+  });
+  await em.persistAndFlush(salesRepRole);
+
+  const salesRepAdmin = em.create(AdminUser, {
+    email: 'sales-rep@demo.local',
+    passwordHash: adminPasswordHash,
+    firstName: 'Anna',
+    lastName: 'Wiśniewska',
+    adminRoleId: salesRepRole.id,
+    status: 'active',
+  });
+  const salesRepOther = em.create(AdminUser, {
+    email: 'sales-rep-other@demo.local',
+    passwordHash: adminPasswordHash,
+    firstName: 'Tomasz',
+    lastName: 'Nowak',
+    adminRoleId: salesRepRole.id,
+    status: 'active',
+  });
+  await em.persistAndFlush([salesRepAdmin, salesRepOther]);
+
   const demoOrg = em.create(Organization, {
     name: DEMO_ORG_NAME,
     taxId: DEMO_ORG_TAX_ID,
@@ -558,6 +589,8 @@ async function main(): Promise<void> {
   console.log('');
   console.log('Sign in credentials (CHANGE before any non-local use):');
   console.log(`  Platform Administrator : ${DEMO_ADMIN_EMAIL} / ${DEMO_ADMIN_PASSWORD}`);
+  console.log(`  Sales Representative   : sales-rep@demo.local / ${DEMO_ADMIN_PASSWORD}`);
+  console.log(`  Sales Rep (other)      : sales-rep-other@demo.local / ${DEMO_ADMIN_PASSWORD}`);
   console.log(`  Organization Admin     : ${DEMO_BUYER_EMAIL} / ${DEMO_BUYER_PASSWORD}`);
   console.log('');
   console.log('Open the storefront at  http://localhost:3000');
