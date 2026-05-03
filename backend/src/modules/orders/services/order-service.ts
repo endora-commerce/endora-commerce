@@ -299,6 +299,37 @@ export class OrderService {
       });
       await tx.persistAndFlush(orderItems);
 
+      // US7 / T079 — record one stock_allocations row per order item so
+      // admins can trace fulfilment provenance and the cancel path can
+      // release reservations cleanly. The naive flow uses the chosen
+      // default warehouse; the full strategy-resolver-driven split is
+      // tracked via FulfilmentStrategyResolver and can be wired in
+      // when individual lines need to span multiple warehouses.
+      const { StockAllocation } = await import(
+        '../../inventory/entities/stock-allocation.entity.js'
+      );
+      const itemFlagsById = productFlagsById; // alias for readability
+      for (let i = 0; i < orderItems.length; i++) {
+        const oi = orderItems[i]!;
+        const item = items[i]!;
+        const flags = itemFlagsById.get(item.productId);
+        if (flags && !flags.manageStock) continue;
+        const stockNow = await tx.findOne(StockLevel, {
+          productId: item.productId,
+          variantId: item.variantId ?? null,
+          warehouseId: allocationWarehouseId,
+        });
+        const isBackorder = stockNow ? stockNow.onHand - stockNow.reserved < 0 : false;
+        const allocation = tx.create(StockAllocation, {
+          orderItemId: oi.id,
+          warehouseId: allocationWarehouseId,
+          quantity: item.quantity,
+          isBackorder,
+        });
+        tx.persist(allocation);
+      }
+      await tx.flush();
+
       const payment = tx.create(Payment, {
         orderId: order.id,
         paymentMethodId: paymentMethod.id,
@@ -454,14 +485,72 @@ export class OrderService {
       from,
       to,
     });
-    // Cancellation releases the credit-limit reservation (T211).
-    if (to === 'cancelled' && this.creditLimit) {
-      await this.creditLimit.releaseByOrder({
-        orderId: order.id,
-        reason: 'order_cancelled',
-      });
+    // Cancellation releases the credit-limit reservation (T211)
+    // and the per-warehouse stock allocations (US7 / T080).
+    if (to === 'cancelled') {
+      if (this.creditLimit) {
+        await this.creditLimit.releaseByOrder({
+          orderId: order.id,
+          reason: 'order_cancelled',
+        });
+      }
+      await this.releaseAllocations(order.id);
     }
     return order;
+  }
+
+  /**
+   * US7 / T080 — release every stock_allocations row tied to the order
+   * (decrementing each affected stock_levels.reserved counter) and
+   * stamp `released_at`. Idempotent — re-running this on a cancelled
+   * order is a no-op because already-released rows are filtered out
+   * by the `released_at IS NULL` predicate.
+   */
+  async releaseAllocations(orderId: string): Promise<{ released: number }> {
+    const em = this.emFactory();
+    return em.transactional(async (tx) => {
+      const knex = tx.getKnex();
+      const itemRows = await knex('order_items')
+        .where('order_id', orderId)
+        .select<Array<{ id: string; product_id: string; variant_id: string | null; quantity: number }>>(
+          'id',
+          'product_id',
+          'variant_id',
+          'quantity',
+        );
+      if (itemRows.length === 0) return { released: 0 };
+
+      const { StockAllocation } = await import(
+        '../../inventory/entities/stock-allocation.entity.js'
+      );
+      const { StockLevel } = await import(
+        '../../inventory/entities/stock-level.entity.js'
+      );
+
+      const allocations = await tx.find(StockAllocation, {
+        orderItemId: { $in: itemRows.map((r) => r.id) },
+        releasedAt: null,
+      });
+      if (allocations.length === 0) return { released: 0 };
+
+      const itemById = new Map(itemRows.map((r) => [r.id, r]));
+      const now = new Date();
+      for (const a of allocations) {
+        const item = itemById.get(a.orderItemId);
+        if (!item) continue;
+        const stock = await tx.findOne(StockLevel, {
+          productId: item.product_id,
+          variantId: item.variant_id ?? null,
+          warehouseId: a.warehouseId,
+        });
+        if (stock) {
+          stock.reserved = Math.max(0, stock.reserved - a.quantity);
+        }
+        a.releasedAt = now;
+      }
+      await tx.flush();
+      return { released: allocations.length };
+    });
   }
 
   /** Admin payment-status transition (T210 + T149). */
