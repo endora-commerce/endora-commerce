@@ -15,6 +15,8 @@ Auto-generated from all feature plans. Last updated: 2026-05-03
 - PostgreSQL — three new MikroORM migrations: (007-compare-module)
 - TypeScript 5.x (strict) on Node.js LTS ≥ 22.17. + Fastify, MikroORM (PostgreSQL driver), Zod, ioredis, BullMQ-class repeating jobs, Next.js (storefront), React + Vite (admin) — **no new runtime dependency**. (008-quote-requests)
 - PostgreSQL via MikroORM. New migration `028_quote_requests_workflow.ts` (next available number after the existing `027_*` from feature 007) introduces: (008-quote-requests)
+- TypeScript 5.x (strict) on Node.js LTS ≥ 22.17. + Fastify, MikroORM (PostgreSQL driver), Zod, ioredis, BullMQ-class jobs, Next.js (storefront), React + Vite (admin). One new dependency under consideration for Excel parsing — see `research.md` § R8. CSV is handled by Node-native streaming utilities, no extra dep. (010-inventory-module)
+- PostgreSQL via MikroORM. New migration `030_inventory_workflow.ts` (next available after `029_quote_requests_workflow.ts`) introduces: (010-inventory-module)
 
 - TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x) + MikroORM (PostgreSQL driver) for persistence; Zod for boundary validation; Next.js for the storefront; React for the admin panel; Meilisearch client; Redis client (cache + BullMQ-class queue). Backend HTTP layer intentionally minimal (a small, well-known Node/TypeScript HTTP router; choice deferred to Phase 0 research with a bias toward the smallest dependency footprint compatible with TDD, Zod, and modular routing). (001-b2b-platform-foundation)
 
@@ -34,9 +36,9 @@ npm test && npm run lint
 TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x): Follow standard conventions
 
 ## Recent Changes
+- 010-inventory-module: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17. + Fastify, MikroORM (PostgreSQL driver), Zod, ioredis, BullMQ-class jobs, Next.js (storefront), React + Vite (admin). One new dependency under consideration for Excel parsing — see `research.md` § R8. CSV is handled by Node-native streaming utilities, no extra dep.
 - 008-quote-requests: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17. + Fastify, MikroORM (PostgreSQL driver), Zod, ioredis, BullMQ-class repeating jobs, Next.js (storefront), React + Vite (admin) — **no new runtime dependency**.
 - 007-compare-module: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17, per `backend/package.json` engines and the project README. + Fastify, MikroORM (PostgreSQL driver), Zod (boundary validation), ioredis, BullMQ-class queues, Next.js (storefront), React (admin) — **plus** one new dependency, `pdfmake`, used exclusively by the comparison-PDF service. No other addition.
-- 006-search-module: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17, per `backend/package.json` engines and the project README. + Fastify, MikroORM (PostgreSQL driver), Zod (boundary validation), Meilisearch JS client, ioredis, BullMQ-class queues, Next.js (storefront) and React (admin) — **no new runtime dependency**.
 
 
 <!-- MANUAL ADDITIONS START -->
