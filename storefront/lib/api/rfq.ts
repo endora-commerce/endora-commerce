@@ -1,66 +1,135 @@
 import { apiGetAuthed, apiMutate } from './mutations';
 
 /**
- * Storefront RFQ bindings (T086, T087, T088 / FR-016 .. FR-026).
+ * Storefront Quote Requests bindings — feature 008 workflow.
  *
- * The backend keeps a single "current" draft per (customer, organization);
- * additions go to /quote-requests/current/items and submission flips the
- * draft into a real, immutable RFQ. After the supplier quotes, the buyer
- * accepts (which converts to an Order) or rejects (with a reason).
+ * The backend exposes seven customer endpoints under
+ * `/api/v1/quote-requests/*`:
+ *   - GET   /                            list summaries
+ *   - GET   /:id                         full detail (with optional comparison block)
+ *   - POST  /                             create + submit (one-shot)
+ *   - PATCH /:id                          customer-side draft edit
+ *   - POST  /:id/accept-revision         accept a sales-rep revision
+ *   - POST  /:id/reject-revision         reject a revision
+ *   - POST  /:id/resubmit                clone into a new Pending RFQ
  */
 
 export type RfqStatus =
-  | 'draft'
-  | 'submitted'
-  | 'in_review'
-  | 'quoted'
-  | 'accepted'
-  | 'rejected'
-  | 'expired'
-  | 'cancelled';
+  | 'Created from admin'
+  | 'Pending'
+  | 'Canceled'
+  | 'Approved'
+  | 'Completed'
+  | 'Expired';
 
 export interface RfqItem {
   id: string;
   productId: string;
   productName: string;
+  productSlug: string | null;
   variantId: string | null;
   variantLabel: string | null;
   quantity: number;
-  requesterNote: string | null;
-  quotedUnitPrice: number | null;
-  quotedDiscountPercent: number | null;
+  desiredUnitPrice: number | null;
+  agreedUnitPrice: number | null;
+  lineNote: string | null;
+  lineCurrency: string;
+  discountPercent: number | null;
 }
 
-export interface RfqQuoteTerms {
-  leadTimeDays: number;
-  validityDays: number;
-  deliveryTerms: string | null;
-  remarks: string | null;
+export interface RfqEvent {
+  id: string;
+  eventType: string;
+  actorAdminUserId: string | null;
+  actorCustomerAccountId: string | null;
+  actorRoleLabel: string | null;
+  payload: Record<string, unknown>;
+  revisionId: string | null;
+  createdAt: string;
+}
+
+export type RfqDiffEntry =
+  | { kind: 'header_note'; before: string | null; after: string | null }
+  | {
+      kind: 'line_added';
+      productId: string;
+      productName: string;
+      quantity: number;
+      agreedUnitPrice: number | null;
+    }
+  | { kind: 'line_removed'; productId: string; productName: string }
+  | {
+      kind: 'line_quantity';
+      productId: string;
+      productName: string;
+      before: number;
+      after: number;
+    }
+  | {
+      kind: 'line_agreed_unit_price';
+      productId: string;
+      productName: string;
+      before: number | null;
+      after: number | null;
+    };
+
+export interface RfqComparison {
+  diff: RfqDiffEntry[];
+  lastSeenRevisionNumber: number;
+  currentRevisionNumber: number;
+}
+
+export interface RfqDetail {
+  id: string;
+  organizationId: string;
+  customerAccountId: string;
+  createdByAdminUserId: string | null;
+  assignedAdminUserId: string | null;
+  status: RfqStatus;
+  awaitingCustomerRevisionAcceptance: boolean;
+  currentRevisionNumber: number;
+  lastCustomerSeenRevisionNumber: number;
+  headerNote: string | null;
+  cancellationReason: string | null;
+  items: RfqItem[];
+  events: RfqEvent[];
+  comparisonAgainstLastSeen: RfqComparison | null;
+  submittedAt: string | null;
+  approvedAt: string | null;
+  canceledAt: string | null;
+  completedAt: string | null;
+  expiredAt: string | null;
+  expiresAt: string | null;
+  convertedOrderId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
 }
 
 export interface RfqSummary {
   id: string;
   organizationId: string;
   customerAccountId: string;
-  assignedAdminUserId?: string;
   status: RfqStatus;
-  requesterNote: string | null;
-  items: RfqItem[];
-  quoteTerms: RfqQuoteTerms | null;
+  awaitingCustomerRevisionAcceptance: boolean;
+  lineCount: number;
+  totalAtCustomerPrice: number | null;
+  totalAtAgreedPrice: number | null;
+  currency: string;
   submittedAt: string | null;
-  quotedAt: string | null;
-  respondedAt: string | null;
   expiresAt: string | null;
   createdAt: string;
   updatedAt: string;
   version: number;
+  originalRequester?: { customerAccountId: string; displayName: string | null };
 }
 
-export async function getCurrentRfq(sessionCookie: string): Promise<RfqSummary> {
-  return apiGetAuthed<RfqSummary>({
-    path: '/api/v1/quote-requests/current',
-    sessionCookie,
-  });
+export interface CreateRfqLine {
+  productId: string;
+  variantId?: string;
+  quantity: number;
+  desiredUnitPrice?: number;
+  lineNote?: string;
 }
 
 export async function listRfqs(sessionCookie: string): Promise<RfqSummary[]> {
@@ -70,88 +139,83 @@ export async function listRfqs(sessionCookie: string): Promise<RfqSummary[]> {
   });
 }
 
-export async function getRfqById(sessionCookie: string, id: string): Promise<RfqSummary> {
-  return apiGetAuthed<RfqSummary>({
+export async function getRfqById(sessionCookie: string, id: string): Promise<RfqDetail> {
+  return apiGetAuthed<RfqDetail>({
     path: `/api/v1/quote-requests/${id}`,
     sessionCookie,
   });
 }
 
-export async function addRfqItem(
+export async function createRfq(
   sessionCookie: string,
-  payload: { productId: string; variantId?: string; quantity: number; requesterNote?: string },
-): Promise<RfqSummary> {
-  const result = await apiMutate<RfqSummary>({
+  body: { headerNote?: string; items: CreateRfqLine[] },
+): Promise<RfqDetail> {
+  const result = await apiMutate<RfqDetail>({
     method: 'POST',
-    path: '/api/v1/quote-requests/current/items',
-    body: payload,
+    path: '/api/v1/quote-requests',
+    body,
     sessionCookie,
   });
   return result.data!;
 }
 
-export async function updateRfqItem(
+export async function patchRfqDraft(
   sessionCookie: string,
-  itemId: string,
-  payload: { quantity?: number; requesterNote?: string | null },
-): Promise<RfqSummary> {
-  const result = await apiMutate<RfqSummary>({
+  id: string,
+  body: { headerNote?: string | null; items?: CreateRfqLine[] },
+  expectedVersion: number,
+): Promise<RfqDetail> {
+  const result = await apiMutate<RfqDetail>({
     method: 'PATCH',
-    path: `/api/v1/quote-requests/current/items/${itemId}`,
-    body: payload,
+    path: `/api/v1/quote-requests/${id}`,
+    body,
     sessionCookie,
+    headers: { 'if-match': `"${expectedVersion}"` },
   });
   return result.data!;
 }
 
-export async function removeRfqItem(
-  sessionCookie: string,
-  itemId: string,
-): Promise<RfqSummary> {
-  const result = await apiMutate<RfqSummary>({
-    method: 'DELETE',
-    path: `/api/v1/quote-requests/current/items/${itemId}`,
-    sessionCookie,
-  });
-  return result.data!;
-}
-
-export async function submitRfq(
-  sessionCookie: string,
-  payload?: { requesterNote?: string },
-): Promise<RfqSummary> {
-  const result = await apiMutate<RfqSummary>({
-    method: 'POST',
-    path: '/api/v1/quote-requests/current/submit',
-    body: payload ?? {},
-    sessionCookie,
-  });
-  return result.data!;
-}
-
-export async function acceptRfq(
+export async function acceptRevision(
   sessionCookie: string,
   id: string,
-  payload?: { notes?: string },
-): Promise<RfqSummary> {
-  const result = await apiMutate<RfqSummary>({
+  expectedRevisionNumber: number,
+): Promise<RfqDetail> {
+  const result = await apiMutate<RfqDetail>({
     method: 'POST',
-    path: `/api/v1/quote-requests/${id}/accept`,
-    body: payload ?? {},
+    path: `/api/v1/quote-requests/${id}/accept-revision`,
+    body: { expectedRevisionNumber },
     sessionCookie,
   });
   return result.data!;
 }
 
-export async function rejectRfq(
+export async function rejectRevision(
   sessionCookie: string,
   id: string,
-  payload: { reason: 'price' | 'terms' | 'other'; message?: string; requestChanges?: boolean },
-): Promise<RfqSummary> {
-  const result = await apiMutate<RfqSummary>({
+  expectedRevisionNumber: number,
+  reason?: string,
+): Promise<RfqDetail> {
+  const body: Record<string, unknown> = { expectedRevisionNumber };
+  if (reason) body.reason = reason;
+  const result = await apiMutate<RfqDetail>({
     method: 'POST',
-    path: `/api/v1/quote-requests/${id}/reject`,
-    body: payload,
+    path: `/api/v1/quote-requests/${id}/reject-revision`,
+    body,
+    sessionCookie,
+  });
+  return result.data!;
+}
+
+export async function resubmitRfq(
+  sessionCookie: string,
+  id: string,
+  headerNote?: string,
+): Promise<RfqDetail> {
+  const body = headerNote ? { headerNote } : {};
+  const result = await apiMutate<RfqDetail>({
+    method: 'POST',
+    path: `/api/v1/quote-requests/${id}/resubmit`,
+    body,
     sessionCookie,
   });
   return result.data!;
