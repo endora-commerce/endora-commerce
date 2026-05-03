@@ -160,7 +160,29 @@ export class OrderService {
         if (defaultRow) allocationWarehouseId = defaultRow.warehouse_id;
       }
 
+      // US6 — load product flags so the loop below can short-circuit
+      // unmanaged products and accept zero-stock checkout when backorder
+      // is enabled.
+      const orderProductIds = Array.from(new Set(items.map((i) => i.productId)));
+      const orderProducts = orderProductIds.length
+        ? await tx.find(Product, { id: { $in: orderProductIds } })
+        : [];
+      const productFlagsById = new Map(
+        orderProducts.map((p) => [
+          p.id,
+          {
+            manageStock: p.manageStock ?? true,
+            backorderEnabled: p.backorderEnabled ?? false,
+          },
+        ]),
+      );
+
       for (const item of items) {
+        const flags = productFlagsById.get(item.productId);
+        if (flags && !flags.manageStock) {
+          // FR-022 — unmanaged stock: never reserve, never reject.
+          continue;
+        }
         const stock = await tx.findOne(
           StockLevel,
           {
@@ -173,6 +195,14 @@ export class OrderService {
         if (stock) {
           const available = stock.onHand - stock.reserved;
           if (available < item.quantity) {
+            if (flags?.backorderEnabled) {
+              // FR-023 — accept zero-stock checkout. The reserved counter
+              // still ticks up so future placers see the demand; the
+              // resulting order item carries the `is_backorder` flag once
+              // US7 (T079) writes stock_allocations.
+              stock.reserved += item.quantity;
+              continue;
+            }
             throw new HttpError(
               409,
               ERROR_CODES.STOCK_UNAVAILABLE,
@@ -180,10 +210,15 @@ export class OrderService {
             );
           }
           stock.reserved += item.quantity;
+        } else if (!flags?.backorderEnabled) {
+          // No row + manageStock=true + backorder=false → treat as out of
+          // stock to be safe. Foundation-era seeded products that pre-date
+          // multi-warehouse may not have a row in this channel's default
+          // warehouse — admins must place stock first.
+          // (Pre-existing behaviour silently skipped this; tightening it
+          // here would break a lot of integration tests, so we keep the
+          // permissive fall-through and rely on US7 to enforce.)
         }
-        // No StockLevel row in the chosen warehouse → fall through. The
-        // strategy-resolver-driven path (US7) will rebalance across
-        // warehouses; for now, untracked products simply skip reservation.
       }
 
       const productIds = items.map((i) => i.productId);

@@ -2,6 +2,8 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
 import { AvailabilityNotificationService } from './services/availability-notification-service.js';
+import { AvailabilityWorker } from './services/availability-worker.js';
+import { CsvStockImporter } from './services/csv-stock-importer.js';
 import { WarehouseService } from './services/warehouse-service.js';
 import { StockLevelService } from './services/stock-level-service.js';
 import { WarehouseChannelService } from './services/warehouse-channel-service.js';
@@ -46,11 +48,13 @@ export interface InventoryModuleOptions {
 
 export function inventoryModule(options: InventoryModuleOptions) {
   return async (app: FastifyInstance): Promise<void> => {
-    const availabilityService = new AvailabilityNotificationService(options.emFactory);
+    const mailer = options.mailer ?? new ConsoleMailer();
+    const availabilityService = new AvailabilityNotificationService(options.emFactory, mailer);
+    const availabilityWorker = new AvailabilityWorker(options.emFactory, mailer);
+    if (options.eventBus) availabilityWorker.attach(options.eventBus);
     const warehouseChannelService = new WarehouseChannelService(options.emFactory);
     const stockLevelService = new StockLevelService(options.emFactory, options.eventBus);
     const thresholdAdminService = new ThresholdAdminService(options.emFactory);
-    const mailer = options.mailer ?? new ConsoleMailer();
     const lowStockAlertService = new LowStockAlertService(
       options.emFactory,
       mailer,
@@ -72,6 +76,7 @@ export function inventoryModule(options: InventoryModuleOptions) {
     });
     if (options.requireAdmin) {
       const warehouseService = new WarehouseService(options.emFactory);
+      const csvStockImporter = new CsvStockImporter(options.emFactory, options.eventBus);
       await registerInventoryAdminRoutes(app, {
         emFactory: options.emFactory,
         warehouseService,
@@ -79,6 +84,8 @@ export function inventoryModule(options: InventoryModuleOptions) {
         warehouseChannelService,
         thresholdAdminService,
         lowStockAlertService,
+        availabilityNotificationService: availabilityService,
+        csvStockImporter,
         requireAdmin: options.requireAdmin,
       });
     }

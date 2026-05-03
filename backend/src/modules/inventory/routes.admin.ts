@@ -17,6 +17,8 @@ import { StockLevelService } from './services/stock-level-service.js';
 import { WarehouseChannelService } from './services/warehouse-channel-service.js';
 import { ThresholdAdminService } from './services/threshold-admin-service.js';
 import { LowStockAlertService } from './services/low-stock-alert-service.js';
+import { AvailabilityNotificationService } from './services/availability-notification-service.js';
+import { CsvStockImporter } from './services/csv-stock-importer.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
 /**
@@ -36,6 +38,8 @@ export interface InventoryAdminDeps {
   warehouseChannelService: WarehouseChannelService;
   thresholdAdminService: ThresholdAdminService;
   lowStockAlertService: LowStockAlertService;
+  availabilityNotificationService: AvailabilityNotificationService;
+  csvStockImporter: CsvStockImporter;
   requireAdmin: RequireAdminFactory;
 }
 
@@ -56,6 +60,8 @@ export async function registerInventoryAdminRoutes(
     warehouseChannelService,
     thresholdAdminService,
     lowStockAlertService,
+    availabilityNotificationService,
+    csvStockImporter,
     requireAdmin,
   } = deps;
 
@@ -239,6 +245,76 @@ export async function registerInventoryAdminRoutes(
         ...(body.perProduct ? { perProduct: body.perProduct } : {}),
       });
       return { data };
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // CSV stock import (US7)
+  // ---------------------------------------------------------------------------
+
+  app.post(
+    '/api/v1/admin/inventory/import',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request, reply) => {
+      const q = (request.query ?? {}) as Record<string, string | undefined>;
+      const body = (request.body ?? {}) as { csv?: string; warehouseId?: string };
+      if (!body.csv || !body.warehouseId) {
+        reply.status(400);
+        return {
+          error: {
+            code: 'VALIDATION_FAILED',
+            message: 'csv + warehouseId are required',
+            requestId: request.id,
+          },
+        };
+      }
+      const result = await csvStockImporter.run({
+        csv: body.csv,
+        warehouseId: body.warehouseId,
+        dryRun: q['dryRun'] === 'true',
+      });
+      return { data: result };
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Availability notifications (US6)
+  // ---------------------------------------------------------------------------
+
+  app.get(
+    '/api/v1/admin/inventory/availability-notifications',
+    { preHandler: requireAdmin('orders:read') },
+    async (request) => {
+      const q = (request.query ?? {}) as Record<string, string | undefined>;
+      const data = await availabilityNotificationService.listForAdmin({
+        ...(q['productId'] ? { productId: q['productId'] } : {}),
+        ...(q['status'] ? { status: q['status'] as 'queued' | 'notified' | 'cancelled' } : {}),
+        ...(q['page'] ? { page: Number.parseInt(q['page'], 10) } : {}),
+        ...(q['pageSize'] ? { pageSize: Number.parseInt(q['pageSize'], 10) } : {}),
+      });
+      return data;
+    },
+  );
+
+  app.patch(
+    '/api/v1/admin/inventory/availability-notifications/:id',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const body = (request.body ?? {}) as { status?: string };
+      if (body.status !== 'cancelled') {
+        reply.status(400);
+        return {
+          error: {
+            code: 'VALIDATION_FAILED',
+            message: 'Only `status: "cancelled"` is supported on this endpoint',
+            requestId: request.id,
+          },
+        };
+      }
+      await availabilityNotificationService.cancel(id);
+      reply.status(204);
+      return null;
     },
   );
 

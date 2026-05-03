@@ -10,6 +10,7 @@ import type { AvailabilityNotificationService } from './services/availability-no
 import type { WarehouseChannelService } from './services/warehouse-channel-service.js';
 import type { StockLevelService } from './services/stock-level-service.js';
 import type { SalesChannelResolverService } from '../sales_channels/services/sales-channel-resolver.service.js';
+import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
 import { Product } from '../catalog/entities/product.entity.js';
 import { StockLevel } from './entities/stock-level.entity.js';
 import { resolveDisplayBand } from './services/display-band-resolver.js';
@@ -62,8 +63,17 @@ export async function registerInventoryRoutes(
     async (request, reply) => {
       const ctx = resolveCustomerContext(request);
       const body = availabilityNotificationRequestSchema.parse(request.body ?? {});
+      const em = emFactory();
+      const customerAccount = await em.findOne(CustomerAccount, { id: ctx.customerAccountId });
+      if (!customerAccount) {
+        reply.status(403);
+        return {
+          error: { code: 'FORBIDDEN', message: 'Unknown customer account', requestId: request.id },
+        };
+      }
       const subscription = await availabilityService.subscribe({
         customerAccountId: ctx.customerAccountId,
+        email: customerAccount.email,
         productId: request.params.id,
         variantId: body.variantId ?? null,
       });
