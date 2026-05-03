@@ -47,7 +47,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
   );
 
   return (
-    <>
+    <div className="container">
       <Breadcrumbs
         crumbs={[
           { href: '/', label: t('nav.home') },
@@ -55,8 +55,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
           { href: `/c/${node.slug}`, label: node.name },
         ]}
       />
-      <h1>{node.name}</h1>
-      <div className="b2b-listing">
+      <div className="industria-catalog">
         <FilterPanel
           filters={filters}
           selected={attributeFilters}
@@ -64,7 +63,13 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
           locale={locale}
         />
         <div>
-          <ProductGrid products={products.data} locale={locale} />
+          <div className="industria-catalog__title">
+            <div>
+              <h1>{node.name}</h1>
+              <p>{node.productCount.toLocaleString('pl-PL')} produktów</p>
+            </div>
+          </div>
+          <ProductGrid products={products.data} locale={locale} columns={3} />
           <Pagination
             basePath={`/c/${node.slug}`}
             baseQuery={baseQuery}
@@ -74,7 +79,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
           />
         </div>
       </div>
-    </>
+    </div>
   );
 }
 

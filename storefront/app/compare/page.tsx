@@ -19,15 +19,20 @@ export default async function ComparePage(): Promise<ReactNode> {
   const { locale } = await getServerContext();
   const t = tForLocale(locale);
   return (
-    <>
+    <div className="container" style={{ paddingTop: 24, paddingBottom: 56 }}>
       <Breadcrumbs
         crumbs={[
           { href: '/', label: t('nav.home') },
-          { href: '/compare', label: 'Compare' },
+          { href: '/compare', label: 'Porównywarka' },
         ]}
       />
-      <h1>Compare products</h1>
+      <div className="industria-catalog__title">
+        <div>
+          <h1>Porównywarka parametrów technicznych</h1>
+          <p>Zestawienie wybranych produktów. Różnice są podświetlone.</p>
+        </div>
+      </div>
       <ComparisonTable />
-    </>
+    </div>
   );
 }
