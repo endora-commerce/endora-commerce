@@ -8,13 +8,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   Calendar,
   ChevronLeft,
-  CircleDollarSign,
   Cog,
   Copy,
   Filter,
   Layers,
   Lock,
+  Plus,
   Save,
+  Search,
   Star,
   Trash2,
   Users,
@@ -22,6 +23,7 @@ import {
 } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
+import { BracketGrid, type BracketsByCurrency } from './BracketGrid';
 
 type PriceListType = 'base' | 'sale';
 type PriceListStatus = 'draft' | 'active' | 'scheduled' | 'expired';
@@ -312,7 +314,9 @@ export function PriceListDetailPage(): ReactNode {
           {tab === 'details' ? (
             <DetailsPanel list={list} onSave={handlePatch} disabled={list.isSystem} />
           ) : null}
-          {tab === 'products' ? <ProductsPlaceholder /> : null}
+          {tab === 'products' ? (
+            <ProductsAndBracketsPanel priceListId={list.id} systemList={list.isSystem} />
+          ) : null}
           {tab === 'rule' ? <RulePlaceholder isSystem={list.isSystem} /> : null}
         </div>
       </div>
@@ -513,32 +517,333 @@ function DetailsPanel({
   );
 }
 
-function ProductsPlaceholder(): ReactNode {
+interface AdminProductSummary {
+  id: string;
+  sku: string;
+  name: string;
+}
+
+interface RosterEntry {
+  productId: string;
+  bracketsByCurrency: BracketsByCurrency;
+}
+
+function ProductsAndBracketsPanel({
+  priceListId,
+  systemList,
+}: {
+  priceListId: string;
+  systemList: boolean;
+}): ReactNode {
+  const [roster, setRoster] = useState<RosterEntry[]>([]);
+  const [products, setProducts] = useState<Record<string, AdminProductSummary>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [picker, setPicker] = useState(false);
+
+  const refresh = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [rosterRes, productsRes] = await Promise.all([
+        apiClient.get<{ data: { items: RosterEntry[] } }>(
+          `/api/v1/admin/price-lists-engine/${encodeURIComponent(priceListId)}/products`,
+        ),
+        apiClient.get<{ data: AdminProductSummary[] }>('/api/v1/admin/catalog/products'),
+      ]);
+      setRoster(rosterRes.data.items);
+      const map: Record<string, AdminProductSummary> = {};
+      for (const p of productsRes.data) map[p.id] = p;
+      setProducts(map);
+      if (rosterRes.data.items.length > 0 && !rosterRes.data.items.some((e) => e.productId === selectedId)) {
+        setSelectedId(rosterRes.data.items[0]!.productId);
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+    } finally {
+      setLoading(false);
+    }
+  }, [priceListId, selectedId]);
+
+  useEffect(() => {
+    void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [priceListId]);
+
+  const handleAddProduct = async (productId: string): Promise<void> => {
+    try {
+      await apiClient.post(`/api/v1/admin/price-lists-engine/${encodeURIComponent(priceListId)}/products`, {
+        productId,
+      });
+      setPicker(false);
+      setSelectedId(productId);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Add failed.');
+    }
+  };
+
+  const handleRemoveProduct = async (productId: string): Promise<void> => {
+    if (!confirm('Remove this product from the price list? Its brackets will be deleted.')) return;
+    try {
+      await apiClient.delete(
+        `/api/v1/admin/price-lists-engine/${encodeURIComponent(priceListId)}/products/${encodeURIComponent(productId)}`,
+      );
+      if (selectedId === productId) setSelectedId(null);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Remove failed.');
+    }
+  };
+
+  const handleBracketsSaved = (productId: string, next: BracketsByCurrency): void => {
+    setRoster((prev) =>
+      prev.map((e) => (e.productId === productId ? { ...e, bracketsByCurrency: next } : e)),
+    );
+  };
+
+  if (loading) {
+    return <div style={{ padding: 16, color: 'var(--fg-muted)', fontSize: 13 }}>Loading…</div>;
+  }
+
+  const selected = roster.find((e) => e.productId === selectedId) ?? null;
+  const selectedProduct = selected ? products[selected.productId] : null;
+
   return (
-    <div
-      className="b2b-card"
-      style={{
-        padding: 16,
-        background: 'var(--info-soft)',
-        border: '1px solid hsl(217 70% 88%)',
-      }}
-    >
-      <div className="b2b-row" style={{ gap: 12, alignItems: 'flex-start' }}>
-        <CircleDollarSign size={18} style={{ color: 'var(--info-soft-fg)', marginTop: 2 }} />
-        <div className="b2b-grow">
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--info-soft-fg)' }}>
-            Products & brackets editor — coming next
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--info-soft-fg)', marginTop: 4 }}>
-            The per-product per-currency multi-bracket editor (BracketGrid) lands in
-            the next admin iteration. The backend already serves
-            <code> PUT /api/v1/admin/price-lists-engine/:id/products </code> and the
-            per-product brackets endpoint, so existing rows are managed via the API or
-            by the migration's seed.
+    <div className="b2b-col" style={{ gap: 12 }}>
+      {error ? (
+        <div
+          style={{
+            padding: 8,
+            background: 'var(--danger-soft)',
+            color: 'var(--danger-soft-fg)',
+            borderRadius: 6,
+            border: '1px solid hsl(8 80% 85%)',
+            fontSize: 12,
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
+      {systemList ? (
+        <div
+          className="b2b-card b2b-row"
+          style={{
+            background: 'var(--info-soft)',
+            color: 'var(--info-soft-fg)',
+            padding: 12,
+            border: '1px solid hsl(217 70% 88%)',
+            gap: 8,
+            alignItems: 'flex-start',
+          }}
+        >
+          <Lock size={14} style={{ marginTop: 2 }} />
+          <div>
+            The Default list's roster is seeded from the legacy <code>defaultPrice</code>
+            attribute by migration 031. Products and brackets are read-only here; manage
+            non-Default lists for any price overrides.
           </div>
         </div>
+      ) : null}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16, alignItems: 'flex-start' }}>
+        <div className="b2b-card" style={{ padding: 0 }}>
+          <div
+            className="b2b-row"
+            style={{
+              padding: '10px 12px',
+              borderBottom: '1px solid var(--border-color)',
+              gap: 6,
+              alignItems: 'center',
+            }}
+          >
+            <div className="b2b-grow" style={{ fontSize: 12, fontWeight: 600 }}>
+              Products ({roster.length})
+            </div>
+            <button
+              type="button"
+              className="b2b-btn b2b-btn--primary b2b-btn--sm"
+              disabled={systemList}
+              onClick={(): void => setPicker(true)}
+            >
+              <Plus size={12} /> Add
+            </button>
+          </div>
+          {roster.length === 0 ? (
+            <div className="b2b-help" style={{ padding: 16 }}>
+              No products yet. Add one to start pricing.
+            </div>
+          ) : (
+            <ul style={{ margin: 0, padding: 0, listStyle: 'none', maxHeight: 480, overflow: 'auto' }}>
+              {roster.map((e) => {
+                const product = products[e.productId];
+                const isSelected = e.productId === selectedId;
+                const currencyCount = Object.keys(e.bracketsByCurrency).length;
+                return (
+                  <li
+                    key={e.productId}
+                    onClick={(): void => setSelectedId(e.productId)}
+                    style={{
+                      padding: '8px 12px',
+                      cursor: 'pointer',
+                      borderBottom: '1px solid var(--border-color)',
+                      background: isSelected ? 'var(--primary-soft)' : 'transparent',
+                      borderLeft: isSelected ? '3px solid var(--primary-color)' : '3px solid transparent',
+                    }}
+                  >
+                    <div style={{ fontSize: 12, fontWeight: 500 }}>
+                      {product?.name ?? e.productId.slice(0, 8)}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--fg-muted)', display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                      <span className="b2b-mono">{product?.sku ?? '—'}</span>
+                      <span>{currencyCount === 0 ? 'no prices' : `${currencyCount} cur.`}</span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        <div>
+          {selected && selectedProduct ? (
+            <BracketGrid
+              priceListId={priceListId}
+              productId={selected.productId}
+              productName={selectedProduct.name}
+              initial={selected.bracketsByCurrency}
+              systemList={systemList}
+              onSaved={(next): void => handleBracketsSaved(selected.productId, next)}
+            />
+          ) : selectedId ? (
+            <div className="b2b-help" style={{ padding: 16 }}>
+              Loading product…
+            </div>
+          ) : (
+            <div className="b2b-help" style={{ padding: 16 }}>
+              Select a product on the left to edit its brackets.
+            </div>
+          )}
+          {selected && !systemList ? (
+            <div style={{ marginTop: 12, textAlign: 'right' }}>
+              <button
+                type="button"
+                className="b2b-btn b2b-btn--ghost b2b-btn--sm"
+                style={{ color: 'hsl(8 80% 50%)' }}
+                onClick={(): void => {
+                  void handleRemoveProduct(selected.productId);
+                }}
+              >
+                <Trash2 size={12} /> Remove from price list
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
+
+      {picker ? (
+        <ProductPickerDialog
+          existing={new Set(roster.map((e) => e.productId))}
+          onClose={(): void => setPicker(false)}
+          onPick={(id): void => {
+            void handleAddProduct(id);
+          }}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function ProductPickerDialog({
+  existing,
+  onClose,
+  onPick,
+}: {
+  existing: Set<string>;
+  onClose: () => void;
+  onPick: (productId: string) => void;
+}): ReactNode {
+  const [products, setProducts] = useState<AdminProductSummary[]>([]);
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    apiClient
+      .get<{ data: AdminProductSummary[] }>('/api/v1/admin/catalog/products')
+      .then((res) => setProducts(res.data))
+      .catch((err: unknown) => {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const candidates = products.filter((p) => {
+    if (existing.has(p.id)) return false;
+    if (!query.trim()) return true;
+    const q = query.toLowerCase();
+    return p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
+  });
+
+  return (
+    <>
+      <div className="b2b-scrim" onClick={onClose} />
+      <aside className="b2b-drawer" role="dialog" aria-modal="true">
+        <div className="b2b-drawer__head">
+          <div className="b2b-drawer__title">Add product</div>
+          <div className="b2b-card__sub">
+            Pick a product to add to this price list. Each product can only appear once
+            per list.
+          </div>
+        </div>
+        <div className="b2b-drawer__body">
+          <div className="b2b-input-wrap" style={{ marginBottom: 12 }}>
+            <Search size={14} className="lead" />
+            <input
+              autoFocus
+              className="b2b-field b2b-field--addon"
+              placeholder="Search by name or SKU…"
+              value={query}
+              onChange={(e): void => setQuery(e.target.value)}
+            />
+          </div>
+          {error ? (
+            <div className="b2b-help" style={{ color: 'hsl(8 80% 40%)' }}>
+              {error}
+            </div>
+          ) : loading ? (
+            <div className="b2b-help">Loading…</div>
+          ) : candidates.length === 0 ? (
+            <div className="b2b-help">No matching products.</div>
+          ) : (
+            <ul style={{ margin: 0, padding: 0, listStyle: 'none', maxHeight: 380, overflow: 'auto' }}>
+              {candidates.slice(0, 100).map((p) => (
+                <li
+                  key={p.id}
+                  onClick={(): void => onPick(p.id)}
+                  style={{
+                    padding: '8px 10px',
+                    cursor: 'pointer',
+                    borderBottom: '1px solid var(--border-color)',
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</div>
+                  <div className="b2b-mono" style={{ fontSize: 11, color: 'var(--fg-muted)' }}>
+                    {p.sku}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="b2b-drawer__foot">
+          <button type="button" className="b2b-btn b2b-btn--ghost" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }
 
