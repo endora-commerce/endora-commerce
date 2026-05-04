@@ -480,6 +480,39 @@ export async function registerPricingRoutes(
     },
   );
 
+  // ---- Linked price-lists panel for the product editor (US8) -------
+
+  app.get<{ Params: { productId: string } }>(
+    '/api/v1/admin/products/:productId/price-lists',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request, reply) => {
+      const em = emFactory();
+      const product = await em.findOne(Product, { id: request.params.productId });
+      if (!product) {
+        reply.status(404);
+        return { error: { code: 'NOT_FOUND', message: 'Product not found.' } };
+      }
+      const items = await priceListService.summarizeBracketsForProduct(
+        request.params.productId,
+      );
+      return {
+        data: {
+          items: items.map((it) => ({
+            list: {
+              id: it.list.id,
+              name: it.list.name,
+              type: it.list.type,
+              status: it.list.status,
+              modifiedAt: it.list.modifiedAt.toISOString(),
+            },
+            summary: it.summary,
+            deepLinkPath: it.deepLinkPath,
+          })),
+        },
+      };
+    },
+  );
+
   // ---- Display-mode overrides (US7) ----------------------------------
 
   app.get<{ Querystring: { scope?: 'organization' | 'category' | 'product' } }>(

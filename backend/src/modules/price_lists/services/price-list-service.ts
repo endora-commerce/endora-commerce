@@ -493,6 +493,98 @@ export class PriceListService {
     }
   }
 
+  // ---- Engine: linked price-lists panel (US8) ------------------------
+
+  /**
+   * For a given product, return every price list the product is assigned
+   * to with a per-currency bracket summary and a deep-link path. Powers
+   * the admin Catalog product editor's Pricing tab (FR-044/045/046).
+   */
+  async summarizeBracketsForProduct(
+    productId: string,
+  ): Promise<
+    Array<{
+      list: {
+        id: string;
+        name: string;
+        type: 'base' | 'sale';
+        status: 'draft' | 'active' | 'scheduled' | 'expired';
+        modifiedAt: Date;
+      };
+      summary: Array<{ currencyCode: string; summary: string }>;
+      deepLinkPath: string;
+    }>
+  > {
+    const em = this.emFactory();
+    const assignments = await em.find(PriceListProduct, { productId });
+    if (assignments.length === 0) return [];
+    const listIds = assignments.map((a) => a.priceListId);
+
+    const lists = await em.find(
+      PriceList,
+      { id: { $in: listIds } },
+      { orderBy: { isSystem: 'desc', name: 'asc' } },
+    );
+    const brackets = await em.find(
+      PriceListPriceBracket,
+      { priceListId: { $in: listIds }, productId },
+      { orderBy: { currencyCode: 'asc', minQuantity: 'asc' } },
+    );
+
+    return lists.map((list) => {
+      const listBrackets = brackets.filter((b) => b.priceListId === list.id);
+      const byCurrency = listBrackets.reduce<Record<string, PriceListPriceBracket[]>>(
+        (acc, b) => {
+          (acc[b.currencyCode] ??= []).push(b);
+          return acc;
+        },
+        {},
+      );
+      const summary = Object.entries(byCurrency)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([currencyCode, rows]) => ({
+          currencyCode,
+          summary: this.summariseBrackets(rows),
+        }));
+      return {
+        list: {
+          id: list.id,
+          name: list.name,
+          type: list.type,
+          status: list.status,
+          modifiedAt: list.modifiedAt,
+        },
+        summary,
+        deepLinkPath: `/admin/price-lists/${list.id}/products?focus=${productId}`,
+      };
+    });
+  }
+
+  /**
+   * Build a human-readable summary string for one currency's bracket
+   * series, e.g.:
+   *   - "80,0000 across 1 bracket"
+   *   - "80,0000 – 100,0000 across 3 brackets"
+   * The numeric formatting deliberately keeps the storage scale (4
+   * fractional digits); the admin UI may re-format per locale.
+   */
+  private summariseBrackets(rows: readonly PriceListPriceBracket[]): string {
+    if (rows.length === 0) return 'no brackets';
+    const amounts = rows.map((r) => Number(r.amount));
+    const min = Math.min(...amounts);
+    const max = Math.max(...amounts);
+    const count = rows.length;
+    const noun = count === 1 ? 'bracket' : 'brackets';
+    if (min === max) {
+      return `${this.formatAmount(min)} across ${count} ${noun}`;
+    }
+    return `${this.formatAmount(min)} – ${this.formatAmount(max)} across ${count} ${noun}`;
+  }
+
+  private formatAmount(value: number): string {
+    return value.toFixed(4);
+  }
+
   // ---- Engine: display mode (US7) ------------------------------------
 
   /**
