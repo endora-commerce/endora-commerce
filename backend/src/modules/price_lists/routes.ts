@@ -480,6 +480,122 @@ export async function registerPricingRoutes(
     },
   );
 
+  // ---- Display-mode overrides (US7) ----------------------------------
+
+  app.get<{ Querystring: { scope?: 'organization' | 'category' | 'product' } }>(
+    '/api/v1/admin/pricing/display-mode-overrides',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request) => {
+      const items = await priceListService.listDisplayModeOverrides(request.query.scope);
+      return {
+        data: {
+          items: items.map((o) => ({
+            scope: o.scope,
+            targetId: o.targetId,
+            mode: o.mode,
+            updatedAt: o.updatedAt.toISOString(),
+          })),
+        },
+      };
+    },
+  );
+
+  app.get<{
+    Params: { scope: 'organization' | 'category' | 'product'; targetId: string };
+  }>(
+    '/api/v1/admin/pricing/display-mode-overrides/:scope/:targetId',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request, reply) => {
+      const row = await priceListService.getDisplayModeOverride(
+        request.params.scope,
+        request.params.targetId,
+      );
+      if (!row) {
+        reply.status(404);
+        return { error: { code: 'NOT_FOUND', message: 'Override not found.' } };
+      }
+      return {
+        data: {
+          scope: row.scope,
+          targetId: row.targetId,
+          mode: row.mode,
+          updatedAt: row.updatedAt.toISOString(),
+        },
+      };
+    },
+  );
+
+  app.put<{
+    Params: { scope: 'organization' | 'category' | 'product'; targetId: string };
+  }>(
+    '/api/v1/admin/pricing/display-mode-overrides/:scope/:targetId',
+    {
+      preHandler: requireAdmin('catalog:write'),
+      schema: {
+        body: z.object({
+          mode: z.enum(['gross_only', 'net_only', 'both', 'none', 'inherit']),
+        }),
+      },
+    },
+    async (request, reply) => {
+      const body = z
+        .object({ mode: z.enum(['gross_only', 'net_only', 'both', 'none', 'inherit']) })
+        .parse(request.body);
+      const row = await priceListService.upsertDisplayModeOverride(
+        request.params.scope,
+        request.params.targetId,
+        body.mode,
+      );
+      if (!row) {
+        reply.status(204).send();
+        return;
+      }
+      return {
+        data: {
+          scope: row.scope,
+          targetId: row.targetId,
+          mode: row.mode,
+          updatedAt: row.updatedAt.toISOString(),
+        },
+      };
+    },
+  );
+
+  // ---- Storefront resolved-display-mode endpoint (US7) ---------------
+
+  app.get<{ Params: { productId: string } }>(
+    '/api/v1/storefront/pricing/display-mode/:productId',
+    async (request, reply) => {
+      const em = emFactory();
+      const product = await em.findOne(Product, { id: request.params.productId });
+      if (!product) {
+        reply.status(404);
+        return { error: { code: 'NOT_FOUND', message: 'Product not found.' } };
+      }
+      const channelHeader = request.headers['x-sales-channel-id'];
+      const channelId =
+        typeof channelHeader === 'string'
+          ? channelHeader
+          : Array.isArray(channelHeader)
+            ? channelHeader[0]
+            : undefined;
+      const channel = channelId
+        ? await em.findOne(SalesChannel, { id: channelId })
+        : await em.findOne(SalesChannel, { systemDefault: true });
+      if (!channel) {
+        reply.status(400);
+        return { error: { code: 'VALIDATION_FAILED', message: 'Invalid sales channel.' } };
+      }
+      const mode = await priceListService.resolveDisplayMode({
+        productId: product.id,
+        organizationId: null,
+        salesChannelId: channel.id,
+        customerKind: 'guest',
+      });
+      return { data: { displayMode: mode } };
+    },
+  );
+
   // ---- Storefront resolver (US5) -------------------------------------
 
   app.get<{

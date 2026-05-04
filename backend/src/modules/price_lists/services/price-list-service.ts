@@ -6,11 +6,18 @@ import { PriceListItem } from '../entities/price-list-item.entity.js';
 import { PriceListAssignment } from '../entities/price-list-assignment.entity.js';
 import { PriceListProduct } from '../entities/price-list-product.entity.js';
 import { PriceListPriceBracket } from '../entities/price-list-price-bracket.entity.js';
+import { PriceDisplayModeOverride } from '../entities/price-display-mode-override.entity.js';
 import { CustomerGroup } from '../entities/customer-group.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import { Category } from '../../catalog/entities/category.entity.js';
+import { Product } from '../../catalog/entities/product.entity.js';
+import { Setting } from '../../settings/entities/setting.entity.js';
+import { SettingValue } from '../../settings/entities/setting-value.entity.js';
 import { randomUUID } from 'crypto';
+
+export type DisplayMode = 'gross_only' | 'net_only' | 'both' | 'none';
+export type DisplayModeOverrideScope = 'organization' | 'category' | 'product';
 
 export type PriceListStatus = 'draft' | 'active' | 'scheduled' | 'expired';
 export type PriceListType = 'base' | 'sale';
@@ -482,6 +489,233 @@ export class PriceListService {
         400,
         ERROR_CODES.VALIDATION_FAILED,
         'endsAt must be in the future at creation time.',
+      );
+    }
+  }
+
+  // ---- Engine: display mode (US7) ------------------------------------
+
+  /**
+   * Upsert a per-Org / per-Category / per-Product display-mode override
+   * (FR-038). The mode value `'inherit'` deletes the override row.
+   * Validates the target ID against the appropriate table — orphans are
+   * refused with 400 (the polymorphic FK is enforced here, not at the DB
+   * level, since the target table varies — see data-model.md §1.4).
+   */
+  async upsertDisplayModeOverride(
+    scope: DisplayModeOverrideScope,
+    targetId: string,
+    mode: DisplayMode | 'inherit',
+  ): Promise<PriceDisplayModeOverride | null> {
+    const em = this.emFactory();
+    await this.assertOverrideTargetExists(em, scope, targetId);
+    const existing = await em.findOne(PriceDisplayModeOverride, { scope, targetId });
+    if (mode === 'inherit') {
+      if (existing) {
+        await em.removeAndFlush(existing);
+      }
+      return null;
+    }
+    if (existing) {
+      existing.mode = mode;
+      existing.updatedAt = new Date();
+      await em.flush();
+      return existing;
+    }
+    const row = em.create(PriceDisplayModeOverride, { scope, targetId, mode });
+    await em.persistAndFlush(row);
+    return row;
+  }
+
+  async listDisplayModeOverrides(
+    scope?: DisplayModeOverrideScope,
+  ): Promise<PriceDisplayModeOverride[]> {
+    const em = this.emFactory();
+    return em.find(
+      PriceDisplayModeOverride,
+      scope ? { scope } : {},
+      { orderBy: { scope: 'asc', targetId: 'asc' } },
+    );
+  }
+
+  async getDisplayModeOverride(
+    scope: DisplayModeOverrideScope,
+    targetId: string,
+  ): Promise<PriceDisplayModeOverride | null> {
+    return this.emFactory().findOne(PriceDisplayModeOverride, { scope, targetId });
+  }
+
+  /**
+   * Update a `pricing.*` settings-group display-mode key. Settings are
+   * per-sales-channel under the foundation settings module — when no
+   * channel is supplied, this method writes the value across every
+   * sales channel (treating it as a tenant-wide override). For
+   * channel-specific overrides, callers may pass a single channel.
+   *
+   * `key` is the bare suffix (e.g. `default_display_mode` or
+   * `unauthenticated_display_mode`) — the full code is derived as
+   * `pricing.<key>`.
+   */
+  async setSettingsDisplayMode(
+    key: 'default_display_mode' | 'unauthenticated_display_mode',
+    mode: DisplayMode,
+    salesChannelId?: string,
+  ): Promise<void> {
+    const em = this.emFactory();
+    const code = `pricing.${key}`;
+    const setting = await em.findOneOrFail(Setting, { code });
+    const channels = salesChannelId
+      ? [await em.findOneOrFail(SalesChannel, { id: salesChannelId })]
+      : await em.find(SalesChannel, {});
+    for (const channel of channels) {
+      const existing = await em.findOne(SettingValue, {
+        setting: setting.id,
+        salesChannel: channel.id,
+      });
+      if (existing) {
+        existing.value = mode;
+        existing.updatedAt = new Date();
+        continue;
+      }
+      em.create(SettingValue, { setting, salesChannel: channel, value: mode });
+    }
+    await em.flush();
+  }
+
+  /**
+   * Read the value of a `pricing.*` display-mode setting for a sales
+   * channel. Falls back to the Setting's `defaultValue` (manifest
+   * default, typically `'gross_only'`).
+   */
+  async readSettingsDisplayMode(
+    key: 'default_display_mode' | 'unauthenticated_display_mode',
+    salesChannelId: string,
+  ): Promise<DisplayMode> {
+    const em = this.emFactory();
+    const code = `pricing.${key}`;
+    const setting = await em.findOne(Setting, { code });
+    if (!setting) return 'gross_only';
+    const value = await em.findOne(SettingValue, {
+      setting: setting.id,
+      salesChannel: salesChannelId,
+    });
+    const raw = (value?.value ?? setting.defaultValue) as string;
+    if (raw === 'gross_only' || raw === 'net_only' || raw === 'both' || raw === 'none') {
+      return raw;
+    }
+    return 'gross_only';
+  }
+
+  /**
+   * Resolve the effective display mode for a (product, organization?,
+   * salesChannel) tuple along the FR-039 chain
+   *   Product → Category → Organization → Settings.
+   *
+   * Walks the product's category memberships to find the most specific
+   * category override (deepest in the tree, with `(sort_order ASC, id ASC)`
+   * as the deterministic tie-break). Reads override rows from
+   * `price_display_mode_overrides`; falls back to the per-channel
+   * settings value (`default_display_mode` for signed-in customers,
+   * `unauthenticated_display_mode` for guests).
+   */
+  async resolveDisplayMode(input: {
+    productId: string;
+    organizationId: string | null;
+    salesChannelId: string;
+    customerKind: 'guest' | 'signed_in';
+  }): Promise<DisplayMode> {
+    const em = this.emFactory();
+
+    // 1. Product-level override.
+    const productOverride = await em.findOne(PriceDisplayModeOverride, {
+      scope: 'product',
+      targetId: input.productId,
+    });
+    if (productOverride) return productOverride.mode as DisplayMode;
+
+    // 2. Category-level override — pick the deepest matching category.
+    const categoryRows = await em.getConnection().execute<
+      Array<{ category_id: string }>
+    >(`select category_id from product_categories where product_id = ?`, [input.productId]);
+    if (categoryRows.length > 0) {
+      const categoryIds = categoryRows.map((r) => r.category_id);
+      const overrides = await em.find(PriceDisplayModeOverride, {
+        scope: 'category',
+        targetId: { $in: categoryIds },
+      });
+      if (overrides.length > 0) {
+        // Pick the deepest category (longest parent chain), with
+        // (sort_order ASC, id ASC) as the deterministic tie-break.
+        const candidates: Array<{ override: PriceDisplayModeOverride; depth: number; sortOrder: number; id: string }> = [];
+        for (const ov of overrides) {
+          const cat = await em.findOne(Category, { id: ov.targetId });
+          if (!cat) continue;
+          const depth = await this.categoryDepth(em, cat.id);
+          candidates.push({ override: ov, depth, sortOrder: cat.sortOrder, id: cat.id });
+        }
+        candidates.sort((a, b) => {
+          if (b.depth !== a.depth) return b.depth - a.depth;
+          if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+          return a.id.localeCompare(b.id);
+        });
+        if (candidates.length > 0) return candidates[0]!.override.mode as DisplayMode;
+      }
+    }
+
+    // 3. Organization-level override (only signed-in customers).
+    if (input.customerKind === 'signed_in' && input.organizationId) {
+      const orgOverride = await em.findOne(PriceDisplayModeOverride, {
+        scope: 'organization',
+        targetId: input.organizationId,
+      });
+      if (orgOverride) return orgOverride.mode as DisplayMode;
+    }
+
+    // 4. Settings fallback.
+    const key =
+      input.customerKind === 'guest'
+        ? 'unauthenticated_display_mode'
+        : 'default_display_mode';
+    return this.readSettingsDisplayMode(key, input.salesChannelId);
+  }
+
+  /** Walk the parent chain to compute a category's depth (root = 0). */
+  private async categoryDepth(em: EntityManager, categoryId: string): Promise<number> {
+    let depth = 0;
+    let cursor = await em.findOne(Category, { id: categoryId });
+    while (cursor && cursor.parentCategoryId) {
+      depth += 1;
+      cursor = await em.findOne(Category, { id: cursor.parentCategoryId });
+    }
+    return depth;
+  }
+
+  /**
+   * Validate that a polymorphic override target exists in the appropriate
+   * table. Throws 400 VALIDATION_FAILED on orphan target IDs (FR-038).
+   */
+  private async assertOverrideTargetExists(
+    em: EntityManager,
+    scope: DisplayModeOverrideScope,
+    targetId: string,
+  ): Promise<void> {
+    let exists: number;
+    switch (scope) {
+      case 'organization':
+        exists = await em.count(Organization, { id: targetId });
+        break;
+      case 'category':
+        exists = await em.count(Category, { id: targetId });
+        break;
+      case 'product':
+        exists = await em.count(Product, { id: targetId });
+        break;
+    }
+    if (exists === 0) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.VALIDATION_FAILED,
+        `No ${scope} found with id ${targetId} for display-mode override.`,
       );
     }
   }

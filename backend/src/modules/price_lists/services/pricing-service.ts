@@ -305,6 +305,19 @@ export class PricingService {
       context.quantity,
     );
 
+    // Display mode (US7): walk the override chain via the price-list service
+    // helper. Lazy-construct the helper here so PricingService does not pull
+    // PriceListService into its constructor signature (keeps the existing
+    // composition.ts wiring intact).
+    const { PriceListService } = await import('./price-list-service.js');
+    const priceListService = new PriceListService(this.emFactory);
+    const displayMode = await priceListService.resolveDisplayMode({
+      productId: product.id,
+      organizationId: context.organization?.id ?? null,
+      salesChannelId: context.salesChannel.id,
+      customerKind: context.organization ? 'signed_in' : 'guest',
+    });
+
     return {
       base: {
         listId: baseResult.list?.id ?? '',
@@ -318,7 +331,7 @@ export class PricingService {
             bracket: saleResult.bracket,
           }
         : null,
-      displayMode: 'gross_only',
+      displayMode,
       currencyCode,
     };
   }
