@@ -18,12 +18,13 @@ import {
   Search,
   Star,
   Trash2,
-  Users,
   Zap,
 } from 'lucide-react';
+import type { ApplicationRule } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { BracketGrid, type BracketsByCurrency } from './BracketGrid';
+import { ApplicationRuleBuilder } from './ApplicationRuleBuilder';
 
 type PriceListType = 'base' | 'sale';
 type PriceListStatus = 'draft' | 'active' | 'scheduled' | 'expired';
@@ -35,7 +36,7 @@ interface PriceListEngineRow {
   status: PriceListStatus;
   startsAt: string | null;
   endsAt: string | null;
-  applicationRule: unknown;
+  applicationRule: ApplicationRule;
   isSystem: boolean;
   modifiedAt: string;
   createdAt: string;
@@ -112,6 +113,7 @@ export function PriceListDetailPage(): ReactNode {
       type?: PriceListType;
       startsAt?: string | null;
       endsAt?: string | null;
+      applicationRule?: ApplicationRule;
     }): Promise<void> => {
       try {
         const res = await apiClient.patch<{ data: PriceListEngineRow }>(
@@ -317,7 +319,13 @@ export function PriceListDetailPage(): ReactNode {
           {tab === 'products' ? (
             <ProductsAndBracketsPanel priceListId={list.id} systemList={list.isSystem} />
           ) : null}
-          {tab === 'rule' ? <RulePlaceholder isSystem={list.isSystem} /> : null}
+          {tab === 'rule' ? (
+            <ApplicationRulePanel
+              rule={list.applicationRule}
+              isSystem={list.isSystem}
+              onSave={(next): Promise<void> => handlePatch({ applicationRule: next })}
+            />
+          ) : null}
         </div>
       </div>
     </div>
@@ -847,26 +855,113 @@ function ProductPickerDialog({
   );
 }
 
-function RulePlaceholder({ isSystem }: { isSystem: boolean }): ReactNode {
-  return (
-    <div
-      className="b2b-card"
-      style={{
-        padding: 16,
-        background: 'var(--surface-muted)',
-        border: '1px solid var(--border-color)',
-      }}
-    >
-      <div className="b2b-row" style={{ gap: 12, alignItems: 'flex-start' }}>
-        <Users size={18} style={{ color: 'var(--fg-muted)', marginTop: 2 }} />
-        <div className="b2b-grow">
-          <div style={{ fontSize: 13, fontWeight: 600 }}>Application rule</div>
-          <div className="b2b-help" style={{ marginTop: 4 }}>
-            {isSystem
-              ? 'The Default list always matches and cannot carry a rule (FR-005).'
-              : 'The recursive Query/Rule Builder (Sales Channel / Customer Group / Organization / Category / Currency, AND/OR, depth-5) lands next. Until then, edit the rule directly via the PATCH endpoint.'}
+function ApplicationRulePanel({
+  rule,
+  isSystem,
+  onSave,
+}: {
+  rule: ApplicationRule;
+  isSystem: boolean;
+  onSave: (next: ApplicationRule) => Promise<void>;
+}): ReactNode {
+  const [draft, setDraft] = useState<ApplicationRule>(rule);
+  const [submitting, setSubmitting] = useState(false);
+  const [info, setInfo] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraft(rule);
+  }, [rule]);
+
+  const dirty = JSON.stringify(rule) !== JSON.stringify(draft);
+
+  const handle = async (): Promise<void> => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onSave(draft);
+      setInfo('Saved.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Save failed.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (isSystem) {
+    return (
+      <div
+        className="b2b-card"
+        style={{
+          padding: 16,
+          background: 'var(--surface-muted)',
+          border: '1px solid var(--border-color)',
+        }}
+      >
+        <div className="b2b-row" style={{ gap: 12, alignItems: 'flex-start' }}>
+          <Lock size={18} style={{ color: 'var(--fg-muted)', marginTop: 2 }} />
+          <div className="b2b-grow">
+            <div style={{ fontSize: 13, fontWeight: 600 }}>Application rule</div>
+            <div className="b2b-help" style={{ marginTop: 4 }}>
+              The seeded Default list always matches and cannot carry a rule (FR-005).
+              The backend refuses any non-empty rule attached to it.
+            </div>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="b2b-col" style={{ gap: 12 }}>
+      {info ? (
+        <div
+          style={{
+            padding: 8,
+            background: 'var(--success-soft)',
+            color: 'var(--success-soft-fg)',
+            borderRadius: 6,
+            border: '1px solid hsl(142 50% 80%)',
+            fontSize: 12,
+          }}
+        >
+          {info}
+        </div>
+      ) : null}
+      {error ? (
+        <div
+          style={{
+            padding: 8,
+            background: 'var(--danger-soft)',
+            color: 'var(--danger-soft-fg)',
+            borderRadius: 6,
+            border: '1px solid hsl(8 80% 85%)',
+            fontSize: 12,
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
+      <ApplicationRuleBuilder value={draft} onChange={setDraft} />
+      <div className="b2b-row" style={{ justifyContent: 'flex-end', gap: 6 }}>
+        <button
+          type="button"
+          className="b2b-btn b2b-btn--ghost b2b-btn--sm"
+          disabled={!dirty || submitting}
+          onClick={(): void => setDraft(rule)}
+        >
+          Discard
+        </button>
+        <button
+          type="button"
+          className="b2b-btn b2b-btn--primary b2b-btn--sm"
+          disabled={!dirty || submitting}
+          onClick={(): void => {
+            void handle();
+          }}
+        >
+          <Save size={13} /> {submitting ? 'Saving…' : 'Save rule'}
+        </button>
       </div>
     </div>
   );
