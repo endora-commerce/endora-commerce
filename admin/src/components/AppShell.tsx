@@ -21,6 +21,7 @@ import {
   LayoutDashboard,
   LineChart,
   ListChecks,
+  LogOut,
   Newspaper,
   Package,
   PackageOpen,
@@ -530,9 +531,10 @@ export function AppShell(): ReactNode {
               type="button"
               className="icon-btn"
               title="Sign out"
+              aria-label="Sign out"
               onClick={(): void => void logout()}
             >
-              <Settings size={14} />
+              <LogOut size={14} />
             </button>
           </div>
         ) : null}

@@ -124,7 +124,7 @@
   color: var(--sidebar-fg-active);
   font-weight: 500;
 }
-.b2b-nav-item.is-active svg { color: hsl(var(--accent-h) 70% 50%); }
+.b2b-nav-item.is-active svg { color: hsl(var(--accent-h) 90% 75%); }
 .b2b-nav-badge {
   margin-left: auto;
   font-size: 10px; padding: 1px 6px; border-radius: 999px;
