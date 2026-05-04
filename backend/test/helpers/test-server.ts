@@ -356,6 +356,7 @@ export async function setupBackendServer(
       requireAdmin: requireTestAdmin(permissionService),
       resolveCustomerContext: customerResolver,
       salesChannelMembership: salesChannels.handle.membershipService,
+      pricingService: priceLists.handle.pricingService,
       resolveCartActor: (request) => {
         if (request.testActor?.kind === 'customer') {
           return {

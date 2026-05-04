@@ -4,6 +4,9 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
+import { Organization } from '../../organizations/entities/organization.entity.js';
+import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import type { PricingService } from '../../price_lists/services/pricing-service.js';
 
 /**
  * CartService (T125).
@@ -27,7 +30,25 @@ export interface CustomerContext {
 }
 
 export class CartService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  /**
+   * `pricingService` is optional so test rigs that don't wire the
+   * full pricing module still construct the service. Production
+   * composition (composition.ts) supplies it; when absent the cart
+   * silently falls back to the legacy `attributeValues['defaultPrice']`
+   * read so the foundation flow stays intact.
+   *
+   * Cart entities don't currently track which sales channel they were
+   * created on (multi-channel cart attribution is a separate
+   * follow-up), so the resolver runs against the system-default
+   * channel — matching the behaviour the foundation cart already had.
+   * Lists with a `salesChannel` criterion targeting other channels
+   * therefore won't apply on the cart line until cart-side channel
+   * tracking lands.
+   */
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly pricingService?: PricingService,
+  ) {}
 
   async getOrCreateForCustomer(ctx: CustomerContext): Promise<Cart> {
     const em = this.emFactory();
@@ -102,22 +123,89 @@ export class CartService {
       existing.quantity += input.quantity;
       await em.flush();
     } else {
-      const unitPrice = Number(
-        product.attributeValues['defaultPrice'] ?? product.attributeValues['price'] ?? 0,
-      );
+      const resolved = await this.#resolveLineUnitPrice(em, {
+        product,
+        organizationId: actor.customer?.organizationId ?? null,
+        quantity: input.quantity,
+        variantId: input.variantId ?? null,
+      });
+      // T084 — defence-in-depth: refuse the line when the resolver says
+      // this product is quote-only for the (org, channel) tuple.
+      if (resolved && resolved.displayMode === 'none') {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          'product_quote_only',
+        );
+      }
       const item = em.create(CartItem, {
         cartId: cart.id,
         productId: product.id,
         ...(input.variantId ? { variantId: input.variantId } : {}),
         quantity: input.quantity,
-        unitPrice: unitPrice.toFixed(2),
-        currency: 'PLN',
+        unitPrice: resolved
+          ? Number(resolved.amount).toFixed(2)
+          : (Number(
+              product.attributeValues['defaultPrice'] ??
+                product.attributeValues['price'] ??
+                0,
+            )).toFixed(2),
+        currency: resolved?.currency ?? 'PLN',
       });
       await em.persistAndFlush(item);
     }
 
     const items = await em.find(CartItem, { cartId: cart.id });
     return { cart, items };
+  }
+
+  /**
+   * Look up the line's unit price via the resolver when the pricing
+   * service is wired (production); fall back to `null` so the legacy
+   * read path runs (foundation tests). Returns `null` on any resolver
+   * failure to match the foundation flow's "never block on price
+   * resolution" semantics.
+   */
+  async #resolveLineUnitPrice(
+    em: EntityManager,
+    input: {
+      product: Product;
+      organizationId: string | null;
+      quantity: number;
+      variantId: string | null;
+    },
+  ): Promise<{
+    amount: string;
+    currency: string;
+    priceListId: string;
+    displayMode: import('@b2b/contracts').DisplayMode;
+  } | null> {
+    if (!this.pricingService) return null;
+    try {
+      const channel = await em.findOne(SalesChannel, { systemDefault: true });
+      if (!channel) return null;
+      const organization = input.organizationId
+        ? await em.findOne(Organization, { id: input.organizationId })
+        : null;
+      const resolved = await this.pricingService.resolveLinePrice({
+        product: input.product,
+        variantId: input.variantId,
+        context: {
+          quantity: input.quantity,
+          ...(organization ? { organization } : {}),
+          salesChannel: channel,
+        },
+      });
+      if (!resolved) return null;
+      return {
+        amount: resolved.amount,
+        currency: resolved.currency,
+        priceListId: resolved.priceListId,
+        displayMode: resolved.displayMode,
+      };
+    } catch {
+      return null;
+    }
   }
 
   async updateItem(

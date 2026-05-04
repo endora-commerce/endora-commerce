@@ -4,6 +4,7 @@ import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import { CartService } from '../carts/services/cart-service.js';
+import type { PricingService } from '../price_lists/services/pricing-service.js';
 import {
   OrderService,
   type CreditLimitPort,
@@ -58,11 +59,18 @@ export interface OrdersModuleOptions {
    * DeliveryMethods auto-bind to the system-default Sales Channel (FR-011).
    */
   salesChannelMembership?: SalesChannelMembershipService;
+  /**
+   * Optional pricing-engine service. When wired, cart-line creation
+   * uses `PricingService.resolveLinePrice()` for the unit price + the
+   * displayMode='none' guard (T076 / T084). Foundation tests that
+   * don't care about pricing engine semantics can omit it.
+   */
+  pricingService?: PricingService;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
   return async (app: FastifyInstance): Promise<void> => {
-    const cartService = new CartService(options.emFactory);
+    const cartService = new CartService(options.emFactory, options.pricingService);
     const orderService = new OrderService(
       options.emFactory,
       options.eventBus as OrderEventBus,

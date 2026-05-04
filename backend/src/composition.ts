@@ -284,6 +284,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireAdmin,
       resolveCustomerContext: customerResolver,
       salesChannelMembership: salesChannels.handle.membershipService,
+      pricingService: priceLists.handle.pricingService,
       resolveCartActor: (request) => {
         if (request.actor.kind === 'customer') {
           return {

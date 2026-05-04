@@ -386,6 +386,7 @@ export class PricingService {
     priceListId: string;
     isSale: boolean;
     bracketStartQuantity: number;
+    displayMode: DisplayMode;
   } | null> {
     const out = await this.resolveEngine(input);
     if (out.sale) {
@@ -395,6 +396,7 @@ export class PricingService {
         priceListId: out.sale.listId,
         isSale: true,
         bracketStartQuantity: out.sale.bracket.minQuantity,
+        displayMode: out.displayMode,
       };
     }
     if (!out.base.bracket) return null;
@@ -404,6 +406,7 @@ export class PricingService {
       priceListId: out.base.listId,
       isSale: false,
       bracketStartQuantity: out.base.bracket.minQuantity,
+      displayMode: out.displayMode,
     };
   }
 
