@@ -486,11 +486,24 @@ export function AppShell(): ReactNode {
                 <div className="b2b-sidebar__items">
                   {section.items.map((item) => {
                     const Icon = item.icon;
+                    // Force exact-match (`end`) when another item in the same
+                    // section nests under this item's path. Without this, a
+                    // parent route like `/inventory` lights up alongside its
+                    // children (`/inventory/low-stock`, `/inventory/import`,
+                    // …) because NavLink's default match is prefix-based.
+                    // The home link (`/`) is the canonical example and is
+                    // covered by the same rule (every other item starts with
+                    // `/`).
+                    const hasNestedSibling = section.items.some(
+                      (other) =>
+                        other !== item &&
+                        other.to.startsWith(item.to === '/' ? '/' : `${item.to}/`),
+                    );
                     return (
                       <NavLink
                         key={item.to}
                         to={item.to}
-                        end={item.to === '/'}
+                        end={item.to === '/' || hasNestedSibling}
                         className={({ isActive }): string =>
                           cn('b2b-nav-item', isActive && 'is-active')
                         }
