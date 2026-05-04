@@ -543,6 +543,11 @@ export async function registerPricingRoutes(
    *   - `X-Sales-Channel-Id` (UUID; admin/test convention)
    *   - `X-Sales-Channel` (code; storefront convention)
    *   - falling back to the system-default channel.
+   *
+   * If a header is set but doesn't resolve to a channel, returns `null` so
+   * the caller surfaces a 400 — silently falling through to the default
+   * would mask invalid client input (covered by the contract test that
+   * passes an unknown UUID).
    */
   async function resolveChannelFromRequest(
     em: EntityManager,
@@ -556,8 +561,7 @@ export async function registerPricingRoutes(
           ? idHeader[0]
           : undefined;
     if (idValue) {
-      const byId = await em.findOne(SalesChannel, { id: idValue });
-      if (byId) return byId;
+      return em.findOne(SalesChannel, { id: idValue });
     }
     const codeHeader = headers['x-sales-channel'];
     const codeValue =
@@ -567,8 +571,7 @@ export async function registerPricingRoutes(
           ? codeHeader[0]
           : undefined;
     if (codeValue) {
-      const byCode = await em.findOne(SalesChannel, { code: codeValue });
-      if (byCode) return byCode;
+      return em.findOne(SalesChannel, { code: codeValue });
     }
     return em.findOne(SalesChannel, { systemDefault: true });
   }
