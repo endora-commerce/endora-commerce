@@ -25,32 +25,29 @@ const ALLOW = new Set<string>([
   'backend/src/modules/price_lists/migrations/031_price_lists_engine.ts',
   'backend/src/modules/price_lists/services/default-price-list-migration.ts',
 
-  // Resolver foundation path. The new resolveEngine pipeline is
-  // additive; the legacy resolvePrice still feeds the old cart-service
-  // until T076 lands.
-  'backend/src/modules/price_lists/services/pricing-service.ts',
-
   // Catalog projection layer — feeds storefront ProductSummary.price
-  // until T076 swaps the consumer side. catalog-query is the read
-  // path; product-link mirrors the same projection on cross-sell
-  // payloads.
+  // until the contract migration drops the legacy column. catalog-query
+  // is the read path; product-link mirrors the same projection on
+  // cross-sell payloads.
   'backend/src/modules/catalog/services/catalog-query.service.ts',
   'backend/src/modules/catalog/services/product-link.service.ts',
 
-  // Cart-service still reads the legacy key for line pricing — T076.
+  // Cart-service keeps the legacy reader as a foundation fallback for
+  // composition rigs that don't wire pricingService (T076 made the
+  // dependency optional).
   'backend/src/modules/carts/services/cart-service.ts',
 
   // Comparison + search projections mirror the same fallback as
-  // catalog-query; they will swap to the resolver alongside T076.
+  // catalog-query; they're the next migration targets.
   'backend/src/modules/comparisons/services/comparison-service.ts',
   'backend/src/modules/search/services/search-query.service.ts',
 
-  // Dev seed populates the legacy key so existing dev catalogs stay
-  // useful before migration 031 promotes them to brackets.
+  // Dev seed comment only — the seed itself now invokes the engine
+  // migrator (T011) and writes no legacy rows.
   'backend/src/modules/catalog/seeds/dev-catalog-seed.ts',
 
   // Admin Product editor still reads/writes the legacy default price
-  // input. T076 + the contract migration will retire it.
+  // input. The contract migration will retire it.
   'admin/src/modules/catalog/ProductEditor.tsx',
 
   // Storefront fallback path — only a comment (string match).

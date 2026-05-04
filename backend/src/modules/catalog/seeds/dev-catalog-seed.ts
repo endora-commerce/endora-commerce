@@ -31,9 +31,7 @@ import { AdminRole } from '../../admin_roles/entities/admin-role.entity.js';
 import { DeliveryMethod } from '../../delivery_methods/entities/delivery-method.entity.js';
 import { PaymentMethod } from '../../payment_methods/entities/payment-method.entity.js';
 import { Tax } from '../../taxes/entities/tax.entity.js';
-import { PriceList } from '../../price_lists/entities/price-list.entity.js';
-import { PriceListItem } from '../../price_lists/entities/price-list-item.entity.js';
-import { PriceListAssignment } from '../../price_lists/entities/price-list-assignment.entity.js';
+import { DefaultPriceListMigrator } from '../../price_lists/services/default-price-list-migration.js';
 import { hashPassword } from '../../auth/services/password-hasher.js';
 import { Warehouse, DEFAULT_WAREHOUSE_ID } from '../../inventory/entities/warehouse.entity.js';
 import { WarehouseChannelAssignment } from '../../inventory/entities/warehouse-channel-assignment.entity.js';
@@ -541,31 +539,13 @@ async function main(): Promise<void> {
   });
   await em.persistAndFlush(bankTransfer);
 
-  // --- Default Price List with per-product fixed_unit prices (T166) ---
-  const defaultPriceList = em.create(PriceList, {
-    code: 'default_pln',
-    name: 'Default PLN',
-    currency: 'PLN',
-    isDefault: true,
-    priority: 0,
-  });
-  await em.persistAndFlush(defaultPriceList);
-
-  for (const product of products) {
-    const price = Number(product.attributeValues['defaultPrice']);
-    em.create(PriceListItem, {
-      priceListId: defaultPriceList.id,
-      mode: 'fixed_unit',
-      productId: product.id,
-      minQuantity: 1,
-      unitPrice: String(price),
-    });
-  }
-  em.create(PriceListAssignment, {
-    priceListId: defaultPriceList.id,
-    isDefault: true,
-  });
-  await em.flush();
+  // --- Default price list — engine schema (feature 011) ----------------
+  // Migration 031 seeds the Default row at db:migrate time and creates
+  // a bracket per currency from each product's attributeValues.defaultPrice.
+  // Re-running the migrator here picks up any product that the dev seed
+  // just created so the storefront resolver always finds a Base bracket.
+  // The migrator is idempotent — subsequent runs are no-ops.
+  await new DefaultPriceListMigrator(() => em).run();
 
   // --- Feature 010 — multi-warehouse demo data (T085) ----------------
   // Add a second warehouse `Magazyn Kraków` and spread stock between it

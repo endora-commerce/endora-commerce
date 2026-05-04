@@ -2,19 +2,18 @@ import { z } from 'zod';
 import { isoDateTimeSchema, moneySchema, uuidSchema } from './common.js';
 
 /**
- * Pricing contracts.
+ * Pricing contracts (feature 011 engine).
  *
- * The shape evolved across two iterations. The legacy schemas
- * (`priceListItemSchema`, `priceListAssignmentSchema`,
- * `createPriceListItemRequestSchema`, `createPriceListAssignmentRequestSchema`,
- * `upsertPriceListRequestSchema`) come from feature 014 and are kept until
- * every consumer migrates to the feature-011 engine.
+ * Schemas: `priceListEngineSchema`, `applicationRuleSchema`,
+ * `priceListBracketSchema`, `displayModeSchema`, etc. Model the B2B
+ * pricing engine: multi-currency multi-bracket prices per product, an
+ * Application Rule tree (AND/OR over SC/CG/Org/Cat/Currency criteria),
+ * Base/Sale split, lifecycle status, and the four-level price-display
+ * mode chain.
  *
- * The feature-011 schemas (`priceListEngineSchema`, `applicationRuleSchema`,
- * `priceListBracketSchema`, etc.) model the B2B pricing engine: multi-currency
- * multi-bracket prices per product, an Application Rule tree (AND/OR over
- * SC/CG/Org/Cat/Currency criteria), Base/Sale split, lifecycle status, and the
- * four-level price-display mode.
+ * Legacy feature-014 schemas (`priceListItemSchema`,
+ * `priceListAssignmentSchema`, etc.) were retired by T011 alongside
+ * their entity files and admin endpoints.
  */
 
 const CURRENCY = z.string().regex(/^[A-Z]{3}$/, 'ISO 4217 currency code');
@@ -40,128 +39,6 @@ export const upsertCustomerGroupRequestSchema = z.object({
   name: z.string().min(1).max(160),
   description: z.string().max(1000).nullable().optional(),
 });
-
-// =============================================================================
-// LEGACY (feature 014) — kept until every reader migrates to the engine schemas.
-// =============================================================================
-
-/** @deprecated Feature 014 shape. Migrate to `priceListEngineSchema`. */
-export const priceListSchema = z.object({
-  id: uuidSchema,
-  code: z.string().min(1).max(64),
-  name: z.string().min(1).max(200),
-  currency: CURRENCY,
-  isDefault: z.boolean(),
-  priority: z.number().int(),
-  createdAt: isoDateTimeSchema,
-  updatedAt: isoDateTimeSchema,
-});
-export type PriceList = z.infer<typeof priceListSchema>;
-
-/** @deprecated Feature 014. */
-export const upsertPriceListRequestSchema = z.object({
-  code: z.string().min(1).max(64),
-  name: z.string().min(1).max(200),
-  currency: CURRENCY,
-  isDefault: z.boolean().optional(),
-  priority: z.number().int().optional(),
-});
-
-/** @deprecated Feature 014. */
-export const priceListItemModeSchema = z.enum([
-  'fixed_unit',
-  'percentage_off',
-  'amount_off',
-]);
-export type PriceListItemMode = z.infer<typeof priceListItemModeSchema>;
-
-/** @deprecated Feature 014. */
-export const priceListItemSchema = z.object({
-  id: uuidSchema,
-  priceListId: uuidSchema,
-  mode: priceListItemModeSchema,
-  productId: uuidSchema.nullable(),
-  variantId: uuidSchema.nullable(),
-  categoryId: uuidSchema.nullable(),
-  minQuantity: POSITIVE_INT,
-  unitPrice: z.number().finite().nonnegative().nullable(),
-  adjustmentValue: z.number().finite().nonnegative().nullable(),
-  createdAt: isoDateTimeSchema,
-  updatedAt: isoDateTimeSchema,
-});
-export type PriceListItem = z.infer<typeof priceListItemSchema>;
-
-/** @deprecated Feature 014. */
-export const createPriceListItemRequestSchema = z
-  .object({
-    mode: priceListItemModeSchema,
-    productId: uuidSchema.nullable().optional(),
-    variantId: uuidSchema.nullable().optional(),
-    categoryId: uuidSchema.nullable().optional(),
-    minQuantity: POSITIVE_INT.optional(),
-    unitPrice: z.number().finite().nonnegative().nullable().optional(),
-    adjustmentValue: z.number().finite().nonnegative().nullable().optional(),
-  })
-  .superRefine((value, ctx) => {
-    if (value.mode === 'fixed_unit') {
-      if (value.productId == null) {
-        ctx.addIssue({ code: 'custom', message: 'fixed_unit items require productId', path: ['productId'] });
-      }
-      if (value.unitPrice == null) {
-        ctx.addIssue({ code: 'custom', message: 'fixed_unit items require unitPrice', path: ['unitPrice'] });
-      }
-    } else {
-      if (value.categoryId == null) {
-        ctx.addIssue({ code: 'custom', message: 'percentage_off / amount_off items require categoryId', path: ['categoryId'] });
-      }
-      if (value.adjustmentValue == null) {
-        ctx.addIssue({ code: 'custom', message: 'percentage_off / amount_off items require adjustmentValue', path: ['adjustmentValue'] });
-      }
-      if (value.mode === 'percentage_off' && value.adjustmentValue != null) {
-        if (value.adjustmentValue < 0 || value.adjustmentValue > 100) {
-          ctx.addIssue({ code: 'custom', message: 'percentage_off adjustmentValue must be between 0 and 100', path: ['adjustmentValue'] });
-        }
-      }
-    }
-  });
-
-/** @deprecated Feature 014. */
-export const priceListAssignmentSchema = z.object({
-  id: uuidSchema,
-  priceListId: uuidSchema,
-  organizationId: uuidSchema.nullable(),
-  customerGroupId: uuidSchema.nullable(),
-  salesChannelId: uuidSchema.nullable(),
-  isDefault: z.boolean(),
-  priority: z.number().int(),
-  createdAt: isoDateTimeSchema,
-  updatedAt: isoDateTimeSchema,
-});
-export type PriceListAssignment = z.infer<typeof priceListAssignmentSchema>;
-
-/** @deprecated Feature 014. */
-export const createPriceListAssignmentRequestSchema = z
-  .object({
-    organizationId: uuidSchema.nullable().optional(),
-    customerGroupId: uuidSchema.nullable().optional(),
-    salesChannelId: uuidSchema.nullable().optional(),
-    isDefault: z.boolean().optional(),
-    priority: z.number().int().optional(),
-  })
-  .superRefine((value, ctx) => {
-    const targets = [
-      value.organizationId ? 'organizationId' : null,
-      value.customerGroupId ? 'customerGroupId' : null,
-      value.isDefault ? 'isDefault' : null,
-    ].filter((t): t is string => t !== null);
-    if (targets.length !== 1) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'exactly one of organizationId, customerGroupId, or isDefault=true must be set',
-        path: ['organizationId'],
-      });
-    }
-  });
 
 // =============================================================================
 // FEATURE 011 — pricing-engine schemas
@@ -335,16 +212,6 @@ export const upsertDisplayModeOverrideRequestSchema = z.object({
 });
 
 // --- Resolved price (storefront/cart consumer) ------------------------------
-
-/** @deprecated Feature 014 shape. Migrate to `resolvedPriceEngineSchema`. */
-export const resolvedPriceSchema = z.object({
-  unitPrice: moneySchema,
-  basePrice: moneySchema,
-  source: z.enum(['list', 'base']),
-  priceListId: uuidSchema.nullable(),
-  appliedItemId: uuidSchema.nullable(),
-});
-export type ResolvedPrice = z.infer<typeof resolvedPriceSchema>;
 
 export const resolvedPriceEngineSchema = z.object({
   baseListId: uuidSchema,

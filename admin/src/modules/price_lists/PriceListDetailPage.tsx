@@ -173,7 +173,7 @@ export function PriceListDetailPage(): ReactNode {
     if (!confirm('Delete this price list? This cannot be undone.')) return;
     try {
       await apiClient.delete<void>(
-        `/api/v1/admin/price-lists/${encodeURIComponent(id)}`,
+        `/api/v1/admin/price-lists-engine/${encodeURIComponent(id)}`,
       );
       navigate('/price-lists');
     } catch (err) {

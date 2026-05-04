@@ -50,8 +50,6 @@ import { Currency } from '../modules/currencies/entities/currency.entity.js';
 import { CmsPage } from '../modules/cms_pages/entities/cms-page.entity.js';
 import { CustomerGroup } from '../modules/price_lists/entities/customer-group.entity.js';
 import { PriceList } from '../modules/price_lists/entities/price-list.entity.js';
-import { PriceListItem } from '../modules/price_lists/entities/price-list-item.entity.js';
-import { PriceListAssignment } from '../modules/price_lists/entities/price-list-assignment.entity.js';
 import { PriceListProduct } from '../modules/price_lists/entities/price-list-product.entity.js';
 import { PriceListPriceBracket } from '../modules/price_lists/entities/price-list-price-bracket.entity.js';
 import { PriceDisplayModeOverride } from '../modules/price_lists/entities/price-display-mode-override.entity.js';
@@ -163,8 +161,6 @@ export const ALL_ENTITIES = [
   // pricing (Phase 4 polish / T127)
   CustomerGroup,
   PriceList,
-  PriceListItem,
-  PriceListAssignment,
   // pricing engine (feature 011)
   PriceListProduct,
   PriceListPriceBracket,
