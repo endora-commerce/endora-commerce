@@ -27,6 +27,23 @@ export interface PatchPriceListInput {
   applicationRule?: ApplicationRule;
 }
 
+export interface BracketInput {
+  minQuantity: number;
+  maxQuantity: number | null;
+  /** Decimal amount as string (the storage shape on `price_list_price_brackets`). */
+  amount: string;
+}
+
+export interface ReplaceProductsResult {
+  added: number;
+  removed: number;
+  unchanged: number;
+}
+
+export interface CopyCurrencyResult {
+  added: number;
+}
+
 /**
  * PriceListService — admin CRUD over PriceList + the two child collections
  * (items + assignments). Keeping all three operations on the same service
@@ -341,6 +358,308 @@ export class PriceListService {
         ERROR_CODES.VALIDATION_FAILED,
         'endsAt must be in the future at creation time.',
       );
+    }
+  }
+
+  // ---- Engine: product roster + bracket pricing (US3) ----------------
+
+  /**
+   * List the assigned products for a price list, with their per-currency
+   * brackets in `minQuantity` ascending order. Powers the admin Products
+   * tab and the linked-price-lists panel from US8.
+   */
+  async listProducts(priceListId: string): Promise<
+    Array<{
+      productId: string;
+      bracketsByCurrency: Record<string, BracketInput[]>;
+    }>
+  > {
+    await this.getById(priceListId);
+    const em = this.emFactory();
+    const assignments = await em.find(PriceListProduct, { priceListId });
+    if (assignments.length === 0) return [];
+    const productIds = assignments.map((a) => a.productId);
+    const brackets = await em.find(
+      PriceListPriceBracket,
+      { priceListId, productId: { $in: productIds } },
+      { orderBy: { currencyCode: 'asc', minQuantity: 'asc' } },
+    );
+    const byProduct = new Map<string, Record<string, BracketInput[]>>();
+    for (const id of productIds) byProduct.set(id, {});
+    for (const b of brackets) {
+      const buckets = byProduct.get(b.productId);
+      if (!buckets) continue;
+      (buckets[b.currencyCode] ??= []).push({
+        minQuantity: b.minQuantity,
+        maxQuantity: b.maxQuantity ?? null,
+        amount: b.amount,
+      });
+    }
+    return assignments.map((a) => ({
+      productId: a.productId,
+      bracketsByCurrency: byProduct.get(a.productId) ?? {},
+    }));
+  }
+
+  /**
+   * Idempotent append: assigns a single product to a price list. No-op when
+   * the assignment already exists. The list's `modifiedAt` is bumped only
+   * when the assignment is actually new.
+   */
+  async addProduct(priceListId: string, productId: string): Promise<void> {
+    const em = this.emFactory();
+    const list = await this.getById(priceListId);
+    const existing = await em.findOne(PriceListProduct, { priceListId, productId });
+    if (existing) return;
+    em.create(PriceListProduct, { priceListId, productId });
+    list.modifiedAt = new Date();
+    await em.flush();
+  }
+
+  /**
+   * Removes a product's assignment + its bracket rows (cascade via FK).
+   * No-op when the assignment does not exist.
+   */
+  async removeProduct(priceListId: string, productId: string): Promise<void> {
+    const em = this.emFactory();
+    const list = await this.getById(priceListId);
+    const existing = await em.findOne(PriceListProduct, { priceListId, productId });
+    if (!existing) return;
+    await em.removeAndFlush(existing);
+    list.modifiedAt = new Date();
+    await em.flush();
+  }
+
+  /**
+   * Bulk delta replacement of the product roster. Adds new pairs, removes
+   * pairs absent from the request. Returns the {added, removed, unchanged}
+   * counts. Cascade deletes brackets for removed pairs.
+   */
+  async replaceProducts(
+    priceListId: string,
+    productIds: readonly string[],
+  ): Promise<ReplaceProductsResult> {
+    const em = this.emFactory();
+    const list = await this.getById(priceListId);
+
+    const existing = await em.find(PriceListProduct, { priceListId });
+    const existingSet = new Set(existing.map((e) => e.productId));
+    const wanted = new Set(productIds);
+
+    const toAdd = [...wanted].filter((id) => !existingSet.has(id));
+    const toRemove = existing.filter((e) => !wanted.has(e.productId));
+    const unchanged = [...wanted].filter((id) => existingSet.has(id));
+
+    for (const id of toAdd) em.create(PriceListProduct, { priceListId, productId: id });
+    for (const row of toRemove) em.remove(row);
+    if (toAdd.length > 0 || toRemove.length > 0) {
+      list.modifiedAt = new Date();
+    }
+    await em.flush();
+
+    return { added: toAdd.length, removed: toRemove.length, unchanged: unchanged.length };
+  }
+
+  /**
+   * Bulk replacement of bracket rows for one (list, product) pair across
+   * every currency in the request. Currencies absent from the input are
+   * cleared. Brackets are validated for:
+   *   - assignment existence (404 when product is not in the list);
+   *   - per-row sanity: minQuantity ≥ 1, maxQuantity ≥ minQuantity (when
+   *     present), amount ≥ 0;
+   *   - per-currency overlap freedom (FR-015).
+   *
+   * The whole save runs in one EM flush so a partial save is impossible.
+   */
+  async replaceBrackets(
+    priceListId: string,
+    productId: string,
+    bracketsByCurrency: Record<string, readonly BracketInput[]>,
+  ): Promise<Record<string, BracketInput[]>> {
+    const em = this.emFactory();
+    const list = await this.getById(priceListId);
+    const assignment = await em.findOne(PriceListProduct, { priceListId, productId });
+    if (!assignment) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.NOT_FOUND,
+        `Product ${productId} is not assigned to price list ${priceListId}.`,
+      );
+    }
+
+    const validated: Record<string, BracketInput[]> = {};
+    for (const [currencyRaw, rows] of Object.entries(bracketsByCurrency)) {
+      const currency = currencyRaw.toUpperCase();
+      if (!/^[A-Z]{3}$/.test(currency)) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          `Invalid currency code: ${currencyRaw}`,
+        );
+      }
+      const sorted = [...rows].sort((a, b) => a.minQuantity - b.minQuantity);
+      this.assertBracketSanity(currency, sorted);
+      this.assertNoOverlap(currency, sorted);
+      validated[currency] = sorted;
+    }
+
+    // Replace: remove every existing bracket for the (list, product) pair
+    // FIRST, flush, then insert the new rows. The two-flush split keeps
+    // MikroORM's UoW from collapsing identical-PK delete+insert pairs.
+    const existing = await em.find(PriceListPriceBracket, { priceListId, productId });
+    for (const row of existing) em.remove(row);
+    if (existing.length > 0) {
+      await em.flush();
+    }
+
+    const out: Record<string, BracketInput[]> = {};
+    for (const [currency, rows] of Object.entries(validated)) {
+      const inserted: BracketInput[] = [];
+      for (const r of rows) {
+        em.create(PriceListPriceBracket, {
+          priceListId,
+          productId,
+          currencyCode: currency,
+          minQuantity: r.minQuantity,
+          maxQuantity: r.maxQuantity ?? null,
+          amount: r.amount,
+        });
+        inserted.push({
+          minQuantity: r.minQuantity,
+          maxQuantity: r.maxQuantity ?? null,
+          amount: r.amount,
+        });
+      }
+      out[currency] = inserted;
+    }
+    list.modifiedAt = new Date();
+    await em.flush();
+
+    return out;
+  }
+
+  /**
+   * Convenience: copy one currency's brackets into other currencies for the
+   * same (list, product) pair. The target currencies' existing brackets (if
+   * any) are NOT cleared — this method appends. Conflicts on
+   * `(currency, minQuantity)` are refused via the PK constraint (caller
+   * should normally use this on currencies with no brackets yet, e.g. via
+   * the admin "Copy currency" affordance).
+   */
+  async copyCurrencyBrackets(
+    priceListId: string,
+    productId: string,
+    fromCurrency: string,
+    toCurrencies: readonly string[],
+  ): Promise<CopyCurrencyResult> {
+    const em = this.emFactory();
+    const list = await this.getById(priceListId);
+    const assignment = await em.findOne(PriceListProduct, { priceListId, productId });
+    if (!assignment) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.NOT_FOUND,
+        `Product ${productId} is not assigned to price list ${priceListId}.`,
+      );
+    }
+    const source = await em.find(PriceListPriceBracket, {
+      priceListId,
+      productId,
+      currencyCode: fromCurrency.toUpperCase(),
+    });
+    if (source.length === 0) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.NOT_FOUND,
+        `Source currency ${fromCurrency} has no brackets for this product.`,
+      );
+    }
+
+    let added = 0;
+    for (const targetRaw of toCurrencies) {
+      const target = targetRaw.toUpperCase();
+      if (target === fromCurrency.toUpperCase()) continue;
+      if (!/^[A-Z]{3}$/.test(target)) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          `Invalid currency code: ${targetRaw}`,
+        );
+      }
+      for (const b of source) {
+        const conflict = await em.findOne(PriceListPriceBracket, {
+          priceListId,
+          productId,
+          currencyCode: target,
+          minQuantity: b.minQuantity,
+        });
+        if (conflict) continue;
+        em.create(PriceListPriceBracket, {
+          priceListId,
+          productId,
+          currencyCode: target,
+          minQuantity: b.minQuantity,
+          maxQuantity: b.maxQuantity ?? null,
+          amount: b.amount,
+        });
+        added += 1;
+      }
+    }
+    if (added > 0) {
+      list.modifiedAt = new Date();
+    }
+    await em.flush();
+    return { added };
+  }
+
+  /**
+   * Per-row bracket sanity (FR-014, FR-015).
+   */
+  private assertBracketSanity(currency: string, rows: readonly BracketInput[]): void {
+    for (const [i, r] of rows.entries()) {
+      if (!Number.isInteger(r.minQuantity) || r.minQuantity < 1) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          `Bracket ${currency}[${i}]: minQuantity must be an integer ≥ 1 (got ${r.minQuantity}).`,
+        );
+      }
+      if (r.maxQuantity != null) {
+        if (!Number.isInteger(r.maxQuantity) || r.maxQuantity < r.minQuantity) {
+          throw new HttpError(
+            400,
+            ERROR_CODES.VALIDATION_FAILED,
+            `Bracket ${currency}[${i}]: maxQuantity (${r.maxQuantity}) must be an integer ≥ minQuantity (${r.minQuantity}).`,
+          );
+        }
+      }
+      const amount = Number(r.amount);
+      if (!Number.isFinite(amount) || amount < 0) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          `Bracket ${currency}[${i}]: amount must be ≥ 0 (got ${r.amount}).`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Overlap-freedom within a currency series (FR-015). Assumes the input is
+   * sorted ascending by `minQuantity`.
+   */
+  private assertNoOverlap(currency: string, sorted: readonly BracketInput[]): void {
+    for (let i = 1; i < sorted.length; i += 1) {
+      const prev = sorted[i - 1]!;
+      const curr = sorted[i]!;
+      const prevMax = prev.maxQuantity ?? Number.POSITIVE_INFINITY;
+      if (prevMax >= curr.minQuantity) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          `Bracket overlap in ${currency}: [${prev.minQuantity}..${prev.maxQuantity ?? '∞'}] overlaps [${curr.minQuantity}..${curr.maxQuantity ?? '∞'}].`,
+        );
+      }
     }
   }
 

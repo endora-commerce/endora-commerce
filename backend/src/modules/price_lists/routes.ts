@@ -4,9 +4,12 @@ import {
   createPriceListEngineRequestSchema,
   createPriceListItemRequestSchema,
   patchPriceListEngineRequestSchema,
+  replaceBracketsRequestSchema,
+  replaceProductsRequestSchema,
   upsertCustomerGroupRequestSchema,
   upsertPriceListRequestSchema,
 } from '@b2b/contracts';
+import { z } from 'zod';
 import type { CustomerGroupService } from './services/customer-group-service.js';
 import type { PriceListService } from './services/price-list-service.js';
 import type { PricingService } from './services/pricing-service.js';
@@ -269,6 +272,111 @@ export async function registerPricingRoutes(
       const dup = await priceListService.duplicate(request.params.id);
       reply.status(201);
       return { data: serializePriceListEngine(dup) };
+    },
+  );
+
+  // ---- Engine: product roster + bracket pricing (US3) ----------------
+
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/price-lists-engine/:id/products',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request) => {
+      const items = await priceListService.listProducts(request.params.id);
+      return { data: { items } };
+    },
+  );
+
+  app.put<{ Params: { id: string } }>(
+    '/api/v1/admin/price-lists-engine/:id/products',
+    {
+      preHandler: requireAdmin('catalog:write'),
+      schema: { body: replaceProductsRequestSchema },
+    },
+    async (request) => {
+      const body = replaceProductsRequestSchema.parse(request.body);
+      const result = await priceListService.replaceProducts(request.params.id, body.productIds);
+      return { data: result };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/price-lists-engine/:id/products',
+    {
+      preHandler: requireAdmin('catalog:write'),
+      schema: { body: z.object({ productId: z.string().uuid() }) },
+    },
+    async (request, reply) => {
+      const body = z.object({ productId: z.string().uuid() }).parse(request.body);
+      await priceListService.addProduct(request.params.id, body.productId);
+      reply.status(201);
+      return { data: { priceListId: request.params.id, productId: body.productId } };
+    },
+  );
+
+  app.delete<{ Params: { id: string; productId: string } }>(
+    '/api/v1/admin/price-lists-engine/:id/products/:productId',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request, reply) => {
+      await priceListService.removeProduct(request.params.id, request.params.productId);
+      reply.status(204).send();
+    },
+  );
+
+  app.get<{ Params: { id: string; productId: string } }>(
+    '/api/v1/admin/price-lists-engine/:id/products/:productId/brackets',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request) => {
+      const list = await priceListService.listProducts(request.params.id);
+      const entry = list.find((e) => e.productId === request.params.productId);
+      if (!entry) {
+        return { data: { bracketsByCurrency: {} } };
+      }
+      return { data: { bracketsByCurrency: entry.bracketsByCurrency } };
+    },
+  );
+
+  app.put<{ Params: { id: string; productId: string } }>(
+    '/api/v1/admin/price-lists-engine/:id/products/:productId/brackets',
+    {
+      preHandler: requireAdmin('catalog:write'),
+      schema: { body: replaceBracketsRequestSchema },
+    },
+    async (request) => {
+      const body = replaceBracketsRequestSchema.parse(request.body);
+      const out = await priceListService.replaceBrackets(
+        request.params.id,
+        request.params.productId,
+        body.bracketsByCurrency,
+      );
+      return { data: { bracketsByCurrency: out } };
+    },
+  );
+
+  app.post<{ Params: { id: string; productId: string } }>(
+    '/api/v1/admin/price-lists-engine/:id/products/:productId/brackets/copy',
+    {
+      preHandler: requireAdmin('catalog:write'),
+      schema: {
+        body: z.object({
+          fromCurrency: z.string().regex(/^[A-Z]{3}$/),
+          toCurrencies: z.array(z.string().regex(/^[A-Z]{3}$/)).min(1),
+        }),
+      },
+    },
+    async (request) => {
+      const body = z
+        .object({
+          fromCurrency: z.string().regex(/^[A-Z]{3}$/),
+          toCurrencies: z.array(z.string().regex(/^[A-Z]{3}$/)).min(1),
+        })
+        .parse(request.body);
+      const result = await priceListService.copyCurrencyBrackets(
+        request.params.id,
+        request.params.productId,
+        body.fromCurrency,
+        body.toCurrencies,
+      );
+      return { data: result };
     },
   );
 
