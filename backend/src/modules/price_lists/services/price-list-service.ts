@@ -63,8 +63,9 @@ export class PriceListService {
     return this.emFactory().find(PriceList, {}, { orderBy: { priority: 'desc', code: 'asc' } });
   }
 
-  async getById(id: string): Promise<PriceList> {
-    const row = await this.emFactory().findOne(PriceList, { id });
+  async getById(id: string, em?: EntityManager): Promise<PriceList> {
+    const ent = em ?? this.emFactory();
+    const row = await ent.findOne(PriceList, { id });
     if (!row) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Price list ${id} not found.`);
     return row;
   }
@@ -198,7 +199,7 @@ export class PriceListService {
    */
   async patch(id: string, input: PatchPriceListInput): Promise<PriceList> {
     const em = this.emFactory();
-    const row = await this.getById(id);
+    const row = await this.getById(id, em);
 
     let normalisedRule: ApplicationRule | undefined;
     if (input.applicationRule !== undefined) {
@@ -246,7 +247,7 @@ export class PriceListService {
    */
   async activate(id: string): Promise<PriceList> {
     const em = this.emFactory();
-    const row = await this.getById(id);
+    const row = await this.getById(id, em);
     // FR-023: a non-Default list cannot leave `draft` while its rule is empty.
     if (!row.isSystem && row.applicationRule.kind === 'all') {
       throw new HttpError(
@@ -275,7 +276,7 @@ export class PriceListService {
    */
   async draftify(id: string): Promise<PriceList> {
     const em = this.emFactory();
-    const row = await this.getById(id);
+    const row = await this.getById(id, em);
     if (row.status === 'draft') return row;
     await this.assertCanTransitionStatus(id, 'draft');
     row.status = 'draft';
@@ -291,7 +292,7 @@ export class PriceListService {
    */
   async duplicate(id: string): Promise<PriceList> {
     const em = this.emFactory();
-    const source = await this.getById(id);
+    const source = await this.getById(id, em);
 
     const baseName = source.name;
     const candidates = await em.find(
@@ -532,7 +533,7 @@ export class PriceListService {
    */
   async addProduct(priceListId: string, productId: string): Promise<void> {
     const em = this.emFactory();
-    const list = await this.getById(priceListId);
+    const list = await this.getById(priceListId, em);
     const existing = await em.findOne(PriceListProduct, { priceListId, productId });
     if (existing) return;
     em.create(PriceListProduct, { priceListId, productId });
@@ -546,7 +547,7 @@ export class PriceListService {
    */
   async removeProduct(priceListId: string, productId: string): Promise<void> {
     const em = this.emFactory();
-    const list = await this.getById(priceListId);
+    const list = await this.getById(priceListId, em);
     const existing = await em.findOne(PriceListProduct, { priceListId, productId });
     if (!existing) return;
     await em.removeAndFlush(existing);
@@ -564,7 +565,7 @@ export class PriceListService {
     productIds: readonly string[],
   ): Promise<ReplaceProductsResult> {
     const em = this.emFactory();
-    const list = await this.getById(priceListId);
+    const list = await this.getById(priceListId, em);
 
     const existing = await em.find(PriceListProduct, { priceListId });
     const existingSet = new Set(existing.map((e) => e.productId));
@@ -601,7 +602,7 @@ export class PriceListService {
     bracketsByCurrency: Record<string, readonly BracketInput[]>,
   ): Promise<Record<string, BracketInput[]>> {
     const em = this.emFactory();
-    const list = await this.getById(priceListId);
+    const list = await this.getById(priceListId, em);
     const assignment = await em.findOne(PriceListProduct, { priceListId, productId });
     if (!assignment) {
       throw new HttpError(
@@ -677,7 +678,7 @@ export class PriceListService {
     toCurrencies: readonly string[],
   ): Promise<CopyCurrencyResult> {
     const em = this.emFactory();
-    const list = await this.getById(priceListId);
+    const list = await this.getById(priceListId, em);
     const assignment = await em.findOne(PriceListProduct, { priceListId, productId });
     if (!assignment) {
       throw new HttpError(
@@ -806,7 +807,7 @@ export class PriceListService {
     },
   ): Promise<PriceListItem> {
     const em = this.emFactory();
-    await this.getById(priceListId); // 404-guard
+    await this.getById(priceListId, em); // 404-guard
     const row = em.create(PriceListItem, {
       priceListId,
       mode: input.mode,
@@ -849,7 +850,7 @@ export class PriceListService {
     },
   ): Promise<PriceListAssignment> {
     const em = this.emFactory();
-    await this.getById(priceListId);
+    await this.getById(priceListId, em);
     const row = em.create(PriceListAssignment, {
       priceListId,
       ...(input.organizationId !== undefined ? { organizationId: input.organizationId } : {}),

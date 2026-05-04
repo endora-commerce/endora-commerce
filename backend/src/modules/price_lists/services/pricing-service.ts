@@ -1,11 +1,24 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { Money, ResolvedPrice } from '@b2b/contracts';
+import type { Money, ResolvedPrice, DisplayMode } from '@b2b/contracts';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import { PriceList } from '../entities/price-list.entity.js';
 import { PriceListItem } from '../entities/price-list-item.entity.js';
 import { PriceListAssignment } from '../entities/price-list-assignment.entity.js';
+import { PriceListPriceBracket } from '../entities/price-list-price-bracket.entity.js';
+import {
+  evaluateApplicationRule,
+  type ResolutionContext,
+} from './application-rule-evaluator.js';
+import {
+  pickPriorityChain,
+  type PriceListCandidate,
+} from './price-list-resolver.js';
+import {
+  resolvePriceBracket,
+  type PriceBracketRow,
+} from './price-bracket-resolver.js';
 
 /**
  * PricingService (T130 / FR-050).
@@ -188,6 +201,167 @@ export class PricingService {
       priceListId: winner.priceListId,
       appliedItemId: winner.itemId,
     };
+  }
+
+  // ---- Engine resolver (US5 / FR-026..FR-032) ------------------------
+
+  /**
+   * New resolver pipeline composing the three pure helpers:
+   *   - evaluateApplicationRule (US4)
+   *   - pickPriorityChain      (US5)
+   *   - resolvePriceBracket    (US3)
+   *
+   * Returns Base + (optional) Sale resolutions on the given context.
+   *
+   * Bracket-gap fall-through (FR-031): when the picked list has no
+   * bracket for the requested (product, currency, qty), the resolver
+   * advances to the next-priority list in the same partition and
+   * repeats. Default is the terminal fallback for the Base partition;
+   * the Sale partition simply yields null when nothing matches with a
+   * usable bracket.
+   *
+   * Display mode resolution is stubbed at this layer until US7 wires
+   * the override chain. The default mode `gross_only` is returned so
+   * the response shape is complete.
+   */
+  async resolveEngine(input: {
+    product: Product;
+    variantId?: string | null;
+    context: {
+      quantity: number;
+      organization?: Organization | null;
+      salesChannel: SalesChannel;
+      currencyCode?: string;
+    };
+  }): Promise<{
+    base: {
+      listId: string;
+      listName: string;
+      bracket: PriceBracketRow | null;
+    };
+    sale: {
+      listId: string;
+      listName: string;
+      bracket: PriceBracketRow;
+    } | null;
+    displayMode: DisplayMode;
+    currencyCode: string;
+  }> {
+    const em = this.emFactory();
+    const { product, context } = input;
+    const currencyCode = (context.currencyCode ?? context.salesChannel.defaultCurrency).toUpperCase();
+
+    // Build the resolution context.
+    const productCategoryRows = await em
+      .getConnection()
+      .execute<Array<{ category_id: string }>>(
+        `select category_id from product_categories where product_id = ?`,
+        [product.id],
+      );
+    const ctx: ResolutionContext = {
+      organizationId: context.organization?.id ?? null,
+      customerGroupId: context.organization?.customerGroupId ?? null,
+      salesChannelId: context.salesChannel.id,
+      currencyCode,
+      productCategoryIds: new Set(productCategoryRows.map((r) => r.category_id)),
+    };
+
+    // Load every active list and evaluate.
+    const activeLists = await em.find(PriceList, { status: 'active' });
+    interface MatchedList {
+      list: PriceList;
+      candidate: PriceListCandidate<PriceList>;
+    }
+    const baseMatches: MatchedList[] = [];
+    const saleMatches: MatchedList[] = [];
+    for (const list of activeLists) {
+      const evaluation = evaluateApplicationRule(list.applicationRule, ctx);
+      if (!evaluation.matched) continue;
+      const candidate: PriceListCandidate<PriceList> = {
+        list,
+        evaluation,
+        modifiedAt: list.modifiedAt,
+        name: list.name,
+        isSystem: list.isSystem,
+      };
+      if (list.type === 'sale') saleMatches.push({ list, candidate });
+      else baseMatches.push({ list, candidate });
+    }
+
+    // For each partition: walk the priority chain, do bracket lookup, and
+    // fall through if the picked list has no usable bracket (FR-031).
+    const baseResult = await this.pickAndResolveBracket(
+      em,
+      baseMatches,
+      product.id,
+      currencyCode,
+      context.quantity,
+    );
+    const saleResult = await this.pickAndResolveBracket(
+      em,
+      saleMatches,
+      product.id,
+      currencyCode,
+      context.quantity,
+    );
+
+    return {
+      base: {
+        listId: baseResult.list?.id ?? '',
+        listName: baseResult.list?.name ?? '',
+        bracket: baseResult.bracket,
+      },
+      sale: saleResult.list && saleResult.bracket
+        ? {
+            listId: saleResult.list.id,
+            listName: saleResult.list.name,
+            bracket: saleResult.bracket,
+          }
+        : null,
+      displayMode: 'gross_only',
+      currencyCode,
+    };
+  }
+
+  /**
+   * Walks the priority chain until a list yields a bracket for the
+   * requested (product, currency, quantity). Excluded candidates are
+   * ones that already failed the bracket lookup. Returns the first
+   * list+bracket pair, or {list: null, bracket: null} if every match
+   * has no usable bracket.
+   */
+  private async pickAndResolveBracket(
+    em: EntityManager,
+    matches: Array<{ list: PriceList; candidate: PriceListCandidate<PriceList> }>,
+    productId: string,
+    currencyCode: string,
+    quantity: number,
+  ): Promise<{ list: PriceList | null; bracket: PriceBracketRow | null }> {
+    if (matches.length === 0) return { list: null, bracket: null };
+    const remaining = [...matches];
+    while (remaining.length > 0) {
+      const picked = pickPriorityChain(remaining.map((m) => m.candidate));
+      if (!picked) return { list: null, bracket: null };
+      const list = picked.list;
+      const brackets = await em.find(PriceListPriceBracket, {
+        priceListId: list.id,
+        productId,
+      });
+      const rows: PriceBracketRow[] = brackets.map((b) => ({
+        priceListId: b.priceListId,
+        productId: b.productId,
+        currencyCode: b.currencyCode,
+        minQuantity: b.minQuantity,
+        maxQuantity: b.maxQuantity ?? null,
+        amount: b.amount,
+      }));
+      const bracket = resolvePriceBracket(rows, currencyCode, quantity);
+      if (bracket) return { list, bracket };
+      // Fall through: drop the picked list from `remaining` and retry.
+      const idx = remaining.findIndex((m) => m.list.id === list.id);
+      if (idx >= 0) remaining.splice(idx, 1);
+    }
+    return { list: null, bracket: null };
   }
 }
 
