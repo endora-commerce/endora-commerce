@@ -16,7 +16,8 @@
     "build": "pnpm -r run build",
     "dev:infra": "docker compose up -d",
     "dev:infra:down": "docker compose down",
-    "dev": "pnpm --parallel --filter backend --filter storefront --filter admin run dev",
+    "dev": "node scripts/dev.mjs",
+    "dev:parallel": "pnpm --parallel --filter backend --filter storefront --filter admin run dev",
     "check:naming": "bash scripts/check-naming.sh",
     "check:language": "bash scripts/check-language.sh"
   },
