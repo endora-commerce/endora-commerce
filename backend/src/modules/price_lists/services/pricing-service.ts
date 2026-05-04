@@ -324,6 +324,55 @@ export class PricingService {
   }
 
   /**
+   * Convenience wrapper for cart/checkout/order callers (US6 / FR-034).
+   *
+   * Returns the line's effective unit price as a `{ amount, currency }`
+   * pair plus the source price-list ID and a flag indicating whether the
+   * Sale partition won. Callers persist the amount on the cart line and
+   * the source list ID for audit; if the response is `null`, the product
+   * has no bracket on any matching list and the caller should refuse the
+   * line (or, in the storefront's case, route to the Quote Request flow).
+   *
+   * Always charges the Sale price when present (FR-034). Falls back to
+   * the Base price; both come from `resolveEngine`.
+   */
+  async resolveLinePrice(input: {
+    product: Product;
+    variantId?: string | null;
+    context: {
+      quantity: number;
+      organization?: Organization | null;
+      salesChannel: SalesChannel;
+      currencyCode?: string;
+    };
+  }): Promise<{
+    amount: string;
+    currency: string;
+    priceListId: string;
+    isSale: boolean;
+    bracketStartQuantity: number;
+  } | null> {
+    const out = await this.resolveEngine(input);
+    if (out.sale) {
+      return {
+        amount: out.sale.bracket.amount,
+        currency: out.currencyCode,
+        priceListId: out.sale.listId,
+        isSale: true,
+        bracketStartQuantity: out.sale.bracket.minQuantity,
+      };
+    }
+    if (!out.base.bracket) return null;
+    return {
+      amount: out.base.bracket.amount,
+      currency: out.currencyCode,
+      priceListId: out.base.listId,
+      isSale: false,
+      bracketStartQuantity: out.base.bracket.minQuantity,
+    };
+  }
+
+  /**
    * Walks the priority chain until a list yields a bracket for the
    * requested (product, currency, quantity). Excluded candidates are
    * ones that already failed the bracket lookup. Returns the first
