@@ -15,9 +15,11 @@ import { StockBadge } from '../../../../components/StockBadge';
 import { NotifyWhenAvailableDialog } from '../../../../components/inventory/NotifyWhenAvailableDialog';
 import { BackorderHint } from '../../../../components/inventory/BackorderHint';
 import { AddToRfqForm } from '../../../../components/rfq/AddToRfqForm';
+import { QuoteRequestCta } from '../../../../components/pricing/QuoteRequestCta';
 import { getStorefrontQuoteRequestSettings } from '../../../../lib/api/rfq';
 import { getProductBySlug } from '../../../../lib/api/catalog';
 import { getStorefrontProductStock } from '../../../../lib/api/inventory';
+import { getResolvedPrice } from '../../../../lib/api/pricing';
 import { getMe } from '../../../../lib/api/account';
 import { cookies } from 'next/headers';
 import { getServerContext } from '../../../../lib/server-context';
@@ -92,8 +94,12 @@ export default async function ProductPage({
 
   const primaryCategory = product.categories[0];
   const rfqSettings = await getStorefrontQuoteRequestSettings();
-  const stock = await getStorefrontProductStock(product.id, ctx);
+  const [stock, resolvedPrice] = await Promise.all([
+    getStorefrontProductStock(product.id, ctx),
+    getResolvedPrice(product.id, { quantity: 1 }, ctx),
+  ]);
   const customerEmail = await readCustomerEmail();
+  const isQuoteOnly = resolvedPrice?.displayMode === 'none';
 
   return (
     <div className="container industria-pdp">
@@ -120,7 +126,12 @@ export default async function ProductPage({
           <p>{product.description}</p>
 
           <div className="b2b-card__meta" style={{ marginTop: 16 }}>
-            <PriceTag price={product.price} locale={locale} />
+            <PriceTag
+              price={product.price}
+              resolved={resolvedPrice}
+              locale={locale}
+              variant="pdp"
+            />
             <StockBadge product={product} stock={stock} locale={locale} />
           </div>
 
@@ -136,31 +147,35 @@ export default async function ProductPage({
               * - virtual → VirtualCta
               */}
             {product.type === 'simple' || product.type === 'configurable' ? (
-              <>
-                {stock?.showNotifyButton ? (
-                  <NotifyWhenAvailableDialog
-                    productId={product.id}
-                    defaultEmail={customerEmail}
-                    labels={{
-                      cta: t('product.notify.cta'),
-                      dialogTitle: t('product.notify.dialogTitle'),
-                      emailLabel: t('product.notify.emailLabel'),
-                      submit: t('product.notify.submit'),
-                      submitting: t('product.notify.submitting'),
-                      success: t('product.notify.success'),
-                      errorGeneric: t('product.notify.errorGeneric'),
-                      cancel: t('product.notify.cancel'),
-                    }}
-                  />
-                ) : product.price ? (
-                  <a href="/cart" className="b2b-cta">
-                    {t('product.addToCart')}
-                  </a>
-                ) : null}
-                {rfqSettings.showAddToQuoteOnPdp ? (
-                  <AddToRfqForm productId={product.id} productSlug={product.slug} />
-                ) : null}
-              </>
+              isQuoteOnly ? (
+                <QuoteRequestCta productId={product.id} productSlug={product.slug} variant="pdp" />
+              ) : (
+                <>
+                  {stock?.showNotifyButton ? (
+                    <NotifyWhenAvailableDialog
+                      productId={product.id}
+                      defaultEmail={customerEmail}
+                      labels={{
+                        cta: t('product.notify.cta'),
+                        dialogTitle: t('product.notify.dialogTitle'),
+                        emailLabel: t('product.notify.emailLabel'),
+                        submit: t('product.notify.submit'),
+                        submitting: t('product.notify.submitting'),
+                        success: t('product.notify.success'),
+                        errorGeneric: t('product.notify.errorGeneric'),
+                        cancel: t('product.notify.cancel'),
+                      }}
+                    />
+                  ) : product.price ? (
+                    <a href="/cart" className="b2b-cta">
+                      {t('product.addToCart')}
+                    </a>
+                  ) : null}
+                  {rfqSettings.showAddToQuoteOnPdp ? (
+                    <AddToRfqForm productId={product.id} productSlug={product.slug} />
+                  ) : null}
+                </>
+              )
             ) : null}
             {product.type === 'virtual' && product.virtual ? (
               <VirtualCta

@@ -3,14 +3,30 @@ import type { ReactNode } from 'react';
 import type { ProductSummary, StorefrontProductStock } from '@b2b/contracts';
 import { tForLocale } from '../lib/i18n/messages';
 import { CompareToggle } from './CompareToggle';
+import { BaseSalePriceBlock } from './pricing/BaseSalePriceBlock';
+import { QuoteRequestCta } from './pricing/QuoteRequestCta';
+import type { ResolvedPrice } from '../lib/api/pricing';
 
 /**
  * Industria-themed product card. Renders the brand/SKU strip, name,
- * stock pill, and price footer with `od / unit` and a brutto alt line.
- * The compare toggle floats on the media block. Backend doesn't
- * currently expose brand or technical attributes on the list summary,
- * so we display the SKU on the brand row and let category pages
- * surface attribute readouts when those are added.
+ * stock pill, and price footer. The compare toggle floats on the
+ * media block. Backend doesn't currently expose brand or technical
+ * attributes on the list summary, so we display the SKU on the brand
+ * row and let category pages surface attribute readouts when those
+ * are added.
+ *
+ * Pricing surfaces honour the feature-011 resolver when a `resolved`
+ * payload is supplied:
+ *   - `salePrice` present → the Special-Price typographic treatment
+ *     (Base struck-through, Sale highlighted) plus a small "Sale"
+ *     badge on the card body.
+ *   - `displayMode === 'none'` → every price element is hidden and
+ *     the price slot collapses into a Quote-Request CTA (FR-041).
+ *   - Otherwise → the resolver's Base price is rendered with the
+ *     resolved gross/net columns.
+ *
+ * When `resolved` is not provided, the card falls back to the
+ * foundation-era `ProductSummary.price` projection.
  */
 export function ProductCard(props: {
   product: ProductSummary;
@@ -18,25 +34,12 @@ export function ProductCard(props: {
   /** Optional feature-010 storefront-public stock payload — when
    *  present it overrides the foundation `stockLevel` projection. */
   stock?: StorefrontProductStock | null;
+  /** Optional feature-011 resolver payload — when present it drives
+   *  the price block, sale treatment, and display-mode handling. */
+  resolved?: ResolvedPrice | null;
 }): ReactNode {
-  const { product, locale, stock } = props;
+  const { product, locale, stock, resolved } = props;
   const t = tForLocale(locale);
-
-  const priceFmt = product.price
-    ? new Intl.NumberFormat(locale, {
-        style: 'currency',
-        currency: product.price.currency,
-        minimumFractionDigits: 2,
-      }).format(product.price.amount)
-    : null;
-  const grossAmount = product.price ? product.price.amount * 1.23 : null;
-  const grossFmt = grossAmount && product.price
-    ? new Intl.NumberFormat(locale, {
-        style: 'currency',
-        currency: product.price.currency,
-        minimumFractionDigits: 2,
-      }).format(grossAmount)
-    : null;
 
   const stockNode = stock ? renderFromStorefrontStock(stock, locale, t) : stockFor(product, t);
 
@@ -50,6 +53,11 @@ export function ProductCard(props: {
         )}
       </Link>
       <CompareToggle productId={product.id} />
+      {resolved && resolved.salePrice ? (
+        <span className="industria-badge industria-badge--sale" aria-label={t('product.requestQuote')}>
+          Promocja
+        </span>
+      ) : null}
 
       <div className="industria-product-card__body">
         <div className="industria-product-card__sku">
@@ -59,25 +67,76 @@ export function ProductCard(props: {
           <h3 className="industria-product-card__name">{product.name}</h3>
         </Link>
         <div className="industria-product-card__foot">
-          <div>
-            {priceFmt ? (
-              <>
-                <div className="industria-product-card__price__from">od / szt.</div>
-                <div className="industria-product-card__price__main">{priceFmt}</div>
-                {grossFmt ? (
-                  <div className="industria-product-card__price__alt">brutto {grossFmt}</div>
-                ) : null}
-              </>
-            ) : (
-              <div className="industria-product-card__price__main" style={{ fontSize: 13 }}>
-                {t('product.requestQuote')}
-              </div>
-            )}
-          </div>
+          <div>{renderPriceSlot({ product, locale, resolved, t })}</div>
           {stockNode}
         </div>
       </div>
     </article>
+  );
+}
+
+function renderPriceSlot(args: {
+  product: ProductSummary;
+  locale: string;
+  resolved: ResolvedPrice | null | undefined;
+  t: ReturnType<typeof tForLocale>;
+}): ReactNode {
+  const { product, locale, resolved, t } = args;
+
+  if (resolved) {
+    if (resolved.displayMode === 'none') {
+      return <QuoteRequestCta productId={product.id} productSlug={product.slug} variant="card" />;
+    }
+    return (
+      <>
+        <div className="industria-product-card__price__from">od / szt.</div>
+        <BaseSalePriceBlock
+          basePrice={resolved.basePrice}
+          salePrice={resolved.salePrice}
+          displayMode={resolved.displayMode}
+          locale={locale}
+          variant="card"
+        />
+      </>
+    );
+  }
+
+  // Foundation fallback path — the legacy `attributeValues.defaultPrice`
+  // pipeline that fed `product.price`. Migration 031 keeps this surface
+  // working until US5 wires every read site through the resolver.
+  const priceFmt = product.price
+    ? new Intl.NumberFormat(locale, {
+        style: 'currency',
+        currency: product.price.currency,
+        minimumFractionDigits: 2,
+      }).format(product.price.amount)
+    : null;
+  const grossAmount = product.price ? product.price.amount * 1.23 : null;
+  const grossFmt =
+    grossAmount && product.price
+      ? new Intl.NumberFormat(locale, {
+          style: 'currency',
+          currency: product.price.currency,
+          minimumFractionDigits: 2,
+        }).format(grossAmount)
+      : null;
+
+  if (!priceFmt) {
+    return (
+      <div className="industria-product-card__price__main" style={{ fontSize: 13 }}>
+        {t('product.requestQuote')}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="industria-product-card__price__from">od / szt.</div>
+      <div className="industria-product-card__price__main">{priceFmt}</div>
+      {grossFmt ? (
+        <div className="industria-product-card__price__alt">brutto {grossFmt}</div>
+      ) : null}
+    </>
   );
 }
 

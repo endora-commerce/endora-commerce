@@ -513,6 +513,41 @@ export async function registerPricingRoutes(
     },
   );
 
+  /**
+   * Resolve the sales channel for a storefront request from one of:
+   *   - `X-Sales-Channel-Id` (UUID; admin/test convention)
+   *   - `X-Sales-Channel` (code; storefront convention)
+   *   - falling back to the system-default channel.
+   */
+  async function resolveChannelFromRequest(
+    em: EntityManager,
+    headers: Record<string, string | string[] | undefined>,
+  ): Promise<SalesChannel | null> {
+    const idHeader = headers['x-sales-channel-id'];
+    const idValue =
+      typeof idHeader === 'string'
+        ? idHeader
+        : Array.isArray(idHeader)
+          ? idHeader[0]
+          : undefined;
+    if (idValue) {
+      const byId = await em.findOne(SalesChannel, { id: idValue });
+      if (byId) return byId;
+    }
+    const codeHeader = headers['x-sales-channel'];
+    const codeValue =
+      typeof codeHeader === 'string'
+        ? codeHeader
+        : Array.isArray(codeHeader)
+          ? codeHeader[0]
+          : undefined;
+    if (codeValue) {
+      const byCode = await em.findOne(SalesChannel, { code: codeValue });
+      if (byCode) return byCode;
+    }
+    return em.findOne(SalesChannel, { systemDefault: true });
+  }
+
   // ---- Display-mode overrides (US7) ----------------------------------
 
   app.get<{ Querystring: { scope?: 'organization' | 'category' | 'product' } }>(
@@ -605,16 +640,7 @@ export async function registerPricingRoutes(
         reply.status(404);
         return { error: { code: 'NOT_FOUND', message: 'Product not found.' } };
       }
-      const channelHeader = request.headers['x-sales-channel-id'];
-      const channelId =
-        typeof channelHeader === 'string'
-          ? channelHeader
-          : Array.isArray(channelHeader)
-            ? channelHeader[0]
-            : undefined;
-      const channel = channelId
-        ? await em.findOne(SalesChannel, { id: channelId })
-        : await em.findOne(SalesChannel, { systemDefault: true });
+      const channel = await resolveChannelFromRequest(em, request.headers);
       if (!channel) {
         reply.status(400);
         return { error: { code: 'VALIDATION_FAILED', message: 'Invalid sales channel.' } };
@@ -644,17 +670,7 @@ export async function registerPricingRoutes(
         return { error: { code: 'NOT_FOUND', message: 'Product not found.' } };
       }
 
-      const channelHeader = request.headers['x-sales-channel-id'];
-      const channelId =
-        typeof channelHeader === 'string'
-          ? channelHeader
-          : Array.isArray(channelHeader)
-            ? channelHeader[0]
-            : undefined;
-
-      const channel = channelId
-        ? await em.findOne(SalesChannel, { id: channelId })
-        : await em.findOne(SalesChannel, { systemDefault: true });
+      const channel = await resolveChannelFromRequest(em, request.headers);
       if (!channel) {
         reply.status(400);
         return { error: { code: 'VALIDATION_FAILED', message: 'Invalid sales channel.' } };
