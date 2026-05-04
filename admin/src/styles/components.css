@@ -139,6 +139,20 @@
   border-top: 1px solid rgba(255,255,255,0.06);
   display: flex; align-items: center; gap: 10px;
 }
+.b2b-sidebar__foot-identity {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 10px;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  border-radius: var(--r-sm);
+  text-decoration: none; color: inherit; cursor: pointer;
+  transition: background 80ms ease;
+}
+.b2b-sidebar__foot-identity:hover { background: var(--bg-sidebar-hover); }
+.b2b-sidebar__foot-identity:focus-visible {
+  outline: 2px solid var(--ring-color);
+  outline-offset: -2px;
+}
 .b2b-avatar {
   width: 28px; height: 28px;
   border-radius: 50%;

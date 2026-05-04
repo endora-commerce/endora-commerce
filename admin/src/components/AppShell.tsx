@@ -522,11 +522,20 @@ export function AppShell(): ReactNode {
 
         {me ? (
           <div className="b2b-sidebar__foot">
-            <div className="b2b-avatar">{(fullName || me.adminUser.email).slice(0, 2).toUpperCase()}</div>
-            <div className="meta">
-              <div className="name">{fullName || me.adminUser.email}</div>
-              <div className="role">{role}</div>
-            </div>
+            <NavLink
+              to="/profile"
+              className="b2b-sidebar__foot-identity"
+              title="Edit profile"
+              aria-label="Edit profile"
+            >
+              <div className="b2b-avatar">
+                {(fullName || me.adminUser.email).slice(0, 2).toUpperCase()}
+              </div>
+              <div className="meta">
+                <div className="name">{fullName || me.adminUser.email}</div>
+                <div className="role">{role}</div>
+              </div>
+            </NavLink>
             <button
               type="button"
               className="icon-btn"
