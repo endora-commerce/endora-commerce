@@ -7,7 +7,7 @@ import { DisplayModeOverrideRow } from './DisplayModeOverrideRow';
 type PriceListType = 'base' | 'sale';
 type PriceListStatus = 'draft' | 'active' | 'scheduled' | 'expired';
 
-interface LinkedPriceListRow {
+export interface LinkedPriceListRow {
   list: {
     id: string;
     name: string;
@@ -134,19 +134,32 @@ export function LinkedPriceListsPanel({ productId }: { productId: string }): Rea
           inheritHint="Inherits from the deepest category override, then Organization, then the platform default."
         />
       </div>
+      <LinkedPriceListsList rows={rows} />
+    </div>
+  );
+}
+
+/**
+ * Pure render of the linked-list table — split out so it can be unit
+ * tested via renderToString without booting the data-fetch effect.
+ */
+export function LinkedPriceListsList({ rows }: { rows: LinkedPriceListRow[] }): ReactNode {
+  return (
+    <>
       <div className="b2b-help">
         Bracket prices live on the price-list editor — click a row to jump there with
         this product pre-selected.
       </div>
       <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
         {rows.map((r) => {
-          const isSystem = false; // backend doesn't surface isSystem here; system list is named "Default"
           const looksDefault = r.list.name === 'Default';
           const internalPath = toInternalPath(r.deepLinkPath);
           return (
             <li
               key={r.list.id}
               className="b2b-card"
+              data-testid="linked-price-list-row"
+              data-list-id={r.list.id}
               style={{
                 padding: 12,
                 marginBottom: 8,
@@ -184,7 +197,7 @@ export function LinkedPriceListsPanel({ productId }: { productId: string }): Rea
                     {r.list.type === 'base' ? 'Base' : 'Sale'}
                   </span>
                   <span className={STATUS_BADGE[r.list.status]}>{STATUS_LABEL[r.list.status]}</span>
-                  {looksDefault || isSystem ? (
+                  {looksDefault ? (
                     <span
                       className="b2b-badge b2b-badge--success"
                       style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
@@ -226,14 +239,16 @@ export function LinkedPriceListsPanel({ productId }: { productId: string }): Rea
           );
         })}
       </ul>
-    </div>
+    </>
   );
 }
 
-function toInternalPath(deepLink: string): string {
-  // Backend returns `/admin/price-lists/<id>/products?focus=<pid>`; the admin
-  // SPA routes the same view at `/price-lists/<id>?focus=<pid>` — strip the
-  // `/admin` prefix and the `/products` suffix to keep the route table simple.
+/**
+ * Backend returns `/admin/price-lists/<id>/products?focus=<pid>`; the admin
+ * SPA routes the same view at `/price-lists/<id>?focus=<pid>` — strip the
+ * `/admin` prefix and the `/products` suffix to keep the route table simple.
+ */
+export function toInternalPath(deepLink: string): string {
   let path = deepLink;
   if (path.startsWith('/admin/')) path = path.slice('/admin'.length);
   path = path.replace('/products?', '?');
