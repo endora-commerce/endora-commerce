@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, CircleDollarSign, Star } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { DisplayModeOverrideRow } from './DisplayModeOverrideRow';
 
 type PriceListType = 'base' | 'sale';
 type PriceListStatus = 'draft' | 'active' | 'scheduled' | 'expired';
@@ -124,7 +125,15 @@ export function LinkedPriceListsPanel({ productId }: { productId: string }): Rea
   }
 
   return (
-    <div className="b2b-col" style={{ gap: 8 }}>
+    <div className="b2b-col" style={{ gap: 16 }}>
+      <div className="b2b-card" style={{ padding: 12 }}>
+        <DisplayModeOverrideRow
+          scope="product"
+          targetId={productId}
+          label="Price display mode for this product"
+          inheritHint="Inherits from the deepest category override, then Organization, then the platform default."
+        />
+      </div>
       <div className="b2b-help">
         Bracket prices live on the price-list editor — click a row to jump there with
         this product pre-selected.
