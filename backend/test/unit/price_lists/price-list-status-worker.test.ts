@@ -13,6 +13,8 @@ import { DefaultPriceListMigrator } from '../../../src/modules/price_lists/servi
  *   - Modified-at bumps occur only on actual transitions.
  *   - Empty work-set: returns {0, 0} without flushing.
  */
+
+const TEST_RULE = { kind: 'criterion' as const, type: 'currency' as const, values: ['PLN'] };
 describe('PriceListStatusWorker (T039)', () => {
   let db: TestDb;
 
@@ -48,6 +50,7 @@ describe('PriceListStatusWorker (T039)', () => {
       const created = await svc.create({
         name: 'Idem A',
         type: 'sale',
+        applicationRule: TEST_RULE,
         startsAt: new Date(Date.now() + 86_400_000),
       });
       await svc.activate(created.id); // scheduled
@@ -90,6 +93,7 @@ describe('PriceListStatusWorker (T039)', () => {
       const sched = await svc.create({
         name: 'Sched',
         type: 'sale',
+        applicationRule: TEST_RULE,
         startsAt: new Date(Date.now() + 86_400_000),
       });
       await svc.activate(sched.id);
@@ -98,6 +102,7 @@ describe('PriceListStatusWorker (T039)', () => {
       const active = await svc.create({
         name: 'Live',
         type: 'sale',
+        applicationRule: TEST_RULE,
         startsAt: new Date(Date.now() - 86_400_000),
         endsAt: new Date(Date.now() + 86_400_000),
       });

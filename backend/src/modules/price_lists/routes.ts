@@ -13,7 +13,7 @@ import { z } from 'zod';
 import type { CustomerGroupService } from './services/customer-group-service.js';
 import type { PriceListService } from './services/price-list-service.js';
 import type { PricingService } from './services/pricing-service.js';
-import type { CustomerGroup } from './entities/customer-group.entity.js';
+import { CustomerGroup } from './entities/customer-group.entity.js';
 import type { PriceList } from './entities/price-list.entity.js';
 import type { PriceListItem } from './entities/price-list-item.entity.js';
 import type { PriceListAssignment } from './entities/price-list-assignment.entity.js';
@@ -22,6 +22,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { Product } from '../catalog/entities/product.entity.js';
 import { Organization } from '../organizations/entities/organization.entity.js';
 import { SalesChannel } from '../sales_channels/entities/sales-channel.entity.js';
+import { Category } from '../catalog/entities/category.entity.js';
 
 export interface PricingRoutesDeps {
   customerGroupService: CustomerGroupService;
@@ -377,6 +378,105 @@ export async function registerPricingRoutes(
         body.toCurrencies,
       );
       return { data: result };
+    },
+  );
+
+  // ---- Rule-builder pickers (US4) -----------------------------------
+
+  app.get(
+    '/api/v1/admin/pricing/rule-targets/sales-channels',
+    { preHandler: requireAdmin('catalog:write') },
+    async () => {
+      const em = emFactory();
+      const rows = await em.find(SalesChannel, {}, { orderBy: { code: 'asc' } });
+      return {
+        data: {
+          items: rows.map((r) => ({
+            id: r.id,
+            code: r.code,
+            name: r.name,
+          })),
+        },
+      };
+    },
+  );
+
+  app.get(
+    '/api/v1/admin/pricing/rule-targets/customer-groups',
+    { preHandler: requireAdmin('catalog:write') },
+    async () => {
+      const em = emFactory();
+      const rows = await em.find(CustomerGroup, {}, { orderBy: { code: 'asc' } });
+      return {
+        data: {
+          items: rows.map((r) => ({ id: r.id, code: r.code, name: r.name })),
+        },
+      };
+    },
+  );
+
+  app.get<{ Querystring: { search?: string; limit?: string } }>(
+    '/api/v1/admin/pricing/rule-targets/organizations',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request) => {
+      const em = emFactory();
+      const limit = Math.min(200, Math.max(1, Number(request.query.limit ?? '50')));
+      const search = (request.query.search ?? '').trim();
+      const where: Record<string, unknown> = {};
+      if (search) where['name'] = { $ilike: `%${search}%` };
+      const rows = await em.find(Organization, where, {
+        orderBy: { name: 'asc' },
+        limit,
+      });
+      return {
+        data: {
+          items: rows.map((r) => ({ id: r.id, name: r.name, taxId: r.taxId })),
+          nextCursor: null,
+        },
+      };
+    },
+  );
+
+  app.get(
+    '/api/v1/admin/pricing/rule-targets/categories',
+    { preHandler: requireAdmin('catalog:write') },
+    async () => {
+      const em = emFactory();
+      const rows = await em.find(Category, {}, { orderBy: { sortOrder: 'asc', slug: 'asc' } });
+      return {
+        data: {
+          items: rows.map((r) => ({
+            id: r.id,
+            slug: r.slug,
+            name: r.name,
+            parentCategoryId: r.parentCategoryId ?? null,
+            sortOrder: r.sortOrder,
+          })),
+        },
+      };
+    },
+  );
+
+  app.get(
+    '/api/v1/admin/pricing/rule-targets/currencies',
+    { preHandler: requireAdmin('catalog:write') },
+    async () => {
+      const em = emFactory();
+      const channels = await em.find(SalesChannel, {});
+      const exposed = new Map<string, string[]>();
+      for (const ch of channels) {
+        for (const cur of ch.currencies ?? []) {
+          if (typeof cur !== 'string' || cur.length !== 3) continue;
+          const key = cur.toUpperCase();
+          const list = exposed.get(key) ?? [];
+          list.push(ch.code);
+          exposed.set(key, list);
+        }
+      }
+      const items = [...exposed.entries()]
+        .map(([code, exposedByChannels]) => ({ code, exposedByChannels }))
+        .sort((a, b) => a.code.localeCompare(b.code));
+      return { data: { items } };
     },
   );
 

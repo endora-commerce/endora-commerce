@@ -23,6 +23,10 @@ import {
  *     status reset to draft; dates cleared; name suffixed).
  *   - FR-005/006: Default-list protections.
  */
+
+/** A non-empty rule for tests that activate lists. The currency criterion
+ * skips DB target validation (only the regex check applies). */
+const TEST_RULE = { kind: 'criterion' as const, type: 'currency' as const, values: ['PLN'] };
 describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
   let db: TestDb;
 
@@ -95,6 +99,7 @@ describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
       const created = await svc.create({
         name: 'Wiosna 2026',
         type: 'sale',
+        applicationRule: TEST_RULE,
         startsAt: new Date(Date.now() + 7 * 86_400_000),
         endsAt: new Date(Date.now() + 30 * 86_400_000),
       });
@@ -111,6 +116,7 @@ describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
       const created = await svc.create({
         name: 'Already Started',
         type: 'sale',
+        applicationRule: TEST_RULE,
         startsAt: new Date(Date.now() - 86_400_000),
       });
       const activated = await svc.activate(created.id);
@@ -128,6 +134,7 @@ describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
       const created = await svc.create({
         name: 'Sweep Test',
         type: 'sale',
+        applicationRule: TEST_RULE,
         startsAt: new Date(Date.now() + 86_400_000),
       });
       await svc.activate(created.id); // → scheduled
@@ -153,6 +160,7 @@ describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
       const created = await svc.create({
         name: 'Expiry Test',
         type: 'sale',
+        applicationRule: TEST_RULE,
         startsAt: new Date(Date.now() - 2 * 86_400_000),
         endsAt: new Date(Date.now() + 86_400_000),
       });
@@ -203,11 +211,7 @@ describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
       const original = await svc.create({
         name: 'Original',
         type: 'sale',
-        applicationRule: {
-          kind: 'criterion',
-          type: 'salesChannel',
-          values: ['sc-x'],
-        },
+        applicationRule: TEST_RULE,
       });
 
       // Add a product + bracket directly so we can verify the dup copies them.
@@ -279,6 +283,7 @@ describe('Feature 011 / US2 — Admin CRUD + status lifecycle (T034)', () => {
       const created = await svc.create({
         name: 'Restage',
         type: 'sale',
+        applicationRule: TEST_RULE,
         startsAt: new Date(Date.now() - 2 * 86_400_000),
         endsAt: new Date(Date.now() + 86_400_000),
       });

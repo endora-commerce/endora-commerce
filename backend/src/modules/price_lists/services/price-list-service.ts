@@ -6,6 +6,10 @@ import { PriceListItem } from '../entities/price-list-item.entity.js';
 import { PriceListAssignment } from '../entities/price-list-assignment.entity.js';
 import { PriceListProduct } from '../entities/price-list-product.entity.js';
 import { PriceListPriceBracket } from '../entities/price-list-price-bracket.entity.js';
+import { CustomerGroup } from '../entities/customer-group.entity.js';
+import { Organization } from '../../organizations/entities/organization.entity.js';
+import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { Category } from '../../catalog/entities/category.entity.js';
 import { randomUUID } from 'crypto';
 
 export type PriceListStatus = 'draft' | 'active' | 'scheduled' | 'expired';
@@ -162,6 +166,10 @@ export class PriceListService {
    */
   async create(input: CreatePriceListInput): Promise<PriceList> {
     this.assertDateSanity(input.startsAt ?? null, input.endsAt ?? null, true);
+    const normalisedRule =
+      input.applicationRule !== undefined
+        ? await this.normaliseAndValidateRule(input.applicationRule)
+        : { kind: 'all' as const };
     const em = this.emFactory();
     const row = em.create(PriceList, {
       // Legacy columns are required by the foundation schema; populate them
@@ -176,7 +184,7 @@ export class PriceListService {
       status: 'draft',
       startsAt: input.startsAt ?? null,
       endsAt: input.endsAt ?? null,
-      applicationRule: input.applicationRule ?? { kind: 'all' },
+      applicationRule: normalisedRule,
       isSystem: false,
       modifiedAt: new Date(),
     });
@@ -192,8 +200,10 @@ export class PriceListService {
     const em = this.emFactory();
     const row = await this.getById(id);
 
+    let normalisedRule: ApplicationRule | undefined;
     if (input.applicationRule !== undefined) {
       await this.assertCanSetApplicationRule(id, input.applicationRule);
+      normalisedRule = await this.normaliseAndValidateRule(input.applicationRule);
     }
 
     const nextStartsAt = input.startsAt !== undefined ? input.startsAt : row.startsAt ?? null;
@@ -219,8 +229,8 @@ export class PriceListService {
       row.endsAt = input.endsAt;
       mutated = true;
     }
-    if (input.applicationRule !== undefined) {
-      row.applicationRule = input.applicationRule;
+    if (input.applicationRule !== undefined && normalisedRule !== undefined) {
+      row.applicationRule = normalisedRule;
       mutated = true;
     }
     if (mutated) {
@@ -237,6 +247,14 @@ export class PriceListService {
   async activate(id: string): Promise<PriceList> {
     const em = this.emFactory();
     const row = await this.getById(id);
+    // FR-023: a non-Default list cannot leave `draft` while its rule is empty.
+    if (!row.isSystem && row.applicationRule.kind === 'all') {
+      throw new HttpError(
+        400,
+        ERROR_CODES.VALIDATION_FAILED,
+        'A non-Default price list cannot be activated with an empty Application Rule.',
+      );
+    }
     const now = new Date();
     const next: PriceListStatus =
       row.startsAt && row.startsAt > now
@@ -334,6 +352,112 @@ export class PriceListService {
     await em.flush();
 
     return dup;
+  }
+
+  /**
+   * Normalise + validate an Application Rule (US4 / FR-020..FR-024).
+   *
+   * Steps in order:
+   *   1. Recursively walk the AST.
+   *   2. For criteria: dedupe values, uppercase currency codes, validate
+   *      target IDs against their respective tables. Empty `values` arrays
+   *      collapse to `{ kind: 'all' }`.
+   *   3. For groups: recursively normalise each child, then drop children
+   *      that collapsed to `{ kind: 'all' }`. If the group becomes empty
+   *      it collapses to `{ kind: 'all' }` as well; if it's left with a
+   *      single child, that child takes its place.
+   *   4. Reject malformed currencies, depth > 5, and unknown target IDs
+   *      with `400 VALIDATION_FAILED`.
+   *
+   * Returns the normalised rule. Does NOT enforce FR-023 (non-Default
+   * rules must be non-empty); that gate fires at activation time.
+   */
+  async normaliseAndValidateRule(rule: ApplicationRule): Promise<ApplicationRule> {
+    return this.normaliseRuleNode(rule, 0);
+  }
+
+  private async normaliseRuleNode(node: ApplicationRule, depth: number): Promise<ApplicationRule> {
+    if (depth > 5) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.VALIDATION_FAILED,
+        'Application rule exceeds the maximum nesting depth of 5.',
+      );
+    }
+    if (node.kind === 'all') return node;
+
+    if (node.kind === 'criterion') {
+      // Currency: uppercase, validate format.
+      if (node.type === 'currency') {
+        const upper = node.values.map((v) => v.toUpperCase());
+        for (const v of upper) {
+          if (!/^[A-Z]{3}$/.test(v)) {
+            throw new HttpError(
+              400,
+              ERROR_CODES.VALIDATION_FAILED,
+              `Invalid currency code in rule: ${v}`,
+            );
+          }
+        }
+        const dedup = Array.from(new Set(upper));
+        if (dedup.length === 0) return { kind: 'all' };
+        return { kind: 'criterion', type: 'currency', values: dedup };
+      }
+      // ID-based criterion types.
+      const dedup = Array.from(new Set(node.values));
+      if (dedup.length === 0) return { kind: 'all' };
+      await this.assertTargetsExist(node.type, dedup);
+      return { kind: 'criterion', type: node.type, values: dedup };
+    }
+
+    // Group node.
+    const childResults: ApplicationRule[] = [];
+    for (const child of node.children) {
+      const normalised = await this.normaliseRuleNode(child, depth + 1);
+      childResults.push(normalised);
+    }
+    // Drop "all" children — they don't constrain the group.
+    const meaningful = childResults.filter((c) => c.kind !== 'all');
+    if (meaningful.length === 0) {
+      return { kind: 'all' };
+    }
+    if (meaningful.length === 1) {
+      return meaningful[0]!;
+    }
+    return { kind: 'group', op: node.op, children: meaningful };
+  }
+
+  /**
+   * Validate that every value in an ID-based criterion is a real row in the
+   * appropriate table. Throws `400 VALIDATION_FAILED` for any unknown ID.
+   */
+  private async assertTargetsExist(
+    type: 'salesChannel' | 'customerGroup' | 'organization' | 'category',
+    ids: readonly string[],
+  ): Promise<void> {
+    const em = this.emFactory();
+    let found: number;
+    switch (type) {
+      case 'salesChannel':
+        found = await em.count(SalesChannel, { id: { $in: ids } });
+        break;
+      case 'customerGroup':
+        found = await em.count(CustomerGroup, { id: { $in: ids } });
+        break;
+      case 'organization':
+        found = await em.count(Organization, { id: { $in: ids } });
+        break;
+      case 'category':
+        found = await em.count(Category, { id: { $in: ids } });
+        break;
+    }
+    if (found !== ids.length) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.VALIDATION_FAILED,
+        `One or more ${type} IDs in the rule do not exist.`,
+      );
+    }
   }
 
   /**

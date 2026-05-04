@@ -30,7 +30,13 @@ describe('Admin Price Lists engine routes (feature 011 US2)', () => {
       method: 'POST',
       url: '/api/v1/admin/price-lists-engine',
       cookies: ADMIN_COOKIE,
-      payload: { name: 'Test list', type: 'base' },
+      payload: {
+        name: 'Test list',
+        type: 'base',
+        // Non-empty rule so /activate later works (FR-023 forbids activating
+        // a non-Default list with an empty rule).
+        applicationRule: { kind: 'criterion', type: 'currency', values: ['PLN'] },
+      },
     });
     expect(res.statusCode).toBe(201);
     const body = res.json() as {
@@ -48,7 +54,11 @@ describe('Admin Price Lists engine routes (feature 011 US2)', () => {
     expect(body.data.name).toBe('Test list');
     expect(body.data.type).toBe('base');
     expect(body.data.status).toBe('draft');
-    expect(body.data.applicationRule).toEqual({ kind: 'all' });
+    expect(body.data.applicationRule).toEqual({
+      kind: 'criterion',
+      type: 'currency',
+      values: ['PLN'],
+    });
     expect(body.data.isSystem).toBe(false);
     createdId = body.data.id;
   });
