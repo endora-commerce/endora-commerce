@@ -30,6 +30,9 @@ export interface UpdateAdminUserInput {
   lastName?: string;
   adminRoleId?: string | null;
   status?: 'active' | 'inactive';
+  /** Optional password rotation. When supplied the value is hashed
+   *  before being persisted. */
+  password?: string;
 }
 
 export class AdminUserService {
@@ -84,6 +87,9 @@ export class AdminUserService {
     if (input.firstName !== undefined) user.firstName = input.firstName;
     if (input.lastName !== undefined) user.lastName = input.lastName;
     if (input.status !== undefined) user.status = input.status;
+    if (input.password !== undefined) {
+      user.passwordHash = await hashPassword(input.password);
+    }
     await em.flush();
     return user;
   }

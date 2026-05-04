@@ -22,24 +22,54 @@
 
 import { spawn } from 'node:child_process';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 
-const REPO_ROOT = new URL('..', import.meta.url).pathname;
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const GRACE_MS = 5000;
 
+/**
+ * Each service runs the dev binary directly (not via `pnpm run dev`)
+ * so there's no wrapper layer between us and the watcher process. This
+ * matters because pnpm's per-package wrapper exits early on SIGINT
+ * while leaving its grandchildren (vite, next, tsx watch) reparented
+ * to init — the wrapper's process group is empty by the time we'd
+ * escalate to SIGKILL. By running the watcher binary directly under
+ * `detached: true`, the watcher itself becomes the process-group
+ * leader, and `process.kill(-pid, signal)` reaches it cleanly.
+ */
 const services = [
-  { name: 'backend',    color: '\x1b[36m', filter: 'backend' },
-  { name: 'storefront', color: '\x1b[35m', filter: 'storefront' },
-  { name: 'admin',      color: '\x1b[33m', filter: 'admin' },
+  {
+    name: 'backend',
+    color: '\x1b[36m',
+    cwd: resolve(REPO_ROOT, 'backend'),
+    cmd: resolve(REPO_ROOT, 'backend/node_modules/.bin/tsx'),
+    args: ['watch', '--env-file-if-exists=.env', 'src/index.ts'],
+  },
+  {
+    name: 'storefront',
+    color: '\x1b[35m',
+    cwd: resolve(REPO_ROOT, 'storefront'),
+    cmd: resolve(REPO_ROOT, 'storefront/node_modules/.bin/next'),
+    args: ['dev'],
+  },
+  {
+    name: 'admin',
+    color: '\x1b[33m',
+    cwd: resolve(REPO_ROOT, 'admin'),
+    cmd: resolve(REPO_ROOT, 'admin/node_modules/.bin/vite'),
+    args: [],
+  },
 ];
 const RESET = '\x1b[0m';
 
 function spawnService(svc) {
   const child = spawn(
-    'pnpm',
-    ['--filter', svc.filter, 'run', 'dev'],
+    svc.cmd,
+    svc.args,
     {
-      cwd: REPO_ROOT,
-      detached: true,            // create a new process group → kill -PID kills the tree
+      cwd: svc.cwd,
+      detached: true,            // service binary becomes its own group leader
       stdio: ['ignore', 'pipe', 'pipe'],
       env: process.env,
     },
@@ -88,7 +118,7 @@ function shutdown(signal) {
   process.stdout.write(`\n[dev] ${signal} received — stopping every service…\n`);
 
   for (const child of children) {
-    if (child.pid && !child.killed) {
+    if (child.pid) {
       try {
         // Negative pid signals the whole process group (Linux/macOS).
         process.kill(-child.pid, signal);
@@ -99,19 +129,18 @@ function shutdown(signal) {
   }
 
   setTimeout(() => {
-    let stragglers = 0;
+    // Always escalate to SIGKILL on the group, even if the leader has
+    // already exited cleanly: lingering grandchildren that reparented to
+    // init still belong to the original PGID and a final SIGKILL flushes
+    // them. On already-empty groups the call is a no-op (ESRCH).
     for (const child of children) {
-      if (child.exitCode === null && !child.killed && child.pid) {
+      if (child.pid) {
         try {
           process.kill(-child.pid, 'SIGKILL');
-          stragglers += 1;
         } catch {
           /* gone */
         }
       }
-    }
-    if (stragglers > 0) {
-      process.stdout.write(`[dev] ${stragglers} service(s) did not exit in ${GRACE_MS}ms — SIGKILL sent\n`);
     }
     process.exit(0);
   }, GRACE_MS).unref();

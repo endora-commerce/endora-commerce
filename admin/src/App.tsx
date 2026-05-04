@@ -47,6 +47,7 @@ import { SalesChannelsListPage } from './modules/sales_channels/pages/SalesChann
 import { SalesChannelEditPage } from './modules/sales_channels/pages/SalesChannelEditPage.js';
 import { ComparisonsListPage } from './modules/comparisons/pages/ComparisonsListPage.js';
 import { ComparisonDetailPage } from './modules/comparisons/pages/ComparisonDetailPage.js';
+import { ProfilePage } from './modules/profile/ProfilePage.js';
 
 export function App(): ReactNode {
   const { status } = useAuth();
@@ -107,6 +108,7 @@ export function App(): ReactNode {
         <Route path="/sales-channels" element={<SalesChannelsListPage />} />
         <Route path="/sales-channels/new" element={<SalesChannelEditPage />} />
         <Route path="/sales-channels/:code" element={<SalesChannelEditPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
         <Route
           path="*"
           element={
