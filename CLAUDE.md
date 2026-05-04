@@ -42,4 +42,7 @@ TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x): Follow standard conventi
 
 
 <!-- MANUAL ADDITIONS START -->
+
+Skip in commit messages trailer: "Co-Authored-By: Claude ..." or any other LLM/AI Agent.
+
 <!-- MANUAL ADDITIONS END -->
