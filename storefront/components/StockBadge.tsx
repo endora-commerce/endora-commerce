@@ -1,25 +1,40 @@
 import type { ReactNode } from 'react';
-import type { ProductSummary } from '@b2b/contracts';
+import type { ProductSummary, StorefrontProductStock } from '@b2b/contracts';
 import { tForLocale } from '../lib/i18n/messages';
 
 /**
- * Renders a stock indicator. Backend may return:
- *   - `stockLevel: number` for numeric-mode products,
- *   - `stockIndicator: 'in_stock' | 'low_stock' | 'out_of_stock'` for
- *     categorical mode.
- * Falls back to nothing when both are null (e.g. virtual products).
+ * Stock badge — feature 010 / US5.
+ *
+ * Three rendering paths in priority order:
+ *   1. The new feature-010 `StorefrontProductStock` payload (carries
+ *      `displayMode` + `displayBand` + optional `exactOnHand`).
+ *   2. Foundation 001 `stockLevel: number` projection.
+ *   3. Foundation 001 categorical `stockIndicator`.
+ *
+ * The display mode controls the wording:
+ *   - `exact` → renders the exact integer
+ *   - `band` → maps the band enum to localised labels (Dużo / Średnio / Mało / Brak)
+ *   - `available_or_not` → collapses to Dostępny / Brak w magazynie
  */
 export function StockBadge(props: {
   product: Pick<ProductSummary, 'stockLevel' | 'stockIndicator'>;
+  stock?: StorefrontProductStock | null;
   locale: string;
 }): ReactNode {
   const t = tForLocale(props.locale);
+
+  if (props.stock) {
+    return renderFromStorefrontStock(props.stock, props.locale, t);
+  }
+
   const { stockLevel, stockIndicator } = props.product;
   if (stockLevel !== null && stockLevel !== undefined) {
     if (stockLevel <= 0) {
       return <span className="b2b-stock b2b-stock--out">{t('product.outOfStock')}</span>;
     }
-    return <span className="b2b-stock b2b-stock--in">{`${stockLevel} ${t('product.inStock')}`}</span>;
+    return (
+      <span className="b2b-stock b2b-stock--in">{`${stockLevel} ${t('product.inStock')}`}</span>
+    );
   }
   if (stockIndicator === 'out_of_stock') {
     return <span className="b2b-stock b2b-stock--out">{t('product.outOfStock')}</span>;
@@ -31,4 +46,43 @@ export function StockBadge(props: {
     return <span className="b2b-stock b2b-stock--low">{t('product.requestQuote')}</span>;
   }
   return null;
+}
+
+function renderFromStorefrontStock(
+  stock: StorefrontProductStock,
+  locale: string,
+  t: ReturnType<typeof tForLocale>,
+): ReactNode {
+  if (!stock.manageStock) {
+    return <span className="b2b-stock b2b-stock--in">{t('product.inStock')}</span>;
+  }
+  if (stock.isOutOfStock) {
+    return <span className="b2b-stock b2b-stock--out">{t('product.outOfStock')}</span>;
+  }
+
+  if (stock.displayMode === 'exact' && stock.exactOnHand !== null) {
+    return (
+      <span className="b2b-stock b2b-stock--in">
+        {`${stock.exactOnHand.toLocaleString(locale)} ${t('product.inStock')}`}
+      </span>
+    );
+  }
+
+  if (stock.displayMode === 'available_or_not') {
+    return <span className="b2b-stock b2b-stock--in">{t('product.inStock')}</span>;
+  }
+
+  // band
+  switch (stock.displayBand) {
+    case 'high':
+      return <span className="b2b-stock b2b-stock--in">{t('product.stockBand.high')}</span>;
+    case 'medium':
+      return <span className="b2b-stock b2b-stock--in">{t('product.stockBand.medium')}</span>;
+    case 'low':
+      return <span className="b2b-stock b2b-stock--low">{t('product.stockBand.low')}</span>;
+    case 'available':
+      return <span className="b2b-stock b2b-stock--in">{t('product.inStock')}</span>;
+    case 'out_of_stock':
+      return <span className="b2b-stock b2b-stock--out">{t('product.outOfStock')}</span>;
+  }
 }

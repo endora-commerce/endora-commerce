@@ -12,9 +12,14 @@ import { VirtualCta } from '../../../../components/VirtualCta';
 import { VariantPicker } from '../../../../components/VariantPicker';
 import { PriceTag } from '../../../../components/PriceTag';
 import { StockBadge } from '../../../../components/StockBadge';
+import { NotifyWhenAvailableDialog } from '../../../../components/inventory/NotifyWhenAvailableDialog';
+import { BackorderHint } from '../../../../components/inventory/BackorderHint';
 import { AddToRfqForm } from '../../../../components/rfq/AddToRfqForm';
 import { getStorefrontQuoteRequestSettings } from '../../../../lib/api/rfq';
 import { getProductBySlug } from '../../../../lib/api/catalog';
+import { getStorefrontProductStock } from '../../../../lib/api/inventory';
+import { getMe } from '../../../../lib/api/account';
+import { cookies } from 'next/headers';
 import { getServerContext } from '../../../../lib/server-context';
 import { tForLocale } from '../../../../lib/i18n/messages';
 import { StorefrontApiError } from '../../../../lib/api/client';
@@ -87,6 +92,8 @@ export default async function ProductPage({
 
   const primaryCategory = product.categories[0];
   const rfqSettings = await getStorefrontQuoteRequestSettings();
+  const stock = await getStorefrontProductStock(product.id, ctx);
+  const customerEmail = await readCustomerEmail();
 
   return (
     <div className="container industria-pdp">
@@ -114,8 +121,12 @@ export default async function ProductPage({
 
           <div className="b2b-card__meta" style={{ marginTop: 16 }}>
             <PriceTag price={product.price} locale={locale} />
-            <StockBadge product={product} locale={locale} />
+            <StockBadge product={product} stock={stock} locale={locale} />
           </div>
+
+          {stock?.backorderEnabled && stock.isOutOfStock ? (
+            <BackorderHint label={t('product.backorder.hint')} />
+          ) : null}
 
           <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
             {/* Feature 002 US5 — type switch for the action zone:
@@ -126,7 +137,22 @@ export default async function ProductPage({
               */}
             {product.type === 'simple' || product.type === 'configurable' ? (
               <>
-                {product.price ? (
+                {stock?.showNotifyButton ? (
+                  <NotifyWhenAvailableDialog
+                    productId={product.id}
+                    defaultEmail={customerEmail}
+                    labels={{
+                      cta: t('product.notify.cta'),
+                      dialogTitle: t('product.notify.dialogTitle'),
+                      emailLabel: t('product.notify.emailLabel'),
+                      submit: t('product.notify.submit'),
+                      submitting: t('product.notify.submitting'),
+                      success: t('product.notify.success'),
+                      errorGeneric: t('product.notify.errorGeneric'),
+                      cancel: t('product.notify.cancel'),
+                    }}
+                  />
+                ) : product.price ? (
                   <a href="/cart" className="b2b-cta">
                     {t('product.addToCart')}
                   </a>
@@ -234,4 +260,16 @@ export default async function ProductPage({
       />
     </div>
   );
+}
+
+async function readCustomerEmail(): Promise<string | null> {
+  const cookieStore = await cookies();
+  const session = cookieStore.get('b2b_session')?.value;
+  if (!session) return null;
+  try {
+    const me = await getMe(session);
+    return me.customerAccount.email;
+  } catch {
+    return null;
+  }
 }

@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { z } from 'zod';
 import {
   availabilityNotificationRequestSchema,
   inventoryDisplayModeSchema,
@@ -54,6 +55,9 @@ export async function registerInventoryRoutes(
   // Notify-when-available (foundation 001 backward-compat)
   // ---------------------------------------------------------------------------
 
+  // Foundation 001 path — customer-only, pre-fills email from the
+  // customer account. Kept for backwards compatibility with any
+  // existing storefront/admin callers.
   app.post<{ Params: { id: string } }>(
     '/api/v1/catalog/products/:id/notify-when-available',
     {
@@ -76,6 +80,50 @@ export async function registerInventoryRoutes(
         email: customerAccount.email,
         productId: request.params.id,
         variantId: body.variantId ?? null,
+      });
+      reply.status(202);
+      return {
+        data: {
+          subscriptionId: subscription.id,
+          requestedAt: subscription.requestedAt.toISOString(),
+        },
+      };
+    },
+  );
+
+  // Feature 010 / US6 — public path that accepts both anonymous and
+  // authenticated callers. Email is supplied by the body; the storefront
+  // pre-fills it from the customer account on the client side when a
+  // session exists. Threaded auth is intentionally optional so the
+  // anonymous Notify-when-available flow does not require a sign-in.
+  app.post(
+    '/api/v1/storefront/inventory/notify-when-available',
+    {
+      schema: {
+        body: z.object({
+          productId: z.string().uuid(),
+          email: z.string().email(),
+          variantId: z.string().uuid().nullable().optional(),
+        }),
+      },
+    },
+    async (request, reply) => {
+      const body = request.body as { productId: string; email: string; variantId?: string | null };
+      // Best-effort customer-account binding: when the request happens
+      // to carry a valid customer context, link the row so the admin
+      // queue browser shows the customer id alongside the email.
+      let customerAccountId: string | null = null;
+      try {
+        const ctx = resolveCustomerContext(request);
+        customerAccountId = ctx.customerAccountId;
+      } catch {
+        customerAccountId = null;
+      }
+      const subscription = await availabilityService.subscribe({
+        productId: body.productId,
+        email: body.email,
+        variantId: body.variantId ?? null,
+        customerAccountId,
       });
       reply.status(202);
       return {
