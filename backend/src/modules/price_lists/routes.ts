@@ -1,7 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import {
   createPriceListAssignmentRequestSchema,
+  createPriceListEngineRequestSchema,
   createPriceListItemRequestSchema,
+  patchPriceListEngineRequestSchema,
   upsertCustomerGroupRequestSchema,
   upsertPriceListRequestSchema,
 } from '@b2b/contracts';
@@ -192,6 +194,101 @@ export async function registerPricingRoutes(
     },
   );
 
+  // ---- Engine routes (feature 011) -----------------------------------
+
+  app.post(
+    '/api/v1/admin/price-lists-engine',
+    {
+      preHandler: requireAdmin('catalog:write'),
+      schema: { body: createPriceListEngineRequestSchema },
+    },
+    async (request, reply) => {
+      const body = createPriceListEngineRequestSchema.parse(request.body);
+      const row = await priceListService.create({
+        name: body.name,
+        type: body.type,
+        startsAt: body.startsAt ? new Date(body.startsAt) : null,
+        endsAt: body.endsAt ? new Date(body.endsAt) : null,
+        ...(body.applicationRule !== undefined ? { applicationRule: body.applicationRule } : {}),
+      });
+      reply.status(201);
+      return { data: serializePriceListEngine(row) };
+    },
+  );
+
+  app.patch<{ Params: { id: string } }>(
+    '/api/v1/admin/price-lists-engine/:id',
+    {
+      preHandler: requireAdmin('catalog:write'),
+      schema: { body: patchPriceListEngineRequestSchema },
+    },
+    async (request) => {
+      const body = patchPriceListEngineRequestSchema.parse(request.body);
+      const patch: Parameters<PriceListService['patch']>[1] = {};
+      if (body.name !== undefined) patch.name = body.name;
+      if (body.type !== undefined) patch.type = body.type;
+      if (body.startsAt !== undefined) patch.startsAt = body.startsAt ? new Date(body.startsAt) : null;
+      if (body.endsAt !== undefined) patch.endsAt = body.endsAt ? new Date(body.endsAt) : null;
+      if (body.applicationRule !== undefined) patch.applicationRule = body.applicationRule;
+      const row = await priceListService.patch(request.params.id, patch);
+      return { data: serializePriceListEngine(row) };
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/price-lists-engine/:id',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request) => {
+      const row = await priceListService.getById(request.params.id);
+      return { data: serializePriceListEngine(row) };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/price-lists-engine/:id/activate',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request) => {
+      const row = await priceListService.activate(request.params.id);
+      return { data: serializePriceListEngine(row) };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/price-lists-engine/:id/draftify',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request) => {
+      const row = await priceListService.draftify(request.params.id);
+      return { data: serializePriceListEngine(row) };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/price-lists-engine/:id/duplicate',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request, reply) => {
+      const dup = await priceListService.duplicate(request.params.id);
+      reply.status(201);
+      return { data: serializePriceListEngine(dup) };
+    },
+  );
+
+  // Test-only sweeper hook — the production code path runs the worker on the
+  // BullMQ queue every 5 min. This endpoint lets integration tests advance
+  // the state machine without waiting for the queue tick.
+  app.post(
+    '/api/v1/admin/price-lists-engine/internal/sweep',
+    { preHandler: requireAdmin('catalog:write') },
+    async () => {
+      // The worker reads/writes through the same EM as the rest of the
+      // module; constructed here so the route doesn't pin the worker to
+      // the module-level construction.
+      const { PriceListStatusWorker } = await import('./services/price-list-status-worker.js');
+      const worker = new PriceListStatusWorker(emFactory);
+      const result = await worker.sweep();
+      return { data: result };
+    },
+  );
+
   // ---- Pricing preview ------------------------------------------------
   app.get<{
     Querystring: {
@@ -248,6 +345,21 @@ function serializePriceList(row: PriceList): Record<string, unknown> {
     priority: row.priority,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function serializePriceListEngine(row: PriceList): Record<string, unknown> {
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.type,
+    status: row.status,
+    startsAt: row.startsAt ? row.startsAt.toISOString() : null,
+    endsAt: row.endsAt ? row.endsAt.toISOString() : null,
+    applicationRule: row.applicationRule,
+    isSystem: row.isSystem,
+    modifiedAt: row.modifiedAt.toISOString(),
+    createdAt: row.createdAt.toISOString(),
   };
 }
 

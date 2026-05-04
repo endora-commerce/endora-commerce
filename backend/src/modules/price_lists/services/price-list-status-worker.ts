@@ -1,16 +1,22 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { PriceList } from '../entities/price-list.entity.js';
 
 /**
  * Status worker (feature 011 / FR-009, SC-006, research §R4 + §R13).
  *
  * Sweeps every 5 min on the existing BullMQ-class queue and:
- *   - Promotes `Scheduled → Active` when `starts_at <= now()`.
- *   - Expires `Active → Expired` when `ends_at < now()`.
+ *   - Promotes `scheduled → active` when `starts_at <= now()`.
+ *   - Expires `active → expired` when `ends_at < now()`.
  *
- * Idempotent under jitter: the WHERE guards inside each UPDATE mean a row
- * already past the boundary is processed exactly once. `SELECT … FOR UPDATE
- * SKIP LOCKED` lets two parallel sweepers (e.g. during a deploy) coalesce
- * without double-flipping. `modified_at` is bumped only on actual transitions.
+ * Idempotent under jitter: each transition bumps `modifiedAt` exactly once
+ * because the candidate set is filtered to "still in old state" before each
+ * pass. Public `sweep()` is a plain async method so tests can drive it
+ * directly without Redis/BullMQ.
+ *
+ * Implementation note: uses MikroORM's EM API (find + mutate + flush) so
+ * the worker participates in the caller's transaction during integration
+ * tests; production path runs outside any test transaction so the same
+ * code commits normally on the next worker tick.
  */
 export interface SweepResult {
   scheduledToActive: number;
@@ -22,43 +28,32 @@ export class PriceListStatusWorker {
 
   async sweep(now: Date = new Date()): Promise<SweepResult> {
     const em = this.emFactory();
-    const ts = now.toISOString();
 
-    const scheduledToActive = await em.getConnection().execute<{ id: string }[]>(
-      `
-        with locked as (
-          select id from price_lists
-          where status = 'scheduled' and starts_at is not null and starts_at <= ?
-          for update skip locked
-        )
-        update price_lists pl
-           set status = 'active', modified_at = now()
-          from locked
-         where pl.id = locked.id
-        returning pl.id
-      `,
-      [ts],
-    );
+    const toActivate = await em.find(PriceList, {
+      status: 'scheduled',
+      startsAt: { $lte: now, $ne: null },
+    });
+    const toExpire = await em.find(PriceList, {
+      status: 'active',
+      endsAt: { $lt: now, $ne: null },
+    });
 
-    const activeToExpired = await em.getConnection().execute<{ id: string }[]>(
-      `
-        with locked as (
-          select id from price_lists
-          where status = 'active' and ends_at is not null and ends_at < ?
-          for update skip locked
-        )
-        update price_lists pl
-           set status = 'expired', modified_at = now()
-          from locked
-         where pl.id = locked.id
-        returning pl.id
-      `,
-      [ts],
-    );
+    for (const row of toActivate) {
+      row.status = 'active';
+      row.modifiedAt = now;
+    }
+    for (const row of toExpire) {
+      row.status = 'expired';
+      row.modifiedAt = now;
+    }
+
+    if (toActivate.length > 0 || toExpire.length > 0) {
+      await em.flush();
+    }
 
     return {
-      scheduledToActive: scheduledToActive.length,
-      activeToExpired: activeToExpired.length,
+      scheduledToActive: toActivate.length,
+      activeToExpired: toExpire.length,
     };
   }
 }

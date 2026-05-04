@@ -1,9 +1,31 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, type ApplicationRule } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { PriceList } from '../entities/price-list.entity.js';
 import { PriceListItem } from '../entities/price-list-item.entity.js';
 import { PriceListAssignment } from '../entities/price-list-assignment.entity.js';
+import { PriceListProduct } from '../entities/price-list-product.entity.js';
+import { PriceListPriceBracket } from '../entities/price-list-price-bracket.entity.js';
+import { randomUUID } from 'crypto';
+
+export type PriceListStatus = 'draft' | 'active' | 'scheduled' | 'expired';
+export type PriceListType = 'base' | 'sale';
+
+export interface CreatePriceListInput {
+  name: string;
+  type: PriceListType;
+  startsAt?: Date | null;
+  endsAt?: Date | null;
+  applicationRule?: ApplicationRule;
+}
+
+export interface PatchPriceListInput {
+  name?: string;
+  type?: PriceListType;
+  startsAt?: Date | null;
+  endsAt?: Date | null;
+  applicationRule?: ApplicationRule;
+}
 
 /**
  * PriceListService — admin CRUD over PriceList + the two child collections
@@ -110,6 +132,214 @@ export class PriceListService {
         403,
         ERROR_CODES.FORBIDDEN,
         'The Default price list must remain active.',
+      );
+    }
+  }
+
+  // ---- Engine CRUD + lifecycle (feature 011) -------------------------
+
+  /**
+   * Create a new price list. Status defaults to `draft`. Default-list
+   * protections are out of scope here — system rows are seeded by migration
+   * 031, never created via this method.
+   */
+  async create(input: CreatePriceListInput): Promise<PriceList> {
+    this.assertDateSanity(input.startsAt ?? null, input.endsAt ?? null, true);
+    const em = this.emFactory();
+    const row = em.create(PriceList, {
+      // Legacy columns are required by the foundation schema; populate them
+      // with engine-equivalent values so writes don't fail until contract
+      // migration retires them.
+      code: `pl-${randomUUID()}`,
+      name: input.name,
+      currency: 'PLN',
+      isDefault: false,
+      priority: 0,
+      type: input.type,
+      status: 'draft',
+      startsAt: input.startsAt ?? null,
+      endsAt: input.endsAt ?? null,
+      applicationRule: input.applicationRule ?? { kind: 'all' },
+      isSystem: false,
+      modifiedAt: new Date(),
+    });
+    await em.persistAndFlush(row);
+    return row;
+  }
+
+  /**
+   * Partial update. Bumps `modifiedAt` on every material change.
+   * Refuses non-empty rule attachment on the seeded `Default` row (FR-006).
+   */
+  async patch(id: string, input: PatchPriceListInput): Promise<PriceList> {
+    const em = this.emFactory();
+    const row = await this.getById(id);
+
+    if (input.applicationRule !== undefined) {
+      await this.assertCanSetApplicationRule(id, input.applicationRule);
+    }
+
+    const nextStartsAt = input.startsAt !== undefined ? input.startsAt : row.startsAt ?? null;
+    const nextEndsAt = input.endsAt !== undefined ? input.endsAt : row.endsAt ?? null;
+    if (input.startsAt !== undefined || input.endsAt !== undefined) {
+      this.assertDateSanity(nextStartsAt, nextEndsAt, false);
+    }
+
+    let mutated = false;
+    if (input.name !== undefined && input.name !== row.name) {
+      row.name = input.name;
+      mutated = true;
+    }
+    if (input.type !== undefined && input.type !== row.type) {
+      row.type = input.type;
+      mutated = true;
+    }
+    if (input.startsAt !== undefined) {
+      row.startsAt = input.startsAt;
+      mutated = true;
+    }
+    if (input.endsAt !== undefined) {
+      row.endsAt = input.endsAt;
+      mutated = true;
+    }
+    if (input.applicationRule !== undefined) {
+      row.applicationRule = input.applicationRule;
+      mutated = true;
+    }
+    if (mutated) {
+      row.modifiedAt = new Date();
+    }
+    await em.flush();
+    return row;
+  }
+
+  /**
+   * Manual transition: draft → active (or scheduled / expired if dates
+   * dictate). FR-009 row 1.
+   */
+  async activate(id: string): Promise<PriceList> {
+    const em = this.emFactory();
+    const row = await this.getById(id);
+    const now = new Date();
+    const next: PriceListStatus =
+      row.startsAt && row.startsAt > now
+        ? 'scheduled'
+        : row.endsAt && row.endsAt < now
+          ? 'expired'
+          : 'active';
+    if (row.status === next) return row;
+    await this.assertCanTransitionStatus(id, next);
+    row.status = next;
+    row.modifiedAt = new Date();
+    await em.flush();
+    return row;
+  }
+
+  /**
+   * Manual transition: any state → draft. Freezes the list immediately.
+   */
+  async draftify(id: string): Promise<PriceList> {
+    const em = this.emFactory();
+    const row = await this.getById(id);
+    if (row.status === 'draft') return row;
+    await this.assertCanTransitionStatus(id, 'draft');
+    row.status = 'draft';
+    row.modifiedAt = new Date();
+    await em.flush();
+    return row;
+  }
+
+  /**
+   * Duplicate a price list. Copies the rule, the assigned products, and
+   * every bracket row. Resets status to `draft`, clears dates, and derives
+   * a unique name (suffix ` (copy)`, ` (copy 2)`, …) — FR-013.
+   */
+  async duplicate(id: string): Promise<PriceList> {
+    const em = this.emFactory();
+    const source = await this.getById(id);
+
+    const baseName = source.name;
+    const candidates = await em.find(
+      PriceList,
+      { name: { $like: `${baseName} (copy%` } },
+      { fields: ['id', 'name'] },
+    );
+    let suffix = ' (copy)';
+    if (candidates.length > 0) {
+      // Find the next available numeric suffix.
+      let n = 2;
+      while (candidates.some((c) => c.name === `${baseName} (copy ${n})`)) {
+        n += 1;
+      }
+      // If the bare " (copy)" doesn't exist yet, use it.
+      if (!candidates.some((c) => c.name === `${baseName} (copy)`)) {
+        suffix = ' (copy)';
+      } else {
+        suffix = ` (copy ${n})`;
+      }
+    }
+    const newName = `${baseName}${suffix}`;
+
+    const dup = em.create(PriceList, {
+      code: `pl-${randomUUID()}`,
+      name: newName,
+      currency: source.currency,
+      isDefault: false,
+      priority: 0,
+      type: source.type,
+      status: 'draft',
+      startsAt: null,
+      endsAt: null,
+      applicationRule: structuredClone(source.applicationRule),
+      isSystem: false,
+      modifiedAt: new Date(),
+    });
+    await em.persistAndFlush(dup);
+
+    // Copy assignments first (FK target), then brackets.
+    const products = await em.find(PriceListProduct, { priceListId: source.id });
+    for (const p of products) {
+      em.create(PriceListProduct, { priceListId: dup.id, productId: p.productId });
+    }
+    await em.flush();
+
+    const brackets = await em.find(PriceListPriceBracket, { priceListId: source.id });
+    for (const b of brackets) {
+      em.create(PriceListPriceBracket, {
+        priceListId: dup.id,
+        productId: b.productId,
+        currencyCode: b.currencyCode,
+        minQuantity: b.minQuantity,
+        maxQuantity: b.maxQuantity ?? null,
+        amount: b.amount,
+      });
+    }
+    await em.flush();
+
+    return dup;
+  }
+
+  /**
+   * Date sanity per FR-010: `endsAt` must be greater than `startsAt`; at
+   * creation time `endsAt` must be in the future.
+   */
+  private assertDateSanity(
+    startsAt: Date | null,
+    endsAt: Date | null,
+    onCreate: boolean,
+  ): void {
+    if (endsAt && startsAt && endsAt <= startsAt) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.VALIDATION_FAILED,
+        'endsAt must be greater than startsAt.',
+      );
+    }
+    if (onCreate && endsAt && endsAt < new Date()) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.VALIDATION_FAILED,
+        'endsAt must be in the future at creation time.',
       );
     }
   }
