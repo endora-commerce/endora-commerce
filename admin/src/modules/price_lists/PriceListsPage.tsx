@@ -5,10 +5,11 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Calendar,
   CircleDollarSign,
+  Eye,
   Lock,
   Plus,
   Search,
@@ -134,6 +135,9 @@ export function PriceListsPage(): ReactNode {
           </div>
         </div>
         <div className="b2b-page-head__actions">
+          <Link to="/price-lists/display-modes" className="b2b-btn b2b-btn--default">
+            <Eye size={14} /> Display modes
+          </Link>
           <button
             type="button"
             className="b2b-btn b2b-btn--primary"
