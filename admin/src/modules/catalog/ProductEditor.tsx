@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/table';
 import { EntityChannelMembership } from '../sales_channels/components/EntityChannelMembership';
 import { ProductInventoryTab } from './ProductInventoryTab';
+import { LinkedPriceListsPanel } from '../price_lists/LinkedPriceListsPanel';
 
 const LOCALES = ['en-US', 'pl-PL'] as const;
 type Locale = (typeof LOCALES)[number];
@@ -510,7 +511,7 @@ export function ProductEditor(): ReactNode {
             </form>
           ) : null}
 
-          {activeTab === 'pricing' && id ? <PricingPlaceholder /> : null}
+          {activeTab === 'pricing' && id ? <LinkedPriceListsPanel productId={id} /> : null}
 
           {activeTab === 'variants' && id ? <VariantsSection productId={id} /> : null}
 
@@ -554,28 +555,6 @@ function StatusPill({ status }: { status: AdminProduct['status'] }): ReactNode {
 function pickName(name: Record<string, string>): string {
   return name['en-US'] ?? Object.values(name)[0] ?? '';
 }
-
-function PricingPlaceholder(): ReactNode {
-  return (
-    <div
-      className="b2b-card"
-      style={{
-        padding: 16,
-        background: 'var(--info-soft)',
-        border: '1px solid hsl(217 70% 88%)',
-      }}
-    >
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--info-soft-fg)' }}>
-        Pricing rules live in the Price lists module
-      </div>
-      <div style={{ fontSize: 12, color: 'var(--info-soft-fg)', marginTop: 4 }}>
-        The default catalog price is on the Details tab. Tier prices, customer-group overrides,
-        and per-organization contracts are managed in <b>Pricing → Price lists</b>.
-      </div>
-    </div>
-  );
-}
-
 
 function SeoStub({ name }: { name: Record<string, string> }): ReactNode {
   return (

@@ -4,7 +4,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Calendar,
   ChevronLeft,
@@ -80,12 +80,14 @@ type Tab = 'details' | 'products' | 'rule';
 export function PriceListDetailPage(): ReactNode {
   const params = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const focusProductId = searchParams.get('focus');
   const id = params.id ?? '';
   const [list, setList] = useState<PriceListEngineRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>('details');
+  const [tab, setTab] = useState<Tab>(focusProductId ? 'products' : 'details');
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -317,7 +319,11 @@ export function PriceListDetailPage(): ReactNode {
             <DetailsPanel list={list} onSave={handlePatch} disabled={list.isSystem} />
           ) : null}
           {tab === 'products' ? (
-            <ProductsAndBracketsPanel priceListId={list.id} systemList={list.isSystem} />
+            <ProductsAndBracketsPanel
+              priceListId={list.id}
+              systemList={list.isSystem}
+              focusProductId={focusProductId}
+            />
           ) : null}
           {tab === 'rule' ? (
             <ApplicationRulePanel
@@ -539,15 +545,17 @@ interface RosterEntry {
 function ProductsAndBracketsPanel({
   priceListId,
   systemList,
+  focusProductId,
 }: {
   priceListId: string;
   systemList: boolean;
+  focusProductId?: string | null;
 }): ReactNode {
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [products, setProducts] = useState<Record<string, AdminProductSummary>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(focusProductId ?? null);
   const [picker, setPicker] = useState(false);
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -564,7 +572,16 @@ function ProductsAndBracketsPanel({
       const map: Record<string, AdminProductSummary> = {};
       for (const p of productsRes.data) map[p.id] = p;
       setProducts(map);
-      if (rosterRes.data.items.length > 0 && !rosterRes.data.items.some((e) => e.productId === selectedId)) {
+      // Honour ?focus=<productId> first if it points at an actual roster row.
+      const focused = focusProductId
+        ? rosterRes.data.items.find((e) => e.productId === focusProductId)
+        : null;
+      if (focused) {
+        setSelectedId(focused.productId);
+      } else if (
+        rosterRes.data.items.length > 0 &&
+        !rosterRes.data.items.some((e) => e.productId === selectedId)
+      ) {
         setSelectedId(rosterRes.data.items[0]!.productId);
       }
     } catch (err) {
@@ -572,7 +589,7 @@ function ProductsAndBracketsPanel({
     } finally {
       setLoading(false);
     }
-  }, [priceListId, selectedId]);
+  }, [priceListId, selectedId, focusProductId]);
 
   useEffect(() => {
     void refresh();
