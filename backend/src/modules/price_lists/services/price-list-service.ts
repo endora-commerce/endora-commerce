@@ -62,7 +62,20 @@ export interface CopyCurrencyResult {
  * boundary when we need it later.
  */
 export class PriceListService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /**
+     * Optional pricing cache. Every write path on this service calls
+     * `invalidateAll()` so the next read repopulates from the DB.
+     * Coarse but correct — fan-out makes per-tuple invalidation
+     * unprofitable until profiling shows otherwise.
+     */
+    private readonly pricingCache?: { invalidateAll: () => void },
+  ) {}
+
+  private invalidatePricingCache(): void {
+    this.pricingCache?.invalidateAll();
+  }
 
   // ---- PriceList -----------------------------------------------------
 
@@ -213,6 +226,7 @@ export class PriceListService {
       modifiedAt: new Date(),
     });
     await em.persistAndFlush(row);
+    this.invalidatePricingCache();
     return row;
   }
 
@@ -261,6 +275,7 @@ export class PriceListService {
       row.modifiedAt = new Date();
     }
     await em.flush();
+    if (mutated) this.invalidatePricingCache();
     return row;
   }
 
@@ -291,6 +306,7 @@ export class PriceListService {
     row.status = next;
     row.modifiedAt = new Date();
     await em.flush();
+    this.invalidatePricingCache();
     return row;
   }
 
@@ -305,6 +321,7 @@ export class PriceListService {
     row.status = 'draft';
     row.modifiedAt = new Date();
     await em.flush();
+    this.invalidatePricingCache();
     return row;
   }
 
@@ -374,6 +391,7 @@ export class PriceListService {
       });
     }
     await em.flush();
+    this.invalidatePricingCache();
 
     return dup;
   }
@@ -621,6 +639,7 @@ export class PriceListService {
     if (mode === 'inherit') {
       if (existing) {
         await em.removeAndFlush(existing);
+        this.invalidatePricingCache();
       }
       return null;
     }
@@ -628,10 +647,12 @@ export class PriceListService {
       existing.mode = mode;
       existing.updatedAt = new Date();
       await em.flush();
+      this.invalidatePricingCache();
       return existing;
     }
     const row = em.create(PriceDisplayModeOverride, { scope, targetId, mode });
     await em.persistAndFlush(row);
+    this.invalidatePricingCache();
     return row;
   }
 
@@ -881,6 +902,7 @@ export class PriceListService {
     em.create(PriceListProduct, { priceListId, productId });
     list.modifiedAt = new Date();
     await em.flush();
+    this.invalidatePricingCache();
   }
 
   /**
@@ -895,6 +917,7 @@ export class PriceListService {
     await em.removeAndFlush(existing);
     list.modifiedAt = new Date();
     await em.flush();
+    this.invalidatePricingCache();
   }
 
   /**
@@ -923,6 +946,7 @@ export class PriceListService {
       list.modifiedAt = new Date();
     }
     await em.flush();
+    if (toAdd.length > 0 || toRemove.length > 0) this.invalidatePricingCache();
 
     return { added: toAdd.length, removed: toRemove.length, unchanged: unchanged.length };
   }
@@ -1001,6 +1025,7 @@ export class PriceListService {
     }
     list.modifiedAt = new Date();
     await em.flush();
+    this.invalidatePricingCache();
 
     return out;
   }
@@ -1076,6 +1101,7 @@ export class PriceListService {
       list.modifiedAt = new Date();
     }
     await em.flush();
+    if (added > 0) this.invalidatePricingCache();
     return { added };
   }
 

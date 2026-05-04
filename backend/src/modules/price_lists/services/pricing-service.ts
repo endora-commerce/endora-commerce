@@ -59,7 +59,15 @@ export interface PriceContext {
 }
 
 export class PricingService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly cache?: import('./pricing-cache.js').PricingCache<{
+      base: { listId: string; listName: string; bracket: PriceBracketRow | null };
+      sale: { listId: string; listName: string; bracket: PriceBracketRow } | null;
+      displayMode: DisplayMode;
+      currencyCode: string;
+    }>,
+  ) {}
 
   async resolvePrice(input: {
     product: Product;
@@ -251,6 +259,18 @@ export class PricingService {
     const { product, context } = input;
     const currencyCode = (context.currencyCode ?? context.salesChannel.defaultCurrency).toUpperCase();
 
+    const cacheKey = {
+      productId: product.id,
+      variantId: input.variantId ?? null,
+      quantity: context.quantity,
+      currencyCode,
+      salesChannelId: context.salesChannel.id,
+      organizationId: context.organization?.id ?? null,
+      customerGroupId: context.organization?.customerGroupId ?? null,
+    };
+    const cached = this.cache?.get(cacheKey);
+    if (cached) return cached;
+
     // Build the resolution context.
     const productCategoryRows = await em
       .getConnection()
@@ -318,7 +338,7 @@ export class PricingService {
       customerKind: context.organization ? 'signed_in' : 'guest',
     });
 
-    return {
+    const result = {
       base: {
         listId: baseResult.list?.id ?? '',
         listName: baseResult.list?.name ?? '',
@@ -334,6 +354,8 @@ export class PricingService {
       displayMode,
       currencyCode,
     };
+    this.cache?.set(cacheKey, result);
+    return result;
   }
 
   /**

@@ -313,6 +313,13 @@ export async function setupBackendServer(
   const priceLists = priceListsModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
+    // Tests drive the status worker via internal/sweep — keeping the
+    // wall-clock interval off avoids spurious DB writes during a run.
+    enableStatusSweeper: false,
+    // Tests rely on writes being immediately visible — disable the LRU
+    // so each contract/integration case sees fresh DB state. Production
+    // composition uses the default 60-s TTL.
+    pricingCacheTtlMs: 0,
   });
 
   // Taxes (T128 / FR-051) + Promotions (T129 / FR-052).
