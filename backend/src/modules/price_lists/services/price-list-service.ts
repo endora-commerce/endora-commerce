@@ -67,7 +67,51 @@ export class PriceListService {
     const em = this.emFactory();
     const row = await em.findOne(PriceList, { id });
     if (!row) return;
+    if (row.isSystem) {
+      throw new HttpError(
+        403,
+        ERROR_CODES.FORBIDDEN,
+        'The Default price list cannot be deleted; it is the system fallback.',
+      );
+    }
     await em.removeAndFlush(row);
+  }
+
+  /**
+   * Default-list rule-attachment guard (FR-006). Rejects any attempt to attach
+   * a non-empty Application Rule to the seeded `Default` row.
+   */
+  async assertCanSetApplicationRule(
+    id: string,
+    rule: { kind: string },
+  ): Promise<void> {
+    const row = await this.getById(id);
+    if (row.isSystem && rule.kind !== 'all') {
+      throw new HttpError(
+        403,
+        ERROR_CODES.FORBIDDEN,
+        'The Default price list cannot carry an Application Rule; it always matches as the global fallback.',
+      );
+    }
+  }
+
+  /**
+   * Default-list status-change guard (FR-005 / FR-006 / spec.md §State Machines).
+   * The system Default row stays `active` for the platform's lifetime. The
+   * service rejects any attempt to move it to `draft`, `scheduled`, or `expired`.
+   */
+  async assertCanTransitionStatus(
+    id: string,
+    nextStatus: 'draft' | 'active' | 'scheduled' | 'expired',
+  ): Promise<void> {
+    const row = await this.getById(id);
+    if (row.isSystem && nextStatus !== 'active') {
+      throw new HttpError(
+        403,
+        ERROR_CODES.FORBIDDEN,
+        'The Default price list must remain active.',
+      );
+    }
   }
 
   // ---- PriceListItem -------------------------------------------------

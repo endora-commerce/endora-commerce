@@ -45,6 +45,7 @@ import { comparisonsModule } from './modules/comparisons/plugin.js';
 import { comparisonsManifest } from './modules/comparisons/manifest.js';
 import { quoteRequestsManifest, QUOTE_REQUESTS_SETTING_CODES } from './modules/quote_requests/manifest.js';
 import { inventoryManifest } from './modules/inventory/manifest.js';
+import { priceListsManifest } from './modules/price_lists/manifest.js';
 import { WarehouseChannelReconciler } from './modules/inventory/services/warehouse-channel-reconciler.js';
 import { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
@@ -500,6 +501,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     comparisonsManifest,
     quoteRequestsManifest,
     inventoryManifest,
+    priceListsManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();

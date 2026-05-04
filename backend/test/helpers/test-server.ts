@@ -36,6 +36,7 @@ import { comparisonsModule } from '../../src/modules/comparisons/plugin.js';
 import { comparisonsManifest } from '../../src/modules/comparisons/manifest.js';
 import { quoteRequestsManifest } from '../../src/modules/quote_requests/manifest.js';
 import { inventoryManifest } from '../../src/modules/inventory/manifest.js';
+import { priceListsManifest } from '../../src/modules/price_lists/manifest.js';
 import { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
 import { DefaultChannelReconciler } from '../../src/modules/sales_channels/services/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/modules/settings/services/manifest-reconciler.js';
@@ -508,6 +509,7 @@ export async function setupBackendServer(
     comparisonsManifest,
     quoteRequestsManifest,
     inventoryManifest,
+    priceListsManifest,
   ]);
 
   const app = await buildServer({

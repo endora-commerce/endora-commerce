@@ -52,6 +52,9 @@ import { CustomerGroup } from '../modules/price_lists/entities/customer-group.en
 import { PriceList } from '../modules/price_lists/entities/price-list.entity.js';
 import { PriceListItem } from '../modules/price_lists/entities/price-list-item.entity.js';
 import { PriceListAssignment } from '../modules/price_lists/entities/price-list-assignment.entity.js';
+import { PriceListProduct } from '../modules/price_lists/entities/price-list-product.entity.js';
+import { PriceListPriceBracket } from '../modules/price_lists/entities/price-list-price-bracket.entity.js';
+import { PriceDisplayModeOverride } from '../modules/price_lists/entities/price-display-mode-override.entity.js';
 import { Tax } from '../modules/taxes/entities/tax.entity.js';
 import { Promotion } from '../modules/promotions/entities/promotion.entity.js';
 import { ShoppingList } from '../modules/shopping_lists/entities/shopping-list.entity.js';
@@ -162,6 +165,10 @@ export const ALL_ENTITIES = [
   PriceList,
   PriceListItem,
   PriceListAssignment,
+  // pricing engine (feature 011)
+  PriceListProduct,
+  PriceListPriceBracket,
+  PriceDisplayModeOverride,
   // taxes + promotions (Phase 4 polish / T128, T129)
   Tax,
   Promotion,
