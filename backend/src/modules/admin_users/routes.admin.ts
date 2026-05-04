@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   createAdminUserRequestSchema,
   updateAdminUserRequestSchema,
+  updateAdminUserSelfRequestSchema,
   upsertAdminRoleRequestSchema,
   PERMISSION_CATALOGUE,
 } from '@b2b/contracts';
@@ -58,6 +59,28 @@ export async function registerAdminUsersAdminRoutes(
           permissions,
         },
       };
+    },
+  );
+
+  // --- Self profile edit ------------------------------------------------------
+  // Any authenticated admin can edit their own first/last name and rotate
+  // their password without holding `admin_users:manage`. Role + status
+  // changes are intentionally NOT exposed here.
+  app.patch(
+    '/api/v1/admin/me',
+    {
+      preHandler: requireAdmin(),
+      schema: { body: updateAdminUserSelfRequestSchema },
+    },
+    async (request) => {
+      const ctx = resolveAdminContext(request);
+      const body = updateAdminUserSelfRequestSchema.parse(request.body);
+      const user = await adminUserService.update(ctx.adminUserId, {
+        ...(body.firstName !== undefined ? { firstName: body.firstName } : {}),
+        ...(body.lastName !== undefined ? { lastName: body.lastName } : {}),
+        ...(body.password !== undefined ? { password: body.password } : {}),
+      });
+      return { data: serializeAdminUser(user) };
     },
   );
 

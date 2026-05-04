@@ -10,6 +10,8 @@ import {
   ClipboardCheck,
   Code2,
   CreditCard,
+  Bell as BellOutline,
+  Box,
   Factory,
   FileText,
   HelpCircle,
@@ -19,8 +21,10 @@ import {
   LayoutDashboard,
   LineChart,
   ListChecks,
+  LogOut,
   Newspaper,
   Package,
+  PackageOpen,
   PercentDiamond,
   Plus,
   Receipt,
@@ -30,9 +34,11 @@ import {
   ShieldCheck,
   Store,
   Tag,
+  TrendingDown,
   Truck,
   Upload,
   Users,
+  Warehouse as WarehouseIcon,
   Webhook,
   type LucideIcon,
 } from 'lucide-react';
@@ -73,11 +79,17 @@ const NAV: NavSection[] = [
       { to: '/catalog/attributes', label: 'Attributes', icon: Tag },
       { to: '/catalog/attribute-sets', label: 'Attribute Sets', icon: Tag },
       { to: '/catalog/attachment-types', label: 'Attachment Types', icon: FileText },
-      { to: '/inventory', label: 'Inventory', icon: Factory },
-      { to: '/inventory/low-stock', label: 'Low stock', icon: Factory },
-      { to: '/inventory/notifications', label: 'Notify-when-available', icon: Factory },
-      { to: '/inventory/import', label: 'Import stock', icon: Factory },
-      { to: '/warehouses', label: 'Warehouses', icon: Factory },
+    ],
+  },
+  {
+    key: 'inventory',
+    label: 'Inventory',
+    items: [
+      { to: '/inventory', label: 'Stock overview', icon: Box },
+      { to: '/warehouses', label: 'Warehouses', icon: WarehouseIcon },
+      { to: '/inventory/low-stock', label: 'Low stock', icon: TrendingDown },
+      { to: '/inventory/notifications', label: 'Notify-when-available', icon: BellOutline },
+      { to: '/inventory/import', label: 'Import stock', icon: PackageOpen },
     ],
   },
   {
@@ -157,63 +169,211 @@ function persistCollapsed(value: Set<string>): void {
 }
 
 /**
- * Map URL pathname → breadcrumb segments. Falls back to the path itself
- * for any route the dictionary doesn't know yet.
+ * Map URL pathname → breadcrumb trail. Each crumb carries a label and
+ * an optional `href`; the trailing segment (current page) carries
+ * `null` so the renderer can disable it. Hrefs are picked so every
+ * intermediate crumb routes the operator back to a useful list page
+ * (e.g. "Catalog" → /catalog/products).
  */
-const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => string[] }> = [
-  { test: /^\/$/, build: () => ['Home'] },
-  { test: /^\/catalog\/products\/?$/, build: () => ['Catalog', 'Products'] },
-  { test: /^\/catalog\/products\/[^/]+\/?$/, build: () => ['Catalog', 'Products', 'Editor'] },
-  { test: /^\/catalog\/categories\/?$/, build: () => ['Catalog', 'Categories'] },
-  { test: /^\/catalog\/attributes\/?$/, build: () => ['Catalog', 'Attributes'] },
-  { test: /^\/catalog\/attribute-sets\/?$/, build: () => ['Catalog', 'Attribute Sets'] },
-  { test: /^\/catalog\/attachment-types\/?$/, build: () => ['Catalog', 'Attachment Types'] },
-  { test: /^\/inventory\/?$/, build: () => ['Catalog', 'Inventory'] },
-  { test: /^\/inventory\/low-stock\/?$/, build: () => ['Catalog', 'Inventory', 'Low stock'] },
-  { test: /^\/inventory\/notifications\/?$/, build: () => ['Catalog', 'Inventory', 'Notify-when-available'] },
-  { test: /^\/inventory\/import\/?$/, build: () => ['Catalog', 'Inventory', 'Import stock'] },
-  { test: /^\/warehouses\/?$/, build: () => ['Catalog', 'Warehouses'] },
-  { test: /^\/warehouses\/new\/?$/, build: () => ['Catalog', 'Warehouses', 'New'] },
-  { test: /^\/warehouses\/[^/]+\/?$/, build: () => ['Catalog', 'Warehouses', 'Edit'] },
-  { test: /^\/price-lists\/?$/, build: () => ['Pricing', 'Price lists'] },
-  { test: /^\/price-lists\/[^/]+\/?$/, build: () => ['Pricing', 'Price lists', 'Detail'] },
-  { test: /^\/promotions\/?$/, build: () => ['Pricing', 'Promotions'] },
-  { test: /^\/taxes\/?$/, build: () => ['Pricing', 'Taxes'] },
-  { test: /^\/delivery-methods\/?$/, build: () => ['Pricing', 'Delivery methods'] },
-  { test: /^\/payment-methods\/?$/, build: () => ['Pricing', 'Payment methods'] },
-  { test: /^\/organizations\/?$/, build: () => ['Customers', 'Organizations'] },
-  { test: /^\/organizations\/[^/]+\/?$/, build: () => ['Customers', 'Organizations', 'Detail'] },
-  { test: /^\/orders\/?$/, build: () => ['Orders'] },
-  { test: /^\/orders\/[^/]+\/?$/, build: () => ['Orders', 'Detail'] },
-  { test: /^\/invoices\/?$/, build: () => ['Customers', 'Invoices'] },
-  { test: /^\/credit-limits\/?$/, build: () => ['Customers', 'Credit limits'] },
-  { test: /^\/quote-requests\/?$/, build: () => ['Customers', 'Quote requests'] },
-  { test: /^\/quote-requests\/[^/]+\/?$/, build: () => ['Customers', 'Quote requests', 'Detail'] },
-  { test: /^\/comparisons\/?$/, build: () => ['Customers', 'Comparisons'] },
-  { test: /^\/comparisons\/[^/]+\/?$/, build: () => ['Customers', 'Comparisons', 'Detail'] },
-  { test: /^\/sales-channels\/?$/, build: () => ['Channels', 'Sales channels'] },
-  { test: /^\/sales-channels\/[^/]+\/?$/, build: () => ['Channels', 'Sales channels', 'Detail'] },
-  { test: /^\/cms\/?$/, build: () => ['Channels', 'CMS pages'] },
-  { test: /^\/i18n\/?$/, build: () => ['Channels', 'Languages'] },
-  { test: /^\/seo\/?$/, build: () => ['Channels', 'SEO'] },
-  { test: /^\/admin-users\/?$/, build: () => ['System', 'Users'] },
-  { test: /^\/admin-roles\/?$/, build: () => ['System', 'Roles'] },
-  { test: /^\/audit-log\/?$/, build: () => ['System', 'Audit log'] },
-  { test: /^\/api-keys\/?$/, build: () => ['System', 'API keys'] },
-  { test: /^\/webhooks\/?$/, build: () => ['System', 'Webhooks'] },
-  { test: /^\/integrations\/?$/, build: () => ['System', 'Integrations'] },
-  { test: /^\/analytics\/?$/, build: () => ['System', 'Analytics'] },
-  { test: /^\/import-export\/?$/, build: () => ['System', 'Import / Export'] },
-  { test: /^\/settings\/?$/, build: () => ['System', 'Settings'] },
-  { test: /^\/settings\/groups\/?$/, build: () => ['System', 'Setting groups'] },
+type Crumb = { label: string; href: string | null };
+
+const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] }> = [
+  { test: /^\/$/, build: () => [{ label: 'Home', href: null }] },
+  { test: /^\/catalog\/products\/?$/, build: () => [
+    { label: 'Catalog', href: '/catalog/products' },
+    { label: 'Products', href: null },
+  ] },
+  { test: /^\/catalog\/products\/[^/]+\/?$/, build: () => [
+    { label: 'Catalog', href: '/catalog/products' },
+    { label: 'Products', href: '/catalog/products' },
+    { label: 'Editor', href: null },
+  ] },
+  { test: /^\/catalog\/categories\/?$/, build: () => [
+    { label: 'Catalog', href: '/catalog/products' },
+    { label: 'Categories', href: null },
+  ] },
+  { test: /^\/catalog\/attributes\/?$/, build: () => [
+    { label: 'Catalog', href: '/catalog/products' },
+    { label: 'Attributes', href: null },
+  ] },
+  { test: /^\/catalog\/attribute-sets\/?$/, build: () => [
+    { label: 'Catalog', href: '/catalog/products' },
+    { label: 'Attribute Sets', href: null },
+  ] },
+  { test: /^\/catalog\/attachment-types\/?$/, build: () => [
+    { label: 'Catalog', href: '/catalog/products' },
+    { label: 'Attachment Types', href: null },
+  ] },
+  { test: /^\/inventory\/?$/, build: () => [
+    { label: 'Inventory', href: null },
+  ] },
+  { test: /^\/inventory\/low-stock\/?$/, build: () => [
+    { label: 'Inventory', href: '/inventory' },
+    { label: 'Low stock', href: null },
+  ] },
+  { test: /^\/inventory\/notifications\/?$/, build: () => [
+    { label: 'Inventory', href: '/inventory' },
+    { label: 'Notify-when-available', href: null },
+  ] },
+  { test: /^\/inventory\/import\/?$/, build: () => [
+    { label: 'Inventory', href: '/inventory' },
+    { label: 'Import stock', href: null },
+  ] },
+  { test: /^\/warehouses\/?$/, build: () => [
+    { label: 'Inventory', href: '/inventory' },
+    { label: 'Warehouses', href: null },
+  ] },
+  { test: /^\/warehouses\/new\/?$/, build: () => [
+    { label: 'Inventory', href: '/inventory' },
+    { label: 'Warehouses', href: '/warehouses' },
+    { label: 'New', href: null },
+  ] },
+  { test: /^\/warehouses\/[^/]+\/?$/, build: () => [
+    { label: 'Inventory', href: '/inventory' },
+    { label: 'Warehouses', href: '/warehouses' },
+    { label: 'Edit', href: null },
+  ] },
+  { test: /^\/price-lists\/?$/, build: () => [
+    { label: 'Pricing', href: '/price-lists' },
+    { label: 'Price lists', href: null },
+  ] },
+  { test: /^\/price-lists\/[^/]+\/?$/, build: () => [
+    { label: 'Pricing', href: '/price-lists' },
+    { label: 'Price lists', href: '/price-lists' },
+    { label: 'Detail', href: null },
+  ] },
+  { test: /^\/promotions\/?$/, build: () => [
+    { label: 'Pricing', href: '/price-lists' },
+    { label: 'Promotions', href: null },
+  ] },
+  { test: /^\/taxes\/?$/, build: () => [
+    { label: 'Pricing', href: '/price-lists' },
+    { label: 'Taxes', href: null },
+  ] },
+  { test: /^\/delivery-methods\/?$/, build: () => [
+    { label: 'Pricing', href: '/price-lists' },
+    { label: 'Delivery methods', href: null },
+  ] },
+  { test: /^\/payment-methods\/?$/, build: () => [
+    { label: 'Pricing', href: '/price-lists' },
+    { label: 'Payment methods', href: null },
+  ] },
+  { test: /^\/organizations\/?$/, build: () => [
+    { label: 'Customers', href: '/organizations' },
+    { label: 'Organizations', href: null },
+  ] },
+  { test: /^\/organizations\/[^/]+\/?$/, build: () => [
+    { label: 'Customers', href: '/organizations' },
+    { label: 'Organizations', href: '/organizations' },
+    { label: 'Detail', href: null },
+  ] },
+  { test: /^\/orders\/?$/, build: () => [{ label: 'Orders', href: null }] },
+  { test: /^\/orders\/[^/]+\/?$/, build: () => [
+    { label: 'Orders', href: '/orders' },
+    { label: 'Detail', href: null },
+  ] },
+  { test: /^\/invoices\/?$/, build: () => [
+    { label: 'Customers', href: '/organizations' },
+    { label: 'Invoices', href: null },
+  ] },
+  { test: /^\/credit-limits\/?$/, build: () => [
+    { label: 'Customers', href: '/organizations' },
+    { label: 'Credit limits', href: null },
+  ] },
+  { test: /^\/quote-requests\/?$/, build: () => [
+    { label: 'Customers', href: '/organizations' },
+    { label: 'Quote requests', href: null },
+  ] },
+  { test: /^\/quote-requests\/[^/]+\/?$/, build: () => [
+    { label: 'Customers', href: '/organizations' },
+    { label: 'Quote requests', href: '/quote-requests' },
+    { label: 'Detail', href: null },
+  ] },
+  { test: /^\/comparisons\/?$/, build: () => [
+    { label: 'Customers', href: '/organizations' },
+    { label: 'Comparisons', href: null },
+  ] },
+  { test: /^\/comparisons\/[^/]+\/?$/, build: () => [
+    { label: 'Customers', href: '/organizations' },
+    { label: 'Comparisons', href: '/comparisons' },
+    { label: 'Detail', href: null },
+  ] },
+  { test: /^\/sales-channels\/?$/, build: () => [
+    { label: 'Channels', href: '/sales-channels' },
+    { label: 'Sales channels', href: null },
+  ] },
+  { test: /^\/sales-channels\/[^/]+\/?$/, build: () => [
+    { label: 'Channels', href: '/sales-channels' },
+    { label: 'Sales channels', href: '/sales-channels' },
+    { label: 'Detail', href: null },
+  ] },
+  { test: /^\/cms\/?$/, build: () => [
+    { label: 'Channels', href: '/sales-channels' },
+    { label: 'CMS pages', href: null },
+  ] },
+  { test: /^\/i18n\/?$/, build: () => [
+    { label: 'Channels', href: '/sales-channels' },
+    { label: 'Languages', href: null },
+  ] },
+  { test: /^\/seo\/?$/, build: () => [
+    { label: 'Channels', href: '/sales-channels' },
+    { label: 'SEO', href: null },
+  ] },
+  { test: /^\/admin-users\/?$/, build: () => [
+    { label: 'System', href: '/admin-users' },
+    { label: 'Users', href: null },
+  ] },
+  { test: /^\/admin-roles\/?$/, build: () => [
+    { label: 'System', href: '/admin-users' },
+    { label: 'Roles', href: null },
+  ] },
+  { test: /^\/audit-log\/?$/, build: () => [
+    { label: 'System', href: '/admin-users' },
+    { label: 'Audit log', href: null },
+  ] },
+  { test: /^\/api-keys\/?$/, build: () => [
+    { label: 'System', href: '/admin-users' },
+    { label: 'API keys', href: null },
+  ] },
+  { test: /^\/webhooks\/?$/, build: () => [
+    { label: 'System', href: '/admin-users' },
+    { label: 'Webhooks', href: null },
+  ] },
+  { test: /^\/integrations\/?$/, build: () => [
+    { label: 'System', href: '/admin-users' },
+    { label: 'Integrations', href: null },
+  ] },
+  { test: /^\/analytics\/?$/, build: () => [
+    { label: 'System', href: '/admin-users' },
+    { label: 'Analytics', href: null },
+  ] },
+  { test: /^\/import-export\/?$/, build: () => [
+    { label: 'System', href: '/admin-users' },
+    { label: 'Import / Export', href: null },
+  ] },
+  { test: /^\/settings\/?$/, build: () => [
+    { label: 'System', href: '/admin-users' },
+    { label: 'Settings', href: null },
+  ] },
+  { test: /^\/settings\/groups\/?$/, build: () => [
+    { label: 'System', href: '/admin-users' },
+    { label: 'Setting groups', href: null },
+  ] },
+  { test: /^\/profile\/?$/, build: () => [
+    { label: 'My profile', href: null },
+  ] },
 ];
 
-function buildCrumbs(pathname: string): string[] {
+function buildCrumbs(pathname: string): Crumb[] {
   for (const entry of CRUMB_DICT) {
     const match = pathname.match(entry.test);
     if (match) return entry.build(match);
   }
-  return pathname.split('/').filter(Boolean).map((s) => s.replace('-', ' '));
+  const segments = pathname.split('/').filter(Boolean).map((s) => s.replace('-', ' '));
+  return segments.map((label, idx) => ({
+    label,
+    href: idx === segments.length - 1 ? null : '/' + segments.slice(0, idx + 1).join('/'),
+  }));
 }
 
 interface PaletteItem {
@@ -280,10 +440,16 @@ export function AppShell(): ReactNode {
     <div style={{ display: 'grid', gridTemplateColumns: '248px 1fr', minHeight: '100vh' }}>
       {/* ============ Sidebar ============ */}
       <aside className="b2b-sidebar">
-        <div className="b2b-sidebar__brand">
+        <NavLink
+          to="/"
+          end
+          className="b2b-sidebar__brand"
+          style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}
+          aria-label="Go to dashboard"
+        >
           <span className="b2b-sidebar__brand-logo">B2</span>
           <span>Endora B2B</span>
-        </div>
+        </NavLink>
 
         <div className="b2b-sidebar__search">
           <Search size={14} className="b2b-sidebar__search-icon" />
@@ -321,11 +487,24 @@ export function AppShell(): ReactNode {
                 <div className="b2b-sidebar__items">
                   {section.items.map((item) => {
                     const Icon = item.icon;
+                    // Force exact-match (`end`) when another item in the same
+                    // section nests under this item's path. Without this, a
+                    // parent route like `/inventory` lights up alongside its
+                    // children (`/inventory/low-stock`, `/inventory/import`,
+                    // …) because NavLink's default match is prefix-based.
+                    // The home link (`/`) is the canonical example and is
+                    // covered by the same rule (every other item starts with
+                    // `/`).
+                    const hasNestedSibling = section.items.some(
+                      (other) =>
+                        other !== item &&
+                        other.to.startsWith(item.to === '/' ? '/' : `${item.to}/`),
+                    );
                     return (
                       <NavLink
                         key={item.to}
                         to={item.to}
-                        end={item.to === '/'}
+                        end={item.to === '/' || hasNestedSibling}
                         className={({ isActive }): string =>
                           cn('b2b-nav-item', isActive && 'is-active')
                         }
@@ -343,18 +522,28 @@ export function AppShell(): ReactNode {
 
         {me ? (
           <div className="b2b-sidebar__foot">
-            <div className="b2b-avatar">{(fullName || me.adminUser.email).slice(0, 2).toUpperCase()}</div>
-            <div className="meta">
-              <div className="name">{fullName || me.adminUser.email}</div>
-              <div className="role">{role}</div>
-            </div>
+            <NavLink
+              to="/profile"
+              className="b2b-sidebar__foot-identity"
+              title="Edit profile"
+              aria-label="Edit profile"
+            >
+              <div className="b2b-avatar">
+                {(fullName || me.adminUser.email).slice(0, 2).toUpperCase()}
+              </div>
+              <div className="meta">
+                <div className="name">{fullName || me.adminUser.email}</div>
+                <div className="role">{role}</div>
+              </div>
+            </NavLink>
             <button
               type="button"
               className="icon-btn"
               title="Sign out"
+              aria-label="Sign out"
               onClick={(): void => void logout()}
             >
-              <Settings size={14} />
+              <LogOut size={14} />
             </button>
           </div>
         ) : null}
@@ -367,7 +556,17 @@ export function AppShell(): ReactNode {
             {crumbs.map((c, i) => (
               <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 {i > 0 ? <ChevronRight size={12} className="crumb-sep" /> : null}
-                <span className={i === crumbs.length - 1 ? 'crumb-cur' : undefined}>{c}</span>
+                {c.href ? (
+                  <NavLink
+                    to={c.href}
+                    className="crumb-link"
+                    style={{ color: 'inherit', textDecoration: 'none' }}
+                  >
+                    {c.label}
+                  </NavLink>
+                ) : (
+                  <span className="crumb-cur">{c.label}</span>
+                )}
               </span>
             ))}
           </div>
@@ -389,9 +588,15 @@ export function AppShell(): ReactNode {
             </button>
             <div style={{ width: 1, height: 22, background: 'var(--border-color)', margin: '0 4px' }} />
             {me ? (
-              <div className="b2b-avatar" title={fullName || me.adminUser.email}>
+              <NavLink
+                to="/profile"
+                className="b2b-avatar"
+                title={`${fullName || me.adminUser.email} — edit profile`}
+                aria-label="Edit profile"
+                style={{ textDecoration: 'none', cursor: 'pointer' }}
+              >
                 {(fullName || me.adminUser.email).slice(0, 2).toUpperCase()}
-              </div>
+              </NavLink>
             ) : null}
           </div>
         </div>

@@ -80,6 +80,21 @@ export const updateAdminUserRequestSchema = z
   .strict();
 export type UpdateAdminUserRequest = z.infer<typeof updateAdminUserRequestSchema>;
 
+/**
+ * Self-update payload — every authenticated admin can edit their own
+ * first/last name and rotate their password without needing the
+ * `admin_users:manage` permission. Role and status are intentionally
+ * NOT exposed here.
+ */
+export const updateAdminUserSelfRequestSchema = z
+  .object({
+    firstName: z.string().min(1).max(120).optional(),
+    lastName: z.string().min(1).max(120).optional(),
+    password: z.string().min(12).max(120).optional(),
+  })
+  .strict();
+export type UpdateAdminUserSelfRequest = z.infer<typeof updateAdminUserSelfRequestSchema>;
+
 // --- Admin role CRUD --------------------------------------------------------
 
 export const upsertAdminRoleRequestSchema = z.object({

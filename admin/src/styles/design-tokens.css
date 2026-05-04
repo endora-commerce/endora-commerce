@@ -7,10 +7,10 @@
    ============================================================ */
 
 :root {
-  /* ---------- Brand / accent (Shopify green) ---------- */
-  --accent-h: 142;
-  --accent-s: 56%;
-  --accent-l: 33%;
+  /* ---------- Brand / accent (#6754e2 — feature 010 rebrand) ---------- */
+  --accent-h: 248;
+  --accent-s: 71%;
+  --accent-l: 61%;
 
   --primary-color: hsl(var(--accent-h) var(--accent-s) var(--accent-l));
   --primary-hover: hsl(var(--accent-h) var(--accent-s) calc(var(--accent-l) - 4%));
