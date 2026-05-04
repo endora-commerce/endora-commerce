@@ -200,6 +200,31 @@ export async function registerPricingRoutes(
 
   // ---- Engine routes (feature 011) -----------------------------------
 
+  app.get<{
+    Querystring: {
+      status?: string | string[];
+      type?: string | string[];
+      search?: string;
+    };
+  }>(
+    '/api/v1/admin/price-lists-engine',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request) => {
+      const status = toArray(request.query.status).filter((s): s is 'draft' | 'active' | 'scheduled' | 'expired' =>
+        s === 'draft' || s === 'active' || s === 'scheduled' || s === 'expired',
+      );
+      const type = toArray(request.query.type).filter((t): t is 'base' | 'sale' => t === 'base' || t === 'sale');
+      const filter: Parameters<PriceListService['listEngine']>[0] = {};
+      if (status.length > 0) filter.status = status;
+      if (type.length > 0) filter.type = type;
+      if (typeof request.query.search === 'string' && request.query.search.trim().length > 0) {
+        filter.search = request.query.search.trim();
+      }
+      const rows = await priceListService.listEngine(filter);
+      return { data: { items: rows.map(serializePriceListEngine) } };
+    },
+  );
+
   app.post(
     '/api/v1/admin/price-lists-engine',
     {
@@ -780,6 +805,11 @@ function serializeCustomerGroup(row: CustomerGroup): Record<string, unknown> {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+function toArray(v: string | string[] | undefined): string[] {
+  if (v === undefined) return [];
+  return Array.isArray(v) ? v : [v];
 }
 
 function serializePriceList(row: PriceList): Record<string, unknown> {

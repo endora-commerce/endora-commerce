@@ -70,6 +70,22 @@ export class PriceListService {
     return this.emFactory().find(PriceList, {}, { orderBy: { priority: 'desc', code: 'asc' } });
   }
 
+  async listEngine(filter: {
+    status?: PriceListStatus[];
+    type?: PriceListType[];
+    search?: string;
+  } = {}): Promise<PriceList[]> {
+    const where: Record<string, unknown> = {};
+    if (filter.status && filter.status.length > 0) where['status'] = { $in: filter.status };
+    if (filter.type && filter.type.length > 0) where['type'] = { $in: filter.type };
+    if (filter.search && filter.search.trim().length > 0) {
+      where['name'] = { $ilike: `%${filter.search.trim()}%` };
+    }
+    return this.emFactory().find(PriceList, where, {
+      orderBy: { isSystem: 'desc', modifiedAt: 'desc', name: 'asc' },
+    });
+  }
+
   async getById(id: string, em?: EntityManager): Promise<PriceList> {
     const ent = em ?? this.emFactory();
     const row = await ent.findOne(PriceList, { id });
