@@ -31,6 +31,7 @@ import { Migration026SearchPhraseRecordsInit } from '../modules/search/migration
 import { Migration027ComparisonsInit } from '../modules/comparisons/migrations/027_comparisons_init.js';
 import { Migration028ProductAttributeIsComparable } from '../modules/catalog/migrations/028_product_attribute_is_comparable.js';
 import { Migration029QuoteRequestsWorkflow } from '../modules/quote_requests/migrations/029_quote_requests_workflow.js';
+import { Migration030InventoryWorkflow } from '../modules/inventory/migrations/030_inventory_workflow.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -126,6 +127,10 @@ export default defineConfig({
       {
         name: 'Migration029QuoteRequestsWorkflow',
         class: Migration029QuoteRequestsWorkflow,
+      },
+      {
+        name: 'Migration030InventoryWorkflow',
+        class: Migration030InventoryWorkflow,
       },
     ],
     transactional: true,

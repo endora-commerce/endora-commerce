@@ -66,6 +66,10 @@ import { QuoteRequestRevision } from '../modules/quote_requests/entities/quote-r
 import { QuoteRequestEvent } from '../modules/quote_requests/entities/quote-request-event.entity.js';
 import { QuoteRequestNotificationEvent } from '../modules/quote_requests/entities/quote-request-notification-event.entity.js';
 import { OrganizationSalesRepAssignment } from '../modules/organizations/entities/organization-sales-rep-assignment.entity.js';
+import { Warehouse } from '../modules/inventory/entities/warehouse.entity.js';
+import { WarehouseChannelAssignment } from '../modules/inventory/entities/warehouse-channel-assignment.entity.js';
+import { InventoryThreshold } from '../modules/inventory/entities/inventory-threshold.entity.js';
+import { StockAllocation } from '../modules/inventory/entities/stock-allocation.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -178,4 +182,9 @@ export const ALL_ENTITIES = [
   QuoteRequestEvent,
   QuoteRequestNotificationEvent,
   OrganizationSalesRepAssignment,
+  // inventory multi-warehouse (feature 010)
+  Warehouse,
+  WarehouseChannelAssignment,
+  InventoryThreshold,
+  StockAllocation,
 ] as const;

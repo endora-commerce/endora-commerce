@@ -38,6 +38,9 @@ export function HomePage(): ReactNode {
     { label: 'Open orders', value: '—' },
     { label: 'Out of stock', value: '—', tone: 'danger' },
   ]);
+  const [stockAlerts, setStockAlerts] = useState<
+    Array<{ productId: string; sku: string; name: string; qty: number; threshold: number }>
+  >([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +65,34 @@ export function HomePage(): ReactNode {
         fetchKpi('/api/v1/admin/orders?status=new', (data: unknown) => {
           const arr = (data as { data?: unknown[] }).data ?? [];
           next[2] = { label: 'Open orders', value: String(arr.length) };
+        }),
+        fetchKpi('/api/v1/admin/inventory', (data: unknown) => {
+          const k = (data as { data?: { outOfStockCount?: number } }).data;
+          if (k?.outOfStockCount !== undefined) {
+            next[3] = { label: 'Out of stock', value: String(k.outOfStockCount), tone: 'danger' };
+          }
+        }),
+        fetchKpi('/api/v1/admin/inventory/low-stock', (data: unknown) => {
+          const items = (data as {
+            items?: Array<{
+              productId: string;
+              productSku: string;
+              productName: string;
+              cumulativeOnHand: number;
+              lowStockThreshold: number;
+            }>;
+          }).items ?? [];
+          if (!cancelled) {
+            setStockAlerts(
+              items.slice(0, 5).map((i) => ({
+                productId: i.productId,
+                sku: i.productSku,
+                name: i.productName,
+                qty: i.cumulativeOnHand,
+                threshold: i.lowStockThreshold,
+              })),
+            );
+          }
         }),
       ]);
       if (!cancelled) setKpis(next);
@@ -177,33 +208,47 @@ export function HomePage(): ReactNode {
             <div className="b2b-card__head">
               <div>
                 <div className="b2b-card__title">Stock alerts</div>
-                <div className="b2b-card__sub">Below safety threshold</div>
+                <div className="b2b-card__sub">At or below low-stock threshold</div>
               </div>
+              <Link to="/inventory/low-stock" className="b2b-btn b2b-btn--ghost b2b-btn--sm">
+                See all
+              </Link>
             </div>
             <div className="b2b-card__body b2b-card__body--flush">
-              <div className="b2b-minilist" style={{ padding: 4 }}>
-                {STOCK_ALERTS.map((alert) => (
-                  <div key={alert.sku} className="b2b-minirow">
-                    <div
-                      className="b2b-thumb"
-                      style={{
-                        width: 28,
-                        height: 28,
-                        background: 'linear-gradient(135deg, #94a3b8cc, #94a3b888)',
-                      }}
-                    />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 500 }}>{alert.name}</div>
-                      <div className="b2b-mono b2b-muted" style={{ fontSize: 10 }}>{alert.sku}</div>
-                    </div>
-                    <span
-                      className={alert.qty === 0 ? 'b2b-badge b2b-badge--danger' : 'b2b-badge b2b-badge--warn'}
+              {stockAlerts.length === 0 ? (
+                <div className="b2b-help" style={{ padding: 16 }}>
+                  No products are currently low on stock.
+                </div>
+              ) : (
+                <div className="b2b-minilist" style={{ padding: 4 }}>
+                  {stockAlerts.map((alert) => (
+                    <Link
+                      key={alert.productId}
+                      to={`/catalog/products/${alert.productId}`}
+                      className="b2b-minirow"
+                      style={{ textDecoration: 'none', color: 'inherit' }}
                     >
-                      {alert.qty === 0 ? 'Out' : `${alert.qty} left`}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                      <div
+                        className="b2b-thumb"
+                        style={{
+                          width: 28,
+                          height: 28,
+                          background: 'linear-gradient(135deg, #94a3b8cc, #94a3b888)',
+                        }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 500 }}>{alert.name}</div>
+                        <div className="b2b-mono b2b-muted" style={{ fontSize: 10 }}>{alert.sku}</div>
+                      </div>
+                      <span
+                        className={alert.qty === 0 ? 'b2b-badge b2b-badge--danger' : 'b2b-badge b2b-badge--warn'}
+                      >
+                        {alert.qty === 0 ? 'Out' : `${alert.qty} left`}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -317,8 +362,3 @@ const ACTIVITY: Array<{ icon: typeof Edit; text: ReactNode; when: string }> = [
   },
 ];
 
-const STOCK_ALERTS = [
-  { sku: 'BOLT-M8-25-A2', name: 'Hex bolt M8×25 A2', qty: 12 },
-  { sku: 'CABLE-LIY-1.0-100', name: 'LiYY 18×1.0', qty: 4 },
-  { sku: 'GASKET-EPDM-DN50', name: 'Gasket EPDM DN50', qty: 0 },
-];

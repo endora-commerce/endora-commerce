@@ -187,6 +187,27 @@ export class CatalogAdminService {
       product.allowedOrganizationIds = req.allowedOrganizationIds;
       changedFields.push('allowedOrganizationIds');
     }
+    // Feature 010 — per-product stock-management flags.
+    if (req.manageStock !== undefined) {
+      product.manageStock = req.manageStock;
+      changedFields.push('manageStock');
+    }
+    if (req.backorderEnabled !== undefined) {
+      product.backorderEnabled = req.backorderEnabled;
+      changedFields.push('backorderEnabled');
+    }
+    if (req.lowStockThreshold !== undefined) {
+      product.lowStockThreshold = req.lowStockThreshold;
+      changedFields.push('lowStockThreshold');
+    }
+    if (req.fulfilmentStrategy !== undefined) {
+      product.fulfilmentStrategy = req.fulfilmentStrategy;
+      changedFields.push('fulfilmentStrategy');
+    }
+    if (req.fulfilmentStrategyWarehouseOrder !== undefined) {
+      product.fulfilmentStrategyWarehouseOrder = req.fulfilmentStrategyWarehouseOrder;
+      changedFields.push('fulfilmentStrategyWarehouseOrder');
+    }
     await em.flush();
 
     if (this.auditLog && auditCtx) {

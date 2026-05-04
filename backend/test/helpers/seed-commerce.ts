@@ -82,6 +82,7 @@ export async function seedUs2Commerce(em: EntityManager): Promise<void> {
 
   const stock = em.create(StockLevel, {
     productId: SEED_PRODUCT_101_ID,
+    warehouseId: '00000000-0000-4000-8000-00000000d017',
     onHand: 100,
     reserved: 0,
   });

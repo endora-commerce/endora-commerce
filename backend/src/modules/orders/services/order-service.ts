@@ -135,30 +135,189 @@ export class OrderService {
         throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'Payment method is not active.');
       }
 
-      // Reserve stock — PESSIMISTIC_WRITE lock serialises concurrent placers.
-      // Using the EM here (rather than getConnection().execute) is critical:
-      // it ensures the SELECT FOR UPDATE participates in the transaction held
-      // by `tx`. The raw connection layer is not transaction-aware in v6.
+      // Reserve stock — feature 010 / US7 strategy-driven multi-warehouse
+      // allocation (T079). Replaces the foundation 001 single-bucket
+      // reserve.
+      //
+      // Pipeline per line:
+      //   1. Resolve effective fulfilment strategy: product override
+      //      (`product.fulfilmentStrategy`) wins over the global
+      //      default. The global default falls back to `default_first`
+      //      when no SettingsService is wired (kept dependency-light).
+      //   2. Snapshot `available = onHand - reserved` for every
+      //      candidate warehouse for the channel under PESSIMISTIC_WRITE
+      //      so concurrent placers can't double-allocate.
+      //   3. Run `FulfilmentStrategyResolver.resolveAllocations(...)`.
+      //   4. If `ok=false`, raise 409 STOCK_UNAVAILABLE unless the
+      //      product allows backorder.
+      //   5. Increment `reserved` per allocation and stash the plan;
+      //      `stock_allocations` rows are written after order items
+      //      are persisted (StockAllocation FK = order_items.id).
       const { StockLevel } = await import('../../inventory/entities/stock-level.entity.js');
+      const { DEFAULT_WAREHOUSE_ID } = await import('../../inventory/entities/warehouse.entity.js');
+      const { resolveAllocations } = await import(
+        '../../inventory/services/fulfilment-strategy-resolver.js'
+      );
+
+      const channelForStock = await tx.findOne(SalesChannel, { status: 'active' });
+      const knexForStock = tx.getKnex();
+
+      // Candidate warehouses for the channel — joined with the warehouses
+      // table so we can carry the code (used by lex tie-breaks in the
+      // resolver) and the isDefault flag.
+      const candidateRows = channelForStock
+        ? ((await knexForStock('warehouse_channel_assignments as a')
+            .join('warehouses as w', 'w.id', 'a.warehouse_id')
+            .where('a.sales_channel_id', channelForStock.id)
+            .where('w.active', true)
+            .orderBy('a.is_default', 'desc')
+            .orderBy('a.sort_order', 'asc')
+            .orderBy('a.created_at', 'asc')
+            .select(
+              'a.warehouse_id',
+              'w.code as warehouse_code',
+              'a.is_default',
+            )) as Array<{
+            warehouse_id: string;
+            warehouse_code: string;
+            is_default: boolean;
+          }>)
+        : [];
+      const candidateWarehouseIds = candidateRows.map((r) => r.warehouse_id);
+      // Fallback when the channel has no warehouses bound — the
+      // boot-time WarehouseChannelReconciler keeps this case from
+      // happening in production but we keep a safe path for tests
+      // and seed-skipped environments.
+      const fallbackWarehouseIds =
+        candidateWarehouseIds.length === 0 ? [DEFAULT_WAREHOUSE_ID] : candidateWarehouseIds;
+
+      // Load product flags + strategy overrides.
+      const orderProductIds = Array.from(new Set(items.map((i) => i.productId)));
+      const orderProducts = orderProductIds.length
+        ? await tx.find(Product, { id: { $in: orderProductIds } })
+        : [];
+      const productFlagsById = new Map(
+        orderProducts.map((p) => [
+          p.id,
+          {
+            manageStock: p.manageStock ?? true,
+            backorderEnabled: p.backorderEnabled ?? false,
+            fulfilmentStrategy: p.fulfilmentStrategy ?? null,
+            fulfilmentStrategyWarehouseOrder: p.fulfilmentStrategyWarehouseOrder ?? null,
+          },
+        ]),
+      );
+
+      // Allocation plan — one entry per item index, lining up with the
+      // OrderItems array we'll create later. `null` means the item is
+      // unmanaged and skips the stock_allocations write entirely.
+      const allocationPlan: Array<
+        | null
+        | Array<{ warehouseId: string; quantity: number; isBackorder: boolean }>
+      > = [];
+
       for (const item of items) {
-        const stock = await tx.findOne(
-          StockLevel,
-          { productId: item.productId, variantId: item.variantId ?? null },
-          { lockMode: LockMode.PESSIMISTIC_WRITE },
-        );
-        if (stock) {
-          const available = stock.onHand - stock.reserved;
-          if (available < item.quantity) {
-            throw new HttpError(
-              409,
-              ERROR_CODES.STOCK_UNAVAILABLE,
-              `Insufficient stock for product ${item.productId}.`,
-            );
-          }
-          stock.reserved += item.quantity;
+        const flags = productFlagsById.get(item.productId);
+        if (flags && !flags.manageStock) {
+          // FR-022 — unmanaged stock: never reserve, never reject.
+          allocationPlan.push(null);
+          continue;
         }
-        // No StockLevel row → the product uses categorical stock mode or is not tracked.
-        // That's fine: skip reservation.
+
+        // Snapshot per-candidate availability under a write lock. We
+        // load each (product, variant, warehouse) row individually so
+        // the lock is fine-grained.
+        const candidates: Array<{
+          warehouseId: string;
+          warehouseCode: string;
+          isDefault: boolean;
+          available: number;
+          stockRow: typeof StockLevel.prototype | null;
+        }> = [];
+        for (const row of candidateRows.length > 0
+          ? candidateRows
+          : fallbackWarehouseIds.map((id) => ({
+              warehouse_id: id,
+              warehouse_code: id === DEFAULT_WAREHOUSE_ID ? 'default' : id,
+              is_default: id === DEFAULT_WAREHOUSE_ID,
+            }))) {
+          const stock = await tx.findOne(
+            StockLevel,
+            {
+              productId: item.productId,
+              variantId: item.variantId ?? null,
+              warehouseId: row.warehouse_id,
+            },
+            { lockMode: LockMode.PESSIMISTIC_WRITE },
+          );
+          candidates.push({
+            warehouseId: row.warehouse_id,
+            warehouseCode: row.warehouse_code,
+            isDefault: row.is_default,
+            available: stock ? stock.onHand - stock.reserved : 0,
+            stockRow: stock,
+          });
+        }
+
+        const strategy = (flags?.fulfilmentStrategy ?? 'default_first') as
+          | 'any'
+          | 'default_first'
+          | 'lowest_stock_first'
+          | 'highest_stock_first'
+          | 'defined_order';
+        const warehouseOrder = flags?.fulfilmentStrategyWarehouseOrder ?? [];
+
+        const outcome = resolveAllocations({
+          quantity: item.quantity,
+          candidateWarehouses: candidates.map((c) => ({
+            warehouseId: c.warehouseId,
+            warehouseCode: c.warehouseCode,
+            available: c.available,
+            isDefault: c.isDefault,
+          })),
+          strategy,
+          warehouseOrder,
+          backorderEnabled: flags?.backorderEnabled ?? false,
+        });
+
+        if (!outcome.ok) {
+          throw new HttpError(
+            409,
+            ERROR_CODES.STOCK_UNAVAILABLE,
+            `Insufficient stock for product ${item.productId}.`,
+          );
+        }
+
+        // Apply the plan: increment reserved per warehouse. If a row
+        // didn't exist, create it inline so the reserved counter has
+        // somewhere to live (still no on-hand).
+        const allocationsForLine: Array<{
+          warehouseId: string;
+          quantity: number;
+          isBackorder: boolean;
+        }> = [];
+        for (const allocation of outcome.allocations) {
+          const candidate = candidates.find((c) => c.warehouseId === allocation.warehouseId);
+          if (!candidate) continue;
+          if (candidate.stockRow) {
+            candidate.stockRow.reserved += allocation.quantity;
+          } else {
+            const fresh = tx.create(StockLevel, {
+              productId: item.productId,
+              ...(item.variantId ? { variantId: item.variantId } : {}),
+              warehouseId: candidate.warehouseId,
+              onHand: 0,
+              reserved: allocation.quantity,
+            });
+            tx.persist(fresh);
+          }
+          allocationsForLine.push({
+            warehouseId: allocation.warehouseId,
+            quantity: allocation.quantity,
+            isBackorder: allocation.isBackorder,
+          });
+        }
+        allocationPlan.push(allocationsForLine);
       }
 
       const productIds = items.map((i) => i.productId);
@@ -238,6 +397,31 @@ export class OrderService {
         });
       });
       await tx.persistAndFlush(orderItems);
+
+      // US7 / T079 — persist one stock_allocations row per
+      // (orderItem, warehouse) pair from the strategy resolver's plan
+      // so admins can trace fulfilment provenance and cancellation
+      // releases reservations cleanly. Splits a single line across
+      // warehouses when the plan emits multiple allocations (only the
+      // `default_first` strategy does this today).
+      const { StockAllocation } = await import(
+        '../../inventory/entities/stock-allocation.entity.js'
+      );
+      for (let i = 0; i < orderItems.length; i++) {
+        const plan = allocationPlan[i];
+        if (!plan) continue;
+        const oi = orderItems[i]!;
+        for (const allocation of plan) {
+          const row = tx.create(StockAllocation, {
+            orderItemId: oi.id,
+            warehouseId: allocation.warehouseId,
+            quantity: allocation.quantity,
+            isBackorder: allocation.isBackorder,
+          });
+          tx.persist(row);
+        }
+      }
+      await tx.flush();
 
       const payment = tx.create(Payment, {
         orderId: order.id,
@@ -394,14 +578,72 @@ export class OrderService {
       from,
       to,
     });
-    // Cancellation releases the credit-limit reservation (T211).
-    if (to === 'cancelled' && this.creditLimit) {
-      await this.creditLimit.releaseByOrder({
-        orderId: order.id,
-        reason: 'order_cancelled',
-      });
+    // Cancellation releases the credit-limit reservation (T211)
+    // and the per-warehouse stock allocations (US7 / T080).
+    if (to === 'cancelled') {
+      if (this.creditLimit) {
+        await this.creditLimit.releaseByOrder({
+          orderId: order.id,
+          reason: 'order_cancelled',
+        });
+      }
+      await this.releaseAllocations(order.id);
     }
     return order;
+  }
+
+  /**
+   * US7 / T080 — release every stock_allocations row tied to the order
+   * (decrementing each affected stock_levels.reserved counter) and
+   * stamp `released_at`. Idempotent — re-running this on a cancelled
+   * order is a no-op because already-released rows are filtered out
+   * by the `released_at IS NULL` predicate.
+   */
+  async releaseAllocations(orderId: string): Promise<{ released: number }> {
+    const em = this.emFactory();
+    return em.transactional(async (tx) => {
+      const knex = tx.getKnex();
+      const itemRows = await knex('order_items')
+        .where('order_id', orderId)
+        .select<Array<{ id: string; product_id: string; variant_id: string | null; quantity: number }>>(
+          'id',
+          'product_id',
+          'variant_id',
+          'quantity',
+        );
+      if (itemRows.length === 0) return { released: 0 };
+
+      const { StockAllocation } = await import(
+        '../../inventory/entities/stock-allocation.entity.js'
+      );
+      const { StockLevel } = await import(
+        '../../inventory/entities/stock-level.entity.js'
+      );
+
+      const allocations = await tx.find(StockAllocation, {
+        orderItemId: { $in: itemRows.map((r) => r.id) },
+        releasedAt: null,
+      });
+      if (allocations.length === 0) return { released: 0 };
+
+      const itemById = new Map(itemRows.map((r) => [r.id, r]));
+      const now = new Date();
+      for (const a of allocations) {
+        const item = itemById.get(a.orderItemId);
+        if (!item) continue;
+        const stock = await tx.findOne(StockLevel, {
+          productId: item.product_id,
+          variantId: item.variant_id ?? null,
+          warehouseId: a.warehouseId,
+        });
+        if (stock) {
+          stock.reserved = Math.max(0, stock.reserved - a.quantity);
+        }
+        a.releasedAt = now;
+      }
+      await tx.flush();
+      return { released: allocations.length };
+    });
   }
 
   /** Admin payment-status transition (T210 + T149). */

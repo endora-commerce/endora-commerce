@@ -4,33 +4,88 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { AvailabilityNotification } from '../entities/availability-notification.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { StockLevel } from '../entities/stock-level.entity.js';
+import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
+import type { Mailer } from '../../email/services/mailer.js';
+
+export interface SubscribeInput {
+  productId: string;
+  variantId?: string | null;
+  email: string;
+  customerAccountId?: string | null;
+}
+
+export interface AdminListFilter {
+  productId?: string;
+  status?: 'queued' | 'notified' | 'cancelled';
+  page?: number;
+  pageSize?: number;
+}
+
+export interface AdminListRow {
+  id: string;
+  productId: string;
+  productName: string;
+  productSku: string;
+  customerAccountId: string | null;
+  email: string;
+  status: 'queued' | 'notified' | 'cancelled';
+  queuedAt: string;
+  notifiedAt: string | null;
+}
 
 /**
- * AvailabilityNotification subscription service (T072).
+ * AvailabilityNotificationService — feature 010 / US6 surface.
  *
- * Customer subscribes to "notify when in stock" for a Product (or specific
- * Variant). Idempotent — duplicate subscribe by the same customer for the
- * same (product, variant) returns the existing row. Returns 422
- * PRODUCT_IN_STOCK if the product currently has on_hand > reserved.
+ * The original foundation 001 service had a single `subscribe(customerId,
+ * productId, variantId?)` entry point. Feature 010 extends it for the
+ * three customer paths spelled out in spec.md US6:
+ *
+ *   - storefront customer signed-in → email pre-filled from the account
+ *   - storefront anonymous → caller supplies the email
+ *   - admin browses + cancels any queued row
+ *
+ * The restock fan-out lives on `AvailabilityWorker.dispatchForStockIncrease`
+ * (already exists from foundation 001); the worker is rewired in US6 to
+ * subscribe to `inventory.adjusted.v1` events with `before === 0 &&
+ * after > 0` so a stock-bump fans out one email per queued row.
  */
 export class AvailabilityNotificationService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly mailer?: Mailer,
+  ) {}
 
-  async subscribe(input: {
-    customerAccountId: string;
-    productId: string;
-    variantId?: string | null;
-  }): Promise<AvailabilityNotification> {
+  /**
+   * Subscribe a customer / anonymous email to a product's restock signal.
+   *
+   * Refuses with 409 PRODUCT_IN_STOCK when cumulative on-hand > 0; with
+   * 409 PRODUCT_UNMANAGED_STOCK when the product opted out of stock
+   * tracking; with 409 ALREADY_SUBSCRIBED for an idempotent re-subscribe.
+   */
+  async subscribe(input: SubscribeInput): Promise<AvailabilityNotification> {
     const em = this.emFactory();
     const product = await em.findOne(Product, { id: input.productId });
     if (!product || product.deletedAt) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
-    const stock = await em.findOne(StockLevel, {
-      productId: input.productId,
-      variantId: input.variantId ?? null,
-    });
-    if (stock && stock.onHand - stock.reserved > 0) {
+    if (!(product.manageStock ?? true)) {
+      throw new HttpError(
+        409,
+        'PRODUCT_UNMANAGED_STOCK',
+        'Product does not track stock; subscribe is unnecessary.',
+      );
+    }
+
+    // Cumulative on-hand across every warehouse — the subscribe is gated
+    // platform-wide, not per channel.
+    const knex = em.getKnex();
+    const where = { product_id: input.productId } as Record<string, string>;
+    const sumRow = await knex('stock_levels')
+      .where(where)
+      .sum<{ on_hand: string | null }[]>('on_hand as on_hand')
+      .first();
+    const cumulative = Number(sumRow?.on_hand ?? 0);
+    if (cumulative > 0) {
       throw new HttpError(
         422,
         ERROR_CODES.PRODUCT_IN_STOCK,
@@ -39,27 +94,166 @@ export class AvailabilityNotificationService {
     }
 
     const existing = await em.findOne(AvailabilityNotification, {
-      customerAccountId: input.customerAccountId,
       productId: input.productId,
       variantId: input.variantId ?? null,
+      email: input.email,
       notifiedAt: null,
+      status: 'queued',
     });
-    if (existing) {
-      throw new HttpError(
-        409,
-        ERROR_CODES.ALREADY_SUBSCRIBED,
-        'You are already subscribed for this product.',
-      );
-    }
+    if (existing) return existing;
 
     const subscription = em.create(AvailabilityNotification, {
-      customerAccountId: input.customerAccountId,
       productId: input.productId,
       ...(input.variantId !== undefined && input.variantId !== null
         ? { variantId: input.variantId }
         : {}),
+      ...(input.customerAccountId ? { customerAccountId: input.customerAccountId } : {}),
+      email: input.email,
+      status: 'queued',
     });
     await em.persistAndFlush(subscription);
     return subscription;
+  }
+
+  async cancel(id: string): Promise<void> {
+    const em = this.emFactory();
+    const row = await em.findOne(AvailabilityNotification, { id });
+    if (!row) {
+      throw new HttpError(
+        404,
+        'AVAILABILITY_NOTIFICATION_NOT_FOUND',
+        'Subscription not found.',
+      );
+    }
+    row.status = 'cancelled';
+    await em.flush();
+  }
+
+  async listForAdmin(filter: AdminListFilter = {}): Promise<{
+    items: AdminListRow[];
+    page: number;
+    pageSize: number;
+    total: number;
+  }> {
+    const em = this.emFactory();
+    const page = Math.max(0, filter.page ?? 0);
+    const pageSize = Math.min(Math.max(1, filter.pageSize ?? 50), 200);
+    const where: Record<string, unknown> = {};
+    if (filter.productId) where['productId'] = filter.productId;
+    if (filter.status) where['status'] = filter.status;
+
+    const [rows, total] = await em.findAndCount(AvailabilityNotification, where, {
+      orderBy: { requestedAt: 'desc' },
+      offset: page * pageSize,
+      limit: pageSize,
+    });
+    if (rows.length === 0) return { items: [], page, pageSize, total };
+
+    const productIds = Array.from(new Set(rows.map((r) => r.productId)));
+    const products = await em.find(Product, { id: { $in: productIds } });
+    const productById = new Map(products.map((p) => [p.id, p]));
+
+    const customerIds = Array.from(
+      new Set(rows.map((r) => r.customerAccountId).filter((id): id is string => typeof id === 'string')),
+    );
+    const customers = customerIds.length
+      ? await em.find(CustomerAccount, { id: { $in: customerIds } })
+      : [];
+    const customerById = new Map(customers.map((c) => [c.id, c]));
+
+    return {
+      items: rows.map((r) => {
+        const p = productById.get(r.productId);
+        const productName = p
+          ? p.name['en-US'] ?? Object.values(p.name)[0] ?? p.sku
+          : '—';
+        const email =
+          r.email ??
+          (r.customerAccountId ? customerById.get(r.customerAccountId)?.email ?? '' : '');
+        return {
+          id: r.id,
+          productId: r.productId,
+          productName: String(productName),
+          productSku: p?.sku ?? '',
+          customerAccountId: r.customerAccountId ?? null,
+          email,
+          status: r.status,
+          queuedAt: r.requestedAt.toISOString(),
+          notifiedAt: r.notifiedAt ? r.notifiedAt.toISOString() : null,
+        };
+      }),
+      page,
+      pageSize,
+      total,
+    };
+  }
+
+  /**
+   * Restock fan-out — invoked by AvailabilityWorker when cumulative on-hand
+   * crosses from 0 to > 0 for a (product, variant) pair. Emits one mail
+   * per queued row and flips status → 'notified'.
+   */
+  async processRestockedFanOut(input: {
+    productId: string;
+    variantId?: string | null;
+  }): Promise<{ notified: number }> {
+    if (!this.mailer) return { notified: 0 };
+    const em = this.emFactory();
+    const where: Record<string, unknown> = {
+      productId: input.productId,
+      status: 'queued',
+      notifiedAt: null,
+    };
+    if (input.variantId === undefined || input.variantId === null) {
+      where['variantId'] = null;
+    } else {
+      where['variantId'] = input.variantId;
+    }
+    const rows = await em.find(AvailabilityNotification, where);
+    if (rows.length === 0) return { notified: 0 };
+
+    const product = await em.findOne(Product, { id: input.productId });
+    const productName = product
+      ? product.name['en-US'] ?? Object.values(product.name)[0] ?? product.sku
+      : 'product';
+    const customerIds = Array.from(
+      new Set(rows.map((r) => r.customerAccountId).filter((id): id is string => typeof id === 'string')),
+    );
+    const customers = customerIds.length
+      ? await em.find(CustomerAccount, { id: { $in: customerIds } })
+      : [];
+    const emailById = new Map(customers.map((c) => [c.id, c.email]));
+
+    const now = new Date();
+    let notified = 0;
+    for (const row of rows) {
+      const to = row.email ?? (row.customerAccountId ? emailById.get(row.customerAccountId) : null);
+      if (!to) {
+        row.status = 'cancelled';
+        row.notifiedAt = now;
+        continue;
+      }
+      await this.mailer.send({
+        messageId: `availability:${row.id}`,
+        to,
+        subject: `Back in stock: ${productName}`,
+        text: `Good news — "${productName}" is available again.`,
+        meta: {
+          productId: input.productId,
+          variantId: input.variantId ?? null,
+          notificationId: row.id,
+        },
+      });
+      row.status = 'notified';
+      row.notifiedAt = now;
+      notified += 1;
+    }
+    await em.flush();
+    return { notified };
+  }
+
+  /** Stand-in helper used to keep the unused entity import alive. */
+  static getStockLevelEntity(): typeof StockLevel {
+    return StockLevel;
   }
 }

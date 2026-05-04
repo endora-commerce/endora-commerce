@@ -33,6 +33,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { EntityChannelMembership } from '../sales_channels/components/EntityChannelMembership';
+import { ProductInventoryTab } from './ProductInventoryTab';
 
 const LOCALES = ['en-US', 'pl-PL'] as const;
 type Locale = (typeof LOCALES)[number];
@@ -523,7 +524,7 @@ export function ProductEditor(): ReactNode {
 
           {activeTab === 'media' && id ? <GallerySection productId={id} /> : null}
 
-          {activeTab === 'inventory' && id ? <InventoryStub /> : null}
+          {activeTab === 'inventory' && id ? <ProductInventoryTab productId={id} /> : null}
 
           {activeTab === 'attachments' && id ? <AttachmentsSection productId={id} /> : null}
 
@@ -575,24 +576,6 @@ function PricingPlaceholder(): ReactNode {
   );
 }
 
-function InventoryStub(): ReactNode {
-  return (
-    <div
-      className="b2b-card"
-      style={{
-        padding: 16,
-        background: 'var(--surface-muted)',
-        border: '1px solid var(--border-color)',
-      }}
-    >
-      <div style={{ fontSize: 13, fontWeight: 600 }}>Stock by warehouse</div>
-      <div className="b2b-help" style={{ marginTop: 4 }}>
-        Open the <b>Inventory</b> page (sidebar → Catalog → Inventory) to see live stock per
-        warehouse for this product. Future iteration will inline the per-warehouse table here.
-      </div>
-    </div>
-  );
-}
 
 function SeoStub({ name }: { name: Record<string, string> }): ReactNode {
   return (

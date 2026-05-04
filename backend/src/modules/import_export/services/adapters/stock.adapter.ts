@@ -43,7 +43,15 @@ export const stockAdapter: ImportExportAdapter = {
 
     const variantId = row['variant_id']?.trim() || null;
 
-    const where: Record<string, unknown> = { productId: product.id };
+    // Backward-compat path: foundation 001 importer does not carry a
+    // warehouseId; default to the seeded `Default` warehouse so the
+    // legacy import keeps working until US7 ships its own warehouse-
+    // scoped importer.
+    const DEFAULT_WAREHOUSE_ID = '00000000-0000-4000-8000-00000000d017';
+    const where: Record<string, unknown> = {
+      productId: product.id,
+      warehouseId: DEFAULT_WAREHOUSE_ID,
+    };
     if (variantId) where['variantId'] = variantId;
     else where['variantId'] = null;
 
@@ -55,6 +63,7 @@ export const stockAdapter: ImportExportAdapter = {
     em.create(StockLevel, {
       productId: product.id,
       ...(variantId ? { variantId } : {}),
+      warehouseId: DEFAULT_WAREHOUSE_ID,
       onHand,
     });
     return { ok: true };

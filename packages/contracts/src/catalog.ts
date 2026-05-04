@@ -370,6 +370,24 @@ const baseProductRequestObject = z.object({
    */
   downloadAssetId: uuidSchema.nullable().optional(),
   downloadUrl: z.string().url().max(2048).nullable().optional(),
+  /**
+   * Feature 010 — per-product stock-management flags.
+   * `manageStock=false` ⇒ storefront treats the product as always available.
+   * `backorderEnabled=true` ⇒ zero-stock checkout is accepted with the
+   * resulting allocation flagged `is_backorder = true`.
+   * `lowStockThreshold` is the cumulative on-hand at-or-below which an
+   * email alert fires. `fulfilmentStrategy` overrides the global strategy
+   * for this product; `fulfilmentStrategyWarehouseOrder` carries the walk
+   * order used when the strategy is `defined_order`.
+   */
+  manageStock: z.boolean().optional(),
+  backorderEnabled: z.boolean().optional(),
+  lowStockThreshold: z.number().int().nonnegative().nullable().optional(),
+  fulfilmentStrategy: z
+    .enum(['any', 'default_first', 'lowest_stock_first', 'highest_stock_first', 'defined_order'])
+    .nullable()
+    .optional(),
+  fulfilmentStrategyWarehouseOrder: z.array(uuidSchema).nullable().optional(),
 });
 
 export const createProductRequestSchema = baseProductRequestObject.refine(

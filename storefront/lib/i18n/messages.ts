@@ -23,6 +23,18 @@ type MessageKey =
   | 'product.requestQuote'
   | 'product.addToCart'
   | 'product.inStock'
+  | 'product.stockBand.high'
+  | 'product.stockBand.medium'
+  | 'product.stockBand.low'
+  | 'product.notify.cta'
+  | 'product.notify.dialogTitle'
+  | 'product.notify.emailLabel'
+  | 'product.notify.submit'
+  | 'product.notify.submitting'
+  | 'product.notify.success'
+  | 'product.notify.errorGeneric'
+  | 'product.notify.cancel'
+  | 'product.backorder.hint'
   | 'product.variants.heading'
   | 'product.variants.sku'
   | 'product.variants.priceOverride'
@@ -58,6 +70,18 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'product.requestQuote': 'Request a quote',
     'product.addToCart': 'Add to cart',
     'product.inStock': 'In stock',
+    'product.stockBand.high': 'In stock — plenty',
+    'product.stockBand.medium': 'In stock',
+    'product.stockBand.low': 'Low stock',
+    'product.notify.cta': 'Notify when available',
+    'product.notify.dialogTitle': 'Get notified when this product is back in stock',
+    'product.notify.emailLabel': 'Email address',
+    'product.notify.submit': 'Notify me',
+    'product.notify.submitting': 'Subscribing…',
+    'product.notify.success': 'You will get an email as soon as this product is back in stock.',
+    'product.notify.errorGeneric': 'Could not subscribe — please try again.',
+    'product.notify.cancel': 'Cancel',
+    'product.backorder.hint': 'Currently out of stock — backorder available, dispatched as soon as the next batch arrives.',
     'product.variants.heading': 'Variants',
     'product.variants.sku': 'SKU',
     'product.variants.priceOverride': 'Price',
@@ -92,6 +116,18 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'product.requestQuote': 'Zapytaj o oferte',
     'product.addToCart': 'Dodaj do koszyka',
     'product.inStock': 'Dostepny',
+    'product.stockBand.high': 'Duzo w magazynie',
+    'product.stockBand.medium': 'Sredni stan',
+    'product.stockBand.low': 'Malo na stanie',
+    'product.notify.cta': 'Powiadom o dostepnosci',
+    'product.notify.dialogTitle': 'Powiadomimy Cie, gdy produkt znow bedzie dostepny',
+    'product.notify.emailLabel': 'Adres e-mail',
+    'product.notify.submit': 'Powiadom mnie',
+    'product.notify.submitting': 'Zapisywanie…',
+    'product.notify.success': 'Wyslemy e-mail gdy produkt bedzie ponownie dostepny.',
+    'product.notify.errorGeneric': 'Nie udalo sie zapisac — sprobuj ponownie.',
+    'product.notify.cancel': 'Anuluj',
+    'product.backorder.hint': 'Aktualnie brak na stanie — produkt mozna zamowic, wysylka po dotarciu kolejnej dostawy.',
     'product.variants.heading': 'Warianty',
     'product.variants.sku': 'Kod',
     'product.variants.priceOverride': 'Cena',

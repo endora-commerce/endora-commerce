@@ -44,6 +44,8 @@ import { searchManifest } from './modules/search/manifest.js';
 import { comparisonsModule } from './modules/comparisons/plugin.js';
 import { comparisonsManifest } from './modules/comparisons/manifest.js';
 import { quoteRequestsManifest, QUOTE_REQUESTS_SETTING_CODES } from './modules/quote_requests/manifest.js';
+import { inventoryManifest } from './modules/inventory/manifest.js';
+import { WarehouseChannelReconciler } from './modules/inventory/services/warehouse-channel-reconciler.js';
 import { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
 import type { CartService } from './modules/carts/services/cart-service.js';
@@ -194,6 +196,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   if (salesChannelsReconciliation.action === 'warning' && salesChannelsReconciliation.warning) {
     console.warn(salesChannelsReconciliation.warning);
   }
+
+  // Feature 010 — pair every active sales channel with a warehouse. Migration
+  // 030 seeds the Default warehouse and tries to bind it to each channel, but
+  // the seed runs BEFORE DefaultChannelReconciler creates the system channel
+  // at boot. This reconciler catches up at runtime so US3 (channel→warehouse)
+  // never sees a channel without at least one (default) assignment.
+  await new WarehouseChannelReconciler(em()).run();
   const salesChannels = salesChannelsModule({
     emFactory: em,
     eventBus,
@@ -221,6 +230,21 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     requireAdmin,
     salesChannelMembership: salesChannels.handle.membershipService,
+  });
+
+  // Settings module is constructed up here (rather than further down) so its
+  // SettingsService handle can be threaded into inventory + search at module
+  // construction time. The plugin itself is still pushed onto `modules` below.
+  const settings = settingsModule({
+    emFactory: em,
+    eventBus,
+    auditLogService,
+    requireAdmin,
+    redis,
+    resolveAdminAuditContext: (request) => {
+      if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
+      return { actorAdminUserId: request.actor.adminUserId };
+    },
   });
 
   let cartService: CartService | null = null;
@@ -331,6 +355,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireCustomer,
       resolveCustomerContext: customerResolver,
       requireAdmin,
+      eventBus,
+      channelResolver: salesChannels.handle.resolver,
+      settingsService: settings.handle.settingsService,
     }),
   ];
 
@@ -340,21 +367,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // service; here we only push the plugin into the routes array.
   modules.push(salesChannels.plugin);
 
-  // Feature 004 — Settings module. Routes (US2) live behind requireAdmin; the
-  // universal getter (US3) is exposed via `settings.handle.settingsService`
-  // for other modules to consume. The boot-time reconciler runs below before
-  // HTTP comes up.
-  const settings = settingsModule({
-    emFactory: em,
-    eventBus,
-    auditLogService,
-    requireAdmin,
-    redis,
-    resolveAdminAuditContext: (request) => {
-      if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
-      return { actorAdminUserId: request.actor.adminUserId };
-    },
-  });
+  // Feature 004 — Settings module. The plugin is pushed here; the
+  // service handle was constructed up at the inventory site so other
+  // modules can read it at construction time. The boot-time reconciler
+  // runs below before HTTP comes up.
   modules.push(settings.plugin);
 
   // Feature 006 — Search module. Owns Meilisearch indexer + event-subscriber
@@ -483,6 +499,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     searchManifest,
     comparisonsManifest,
     quoteRequestsManifest,
+    inventoryManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();

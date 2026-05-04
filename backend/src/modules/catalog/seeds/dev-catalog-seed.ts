@@ -35,6 +35,10 @@ import { PriceList } from '../../price_lists/entities/price-list.entity.js';
 import { PriceListItem } from '../../price_lists/entities/price-list-item.entity.js';
 import { PriceListAssignment } from '../../price_lists/entities/price-list-assignment.entity.js';
 import { hashPassword } from '../../auth/services/password-hasher.js';
+import { Warehouse, DEFAULT_WAREHOUSE_ID } from '../../inventory/entities/warehouse.entity.js';
+import { WarehouseChannelAssignment } from '../../inventory/entities/warehouse-channel-assignment.entity.js';
+import { StockLevel } from '../../inventory/entities/stock-level.entity.js';
+import { WarehouseChannelReconciler } from '../../inventory/services/warehouse-channel-reconciler.js';
 
 const DEMO_ADMIN_EMAIL = 'admin@demo.local';
 const DEMO_ADMIN_PASSWORD = 'ChangeMe!123';
@@ -563,6 +567,76 @@ async function main(): Promise<void> {
   });
   await em.flush();
 
+  // --- Feature 010 — multi-warehouse demo data (T085) ----------------
+  // Add a second warehouse `Magazyn Kraków` and spread stock between it
+  // and the seeded `default` warehouse so the inventory landing,
+  // per-product roster, and channel-binding panels all have real data
+  // to render. The existing channels keep `default` as their default
+  // warehouse (the boot-time WarehouseChannelReconciler handled that)
+  // and gain a second non-default assignment for `Magazyn Kraków`.
+  const krakowWarehouseId = '00000000-0000-4000-8000-00000000d0c0';
+  let krakow = await em.findOne(Warehouse, { id: krakowWarehouseId });
+  if (!krakow) {
+    krakow = em.create(Warehouse, {
+      id: krakowWarehouseId,
+      name: 'Magazyn Kraków',
+      code: 'pl-krk',
+      active: true,
+      description: 'Demo secondary warehouse — Kraków, PL',
+    });
+    em.persist(krakow);
+    await em.flush();
+  }
+
+  // Seed runs BEFORE the backend boots, so the WarehouseChannelReconciler
+  // (which fires at boot, after DefaultChannelReconciler) hasn't yet
+  // paired channels with the Default warehouse. Run it inline so the
+  // dev DB lands fully wired and admins don't need a server bounce.
+  await new WarehouseChannelReconciler(em.fork()).run();
+
+  const channelsForBinding = await em.find(SalesChannel, {});
+  for (const ch of channelsForBinding) {
+    const existing = await em.findOne(WarehouseChannelAssignment, {
+      warehouseId: krakowWarehouseId,
+      salesChannelId: ch.id,
+    });
+    if (!existing) {
+      const row = em.create(WarehouseChannelAssignment, {
+        warehouseId: krakowWarehouseId,
+        salesChannelId: ch.id,
+        isDefault: false,
+        sortOrder: 1,
+      });
+      em.persist(row);
+    }
+  }
+  await em.flush();
+
+  // Distribute stock for the seeded products: 60% in default, 40% in
+  // Magazyn Kraków. Skip products that already have stock rows so a
+  // re-run of the seed doesn't double-up.
+  const productsForStock = await em.find(Product, {});
+  let stockRowsCreated = 0;
+  for (const p of productsForStock) {
+    const existing = await em.find(StockLevel, { productId: p.id });
+    if (existing.length > 0) continue;
+    const baseQty = 50 + ((parseInt(p.id.replace(/-/g, '').slice(0, 8), 16) % 200));
+    const defaultQty = Math.floor(baseQty * 0.6);
+    const krakowQty = baseQty - defaultQty;
+    em.persist(em.create(StockLevel, {
+      productId: p.id,
+      warehouseId: DEFAULT_WAREHOUSE_ID,
+      onHand: defaultQty,
+    }));
+    em.persist(em.create(StockLevel, {
+      productId: p.id,
+      warehouseId: krakowWarehouseId,
+      onHand: krakowQty,
+    }));
+    stockRowsCreated += 2;
+  }
+  if (stockRowsCreated > 0) await em.flush();
+
   // --- Polish VAT Tax (T166) ------------------------------------------
   em.create(Tax, {
     code: 'pl_vat_23',
@@ -582,6 +656,7 @@ async function main(): Promise<void> {
   console.log(`Products       : ${PRODUCT_COUNT}`);
   console.log(`Categories     : ${1 + sections.length + leaves.length} nodes`);
   console.log(`Sales Channels : pl_retail (public), pl_b2b_vip (logged-in only)`);
+  console.log(`Warehouses     : default (system), pl-krk (Magazyn Kraków)`);
   console.log(`Price Lists    : default_pln (${PRODUCT_COUNT} items, default)`);
   console.log(`Taxes          : pl_vat_23 (23% on PL, default)`);
   console.log(`Delivery       : in_person_pickup (free)`);

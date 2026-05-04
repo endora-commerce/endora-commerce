@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import type { ProductSummary } from '@b2b/contracts';
+import type { ProductSummary, StorefrontProductStock } from '@b2b/contracts';
 import { tForLocale } from '../lib/i18n/messages';
 import { CompareToggle } from './CompareToggle';
 
@@ -15,8 +15,11 @@ import { CompareToggle } from './CompareToggle';
 export function ProductCard(props: {
   product: ProductSummary;
   locale: string;
+  /** Optional feature-010 storefront-public stock payload — when
+   *  present it overrides the foundation `stockLevel` projection. */
+  stock?: StorefrontProductStock | null;
 }): ReactNode {
-  const { product, locale } = props;
+  const { product, locale, stock } = props;
   const t = tForLocale(locale);
 
   const priceFmt = product.price
@@ -35,7 +38,7 @@ export function ProductCard(props: {
       }).format(grossAmount)
     : null;
 
-  const stock = stockFor(product, t);
+  const stockNode = stock ? renderFromStorefrontStock(stock, locale, t) : stockFor(product, t);
 
   return (
     <article className="industria-product-card">
@@ -71,11 +74,87 @@ export function ProductCard(props: {
               </div>
             )}
           </div>
-          {stock}
+          {stockNode}
         </div>
       </div>
     </article>
   );
+}
+
+function renderFromStorefrontStock(
+  stock: StorefrontProductStock,
+  locale: string,
+  t: ReturnType<typeof tForLocale>,
+): ReactNode {
+  if (!stock.manageStock) {
+    return (
+      <span className="industria-stock industria-stock--in">
+        <span className="dot" />
+        {t('product.inStock')}
+      </span>
+    );
+  }
+  if (stock.isOutOfStock) {
+    return (
+      <span className="industria-stock industria-stock--out">
+        <span className="dot" />
+        {t('product.outOfStock')}
+      </span>
+    );
+  }
+  if (stock.displayMode === 'exact' && stock.exactOnHand !== null) {
+    return (
+      <span className="industria-stock industria-stock--in">
+        <span className="dot" />
+        {`${stock.exactOnHand.toLocaleString(locale)} szt.`}
+      </span>
+    );
+  }
+  if (stock.displayMode === 'available_or_not') {
+    return (
+      <span className="industria-stock industria-stock--in">
+        <span className="dot" />
+        {t('product.inStock')}
+      </span>
+    );
+  }
+  switch (stock.displayBand) {
+    case 'high':
+      return (
+        <span className="industria-stock industria-stock--in">
+          <span className="dot" />
+          {t('product.stockBand.high')}
+        </span>
+      );
+    case 'medium':
+      return (
+        <span className="industria-stock industria-stock--in">
+          <span className="dot" />
+          {t('product.stockBand.medium')}
+        </span>
+      );
+    case 'low':
+      return (
+        <span className="industria-stock industria-stock--low">
+          <span className="dot" />
+          {t('product.stockBand.low')}
+        </span>
+      );
+    case 'available':
+      return (
+        <span className="industria-stock industria-stock--in">
+          <span className="dot" />
+          {t('product.inStock')}
+        </span>
+      );
+    case 'out_of_stock':
+      return (
+        <span className="industria-stock industria-stock--out">
+          <span className="dot" />
+          {t('product.outOfStock')}
+        </span>
+      );
+  }
 }
 
 function stockFor(p: ProductSummary, t: ReturnType<typeof tForLocale>): ReactNode {
