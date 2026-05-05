@@ -54,7 +54,11 @@ export interface SeedHooksReconcileResult {
 /**
  * Idempotent reconciler. Existing rows (matched by code) are preserved
  * untouched — admin-edited names + descriptions survive every run.
- * Missing seeded codes are inserted with `is_system=true`.
+ * Missing seeded codes are inserted with `is_system=true`. Every seeded
+ * hook is also (re-)bound to every existing sales channel via
+ * `cms_hook_sales_channels` so the storefront's per-channel resolution
+ * sees the hook even after `sales_channels` was truncated (e.g. between
+ * test runs — the bindings cascade-deleted with the channels).
  */
 export async function reconcileSeededHooks(
   emFactory: () => EntityManager,
@@ -76,5 +80,18 @@ export async function reconcileSeededHooks(
     inserted += 1;
   }
   if (inserted > 0) await em.flush();
+
+  await em.getConnection().execute(
+    `insert into "cms_hook_sales_channels" ("hook_id", "sales_channel_id")
+     select h."id", c."id"
+     from "cms_hooks" h
+     cross join "sales_channels" c
+     where h."is_system" = true
+       and not exists (
+         select 1 from "cms_hook_sales_channels" x
+         where x."hook_id" = h."id" and x."sales_channel_id" = c."id"
+       )`,
+  );
+
   return { inserted, preservedExisting: existing.length };
 }

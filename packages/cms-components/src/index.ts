@@ -8,12 +8,13 @@
 // through the SPI defined in
 // backend/src/modules/cms/services/page-builder-registry.ts.
 
-import type { Config } from '@measured/puck';
+import type { ComponentConfig, Config } from '@measured/puck';
 import { Button } from './components/Button.js';
 import { Columns } from './components/Columns.js';
 import { Heading } from './components/Heading.js';
 import { InsertBlock } from './components/InsertBlock.js';
 import { InsertTemplate } from './components/InsertTemplate.js';
+import { MissingComponentPlaceholder } from './components/MissingComponentPlaceholder.js';
 import { Row } from './components/Row.js';
 import { Text } from './components/Text.js';
 
@@ -22,6 +23,7 @@ export * from './components/Columns.js';
 export * from './components/Heading.js';
 export * from './components/InsertBlock.js';
 export * from './components/InsertTemplate.js';
+export * from './components/MissingComponentPlaceholder.js';
 export * from './components/Row.js';
 export * from './components/Text.js';
 export * from './components/render-context.js';
@@ -55,3 +57,26 @@ export const defaultPageBuilderConfig: Config = {
     InsertTemplate,
   },
 };
+
+/**
+ * Builds a per-name placeholder ComponentConfig for a Page Builder
+ * component that is registered in the SPI descriptor but whose React
+ * renderer is missing from this bundle. Used by the admin's editor merge
+ * step (T089) and by any storefront renderer that wants the same fallback.
+ */
+export function makeMissingComponentConfig(
+  componentName: string,
+  ownerModule: string,
+): ComponentConfig {
+  return {
+    label: `${componentName} (missing renderer)`,
+    fields: MissingComponentPlaceholder.fields,
+    defaultProps: { componentName, ownerModule },
+    render: (props) =>
+      MissingComponentPlaceholder.render({
+        componentName,
+        ownerModule,
+        ...(props as Record<string, unknown>),
+      } as never),
+  } as ComponentConfig;
+}

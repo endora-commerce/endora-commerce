@@ -9,6 +9,7 @@ import {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { walkBlockEmbeds, walkUnknownComponents } from './content-tree-walker.js';
+import type { CmsCache } from './cms-cache.js';
 
 type PageRow = {
   id: string;
@@ -33,7 +34,26 @@ export class CmsPageService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly knownComponentNames: () => Iterable<string>,
+    private readonly cache?: CmsCache,
   ) {}
+
+  private async invalidateForPageId(pageId: string): Promise<void> {
+    if (!this.cache) return;
+    const rows = (await this.emFactory().getConnection().execute(
+      `select slug from cms_page_sales_channels where page_id = ?
+       union
+       select slug from cms_pages where id = ?`,
+      [pageId, pageId],
+    )) as Array<{ slug: string }>;
+    const slugs = new Set(rows.map((r) => r.slug).filter((s) => s && s.length > 0));
+    if (slugs.size > 0) await this.cache.invalidatePagesBySlug(slugs);
+  }
+
+  private async invalidateForSlugs(slugs: Iterable<string>): Promise<void> {
+    if (!this.cache) return;
+    const filtered = Array.from(slugs).filter((s) => s && s.length > 0);
+    if (filtered.length > 0) await this.cache.invalidatePagesBySlug(filtered);
+  }
 
   async list(filters: { salesChannelId?: string; status?: string; q?: string } = {}): Promise<{
     data: CmsPageSummary[];
@@ -118,6 +138,7 @@ export class CmsPageService {
       await this.replaceChannelScope(tx, id, input.salesChannelIds, input.slug);
     });
 
+    await this.invalidateForSlugs([input.slug]);
     return this.get(id);
   }
 
@@ -129,10 +150,12 @@ export class CmsPageService {
 
   async patch(id: string, input: PatchCmsPageRequest): Promise<CmsPageDetail> {
     const em = this.emFactory();
+    const slugsToInvalidate = new Set<string>();
     await em.transactional(async (tx) => {
       const row = await this.findRow(id, tx);
       if (!row) throw new HttpError(404, ERROR_CODES.CMS_PAGE_NOT_FOUND, 'CMS Page not found.');
       this.assertVersion(row, input.version);
+      slugsToInvalidate.add(row.slug);
 
       const nextSlug = input.slug ?? row.slug;
       const nextChannels = input.salesChannelIds ?? (await this.channelIdsFor(id, tx));
@@ -173,8 +196,10 @@ export class CmsPageService {
       if (input.salesChannelIds || input.slug) {
         await this.replaceChannelScope(tx, id, nextChannels, nextSlug);
       }
+      slugsToInvalidate.add(nextSlug);
     });
 
+    await this.invalidateForSlugs(slugsToInvalidate);
     return this.get(id);
   }
 
@@ -211,6 +236,7 @@ export class CmsPageService {
       );
     });
 
+    await this.invalidateForPageId(id);
     return this.get(id);
   }
 
@@ -227,6 +253,7 @@ export class CmsPageService {
   }
 
   async delete(id: string): Promise<void> {
+    await this.invalidateForPageId(id);
     await this.emFactory().getConnection().execute('delete from cms_pages where id = ?', [id]);
   }
 
@@ -248,6 +275,7 @@ export class CmsPageService {
        where id = ?`,
       [status, status, status, id],
     );
+    await this.invalidateForPageId(id);
     return this.get(id);
   }
 

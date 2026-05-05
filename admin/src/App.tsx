@@ -14,6 +14,8 @@ import { PagesListPage } from './modules/cms/pages/PagesListPage.js';
 import { PageEditor } from './modules/cms/editors/PageEditor.js';
 import { BlocksListPage } from './modules/cms/pages/BlocksListPage.js';
 import { BlockEditor } from './modules/cms/editors/BlockEditor.js';
+import { TemplatesListPage } from './modules/cms/pages/TemplatesListPage.js';
+import { TemplateEditor } from './modules/cms/editors/TemplateEditor.js';
 import { HooksPage } from './modules/cms/pages/HooksPage.js';
 import { RfqList } from './modules/quote_requests/RfqList.js';
 import { RfqDetail } from './modules/quote_requests/RfqDetail.js';
@@ -115,6 +117,9 @@ export function App(): ReactNode {
         <Route path="/cms/blocks" element={<BlocksListPage />} />
         <Route path="/cms/blocks/new" element={<BlockEditor />} />
         <Route path="/cms/blocks/:id" element={<BlockEditor />} />
+        <Route path="/cms/templates" element={<TemplatesListPage />} />
+        <Route path="/cms/templates/new" element={<TemplateEditor />} />
+        <Route path="/cms/templates/:id" element={<TemplateEditor />} />
         <Route path="/cms/hooks" element={<HooksPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/groups" element={<SettingsGroupsPage />} />

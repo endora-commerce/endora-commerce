@@ -98,6 +98,8 @@ export interface BackendServerHandle {
   comparisons: ReturnType<typeof comparisonsModule>['handle'];
   /** Feature 013 — Assets Library handle (service, folders, registry, adapters). */
   assetsLibrary: ReturnType<typeof assetsLibraryModule>['handle'];
+  /** Feature 014 — CMS module handle (page builder registry, services, resolver). */
+  cms: ReturnType<typeof cmsModule>['handle'];
 }
 
 const SEEDED_TABLES = [
@@ -308,10 +310,17 @@ export async function setupBackendServer(
     }),
   });
 
-  // Feature 014 — CMS module. Reconcile seeded Hooks once; routes land
-  // in subsequent user-story phases.
-  const cms = cmsModule({ emFactory: em, requireAdmin: requireTestAdmin(permissionService) });
+  // Feature 014 — CMS module. Reconcile seeded Hooks once; the storefront
+  // resolver wraps Redis as a read-through cache.
+  const cms = cmsModule({
+    emFactory: em,
+    requireAdmin: requireTestAdmin(permissionService),
+    redis,
+  });
   await cms.handle.reconcile();
+  // Tests rely on writes being immediately visible. Wipe the namespace
+  // before each backend boot so a previous run's keys don't bleed in.
+  if (cms.handle.cache) await cms.handle.cache.invalidateAll();
 
   // Pricing (T127 / FR-050).
   const priceLists = priceListsModule({
@@ -564,6 +573,7 @@ export async function setupBackendServer(
     search: search.handle,
     comparisons: comparisons.handle,
     assetsLibrary: assetsLibrary.handle,
+    cms: cms.handle,
   };
 }
 

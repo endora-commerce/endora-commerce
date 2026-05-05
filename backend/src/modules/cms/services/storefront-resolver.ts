@@ -1,5 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CmsResolvedBlock, CmsResolvedHook, CmsResolvedPage } from '@b2b/contracts';
+import type {
+  CmsResolvedBlock,
+  CmsResolvedHook,
+  CmsResolvedPage,
+  CmsResolvedTemplate,
+} from '@b2b/contracts';
+import { walkBlockEmbeds, walkTemplateEmbeds } from './content-tree-walker.js';
+import type { CmsCache } from './cms-cache.js';
+
+/** Recursion depth cap for InsertBlock/InsertTemplate inlining (per data-model.md / T082). */
+const EMBED_DEPTH_CAP = 3;
 
 type PageRow = {
   id: string;
@@ -25,6 +35,13 @@ type BlockRow = {
   languages: string[];
 };
 
+type TemplateRow = {
+  id: string;
+  code: string;
+  content: { schema_version?: number; languages?: Record<string, unknown> };
+  languages: string[];
+};
+
 type HookRow = {
   id: string;
   code: string;
@@ -32,7 +49,10 @@ type HookRow = {
 };
 
 export class StorefrontResolver {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly cache?: CmsCache,
+  ) {}
 
   async resolvePageBySlug(input: {
     salesChannelCode?: string | undefined;
@@ -42,6 +62,12 @@ export class StorefrontResolver {
     const em = this.emFactory();
     const channel = await this.resolveChannel(em, input.salesChannelCode);
     if (!channel) return null;
+
+    const cacheLanguage = input.language ?? channel.default_language;
+    if (this.cache) {
+      const cached = await this.cache.getPage(input.slug, channel.code, cacheLanguage);
+      if (cached) return cached;
+    }
 
     const rows = (await em.getConnection().execute(
       `select p.*
@@ -60,7 +86,10 @@ export class StorefrontResolver {
     const language = this.resolveLanguage(page, input.language, channel.default_language);
     if (!language) return null;
 
-    return {
+    const data = page.content.languages?.[language] ?? {};
+    const embeds = await this.inlineEmbeds(em, channel, language, data);
+
+    const resolved: CmsResolvedPage = {
       id: page.id,
       slug: page.slug,
       name: page.name,
@@ -72,11 +101,15 @@ export class StorefrontResolver {
       },
       content: {
         schemaVersion: page.content.schema_version ?? 1,
-        data: page.content.languages?.[language] ?? {},
+        data,
       },
-      embeds: { blocks: {}, templates: {} },
+      embeds,
       assets: {},
     };
+    if (this.cache) {
+      await this.cache.setPage(input.slug, channel.code, cacheLanguage, resolved);
+    }
+    return resolved;
   }
 
   async resolveBlockByCode(input: {
@@ -87,6 +120,12 @@ export class StorefrontResolver {
     const em = this.emFactory();
     const channel = await this.resolveChannel(em, input.salesChannelCode);
     if (!channel) return null;
+
+    const cacheLanguage = input.language ?? channel.default_language;
+    if (this.cache) {
+      const cached = await this.cache.getBlock(input.code, channel.code, cacheLanguage);
+      if (cached) return cached;
+    }
 
     const rows = (await em.getConnection().execute(
       `select b.*
@@ -104,7 +143,7 @@ export class StorefrontResolver {
     const language = this.resolveLanguage(block, input.language, channel.default_language);
     if (!language) return null;
 
-    return {
+    const resolved: CmsResolvedBlock = {
       id: block.id,
       code: block.code,
       language,
@@ -113,6 +152,10 @@ export class StorefrontResolver {
         data: block.content.languages?.[language] ?? {},
       },
     };
+    if (this.cache) {
+      await this.cache.setBlock(input.code, channel.code, cacheLanguage, resolved);
+    }
+    return resolved;
   }
 
   async resolveHookByCode(input: {
@@ -124,6 +167,12 @@ export class StorefrontResolver {
     const channel = await this.resolveChannel(em, input.salesChannelCode);
     if (!channel) return null;
 
+    const cacheLanguage = input.language ?? channel.default_language;
+    if (this.cache) {
+      const cached = await this.cache.getHook(input.code, channel.code, cacheLanguage);
+      if (cached) return cached;
+    }
+
     const hookRows = (await em.getConnection().execute(
       `select id::text, code, active
        from cms_hooks
@@ -133,7 +182,11 @@ export class StorefrontResolver {
     )) as HookRow[];
     const hook = hookRows[0];
     if (!hook) return null;
-    if (!hook.active) return { hookCode: hook.code, blocks: [] };
+    if (!hook.active) {
+      const empty: CmsResolvedHook = { hookCode: hook.code, blocks: [] };
+      if (this.cache) await this.cache.setHook(input.code, channel.code, cacheLanguage, empty);
+      return empty;
+    }
 
     const scopedRows = (await em.getConnection().execute(
       `select 1
@@ -142,7 +195,11 @@ export class StorefrontResolver {
        limit 1`,
       [hook.id, channel.id],
     )) as Array<{ '?column?': number }>;
-    if (scopedRows.length === 0) return { hookCode: hook.code, blocks: [] };
+    if (scopedRows.length === 0) {
+      const empty: CmsResolvedHook = { hookCode: hook.code, blocks: [] };
+      if (this.cache) await this.cache.setHook(input.code, channel.code, cacheLanguage, empty);
+      return empty;
+    }
 
     const blockRows = (await em.getConnection().execute(
       `select b.*
@@ -171,7 +228,127 @@ export class StorefrontResolver {
       });
     }
 
-    return { hookCode: hook.code, blocks };
+    const resolved: CmsResolvedHook = { hookCode: hook.code, blocks };
+    if (this.cache) {
+      await this.cache.setHook(input.code, channel.code, cacheLanguage, resolved);
+    }
+    return resolved;
+  }
+
+  /**
+   * Recursively inlines InsertBlock / InsertTemplate references found in the
+   * supplied Page Builder data tree. Capped at EMBED_DEPTH_CAP levels —
+   * cycles or deeper graphs degrade to placeholders rendered admin-side.
+   */
+  private async inlineEmbeds(
+    em: EntityManager,
+    channel: ChannelRow,
+    language: string,
+    rootData: unknown,
+  ): Promise<{
+    blocks: Record<string, CmsResolvedBlock>;
+    templates: Record<string, CmsResolvedTemplate>;
+  }> {
+    const resolvedBlocks: Record<string, CmsResolvedBlock> = {};
+    const resolvedTemplates: Record<string, CmsResolvedTemplate> = {};
+
+    const visit = async (data: unknown, depth: number): Promise<void> => {
+      if (depth > EMBED_DEPTH_CAP) return;
+
+      const blockCodes = Array.from(walkBlockEmbeds(data)).filter(
+        (code) => !(code in resolvedBlocks),
+      );
+      const templateCodes = Array.from(walkTemplateEmbeds(data)).filter(
+        (code) => !(code in resolvedTemplates),
+      );
+
+      const blocks = blockCodes.length > 0
+        ? await this.fetchBlocksByCodes(em, channel, blockCodes)
+        : [];
+      const templates = templateCodes.length > 0
+        ? await this.fetchTemplatesByCodes(em, channel, templateCodes)
+        : [];
+
+      const nextLayer: unknown[] = [];
+
+      for (const block of blocks) {
+        const blockLanguage = this.resolveLanguage(block, language, channel.default_language);
+        if (!blockLanguage) continue;
+        const blockData = block.content.languages?.[blockLanguage] ?? {};
+        resolvedBlocks[block.code] = {
+          id: block.id,
+          code: block.code,
+          language: blockLanguage,
+          content: {
+            schemaVersion: block.content.schema_version ?? 1,
+            data: blockData,
+          },
+        };
+        nextLayer.push(blockData);
+      }
+
+      for (const template of templates) {
+        const templateLanguage = this.resolveLanguage(
+          template,
+          language,
+          channel.default_language,
+        );
+        if (!templateLanguage) continue;
+        const templateData = template.content.languages?.[templateLanguage] ?? {};
+        resolvedTemplates[template.code] = {
+          id: template.id,
+          code: template.code,
+          language: templateLanguage,
+          content: {
+            schemaVersion: template.content.schema_version ?? 1,
+            data: templateData,
+          },
+        };
+        nextLayer.push(templateData);
+      }
+
+      for (const child of nextLayer) {
+        await visit(child, depth + 1);
+      }
+    };
+
+    await visit(rootData, 1);
+    return { blocks: resolvedBlocks, templates: resolvedTemplates };
+  }
+
+  private async fetchBlocksByCodes(
+    em: EntityManager,
+    channel: ChannelRow,
+    codes: string[],
+  ): Promise<BlockRow[]> {
+    if (codes.length === 0) return [];
+    const placeholders = codes.map(() => '?').join(', ');
+    return (await em.getConnection().execute(
+      `select b.*
+       from cms_blocks b
+       join cms_block_sales_channels cbsc on cbsc.block_id = b.id
+       where cbsc.sales_channel_id = ?
+         and cbsc.code in (${placeholders})
+         and b.active = true`,
+      [channel.id, ...codes],
+    )) as BlockRow[];
+  }
+
+  private async fetchTemplatesByCodes(
+    em: EntityManager,
+    channel: ChannelRow,
+    codes: string[],
+  ): Promise<TemplateRow[]> {
+    if (codes.length === 0) return [];
+    const placeholders = codes.map(() => '?').join(', ');
+    return (await em.getConnection().execute(
+      `select t.*
+       from cms_templates t
+       join cms_template_sales_channels ctsc on ctsc.template_id = t.id
+       where ctsc.sales_channel_id = ?
+         and ctsc.code in (${placeholders})`,
+      [channel.id, ...codes],
+    )) as TemplateRow[];
   }
 
   private async resolveChannel(

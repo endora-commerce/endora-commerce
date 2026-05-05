@@ -223,7 +223,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 014 — CMS module (Pages, Blocks, Templates, Hooks, Page
   // Builder). Phase 2 ships module instantiation + seeded-Hook
   // reconciliation; admin/storefront routes land in subsequent phases.
-  const cms = cmsModule({ emFactory: em, requireAdmin });
+  const cms = cmsModule({ emFactory: em, requireAdmin, redis });
   // Reconcile the 23 seeded Hook codes idempotently before HTTP starts.
   // The same logic also runs inside migration 035 so first boot has the
   // rows already; this call covers re-deploys when the seeded list grows.

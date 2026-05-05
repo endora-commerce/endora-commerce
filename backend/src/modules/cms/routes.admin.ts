@@ -3,10 +3,12 @@ import {
   createCmsBlockRequestSchema,
   createCmsHookRequestSchema,
   createCmsPageRequestSchema,
+  createCmsTemplateRequestSchema,
   cmsHookAttachmentRequestSchema,
   patchCmsBlockRequestSchema,
   patchCmsHookRequestSchema,
   patchCmsPageRequestSchema,
+  patchCmsTemplateRequestSchema,
   putCmsPageContentRequestSchema,
 } from '@b2b/contracts';
 import type { RequireAdminFactory } from './plugin.js';
@@ -14,6 +16,7 @@ import type { CmsPageService } from './services/cms-page-service.js';
 import type { PageBuilderRegistry } from './services/page-builder-registry.js';
 import type { CmsBlockService } from './services/cms-block-service.js';
 import type { CmsHookService } from './services/cms-hook-service.js';
+import type { CmsTemplateService } from './services/cms-template-service.js';
 
 export async function registerCmsAdminRoutes(
   app: FastifyInstance,
@@ -21,6 +24,7 @@ export async function registerCmsAdminRoutes(
     pageService: CmsPageService;
     blockService: CmsBlockService;
     hookService: CmsHookService;
+    templateService: CmsTemplateService;
     pageBuilderRegistry: PageBuilderRegistry;
     requireAdmin?: RequireAdminFactory;
   },
@@ -154,6 +158,59 @@ export async function registerCmsAdminRoutes(
     { preHandler: requireWrite },
     async (request, reply) => {
       await deps.blockService.delete(request.params.id);
+      return reply.code(204).send();
+    },
+  );
+
+  app.get('/api/v1/admin/cms/templates', { preHandler: requireRead }, async (request) => {
+    const query = (request.query ?? {}) as Record<string, string | undefined>;
+    return deps.templateService.list({
+      ...(query['salesChannelId'] ? { salesChannelId: query['salesChannelId'] } : {}),
+    });
+  });
+
+  app.post('/api/v1/admin/cms/templates', { preHandler: requireWrite }, async (request, reply) => {
+    const body = createCmsTemplateRequestSchema.parse(request.body);
+    const template = await deps.templateService.create(body);
+    return reply.code(201).send({ data: template });
+  });
+
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/cms/templates/:id',
+    { preHandler: requireRead },
+    async (request) => ({ data: await deps.templateService.get(request.params.id) }),
+  );
+
+  app.patch<{ Params: { id: string } }>(
+    '/api/v1/admin/cms/templates/:id',
+    { preHandler: requireWrite },
+    async (request) => {
+      const body = patchCmsTemplateRequestSchema.parse(request.body);
+      return { data: await deps.templateService.patch(request.params.id, body) };
+    },
+  );
+
+  app.put<{ Params: { id: string; language: string } }>(
+    '/api/v1/admin/cms/templates/:id/content/:language',
+    { preHandler: requireWrite },
+    async (request) => {
+      const body = putCmsPageContentRequestSchema.parse(request.body);
+      return {
+        data: await deps.templateService.setContent(
+          request.params.id,
+          request.params.language,
+          body.data,
+          body.version,
+        ),
+      };
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/v1/admin/cms/templates/:id',
+    { preHandler: requireWrite },
+    async (request, reply) => {
+      await deps.templateService.delete(request.params.id);
       return reply.code(204).send();
     },
   );

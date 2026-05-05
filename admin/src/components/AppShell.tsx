@@ -123,6 +123,7 @@ const NAV: NavSection[] = [
       { to: '/sales-channels', label: 'Sales channels', icon: Store },
       { to: '/cms/pages', label: 'CMS Pages', icon: Newspaper },
       { to: '/cms/blocks', label: 'CMS Blocks', icon: Newspaper },
+      { to: '/cms/templates', label: 'CMS Templates', icon: Newspaper },
       { to: '/cms/hooks', label: 'CMS Hooks', icon: Webhook },
       { to: '/i18n', label: 'Languages', icon: Languages },
       { to: '/seo', label: 'SEO', icon: Search },
@@ -327,6 +328,15 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   { test: /^\/cms\/blocks\/(?:new|[^/]+)\/?$/, build: () => [
     { label: 'Channels', href: '/sales-channels' },
     { label: 'CMS Blocks', href: '/cms/blocks' },
+    { label: 'Editor', href: null },
+  ] },
+  { test: /^\/cms\/templates\/?$/, build: () => [
+    { label: 'Channels', href: '/sales-channels' },
+    { label: 'CMS Templates', href: null },
+  ] },
+  { test: /^\/cms\/templates\/(?:new|[^/]+)\/?$/, build: () => [
+    { label: 'Channels', href: '/sales-channels' },
+    { label: 'CMS Templates', href: '/cms/templates' },
     { label: 'Editor', href: null },
   ] },
   { test: /^\/cms\/hooks\/?$/, build: () => [

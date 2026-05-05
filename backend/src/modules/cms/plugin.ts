@@ -9,14 +9,17 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type Redis from 'ioredis';
 
 import { PageBuilderRegistry } from './services/page-builder-registry.js';
 import { reconcileSeededHooks } from './services/seed-hooks.js';
 import { CmsPageService } from './services/cms-page-service.js';
 import { CmsBlockService } from './services/cms-block-service.js';
+import { CmsTemplateService } from './services/cms-template-service.js';
 import { CmsReferenceRegistry } from './services/cms-reference-registry.js';
 import { StorefrontResolver } from './services/storefront-resolver.js';
 import { CmsHookService } from './services/cms-hook-service.js';
+import { CmsCache, type CmsCacheOptions } from './services/cms-cache.js';
 import { registerCmsAdminRoutes } from './routes.admin.js';
 import { registerCmsStorefrontRoutes } from './routes.storefront.js';
 
@@ -27,15 +30,25 @@ export type RequireAdminFactory = (
 export interface CmsModuleOptions {
   emFactory: () => EntityManager;
   requireAdmin?: RequireAdminFactory;
+  /**
+   * When provided, the storefront resolver caches its responses in Redis
+   * with a 5-minute TTL. Tests pass a custom `cacheOptions.ttlSeconds=0`
+   * to disable caching when they need every read to hit the DB.
+   */
+  redis?: Redis;
+  cacheOptions?: CmsCacheOptions;
 }
 
 export interface CmsModuleHandle {
   pageBuilderRegistry: PageBuilderRegistry;
   pageService: CmsPageService;
   blockService: CmsBlockService;
+  templateService: CmsTemplateService;
   hookService: CmsHookService;
   referenceRegistry: CmsReferenceRegistry;
   storefrontResolver: StorefrontResolver;
+  /** Storefront read-through cache — `undefined` when no Redis was wired. */
+  cache: CmsCache | undefined;
   /** Idempotent reconciler — called by composition before HTTP starts. */
   reconcile: () => Promise<{ inserted: number; preservedExisting: number }>;
 }
@@ -89,23 +102,38 @@ export function cmsModule(options: CmsModuleOptions): {
     },
   });
 
-  const pageService = new CmsPageService(options.emFactory, () => pageBuilderRegistry.knownNames());
+  const cache = options.redis ? new CmsCache(options.redis, options.cacheOptions ?? {}) : undefined;
+
   const referenceRegistry = new CmsReferenceRegistry(options.emFactory);
+  const pageService = new CmsPageService(
+    options.emFactory,
+    () => pageBuilderRegistry.knownNames(),
+    cache,
+  );
   const blockService = new CmsBlockService(
     options.emFactory,
     () => pageBuilderRegistry.knownNames(),
     referenceRegistry,
+    cache,
   );
-  const hookService = new CmsHookService(options.emFactory);
-  const storefrontResolver = new StorefrontResolver(options.emFactory);
+  const templateService = new CmsTemplateService(
+    options.emFactory,
+    () => pageBuilderRegistry.knownNames(),
+    referenceRegistry,
+    cache,
+  );
+  const hookService = new CmsHookService(options.emFactory, cache);
+  const storefrontResolver = new StorefrontResolver(options.emFactory, cache);
 
   const handle: CmsModuleHandle = {
     pageBuilderRegistry,
     pageService,
     blockService,
+    templateService,
     hookService,
     referenceRegistry,
     storefrontResolver,
+    cache,
     reconcile: () => reconcileSeededHooks(options.emFactory),
   };
 
@@ -113,6 +141,7 @@ export function cmsModule(options: CmsModuleOptions): {
     await registerCmsAdminRoutes(app, {
       pageService,
       blockService,
+      templateService,
       hookService,
       pageBuilderRegistry,
       ...(options.requireAdmin ? { requireAdmin: options.requireAdmin } : {}),

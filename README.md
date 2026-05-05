@@ -29,6 +29,7 @@ The repository is a **pnpm monorepo** with three independently buildable applica
 - `admin/` — React admin panel (Vite).
 - `packages/contracts/` — Zod schemas shared across applications (source of truth for API types per Principle V).
 - `packages/api-client/` — typed HTTP client used by storefront and admin.
+- `packages/cms-components/` — Page Builder React components shared between admin (Puck editor) and storefront (`<Render>` server component); built around the new `cms` module's component-extension SPI.
 - `docs/` — Docusaurus documentation site for developers and Product Owners.
 
 ## Capability status
@@ -65,6 +66,7 @@ Foundation feature 001 is complete; feature 002 (catalog module extension) ships
 - Audit Log viewer: filtered query with stateBefore / stateAfter side-by-side JSON expansion.
 - Integrations: API keys (bearer-token credentials), Webhooks (HMAC-signed outbound subscriptions), External Integrations.
 - Phase-10 surfaces: Analytics, SEO meta-tag overrides, Languages & Currencies, CMS pages, Import / Export.
+- CMS module (feature 014): replaces the legacy `cms_pages` minimal surface with a full editorial system — Pages, Blocks, Templates, and Hooks authored through a Page Builder (drag-and-drop with Puck + a Tiptap-based `Text` rich-text component). Backend modules contribute components through an in-process SPI; the storefront resolves a `(channel, language, slug | block-code | hook-code)` tuple into a fully-inlined render payload, cached in Redis with a 5-minute TTL. The 23 base storefront Hook codes (header.top, homepage.top, footer.*, product.*, cms.page.*, login/register, etc.) are seeded idempotently at boot.
 
 For an authoritative endpoint list, see the live OpenAPI document at `GET /api/v1/_openapi.json` and the per-module pages under [`docs/docs/modules/`](./docs/docs/modules/).
 
@@ -171,8 +173,9 @@ b2b-platform/
 ├── storefront/       # Next.js customer-facing site
 ├── admin/            # React admin panel
 ├── packages/
-│   ├── contracts/    # shared Zod schemas + inferred types
-│   └── api-client/   # typed HTTP client
+│   ├── contracts/      # shared Zod schemas + inferred types
+│   ├── api-client/     # typed HTTP client
+│   └── cms-components/ # Page Builder React components shared by admin + storefront
 ├── docs/             # Docusaurus documentation site
 ├── docker-compose.yml
 ├── tsconfig.base.json

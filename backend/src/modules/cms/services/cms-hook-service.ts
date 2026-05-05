@@ -8,6 +8,7 @@ import {
   type PatchCmsHookRequest,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import type { CmsCache } from './cms-cache.js';
 
 type HookRow = {
   id: string;
@@ -29,7 +30,20 @@ type HookAttachmentRow = {
 };
 
 export class CmsHookService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly cache?: CmsCache,
+  ) {}
+
+  private async invalidateForHookId(hookId: string): Promise<void> {
+    if (!this.cache) return;
+    const rows = (await this.emFactory().getConnection().execute(
+      'select code from cms_hooks where id = ?',
+      [hookId],
+    )) as Array<{ code: string }>;
+    const codes = rows.map((r) => r.code).filter((c) => c && c.length > 0);
+    if (codes.length > 0) await this.cache.invalidateHooksByCode(codes);
+  }
 
   async list(filters: { salesChannelId?: string } = {}): Promise<{
     data: CmsHookSummary[];
@@ -73,6 +87,7 @@ export class CmsHookService {
       );
       await this.replaceChannelScope(tx, id, input.salesChannelIds);
     });
+    if (this.cache) await this.cache.invalidateHooksByCode([input.code]);
     return this.get(id);
   }
 
@@ -116,6 +131,7 @@ export class CmsHookService {
         );
       }
     });
+    await this.invalidateForHookId(id);
     return this.get(id);
   }
 
@@ -130,6 +146,7 @@ export class CmsHookService {
       );
     }
     await this.emFactory().getConnection().execute('delete from cms_hooks where id = ?', [id]);
+    if (this.cache) await this.cache.invalidateHooksByCode([row.code]);
   }
 
   async listAttachments(hookId: string): Promise<CmsHookDetail['attachments']> {
@@ -152,6 +169,7 @@ export class CmsHookService {
         [hookId, blockId, position],
       );
     });
+    await this.invalidateForHookId(hookId);
     return this.attachmentsFor(hookId);
   }
 
@@ -173,6 +191,7 @@ export class CmsHookService {
         throw new HttpError(404, ERROR_CODES.CMS_BLOCK_NOT_FOUND, 'CMS Hook attachment not found.');
       }
     });
+    await this.invalidateForHookId(hookId);
     return this.attachmentsFor(hookId);
   }
 
@@ -182,6 +201,7 @@ export class CmsHookService {
       'delete from cms_hook_block_attachments where hook_id = ? and block_id = ?',
       [hookId, blockId],
     );
+    await this.invalidateForHookId(hookId);
   }
 
   private async findRow(id: string, em = this.emFactory()): Promise<HookRow | null> {

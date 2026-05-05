@@ -7,13 +7,17 @@ import type {
   CmsHookSummary,
   CmsPageDetail,
   CmsPageSummary,
+  CmsTemplateDetail,
+  CmsTemplateSummary,
   CmsHookAttachmentRequest,
   CreateCmsBlockRequest,
   CreateCmsHookRequest,
   CreateCmsPageRequest,
+  CreateCmsTemplateRequest,
   PatchCmsBlockRequest,
   PatchCmsHookRequest,
   PatchCmsPageRequest,
+  PatchCmsTemplateRequest,
   PutCmsPageContentRequest,
 } from '@b2b/contracts';
 
@@ -25,13 +29,17 @@ export type {
   CmsHookSummary,
   CmsPageDetail,
   CmsPageSummary,
+  CmsTemplateDetail,
+  CmsTemplateSummary,
   CmsHookAttachmentRequest,
   CreateCmsBlockRequest,
   CreateCmsHookRequest,
   CreateCmsPageRequest,
+  CreateCmsTemplateRequest,
   PatchCmsBlockRequest,
   PatchCmsHookRequest,
   PatchCmsPageRequest,
+  PatchCmsTemplateRequest,
   PutCmsPageContentRequest,
 };
 
@@ -57,6 +65,11 @@ export interface ListBlocksResponse {
 
 export interface ListHooksResponse {
   data: CmsHookSummary[];
+  nextCursor: string | null;
+}
+
+export interface ListTemplatesResponse {
+  data: CmsTemplateSummary[];
   nextCursor: string | null;
 }
 
@@ -183,6 +196,54 @@ export const cmsClient = {
 
   async deleteBlock(id: string): Promise<void> {
     await apiClient.delete(`/api/v1/admin/cms/blocks/${encodeURIComponent(id)}`);
+  },
+
+  listTemplates(query: { salesChannelId?: string } = {}): Promise<ListTemplatesResponse> {
+    const params = new URLSearchParams();
+    if (query.salesChannelId) params.set('salesChannelId', query.salesChannelId);
+    const qs = params.toString();
+    return apiClient.get<ListTemplatesResponse>(
+      `/api/v1/admin/cms/templates${qs ? `?${qs}` : ''}`,
+    );
+  },
+
+  async createTemplate(body: CreateCmsTemplateRequest): Promise<CmsTemplateDetail> {
+    const out = await apiClient.post<{ data: CmsTemplateDetail }>(
+      '/api/v1/admin/cms/templates',
+      body,
+    );
+    return out.data;
+  },
+
+  async getTemplate(id: string): Promise<CmsTemplateDetail> {
+    const out = await apiClient.get<{ data: CmsTemplateDetail }>(
+      `/api/v1/admin/cms/templates/${encodeURIComponent(id)}`,
+    );
+    return out.data;
+  },
+
+  async patchTemplate(id: string, body: PatchCmsTemplateRequest): Promise<CmsTemplateDetail> {
+    const out = await apiClient.patch<{ data: CmsTemplateDetail }>(
+      `/api/v1/admin/cms/templates/${encodeURIComponent(id)}`,
+      body,
+    );
+    return out.data;
+  },
+
+  async putTemplateContent(
+    id: string,
+    language: string,
+    body: PutCmsPageContentRequest,
+  ): Promise<CmsTemplateDetail> {
+    const out = await apiClient.put<{ data: CmsTemplateDetail }>(
+      `/api/v1/admin/cms/templates/${encodeURIComponent(id)}/content/${encodeURIComponent(language)}`,
+      body,
+    );
+    return out.data;
+  },
+
+  async deleteTemplate(id: string): Promise<void> {
+    await apiClient.delete(`/api/v1/admin/cms/templates/${encodeURIComponent(id)}`);
   },
 
   listHooks(query: { salesChannelId?: string } = {}): Promise<ListHooksResponse> {
