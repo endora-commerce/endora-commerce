@@ -79,6 +79,13 @@ async function applyMigrations(): Promise<void> {
 export default async function globalSetup(): Promise<void> {
   const testUrl = resolveTestDatabaseUrl();
   process.env['DATABASE_URL'] = testUrl;
+  // Feature 013 — the Assets Library's HMAC signer demands an env key. Tests
+  // do not load backend/.env; supply a deterministic key so signing tests
+  // stay reproducible and routes that touch the signer work.
+  if (!process.env['ASSETS_LIBRARY_HMAC_KEY']) {
+    process.env['ASSETS_LIBRARY_HMAC_KEY'] =
+      '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
+  }
   await ensureDatabaseExists(testUrl);
   await applyMigrations();
 }

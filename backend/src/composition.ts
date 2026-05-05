@@ -388,7 +388,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // are accessible to other modules. Routes (admin upload, public file
   // serving) and consumer wiring (Catalog / CMS reference descriptors) land
   // in subsequent phases (US1 + US2).
-  const assetsLibrary = assetsLibraryModule({ emFactory: em });
+  const assetsLibrary = assetsLibraryModule({ emFactory: em, requireAdmin });
   modules.push(assetsLibrary.plugin);
 
   // Feature 006 — Search module. Owns Meilisearch indexer + event-subscriber

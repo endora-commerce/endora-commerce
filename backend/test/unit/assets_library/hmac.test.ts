@@ -41,8 +41,9 @@ describe('HmacSigner', () => {
     expect(signerB.verify({ assetId: 'a', exp, token: tokenA, nowSec: Math.floor(Date.now() / 1000) })).toBe(false);
   });
 
-  it('throws when constructed without a key', () => {
+  it('throws when explicitly given an empty key', () => {
+    // Passing '' bypasses the env-fallback path: callers who supply an empty
+    // string are signalling unconfigured state explicitly.
     expect(() => HmacSigner.fromEnv('')).toThrow();
-    expect(() => HmacSigner.fromEnv(undefined as unknown as string)).toThrow();
   });
 });
