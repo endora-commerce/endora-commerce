@@ -2,14 +2,25 @@ import { z } from 'zod';
 import { isoDateTimeSchema, moneySchema, uuidSchema } from './common.js';
 
 /**
- * Pricing contracts (T127, T130 / FR-050).
+ * Pricing contracts (feature 011 engine).
  *
- * Customer-level, customer-group-level, and quantity-tiered pricing, plus
- * per-category percentage / fixed-amount adjustments.
+ * Schemas: `priceListEngineSchema`, `applicationRuleSchema`,
+ * `priceListBracketSchema`, `displayModeSchema`, etc. Model the B2B
+ * pricing engine: multi-currency multi-bracket prices per product, an
+ * Application Rule tree (AND/OR over SC/CG/Org/Cat/Currency criteria),
+ * Base/Sale split, lifecycle status, and the four-level price-display
+ * mode chain.
+ *
+ * Legacy feature-014 schemas (`priceListItemSchema`,
+ * `priceListAssignmentSchema`, etc.) were retired by T011 alongside
+ * their entity files and admin endpoints.
  */
 
 const CURRENCY = z.string().regex(/^[A-Z]{3}$/, 'ISO 4217 currency code');
 const POSITIVE_INT = z.number().int().positive();
+const DECIMAL_STRING = z
+  .string()
+  .regex(/^\d+(\.\d{1,4})?$/, 'decimal as string with up to 4 fractional digits');
 
 // --- Customer Group ---------------------------------------------------------
 
@@ -29,162 +40,196 @@ export const upsertCustomerGroupRequestSchema = z.object({
   description: z.string().max(1000).nullable().optional(),
 });
 
-// --- Price List -------------------------------------------------------------
+// =============================================================================
+// FEATURE 011 — pricing-engine schemas
+// =============================================================================
 
-export const priceListSchema = z.object({
-  id: uuidSchema,
-  code: z.string().min(1).max(64),
-  name: z.string().min(1).max(160),
-  currency: CURRENCY,
-  isDefault: z.boolean(),
-  priority: z.number().int(),
-  createdAt: isoDateTimeSchema,
-  updatedAt: isoDateTimeSchema,
-});
-export type PriceList = z.infer<typeof priceListSchema>;
+// --- Application Rule AST ---------------------------------------------------
 
-export const upsertPriceListRequestSchema = z.object({
-  code: z.string().min(1).max(64),
-  name: z.string().min(1).max(160),
-  currency: CURRENCY,
-  isDefault: z.boolean().optional(),
-  priority: z.number().int().optional(),
-});
-
-// --- Price List Item --------------------------------------------------------
-// Discriminated by `mode`. Three flavours:
-//   1. fixed_unit       — set the unit price for a product (or variant) outright;
-//                         volume tiers come from `minQuantity`.
-//   2. percentage_off   — subtract X% from the base price for products in a category.
-//   3. amount_off       — subtract a fixed amount from the base price for a category.
-
-export const priceListItemModeSchema = z.enum([
-  'fixed_unit',
-  'percentage_off',
-  'amount_off',
+export const ruleCriterionTypeSchema = z.enum([
+  'salesChannel',
+  'customerGroup',
+  'organization',
+  'category',
+  'currency',
 ]);
-export type PriceListItemMode = z.infer<typeof priceListItemModeSchema>;
+export type RuleCriterionType = z.infer<typeof ruleCriterionTypeSchema>;
 
-export const priceListItemSchema = z.object({
+const ruleCriterionNodeSchema = z.object({
+  kind: z.literal('criterion'),
+  type: ruleCriterionTypeSchema,
+  values: z.array(z.string()).max(1000),
+});
+
+const ruleAllNodeSchema = z.object({ kind: z.literal('all') });
+
+export type RuleAllNode = { kind: 'all' };
+export type RuleCriterionNode = {
+  kind: 'criterion';
+  type: RuleCriterionType;
+  values: string[];
+};
+export type RuleGroupNode = {
+  kind: 'group';
+  op: 'AND' | 'OR';
+  children: ApplicationRule[];
+};
+export type ApplicationRule = RuleAllNode | RuleCriterionNode | RuleGroupNode;
+
+const ruleNodeSchema: z.ZodType<ApplicationRule> = z.lazy(() =>
+  z.discriminatedUnion('kind', [
+    ruleAllNodeSchema,
+    ruleCriterionNodeSchema,
+    z.object({
+      kind: z.literal('group'),
+      op: z.enum(['AND', 'OR']),
+      children: z.array(ruleNodeSchema).min(1).max(20),
+    }),
+  ]),
+);
+
+function ruleDepth(node: ApplicationRule): number {
+  if (node.kind !== 'group') return 0;
+  return 1 + Math.max(...node.children.map(ruleDepth));
+}
+
+export const applicationRuleSchema = ruleNodeSchema.refine(
+  (node) => ruleDepth(node) <= 5,
+  { message: 'rule_depth_exceeds_5' },
+);
+
+// --- Price list (engine shape) ---------------------------------------------
+
+export const priceListTypeSchema = z.enum(['base', 'sale']);
+export type PriceListType = z.infer<typeof priceListTypeSchema>;
+
+export const priceListStatusSchema = z.enum([
+  'draft',
+  'active',
+  'scheduled',
+  'expired',
+]);
+export type PriceListStatus = z.infer<typeof priceListStatusSchema>;
+
+export const priceListEngineSchema = z.object({
   id: uuidSchema,
+  name: z.string().min(1).max(200),
+  type: priceListTypeSchema,
+  status: priceListStatusSchema,
+  startsAt: isoDateTimeSchema.nullable(),
+  endsAt: isoDateTimeSchema.nullable(),
+  applicationRule: applicationRuleSchema,
+  isSystem: z.boolean(),
+  modifiedAt: isoDateTimeSchema,
+  createdAt: isoDateTimeSchema,
+});
+export type PriceListEngine = z.infer<typeof priceListEngineSchema>;
+
+export const createPriceListEngineRequestSchema = z.object({
+  name: z.string().min(1).max(200),
+  type: priceListTypeSchema,
+  startsAt: isoDateTimeSchema.nullable().optional(),
+  endsAt: isoDateTimeSchema.nullable().optional(),
+  applicationRule: applicationRuleSchema.optional(),
+});
+
+export const patchPriceListEngineRequestSchema = z
+  .object({
+    name: z.string().min(1).max(200).optional(),
+    type: priceListTypeSchema.optional(),
+    startsAt: isoDateTimeSchema.nullable().optional(),
+    endsAt: isoDateTimeSchema.nullable().optional(),
+    applicationRule: applicationRuleSchema.optional(),
+  })
+  .refine(
+    (v) => Object.keys(v).length > 0,
+    { message: 'patch_body_empty' },
+  );
+
+// --- Price brackets ---------------------------------------------------------
+
+export const priceListBracketSchema = z.object({
   priceListId: uuidSchema,
-  mode: priceListItemModeSchema,
-  productId: uuidSchema.nullable(),
-  variantId: uuidSchema.nullable(),
-  categoryId: uuidSchema.nullable(),
-  /** For `fixed_unit`: required minimum cart quantity (default 1). Ignored for adjustments. */
+  productId: uuidSchema,
+  currencyCode: CURRENCY,
   minQuantity: POSITIVE_INT,
-  /** Unit price in the parent price list's currency (only for `fixed_unit`). */
-  unitPrice: z.number().finite().nonnegative().nullable(),
-  /** Percent off (0..100) for `percentage_off`, money for `amount_off`. */
-  adjustmentValue: z.number().finite().nonnegative().nullable(),
-  createdAt: isoDateTimeSchema,
-  updatedAt: isoDateTimeSchema,
+  maxQuantity: POSITIVE_INT.nullable(),
+  amount: DECIMAL_STRING,
 });
-export type PriceListItem = z.infer<typeof priceListItemSchema>;
+export type PriceListBracket = z.infer<typeof priceListBracketSchema>;
 
-export const createPriceListItemRequestSchema = z
-  .object({
-    mode: priceListItemModeSchema,
-    productId: uuidSchema.nullable().optional(),
-    variantId: uuidSchema.nullable().optional(),
-    categoryId: uuidSchema.nullable().optional(),
-    minQuantity: POSITIVE_INT.optional(),
-    unitPrice: z.number().finite().nonnegative().nullable().optional(),
-    adjustmentValue: z.number().finite().nonnegative().nullable().optional(),
-  })
-  .superRefine((value, ctx) => {
-    if (value.mode === 'fixed_unit') {
-      if (value.productId == null) {
-        ctx.addIssue({
-          code: 'custom',
-          message: 'fixed_unit items require productId',
-          path: ['productId'],
-        });
-      }
-      if (value.unitPrice == null) {
-        ctx.addIssue({
-          code: 'custom',
-          message: 'fixed_unit items require unitPrice',
-          path: ['unitPrice'],
-        });
-      }
-    } else {
-      if (value.categoryId == null) {
-        ctx.addIssue({
-          code: 'custom',
-          message: 'percentage_off / amount_off items require categoryId',
-          path: ['categoryId'],
-        });
-      }
-      if (value.adjustmentValue == null) {
-        ctx.addIssue({
-          code: 'custom',
-          message: 'percentage_off / amount_off items require adjustmentValue',
-          path: ['adjustmentValue'],
-        });
-      }
-      if (value.mode === 'percentage_off' && value.adjustmentValue != null) {
-        if (value.adjustmentValue < 0 || value.adjustmentValue > 100) {
-          ctx.addIssue({
-            code: 'custom',
-            message: 'percentage_off adjustmentValue must be between 0 and 100',
-            path: ['adjustmentValue'],
-          });
-        }
-      }
-    }
-  });
+export const replaceBracketsRequestSchema = z.object({
+  bracketsByCurrency: z.record(
+    CURRENCY,
+    z.array(
+      z.object({
+        minQuantity: POSITIVE_INT,
+        maxQuantity: POSITIVE_INT.nullable(),
+        amount: DECIMAL_STRING,
+      }),
+    ),
+  ),
+});
 
-// --- Price List Assignment --------------------------------------------------
-// Either `organizationId` (customer-specific list), `customerGroupId` (group
-// list), or `isDefault=true` (everyone). Optional `salesChannelId` further
-// scopes the assignment.
-
-export const priceListAssignmentSchema = z.object({
-  id: uuidSchema,
+export const productAssignmentSchema = z.object({
   priceListId: uuidSchema,
-  organizationId: uuidSchema.nullable(),
-  customerGroupId: uuidSchema.nullable(),
-  salesChannelId: uuidSchema.nullable(),
-  isDefault: z.boolean(),
-  priority: z.number().int(),
-  createdAt: isoDateTimeSchema,
+  productId: uuidSchema,
+  bracketsByCurrency: z.record(CURRENCY, z.array(priceListBracketSchema)),
+});
+export type ProductAssignment = z.infer<typeof productAssignmentSchema>;
+
+export const replaceProductsRequestSchema = z.object({
+  productIds: z.array(uuidSchema),
+});
+
+// --- Display modes ----------------------------------------------------------
+
+export const displayModeSchema = z.enum([
+  'gross_only',
+  'net_only',
+  'both',
+  'none',
+]);
+export type DisplayMode = z.infer<typeof displayModeSchema>;
+
+export const displayModeOverrideScopeSchema = z.enum([
+  'organization',
+  'category',
+  'product',
+]);
+export type DisplayModeOverrideScope = z.infer<typeof displayModeOverrideScopeSchema>;
+
+export const displayModeOverrideSchema = z.object({
+  scope: displayModeOverrideScopeSchema,
+  targetId: uuidSchema,
+  mode: displayModeSchema,
   updatedAt: isoDateTimeSchema,
 });
-export type PriceListAssignment = z.infer<typeof priceListAssignmentSchema>;
+export type DisplayModeOverride = z.infer<typeof displayModeOverrideSchema>;
 
-export const createPriceListAssignmentRequestSchema = z
-  .object({
-    organizationId: uuidSchema.nullable().optional(),
-    customerGroupId: uuidSchema.nullable().optional(),
-    salesChannelId: uuidSchema.nullable().optional(),
-    isDefault: z.boolean().optional(),
-    priority: z.number().int().optional(),
-  })
-  .superRefine((value, ctx) => {
-    const targets = [
-      value.organizationId ? 'organizationId' : null,
-      value.customerGroupId ? 'customerGroupId' : null,
-      value.isDefault ? 'isDefault' : null,
-    ].filter((t): t is string => t !== null);
-    if (targets.length !== 1) {
-      ctx.addIssue({
-        code: 'custom',
-        message:
-          'exactly one of organizationId, customerGroupId, or isDefault=true must be set',
-        path: ['organizationId'],
-      });
-    }
-  });
-
-// --- Resolution result ------------------------------------------------------
-
-export const resolvedPriceSchema = z.object({
-  unitPrice: moneySchema,
-  basePrice: moneySchema,
-  source: z.enum(['list', 'base']),
-  priceListId: uuidSchema.nullable(),
-  appliedItemId: uuidSchema.nullable(),
+export const upsertDisplayModeOverrideRequestSchema = z.object({
+  mode: displayModeSchema.or(z.literal('inherit')),
 });
-export type ResolvedPrice = z.infer<typeof resolvedPriceSchema>;
+
+// --- Resolved price (storefront/cart consumer) ------------------------------
+
+export const resolvedPriceEngineSchema = z.object({
+  baseListId: uuidSchema,
+  basePrice: moneySchema,
+  saleListId: uuidSchema.nullable(),
+  salePrice: moneySchema.nullable(),
+  displayMode: displayModeSchema,
+  currencyCode: CURRENCY,
+  quantityBracket: z.object({
+    minQuantity: POSITIVE_INT,
+    maxQuantity: POSITIVE_INT.nullable(),
+  }),
+});
+export type ResolvedPriceEngine = z.infer<typeof resolvedPriceEngineSchema>;
+
+// --- Settings keys (also exposed via the settings manifest) -----------------
+
+export const PRICING_SETTING_CODES = {
+  DEFAULT_DISPLAY_MODE: 'pricing.default_display_mode',
+  UNAUTHENTICATED_DISPLAY_MODE: 'pricing.unauthenticated_display_mode',
+} as const;

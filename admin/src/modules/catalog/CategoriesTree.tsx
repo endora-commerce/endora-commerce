@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
+import { DisplayModeOverrideRow } from '../price_lists/DisplayModeOverrideRow';
 import {
   Table,
   TableBody,
@@ -379,6 +380,14 @@ function EditForm({
         <Button type="button" variant="outline" size="sm" onClick={onCancel}>
           Cancel
         </Button>
+      </div>
+      <div className="space-y-2 pt-3 border-t mt-2">
+        <DisplayModeOverrideRow
+          scope="category"
+          targetId={category.id}
+          label="Price display mode for this category"
+          inheritHint="Inherits from the next-deepest category, then Organization, then the platform default."
+        />
       </div>
     </form>
   );

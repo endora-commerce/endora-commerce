@@ -2,11 +2,11 @@ import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/
 import { randomUUID } from 'crypto';
 
 /**
- * CustomerGroup — a named bucket of Organizations sharing pricing rules
- * (T127). An Organization belongs to at most one group via
+ * CustomerGroup — a named bucket of Organizations sharing pricing rules.
+ * An Organization belongs to at most one group via
  * `Organization.customerGroupId`. Groups have no behavioural state of
- * their own; they exist purely as an addressable target for
- * PriceListAssignment rows.
+ * their own; they exist as an addressable target for the feature 011
+ * Application Rule's `customerGroup` criterion.
  */
 @Entity({ tableName: 'customer_groups' })
 export class CustomerGroup {

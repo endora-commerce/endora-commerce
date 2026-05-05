@@ -36,6 +36,7 @@ import { comparisonsModule } from '../../src/modules/comparisons/plugin.js';
 import { comparisonsManifest } from '../../src/modules/comparisons/manifest.js';
 import { quoteRequestsManifest } from '../../src/modules/quote_requests/manifest.js';
 import { inventoryManifest } from '../../src/modules/inventory/manifest.js';
+import { priceListsManifest } from '../../src/modules/price_lists/manifest.js';
 import { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
 import { DefaultChannelReconciler } from '../../src/modules/sales_channels/services/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/modules/settings/services/manifest-reconciler.js';
@@ -312,6 +313,13 @@ export async function setupBackendServer(
   const priceLists = priceListsModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
+    // Tests drive the status worker via internal/sweep — keeping the
+    // wall-clock interval off avoids spurious DB writes during a run.
+    enableStatusSweeper: false,
+    // Tests rely on writes being immediately visible — disable the LRU
+    // so each contract/integration case sees fresh DB state. Production
+    // composition uses the default 60-s TTL.
+    pricingCacheTtlMs: 0,
   });
 
   // Taxes (T128 / FR-051) + Promotions (T129 / FR-052).
@@ -348,6 +356,7 @@ export async function setupBackendServer(
       requireAdmin: requireTestAdmin(permissionService),
       resolveCustomerContext: customerResolver,
       salesChannelMembership: salesChannels.handle.membershipService,
+      pricingService: priceLists.handle.pricingService,
       resolveCartActor: (request) => {
         if (request.testActor?.kind === 'customer') {
           return {
@@ -508,6 +517,7 @@ export async function setupBackendServer(
     comparisonsManifest,
     quoteRequestsManifest,
     inventoryManifest,
+    priceListsManifest,
   ]);
 
   const app = await buildServer({

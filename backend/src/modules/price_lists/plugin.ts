@@ -3,18 +3,34 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { CustomerGroupService } from './services/customer-group-service.js';
 import { PriceListService } from './services/price-list-service.js';
 import { PricingService } from './services/pricing-service.js';
+import { PriceListStatusWorker } from './services/price-list-status-worker.js';
+import { PricingCache } from './services/pricing-cache.js';
 import { registerPricingRoutes } from './routes.js';
+import { registerStorefrontPricingRoutes } from './routes.storefront.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+
+const STATUS_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
 export interface PriceListsModuleOptions {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
+  /**
+   * Set to `false` to skip the in-process status sweeper (tests drive
+   * the worker directly via `internal/sweep`; production keeps it on).
+   * The platform doesn't yet ship a BullMQ-class repeatable-job
+   * registry — when it does, swap this for a Queue/Worker pair on the
+   * existing pricing queue (research §R13).
+   */
+  enableStatusSweeper?: boolean;
+  /** Pass `0` to disable the in-memory pricing LRU (tests). */
+  pricingCacheTtlMs?: number;
 }
 
 export interface PriceListsModuleHandle {
   customerGroupService: CustomerGroupService;
   priceListService: PriceListService;
   pricingService: PricingService;
+  statusWorker: PriceListStatusWorker;
 }
 
 export function priceListsModule(options: PriceListsModuleOptions): {
@@ -22,11 +38,15 @@ export function priceListsModule(options: PriceListsModuleOptions): {
   handle: PriceListsModuleHandle;
 } {
   const customerGroupService = new CustomerGroupService(options.emFactory);
-  const priceListService = new PriceListService(options.emFactory);
-  const pricingService = new PricingService(options.emFactory);
+  const pricingCache = new PricingCache<Awaited<ReturnType<PricingService['resolveEngine']>>>(
+    options.pricingCacheTtlMs !== undefined ? { ttlMs: options.pricingCacheTtlMs } : {},
+  );
+  const priceListService = new PriceListService(options.emFactory, pricingCache);
+  const pricingService = new PricingService(options.emFactory, pricingCache);
+  const statusWorker = new PriceListStatusWorker(options.emFactory);
 
   return {
-    handle: { customerGroupService, priceListService, pricingService },
+    handle: { customerGroupService, priceListService, pricingService, statusWorker },
     plugin: async (app: FastifyInstance) => {
       await registerPricingRoutes(app, {
         customerGroupService,
@@ -35,6 +55,34 @@ export function priceListsModule(options: PriceListsModuleOptions): {
         emFactory: options.emFactory,
         requireAdmin: options.requireAdmin,
       });
+      await registerStorefrontPricingRoutes(app, {
+        priceListService,
+        pricingService,
+        emFactory: options.emFactory,
+      });
+
+      if (options.enableStatusSweeper !== false) {
+        const handle = setInterval(() => {
+          statusWorker
+            .sweep()
+            .then((result) => {
+              if (result.scheduledToActive > 0 || result.activeToExpired > 0) {
+                app.log.info(
+                  { result },
+                  'price-list status sweep flipped lifecycle rows',
+                );
+              }
+            })
+            .catch((err: unknown) => {
+              app.log.error({ err }, 'price-list status sweep failed');
+            });
+        }, STATUS_SWEEP_INTERVAL_MS);
+        // Don't keep the Node process alive purely for the sweeper.
+        if (typeof handle.unref === 'function') handle.unref();
+        app.addHook('onClose', async () => {
+          clearInterval(handle);
+        });
+      }
     },
   };
 }

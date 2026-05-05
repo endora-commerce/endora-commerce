@@ -20,6 +20,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { EntityChannelMembership } from '../sales_channels/components/EntityChannelMembership';
+import { DisplayModeOverrideRow } from '../price_lists/DisplayModeOverrideRow';
 
 interface OrgMember {
   id: string;
@@ -545,6 +546,22 @@ export function OrganizationDetail(): ReactNode {
       </Card>
 
       <EntityChannelMembership entityType="organization" entityId={id || null} />
+
+      {id ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pricing</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DisplayModeOverrideRow
+              scope="organization"
+              targetId={id}
+              label="Price display mode for this organization"
+              inheritHint="Inherits from the platform-wide pricing setting (Settings → Pricing)."
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {id ? <OrganizationSalesRepsTab organizationId={id} /> : null}
     </>

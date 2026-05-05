@@ -39,9 +39,10 @@ export class Organization {
   vatStatus: 'vat_payer' | 'vat_exempt' | 'reverse_charge' = 'vat_payer';
 
   /**
-   * Optional pricing bucket (T127). Drives `PriceListAssignment` lookups: a
-   * group price list applies to every Organization carrying that
-   * customerGroupId, unless an organization-specific list overrides it.
+   * Optional pricing bucket. Feeds the feature 011 Application Rule
+   * evaluator's `customerGroup` criterion — a Sale or Base list with a
+   * `customerGroup ∈ {…}` rule applies to every Organization carrying
+   * that `customerGroupId`.
    */
   @Property({ type: 'uuid', nullable: true })
   @Index()

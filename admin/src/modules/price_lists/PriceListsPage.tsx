@@ -5,105 +5,123 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
+  Calendar,
   CircleDollarSign,
-  Globe,
-  MoreHorizontal,
+  Eye,
+  Lock,
   Plus,
   Search,
   Star,
-  Store as StoreIcon,
-  Upload,
-  Users,
+  Tag,
+  Zap,
 } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
-import { cn } from '@/lib/utils';
 
-interface AdminPriceList {
+type PriceListType = 'base' | 'sale';
+type PriceListStatus = 'draft' | 'active' | 'scheduled' | 'expired';
+
+interface PriceListEngineRow {
   id: string;
-  code: string;
   name: string;
-  currency: string;
-  isDefault: boolean;
-  priority: number;
+  type: PriceListType;
+  status: PriceListStatus;
+  startsAt: string | null;
+  endsAt: string | null;
+  applicationRule: unknown;
+  isSystem: boolean;
+  modifiedAt: string;
   createdAt: string;
-  updatedAt?: string;
 }
 
+const STATUS_LABEL: Record<PriceListStatus, string> = {
+  draft: 'Draft',
+  active: 'Active',
+  scheduled: 'Scheduled',
+  expired: 'Expired',
+};
+
+const STATUS_BADGE_CLASS: Record<PriceListStatus, string> = {
+  draft: 'b2b-badge b2b-badge--outline',
+  active: 'b2b-badge b2b-badge--success',
+  scheduled: 'b2b-badge b2b-badge--info',
+  expired: 'b2b-badge b2b-badge--muted',
+};
+
+const TYPE_LABEL: Record<PriceListType, string> = {
+  base: 'Base',
+  sale: 'Sale',
+};
+
 /**
- * Price lists — feature 008 redesign.
+ * Price lists — feature 011 (engine) admin landing page.
  *
- * Stats hero (count, currencies, default), filter bar, table with
- * default-fallback marker. Click a row to open the detail page where
- * settings can be edited; “New” opens the upsert form in a modal-ish
- * drawer at the page foot.
+ * Lists every price list with status/type filter chips and a free-text
+ * search. Clicking a row opens the editor; the seeded `Default` row is
+ * marked with a lock icon and a "System" chip because protections in
+ * `price-list-service.ts` refuse delete/state-change/rule-attach on it.
  */
 export function PriceListsPage(): ReactNode {
   const navigate = useNavigate();
-  const [rows, setRows] = useState<AdminPriceList[]>([]);
+  const [rows, setRows] = useState<PriceListEngineRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<Set<PriceListStatus>>(new Set());
+  const [typeFilter, setTypeFilter] = useState<Set<PriceListType>>(new Set());
   const [creating, setCreating] = useState(false);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get<{ data: AdminPriceList[] }>('/api/v1/admin/price-lists');
-      setRows(res.data);
+      const params = new URLSearchParams();
+      for (const s of statusFilter) params.append('status', s);
+      for (const t of typeFilter) params.append('type', t);
+      if (query.trim()) params.set('search', query.trim());
+      const qs = params.toString();
+      const res = await apiClient.get<{ data: { items: PriceListEngineRow[] } }>(
+        `/api/v1/admin/price-lists-engine${qs ? `?${qs}` : ''}`,
+      );
+      setRows(res.data.items);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [statusFilter, typeFilter, query]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  const handleUpsert = useCallback(
-    async (input: {
-      code: string;
-      name: string;
-      currency: string;
-      isDefault: boolean;
-      priority: number;
-    }): Promise<void> => {
-      try {
-        await apiClient.put<{ data: AdminPriceList }>(
-          `/api/v1/admin/price-lists/${encodeURIComponent(input.code)}`,
-          input,
-        );
-        setInfo(`Saved ${input.code}.`);
-        setCreating(false);
-        await refresh();
-      } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
-      }
-    },
-    [refresh],
-  );
-
-  const filtered = useMemo(() => {
-    const t = query.trim().toLowerCase();
-    if (!t) return rows;
-    return rows.filter(
-      (r) => r.name.toLowerCase().includes(t) || r.code.toLowerCase().includes(t),
-    );
-  }, [rows, query]);
-
   const stats = useMemo(() => {
-    const currencies = Array.from(new Set(rows.map((r) => r.currency))).sort();
     return {
       total: rows.length,
-      defaultCount: rows.filter((r) => r.isDefault).length,
-      currencies,
+      active: rows.filter((r) => r.status === 'active').length,
+      scheduled: rows.filter((r) => r.status === 'scheduled').length,
+      sale: rows.filter((r) => r.type === 'sale').length,
     };
   }, [rows]);
+
+  const handleCreate = useCallback(
+    async (input: { name: string; type: PriceListType; startsAt: string | null; endsAt: string | null }): Promise<void> => {
+      try {
+        const res = await apiClient.post<{ data: PriceListEngineRow }>(
+          '/api/v1/admin/price-lists-engine',
+          input,
+        );
+        setInfo(`Created “${res.data.name}”.`);
+        setCreating(false);
+        navigate(`/price-lists/${res.data.id}`);
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Create failed.');
+      }
+    },
+    [navigate],
+  );
 
   return (
     <div className="b2b-page b2b-page--wide">
@@ -111,13 +129,15 @@ export function PriceListsPage(): ReactNode {
         <div className="b2b-grow">
           <div className="b2b-page-head__title">Price lists</div>
           <div className="b2b-page-head__sub">
-            Default catalog price + customer-group, organization, and channel-specific overrides
+            B2B pricing engine — Base + Sale lists, multi-bracket per-currency prices,
+            application rules, and lifecycle status. The seeded Default list is the
+            terminal-fallback price source.
           </div>
         </div>
         <div className="b2b-page-head__actions">
-          <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm">
-            <Upload size={13} /> Import CSV
-          </button>
+          <Link to="/price-lists/display-modes" className="b2b-btn b2b-btn--default">
+            <Eye size={14} /> Display modes
+          </Link>
           <button
             type="button"
             className="b2b-btn b2b-btn--primary"
@@ -129,41 +149,17 @@ export function PriceListsPage(): ReactNode {
       </div>
 
       {error ? (
-        <div
-          className="b2b-card"
-          style={{
-            background: 'var(--danger-soft)',
-            color: 'var(--danger-soft-fg)',
-            padding: 12,
-            marginBottom: 16,
-            border: '1px solid hsl(8 80% 85%)',
-          }}
-        >
-          {error}
-        </div>
+        <Banner kind="error" message={error} onDismiss={(): void => setError(null)} />
       ) : null}
       {info ? (
-        <div
-          className="b2b-card"
-          style={{
-            background: 'var(--success-soft)',
-            color: 'var(--success-soft-fg)',
-            padding: 12,
-            marginBottom: 16,
-            border: '1px solid hsl(142 50% 80%)',
-          }}
-        >
-          {info}
-        </div>
+        <Banner kind="info" message={info} onDismiss={(): void => setInfo(null)} />
       ) : null}
 
       <div className="b2b-row" style={{ gap: 16, marginBottom: 16 }}>
         <Stat label="Total price lists" value={String(stats.total)} />
-        <Stat label="Default fallback" value={String(stats.defaultCount)} />
-        <Stat
-          label="Currencies"
-          value={stats.currencies.length === 0 ? '—' : stats.currencies.join(', ')}
-        />
+        <Stat label="Active" value={String(stats.active)} />
+        <Stat label="Scheduled" value={String(stats.scheduled)} />
+        <Stat label="Sale lists" value={String(stats.sale)} />
       </div>
 
       <div className="b2b-card">
@@ -173,28 +169,62 @@ export function PriceListsPage(): ReactNode {
               <Search size={16} className="lead" />
               <input
                 className="b2b-field b2b-field--addon"
-                placeholder="Search by name or code…"
+                placeholder="Search by name…"
                 value={query}
                 onChange={(e): void => setQuery(e.target.value)}
               />
             </div>
           </div>
-          <Chip icon={<Globe size={12} />} label="Currency" />
-          <Chip icon={<Users size={12} />} label="Audience" />
-          <Chip icon={<StoreIcon size={12} />} label="Channel" />
+          <FilterChip
+            icon={<Zap size={12} />}
+            label="Status"
+            options={(['draft', 'active', 'scheduled', 'expired'] as const).map((s) => ({
+              value: s,
+              label: STATUS_LABEL[s],
+            }))}
+            selected={statusFilter as Set<string>}
+            onToggle={(value): void => {
+              setStatusFilter((prev) => {
+                const next = new Set(prev);
+                const v = value as PriceListStatus;
+                if (next.has(v)) next.delete(v);
+                else next.add(v);
+                return next;
+              });
+            }}
+          />
+          <FilterChip
+            icon={<Tag size={12} />}
+            label="Type"
+            options={(['base', 'sale'] as const).map((t) => ({ value: t, label: TYPE_LABEL[t] }))}
+            selected={typeFilter as Set<string>}
+            onToggle={(value): void => {
+              setTypeFilter((prev) => {
+                const next = new Set(prev);
+                const v = value as PriceListType;
+                if (next.has(v)) next.delete(v);
+                else next.add(v);
+                return next;
+              });
+            }}
+          />
         </div>
         <div className="b2b-card__body b2b-card__body--flush">
           {loading ? (
             <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>Loading…</div>
-          ) : filtered.length === 0 ? (
+          ) : rows.length === 0 ? (
             <div className="b2b-empty">
               <div className="b2b-empty__icon">
                 <CircleDollarSign size={20} />
               </div>
-              <div className="b2b-empty__title">No price lists yet</div>
+              <div className="b2b-empty__title">
+                {query.trim() || statusFilter.size > 0 || typeFilter.size > 0
+                  ? 'No price lists match the current filters.'
+                  : 'No price lists yet'}
+              </div>
               <div className="b2b-empty__sub">
-                Create one to override the default catalog price for a customer group, an
-                organization, or a sales channel.
+                Create one to override the Default catalog price for a customer group, an
+                organization, a sales channel, or a category.
               </div>
               <button
                 type="button"
@@ -209,15 +239,14 @@ export function PriceListsPage(): ReactNode {
               <thead>
                 <tr>
                   <th>Name</th>
-                  <th>Code</th>
-                  <th>Currency</th>
-                  <th className="num">Priority</th>
-                  <th>Default</th>
-                  <th />
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Active window</th>
+                  <th>Last modified</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r) => (
+                {rows.map((r) => (
                   <tr
                     key={r.id}
                     className="is-clickable"
@@ -230,12 +259,12 @@ export function PriceListsPage(): ReactNode {
                             width: 32,
                             height: 32,
                             borderRadius: 6,
-                            background: r.isDefault ? 'var(--primary-soft)' : 'var(--surface-sunken)',
+                            background: r.isSystem ? 'var(--primary-soft)' : 'var(--surface-sunken)',
                             display: 'grid',
                             placeItems: 'center',
                           }}
                         >
-                          {r.isDefault ? (
+                          {r.isSystem ? (
                             <Star size={14} style={{ color: 'var(--primary-color)' }} />
                           ) : (
                             <CircleDollarSign size={14} style={{ color: 'var(--fg-muted)' }} />
@@ -243,37 +272,35 @@ export function PriceListsPage(): ReactNode {
                         </div>
                         <div>
                           <div style={{ fontWeight: 500 }}>{r.name}</div>
-                          {r.isDefault ? (
-                            <span className="b2b-badge b2b-badge--success" style={{ marginTop: 2 }}>
-                              Default fallback
+                          {r.isSystem ? (
+                            <span
+                              className="b2b-badge b2b-badge--success"
+                              style={{ marginTop: 2, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                            >
+                              <Lock size={10} /> System
                             </span>
                           ) : null}
                         </div>
                       </div>
                     </td>
                     <td>
-                      <span className="b2b-mono" style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
-                        {r.code}
+                      <span className="b2b-badge b2b-badge--outline">{TYPE_LABEL[r.type]}</span>
+                    </td>
+                    <td>
+                      <span className={STATUS_BADGE_CLASS[r.status]}>
+                        {STATUS_LABEL[r.status]}
                       </span>
                     </td>
                     <td>
-                      <span className="b2b-badge b2b-badge--outline">{r.currency}</span>
+                      <span style={{ fontSize: 12, color: 'var(--fg-muted)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <Calendar size={12} />
+                        {formatRange(r.startsAt, r.endsAt)}
+                      </span>
                     </td>
-                    <td className="num b2b-tabular">{r.priority}</td>
                     <td>
-                      {r.isDefault ? (
-                        <span className="b2b-badge b2b-badge--info">Default</span>
-                      ) : (
-                        <span className="b2b-muted">—</span>
-                      )}
-                    </td>
-                    <td className="actions" onClick={(e): void => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
-                      >
-                        <MoreHorizontal size={14} />
-                      </button>
+                      <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+                        {formatDate(r.modifiedAt)}
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -284,7 +311,7 @@ export function PriceListsPage(): ReactNode {
       </div>
 
       {creating ? (
-        <UpsertDrawer onClose={(): void => setCreating(false)} onSubmit={handleUpsert} />
+        <CreateDrawer onClose={(): void => setCreating(false)} onSubmit={handleCreate} />
       ) : null}
     </div>
   );
@@ -304,39 +331,140 @@ function Stat({ label, value }: { label: string; value: string }): ReactNode {
   );
 }
 
-function Chip({ icon, label }: { icon: ReactNode; label: string }): ReactNode {
+function Banner({
+  kind,
+  message,
+  onDismiss,
+}: {
+  kind: 'error' | 'info';
+  message: string;
+  onDismiss: () => void;
+}): ReactNode {
+  const palette =
+    kind === 'error'
+      ? { bg: 'var(--danger-soft)', fg: 'var(--danger-soft-fg)', border: 'hsl(8 80% 85%)' }
+      : { bg: 'var(--success-soft)', fg: 'var(--success-soft-fg)', border: 'hsl(142 50% 80%)' };
   return (
-    <button type="button" className="b2b-filterchip">
-      {icon}
-      <span>{label}</span>
-    </button>
+    <div
+      className="b2b-card b2b-row"
+      style={{
+        background: palette.bg,
+        color: palette.fg,
+        padding: 12,
+        marginBottom: 16,
+        border: `1px solid ${palette.border}`,
+        gap: 8,
+        alignItems: 'center',
+      }}
+    >
+      <div className="b2b-grow">{message}</div>
+      <button
+        type="button"
+        className="b2b-btn b2b-btn--ghost b2b-btn--sm"
+        onClick={onDismiss}
+      >
+        Dismiss
+      </button>
+    </div>
   );
 }
 
-function UpsertDrawer({
+function FilterChip({
+  icon,
+  label,
+  options,
+  selected,
+  onToggle,
+}: {
+  icon: ReactNode;
+  label: string;
+  options: { value: string; label: string }[];
+  selected: Set<string>;
+  onToggle: (value: string) => void;
+}): ReactNode {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        type="button"
+        className="b2b-filterchip"
+        aria-expanded={open}
+        onClick={(): void => setOpen((v) => !v)}
+        style={selected.size > 0 ? { borderColor: 'var(--primary-color)' } : undefined}
+      >
+        {icon}
+        <span>
+          {label}
+          {selected.size > 0 ? ` · ${selected.size}` : ''}
+        </span>
+      </button>
+      {open ? (
+        <div
+          className="b2b-card"
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            marginTop: 4,
+            zIndex: 10,
+            padding: 8,
+            minWidth: 140,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+          }}
+        >
+          {options.map((opt) => {
+            const isOn = selected.has(opt.value);
+            return (
+              <label
+                key={opt.value}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, padding: '4px 6px', cursor: 'pointer' }}
+              >
+                <input
+                  type="checkbox"
+                  className="b2b-cbx"
+                  checked={isOn}
+                  onChange={(): void => onToggle(opt.value)}
+                />
+                {opt.label}
+              </label>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CreateDrawer({
   onClose,
   onSubmit,
 }: {
   onClose: () => void;
   onSubmit: (input: {
-    code: string;
     name: string;
-    currency: string;
-    isDefault: boolean;
-    priority: number;
+    type: PriceListType;
+    startsAt: string | null;
+    endsAt: string | null;
   }) => Promise<void>;
 }): ReactNode {
-  const [code, setCode] = useState('');
   const [name, setName] = useState('');
-  const [currency, setCurrency] = useState('PLN');
-  const [priority, setPriority] = useState('0');
-  const [isDefault, setIsDefault] = useState(false);
+  const [type, setType] = useState<PriceListType>('base');
+  const [startsAt, setStartsAt] = useState('');
+  const [endsAt, setEndsAt] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const handle = async (): Promise<void> => {
+    if (!name.trim()) return;
     setSubmitting(true);
     try {
-      await onSubmit({ code, name, currency, isDefault, priority: Number(priority) });
+      await onSubmit({
+        name: name.trim(),
+        type,
+        startsAt: startsAt ? new Date(startsAt).toISOString() : null,
+        endsAt: endsAt ? new Date(endsAt).toISOString() : null,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -350,68 +478,64 @@ function UpsertDrawer({
           <div className="b2b-grow">
             <div className="b2b-drawer__title">New price list</div>
             <div className="b2b-card__sub">
-              Define an override list. Items + assignments are managed on the detail page.
+              Lists start as Draft. Add products, brackets, and an application rule on
+              the editor; activate when ready.
             </div>
           </div>
         </div>
         <div className="b2b-drawer__body">
           <div className="b2b-col" style={{ gap: 14 }}>
             <div>
-              <label className="b2b-label" htmlFor="plcode">Code</label>
+              <label className="b2b-label" htmlFor="pl-name">Name</label>
               <input
-                id="plcode"
-                className="b2b-field b2b-field--mono"
-                value={code}
-                onChange={(e): void => setCode(e.target.value.toLowerCase())}
-                placeholder="tier-1-distributors"
-                required
-              />
-              <div className="b2b-help">Lowercase, kebab-case. Used as the URL path segment.</div>
-            </div>
-            <div>
-              <label className="b2b-label" htmlFor="plname">Display name</label>
-              <input
-                id="plname"
+                id="pl-name"
                 className="b2b-field"
                 value={name}
                 onChange={(e): void => setName(e.target.value)}
+                placeholder="Spring promotion 2026"
                 required
               />
+              <div className="b2b-help">Shown to admins; not exposed to customers.</div>
+            </div>
+            <div>
+              <label className="b2b-label" htmlFor="pl-type">Type</label>
+              <select
+                id="pl-type"
+                className="b2b-field"
+                value={type}
+                onChange={(e): void => setType(e.target.value as PriceListType)}
+              >
+                <option value="base">Base — replaces the catalogue price</option>
+                <option value="sale">Sale — Special Price shown alongside the Base</option>
+              </select>
             </div>
             <div className="b2b-row" style={{ gap: 12 }}>
               <div className="b2b-grow">
-                <label className="b2b-label" htmlFor="plcur">Currency</label>
+                <label className="b2b-label" htmlFor="pl-starts">Starts at (optional)</label>
                 <input
-                  id="plcur"
-                  className="b2b-field b2b-field--mono"
-                  value={currency}
-                  onChange={(e): void => setCurrency(e.target.value.toUpperCase())}
-                  maxLength={3}
+                  id="pl-starts"
+                  className="b2b-field"
+                  type="datetime-local"
+                  value={startsAt}
+                  onChange={(e): void => setStartsAt(e.target.value)}
                 />
               </div>
               <div className="b2b-grow">
-                <label className="b2b-label" htmlFor="plprio">Priority</label>
+                <label className="b2b-label" htmlFor="pl-ends">Ends at (optional)</label>
                 <input
-                  id="plprio"
+                  id="pl-ends"
                   className="b2b-field"
-                  type="number"
-                  value={priority}
-                  onChange={(e): void => setPriority(e.target.value)}
+                  type="datetime-local"
+                  value={endsAt}
+                  onChange={(e): void => setEndsAt(e.target.value)}
                 />
               </div>
             </div>
-            <label
-              className="b2b-row"
-              style={{ gap: 8, fontSize: 13, cursor: 'pointer' }}
-            >
-              <input
-                type="checkbox"
-                className="b2b-cbx"
-                checked={isDefault}
-                onChange={(e): void => setIsDefault(e.target.checked)}
-              />
-              Default fallback price list
-            </label>
+            <div className="b2b-help">
+              When a window is set, the list moves to <strong>Scheduled</strong> on activate
+              and flips to <strong>Active</strong> at <code>startsAt</code>; it auto-expires
+              after <code>endsAt</code>.
+            </div>
           </div>
         </div>
         <div className="b2b-drawer__foot">
@@ -421,12 +545,12 @@ function UpsertDrawer({
           <button
             type="button"
             className="b2b-btn b2b-btn--primary"
-            disabled={submitting}
+            disabled={submitting || !name.trim()}
             onClick={(): void => {
               void handle();
             }}
           >
-            {submitting ? 'Saving…' : 'Save price list'}
+            {submitting ? 'Creating…' : 'Create price list'}
           </button>
         </div>
       </aside>
@@ -434,4 +558,12 @@ function UpsertDrawer({
   );
 }
 
-void cn; // utility kept for symmetry with sibling files
+function formatRange(startsAt: string | null, endsAt: string | null): string {
+  if (!startsAt && !endsAt) return 'Always';
+  const fmt = (s: string | null): string => (s ? new Date(s).toLocaleDateString() : '—');
+  return `${fmt(startsAt)} → ${fmt(endsAt)}`;
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleString();
+}
