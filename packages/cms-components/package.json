@@ -8,7 +8,9 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./*": "./src/*.ts"
+    "./*": "./src/*.ts",
+    "./components/*": "./src/components/*.tsx",
+    "./schema/*": "./src/schema/*.ts"
   },
   "engines": {
     "node": ">=22.17.0"
@@ -20,9 +22,26 @@
   },
   "peerDependencies": {
     "@measured/puck": "*",
+    "@tiptap/core": "^3.22.5",
+    "@tiptap/react": "^3.22.5",
+    "@tiptap/starter-kit": "^3.22.5",
     "react": "^19.0.0"
   },
+  "peerDependenciesMeta": {
+    "@tiptap/core": {
+      "optional": true
+    },
+    "@tiptap/react": {
+      "optional": true
+    },
+    "@tiptap/starter-kit": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@tiptap/core": "^3.22.5",
+    "@tiptap/react": "^3.22.5",
+    "@tiptap/starter-kit": "^3.22.5",
     "@types/react": "^19.2.14",
     "typescript": "^5.9.3",
     "vitest": "^2.1.4"

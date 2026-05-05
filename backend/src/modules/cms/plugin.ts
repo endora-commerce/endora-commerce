@@ -12,6 +12,10 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 
 import { PageBuilderRegistry } from './services/page-builder-registry.js';
 import { reconcileSeededHooks } from './services/seed-hooks.js';
+import { CmsPageService } from './services/cms-page-service.js';
+import { StorefrontResolver } from './services/storefront-resolver.js';
+import { registerCmsAdminRoutes } from './routes.admin.js';
+import { registerCmsStorefrontRoutes } from './routes.storefront.js';
 
 export type RequireAdminFactory = (
   permission?: string,
@@ -24,6 +28,8 @@ export interface CmsModuleOptions {
 
 export interface CmsModuleHandle {
   pageBuilderRegistry: PageBuilderRegistry;
+  pageService: CmsPageService;
+  storefrontResolver: StorefrontResolver;
   /** Idempotent reconciler — called by composition before HTTP starts. */
   reconcile: () => Promise<{ inserted: number; preservedExisting: number }>;
 }
@@ -77,14 +83,22 @@ export function cmsModule(options: CmsModuleOptions): {
     },
   });
 
+  const pageService = new CmsPageService(options.emFactory, () => pageBuilderRegistry.knownNames());
+  const storefrontResolver = new StorefrontResolver(options.emFactory);
+
   const handle: CmsModuleHandle = {
     pageBuilderRegistry,
+    pageService,
+    storefrontResolver,
     reconcile: () => reconcileSeededHooks(options.emFactory),
   };
 
-  const plugin = async (_app: FastifyInstance) => {
-    // Routes registered in subsequent user-story phases. Phase 2 ships
-    // module instantiation only.
+  const plugin = async (app: FastifyInstance) => {
+    await registerCmsAdminRoutes(app, {
+      pageService,
+      ...(options.requireAdmin ? { requireAdmin: options.requireAdmin } : {}),
+    });
+    await registerCmsStorefrontRoutes(app, { storefrontResolver });
   };
 
   return { plugin, handle };

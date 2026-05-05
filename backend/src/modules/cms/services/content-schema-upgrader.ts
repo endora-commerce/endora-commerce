@@ -8,7 +8,10 @@
 // without a `schema_version` field gets one set to 1). Future Puck or
 // component-shape bumps add new steps here.
 
-import { CURRENT_SCHEMA_VERSION, type ContentEnvelope } from '@b2b/cms-components';
+import {
+  CURRENT_SCHEMA_VERSION,
+  type ContentEnvelope,
+} from '@b2b/cms-components/schema/envelope';
 
 export class CmsSchemaUpgradeFailedError extends Error {
   override readonly name = 'CmsSchemaUpgradeFailedError';

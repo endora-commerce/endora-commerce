@@ -1,0 +1,97 @@
+import type { EntityManager } from '@mikro-orm/postgresql';
+import type { CmsResolvedPage } from '@b2b/contracts';
+
+type PageRow = {
+  id: string;
+  name: string;
+  slug: string;
+  meta_title: Record<string, string> | null;
+  meta_description: Record<string, string> | null;
+  meta_keywords: Record<string, string> | null;
+  content: { schema_version?: number; languages?: Record<string, unknown> };
+  languages: string[];
+};
+
+type ChannelRow = {
+  id: string;
+  code: string;
+  default_language: string;
+};
+
+export class StorefrontResolver {
+  constructor(private readonly emFactory: () => EntityManager) {}
+
+  async resolvePageBySlug(input: {
+    salesChannelCode?: string | undefined;
+    language?: string | undefined;
+    slug: string;
+  }): Promise<CmsResolvedPage | null> {
+    const em = this.emFactory();
+    const channel = await this.resolveChannel(em, input.salesChannelCode);
+    if (!channel) return null;
+
+    const rows = (await em.getConnection().execute(
+      `select p.*
+       from cms_pages p
+       join cms_page_sales_channels cpsc on cpsc.page_id = p.id
+       where cpsc.sales_channel_id = ?
+         and cpsc.slug = ?
+         and p.status = 'published'
+         and p.active = true
+       limit 1`,
+      [channel.id, input.slug],
+    )) as PageRow[];
+    const page = rows[0];
+    if (!page) return null;
+
+    const language = this.resolveLanguage(page, input.language, channel.default_language);
+    if (!language) return null;
+
+    return {
+      id: page.id,
+      slug: page.slug,
+      name: page.name,
+      language,
+      meta: {
+        title: page.meta_title?.[language] ?? null,
+        description: page.meta_description?.[language] ?? null,
+        keywords: page.meta_keywords?.[language] ?? null,
+      },
+      content: {
+        schemaVersion: page.content.schema_version ?? 1,
+        data: page.content.languages?.[language] ?? {},
+      },
+      embeds: { blocks: {}, templates: {} },
+      assets: {},
+    };
+  }
+
+  private async resolveChannel(
+    em: EntityManager,
+    code: string | undefined,
+  ): Promise<ChannelRow | null> {
+    const rows = (await em.getConnection().execute(
+      code
+        ? `select id::text, code, default_language from sales_channels where code = ? and active = true limit 1`
+        : `select id::text, code, default_language from sales_channels where system_default = true limit 1`,
+      code ? [code] : [],
+    )) as ChannelRow[];
+    return rows[0] ?? null;
+  }
+
+  private resolveLanguage(
+    page: PageRow,
+    requested: string | undefined,
+    channelDefault: string,
+  ): string | null {
+    const available = page.content.languages ?? {};
+    if (requested && page.languages.includes(requested) && available[requested] !== undefined) {
+      return requested;
+    }
+    if (page.languages.includes(channelDefault) && available[channelDefault] !== undefined) {
+      return channelDefault;
+    }
+    const first = page.languages.find((language) => available[language] !== undefined);
+    return first ?? null;
+  }
+}

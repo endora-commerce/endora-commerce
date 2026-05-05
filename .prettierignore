@@ -7,15 +7,21 @@ build/
 out/
 .turbo/
 .docusaurus/
-
 coverage/
 
-pnpm-lock.yaml
 package-lock.json
 yarn.lock
-
-*.min.js
-*.min.css
+pnpm-lock.yaml
 
 backend/src/generated/
 packages/contracts/src/generated/
+
+*.log
+.env
+.env.*
+!.env.example
+
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
