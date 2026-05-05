@@ -352,6 +352,84 @@ export async function registerCatalogAdminRoutes(
     },
   );
 
+  // Feature 012 / US4 — option-list CRUD per contracts/attribute-options.contract.md.
+  function serializeOption(
+    o: import('./entities/attribute-option.entity.js').AttributeOption,
+  ): Record<string, unknown> {
+    return {
+      id: o.id,
+      attributeId: o.attributeId,
+      value: o.value,
+      label: o.label,
+      labelDefault: o.labelDefault,
+      isDefault: o.isDefault,
+      sortOrder: o.sortOrder,
+      createdAt: o.createdAt.toISOString(),
+      updatedAt: o.updatedAt.toISOString(),
+    };
+  }
+
+  app.get<{ Params: { attributeId: string } }>(
+    '/api/v1/admin/catalog/attributes/:attributeId/options',
+    { preHandler: requireAdmin('catalog:read') },
+    async (request) => {
+      const attr = await adminService.getAttributeByIdOrKey(request.params.attributeId);
+      const options = await adminService.listAttributeOptions(attr.id);
+      return { data: { items: options.map(serializeOption) } };
+    },
+  );
+
+  app.post<{
+    Params: { attributeId: string };
+    Body: {
+      value: string;
+      label?: Record<string, string>;
+      labelDefault: string;
+      isDefault?: boolean;
+      sortOrder?: number;
+    };
+  }>(
+    '/api/v1/admin/catalog/attributes/:attributeId/options',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request, reply) => {
+      const row = await adminService.addAttributeOption(
+        request.params.attributeId,
+        request.body,
+      );
+      reply.status(201);
+      return { data: serializeOption(row) };
+    },
+  );
+
+  app.patch<{
+    Params: { attributeId: string; optionId: string };
+    Body: {
+      label?: Record<string, string>;
+      labelDefault?: string;
+      isDefault?: boolean;
+      sortOrder?: number;
+    };
+  }>(
+    '/api/v1/admin/catalog/attributes/:attributeId/options/:optionId',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request) => {
+      const row = await adminService.patchAttributeOption(
+        request.params.optionId,
+        request.body,
+      );
+      return { data: serializeOption(row) };
+    },
+  );
+
+  app.delete<{ Params: { attributeId: string; optionId: string } }>(
+    '/api/v1/admin/catalog/attributes/:attributeId/options/:optionId',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request, reply) => {
+      await adminService.removeAttributeOption(request.params.optionId);
+      reply.status(204).send();
+    },
+  );
+
   // --- Categories CRUD -----------------------------------------------------
 
   if (deps.categoryAdminService) {

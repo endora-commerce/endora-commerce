@@ -523,6 +523,150 @@ export class CatalogAdminService {
   }
 
   /**
+   * Feature 012 / US4 — list every option for one attribute, ordered
+   * by sortOrder ASC then value ASC.
+   */
+  async listAttributeOptions(
+    attributeId: string,
+  ): Promise<import('../entities/attribute-option.entity.js').AttributeOption[]> {
+    const { AttributeOption } = await import('../entities/attribute-option.entity.js');
+    const em = this.emFactory();
+    return em.find(
+      AttributeOption,
+      { attributeId },
+      { orderBy: { sortOrder: 'asc', value: 'asc' } },
+    );
+  }
+
+  /** Feature 012 / US4 — append an option (validated cross-list). */
+  async addAttributeOption(
+    attributeIdOrKey: string,
+    input: {
+      value: string;
+      label?: Record<string, string>;
+      labelDefault: string;
+      isDefault?: boolean;
+      sortOrder?: number;
+    },
+  ): Promise<import('../entities/attribute-option.entity.js').AttributeOption> {
+    const { AttributeOption } = await import('../entities/attribute-option.entity.js');
+    const { validateOptionList, isValidOptionValue } = await import(
+      './attribute-option-validator.js'
+    );
+    const attr = await this.getAttributeByIdOrKey(attributeIdOrKey);
+    if (!isValidOptionValue(input.value)) {
+      throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, `invalid_option_value: ${input.value}`);
+    }
+    const existing = await this.listAttributeOptions(attr.id);
+    const candidate = {
+      value: input.value,
+      labelDefault: input.labelDefault,
+      isDefault: input.isDefault ?? false,
+    };
+    const result = validateOptionList(
+      [
+        ...existing.map((o) => ({
+          value: o.value,
+          labelDefault: o.labelDefault,
+          isDefault: o.isDefault,
+        })),
+        candidate,
+      ],
+      attr.valueType,
+    );
+    if (!result.ok) {
+      const first = result.errors[0]!;
+      throw new HttpError(
+        first.code === 'attribute_type_unsupported' ? 400 : 409,
+        ERROR_CODES.VALIDATION_FAILED,
+        first.message,
+      );
+    }
+    const em = this.emFactory();
+    const sortOrder =
+      input.sortOrder ??
+      (existing.length > 0 ? Math.max(...existing.map((o) => o.sortOrder)) + 1 : 0);
+    const row = em.create(AttributeOption, {
+      attributeId: attr.id,
+      value: input.value,
+      label: input.label ?? {},
+      labelDefault: input.labelDefault,
+      isDefault: input.isDefault ?? false,
+      sortOrder,
+    });
+    await em.persistAndFlush(row);
+    return row;
+  }
+
+  /** Feature 012 / US4 — patch one option (value is immutable per FR-026). */
+  async patchAttributeOption(
+    optionId: string,
+    input: {
+      label?: Record<string, string>;
+      labelDefault?: string;
+      isDefault?: boolean;
+      sortOrder?: number;
+    },
+  ): Promise<import('../entities/attribute-option.entity.js').AttributeOption> {
+    const { AttributeOption } = await import('../entities/attribute-option.entity.js');
+    const em = this.emFactory();
+    const row = await em.findOne(AttributeOption, { id: optionId });
+    if (!row) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute option ${optionId} not found.`);
+    }
+    if (input.label !== undefined) row.label = input.label;
+    if (input.labelDefault !== undefined) row.labelDefault = input.labelDefault;
+    if (input.sortOrder !== undefined) row.sortOrder = input.sortOrder;
+    if (input.isDefault !== undefined) {
+      row.isDefault = input.isDefault;
+      if (input.isDefault) {
+        const { validateOptionList } = await import('./attribute-option-validator.js');
+        const attr = await this.getAttributeByIdOrKey(row.attributeId);
+        const all = await this.listAttributeOptions(row.attributeId);
+        const reslist = all.map((o) => ({
+          value: o.value,
+          labelDefault: o.labelDefault,
+          isDefault: o.id === row.id ? true : o.isDefault,
+        }));
+        const result = validateOptionList(reslist, attr.valueType);
+        if (!result.ok) {
+          throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, result.errors[0]!.message);
+        }
+      }
+    }
+    await em.flush();
+    return row;
+  }
+
+  /** Feature 012 / US4 — remove one option. Refused while products carry it (FR-025). */
+  async removeAttributeOption(optionId: string): Promise<void> {
+    const { AttributeOption } = await import('../entities/attribute-option.entity.js');
+    const em = this.emFactory();
+    const row = await em.findOne(AttributeOption, { id: optionId });
+    if (!row) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute option ${optionId} not found.`);
+    }
+    const attr = await this.getAttributeByIdOrKey(row.attributeId);
+    const refs = (await em
+      .getConnection()
+      .execute<Array<{ count: string }>>(
+        attr.valueType === 'multiselect'
+          ? `select count(*)::text as count from products where attribute_values->? \\? ?`
+          : `select count(*)::text as count from products where attribute_values->>? = ?`,
+        [attr.key, row.value],
+      )) as Array<{ count: string }>;
+    const productCount = Number(refs[0]?.count ?? '0');
+    if (productCount > 0) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.VALIDATION_FAILED,
+        `option_in_use: ${productCount} product(s) still carry value '${row.value}'.`,
+      );
+    }
+    await em.removeAndFlush(row);
+  }
+
+  /**
    * Feature 012 — projection of the legacy `enumValues: string[]` shape
    * from the new `attribute_options` rows for one attribute. Returns
    * `null` when the attribute is non-select-style or has no options.
