@@ -1,18 +1,26 @@
 import { apiClient } from '@/lib/api-client';
 import type {
   CmsPageBuilderDescriptor,
+  CmsBlockDetail,
+  CmsBlockSummary,
   CmsPageDetail,
   CmsPageSummary,
+  CreateCmsBlockRequest,
   CreateCmsPageRequest,
+  PatchCmsBlockRequest,
   PatchCmsPageRequest,
   PutCmsPageContentRequest,
 } from '@b2b/contracts';
 
 export type {
   CmsPageBuilderDescriptor,
+  CmsBlockDetail,
+  CmsBlockSummary,
   CmsPageDetail,
   CmsPageSummary,
+  CreateCmsBlockRequest,
   CreateCmsPageRequest,
+  PatchCmsBlockRequest,
   PatchCmsPageRequest,
   PutCmsPageContentRequest,
 };
@@ -29,6 +37,11 @@ export interface ListPagesQuery {
 
 export interface ListPagesResponse {
   data: CmsPageSummary[];
+  nextCursor: string | null;
+}
+
+export interface ListBlocksResponse {
+  data: CmsBlockSummary[];
   nextCursor: string | null;
 }
 
@@ -115,5 +128,45 @@ export const cmsClient = {
       '/api/v1/admin/cms/page-builder/config',
     );
     return out.data;
+  },
+
+  listBlocks(): Promise<ListBlocksResponse> {
+    return apiClient.get<ListBlocksResponse>('/api/v1/admin/cms/blocks');
+  },
+
+  async createBlock(body: CreateCmsBlockRequest): Promise<CmsBlockDetail> {
+    const out = await apiClient.post<{ data: CmsBlockDetail }>('/api/v1/admin/cms/blocks', body);
+    return out.data;
+  },
+
+  async getBlock(id: string): Promise<CmsBlockDetail> {
+    const out = await apiClient.get<{ data: CmsBlockDetail }>(
+      `/api/v1/admin/cms/blocks/${encodeURIComponent(id)}`,
+    );
+    return out.data;
+  },
+
+  async patchBlock(id: string, body: PatchCmsBlockRequest): Promise<CmsBlockDetail> {
+    const out = await apiClient.patch<{ data: CmsBlockDetail }>(
+      `/api/v1/admin/cms/blocks/${encodeURIComponent(id)}`,
+      body,
+    );
+    return out.data;
+  },
+
+  async putBlockContent(
+    id: string,
+    language: string,
+    body: PutCmsPageContentRequest,
+  ): Promise<CmsBlockDetail> {
+    const out = await apiClient.put<{ data: CmsBlockDetail }>(
+      `/api/v1/admin/cms/blocks/${encodeURIComponent(id)}/content/${encodeURIComponent(language)}`,
+      body,
+    );
+    return out.data;
+  },
+
+  async deleteBlock(id: string): Promise<void> {
+    await apiClient.delete(`/api/v1/admin/cms/blocks/${encodeURIComponent(id)}`);
   },
 };

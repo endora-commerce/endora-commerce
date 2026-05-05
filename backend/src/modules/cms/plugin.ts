@@ -13,6 +13,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { PageBuilderRegistry } from './services/page-builder-registry.js';
 import { reconcileSeededHooks } from './services/seed-hooks.js';
 import { CmsPageService } from './services/cms-page-service.js';
+import { CmsBlockService } from './services/cms-block-service.js';
+import { CmsReferenceRegistry } from './services/cms-reference-registry.js';
 import { StorefrontResolver } from './services/storefront-resolver.js';
 import { registerCmsAdminRoutes } from './routes.admin.js';
 import { registerCmsStorefrontRoutes } from './routes.storefront.js';
@@ -29,6 +31,8 @@ export interface CmsModuleOptions {
 export interface CmsModuleHandle {
   pageBuilderRegistry: PageBuilderRegistry;
   pageService: CmsPageService;
+  blockService: CmsBlockService;
+  referenceRegistry: CmsReferenceRegistry;
   storefrontResolver: StorefrontResolver;
   /** Idempotent reconciler — called by composition before HTTP starts. */
   reconcile: () => Promise<{ inserted: number; preservedExisting: number }>;
@@ -84,11 +88,19 @@ export function cmsModule(options: CmsModuleOptions): {
   });
 
   const pageService = new CmsPageService(options.emFactory, () => pageBuilderRegistry.knownNames());
+  const referenceRegistry = new CmsReferenceRegistry(options.emFactory);
+  const blockService = new CmsBlockService(
+    options.emFactory,
+    () => pageBuilderRegistry.knownNames(),
+    referenceRegistry,
+  );
   const storefrontResolver = new StorefrontResolver(options.emFactory);
 
   const handle: CmsModuleHandle = {
     pageBuilderRegistry,
     pageService,
+    blockService,
+    referenceRegistry,
     storefrontResolver,
     reconcile: () => reconcileSeededHooks(options.emFactory),
   };
@@ -96,6 +108,7 @@ export function cmsModule(options: CmsModuleOptions): {
   const plugin = async (app: FastifyInstance) => {
     await registerCmsAdminRoutes(app, {
       pageService,
+      blockService,
       pageBuilderRegistry,
       ...(options.requireAdmin ? { requireAdmin: options.requireAdmin } : {}),
     });

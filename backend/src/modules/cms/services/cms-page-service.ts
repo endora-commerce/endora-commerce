@@ -8,7 +8,7 @@ import {
   type PatchCmsPageRequest,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { walkUnknownComponents } from './content-tree-walker.js';
+import { walkBlockEmbeds, walkUnknownComponents } from './content-tree-walker.js';
 
 type PageRow = {
   id: string;
@@ -188,6 +188,7 @@ export class CmsPageService {
           `CMS page ${id} saved with unknown components: ${Array.from(unknown).join(', ')}`,
         );
       }
+      await this.assertBlockEmbedsExist(tx, data, await this.channelIdsFor(id, tx));
 
       const content = {
         schema_version: row.content.schema_version ?? 1,
@@ -288,6 +289,30 @@ export class CmsPageService {
          values (?, ?, ?)`,
         [pageId, salesChannelId, slug],
       );
+    }
+  }
+
+  private async assertBlockEmbedsExist(
+    em: EntityManager,
+    data: unknown,
+    salesChannelIds: string[],
+  ): Promise<void> {
+    const codes = Array.from(walkBlockEmbeds(data));
+    if (codes.length === 0 || salesChannelIds.length === 0) return;
+
+    const codePlaceholders = codes.map(() => '?').join(', ');
+    const channelPlaceholders = salesChannelIds.map(() => '?').join(', ');
+    const rows = (await em.getConnection().execute(
+      `select distinct code
+       from cms_block_sales_channels
+       where code in (${codePlaceholders})
+         and sales_channel_id in (${channelPlaceholders})`,
+      [...codes, ...salesChannelIds],
+    )) as Array<{ code: string }>;
+    const found = new Set(rows.map((row) => row.code));
+    const missing = codes.find((code) => !found.has(code));
+    if (missing) {
+      throw new HttpError(404, ERROR_CODES.CMS_BLOCK_NOT_FOUND, `CMS Block "${missing}" not found.`);
     }
   }
 

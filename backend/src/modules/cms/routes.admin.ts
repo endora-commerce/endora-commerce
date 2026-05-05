@@ -1,17 +1,21 @@
 import type { FastifyInstance } from 'fastify';
 import {
+  createCmsBlockRequestSchema,
   createCmsPageRequestSchema,
+  patchCmsBlockRequestSchema,
   patchCmsPageRequestSchema,
   putCmsPageContentRequestSchema,
 } from '@b2b/contracts';
 import type { RequireAdminFactory } from './plugin.js';
 import type { CmsPageService } from './services/cms-page-service.js';
 import type { PageBuilderRegistry } from './services/page-builder-registry.js';
+import type { CmsBlockService } from './services/cms-block-service.js';
 
 export async function registerCmsAdminRoutes(
   app: FastifyInstance,
   deps: {
     pageService: CmsPageService;
+    blockService: CmsBlockService;
     pageBuilderRegistry: PageBuilderRegistry;
     requireAdmin?: RequireAdminFactory;
   },
@@ -92,6 +96,56 @@ export async function registerCmsAdminRoutes(
     { preHandler: requireWrite },
     async (request, reply) => {
       await deps.pageService.delete(request.params.id);
+      return reply.code(204).send();
+    },
+  );
+
+  app.get('/api/v1/admin/cms/blocks', { preHandler: requireRead }, async () =>
+    deps.blockService.list(),
+  );
+
+  app.post('/api/v1/admin/cms/blocks', { preHandler: requireWrite }, async (request, reply) => {
+    const body = createCmsBlockRequestSchema.parse(request.body);
+    const block = await deps.blockService.create(body);
+    return reply.code(201).send({ data: block });
+  });
+
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/cms/blocks/:id',
+    { preHandler: requireRead },
+    async (request) => ({ data: await deps.blockService.get(request.params.id) }),
+  );
+
+  app.patch<{ Params: { id: string } }>(
+    '/api/v1/admin/cms/blocks/:id',
+    { preHandler: requireWrite },
+    async (request) => {
+      const body = patchCmsBlockRequestSchema.parse(request.body);
+      return { data: await deps.blockService.patch(request.params.id, body) };
+    },
+  );
+
+  app.put<{ Params: { id: string; language: string } }>(
+    '/api/v1/admin/cms/blocks/:id/content/:language',
+    { preHandler: requireWrite },
+    async (request) => {
+      const body = putCmsPageContentRequestSchema.parse(request.body);
+      return {
+        data: await deps.blockService.setContent(
+          request.params.id,
+          request.params.language,
+          body.data,
+          body.version,
+        ),
+      };
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/v1/admin/cms/blocks/:id',
+    { preHandler: requireWrite },
+    async (request, reply) => {
+      await deps.blockService.delete(request.params.id);
       return reply.code(204).send();
     },
   );

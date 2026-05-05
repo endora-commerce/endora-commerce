@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CmsResolvedPage } from '@b2b/contracts';
+import type { CmsResolvedBlock, CmsResolvedPage } from '@b2b/contracts';
 
 type PageRow = {
   id: string;
@@ -16,6 +16,13 @@ type ChannelRow = {
   id: string;
   code: string;
   default_language: string;
+};
+
+type BlockRow = {
+  id: string;
+  code: string;
+  content: { schema_version?: number; languages?: Record<string, unknown> };
+  languages: string[];
 };
 
 export class StorefrontResolver {
@@ -66,6 +73,42 @@ export class StorefrontResolver {
     };
   }
 
+  async resolveBlockByCode(input: {
+    salesChannelCode?: string | undefined;
+    language?: string | undefined;
+    code: string;
+  }): Promise<CmsResolvedBlock | null> {
+    const em = this.emFactory();
+    const channel = await this.resolveChannel(em, input.salesChannelCode);
+    if (!channel) return null;
+
+    const rows = (await em.getConnection().execute(
+      `select b.*
+       from cms_blocks b
+       join cms_block_sales_channels cbsc on cbsc.block_id = b.id
+       where cbsc.sales_channel_id = ?
+         and cbsc.code = ?
+         and b.active = true
+       limit 1`,
+      [channel.id, input.code],
+    )) as BlockRow[];
+    const block = rows[0];
+    if (!block) return null;
+
+    const language = this.resolveLanguage(block, input.language, channel.default_language);
+    if (!language) return null;
+
+    return {
+      id: block.id,
+      code: block.code,
+      language,
+      content: {
+        schemaVersion: block.content.schema_version ?? 1,
+        data: block.content.languages?.[language] ?? {},
+      },
+    };
+  }
+
   private async resolveChannel(
     em: EntityManager,
     code: string | undefined,
@@ -80,7 +123,7 @@ export class StorefrontResolver {
   }
 
   private resolveLanguage(
-    page: PageRow,
+    page: Pick<PageRow, 'content' | 'languages'>,
     requested: string | undefined,
     channelDefault: string,
   ): string | null {

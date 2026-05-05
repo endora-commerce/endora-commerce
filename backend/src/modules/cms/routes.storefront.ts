@@ -24,6 +24,24 @@ export async function registerCmsStorefrontRoutes(
     }
     return { data: page };
   });
+
+  app.get('/api/v1/cms/blocks/by-code', async (request) => {
+    const query = (request.query ?? {}) as Record<string, string | undefined>;
+    const code = query['code'];
+    if (!code) {
+      throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'Missing CMS block code.');
+    }
+
+    const block = await deps.storefrontResolver.resolveBlockByCode({
+      code,
+      salesChannelCode: readHeader(request.headers['x-sales-channel']),
+      language: query['language'] ?? readHeader(request.headers['accept-language'])?.split(',')[0],
+    });
+    if (!block) {
+      throw new HttpError(404, ERROR_CODES.CMS_BLOCK_NOT_FOUND, 'CMS Block not found.');
+    }
+    return { data: block };
+  });
 }
 
 function readHeader(value: string | string[] | undefined): string | undefined {

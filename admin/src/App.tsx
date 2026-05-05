@@ -12,6 +12,8 @@ import { SeoPage } from './modules/seo/SeoPage.js';
 import { I18nPage } from './modules/i18n/I18nPage.js';
 import { PagesListPage } from './modules/cms/pages/PagesListPage.js';
 import { PageEditor } from './modules/cms/editors/PageEditor.js';
+import { BlocksListPage } from './modules/cms/pages/BlocksListPage.js';
+import { BlockEditor } from './modules/cms/editors/BlockEditor.js';
 import { RfqList } from './modules/quote_requests/RfqList.js';
 import { RfqDetail } from './modules/quote_requests/RfqDetail.js';
 import { AdminUsersPage } from './modules/admin_users/AdminUsersPage.js';
@@ -109,6 +111,9 @@ export function App(): ReactNode {
         <Route path="/cms/pages" element={<PagesListPage />} />
         <Route path="/cms/pages/new" element={<PageEditor />} />
         <Route path="/cms/pages/:id" element={<PageEditor />} />
+        <Route path="/cms/blocks" element={<BlocksListPage />} />
+        <Route path="/cms/blocks/new" element={<BlockEditor />} />
+        <Route path="/cms/blocks/:id" element={<BlockEditor />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/groups" element={<SettingsGroupsPage />} />
         <Route path="/sales-channels" element={<SalesChannelsListPage />} />
