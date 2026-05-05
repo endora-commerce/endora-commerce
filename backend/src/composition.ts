@@ -49,6 +49,7 @@ import { priceListsManifest } from './modules/price_lists/manifest.js';
 import { assetsLibraryManifest } from './modules/assets_library/manifest.js';
 import { assetsLibraryModule } from './modules/assets_library/plugin.js';
 import { registerCatalogAssetReferences } from './modules/catalog/services/asset-references.js';
+import { registerCmsAssetReferences } from './modules/cms_pages/services/asset-references.js';
 import { WarehouseChannelReconciler } from './modules/inventory/services/warehouse-channel-reconciler.js';
 import { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
@@ -396,6 +397,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // gallery item / product attachment / virtual-download / category main
   // image.
   registerCatalogAssetReferences(assetsLibrary.handle.referenceRegistry, em);
+  registerCmsAssetReferences(assetsLibrary.handle.referenceRegistry, em);
 
   // Feature 006 — Search module. Owns Meilisearch indexer + event-subscriber
   // lifecycle (R-3 — moved out of catalog). Settings-aware suggest config
