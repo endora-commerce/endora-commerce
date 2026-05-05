@@ -44,18 +44,23 @@ describe('cms body scan (T093)', () => {
     });
     await em.persistAndFlush(asset);
 
-    // Insert a CMS page whose body contains an asset_ref node.
+    // Insert a CMS page whose body contains an asset_ref node. The body
+    // column is jsonb at the DB level even though TypeScript narrows it to
+    // Record<string, string> (foundation: HTML keyed by language). We cast
+    // through unknown to write a structured tree — the CMS module's body
+    // shape will be modelled as a structured tree in a follow-up.
     const slug = `t093-page-${randomUUID().slice(0, 8)}`;
+    const richBody = {
+      root: [
+        { kind: 'paragraph', text: 'See:' },
+        { type: 'asset_ref', assetId: asset.id, rendering: 'image' },
+      ],
+    } as unknown as Record<string, string>;
     const page = em.create(CmsPage, {
       path: `/${slug}`,
       status: 'published',
       title: { 'en-US': `T093 page ${slug}` },
-      body: {
-        root: [
-          { kind: 'paragraph', text: 'See:' },
-          { type: 'asset_ref', assetId: asset.id, rendering: 'image' },
-        ],
-      },
+      body: richBody,
     });
     await em.persistAndFlush(page);
 
@@ -72,7 +77,7 @@ describe('cms body scan (T093)', () => {
     expect(del.json()).toMatchObject({ error: { code: 'ASSET_REFERENCED' } });
 
     // Remove the embed → soft-delete now succeeds.
-    page.body = { root: [{ kind: 'paragraph', text: 'See: nothing.' }] };
+    page.body = { root: [{ kind: 'paragraph', text: 'See: nothing.' }] } as unknown as Record<string, string>;
     await em.flush();
 
     const del2 = await h.app.inject({
