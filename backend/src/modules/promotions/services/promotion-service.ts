@@ -9,7 +9,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 import { Promotion } from '../entities/promotion.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
-import { ProductAttribute } from '../../catalog/entities/product-attribute.entity.js';
+import type { ProductAttribute } from '../../catalog/entities/product-attribute.entity.js';
 import {
   lineMatchesAllCriteria,
   type PromotionRuleAttributeLookup,
@@ -61,7 +61,7 @@ export class PromotionService {
     private readonly catalogPort?: PromotionRuleCatalogPort,
     /** Feature 012 / US8 — audit sink for FR-039 skip-on-toggle events. */
     private readonly auditLogger: PromotionAuditLogger = {
-      info: (message, fields) => console.info(message, fields ?? {}),
+      info: (message, fields) => console.warn(`[audit] ${message}`, fields ?? {}),
     },
   ) {}
 

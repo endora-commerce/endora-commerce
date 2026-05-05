@@ -111,9 +111,21 @@ phrases.
 index named `products_<channel_code>`. Document shape carries the
 catalog product surface (id, sku, name, description, type, status,
 slug, primaryAssetUrl, price, categoryIds, categorySlugs, attributes,
-updatedAt). The indexer also drives Meilisearch's `searchableAttributes`
-+ `filterableAttributes` from the live `product_attributes.is_searchable`
-+ `is_filterable` flags.
+searchableOptions, updatedAt). The indexer also drives Meilisearch's
+`searchableAttributes` + `filterableAttributes` from the live
+`product_attributes.is_searchable` + `is_filterable` flags.
+
+### Feature 012 / US7 — `searchableOptions`
+
+For attributes flagged `isSearchable` AND with a select-style
+`valueType` (`select`, `enum`, `multiselect`), the indexer resolves
+the per-locale option label and includes it in the document's
+`searchableOptions: string[]` field. Meilisearch settings include
+`searchableOptions` in `searchableAttributes` so a customer searching
+for the rendered text they see (e.g. "Czerwony") hits products whose
+raw value is the option key (e.g. "red"). Toggling `isSearchable` off
+removes the option labels from `searchableOptions` on the next refresh
+within the existing event-driven cadence.
 
 `SearchEventSubscriber` keeps the indexes in sync:
 
