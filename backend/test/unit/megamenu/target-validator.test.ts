@@ -113,13 +113,15 @@ describe('target-validator (T011)', () => {
     ).rejects.toMatchObject({ code: ERROR_CODES.MEGAMENU_TARGET_OUT_OF_SCOPE });
   });
 
-  it('does not need cross-module lookups for a free-URL asset target', async () => {
+  it('refuses a free-URL asset target until Assets Library importFromUrl lands', async () => {
     const item = {
       ...baseItem,
       kind: 'asset' as const,
       target: { url: 'https://cdn.example.com/hero.jpg', kind: 'image' as const },
     } as unknown as MegamenuItem;
-    await expect(validateTarget(item, [], stubDeps())).resolves.toBeUndefined();
+    await expect(validateTarget(item, [], stubDeps())).rejects.toMatchObject({
+      code: ERROR_CODES.VALIDATION_FAILED,
+    });
   });
 
   it('throws HttpError so service layer can re-raise as 4xx', async () => {

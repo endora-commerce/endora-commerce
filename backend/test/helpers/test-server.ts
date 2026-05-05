@@ -26,6 +26,7 @@ import { i18nModule } from '../../src/modules/languages/plugin.js';
 import { cmsModule } from '../../src/modules/cms/plugin.js';
 import { megamenuModule } from '../../src/modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from '../../src/modules/megamenu/services/asset-references.js';
+import { registerMegamenuCmsReferences } from '../../src/modules/megamenu/services/cms-references.js';
 import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
 import { taxesModule } from '../../src/modules/taxes/plugin.js';
 import { promotionsModule } from '../../src/modules/promotions/plugin.js';
@@ -553,6 +554,7 @@ export async function setupBackendServer(
     },
   });
   modules.push(megamenu.plugin);
+  registerMegamenuCmsReferences(cms.handle.referenceRegistry, megamenu.handle.referenceRegistry);
   if (megamenu.handle.cache) await megamenu.handle.cache.invalidateAll();
 
   // Feature 006 — Search module. Owns the Meilisearch indexer + event

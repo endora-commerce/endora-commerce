@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react';
 import type { ResolvedMenuItem } from '@b2b/contracts';
+import { MenuAsset } from './MenuAsset';
+import { MenuButton } from './MenuButton';
+import { MenuCmsBlockEmbed } from './MenuCmsBlockEmbed';
 import { MenuLink } from './MenuLink';
 
 interface MegamenuPanelProps {
@@ -36,9 +39,7 @@ export function MegamenuPanel({ topLevelItem }: MegamenuPanelProps): ReactNode {
           ) : (
             <ul className="grid grid-cols-3 gap-x-6 gap-y-1">
               {linkChildren.map((child) => (
-                <li key={child.id}>
-                  <MenuLink item={child} className="rounded px-3 py-2 text-sm hover:bg-muted" />
-                </li>
+                <li key={child.id}>{renderChild(child)}</li>
               ))}
             </ul>
           )}
@@ -56,15 +57,24 @@ function CmsBlockEmbedSlot({
   item: ResolvedMenuItem;
   className: string;
 }): ReactNode {
-  // The block content tree is the existing CMS Page Builder tree shape.
-  // Storefront render delegates to `<CmsPageRenderer>` (or any future
-  // shared CMS renderer) — for v1 we surface a placeholder so the slot
-  // is visible. A follow-up task wires the real CMS renderer in.
-  if (!item.block) return null;
   return (
-    <aside className={`${className} rounded-md bg-muted p-4 text-sm`} aria-label={item.label}>
-      <h4 className="font-semibold">{item.label}</h4>
-      <p className="text-muted-foreground">CMS Block: <code>{item.block.code}</code></p>
-    </aside>
+    <MenuCmsBlockEmbed item={item} className={`${className} rounded-md bg-muted p-4 text-sm`} />
   );
+}
+
+function renderChild(child: ResolvedMenuItem): ReactNode {
+  switch (child.kind) {
+    case 'category-link':
+    case 'cms-page-link':
+    case 'external-link':
+      return <MenuLink item={child} className="rounded px-3 py-2 text-sm hover:bg-muted" />;
+    case 'button':
+      return <MenuButton item={child} />;
+    case 'asset':
+      return <MenuAsset item={child} />;
+    case 'cms-block-embed':
+      // Inline embeds are slot-targeted (left/right column) at the panel
+      // root; rendering one inside the link grid would duplicate it.
+      return null;
+  }
 }

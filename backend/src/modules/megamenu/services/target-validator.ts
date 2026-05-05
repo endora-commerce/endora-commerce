@@ -95,9 +95,6 @@ export async function validateTarget(
       return;
     }
     case 'asset': {
-      // Free URL → no cross-module check at this stage; the service layer
-      // imports the URL into Assets Library before persistence and replaces
-      // the target with an `assetId`.
       if ('assetId' in item.target) {
         const ok = await deps.assetIs(item.target.assetId, item.target.kind);
         if (!ok) {
@@ -107,6 +104,16 @@ export async function validateTarget(
             `Asset ${item.target.assetId} is not a ${item.target.kind}.`,
           );
         }
+      } else {
+        // Free-URL asset items require a server-side import into the
+        // Assets Library (T068). The Library does not yet expose
+        // `importFromUrl`; until it does, refuse free URLs at the
+        // validator with a clear error so admins know to upload first.
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          'Free-URL asset items are not yet supported. Upload the asset to the Assets Library first and reference it by id.',
+        );
       }
       return;
     }

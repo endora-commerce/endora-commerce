@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { ResolvedMegamenu, ResolvedMenuItem } from '@b2b/contracts';
+import { MegamenuMobileDrawer } from './MegamenuMobileDrawer';
 import { MegamenuPanel } from './MegamenuPanel';
 
 interface MegamenuProps {
@@ -22,7 +23,10 @@ export function Megamenu({ megamenu }: MegamenuProps): ReactNode {
   return (
     <nav aria-label="Primary navigation" className="border-b border-border bg-white">
       <div className="container mx-auto flex">
-        <ul className="flex items-stretch">
+        {/* Mobile (≤ md): burger drawer with stacked drill-down. */}
+        <MegamenuMobileDrawer megamenu={megamenu} />
+        {/* Desktop (≥ md): top-level bar with hover-revealed panels. */}
+        <ul className="hidden items-stretch md:flex">
           {megamenu.items.map((item) => (
             <li key={item.id} className="group relative">
               <TopLevelTrigger item={item} />

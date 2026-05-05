@@ -32,6 +32,7 @@ import { i18nModule } from './modules/languages/plugin.js';
 import { cmsModule } from './modules/cms/plugin.js';
 import { megamenuModule } from './modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
+import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
 import { priceListsModule } from './modules/price_lists/plugin.js';
 import { taxesModule } from './modules/taxes/plugin.js';
 import { promotionsModule } from './modules/promotions/plugin.js';
@@ -496,6 +497,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
   });
   modules.push(megamenu.plugin);
+  // Megamenu items that reference a CMS page or block block those entities'
+  // deletion via the CMS module's reference registry.
+  registerMegamenuCmsReferences(cms.handle.referenceRegistry, megamenu.handle.referenceRegistry);
 
   // Feature 006 — Search module. Owns Meilisearch indexer + event-subscriber
   // lifecycle (R-3 — moved out of catalog). Settings-aware suggest config

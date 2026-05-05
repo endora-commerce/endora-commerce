@@ -187,7 +187,7 @@ export class CmsBlockService {
   async delete(id: string): Promise<void> {
     const row = await this.findRow(id);
     if (!row) throw new HttpError(404, ERROR_CODES.CMS_BLOCK_NOT_FOUND, 'CMS Block not found.');
-    const refs = await this.references.findBlockReferences(row.code);
+    const refs = await this.references.findBlockReferences(row.id, row.code);
     if (refs.length > 0) {
       throw new HttpError(409, ERROR_CODES.CMS_REFERENCED, 'CMS Block is referenced.');
     }
