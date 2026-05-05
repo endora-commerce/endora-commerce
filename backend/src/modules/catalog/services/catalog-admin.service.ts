@@ -209,6 +209,21 @@ export class CatalogAdminService {
       product.attributeValues = { ...product.attributeValues, ...req.attributeValues };
       changedFields.push('attributeValues');
     }
+    // Feature 012 / FR-013 — refuse the save if any required attribute
+    // in the assigned set is left without a value. The merged map is
+    // the source of truth here (a previously-set value satisfies the
+    // requirement even when the current patch omits it).
+    if (
+      product.attributeSetId &&
+      (req.attributeValues !== undefined ||
+        req.attributeSetId !== undefined)
+    ) {
+      await this.assertRequiredAttributesPresent(
+        em,
+        product.attributeSetId,
+        product.attributeValues ?? {},
+      );
+    }
     if (req.allowedOrganizationIds) {
       product.allowedOrganizationIds = req.allowedOrganizationIds;
       changedFields.push('allowedOrganizationIds');
@@ -764,6 +779,109 @@ export class CatalogAdminService {
         })),
       );
     }
+  }
+
+  /**
+   * Feature 012 / FR-013 — refuse a product save that leaves any
+   * required attribute (from the assigned set) without a value. Called
+   * after `assertAttributeValueKeysAllowed`; uses the merged
+   * (existing + patched) value map so a previously-set value satisfies
+   * the requirement even when the current patch omits it.
+   */
+  async assertRequiredAttributesPresent(
+    em: EntityManager,
+    attributeSetId: string,
+    mergedAttributeValues: Record<string, unknown>,
+  ): Promise<void> {
+    const conn = em.getConnection();
+    const rows = (await conn.execute(
+      `select pa.key
+       from attribute_set_attributes asa
+       join product_attributes pa on pa.id = asa.product_attribute_id
+       where asa.attribute_set_id = ?
+         and pa.is_required = true`,
+      [attributeSetId],
+    )) as Array<{ key: string }>;
+    const missing = rows
+      .map((r) => r.key)
+      .filter((k) => {
+        const v = mergedAttributeValues[k];
+        return v === undefined || v === null || v === '';
+      });
+    if (missing.length > 0) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.VALIDATION_FAILED,
+        `missing_required_attribute_values: ${missing.join(', ')}`,
+      );
+    }
+  }
+
+  /**
+   * Feature 012 / US2 — preview a Set swap on a Product. Returns the
+   * shape documented in `contracts/attribute-sets.contract.md` —
+   * attributesAdded, attributesRemoved, valuesPreserved (R-7),
+   * requiredButMissing.
+   */
+  async previewAttributeSetSwap(
+    productId: string,
+    targetSetId: string | null,
+  ): Promise<{
+    attributesAdded: Array<{ key: string; labelDefault: string; isRequired: boolean }>;
+    attributesRemoved: Array<{ key: string; labelDefault: string }>;
+    valuesPreserved: Array<{ key: string; valueSample: unknown }>;
+    requiredButMissing: Array<{ key: string; labelDefault: string }>;
+  }> {
+    const em = this.emFactory();
+    const product = await em.findOne(Product, { id: productId });
+    if (!product) {
+      throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+    }
+    const conn = em.getConnection();
+    const fetchKeys = async (
+      setId: string | null,
+    ): Promise<Map<string, { labelDefault: string; isRequired: boolean }>> => {
+      const out = new Map<string, { labelDefault: string; isRequired: boolean }>();
+      if (!setId) return out;
+      const rows = (await conn.execute(
+        `select pa.key, pa.label_default as label_default, pa.is_required as is_required
+         from attribute_set_attributes asa
+         join product_attributes pa on pa.id = asa.product_attribute_id
+         where asa.attribute_set_id = ?`,
+        [setId],
+      )) as Array<{ key: string; label_default: string; is_required: boolean }>;
+      for (const r of rows) {
+        out.set(r.key, { labelDefault: r.label_default, isRequired: r.is_required });
+      }
+      return out;
+    };
+    const before = await fetchKeys(product.attributeSetId ?? null);
+    const after = await fetchKeys(targetSetId);
+    const attributesAdded: Array<{ key: string; labelDefault: string; isRequired: boolean }> = [];
+    const attributesRemoved: Array<{ key: string; labelDefault: string }> = [];
+    for (const [key, meta] of after) {
+      if (!before.has(key)) attributesAdded.push({ key, labelDefault: meta.labelDefault, isRequired: meta.isRequired });
+    }
+    for (const [key, meta] of before) {
+      if (!after.has(key)) attributesRemoved.push({ key, labelDefault: meta.labelDefault });
+    }
+    const currentValues = product.attributeValues ?? {};
+    const valuesPreserved: Array<{ key: string; valueSample: unknown }> = [];
+    for (const [key, value] of Object.entries(currentValues)) {
+      if (!after.has(key) && value !== undefined && value !== null && value !== '') {
+        valuesPreserved.push({ key, valueSample: value });
+      }
+    }
+    const requiredButMissing: Array<{ key: string; labelDefault: string }> = [];
+    for (const [key, meta] of after) {
+      if (meta.isRequired) {
+        const v = currentValues[key];
+        if (v === undefined || v === null || v === '') {
+          requiredButMissing.push({ key, labelDefault: meta.labelDefault });
+        }
+      }
+    }
+    return { attributesAdded, attributesRemoved, valuesPreserved, requiredButMissing };
   }
 
   private slugify(value: string): string {

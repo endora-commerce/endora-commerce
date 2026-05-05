@@ -335,6 +335,23 @@ export async function registerCatalogAdminRoutes(
     },
   );
 
+  // Feature 012 / US2 — preview a Set swap on a Product. Pure read.
+  app.post<{
+    Params: { id: string };
+    Body: { targetSetId: string | null };
+  }>(
+    '/api/v1/admin/catalog/products/:id/attribute-set-preview',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request) => {
+      const body = (request.body ?? { targetSetId: null }) as { targetSetId: string | null };
+      const preview = await adminService.previewAttributeSetSwap(
+        request.params.id,
+        body.targetSetId ?? null,
+      );
+      return { data: preview };
+    },
+  );
+
   // --- Categories CRUD -----------------------------------------------------
 
   if (deps.categoryAdminService) {
