@@ -33,9 +33,29 @@ export class CmsBlockService {
     private readonly references: CmsReferenceRegistry,
   ) {}
 
-  async list(): Promise<{ data: CmsBlockSummary[]; nextCursor: null }> {
+  async list(filters: { salesChannelId?: string } = {}): Promise<{
+    data: CmsBlockSummary[];
+    nextCursor: null;
+  }> {
+    const params: unknown[] = [];
+    const where: string[] = [];
+
+    if (filters.salesChannelId) {
+      params.push(filters.salesChannelId);
+      where.push(
+        `exists (
+          select 1 from cms_block_sales_channels cbsc
+          where cbsc.block_id = b.id and cbsc.sales_channel_id = ?
+        )`,
+      );
+    }
+
     const rows = (await this.emFactory().getConnection().execute(
-      `select * from cms_blocks order by updated_at desc limit 50`,
+      `select b.* from cms_blocks b
+       ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
+       order by b.updated_at desc
+       limit 50`,
+      params,
     )) as BlockRow[];
     return { data: await Promise.all(rows.map((row) => this.toSummary(row))), nextCursor: null };
   }

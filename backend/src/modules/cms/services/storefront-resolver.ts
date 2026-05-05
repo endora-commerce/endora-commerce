@@ -134,7 +134,6 @@ export class StorefrontResolver {
     if (page.languages.includes(channelDefault) && available[channelDefault] !== undefined) {
       return channelDefault;
     }
-    const first = page.languages.find((language) => available[language] !== undefined);
-    return first ?? null;
+    return null;
   }
 }

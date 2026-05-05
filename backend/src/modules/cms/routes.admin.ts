@@ -100,9 +100,12 @@ export async function registerCmsAdminRoutes(
     },
   );
 
-  app.get('/api/v1/admin/cms/blocks', { preHandler: requireRead }, async () =>
-    deps.blockService.list(),
-  );
+  app.get('/api/v1/admin/cms/blocks', { preHandler: requireRead }, async (request) => {
+    const query = (request.query ?? {}) as Record<string, string | undefined>;
+    return deps.blockService.list({
+      ...(query['salesChannelId'] ? { salesChannelId: query['salesChannelId'] } : {}),
+    });
+  });
 
   app.post('/api/v1/admin/cms/blocks', { preHandler: requireWrite }, async (request, reply) => {
     const body = createCmsBlockRequestSchema.parse(request.body);

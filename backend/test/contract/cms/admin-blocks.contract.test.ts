@@ -10,12 +10,28 @@ import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales
 describe('admin CMS Blocks contract (T051)', () => {
   let h: BackendServerHandle;
   let defaultChannelId: string;
+  let plOnlyChannelId: string;
   const adminCookie = { b2b_session: 'stub-admin-session' };
 
   beforeAll(async () => {
     h = await setupBackendServer({ seed: 'none' });
-    const channel = await h.em().findOneOrFail(SalesChannel, { systemDefault: true });
+    const em = h.em();
+    const channel = await em.findOneOrFail(SalesChannel, { systemDefault: true });
     defaultChannelId = channel.id;
+    const plOnly = em.create(SalesChannel, {
+      code: `cms-blocks-pl-${Date.now()}`,
+      name: { 'pl-PL': 'CMS blocks PL' },
+      languages: ['pl-PL'],
+      defaultLanguage: 'pl-PL',
+      currencies: ['PLN'],
+      defaultCurrency: 'PLN',
+      active: true,
+      systemDefault: false,
+      isPublic: true,
+      status: 'active',
+    });
+    await em.persistAndFlush(plOnly);
+    plOnlyChannelId = plOnly.id;
   });
 
   afterAll(async () => {
@@ -24,7 +40,12 @@ describe('admin CMS Blocks contract (T051)', () => {
     await h.orm.close(true);
   });
 
-  async function createBlock(code: string, active = true) {
+  async function createBlock(
+    code: string,
+    active = true,
+    salesChannelId = defaultChannelId,
+    languages = ['en-US'],
+  ) {
     return h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/cms/blocks',
@@ -35,8 +56,8 @@ describe('admin CMS Blocks contract (T051)', () => {
         code,
         active,
         description: null,
-        salesChannelIds: [defaultChannelId],
-        languages: ['en-US'],
+        salesChannelIds: [salesChannelId],
+        languages,
       }),
     });
   }
@@ -107,6 +128,31 @@ describe('admin CMS Blocks contract (T051)', () => {
 
     expect(second.statusCode).toBe(409);
     expect(second.json()).toMatchObject({ error: { code: ERROR_CODES.CMS_CODE_CONFLICT } });
+  });
+
+  it('filters Block list by salesChannelId', async () => {
+    const defaultCreated = await createBlock(`block-list-default-${Date.now()}`);
+    const plCreated = await createBlock(
+      `block-list-pl-${Date.now()}`,
+      true,
+      plOnlyChannelId,
+      ['pl-PL'],
+    );
+    expect(defaultCreated.statusCode).toBe(201);
+    expect(plCreated.statusCode).toBe(201);
+    const defaultBlock = (defaultCreated.json() as { data: { id: string } }).data;
+    const plBlock = (plCreated.json() as { data: { id: string } }).data;
+
+    const list = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/cms/blocks?salesChannelId=${encodeURIComponent(defaultChannelId)}`,
+      cookies: adminCookie,
+    });
+
+    expect(list.statusCode).toBe(200);
+    const ids = ((list.json() as { data: Array<{ id: string }> }).data).map((block) => block.id);
+    expect(ids).toContain(defaultBlock.id);
+    expect(ids).not.toContain(plBlock.id);
   });
 
   it('omits inactive Blocks from storefront resolution', async () => {

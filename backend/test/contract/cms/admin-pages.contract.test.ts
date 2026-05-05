@@ -9,13 +9,29 @@ import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales
 describe('admin CMS Pages contract (T036)', () => {
   let h: BackendServerHandle;
   let defaultChannelId: string;
+  let plOnlyChannelId: string;
 
   const adminCookie = { b2b_session: 'stub-admin-session' };
 
   beforeAll(async () => {
     h = await setupBackendServer({ seed: 'none' });
-    const channel = await h.em().findOneOrFail(SalesChannel, { systemDefault: true });
+    const em = h.em();
+    const channel = await em.findOneOrFail(SalesChannel, { systemDefault: true });
     defaultChannelId = channel.id;
+    const plOnly = em.create(SalesChannel, {
+      code: `cms-pages-pl-${Date.now()}`,
+      name: { 'pl-PL': 'CMS pages PL' },
+      languages: ['pl-PL'],
+      defaultLanguage: 'pl-PL',
+      currencies: ['PLN'],
+      defaultCurrency: 'PLN',
+      active: true,
+      systemDefault: false,
+      isPublic: true,
+      status: 'active',
+    });
+    await em.persistAndFlush(plOnly);
+    plOnlyChannelId = plOnly.id;
   });
 
   afterAll(async () => {
@@ -25,6 +41,10 @@ describe('admin CMS Pages contract (T036)', () => {
   });
 
   async function createPage(slug: string) {
+    return createPageInChannel(slug, defaultChannelId, ['en-US']);
+  }
+
+  async function createPageInChannel(slug: string, salesChannelId: string, languages: string[]) {
     return h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/cms/pages',
@@ -35,10 +55,10 @@ describe('admin CMS Pages contract (T036)', () => {
         slug,
         active: true,
         description: null,
-        salesChannelIds: [defaultChannelId],
-        languages: ['en-US'],
+        salesChannelIds: [salesChannelId],
+        languages,
         meta: {
-          'en-US': {
+          [languages[0] ?? 'en-US']: {
             title: `Meta ${slug}`,
             description: `Description ${slug}`,
             keywords: 'cms,contract',
@@ -64,6 +84,49 @@ describe('admin CMS Pages contract (T036)', () => {
         languages: ['en-US'],
         version: 1,
       },
+    });
+  });
+
+  it('filters Page list by salesChannelId', async () => {
+    const defaultSlug = `contract-list-default-${Date.now()}`;
+    const plSlug = `contract-list-pl-${Date.now()}`;
+    const defaultCreated = await createPage(defaultSlug);
+    const plCreated = await createPageInChannel(plSlug, plOnlyChannelId, ['pl-PL']);
+    expect(defaultCreated.statusCode).toBe(201);
+    expect(plCreated.statusCode).toBe(201);
+    const defaultPage = (defaultCreated.json() as { data: { id: string } }).data;
+    const plPage = (plCreated.json() as { data: { id: string } }).data;
+
+    const list = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/cms/pages?salesChannelId=${encodeURIComponent(defaultChannelId)}`,
+      cookies: adminCookie,
+    });
+
+    expect(list.statusCode).toBe(200);
+    const ids = ((list.json() as { data: Array<{ id: string }> }).data).map((page) => page.id);
+    expect(ids).toContain(defaultPage.id);
+    expect(ids).not.toContain(plPage.id);
+  });
+
+  it('rejects Page languages outside the assigned channel language set', async () => {
+    const res = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/cms/pages',
+      headers: { 'content-type': 'application/json' },
+      cookies: adminCookie,
+      payload: JSON.stringify({
+        name: 'Invalid language page',
+        slug: `invalid-language-${Date.now()}`,
+        active: true,
+        salesChannelIds: [plOnlyChannelId],
+        languages: ['en-US'],
+      }),
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({
+      error: { code: ERROR_CODES.CMS_LANGUAGE_NOT_IN_CHANNEL_SCOPE },
     });
   });
 

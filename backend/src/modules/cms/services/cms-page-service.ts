@@ -88,6 +88,7 @@ export class CmsPageService {
     const body = Object.fromEntries(input.languages.map((language) => [language, '']));
 
     await em.transactional(async (tx) => {
+      await this.assertLanguagesInChannelScope(tx, input.languages, input.salesChannelIds);
       await this.assertSlugAvailable(tx, input.slug, input.salesChannelIds);
       await tx.getConnection().execute(
         `insert into cms_pages
@@ -135,6 +136,8 @@ export class CmsPageService {
 
       const nextSlug = input.slug ?? row.slug;
       const nextChannels = input.salesChannelIds ?? (await this.channelIdsFor(id, tx));
+      const nextLanguages = input.languages ?? row.languages;
+      await this.assertLanguagesInChannelScope(tx, nextLanguages, nextChannels);
       if (input.slug || input.salesChannelIds) {
         await this.assertSlugAvailable(tx, nextSlug, nextChannels, id);
       }
@@ -198,6 +201,7 @@ export class CmsPageService {
         },
       };
       const languages = row.languages.includes(language) ? row.languages : [...row.languages, language];
+      await this.assertLanguagesInChannelScope(tx, languages, await this.channelIdsFor(id, tx));
 
       await tx.getConnection().execute(
         `update cms_pages
@@ -271,6 +275,31 @@ export class CmsPageService {
     )) as Array<{ page_id: string }>;
     if (rows.length > 0) {
       throw new HttpError(409, ERROR_CODES.CMS_SLUG_CONFLICT, 'CMS Page slug already exists.');
+    }
+  }
+
+  private async assertLanguagesInChannelScope(
+    em: EntityManager,
+    languages: string[],
+    salesChannelIds: string[],
+  ): Promise<void> {
+    if (languages.length === 0 || salesChannelIds.length === 0) return;
+
+    const placeholders = salesChannelIds.map(() => '?').join(', ');
+    const rows = (await em.getConnection().execute(
+      `select languages
+       from sales_channels
+       where id in (${placeholders})`,
+      salesChannelIds,
+    )) as Array<{ languages: string[] }>;
+    const allowed = new Set(rows.flatMap((row) => row.languages));
+    const unsupported = languages.find((language) => !allowed.has(language));
+    if (unsupported) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.CMS_LANGUAGE_NOT_IN_CHANNEL_SCOPE,
+        `CMS Page language "${unsupported}" is not configured for the assigned sales channels.`,
+      );
     }
   }
 
