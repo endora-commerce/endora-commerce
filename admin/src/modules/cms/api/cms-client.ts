@@ -3,11 +3,16 @@ import type {
   CmsPageBuilderDescriptor,
   CmsBlockDetail,
   CmsBlockSummary,
+  CmsHookDetail,
+  CmsHookSummary,
   CmsPageDetail,
   CmsPageSummary,
+  CmsHookAttachmentRequest,
   CreateCmsBlockRequest,
+  CreateCmsHookRequest,
   CreateCmsPageRequest,
   PatchCmsBlockRequest,
+  PatchCmsHookRequest,
   PatchCmsPageRequest,
   PutCmsPageContentRequest,
 } from '@b2b/contracts';
@@ -16,11 +21,16 @@ export type {
   CmsPageBuilderDescriptor,
   CmsBlockDetail,
   CmsBlockSummary,
+  CmsHookDetail,
+  CmsHookSummary,
   CmsPageDetail,
   CmsPageSummary,
+  CmsHookAttachmentRequest,
   CreateCmsBlockRequest,
+  CreateCmsHookRequest,
   CreateCmsPageRequest,
   PatchCmsBlockRequest,
+  PatchCmsHookRequest,
   PatchCmsPageRequest,
   PutCmsPageContentRequest,
 };
@@ -42,6 +52,11 @@ export interface ListPagesResponse {
 
 export interface ListBlocksResponse {
   data: CmsBlockSummary[];
+  nextCursor: string | null;
+}
+
+export interface ListHooksResponse {
+  data: CmsHookSummary[];
   nextCursor: string | null;
 }
 
@@ -168,5 +183,72 @@ export const cmsClient = {
 
   async deleteBlock(id: string): Promise<void> {
     await apiClient.delete(`/api/v1/admin/cms/blocks/${encodeURIComponent(id)}`);
+  },
+
+  listHooks(query: { salesChannelId?: string } = {}): Promise<ListHooksResponse> {
+    const params = new URLSearchParams();
+    if (query.salesChannelId) params.set('salesChannelId', query.salesChannelId);
+    const qs = params.toString();
+    return apiClient.get<ListHooksResponse>(`/api/v1/admin/cms/hooks${qs ? `?${qs}` : ''}`);
+  },
+
+  async createHook(body: CreateCmsHookRequest): Promise<CmsHookDetail> {
+    const out = await apiClient.post<{ data: CmsHookDetail }>('/api/v1/admin/cms/hooks', body);
+    return out.data;
+  },
+
+  async getHook(id: string): Promise<CmsHookDetail> {
+    const out = await apiClient.get<{ data: CmsHookDetail }>(
+      `/api/v1/admin/cms/hooks/${encodeURIComponent(id)}`,
+    );
+    return out.data;
+  },
+
+  async patchHook(id: string, body: PatchCmsHookRequest): Promise<CmsHookDetail> {
+    const out = await apiClient.patch<{ data: CmsHookDetail }>(
+      `/api/v1/admin/cms/hooks/${encodeURIComponent(id)}`,
+      body,
+    );
+    return out.data;
+  },
+
+  async deleteHook(id: string): Promise<void> {
+    await apiClient.delete(`/api/v1/admin/cms/hooks/${encodeURIComponent(id)}`);
+  },
+
+  async listHookAttachments(id: string): Promise<CmsHookDetail['attachments']> {
+    const out = await apiClient.get<{ data: CmsHookDetail['attachments'] }>(
+      `/api/v1/admin/cms/hooks/${encodeURIComponent(id)}/attachments`,
+    );
+    return out.data;
+  },
+
+  async addHookAttachment(
+    id: string,
+    body: CmsHookAttachmentRequest,
+  ): Promise<CmsHookDetail['attachments']> {
+    const out = await apiClient.post<{ data: CmsHookDetail['attachments'] }>(
+      `/api/v1/admin/cms/hooks/${encodeURIComponent(id)}/attachments`,
+      body,
+    );
+    return out.data;
+  },
+
+  async reorderHookAttachment(
+    id: string,
+    blockId: string,
+    position: number,
+  ): Promise<CmsHookDetail['attachments']> {
+    const out = await apiClient.patch<{ data: CmsHookDetail['attachments'] }>(
+      `/api/v1/admin/cms/hooks/${encodeURIComponent(id)}/attachments/${encodeURIComponent(blockId)}`,
+      { position },
+    );
+    return out.data;
+  },
+
+  async removeHookAttachment(id: string, blockId: string): Promise<void> {
+    await apiClient.delete(
+      `/api/v1/admin/cms/hooks/${encodeURIComponent(id)}/attachments/${encodeURIComponent(blockId)}`,
+    );
   },
 };
