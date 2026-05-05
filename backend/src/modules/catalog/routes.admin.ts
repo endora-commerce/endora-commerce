@@ -1023,17 +1023,21 @@ function serializeAdminAttribute(a: ProductAttribute) {
     id: a.id,
     key: a.key,
     label: a.label,
+    labelDefault: a.labelDefault,
     // API-form (feature 002 T013/T021/T022): admin UI can read either
     // `type` or the legacy `valueType` — both are emitted.
     type: api.type,
     numericKind: api.numericKind,
     valueType: a.valueType,
-    enumValues: a.enumValues ?? null,
     isSearchable: a.isSearchable,
     isFilterable: a.isFilterable,
     isVariantAxis: a.isVariantAxis,
     displayAsSlider: a.displayAsSlider,
     isComparable: a.isComparable,
+    isRequired: a.isRequired,
+    isPromoRule: a.isPromoRule,
+    filterPosition: a.filterPosition,
+    isVisibleOnProductPage: a.isVisibleOnProductPage,
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
   };

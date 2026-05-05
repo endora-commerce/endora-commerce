@@ -175,8 +175,8 @@ async function main(): Promise<void> {
   const attrColor = em.create(ProductAttribute, {
     key: 'color',
     label: { 'en-US': 'Color' },
+    labelDefault: 'Color',
     valueType: 'enum',
-    enumValues: COLOR_VALUES,
     isSearchable: true,
     isFilterable: true,
     isVariantAxis: false,
@@ -184,8 +184,8 @@ async function main(): Promise<void> {
   const attrMaterial = em.create(ProductAttribute, {
     key: 'material',
     label: { 'en-US': 'Material' },
+    labelDefault: 'Material',
     valueType: 'enum',
-    enumValues: MATERIAL_VALUES,
     isSearchable: false,
     isFilterable: true,
     isVariantAxis: false,
@@ -193,6 +193,7 @@ async function main(): Promise<void> {
   const attrWeight = em.create(ProductAttribute, {
     key: 'weight_kg',
     label: { 'en-US': 'Weight (kg)' },
+    labelDefault: 'Weight (kg)',
     valueType: 'number',
     isSearchable: false,
     isFilterable: true,
@@ -201,6 +202,7 @@ async function main(): Promise<void> {
   const attrCertification = em.create(ProductAttribute, {
     key: 'certification',
     label: { 'en-US': 'Certification' },
+    labelDefault: 'Certification',
     valueType: 'string',
     isSearchable: true,
     isFilterable: false,
@@ -209,6 +211,7 @@ async function main(): Promise<void> {
   const attrInternalNotes = em.create(ProductAttribute, {
     key: 'internal_sku_notes',
     label: { 'en-US': 'Internal SKU notes' },
+    labelDefault: 'Internal SKU notes',
     valueType: 'string',
     isSearchable: true,
     isFilterable: false,
@@ -219,8 +222,8 @@ async function main(): Promise<void> {
   const attrCompatibleSystems = em.create(ProductAttribute, {
     key: 'compatible_systems',
     label: { 'en-US': 'Compatible systems' },
+    labelDefault: 'Compatible systems',
     valueType: 'multiselect',
-    enumValues: ['windows', 'macos', 'linux'],
     isSearchable: true,
     isFilterable: true,
     isVariantAxis: false,
@@ -228,6 +231,7 @@ async function main(): Promise<void> {
   const attrManufacturerPrice = em.create(ProductAttribute, {
     key: 'manufacturer_price',
     label: { 'en-US': 'Manufacturer price' },
+    labelDefault: 'Manufacturer price',
     valueType: 'price',
     isSearchable: false,
     isFilterable: true,
@@ -243,6 +247,29 @@ async function main(): Promise<void> {
     attrCompatibleSystems,
     attrManufacturerPrice,
   ]);
+
+  // Feature 012 — option-list rows for the three select-style attributes
+  // (formerly stored as enum_values: string[] on the parent; the column is
+  // gone). The dev seed populates labelDefault from the value itself.
+  const { AttributeOption } = await import('../entities/attribute-option.entity.js');
+  const optionRows: Array<{ attributeId: string; values: readonly string[] }> = [
+    { attributeId: attrColor.id, values: COLOR_VALUES },
+    { attributeId: attrMaterial.id, values: MATERIAL_VALUES },
+    { attributeId: attrCompatibleSystems.id, values: ['windows', 'macos', 'linux'] },
+  ];
+  for (const row of optionRows) {
+    for (const [i, v] of row.values.entries()) {
+      em.create(AttributeOption, {
+        attributeId: row.attributeId,
+        value: v,
+        label: {},
+        labelDefault: v,
+        isDefault: false,
+        sortOrder: i,
+      });
+    }
+  }
+  await em.flush();
 
   // Feature 002 — assign every seeded attribute to the system Default
   // Attribute Set so the admin Product editor lists them out of the box.

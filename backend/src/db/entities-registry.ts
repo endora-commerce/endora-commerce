@@ -5,6 +5,7 @@ import { Product } from '../modules/catalog/entities/product.entity.js';
 import { ProductVariant } from '../modules/catalog/entities/product-variant.entity.js';
 import { Category } from '../modules/catalog/entities/category.entity.js';
 import { ProductAttribute } from '../modules/catalog/entities/product-attribute.entity.js';
+import { AttributeOption } from '../modules/catalog/entities/attribute-option.entity.js';
 import { AttributeSet } from '../modules/catalog/entities/attribute-set.entity.js';
 import { AttributeSetAttribute } from '../modules/catalog/entities/attribute-set-attribute.entity.js';
 import { GalleryItem } from '../modules/catalog/entities/gallery-item.entity.js';
@@ -99,6 +100,7 @@ export const ALL_ENTITIES = [
   ProductVariant,
   Category,
   ProductAttribute,
+  AttributeOption,
   // Attribute Sets (feature 002)
   AttributeSet,
   AttributeSetAttribute,

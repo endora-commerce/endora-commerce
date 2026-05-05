@@ -62,8 +62,8 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
   const color = em.create(ProductAttribute, {
     key: 'color',
     label: { 'en-US': 'Color', 'pl-PL': 'Kolor' },
+    labelDefault: 'Color',
     valueType: 'enum',
-    enumValues: ['red', 'green', 'blue'],
     isSearchable: true,
     isFilterable: true,
     isVariantAxis: false,
@@ -71,6 +71,7 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
   const internalNotes = em.create(ProductAttribute, {
     key: 'internal_sku_notes',
     label: { 'en-US': 'Internal SKU notes', 'pl-PL': 'Notatki wewnętrzne' },
+    labelDefault: 'Internal SKU notes',
     valueType: 'string',
     isSearchable: true,
     isFilterable: false,
@@ -79,8 +80,8 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
   const material = em.create(ProductAttribute, {
     key: 'material',
     label: { 'en-US': 'Material', 'pl-PL': 'Materiał' },
+    labelDefault: 'Material',
     valueType: 'enum',
-    enumValues: ['steel', 'aluminium', 'plastic'],
     isSearchable: false,
     isFilterable: true,
     isVariantAxis: false,
@@ -88,12 +89,40 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
   const certification = em.create(ProductAttribute, {
     key: 'certification',
     label: { 'en-US': 'Certification', 'pl-PL': 'Certyfikat' },
+    labelDefault: 'Certification',
     valueType: 'string',
     isSearchable: false,
     isFilterable: false,
     isVariantAxis: false,
   });
   await em.persistAndFlush([color, internalNotes, material, certification]);
+
+  // Feature 012 — option-list rows for the two enum attributes (formerly
+  // stored as enum_values: string[] on the parent; the column is gone).
+  const { AttributeOption } = await import(
+    '../../src/modules/catalog/entities/attribute-option.entity.js'
+  );
+  for (const v of ['red', 'green', 'blue']) {
+    em.create(AttributeOption, {
+      attributeId: color.id,
+      value: v,
+      label: {},
+      labelDefault: v,
+      isDefault: false,
+      sortOrder: 0,
+    });
+  }
+  for (const v of ['steel', 'aluminium', 'plastic']) {
+    em.create(AttributeOption, {
+      attributeId: material.id,
+      value: v,
+      label: {},
+      labelDefault: v,
+      isDefault: false,
+      sortOrder: 0,
+    });
+  }
+  await em.flush();
 
   // Feature 002 (T023) — assign every seeded attribute to the system
   // Default Attribute Set so the catalog-admin's attribute-values

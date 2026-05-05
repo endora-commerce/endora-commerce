@@ -327,7 +327,7 @@ export class AttributeSetService {
   ): Promise<AttributeSetAssignedAttributeDto[]> {
     const conn = em.getConnection();
     const rows = (await conn.execute(
-      `select pa.id, pa.key, pa.label, pa.value_type, pa.enum_values, pa.display_as_slider, asa.position
+      `select pa.id, pa.key, pa.label, pa.value_type, pa.display_as_slider, asa.position
        from attribute_set_attributes asa
        join product_attributes pa on pa.id = asa.product_attribute_id
        where asa.attribute_set_id = ?
@@ -338,7 +338,6 @@ export class AttributeSetService {
       key: string;
       label: Record<string, string>;
       value_type: string;
-      enum_values: string[] | null;
       display_as_slider: boolean;
       position: number;
     }>;

@@ -280,16 +280,25 @@ export class CatalogAdminService {
         `displayAsSlider is only valid for valueType="number" or "price"; got "${resolved.valueType}".`,
       );
     }
+    const labelDefault =
+      req.labelDefault ??
+      req.label['en-US'] ??
+      Object.values(req.label)[0] ??
+      req.key;
     const attr = em.create(ProductAttribute, {
       key: req.key,
       label: req.label,
+      labelDefault,
       valueType: resolved.valueType,
-      enumValues: req.enumValues ?? null,
       isSearchable: req.isSearchable,
       isFilterable: req.isFilterable,
       isVariantAxis: req.isVariantAxis,
       displayAsSlider: resolved.displayAsSlider,
       isComparable: req.isComparable ?? false,
+      isRequired: req.isRequired ?? false,
+      isPromoRule: req.isPromoRule ?? false,
+      filterPosition: req.filterPosition ?? 0,
+      isVisibleOnProductPage: req.isVisibleOnProductPage ?? false,
     });
     try {
       await em.persistAndFlush(attr);
@@ -298,6 +307,38 @@ export class CatalogAdminService {
         throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, `Attribute key "${req.key}" already exists.`);
       }
       throw err;
+    }
+    // Feature 012 — when the operator supplies legacy `enumValues` OR the
+    // new rich `options` array, materialise them as `attribute_options`
+    // rows on the new table. The rich form wins when both are present.
+    const inlineOptions = req.options;
+    const legacyValues = req.enumValues;
+    if (inlineOptions && inlineOptions.length > 0) {
+      const { AttributeOption } = await import('../entities/attribute-option.entity.js');
+      for (const [i, o] of inlineOptions.entries()) {
+        em.create(AttributeOption, {
+          attributeId: attr.id,
+          value: o.value,
+          label: o.label ?? {},
+          labelDefault: o.labelDefault,
+          isDefault: o.isDefault ?? false,
+          sortOrder: o.sortOrder ?? i,
+        });
+      }
+      await em.flush();
+    } else if (legacyValues && legacyValues.length > 0) {
+      const { AttributeOption } = await import('../entities/attribute-option.entity.js');
+      for (const [i, v] of legacyValues.entries()) {
+        em.create(AttributeOption, {
+          attributeId: attr.id,
+          value: v,
+          label: {},
+          labelDefault: v,
+          isDefault: false,
+          sortOrder: i,
+        });
+      }
+      await em.flush();
     }
     this.events.emit('attribute.updated.v1', {
       eventId: randomUUID(),
@@ -345,11 +386,17 @@ export class CatalogAdminService {
     req: UpdateAttributeRequest,
   ): Promise<ProductAttribute> {
     if (req.label !== undefined) attr.label = req.label;
-    if (req.enumValues !== undefined) attr.enumValues = req.enumValues;
+    if (req.labelDefault !== undefined) attr.labelDefault = req.labelDefault;
     if (req.isSearchable !== undefined) attr.isSearchable = req.isSearchable;
     if (req.isFilterable !== undefined) attr.isFilterable = req.isFilterable;
     if (req.isVariantAxis !== undefined) attr.isVariantAxis = req.isVariantAxis;
     if (req.isComparable !== undefined) attr.isComparable = req.isComparable;
+    if (req.isRequired !== undefined) attr.isRequired = req.isRequired;
+    if (req.isPromoRule !== undefined) attr.isPromoRule = req.isPromoRule;
+    if (req.filterPosition !== undefined) attr.filterPosition = req.filterPosition;
+    if (req.isVisibleOnProductPage !== undefined) {
+      attr.isVisibleOnProductPage = req.isVisibleOnProductPage;
+    }
     if (req.type !== undefined) {
       // Feature 002 — patching `type` re-derives valueType + displayAsSlider.
       const resolved = resolveAttributeApiType({
@@ -666,6 +713,11 @@ export function dbToApiAttributeType(
     case 'number':
       return { type: 'number', numericKind: null };
     case 'enum':
+      return { type: 'select', numericKind: null };
+    case 'select':
+      // Feature 012 — `'select'` shares storage with `'enum'`; differs only in
+      // rendering intent (compact pill vs full dropdown). Maps to the same
+      // API affordance for now.
       return { type: 'select', numericKind: null };
     case 'multiselect':
       return { type: 'multiselect', numericKind: null };

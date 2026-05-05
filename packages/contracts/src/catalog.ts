@@ -57,6 +57,7 @@ export const attributeValueTypeSchema = z.enum([
   'date',
   'multiselect',
   'price',
+  'select',
 ]);
 export type AttributeValueType = z.infer<typeof attributeValueTypeSchema>;
 
@@ -76,6 +77,47 @@ export type ApiAttributeType = z.infer<typeof apiAttributeTypeSchema>;
 
 export const assetKindSchema = z.enum(['image', 'video', 'pdf', 'certificate', 'other']);
 export type AssetKind = z.infer<typeof assetKindSchema>;
+
+// --- Feature 012 — Attribute options (rich per-option metadata) -------------
+
+const attributeOptionValueRegex = /^[a-z0-9_-]{1,200}$/;
+
+export const attributeOptionSchema = z.object({
+  id: uuidSchema,
+  attributeId: uuidSchema,
+  value: z.string().regex(attributeOptionValueRegex),
+  label: z.record(z.string().min(2), z.string().min(1).max(200)),
+  labelDefault: z.string().min(1).max(200),
+  isDefault: z.boolean(),
+  sortOrder: z.number().int().min(0),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type AttributeOption = z.infer<typeof attributeOptionSchema>;
+
+export const createAttributeOptionRequestSchema = z.object({
+  value: z.string().regex(attributeOptionValueRegex),
+  label: z.record(z.string().min(2), z.string().min(1).max(200)).optional(),
+  labelDefault: z.string().min(1).max(200),
+  isDefault: z.boolean().optional(),
+  sortOrder: z.number().int().min(0).optional(),
+});
+export type CreateAttributeOptionRequest = z.infer<typeof createAttributeOptionRequestSchema>;
+
+export const replaceAttributeOptionsRequestSchema = z.object({
+  options: z.array(createAttributeOptionRequestSchema),
+});
+export type ReplaceAttributeOptionsRequest = z.infer<typeof replaceAttributeOptionsRequestSchema>;
+
+export const patchAttributeOptionRequestSchema = z
+  .object({
+    label: z.record(z.string().min(2), z.string().min(1).max(200)).optional(),
+    labelDefault: z.string().min(1).max(200).optional(),
+    isDefault: z.boolean().optional(),
+    sortOrder: z.number().int().min(0).optional(),
+  })
+  .strict();
+export type PatchAttributeOptionRequest = z.infer<typeof patchAttributeOptionRequestSchema>;
 
 // --- Assets (linked from catalog) -------------------------------------------
 
@@ -471,6 +513,26 @@ const baseCreateAttributeObject = z.object({
    * isFilterable. Defaults to false on create when omitted.
    */
   isComparable: z.boolean().optional(),
+  /**
+   * Feature 012 — fallback label used when the active locale is missing
+   * from `label`. Defaults server-side to the en-US label (or the first
+   * available label, or the attribute key) when omitted on create.
+   */
+  labelDefault: z.string().min(1).max(200).optional(),
+  /** Feature 012 — enforced at product save time when the attribute is in the assigned set. */
+  isRequired: z.boolean().optional(),
+  /** Feature 012 — surfaces the attribute in the Promotion Rule criterion picker. */
+  isPromoRule: z.boolean().optional(),
+  /** Feature 012 — ascending sort order on the storefront filter sidebar. Defaults 0. */
+  filterPosition: z.number().int().min(0).max(10000).optional(),
+  /** Feature 012 — gates inclusion in the storefront PDP "Parametry produktu" tab. */
+  isVisibleOnProductPage: z.boolean().optional(),
+  /**
+   * Feature 012 — rich option list for select / enum / multiselect types.
+   * When supplied alongside the legacy `enumValues`, this wins. The
+   * service layer creates corresponding `attribute_options` rows.
+   */
+  options: z.array(createAttributeOptionRequestSchema).optional(),
 });
 
 export const createAttributeRequestSchema = baseCreateAttributeObject
@@ -519,6 +581,16 @@ export const updateAttributeRequestSchema = z
     displayAsSlider: z.boolean().optional(),
     /** Feature 007 — toggles the Compare-page row for this attribute. */
     isComparable: z.boolean().optional(),
+    /** Feature 012 — fallback label used when the active locale is missing from `label`. */
+    labelDefault: z.string().min(1).max(200).optional(),
+    /** Feature 012 — enforced at product save time when the attribute is in the assigned set. */
+    isRequired: z.boolean().optional(),
+    /** Feature 012 — surfaces the attribute in the Promotion Rule criterion picker. */
+    isPromoRule: z.boolean().optional(),
+    /** Feature 012 — ascending sort order on the storefront filter sidebar. */
+    filterPosition: z.number().int().min(0).max(10000).optional(),
+    /** Feature 012 — gates inclusion in the storefront PDP "Parametry produktu" tab. */
+    isVisibleOnProductPage: z.boolean().optional(),
   })
   .strict()
   .refine(
