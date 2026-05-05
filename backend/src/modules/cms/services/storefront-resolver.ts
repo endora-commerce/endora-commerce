@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CmsResolvedBlock, CmsResolvedPage } from '@b2b/contracts';
+import type { CmsResolvedBlock, CmsResolvedHook, CmsResolvedPage } from '@b2b/contracts';
 
 type PageRow = {
   id: string;
@@ -23,6 +23,12 @@ type BlockRow = {
   code: string;
   content: { schema_version?: number; languages?: Record<string, unknown> };
   languages: string[];
+};
+
+type HookRow = {
+  id: string;
+  code: string;
+  active: boolean;
 };
 
 export class StorefrontResolver {
@@ -107,6 +113,65 @@ export class StorefrontResolver {
         data: block.content.languages?.[language] ?? {},
       },
     };
+  }
+
+  async resolveHookByCode(input: {
+    salesChannelCode?: string | undefined;
+    language?: string | undefined;
+    code: string;
+  }): Promise<CmsResolvedHook | null> {
+    const em = this.emFactory();
+    const channel = await this.resolveChannel(em, input.salesChannelCode);
+    if (!channel) return null;
+
+    const hookRows = (await em.getConnection().execute(
+      `select id::text, code, active
+       from cms_hooks
+       where code = ?
+       limit 1`,
+      [input.code],
+    )) as HookRow[];
+    const hook = hookRows[0];
+    if (!hook) return null;
+    if (!hook.active) return { hookCode: hook.code, blocks: [] };
+
+    const scopedRows = (await em.getConnection().execute(
+      `select 1
+       from cms_hook_sales_channels
+       where hook_id = ? and sales_channel_id = ?
+       limit 1`,
+      [hook.id, channel.id],
+    )) as Array<{ '?column?': number }>;
+    if (scopedRows.length === 0) return { hookCode: hook.code, blocks: [] };
+
+    const blockRows = (await em.getConnection().execute(
+      `select b.*
+       from cms_hook_block_attachments a
+       join cms_blocks b on b.id = a.block_id
+       join cms_block_sales_channels cbsc on cbsc.block_id = b.id
+       where a.hook_id = ?
+         and cbsc.sales_channel_id = ?
+         and b.active = true
+       order by a.position asc, a.block_id asc`,
+      [hook.id, channel.id],
+    )) as BlockRow[];
+
+    const blocks: CmsResolvedBlock[] = [];
+    for (const block of blockRows) {
+      const language = this.resolveLanguage(block, input.language, channel.default_language);
+      if (!language) continue;
+      blocks.push({
+        id: block.id,
+        code: block.code,
+        language,
+        content: {
+          schemaVersion: block.content.schema_version ?? 1,
+          data: block.content.languages?.[language] ?? {},
+        },
+      });
+    }
+
+    return { hookCode: hook.code, blocks };
   }
 
   private async resolveChannel(

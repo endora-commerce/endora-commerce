@@ -16,6 +16,7 @@ import { CmsPageService } from './services/cms-page-service.js';
 import { CmsBlockService } from './services/cms-block-service.js';
 import { CmsReferenceRegistry } from './services/cms-reference-registry.js';
 import { StorefrontResolver } from './services/storefront-resolver.js';
+import { CmsHookService } from './services/cms-hook-service.js';
 import { registerCmsAdminRoutes } from './routes.admin.js';
 import { registerCmsStorefrontRoutes } from './routes.storefront.js';
 
@@ -32,6 +33,7 @@ export interface CmsModuleHandle {
   pageBuilderRegistry: PageBuilderRegistry;
   pageService: CmsPageService;
   blockService: CmsBlockService;
+  hookService: CmsHookService;
   referenceRegistry: CmsReferenceRegistry;
   storefrontResolver: StorefrontResolver;
   /** Idempotent reconciler — called by composition before HTTP starts. */
@@ -94,12 +96,14 @@ export function cmsModule(options: CmsModuleOptions): {
     () => pageBuilderRegistry.knownNames(),
     referenceRegistry,
   );
+  const hookService = new CmsHookService(options.emFactory);
   const storefrontResolver = new StorefrontResolver(options.emFactory);
 
   const handle: CmsModuleHandle = {
     pageBuilderRegistry,
     pageService,
     blockService,
+    hookService,
     referenceRegistry,
     storefrontResolver,
     reconcile: () => reconcileSeededHooks(options.emFactory),
@@ -109,6 +113,7 @@ export function cmsModule(options: CmsModuleOptions): {
     await registerCmsAdminRoutes(app, {
       pageService,
       blockService,
+      hookService,
       pageBuilderRegistry,
       ...(options.requireAdmin ? { requireAdmin: options.requireAdmin } : {}),
     });

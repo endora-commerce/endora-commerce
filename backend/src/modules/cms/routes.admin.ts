@@ -1,8 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import {
   createCmsBlockRequestSchema,
+  createCmsHookRequestSchema,
   createCmsPageRequestSchema,
+  cmsHookAttachmentRequestSchema,
   patchCmsBlockRequestSchema,
+  patchCmsHookRequestSchema,
   patchCmsPageRequestSchema,
   putCmsPageContentRequestSchema,
 } from '@b2b/contracts';
@@ -10,12 +13,14 @@ import type { RequireAdminFactory } from './plugin.js';
 import type { CmsPageService } from './services/cms-page-service.js';
 import type { PageBuilderRegistry } from './services/page-builder-registry.js';
 import type { CmsBlockService } from './services/cms-block-service.js';
+import type { CmsHookService } from './services/cms-hook-service.js';
 
 export async function registerCmsAdminRoutes(
   app: FastifyInstance,
   deps: {
     pageService: CmsPageService;
     blockService: CmsBlockService;
+    hookService: CmsHookService;
     pageBuilderRegistry: PageBuilderRegistry;
     requireAdmin?: RequireAdminFactory;
   },
@@ -149,6 +154,90 @@ export async function registerCmsAdminRoutes(
     { preHandler: requireWrite },
     async (request, reply) => {
       await deps.blockService.delete(request.params.id);
+      return reply.code(204).send();
+    },
+  );
+
+  app.get('/api/v1/admin/cms/hooks', { preHandler: requireRead }, async (request) => {
+    const query = (request.query ?? {}) as Record<string, string | undefined>;
+    return deps.hookService.list({
+      ...(query['salesChannelId'] ? { salesChannelId: query['salesChannelId'] } : {}),
+    });
+  });
+
+  app.post('/api/v1/admin/cms/hooks', { preHandler: requireWrite }, async (request, reply) => {
+    const body = createCmsHookRequestSchema.parse(request.body);
+    const hook = await deps.hookService.create(body);
+    return reply.code(201).send({ data: hook });
+  });
+
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/cms/hooks/:id',
+    { preHandler: requireRead },
+    async (request) => ({ data: await deps.hookService.get(request.params.id) }),
+  );
+
+  app.patch<{ Params: { id: string } }>(
+    '/api/v1/admin/cms/hooks/:id',
+    { preHandler: requireWrite },
+    async (request) => {
+      const body = patchCmsHookRequestSchema.parse(request.body);
+      return { data: await deps.hookService.patch(request.params.id, body) };
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/v1/admin/cms/hooks/:id',
+    { preHandler: requireWrite },
+    async (request, reply) => {
+      await deps.hookService.delete(request.params.id);
+      return reply.code(204).send();
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/cms/hooks/:id/attachments',
+    { preHandler: requireRead },
+    async (request) => ({ data: await deps.hookService.listAttachments(request.params.id) }),
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/cms/hooks/:id/attachments',
+    { preHandler: requireWrite },
+    async (request, reply) => {
+      const body = cmsHookAttachmentRequestSchema.parse(request.body);
+      const attachments = await deps.hookService.addAttachment(
+        request.params.id,
+        body.blockId,
+        body.position,
+      );
+      return reply.code(201).send({ data: attachments });
+    },
+  );
+
+  app.patch<{ Params: { id: string; blockId: string } }>(
+    '/api/v1/admin/cms/hooks/:id/attachments/:blockId',
+    { preHandler: requireWrite },
+    async (request) => {
+      const body = cmsHookAttachmentRequestSchema.parse({
+        ...(request.body as Record<string, unknown> | null | undefined),
+        blockId: request.params.blockId,
+      });
+      return {
+        data: await deps.hookService.reorderAttachment(
+          request.params.id,
+          request.params.blockId,
+          body.position,
+        ),
+      };
+    },
+  );
+
+  app.delete<{ Params: { id: string; blockId: string } }>(
+    '/api/v1/admin/cms/hooks/:id/attachments/:blockId',
+    { preHandler: requireWrite },
+    async (request, reply) => {
+      await deps.hookService.removeAttachment(request.params.id, request.params.blockId);
       return reply.code(204).send();
     },
   );

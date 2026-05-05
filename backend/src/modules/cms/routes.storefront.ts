@@ -42,6 +42,24 @@ export async function registerCmsStorefrontRoutes(
     }
     return { data: block };
   });
+
+  app.get('/api/v1/cms/hooks/by-code', async (request) => {
+    const query = (request.query ?? {}) as Record<string, string | undefined>;
+    const code = query['code'];
+    if (!code) {
+      throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'Missing CMS hook code.');
+    }
+
+    const hook = await deps.storefrontResolver.resolveHookByCode({
+      code,
+      salesChannelCode: readHeader(request.headers['x-sales-channel']),
+      language: query['language'] ?? readHeader(request.headers['accept-language'])?.split(',')[0],
+    });
+    if (!hook) {
+      throw new HttpError(404, ERROR_CODES.CMS_HOOK_NOT_FOUND, 'CMS Hook not found.');
+    }
+    return { data: hook };
+  });
 }
 
 function readHeader(value: string | string[] | undefined): string | undefined {
