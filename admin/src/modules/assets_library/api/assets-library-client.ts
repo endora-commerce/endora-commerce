@@ -7,12 +7,17 @@
 import { apiClient } from '@/lib/api-client';
 import type {
   AssetDetail,
+  AssetFolder,
   AssetSummary,
+  CreateFolderRequest,
+  DeleteFolderRequest,
   ListAssetsResponse,
+  ListFoldersResponse,
   PatchAssetRequest,
+  PatchFolderRequest,
 } from '@b2b/contracts';
 
-export type { AssetSummary, AssetDetail };
+export type { AssetSummary, AssetDetail, AssetFolder };
 
 export interface UploadFields {
   /** UUID of the target folder, or null for "Unsorted". */
@@ -64,6 +69,64 @@ export const assetsLibraryClient = {
       `/api/v1/admin/assets/${id}`,
       patch,
     );
+    return out.data;
+  },
+
+  async softDeleteAsset(id: string): Promise<void> {
+    await apiClient.delete(`/api/v1/admin/assets/${id}`);
+  },
+
+  async restoreAsset(id: string): Promise<AssetDetail> {
+    const out = await apiClient.post<{ data: AssetDetail }>(
+      `/api/v1/admin/assets/${id}/restore`,
+      {},
+    );
+    return out.data;
+  },
+
+  async moveAsset(id: string, folderId: string | null): Promise<AssetDetail> {
+    const out = await apiClient.post<{ data: AssetDetail }>(
+      `/api/v1/admin/assets/${id}/move`,
+      { folderId },
+    );
+    return out.data;
+  },
+
+  // — Folders --------------------------------------------------------------
+
+  async listFolders(): Promise<AssetFolder[]> {
+    const out = await apiClient.get<ListFoldersResponse>(
+      '/api/v1/admin/assets/folders',
+    );
+    return out.data;
+  },
+
+  async createFolder(req: CreateFolderRequest): Promise<AssetFolder> {
+    const out = await apiClient.post<{ data: AssetFolder }>(
+      '/api/v1/admin/assets/folders',
+      req,
+    );
+    return out.data;
+  },
+
+  async patchFolder(id: string, req: PatchFolderRequest): Promise<AssetFolder> {
+    const out = await apiClient.patch<{ data: AssetFolder }>(
+      `/api/v1/admin/assets/folders/${id}`,
+      req,
+    );
+    return out.data;
+  },
+
+  async deleteFolder(
+    id: string,
+    req: DeleteFolderRequest,
+  ): Promise<{ deletedFolderId: string; softDeletedAssetIds?: string[] }> {
+    const out = await apiClient.delete<{
+      data: { deletedFolderId: string; softDeletedAssetIds?: string[] };
+    }>(`/api/v1/admin/assets/folders/${id}`, {
+      body: JSON.stringify(req),
+      headers: { 'content-type': 'application/json' },
+    });
     return out.data;
   },
 
