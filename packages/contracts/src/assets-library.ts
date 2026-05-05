@@ -33,6 +33,7 @@ export const assetReferenceKindSchema = z.enum([
   'product_virtual_download',
   'category_main_image',
   'cms_body_embed',
+  'megamenu_item_target',
 ]);
 export type AssetReferenceKind = z.infer<typeof assetReferenceKindSchema>;
 

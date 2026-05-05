@@ -54,6 +54,9 @@ import { CmsBlock } from '../modules/cms/entities/cms-block.entity.js';
 import { CmsTemplate } from '../modules/cms/entities/cms-template.entity.js';
 import { CmsHook } from '../modules/cms/entities/cms-hook.entity.js';
 import { CmsHookBlockAttachment } from '../modules/cms/entities/cms-hook-block-attachment.entity.js';
+import { Megamenu } from '../modules/megamenu/entities/megamenu.entity.js';
+import { MegamenuItem } from '../modules/megamenu/entities/megamenu-item.entity.js';
+import { MegamenuBinding } from '../modules/megamenu/entities/megamenu-binding.entity.js';
 import { CustomerGroup } from '../modules/price_lists/entities/customer-group.entity.js';
 import { PriceList } from '../modules/price_lists/entities/price-list.entity.js';
 import { PriceListProduct } from '../modules/price_lists/entities/price-list-product.entity.js';
@@ -170,6 +173,10 @@ export const ALL_ENTITIES = [
   CmsTemplate,
   CmsHook,
   CmsHookBlockAttachment,
+  // megamenu (feature 015)
+  Megamenu,
+  MegamenuItem,
+  MegamenuBinding,
   // pricing (Phase 4 polish / T127)
   CustomerGroup,
   PriceList,

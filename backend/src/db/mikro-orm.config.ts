@@ -37,6 +37,7 @@ import { Migration032AttributeOptionsAndFlags } from '../modules/catalog/migrati
 import { Migration033PromotionsCriteria } from '../modules/promotions/migrations/033_promotions_criteria.js';
 import { Migration034AssetsLibraryInit } from './migrations/034_assets_library_init.js';
 import { Migration035CmsInit } from './migrations/035_cms_init.js';
+import { Migration036MegamenuInit } from './migrations/036_megamenu_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -156,6 +157,10 @@ export default defineConfig({
       {
         name: 'Migration035CmsInit',
         class: Migration035CmsInit,
+      },
+      {
+        name: 'Migration036MegamenuInit',
+        class: Migration036MegamenuInit,
       },
     ],
     transactional: true,

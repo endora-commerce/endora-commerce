@@ -30,6 +30,8 @@ import { importExportModule } from './modules/import_export/plugin.js';
 import { seoModule } from './modules/seo/plugin.js';
 import { i18nModule } from './modules/languages/plugin.js';
 import { cmsModule } from './modules/cms/plugin.js';
+import { megamenuModule } from './modules/megamenu/plugin.js';
+import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
 import { priceListsModule } from './modules/price_lists/plugin.js';
 import { taxesModule } from './modules/taxes/plugin.js';
 import { promotionsModule } from './modules/promotions/plugin.js';
@@ -228,6 +230,48 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // The same logic also runs inside migration 035 so first boot has the
   // rows already; this call covers re-deploys when the seeded list grows.
   await cms.handle.reconcile();
+
+  // Feature 015 — Megamenu module. Phase 2 ships the in-process
+  // services + the storefront cache; admin + storefront routes land in
+  // user-story phases.
+  const megamenu = megamenuModule({
+    emFactory: em,
+    requireAdmin,
+    redis,
+    validatorDeps: {
+      categoryExists: async (categoryId) => {
+        const rows = (await em().getConnection().execute(
+          'select 1 from categories where id = ? limit 1',
+          [categoryId],
+        )) as Array<{ '?column?': number }>;
+        return rows.length > 0;
+      },
+      cmsPageExists: async (pageId) => {
+        const rows = (await em().getConnection().execute(
+          'select 1 from cms_pages where id = ? limit 1',
+          [pageId],
+        )) as Array<{ '?column?': number }>;
+        return rows.length > 0;
+      },
+      cmsBlockExists: async (blockId) => {
+        const rows = (await em().getConnection().execute(
+          'select 1 from cms_blocks where id = ? limit 1',
+          [blockId],
+        )) as Array<{ '?column?': number }>;
+        return rows.length > 0;
+      },
+      assetIs: async (assetId, expected) => {
+        const rows = (await em().getConnection().execute(
+          'select 1 from assets where id = ? and kind = ? limit 1',
+          [assetId, expected],
+        )) as Array<{ '?column?': number }>;
+        return rows.length > 0;
+      },
+    },
+  });
+  // The asset-reference registration runs later, after the
+  // assetsLibrary module is constructed (search for
+  // `registerMegamenuAssetReferences` below).
   const priceLists = priceListsModule({ emFactory: em, requireAdmin });
   const taxes = taxesModule({
     emFactory: em,
@@ -285,6 +329,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     seo.plugin,
     i18n.plugin,
     cms.plugin,
+    megamenu.plugin,
     priceLists.plugin,
     taxes.plugin,
     promotions.plugin,
@@ -401,6 +446,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // image.
   registerCatalogAssetReferences(assetsLibrary.handle.referenceRegistry, em);
   registerCmsAssetReferences(assetsLibrary.handle.referenceRegistry, em);
+  registerMegamenuAssetReferences(assetsLibrary.handle.referenceRegistry, em);
 
   // Feature 006 — Search module. Owns Meilisearch indexer + event-subscriber
   // lifecycle (R-3 — moved out of catalog). Settings-aware suggest config
