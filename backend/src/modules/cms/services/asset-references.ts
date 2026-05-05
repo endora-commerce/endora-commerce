@@ -2,17 +2,14 @@
 //
 // Replaces the feature-013 cms_pages descriptor. Scans every CMS column
 // that can carry asset embeds:
-//   - cms_pages.content   (new Page Builder tree)
+//   - cms_pages.content
 //   - cms_blocks.content
 //   - cms_templates.content
-//   - cms_pages.body      (legacy mirror; kept for one release)
 //
-// Match patterns:
-//   1. Generic: any node whose props.<*assetId> equals the requested id.
-//      Caught by jsonb_path_exists with a wildcard-key match. Catches
-//      Library-aware components like LibraryImage, Button.iconAssetId, etc.
-//   2. Pre-013 legacy: { type: 'asset_ref', assetId: '<id>' } (for the
-//      legacy cms_pages.body column only).
+// Match shape: any node whose `assetId` (or any `*assetId` key under
+// `props`) equals the requested id. Caught by jsonb_path_exists with a
+// wildcard-key match — handles components like LibraryImage,
+// Button.iconAssetId, Card.mainImageAssetId, etc.
 //
 // Asset id is validated upstream by Zod (UUID), so inlining it in the
 // jsonpath literal is safe; `?::text` parameter coercion confuses Knex
@@ -43,26 +40,20 @@ function cmsAssetReferenceDescriptor(
       const out: AssetReference[] = [];
       for (const aidRaw of assetIds) {
         const aid = aidRaw.replace(/[^0-9a-fA-F-]/g, '');
-        // The two jsonpath patterns are OR-ed: legacy asset_ref shape
-        // (only meaningful for cms_pages.body) and generic key-suffix
-        // match for Puck component props that carry an asset id under
-        // any *assetId key.
-        const legacyPath = `'$.** ? (@.type == "asset_ref" && @.assetId == "${aid}")'::jsonpath`;
-        const genericPath = `'$.** ? (@ == "${aid}")'::jsonpath`;
+        const path = `'$.** ? (@ == "${aid}")'::jsonpath`;
 
         const rows = (await conn.execute(
           `select id::text as id, name, 'cms_page' as kind
            from cms_pages
-           where jsonb_path_exists(content, ${genericPath})
-              or jsonb_path_exists(body, ${legacyPath})
+           where jsonb_path_exists(content, ${path})
            union all
            select id::text as id, name, 'cms_block' as kind
            from cms_blocks
-           where jsonb_path_exists(content, ${genericPath})
+           where jsonb_path_exists(content, ${path})
            union all
            select id::text as id, name, 'cms_template' as kind
            from cms_templates
-           where jsonb_path_exists(content, ${genericPath})`,
+           where jsonb_path_exists(content, ${path})`,
         )) as Array<{ id: string; name: string; kind: string }>;
 
         for (const r of rows) {

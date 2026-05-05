@@ -4,7 +4,7 @@ import type { ResolvedMeta, SeoEntityType } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { Category } from '../../catalog/entities/category.entity.js';
-import { CmsPage } from '../../cms_pages/entities/cms-page.entity.js';
+import { CmsPage } from '../../cms/entities/cms-page.entity.js';
 import { SeoMetaOverride } from '../entities/seo-meta-override.entity.js';
 
 /**
@@ -191,11 +191,11 @@ export function buildRuleMeta(
     };
   }
   if (entityType === 'cms_page' && source.cmsPage) {
-    const title = pickLocale(source.cmsPage.title, locale);
-    // First-paragraph approximation for the description: take up to the
-    // DESCRIPTION_MAX characters of the body, stripping markdown markers.
-    const body = pickLocale(source.cmsPage.body, locale);
-    const description = body.replace(/[#>*_`>\-]+/g, '').replace(/\s+/g, ' ').trim();
+    // Feature 014 — meta fields are per-language; fall back to the
+    // admin-facing `name` for title when no localized meta is set.
+    const title =
+      pickLocale(source.cmsPage.metaTitle ?? null, locale) || source.cmsPage.name;
+    const description = pickLocale(source.cmsPage.metaDescription ?? null, locale);
     return {
       title: trim(title, TITLE_MAX),
       description: trim(description, DESCRIPTION_MAX),
@@ -213,7 +213,11 @@ export function buildRuleMeta(
   };
 }
 
-function pickLocale(value: Record<string, string>, locale: string): string {
+function pickLocale(
+  value: Record<string, string> | null | undefined,
+  locale: string,
+): string {
+  if (!value) return '';
   return value[locale] ?? value[FALLBACK_LOCALE] ?? Object.values(value)[0] ?? '';
 }
 

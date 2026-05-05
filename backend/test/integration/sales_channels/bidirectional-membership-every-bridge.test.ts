@@ -180,9 +180,9 @@ describe('bidirectional membership: every bridge (T043)', () => {
   async function insertCmsPage(): Promise<string> {
     const id = randomUUID();
     await rawExec(
-      `insert into "cms_pages" ("id","path","status","title","body","created_at","updated_at") ` +
-        `values (?, ?, 'draft', '{"en":"P"}'::jsonb, '{"en":""}'::jsonb, now(), now())`,
-      [id, `/t043-${id.slice(0, 8)}`],
+      `insert into "cms_pages" ("id","name","slug","status","active","content","languages","version","created_at","updated_at") ` +
+        `values (?, ?, ?, 'draft', true, '{"schema_version":1,"languages":{}}'::jsonb, '[]'::jsonb, 1, now(), now())`,
+      [id, `Page ${id.slice(0, 8)}`, `t043-${id.slice(0, 8)}`],
     );
     return id;
   }

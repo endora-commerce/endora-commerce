@@ -29,7 +29,6 @@ import { analyticsModule } from './modules/analytics/plugin.js';
 import { importExportModule } from './modules/import_export/plugin.js';
 import { seoModule } from './modules/seo/plugin.js';
 import { i18nModule } from './modules/languages/plugin.js';
-import { cmsPagesModule } from './modules/cms_pages/plugin.js';
 import { cmsModule } from './modules/cms/plugin.js';
 import { priceListsModule } from './modules/price_lists/plugin.js';
 import { taxesModule } from './modules/taxes/plugin.js';
@@ -50,7 +49,7 @@ import { priceListsManifest } from './modules/price_lists/manifest.js';
 import { assetsLibraryManifest } from './modules/assets_library/manifest.js';
 import { assetsLibraryModule } from './modules/assets_library/plugin.js';
 import { registerCatalogAssetReferences } from './modules/catalog/services/asset-references.js';
-import { registerCmsAssetReferences } from './modules/cms_pages/services/asset-references.js';
+import { registerCmsAssetReferences } from './modules/cms/services/asset-references.js';
 import { WarehouseChannelReconciler } from './modules/inventory/services/warehouse-channel-reconciler.js';
 import { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
@@ -221,17 +220,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
   });
 
-  const cmsPages = cmsPagesModule({
-    emFactory: em,
-    requireAdmin,
-    salesChannelMembership: salesChannels.handle.membershipService,
-  });
-
-  // Feature 014 — new CMS module (Pages, Blocks, Templates, Hooks, Page
+  // Feature 014 — CMS module (Pages, Blocks, Templates, Hooks, Page
   // Builder). Phase 2 ships module instantiation + seeded-Hook
   // reconciliation; admin/storefront routes land in subsequent phases.
-  // The legacy cms_pages plugin (above) is retained for one release for
-  // its existing routes.
   const cms = cmsModule({ emFactory: em, requireAdmin });
   // Reconcile the 23 seeded Hook codes idempotently before HTTP starts.
   // The same logic also runs inside migration 035 so first boot has the
@@ -293,7 +284,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     importExport.plugin,
     seo.plugin,
     i18n.plugin,
-    cmsPages.plugin,
     cms.plugin,
     priceLists.plugin,
     taxes.plugin,
