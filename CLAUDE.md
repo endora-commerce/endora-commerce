@@ -23,6 +23,8 @@ Auto-generated from all feature plans. Last updated: 2026-05-05
 - PostgreSQL — one MikroORM migration (`032_attribute_options_and_flags.ts`) introduces the new `attribute_options` table, adds four columns to `product_attributes`, extends the `value_type` enum with `'select'`, migrates the legacy `enum_values` JSONB into the new options table, and drops the legacy column. (012-attributes)
 - TypeScript 5.x strict; Node.js LTS ≥ 22.17 per repo `README` and engines field in `backend/package.json`. + existing stack — Fastify, MikroORM, Zod, Vitest, ioredis, BullMQ-class queues — *plus* five new runtime dependencies justified below: (013-assets-library)
 - PostgreSQL via MikroORM. New migration `033_assets_library_init.ts` (next available number; see `data-model.md` § "Migration ordering"): (013-assets-library)
+- TypeScript 5.x strict; Node.js LTS ≥ 22.17 per repo `README` and engines field in `backend/package.json`. + existing stack — Fastify, MikroORM, Zod, Vitest, ioredis, BullMQ-class queues, Next.js (storefront), React + Vite (admin) — *plus* three new runtime dependencies on the **frontend side only**: (014-cms)
+- PostgreSQL via MikroORM. New migration `035_cms_init.ts` (next available number after `034_assets_library_init.ts`) introduces: (014-cms)
 
 - TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x) + MikroORM (PostgreSQL driver) for persistence; Zod for boundary validation; Next.js for the storefront; React for the admin panel; Meilisearch client; Redis client (cache + BullMQ-class queue). Backend HTTP layer intentionally minimal (a small, well-known Node/TypeScript HTTP router; choice deferred to Phase 0 research with a bias toward the smallest dependency footprint compatible with TDD, Zod, and modular routing). (001-b2b-platform-foundation)
 
@@ -42,9 +44,9 @@ npm test && npm run lint
 TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x): Follow standard conventions
 
 ## Recent Changes
+- 014-cms: Added TypeScript 5.x strict; Node.js LTS ≥ 22.17 per repo `README` and engines field in `backend/package.json`. + existing stack — Fastify, MikroORM, Zod, Vitest, ioredis, BullMQ-class queues, Next.js (storefront), React + Vite (admin) — *plus* three new runtime dependencies on the **frontend side only**:
 - 013-assets-library: Added TypeScript 5.x strict; Node.js LTS ≥ 22.17 per repo `README` and engines field in `backend/package.json`. + existing stack — Fastify, MikroORM, Zod, Vitest, ioredis, BullMQ-class queues — *plus* five new runtime dependencies justified below:
 - 012-attributes: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 — same as the rest of the project. + Fastify, MikroORM (PostgreSQL driver), Zod (boundary validation), Meilisearch JS client, ioredis, BullMQ, Next.js (storefront), React + Vite (admin) — **no new runtime dependency**.
-- 011-price-lists: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17. + Fastify, MikroORM (PostgreSQL driver), Zod, ioredis, BullMQ-class repeatable jobs, Next.js (storefront), React + Vite (admin) — **no new runtime dependency**. The rule builder is implemented in the admin app as plain React + the existing Admin UI Design System; the rule expression is persisted as JSONB on `price_lists.application_rule`.
 
 
 <!-- MANUAL ADDITIONS START -->
