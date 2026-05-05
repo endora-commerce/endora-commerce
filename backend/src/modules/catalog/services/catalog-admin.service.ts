@@ -151,6 +151,7 @@ export class CatalogAdminService {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
     const stateBefore: Record<string, unknown> = {
+      sku: product.sku,
       name: { ...product.name },
       description: { ...product.description },
       stockMode: product.stockMode,
@@ -159,6 +160,31 @@ export class CatalogAdminService {
       allowedOrganizationIds: [...product.allowedOrganizationIds],
     };
     const changedFields: string[] = [];
+    // Feature 012 / FR-016 — SKU is mutable. Refused with 400 sku_in_use
+    // when the new SKU collides with another product. The internal UUID
+    // (product.id) is the canonical reference; snapshot tables keep the
+    // SKU value frozen at snapshot time so historical orders / RFQs /
+    // invoices stay stable.
+    if (req.sku !== undefined && req.sku.trim() !== product.sku) {
+      const trimmed = req.sku.trim();
+      if (trimmed.length === 0 || trimmed.length > 160) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          'invalid_sku',
+        );
+      }
+      const conflict = await em.findOne(Product, { sku: trimmed });
+      if (conflict && conflict.id !== product.id) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          `sku_in_use { conflictingProductId: ${conflict.id}, conflictingSku: ${trimmed} }`,
+        );
+      }
+      product.sku = trimmed;
+      changedFields.push('sku');
+    }
     if (req.name) { product.name = req.name; changedFields.push('name'); }
     if (req.description) { product.description = req.description; changedFields.push('description'); }
     if (req.stockMode !== undefined) { product.stockMode = req.stockMode; changedFields.push('stockMode'); }

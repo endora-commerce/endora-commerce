@@ -447,10 +447,14 @@ export const createProductRequestSchema = baseProductRequestObject.refine(
 );
 export type CreateProductRequest = z.infer<typeof createProductRequestSchema>;
 
-// sku and type are immutable after creation (409 FIELD_IMMUTABLE if sent)
+// `type` is immutable after creation (409 FIELD_IMMUTABLE if sent).
+// Feature 012 / FR-016 — `sku` is now editable. Collision with another
+// product's SKU is refused with 400 sku_in_use; snapshot tables on
+// orders / quote-requests / invoices keep displaying the SKU value
+// frozen at snapshot time.
 export const updateProductRequestSchema = baseProductRequestObject
   .partial()
-  .omit({ sku: true, type: true });
+  .omit({ type: true });
 export type UpdateProductRequest = z.infer<typeof updateProductRequestSchema>;
 
 export const createVariantRequestSchema = z.object({
