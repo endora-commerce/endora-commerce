@@ -16,14 +16,21 @@ import {
   ERROR_CODES,
   patchAssetRequestSchema,
   listAssetsQuerySchema,
+  createFolderRequestSchema,
+  patchFolderRequestSchema,
+  deleteFolderRequestSchema,
+  moveAssetRequestSchema,
+  moveManyAssetsRequestSchema,
 } from '@b2b/contracts';
 
 import { HttpError } from '../../http/error-envelope.js';
 import type { AssetsLibraryService } from './services/assets-library.service.js';
+import type { FoldersService } from './services/folders.service.js';
 import type { RequireAdminFactory } from './plugin.js';
 
 export interface AdminRoutesDeps {
   service: AssetsLibraryService;
+  folders: FoldersService;
   requireAdmin: RequireAdminFactory;
 }
 
@@ -31,7 +38,7 @@ export async function registerAssetsLibraryAdminRoutes(
   app: FastifyInstance,
   deps: AdminRoutesDeps,
 ): Promise<void> {
-  const { service, requireAdmin } = deps;
+  const { service, folders, requireAdmin } = deps;
 
   // — POST /assets (multipart upload) -----------------------------------------
   app.post(
@@ -140,6 +147,95 @@ export async function registerAssetsLibraryAdminRoutes(
           expiresAt: resolved.expiresAt ? resolved.expiresAt.toISOString() : null,
         },
       };
+    },
+  );
+
+  // — DELETE /assets/:id (soft-delete + reference protection) ---------------
+  app.delete<{ Params: { id: string } }>(
+    '/api/v1/admin/assets/:id',
+    { preHandler: requireAdmin('assets.write') },
+    async (req) => {
+      const out = await service.softDelete(req.params.id);
+      return {
+        data: {
+          deletedAt: out.deletedAt.toISOString(),
+          purgeAfterAt: out.purgeAfterAt.toISOString(),
+        },
+      };
+    },
+  );
+
+  // — POST /assets/:id/restore ----------------------------------------------
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/assets/:id/restore',
+    { preHandler: requireAdmin('assets.write') },
+    async (req) => {
+      const detail = await service.restore(req.params.id);
+      return { data: detail };
+    },
+  );
+
+  // — POST /assets/:id/move --------------------------------------------------
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/assets/:id/move',
+    { preHandler: requireAdmin('assets.write') },
+    async (req) => {
+      const body = moveAssetRequestSchema.parse(req.body);
+      const detail = await service.move(req.params.id, body.folderId ?? null);
+      return { data: detail };
+    },
+  );
+
+  // — POST /assets/move-many -------------------------------------------------
+  app.post(
+    '/api/v1/admin/assets/move-many',
+    { preHandler: requireAdmin('assets.write') },
+    async (req: FastifyRequest) => {
+      const body = moveManyAssetsRequestSchema.parse(req.body);
+      const out = await service.moveMany(body.assetIds, body.folderId ?? null);
+      return { data: out };
+    },
+  );
+
+  // — Folders ----------------------------------------------------------------
+  app.get(
+    '/api/v1/admin/assets/folders',
+    { preHandler: requireAdmin('assets.read') },
+    async () => ({ data: await folders.listFolderTree() }),
+  );
+
+  app.post(
+    '/api/v1/admin/assets/folders',
+    { preHandler: requireAdmin('assets.write') },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const body = createFolderRequestSchema.parse(req.body);
+      const f = await folders.createFolder(body);
+      reply.status(201);
+      return { data: f };
+    },
+  );
+
+  app.patch<{ Params: { folderId: string } }>(
+    '/api/v1/admin/assets/folders/:folderId',
+    { preHandler: requireAdmin('assets.write') },
+    async (req) => {
+      const body = patchFolderRequestSchema.parse(req.body);
+      const f = await folders.patchFolder(req.params.folderId, {
+        ...(body.name !== undefined ? { name: body.name } : {}),
+        ...(body.parentId !== undefined ? { parentId: body.parentId } : {}),
+        ...(body.position !== undefined ? { position: body.position } : {}),
+      });
+      return { data: f };
+    },
+  );
+
+  app.delete<{ Params: { folderId: string } }>(
+    '/api/v1/admin/assets/folders/:folderId',
+    { preHandler: requireAdmin('assets.write') },
+    async (req) => {
+      const body = deleteFolderRequestSchema.parse(req.body ?? {});
+      const out = await folders.deleteFolder(req.params.folderId, body.ifNonEmpty);
+      return { data: out };
     },
   );
 

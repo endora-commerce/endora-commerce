@@ -39,6 +39,7 @@ import { inventoryManifest } from '../../src/modules/inventory/manifest.js';
 import { priceListsManifest } from '../../src/modules/price_lists/manifest.js';
 import { assetsLibraryModule } from '../../src/modules/assets_library/plugin.js';
 import { assetsLibraryManifest } from '../../src/modules/assets_library/manifest.js';
+import { registerCatalogAssetReferences } from '../../src/modules/catalog/services/asset-references.js';
 import { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
 import { DefaultChannelReconciler } from '../../src/modules/sales_channels/services/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/modules/settings/services/manifest-reconciler.js';
@@ -445,6 +446,7 @@ export async function setupBackendServer(
     requireAdmin: requireTestAdmin(permissionService),
   });
   modules.push(assetsLibrary.plugin);
+  registerCatalogAssetReferences(assetsLibrary.handle.referenceRegistry, em);
 
   // Feature 006 — Search module. Owns the Meilisearch indexer + event
   // subscriber lifecycle. Wires the same settings-aware path the

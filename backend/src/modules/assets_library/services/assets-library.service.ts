@@ -178,18 +178,63 @@ export class AssetsLibraryService {
     return this.patchAsset(assetId, { visibility });
   }
 
-  // — Stubs filled by US2 / later -------------------------------------------
-  async softDelete(): Promise<never> {
-    throw new NotImplementedYet('softDelete');
+  // — US2 — soft-delete / restore / move ------------------------------------
+
+  async softDelete(assetId: string): Promise<{ deletedAt: Date; purgeAfterAt: Date }> {
+    const em = this.deps.emFactory();
+    const a = await em.findOne(Asset, { id: assetId });
+    if (!a) throw new HttpError(404, ERROR_CODES.ASSET_NOT_FOUND, `Asset ${assetId} not found.`);
+    if (a.deletedAt) {
+      // Idempotent — return current state.
+      return { deletedAt: a.deletedAt, purgeAfterAt: a.purgeAfterAt as Date };
+    }
+    // Reference protection (FR-030).
+    const refs = await this.deps.referenceRegistry.findReferences(assetId);
+    if (refs.length > 0) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.ASSET_REFERENCED,
+        `Asset is in use by ${refs.length} record(s); detach those first.`,
+        refs.slice(0, 20).map((r) => ({
+          path: r.kind,
+          issue: r.label,
+        })),
+      );
+    }
+    const retentionDays = 30; // assets.soft_delete_retention_days; reads inline in US2.
+    const now = new Date();
+    a.deletedAt = now;
+    a.purgeAfterAt = new Date(now.getTime() + retentionDays * 24 * 60 * 60 * 1000);
+    await em.flush();
+    return { deletedAt: a.deletedAt, purgeAfterAt: a.purgeAfterAt };
   }
-  async restore(): Promise<never> {
-    throw new NotImplementedYet('restore');
+
+  async restore(assetId: string): Promise<AssetDetail> {
+    const em = this.deps.emFactory();
+    const a = await em.findOne(Asset, { id: assetId });
+    if (!a) throw new HttpError(404, ERROR_CODES.ASSET_NOT_FOUND, `Asset ${assetId} not found.`);
+    a.deletedAt = null;
+    a.purgeAfterAt = null;
+    a.pendingCleanup = false;
+    await em.flush();
+    return this.detail(a);
   }
-  async move(): Promise<never> {
-    throw new NotImplementedYet('move');
+
+  async move(assetId: string, folderId: string | null): Promise<AssetDetail> {
+    const em = this.deps.emFactory();
+    const a = await em.findOne(Asset, { id: assetId });
+    if (!a) throw new HttpError(404, ERROR_CODES.ASSET_NOT_FOUND, `Asset ${assetId} not found.`);
+    a.folderId = folderId;
+    await em.flush();
+    return this.detail(a);
   }
-  async moveMany(): Promise<never> {
-    throw new NotImplementedYet('moveMany');
+
+  async moveMany(assetIds: string[], folderId: string | null): Promise<{ movedCount: number }> {
+    const em = this.deps.emFactory();
+    const assets = await em.find(Asset, { id: { $in: assetIds } });
+    for (const a of assets) a.folderId = folderId;
+    await em.flush();
+    return { movedCount: assets.length };
   }
 
   // — Serialization helpers --------------------------------------------------

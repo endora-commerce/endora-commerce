@@ -80,7 +80,7 @@ export function assetsLibraryModule(options: AssetsLibraryModuleOptions): {
     referenceRegistry,
     loadUploadPolicy: () => loadUploadPolicy(options.emFactory),
   });
-  const folders = new FoldersService(options.emFactory);
+  const folders = new FoldersService(options.emFactory, referenceRegistry);
 
   const requireAdmin = options.requireAdmin ?? noOpRequireAdmin;
 
@@ -94,7 +94,7 @@ export function assetsLibraryModule(options: AssetsLibraryModuleOptions): {
         // Keep memory bounded; upload-pipeline streams directly to the adapter.
         limits: { files: 1, fields: 10 },
       });
-      await registerAssetsLibraryAdminRoutes(childApp, { service, requireAdmin });
+      await registerAssetsLibraryAdminRoutes(childApp, { service, folders, requireAdmin });
     });
     await registerAssetsLibraryPublicRoutes(app, {
       service,
