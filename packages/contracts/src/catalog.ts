@@ -332,6 +332,25 @@ export const productDetailSchema = productSummarySchema.extend({
       }),
     )
     .optional(),
+  /**
+   * Feature 012 / FR-030 — every attribute that meets BOTH conditions:
+   *   1. attribute.isVisibleOnProductPage === true
+   *   2. product.attributeValues[attribute.key] is non-null + non-empty
+   * For select / enum / multiselect types, `valueRendered` is the
+   * resolved per-locale option label (with fallback to labelDefault).
+   * For other types it's a formatted string ('123.45', 'Yes', etc.).
+   * Optional for backwards-compat with foundation-era cached responses.
+   */
+  visibleAttributes: z
+    .array(
+      z.object({
+        key: z.string(),
+        label: z.string(),
+        valueType: attributeValueTypeSchema,
+        valueRendered: z.string(),
+      }),
+    )
+    .optional(),
 });
 export type ProductDetail = z.infer<typeof productDetailSchema>;
 

@@ -54,7 +54,10 @@ type MessageKey =
   | 'search.unavailable'
   | 'search.seeAllResults'
   | 'common.searchAction'
-  | 'pagination.next';
+  | 'pagination.next'
+  | 'product.attributes.tabTitle'
+  | 'product.attributes.boolean.yes'
+  | 'product.attributes.boolean.no';
 
 const MESSAGES: Record<string, Record<MessageKey, string>> = {
   'en-US': {
@@ -102,6 +105,9 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'search.seeAllResults': 'See all results',
     'common.searchAction': 'Search',
     'pagination.next': 'Next page',
+    'product.attributes.tabTitle': 'Specifications',
+    'product.attributes.boolean.yes': 'Yes',
+    'product.attributes.boolean.no': 'No',
   },
   'pl-PL': {
     'nav.home': 'Strona glowna',
@@ -148,6 +154,9 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'search.seeAllResults': 'Pokaz wszystkie wyniki',
     'common.searchAction': 'Szukaj',
     'pagination.next': 'Nastepna strona',
+    'product.attributes.tabTitle': 'Parametry produktu',
+    'product.attributes.boolean.yes': 'Tak',
+    'product.attributes.boolean.no': 'Nie',
   },
 };
 

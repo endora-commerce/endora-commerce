@@ -316,6 +316,19 @@ export class CatalogQueryService {
     const descriptionText = this.pickLang(product.description, ctx.preferredLanguage, channel);
     const nameText = this.pickLang(product.name, ctx.preferredLanguage, channel);
 
+    // Feature 012 / FR-030 — "Parametry produktu" tab projection.
+    // Resolve every attribute that is flagged isVisibleOnProductPage
+    // AND has a non-empty value on this product. Render the value per
+    // the active locale (option label for select / enum / multiselect,
+    // formatted scalar otherwise). Sorted by AttributeSetAttribute
+    // position when assigned, by attribute key otherwise.
+    const visibleAttributes = await this.buildVisibleAttributesProjection(
+      em,
+      product,
+      ctx.preferredLanguage,
+      channel,
+    );
+
     const detail: ProductDetail = {
       ...summary,
       description: descriptionText,
@@ -429,6 +442,7 @@ export class CatalogQueryService {
           },
         ];
       }),
+      visibleAttributes,
     };
 
     // Feature 002 US4 — pre-grouped Product Links. Inactive targets and
@@ -765,6 +779,129 @@ export class CatalogQueryService {
   // ------------------------------------------------------------------
   // Internal helpers
   // ------------------------------------------------------------------
+
+  /**
+   * Feature 012 / FR-030 — build the "Parametry produktu" tab payload
+   * for one product. Returns every attribute that meets BOTH:
+   *   1. attribute.isVisibleOnProductPage === true
+   *   2. product.attributeValues[attribute.key] is non-null + non-empty
+   *
+   * For select / enum / multiselect types `valueRendered` is the
+   * resolved per-locale option label (with fallback to labelDefault);
+   * for boolean types it's 'Yes' / 'No'; for number / price / string
+   * types it's the value coerced to string.
+   *
+   * Sorted by AttributeSetAttribute.position when the product has an
+   * Attribute Set, else by attribute key ASC for determinism.
+   */
+  private async buildVisibleAttributesProjection(
+    em: EntityManager,
+    product: Product,
+    preferredLanguage: string | undefined,
+    channel: SalesChannel | null,
+  ): Promise<Array<{ key: string; label: string; valueType: ProductAttribute['valueType']; valueRendered: string }>> {
+    const values = product.attributeValues ?? {};
+    const valueKeys = Object.keys(values).filter((k) => {
+      const v = values[k];
+      return v !== undefined && v !== null && v !== '';
+    });
+    if (valueKeys.length === 0) return [];
+
+    const attrs = await em.find(ProductAttribute, {
+      key: { $in: valueKeys },
+      isVisibleOnProductPage: true,
+    });
+    if (attrs.length === 0) return [];
+
+    // Pull the option-label map for select-style attributes in one batch.
+    const selectStyleAttrs = attrs.filter(
+      (a) => a.valueType === 'select' || a.valueType === 'enum' || a.valueType === 'multiselect',
+    );
+    const optionLabelByAttrAndValue = new Map<string, Map<string, { label: Record<string, string>; labelDefault: string }>>();
+    if (selectStyleAttrs.length > 0) {
+      const conn = em.getConnection();
+      const placeholders = selectStyleAttrs.map(() => '?').join(', ');
+      const optionRows = (await conn.execute<
+        Array<{
+          attribute_id: string;
+          value: string;
+          label: Record<string, string>;
+          label_default: string;
+        }>
+      >(
+        `select "attribute_id", "value", "label", "label_default" from "attribute_options" where "attribute_id" in (${placeholders})`,
+        selectStyleAttrs.map((a) => a.id),
+      )) as Array<{
+        attribute_id: string;
+        value: string;
+        label: Record<string, string>;
+        label_default: string;
+      }>;
+      for (const r of optionRows) {
+        let bucket = optionLabelByAttrAndValue.get(r.attribute_id);
+        if (!bucket) {
+          bucket = new Map();
+          optionLabelByAttrAndValue.set(r.attribute_id, bucket);
+        }
+        bucket.set(r.value, { label: r.label ?? {}, labelDefault: r.label_default });
+      }
+    }
+
+    const renderOptionLabel = (attrId: string, value: string): string => {
+      const bucket = optionLabelByAttrAndValue.get(attrId);
+      const meta = bucket?.get(value);
+      if (!meta) return value;
+      return this.pickLang(meta.label, preferredLanguage, channel) || meta.labelDefault;
+    };
+
+    // Pull the AttributeSetAttribute positions for sort determinism.
+    let positionByKey = new Map<string, number>();
+    if (product.attributeSetId) {
+      const conn = em.getConnection();
+      const posRows = (await conn.execute<Array<{ key: string; position: number }>>(
+        `select pa.key, asa.position
+         from attribute_set_attributes asa
+         join product_attributes pa on pa.id = asa.product_attribute_id
+         where asa.attribute_set_id = ?`,
+        [product.attributeSetId],
+      )) as Array<{ key: string; position: number }>;
+      positionByKey = new Map(posRows.map((r) => [r.key, r.position]));
+    }
+
+    const items = attrs.map((a) => {
+      const raw = values[a.key];
+      let valueRendered = '';
+      if (Array.isArray(raw)) {
+        // multiselect — comma-separated joined option labels
+        valueRendered = raw
+          .map((item) => renderOptionLabel(a.id, String(item)))
+          .filter((s) => s !== '')
+          .join(', ');
+      } else if (a.valueType === 'select' || a.valueType === 'enum') {
+        valueRendered = renderOptionLabel(a.id, String(raw));
+      } else if (a.valueType === 'boolean') {
+        valueRendered = raw === true || raw === 'true' ? 'Yes' : 'No';
+      } else {
+        valueRendered = String(raw);
+      }
+      const label = this.pickLang(a.label, preferredLanguage, channel) || a.labelDefault;
+      return {
+        key: a.key,
+        label,
+        valueType: a.valueType,
+        valueRendered,
+      };
+    });
+
+    items.sort((x, y) => {
+      const px = positionByKey.get(x.key) ?? Number.MAX_SAFE_INTEGER;
+      const py = positionByKey.get(y.key) ?? Number.MAX_SAFE_INTEGER;
+      if (px !== py) return px - py;
+      return x.key.localeCompare(y.key);
+    });
+
+    return items;
+  }
 
   /** Cached per-call list of attribute keys that should match free-text search. */
   private async searchableAttributeKeys(em: EntityManager): Promise<string[]> {
