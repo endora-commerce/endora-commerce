@@ -17,6 +17,8 @@ import {
   Warehouse as WarehouseIcon,
 } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { AssetPicker } from '@/modules/assets_library/components/AssetPicker';
+import type { AssetSummary, AssetDetail } from '@/modules/assets_library/api/assets-library-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -948,7 +950,7 @@ function GallerySection({ productId }: { productId: string }): ReactNode {
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : items.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No gallery items yet. Add one below by pasting an existing Asset id.
+            No gallery items yet. Pick an asset from the Library or upload a new one below.
           </p>
         ) : (
           <Table>
@@ -1071,20 +1073,38 @@ function CreateGalleryItemInline({
     );
   };
 
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickedFilename, setPickedFilename] = useState<string | null>(null);
+  const onPick = (a: AssetSummary | AssetDetail): void => {
+    setAssetId(a.id);
+    setPickedFilename(a.filename);
+    setPickerOpen(false);
+  };
+
   return (
-    <div
-      className="grid gap-3 md:grid-cols-4 border-t pt-4"
-      role="group"
-      aria-label="Add gallery item"
-    >
-      <div className="space-y-1 md:col-span-2">
-        <Label htmlFor="gasset">Asset id</Label>
-        <Input
-          id="gasset"
-          value={assetId}
-          onChange={(e): void => setAssetId(e.target.value)}
-          placeholder="UUID of an existing image/video Asset"
+    <div className="space-y-3 border-t pt-4" role="group" aria-label="Add gallery item">
+      {pickerOpen ? (
+        <AssetPicker
+          acceptMimePrefix="image/"
+          allowUpload
+          onSelect={onPick}
+          onClose={() => setPickerOpen(false)}
         />
+      ) : null}
+      <div className="grid gap-3 md:grid-cols-4">
+      <div className="space-y-1 md:col-span-2">
+        <Label htmlFor="gasset">Asset</Label>
+        <div className="flex items-center gap-2">
+          <Input
+            id="gasset"
+            value={pickedFilename ?? assetId}
+            readOnly
+            placeholder="No asset selected"
+          />
+          <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
+            Pick / Upload
+          </Button>
+        </div>
       </div>
       <div className="space-y-1">
         <Label>Labels</Label>
@@ -1116,6 +1136,7 @@ function CreateGalleryItemInline({
             if (!assetId) return;
             void onCreate({ assetId, labels, replace }).then(() => {
               setAssetId('');
+              setPickedFilename(null);
               setLabels([]);
               setReplace(false);
             });
@@ -1124,14 +1145,15 @@ function CreateGalleryItemInline({
           + Add to gallery
         </Button>
       </div>
+      </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Attachments section (T086) — admin CRUD for Product Attachments. Same
-// foundation gap as Gallery: no admin Asset upload endpoint, so we accept
-// an existing assetId. AttachmentTypes come from /admin/catalog/attachment-types.
+// Attachments section (T086) — admin CRUD for Product Attachments. The
+// Library picker (feature 013 / US1) replaces the manual UUID input; assets
+// are picked from the Library or uploaded inline.
 // ---------------------------------------------------------------------------
 
 interface AdminAttachmentType {
@@ -1278,7 +1300,7 @@ function AttachmentsSection({ productId }: { productId: string }): ReactNode {
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : attachments.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No attachments yet. Use an existing pdf / certificate / other Asset id.
+            No attachments yet. Pick a PDF / certificate / other asset from the Library or upload one below.
           </p>
         ) : (
           <Table>
@@ -1351,21 +1373,36 @@ function CreateAttachmentInline({
   const [attachmentTypeId, setAttachmentTypeId] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickedFilename, setPickedFilename] = useState<string | null>(null);
 
   return (
-    <div
-      className="grid gap-3 md:grid-cols-4 border-t pt-4"
-      role="group"
-      aria-label="Add attachment"
-    >
-      <div className="space-y-1">
-        <Label htmlFor="aasset">Asset id</Label>
-        <Input
-          id="aasset"
-          value={assetId}
-          onChange={(e): void => setAssetId(e.target.value)}
-          placeholder="UUID of an existing pdf/certificate Asset"
+    <div className="space-y-3 border-t pt-4" role="group" aria-label="Add attachment">
+      {pickerOpen ? (
+        <AssetPicker
+          allowUpload
+          onSelect={(a): void => {
+            setAssetId(a.id);
+            setPickedFilename(a.filename);
+            setPickerOpen(false);
+          }}
+          onClose={() => setPickerOpen(false)}
         />
+      ) : null}
+      <div className="grid gap-3 md:grid-cols-4">
+      <div className="space-y-1">
+        <Label htmlFor="aasset">Asset</Label>
+        <div className="flex items-center gap-2">
+          <Input
+            id="aasset"
+            value={pickedFilename ?? assetId}
+            readOnly
+            placeholder="No asset selected"
+          />
+          <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
+            Pick / Upload
+          </Button>
+        </div>
       </div>
       <div className="space-y-1">
         <Label htmlFor="atype">Type</Label>
@@ -1407,6 +1444,7 @@ function CreateAttachmentInline({
             if (!assetId || !attachmentTypeId || !name) return;
             void onCreate({ assetId, attachmentTypeId, name, description }).then(() => {
               setAssetId('');
+              setPickedFilename(null);
               setAttachmentTypeId('');
               setName('');
               setDescription('');
@@ -1415,6 +1453,7 @@ function CreateAttachmentInline({
         >
           + Add attachment
         </Button>
+      </div>
       </div>
     </div>
   );

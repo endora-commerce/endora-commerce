@@ -37,6 +37,10 @@ import { comparisonsManifest } from '../../src/modules/comparisons/manifest.js';
 import { quoteRequestsManifest } from '../../src/modules/quote_requests/manifest.js';
 import { inventoryManifest } from '../../src/modules/inventory/manifest.js';
 import { priceListsManifest } from '../../src/modules/price_lists/manifest.js';
+import { assetsLibraryModule } from '../../src/modules/assets_library/plugin.js';
+import { assetsLibraryManifest } from '../../src/modules/assets_library/manifest.js';
+import { registerCatalogAssetReferences } from '../../src/modules/catalog/services/asset-references.js';
+import { registerCmsAssetReferences } from '../../src/modules/cms_pages/services/asset-references.js';
 import { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
 import { DefaultChannelReconciler } from '../../src/modules/sales_channels/services/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/modules/settings/services/manifest-reconciler.js';
@@ -92,6 +96,8 @@ export interface BackendServerHandle {
   search: ReturnType<typeof searchModule>['handle'];
   /** Feature 007 — exposes the ComparisonService for tests. */
   comparisons: ReturnType<typeof comparisonsModule>['handle'];
+  /** Feature 013 — Assets Library handle (service, folders, registry, adapters). */
+  assetsLibrary: ReturnType<typeof assetsLibraryModule>['handle'];
 }
 
 const SEEDED_TABLES = [
@@ -434,6 +440,16 @@ export async function setupBackendServer(
   modules.push(salesChannels.plugin);
   modules.push(settings.plugin);
 
+  // Feature 013 — Assets Library. Routes mount under /api/v1/admin/assets/*
+  // and /assets/file/:assetId.
+  const assetsLibrary = assetsLibraryModule({
+    emFactory: em,
+    requireAdmin: requireTestAdmin(permissionService),
+  });
+  modules.push(assetsLibrary.plugin);
+  registerCatalogAssetReferences(assetsLibrary.handle.referenceRegistry, em);
+  registerCmsAssetReferences(assetsLibrary.handle.referenceRegistry, em);
+
   // Feature 006 — Search module. Owns the Meilisearch indexer + event
   // subscriber lifecycle. Wires the same settings-aware path the
   // production composition uses so contract tests can exercise the
@@ -521,6 +537,7 @@ export async function setupBackendServer(
     quoteRequestsManifest,
     inventoryManifest,
     priceListsManifest,
+    assetsLibraryManifest,
   ]);
 
   const app = await buildServer({
@@ -548,6 +565,7 @@ export async function setupBackendServer(
     salesChannels: salesChannels.handle,
     search: search.handle,
     comparisons: comparisons.handle,
+    assetsLibrary: assetsLibrary.handle,
   };
 }
 

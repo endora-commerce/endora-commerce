@@ -22,6 +22,8 @@ export interface UpdateCategoryInput {
   name?: Record<string, string>;
   slug?: string;
   sortOrder?: number;
+  /** Feature 013 / US5 — Library Asset rendered as the storefront category main image. */
+  mainImageAssetId?: string | null;
 }
 
 export class CategoryAdminService {
@@ -91,6 +93,7 @@ export class CategoryAdminService {
     if (input.name !== undefined) cat.name = input.name;
     if (input.slug !== undefined) cat.slug = input.slug;
     if (input.sortOrder !== undefined) cat.sortOrder = input.sortOrder;
+    if (input.mainImageAssetId !== undefined) cat.mainImageAssetId = input.mainImageAssetId;
     try {
       await em.flush();
     } catch (err) {

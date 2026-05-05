@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { DisplayModeOverrideRow } from '../price_lists/DisplayModeOverrideRow';
+import { AssetPicker } from '@/modules/assets_library/components/AssetPicker';
 import {
   Table,
   TableBody,
@@ -24,6 +25,7 @@ interface AdminCategory {
   name: Record<string, string>;
   slug: string;
   sortOrder: number;
+  mainImageAssetId?: string | null;
 }
 
 interface TreeNode {
@@ -176,6 +178,7 @@ export function CategoriesTree(): ReactNode {
                   <TableHead>Category</TableHead>
                   <TableHead>Slug</TableHead>
                   <TableHead>Sort</TableHead>
+                  <TableHead>Main image</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -197,6 +200,26 @@ export function CategoriesTree(): ReactNode {
                       </TableCell>
                       <TableCell className="font-mono text-xs">{c.slug}</TableCell>
                       <TableCell>{c.sortOrder}</TableCell>
+                      <TableCell>
+                        <CategoryMainImage
+                          mainImageAssetId={c.mainImageAssetId ?? null}
+                          onChange={(assetId): void => {
+                            void apiClient
+                              .patch<{ data: AdminCategory }>(
+                                `/api/v1/admin/catalog/categories/${c.id}`,
+                                { mainImageAssetId: assetId },
+                              )
+                              .then(() => void refresh())
+                              .catch((err: unknown) => {
+                                setError(
+                                  err instanceof ApiError
+                                    ? err.envelope.error.message
+                                    : 'Update failed.',
+                                );
+                              });
+                          }}
+                        />
+                      </TableCell>
                       <TableCell>
                         {editing === c.id ? null : (
                           <div className="flex gap-2">
@@ -420,4 +443,55 @@ function flatten(nodes: TreeNode[]): TreeNode[] {
 
 function pickName(name: Record<string, string>): string {
   return name['en-US'] ?? Object.values(name)[0] ?? '';
+}
+
+// — Feature 013 / US5 — inline Library picker for the Category main image.
+
+function CategoryMainImage({
+  mainImageAssetId,
+  onChange,
+}: {
+  mainImageAssetId: string | null;
+  onChange: (id: string | null) => void;
+}): ReactNode {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">
+          {mainImageAssetId ? `${mainImageAssetId.slice(0, 8)}…` : '(none)'}
+        </span>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={(): void => setPickerOpen((v) => !v)}
+        >
+          {pickerOpen ? 'Cancel' : mainImageAssetId ? 'Change' : 'Pick'}
+        </Button>
+        {mainImageAssetId ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={(): void => onChange(null)}
+            title="Clear main image"
+          >
+            ✕
+          </Button>
+        ) : null}
+      </div>
+      {pickerOpen ? (
+        <AssetPicker
+          acceptMimePrefix="image/"
+          allowUpload
+          onSelect={(a): void => {
+            onChange(a.id);
+            setPickerOpen(false);
+          }}
+          onClose={(): void => setPickerOpen(false)}
+        />
+      ) : null}
+    </div>
+  );
 }

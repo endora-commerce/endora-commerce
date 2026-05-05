@@ -22,7 +22,7 @@ import {
 } from '@b2b/contracts';
 
 import { HttpError } from '../../../http/error-envelope.js';
-import { Asset } from '../../assets/entities/asset.entity.js';
+import { Asset } from '../../assets_library/entities/asset.entity.js';
 import { Product } from '../entities/product.entity.js';
 import { GalleryItem } from '../entities/gallery-item.entity.js';
 import { GalleryItemLabel } from '../entities/gallery-item-label.entity.js';

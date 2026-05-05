@@ -11,7 +11,7 @@ import type { OrderService } from './services/order-service.js';
 import { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
 import { Invoice } from '../invoices/entities/invoice.entity.js';
-import { Asset } from '../assets/entities/asset.entity.js';
+import { Asset } from '../assets_library/entities/asset.entity.js';
 import { buildMinimalInvoicePdf } from '../invoices/services/invoice-pdf.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 

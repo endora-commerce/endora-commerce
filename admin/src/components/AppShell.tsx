@@ -16,6 +16,7 @@ import {
   FileText,
   HelpCircle,
   Home as HomeIcon,
+  Image as ImageIcon,
   KeyRound,
   Languages,
   LayoutDashboard,
@@ -79,6 +80,7 @@ const NAV: NavSection[] = [
       { to: '/catalog/attributes', label: 'Attributes', icon: Tag },
       { to: '/catalog/attribute-sets', label: 'Attribute Sets', icon: Tag },
       { to: '/catalog/attachment-types', label: 'Attachment Types', icon: FileText },
+      { to: '/assets-library', label: 'Assets Library', icon: ImageIcon },
     ],
   },
   {

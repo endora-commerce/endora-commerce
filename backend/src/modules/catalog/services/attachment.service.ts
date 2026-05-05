@@ -23,7 +23,7 @@ import {
 } from '@b2b/contracts';
 
 import { HttpError } from '../../../http/error-envelope.js';
-import { Asset } from '../../assets/entities/asset.entity.js';
+import { Asset } from '../../assets_library/entities/asset.entity.js';
 import { Product } from '../entities/product.entity.js';
 import { AttachmentType } from '../entities/attachment-type.entity.js';
 import { ProductAttachment } from '../entities/product-attachment.entity.js';

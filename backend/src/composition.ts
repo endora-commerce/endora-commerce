@@ -46,6 +46,10 @@ import { comparisonsManifest } from './modules/comparisons/manifest.js';
 import { quoteRequestsManifest, QUOTE_REQUESTS_SETTING_CODES } from './modules/quote_requests/manifest.js';
 import { inventoryManifest } from './modules/inventory/manifest.js';
 import { priceListsManifest } from './modules/price_lists/manifest.js';
+import { assetsLibraryManifest } from './modules/assets_library/manifest.js';
+import { assetsLibraryModule } from './modules/assets_library/plugin.js';
+import { registerCatalogAssetReferences } from './modules/catalog/services/asset-references.js';
+import { registerCmsAssetReferences } from './modules/cms_pages/services/asset-references.js';
 import { WarehouseChannelReconciler } from './modules/inventory/services/warehouse-channel-reconciler.js';
 import { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
@@ -381,6 +385,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // runs below before HTTP comes up.
   modules.push(settings.plugin);
 
+  // Feature 013 — Assets Library. Phase 2 instantiates the module so its
+  // manifest is reconciled and the AssetsLibraryService / referenceRegistry
+  // are accessible to other modules. Routes (admin upload, public file
+  // serving) and consumer wiring (Catalog / CMS reference descriptors) land
+  // in subsequent phases (US1 + US2).
+  const assetsLibrary = assetsLibraryModule({ emFactory: em, requireAdmin });
+  modules.push(assetsLibrary.plugin);
+  // Register Catalog's reference descriptors so the Library's soft-delete
+  // path (FR-030) blocks deletion of any asset still pointed at by a
+  // gallery item / product attachment / virtual-download / category main
+  // image.
+  registerCatalogAssetReferences(assetsLibrary.handle.referenceRegistry, em);
+  registerCmsAssetReferences(assetsLibrary.handle.referenceRegistry, em);
+
   // Feature 006 — Search module. Owns Meilisearch indexer + event-subscriber
   // lifecycle (R-3 — moved out of catalog). Settings-aware suggest config
   // resolution + LLM-toggle wrapper hook in via the same handle.
@@ -509,6 +527,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     quoteRequestsManifest,
     inventoryManifest,
     priceListsManifest,
+    assetsLibraryManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();
