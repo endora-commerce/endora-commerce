@@ -1,0 +1,29 @@
+import type { ReactNode } from 'react';
+import type { ResolvedMenuItem } from '@b2b/contracts';
+
+interface MenuLinkProps {
+  item: ResolvedMenuItem;
+  className?: string;
+}
+
+/**
+ * Renders a link-kind menu item (`category-link`, `cms-page-link`,
+ * `external-link`) with an optional icon at the requested side. Used by
+ * both desktop (panel) and mobile (drawer) renderers.
+ */
+export function MenuLink({ item, className }: MenuLinkProps): ReactNode {
+  if (!item.url) return null;
+  const icon = item.icon ?? null;
+  const baseClass = `inline-flex items-center gap-2 ${className ?? ''}`;
+  return (
+    <a href={item.url} className={baseClass}>
+      {icon && icon.position === 'left' ? (
+        <img src={icon.url} alt="" className="h-4 w-4 shrink-0" />
+      ) : null}
+      <span>{item.label}</span>
+      {icon && icon.position === 'right' ? (
+        <img src={icon.url} alt="" className="h-4 w-4 shrink-0" />
+      ) : null}
+    </a>
+  );
+}

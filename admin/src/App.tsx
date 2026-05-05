@@ -17,6 +17,8 @@ import { BlockEditor } from './modules/cms/editors/BlockEditor.js';
 import { TemplatesListPage } from './modules/cms/pages/TemplatesListPage.js';
 import { TemplateEditor } from './modules/cms/editors/TemplateEditor.js';
 import { HooksPage } from './modules/cms/pages/HooksPage.js';
+import { MegamenuListPage } from './modules/megamenu/pages/MegamenuListPage.js';
+import { MegamenuEditor } from './modules/megamenu/pages/MegamenuEditor.js';
 import { RfqList } from './modules/quote_requests/RfqList.js';
 import { RfqDetail } from './modules/quote_requests/RfqDetail.js';
 import { AdminUsersPage } from './modules/admin_users/AdminUsersPage.js';
@@ -121,6 +123,8 @@ export function App(): ReactNode {
         <Route path="/cms/templates/new" element={<TemplateEditor />} />
         <Route path="/cms/templates/:id" element={<TemplateEditor />} />
         <Route path="/cms/hooks" element={<HooksPage />} />
+        <Route path="/megamenu" element={<MegamenuListPage />} />
+        <Route path="/megamenu/:id" element={<MegamenuEditor />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/groups" element={<SettingsGroupsPage />} />
         <Route path="/sales-channels" element={<SalesChannelsListPage />} />

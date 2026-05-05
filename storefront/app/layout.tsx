@@ -2,7 +2,9 @@ import type { ReactNode } from 'react';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import { Hook } from '../components/Hook';
+import { Megamenu } from '../components/Megamenu/Megamenu';
 import { PwaRegister } from '../components/PwaRegister';
+import { getActiveMegamenu } from '../lib/api/megamenu';
 import { getServerContext } from '../lib/server-context';
 import './globals.css';
 
@@ -32,13 +34,15 @@ export default async function RootLayout({
 }: {
   children: ReactNode;
 }): Promise<ReactNode> {
-  const { config, locale } = await getServerContext();
+  const { config, locale, ctx } = await getServerContext();
+  const megamenu = await getActiveMegamenu(ctx);
   return (
     <html lang={locale}>
       <body>
         <div className="b2b-shell">
           <Hook code="header.top" />
           <Header config={config} locale={locale} />
+          <Megamenu megamenu={megamenu} />
           <Hook code="header.bottom" />
           <main className="b2b-shell__main">
             <Hook code="page.top" />
