@@ -457,6 +457,124 @@ export class CatalogAdminService {
     return em.find(ProductAttribute, {}, { orderBy: { key: 'asc' } });
   }
 
+  /**
+   * Feature 012 — read every attribute carrying a given boolean flag.
+   * Used by the Promotion Rule editor's criterion picker
+   * (`flag = isPromoRule`) and the Compare-page column picker
+   * (`flag = isComparable`). Other flags are surfaced for symmetry.
+   */
+  async listAttributesByFlag(
+    flag:
+      | 'isSearchable'
+      | 'isFilterable'
+      | 'isComparable'
+      | 'isVariantAxis'
+      | 'isPromoRule'
+      | 'isVisibleOnProductPage'
+      | 'isRequired',
+  ): Promise<ProductAttribute[]> {
+    const em = this.emFactory();
+    return em.find(
+      ProductAttribute,
+      { [flag]: true } as Partial<ProductAttribute>,
+      { orderBy: { key: 'asc' } },
+    );
+  }
+
+  /**
+   * Feature 012 — projection of the legacy `enumValues: string[]` shape
+   * from the new `attribute_options` rows for one attribute. Returns
+   * `null` when the attribute is non-select-style or has no options.
+   */
+  async getAttributeOptionValues(attributeId: string): Promise<string[] | null> {
+    const em = this.emFactory();
+    const rows = (await em
+      .getConnection()
+      .execute<Array<{ value: string }>>(
+        `select "value" from "attribute_options" where "attribute_id" = ? order by "sort_order" asc, "value" asc`,
+        [attributeId],
+      )) as Array<{ value: string }>;
+    if (rows.length === 0) return null;
+    return rows.map((r) => r.value);
+  }
+
+  /** Feature 012 — bulk variant of getAttributeOptionValues for the list endpoint. */
+  async getAttributeOptionValuesByIds(
+    attributeIds: readonly string[],
+  ): Promise<Map<string, string[]>> {
+    const out = new Map<string, string[]>();
+    if (attributeIds.length === 0) return out;
+    const em = this.emFactory();
+    // Use individual `?` placeholders so MikroORM binds each id as a
+    // separate parameter (its array binder doesn't work with ANY()).
+    const placeholders = attributeIds.map(() => '?').join(', ');
+    const rows = (await em
+      .getConnection()
+      .execute<Array<{ attribute_id: string; value: string }>>(
+        `select "attribute_id", "value" from "attribute_options" where "attribute_id" in (${placeholders}) order by "sort_order" asc, "value" asc`,
+        attributeIds as unknown as string[],
+      )) as Array<{ attribute_id: string; value: string }>;
+    for (const r of rows) {
+      const list = out.get(r.attribute_id) ?? [];
+      list.push(r.value);
+      out.set(r.attribute_id, list);
+    }
+    return out;
+  }
+
+  /** Feature 012 — read a single attribute by UUID or snake_case key. */
+  async getAttributeByIdOrKey(idOrKey: string): Promise<ProductAttribute> {
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrKey);
+    const em = this.emFactory();
+    const attr = await em.findOne(
+      ProductAttribute,
+      isUuid ? { id: idOrKey } : { key: idOrKey },
+    );
+    if (!attr) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute "${idOrKey}" not found.`);
+    }
+    return attr;
+  }
+
+  /**
+   * Feature 012 — delete an attribute. Refused while any Attribute Set or
+   * product still references it (FR-006). The structured error names the
+   * dependent rows so the admin UI can guide the operator.
+   */
+  async deleteAttribute(idOrKey: string): Promise<void> {
+    const em = this.emFactory();
+    const attr = await this.getAttributeByIdOrKey(idOrKey);
+    const setRefs = (await em
+      .getConnection()
+      .execute<Array<{ attribute_set_id: string }>>(
+        `select attribute_set_id from attribute_set_attributes where product_attribute_id = ?`,
+        [attr.id],
+      )) as Array<{ attribute_set_id: string }>;
+    if (setRefs.length > 0) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.VALIDATION_FAILED,
+        `Attribute is still referenced by ${setRefs.length} attribute set(s); remove from sets first.`,
+      );
+    }
+    const productRefs = (await em
+      .getConnection()
+      .execute<Array<{ count: string }>>(
+        `select count(*)::text as count from products where attribute_values \\? ?`,
+        [attr.key],
+      )) as Array<{ count: string }>;
+    const productCount = Number(productRefs[0]?.count ?? '0');
+    if (productCount > 0) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.VALIDATION_FAILED,
+        `Attribute is still referenced by ${productCount} product(s); clear values first.`,
+      );
+    }
+    await em.removeAndFlush(attr);
+  }
+
   // ------------------------------------------------------------------
 
   // ===== Feature 002 (T054 backend prereq) — Variants CRUD =================

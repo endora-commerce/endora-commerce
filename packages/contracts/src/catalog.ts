@@ -542,21 +542,24 @@ export const createAttributeRequestSchema = baseCreateAttributeObject
   })
   .refine(
     (v) => {
-      // multiselect (whether spelled via `type` or `valueType`) needs
-      // enumValues. `select` is the same constraint via the legacy
-      // valueType=enum spelling.
+      // Select-style attributes need either the legacy `enumValues: string[]`
+      // shape OR the new feature-012 `options: AttributeOption[]` shape.
+      // The service maps either to `attribute_options` rows.
       const wantsEnum =
         v.type === 'multiselect' ||
         v.type === 'select' ||
         v.valueType === 'enum' ||
-        v.valueType === 'multiselect';
-      return wantsEnum
-        ? Array.isArray(v.enumValues) && v.enumValues.length > 0
-        : true;
+        v.valueType === 'multiselect' ||
+        v.valueType === 'select';
+      if (!wantsEnum) return true;
+      const hasLegacy = Array.isArray(v.enumValues) && v.enumValues.length > 0;
+      const hasOptions = Array.isArray(v.options) && v.options.length > 0;
+      return hasLegacy || hasOptions;
     },
     {
-      message: 'enumValues is required when type=multiselect/select or valueType=enum/multiselect',
-      path: ['enumValues'],
+      message:
+        'either enumValues (legacy) or options (feature 012) is required for select-style attributes',
+      path: ['options'],
     },
   )
   .refine(

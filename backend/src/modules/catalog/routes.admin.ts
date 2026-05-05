@@ -207,7 +207,8 @@ export async function registerCatalogAdminRoutes(
       const body = createAttributeRequestSchema.parse(request.body);
       const attr = await adminService.createAttribute(body);
       reply.status(201);
-      return { data: serializeAdminAttribute(attr) };
+      const optionValues = await adminService.getAttributeOptionValues(attr.id);
+      return { data: serializeAdminAttribute(attr, optionValues) };
     },
   );
 
@@ -226,7 +227,8 @@ export async function registerCatalogAdminRoutes(
         request.params.idOrKey,
         body,
       );
-      return { data: serializeAdminAttribute(attr) };
+      const optionValues = await adminService.getAttributeOptionValues(attr.id);
+      return { data: serializeAdminAttribute(attr, optionValues) };
     },
   );
 
@@ -260,7 +262,76 @@ export async function registerCatalogAdminRoutes(
     { preHandler: requireAdmin('catalog:read') },
     async () => {
       const rows = await adminService.listAttributes();
-      return { data: rows.map(serializeAdminAttribute) };
+      const optionsByAttr = await adminService.getAttributeOptionValuesByIds(
+        rows.map((r) => r.id),
+      );
+      return {
+        data: rows.map((r) => serializeAdminAttribute(r, optionsByAttr.get(r.id) ?? null)),
+      };
+    },
+  );
+
+  // Feature 012 — read by flag for picker consumers (Promotion Rule editor,
+  // Compare-page column picker, etc.). Single boolean filter.
+  app.get<{ Querystring: { flag?: string } }>(
+    '/api/v1/admin/catalog/attributes/by-flag',
+    { preHandler: requireAdmin('catalog:read') },
+    async (request, reply) => {
+      const flag = request.query.flag;
+      const allowed = [
+        'isSearchable',
+        'isFilterable',
+        'isComparable',
+        'isVariantAxis',
+        'isPromoRule',
+        'isVisibleOnProductPage',
+        'isRequired',
+      ] as const;
+      if (!flag || !(allowed as readonly string[]).includes(flag)) {
+        reply.status(400);
+        return {
+          error: {
+            code: 'VALIDATION_FAILED',
+            message: `flag must be one of ${allowed.join(', ')}`,
+          },
+        };
+      }
+      const rows = await adminService.listAttributesByFlag(
+        flag as (typeof allowed)[number],
+      );
+      return {
+        data: {
+          items: rows.map((r) => ({
+            id: r.id,
+            key: r.key,
+            label: r.label,
+            labelDefault: r.labelDefault,
+            valueType: r.valueType,
+          })),
+        },
+      };
+    },
+  );
+
+  // Feature 012 — single attribute read by id or key.
+  app.get<{ Params: { idOrKey: string } }>(
+    '/api/v1/admin/catalog/attributes/:idOrKey',
+    { preHandler: requireAdmin('catalog:read') },
+    async (request) => {
+      const attr = await adminService.getAttributeByIdOrKey(request.params.idOrKey);
+      const optionValues = await adminService.getAttributeOptionValues(attr.id);
+      return { data: serializeAdminAttribute(attr, optionValues) };
+    },
+  );
+
+  // Feature 012 — delete an attribute. Refused while any Attribute Set or
+  // product still references it (FR-006).
+  app.delete<{ Params: { idOrKey: string } }>(
+    '/api/v1/admin/catalog/attributes/:idOrKey',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request, reply) => {
+      await adminService.deleteAttribute(request.params.idOrKey);
+      reply.status(204).send();
     },
   );
 
@@ -1017,7 +1088,10 @@ function serializeAdminProduct(p: Product) {
   };
 }
 
-function serializeAdminAttribute(a: ProductAttribute) {
+function serializeAdminAttribute(
+  a: ProductAttribute,
+  optionValues: string[] | null = null,
+) {
   const api = dbToApiAttributeType(a.valueType, a.displayAsSlider);
   return {
     id: a.id,
@@ -1029,6 +1103,11 @@ function serializeAdminAttribute(a: ProductAttribute) {
     type: api.type,
     numericKind: api.numericKind,
     valueType: a.valueType,
+    // Feature 012 — legacy projection of the attribute_options rows
+    // (callers that need the rich shape use the dedicated
+    // /attributes/:id/options endpoints). Null when the attribute
+    // has no options or the caller didn't fetch them.
+    enumValues: optionValues,
     isSearchable: a.isSearchable,
     isFilterable: a.isFilterable,
     isVariantAxis: a.isVariantAxis,

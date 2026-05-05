@@ -35,13 +35,24 @@ interface AdminAttribute {
   id: string;
   key: string;
   label: Record<string, string>;
+  /** Feature 012 — fallback label used when active locale is missing from `label`. */
+  labelDefault: string;
   valueType: ValueType;
+  /** Legacy projection from `attribute_options` rows (feature 012 read shape). */
   enumValues: string[] | null;
   isSearchable: boolean;
   isFilterable: boolean;
   isVariantAxis: boolean;
   displayAsSlider: boolean;
   isComparable: boolean;
+  /** Feature 012 — enforced at product save time when in the assigned set. */
+  isRequired: boolean;
+  /** Feature 012 — surfaces the attribute in the Promotion Rule criterion picker. */
+  isPromoRule: boolean;
+  /** Feature 012 — ascending sort order on the storefront filter sidebar. */
+  filterPosition: number;
+  /** Feature 012 — gates inclusion in the storefront PDP "Parametry produktu" tab. */
+  isVisibleOnProductPage: boolean;
 }
 
 export function AttributesManager(): ReactNode {
@@ -128,6 +139,14 @@ export function AttributesManager(): ReactNode {
         isFilterable?: boolean;
         isVariantAxis?: boolean;
         isComparable?: boolean;
+        // Feature 012 — these flag patches are now accepted by the
+        // backend; the visual editor exposes them in a follow-up admin
+        // iteration.
+        isRequired?: boolean;
+        isPromoRule?: boolean;
+        filterPosition?: number;
+        isVisibleOnProductPage?: boolean;
+        labelDefault?: string;
       },
     ): Promise<void> => {
       try {
