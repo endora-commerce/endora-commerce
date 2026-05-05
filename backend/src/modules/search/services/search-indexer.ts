@@ -46,6 +46,17 @@ export interface IndexedDocument {
   // for primitive values; complex types should be projected via the
   // service layer when they appear.
   attributes: Record<string, string | number | boolean | null>;
+  /**
+   * Feature 012 / FR-035 — for every `isSearchable = true` attribute of
+   * a select-style type (`select` / `enum` / `multiselect`), this array
+   * carries the resolved per-locale option label(s). The customer can
+   * then search for the rendered text they see (e.g. "brass" matches a
+   * product whose `material` option is keyed `brass_001` but rendered
+   * as "Brass" in their locale). The array is part of Meilisearch's
+   * `searchableAttributes` settings, so it participates in lexical +
+   * (when enabled) semantic search alongside `name` / `description`.
+   */
+  searchableOptions: string[];
   updatedAt: number;
 }
 
@@ -100,8 +111,12 @@ export class SearchIndexer {
       categoriesByProduct.set(row.product_id, list);
     }
 
+    // Feature 012 / FR-035 — pre-load every searchable select-style
+    // attribute and its option labels so buildDocument() can render the
+    // per-locale text for each product's selected value(s).
+    const optionLookup = await this.loadSearchableOptionLookup(em, this.locale);
     const documents: IndexedDocument[] = products.map((p) =>
-      buildDocument(p, categoriesByProduct.get(p.id) ?? [], this.locale),
+      buildDocument(p, categoriesByProduct.get(p.id) ?? [], this.locale, optionLookup),
     );
 
     // Wipe the index first so removed-from-channel products disappear from
@@ -121,7 +136,11 @@ export class SearchIndexer {
     }
 
     const attributes = await em.find(ProductAttribute, {});
-    const searchable = ['name', 'sku', 'description'];
+    // Feature 012 — `searchableOptions` is the rendered per-locale option
+    // label aggregator for every isSearchable select-style attribute. It
+    // joins the customer's mental model ("brass") with the operator's
+    // canonical option value ("brass_001" / "Mosiądz").
+    const searchable = ['name', 'sku', 'description', 'searchableOptions'];
     const filterable: string[] = ['categoryIds', 'categorySlugs', 'visibility', 'status'];
     for (const attr of attributes) {
       const path = `attributes.${attr.key}`;
@@ -172,7 +191,11 @@ export class SearchIndexer {
         [productId],
       );
     const categories = categoryRows.map((r) => ({ id: r.category_id, slug: r.slug }));
-    const document = buildDocument(product, categories, this.locale);
+    // Feature 012 / FR-035 — same per-locale option-label projection
+    // used by the offline reindex. Per-product upsert is incremental,
+    // so we only build the lookup once per call.
+    const optionLookup = await this.loadSearchableOptionLookup(em, this.locale);
+    const document = buildDocument(product, categories, this.locale, optionLookup);
 
     const isPublishable =
       product.status === 'active' && !product.deletedAt && !product.archivedAt;
@@ -220,7 +243,12 @@ export class SearchIndexer {
   async refreshAttributeSettings(em: EntityManager): Promise<string[]> {
     const channels = await em.find(SalesChannel, {});
     const attributes = await em.find(ProductAttribute, {});
-    const searchable = ['name', 'sku', 'description'];
+    // Feature 012 — keep `searchableOptions` in the searchable list so
+    // toggling isSearchable on a select-style attribute takes effect
+    // without a full reindex. The aggregated field stays in the index
+    // documents from the previous reindex; settings refresh just opts
+    // it back into the search rank.
+    const searchable = ['name', 'sku', 'description', 'searchableOptions'];
     const filterable: string[] = ['categoryIds', 'categorySlugs', 'visibility', 'status'];
     for (const attr of attributes) {
       const path = `attributes.${attr.key}`;
@@ -307,6 +335,66 @@ export class SearchIndexer {
     await this.client.tasks.waitForTask(task.taskUid, { timeout: 30_000 });
   }
 
+  /**
+   * Feature 012 / FR-035 — build a per-call lookup of (attributeKey,
+   * value) → resolved per-locale option label, restricted to attributes
+   * that are isSearchable AND of a select-style type. Used by
+   * buildDocument() to fill the `searchableOptions` array on each
+   * indexed document so storefront search hits the customer-visible
+   * label, not the raw option value.
+   *
+   * The lookup is constructed in two queries (attribute set + option
+   * set) so the per-product loop stays O(1).
+   */
+  async loadSearchableOptionLookup(
+    em: EntityManager,
+    locale: string,
+  ): Promise<Map<string, Map<string, string>>> {
+    const out = new Map<string, Map<string, string>>();
+    const attrs = await em.find(ProductAttribute, {
+      isSearchable: true,
+      valueType: { $in: ['select', 'enum', 'multiselect'] as ProductAttribute['valueType'][] },
+    });
+    if (attrs.length === 0) return out;
+    const conn = em.getConnection();
+    const placeholders = attrs.map(() => '?').join(', ');
+    const rows = (await conn.execute<
+      Array<{
+        attribute_id: string;
+        value: string;
+        label: Record<string, string>;
+        label_default: string;
+      }>
+    >(
+      `select "attribute_id", "value", "label", "label_default" from "attribute_options" where "attribute_id" in (${placeholders})`,
+      attrs.map((a) => a.id),
+    )) as Array<{
+      attribute_id: string;
+      value: string;
+      label: Record<string, string>;
+      label_default: string;
+    }>;
+    const attrKeyById = new Map(attrs.map((a) => [a.id, a.key]));
+    for (const r of rows) {
+      const key = attrKeyById.get(r.attribute_id);
+      if (!key) continue;
+      let bucket = out.get(key);
+      if (!bucket) {
+        bucket = new Map();
+        out.set(key, bucket);
+      }
+      const labelMap = r.label ?? {};
+      const rendered =
+        labelMap[locale] ??
+        labelMap[FALLBACK_LOCALE] ??
+        Object.values(labelMap)[0] ??
+        r.label_default ??
+        r.value;
+      bucket.set(r.value, rendered);
+    }
+    return out;
+  }
+
   private async ensureIndex(uid: string): Promise<Index> {
     try {
       return await this.client.getIndex(uid);
@@ -342,13 +430,32 @@ function buildDocument(
   product: Product,
   categories: Array<{ id: string; slug: string }>,
   locale: string,
+  searchableOptionLookup: Map<string, Map<string, string>>,
 ): IndexedDocument {
   const name = pickLocale(product.name, locale);
   const description = pickLocale(product.description, locale);
   const attrs: IndexedDocument['attributes'] = {};
+  // Feature 012 — collect resolved per-locale option labels for every
+  // searchable select-style attribute the product carries a value for.
+  const searchableOptions: string[] = [];
   for (const [key, value] of Object.entries(product.attributeValues)) {
     if (value === null || value === undefined) {
       attrs[key] = null;
+      continue;
+    }
+    const optionLabels = searchableOptionLookup.get(key);
+    if (Array.isArray(value)) {
+      // multiselect — array of option values.
+      if (optionLabels) {
+        for (const item of value) {
+          const rendered = optionLabels.get(String(item));
+          if (rendered) searchableOptions.push(rendered);
+        }
+      }
+      // Persist the raw shape too so non-search filtering still works
+      // (Meilisearch tolerates JSON-string fallback per the comment
+      // in the original implementation).
+      attrs[key] = JSON.stringify(value);
       continue;
     }
     if (
@@ -357,6 +464,10 @@ function buildDocument(
       typeof value === 'boolean'
     ) {
       attrs[key] = value;
+      if (optionLabels && typeof value === 'string') {
+        const rendered = optionLabels.get(value);
+        if (rendered) searchableOptions.push(rendered);
+      }
       continue;
     }
     // Fall through for unexpected shapes — coerce to JSON string so the
@@ -380,6 +491,7 @@ function buildDocument(
     categoryIds: categories.map((c) => c.id),
     categorySlugs: categories.map((c) => c.slug),
     attributes: attrs,
+    searchableOptions,
     updatedAt: product.updatedAt.getTime(),
   };
 }

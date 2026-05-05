@@ -227,10 +227,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdmin,
     salesChannelMembership: salesChannels.handle.membershipService,
   });
+  // Feature 012 / US8 — promotions reads catalog through CatalogQueryService
+  // (the documented cross-module port — Constitution I) so the rule editor
+  // can list `isPromoRule` attributes and the resolver can validate
+  // `attribute` criteria against the authoritative option list.
+  const catalogQueryServiceForPromotions = new CatalogQueryService(em);
   const promotions = promotionsModule({
     emFactory: em,
     requireAdmin,
     salesChannelMembership: salesChannels.handle.membershipService,
+    catalogQueryService: catalogQueryServiceForPromotions,
   });
 
   // Settings module is constructed up here (rather than further down) so its

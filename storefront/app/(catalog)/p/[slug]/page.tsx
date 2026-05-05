@@ -16,6 +16,7 @@ import { NotifyWhenAvailableDialog } from '../../../../components/inventory/Noti
 import { BackorderHint } from '../../../../components/inventory/BackorderHint';
 import { AddToRfqForm } from '../../../../components/rfq/AddToRfqForm';
 import { QuoteRequestCta } from '../../../../components/pricing/QuoteRequestCta';
+import { ParametryTab } from '../../../../components/attributes/ParametryTab';
 import { getStorefrontQuoteRequestSettings } from '../../../../lib/api/rfq';
 import { getProductBySlug } from '../../../../lib/api/catalog';
 import { getStorefrontProductStock } from '../../../../lib/api/inventory';
@@ -252,6 +253,19 @@ export default async function ProductPage({
               </table>
             </div>
           ) : null}
+
+          {/* Feature 012 / US6 — "Parametry produktu" tab. Surfaces only
+              attributes the operator has flagged isVisibleOnProductPage
+              AND that have a value on this product. Renders the resolved
+              per-locale option label for select-style values. Returns
+              null (omits the tab) when nothing matches (FR-030). */}
+          <ParametryTab
+            attributes={
+              (product as { visibleAttributes?: Array<{ key: string; label: string; valueType: string; valueRendered: string }> })
+                .visibleAttributes ?? null
+            }
+            locale={locale}
+          />
         </div>
       </article>
 

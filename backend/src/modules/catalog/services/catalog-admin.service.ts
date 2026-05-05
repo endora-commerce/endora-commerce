@@ -151,6 +151,7 @@ export class CatalogAdminService {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
     const stateBefore: Record<string, unknown> = {
+      sku: product.sku,
       name: { ...product.name },
       description: { ...product.description },
       stockMode: product.stockMode,
@@ -159,6 +160,31 @@ export class CatalogAdminService {
       allowedOrganizationIds: [...product.allowedOrganizationIds],
     };
     const changedFields: string[] = [];
+    // Feature 012 / FR-016 — SKU is mutable. Refused with 400 sku_in_use
+    // when the new SKU collides with another product. The internal UUID
+    // (product.id) is the canonical reference; snapshot tables keep the
+    // SKU value frozen at snapshot time so historical orders / RFQs /
+    // invoices stay stable.
+    if (req.sku !== undefined && req.sku.trim() !== product.sku) {
+      const trimmed = req.sku.trim();
+      if (trimmed.length === 0 || trimmed.length > 160) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          'invalid_sku',
+        );
+      }
+      const conflict = await em.findOne(Product, { sku: trimmed });
+      if (conflict && conflict.id !== product.id) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          `sku_in_use { conflictingProductId: ${conflict.id}, conflictingSku: ${trimmed} }`,
+        );
+      }
+      product.sku = trimmed;
+      changedFields.push('sku');
+    }
     if (req.name) { product.name = req.name; changedFields.push('name'); }
     if (req.description) { product.description = req.description; changedFields.push('description'); }
     if (req.stockMode !== undefined) { product.stockMode = req.stockMode; changedFields.push('stockMode'); }
@@ -182,6 +208,21 @@ export class CatalogAdminService {
       );
       product.attributeValues = { ...product.attributeValues, ...req.attributeValues };
       changedFields.push('attributeValues');
+    }
+    // Feature 012 / FR-013 — refuse the save if any required attribute
+    // in the assigned set is left without a value. The merged map is
+    // the source of truth here (a previously-set value satisfies the
+    // requirement even when the current patch omits it).
+    if (
+      product.attributeSetId &&
+      (req.attributeValues !== undefined ||
+        req.attributeSetId !== undefined)
+    ) {
+      await this.assertRequiredAttributesPresent(
+        em,
+        product.attributeSetId,
+        product.attributeValues ?? {},
+      );
     }
     if (req.allowedOrganizationIds) {
       product.allowedOrganizationIds = req.allowedOrganizationIds;
@@ -280,16 +321,25 @@ export class CatalogAdminService {
         `displayAsSlider is only valid for valueType="number" or "price"; got "${resolved.valueType}".`,
       );
     }
+    const labelDefault =
+      req.labelDefault ??
+      req.label['en-US'] ??
+      Object.values(req.label)[0] ??
+      req.key;
     const attr = em.create(ProductAttribute, {
       key: req.key,
       label: req.label,
+      labelDefault,
       valueType: resolved.valueType,
-      enumValues: req.enumValues ?? null,
       isSearchable: req.isSearchable,
       isFilterable: req.isFilterable,
       isVariantAxis: req.isVariantAxis,
       displayAsSlider: resolved.displayAsSlider,
       isComparable: req.isComparable ?? false,
+      isRequired: req.isRequired ?? false,
+      isPromoRule: req.isPromoRule ?? false,
+      filterPosition: req.filterPosition ?? 0,
+      isVisibleOnProductPage: req.isVisibleOnProductPage ?? false,
     });
     try {
       await em.persistAndFlush(attr);
@@ -298,6 +348,38 @@ export class CatalogAdminService {
         throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, `Attribute key "${req.key}" already exists.`);
       }
       throw err;
+    }
+    // Feature 012 — when the operator supplies legacy `enumValues` OR the
+    // new rich `options` array, materialise them as `attribute_options`
+    // rows on the new table. The rich form wins when both are present.
+    const inlineOptions = req.options;
+    const legacyValues = req.enumValues;
+    if (inlineOptions && inlineOptions.length > 0) {
+      const { AttributeOption } = await import('../entities/attribute-option.entity.js');
+      for (const [i, o] of inlineOptions.entries()) {
+        em.create(AttributeOption, {
+          attributeId: attr.id,
+          value: o.value,
+          label: o.label ?? {},
+          labelDefault: o.labelDefault,
+          isDefault: o.isDefault ?? false,
+          sortOrder: o.sortOrder ?? i,
+        });
+      }
+      await em.flush();
+    } else if (legacyValues && legacyValues.length > 0) {
+      const { AttributeOption } = await import('../entities/attribute-option.entity.js');
+      for (const [i, v] of legacyValues.entries()) {
+        em.create(AttributeOption, {
+          attributeId: attr.id,
+          value: v,
+          label: {},
+          labelDefault: v,
+          isDefault: false,
+          sortOrder: i,
+        });
+      }
+      await em.flush();
     }
     this.events.emit('attribute.updated.v1', {
       eventId: randomUUID(),
@@ -345,11 +427,17 @@ export class CatalogAdminService {
     req: UpdateAttributeRequest,
   ): Promise<ProductAttribute> {
     if (req.label !== undefined) attr.label = req.label;
-    if (req.enumValues !== undefined) attr.enumValues = req.enumValues;
+    if (req.labelDefault !== undefined) attr.labelDefault = req.labelDefault;
     if (req.isSearchable !== undefined) attr.isSearchable = req.isSearchable;
     if (req.isFilterable !== undefined) attr.isFilterable = req.isFilterable;
     if (req.isVariantAxis !== undefined) attr.isVariantAxis = req.isVariantAxis;
     if (req.isComparable !== undefined) attr.isComparable = req.isComparable;
+    if (req.isRequired !== undefined) attr.isRequired = req.isRequired;
+    if (req.isPromoRule !== undefined) attr.isPromoRule = req.isPromoRule;
+    if (req.filterPosition !== undefined) attr.filterPosition = req.filterPosition;
+    if (req.isVisibleOnProductPage !== undefined) {
+      attr.isVisibleOnProductPage = req.isVisibleOnProductPage;
+    }
     if (req.type !== undefined) {
       // Feature 002 — patching `type` re-derives valueType + displayAsSlider.
       const resolved = resolveAttributeApiType({
@@ -408,6 +496,268 @@ export class CatalogAdminService {
   async listAttributes(): Promise<ProductAttribute[]> {
     const em = this.emFactory();
     return em.find(ProductAttribute, {}, { orderBy: { key: 'asc' } });
+  }
+
+  /**
+   * Feature 012 — read every attribute carrying a given boolean flag.
+   * Used by the Promotion Rule editor's criterion picker
+   * (`flag = isPromoRule`) and the Compare-page column picker
+   * (`flag = isComparable`). Other flags are surfaced for symmetry.
+   */
+  async listAttributesByFlag(
+    flag:
+      | 'isSearchable'
+      | 'isFilterable'
+      | 'isComparable'
+      | 'isVariantAxis'
+      | 'isPromoRule'
+      | 'isVisibleOnProductPage'
+      | 'isRequired',
+  ): Promise<ProductAttribute[]> {
+    const em = this.emFactory();
+    return em.find(
+      ProductAttribute,
+      { [flag]: true } as Partial<ProductAttribute>,
+      { orderBy: { key: 'asc' } },
+    );
+  }
+
+  /**
+   * Feature 012 / US4 — list every option for one attribute, ordered
+   * by sortOrder ASC then value ASC.
+   */
+  async listAttributeOptions(
+    attributeId: string,
+  ): Promise<import('../entities/attribute-option.entity.js').AttributeOption[]> {
+    const { AttributeOption } = await import('../entities/attribute-option.entity.js');
+    const em = this.emFactory();
+    return em.find(
+      AttributeOption,
+      { attributeId },
+      { orderBy: { sortOrder: 'asc', value: 'asc' } },
+    );
+  }
+
+  /** Feature 012 / US4 — append an option (validated cross-list). */
+  async addAttributeOption(
+    attributeIdOrKey: string,
+    input: {
+      value: string;
+      label?: Record<string, string>;
+      labelDefault: string;
+      isDefault?: boolean;
+      sortOrder?: number;
+    },
+  ): Promise<import('../entities/attribute-option.entity.js').AttributeOption> {
+    const { AttributeOption } = await import('../entities/attribute-option.entity.js');
+    const { validateOptionList, isValidOptionValue } = await import(
+      './attribute-option-validator.js'
+    );
+    const attr = await this.getAttributeByIdOrKey(attributeIdOrKey);
+    if (!isValidOptionValue(input.value)) {
+      throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, `invalid_option_value: ${input.value}`);
+    }
+    const existing = await this.listAttributeOptions(attr.id);
+    const candidate = {
+      value: input.value,
+      labelDefault: input.labelDefault,
+      isDefault: input.isDefault ?? false,
+    };
+    const result = validateOptionList(
+      [
+        ...existing.map((o) => ({
+          value: o.value,
+          labelDefault: o.labelDefault,
+          isDefault: o.isDefault,
+        })),
+        candidate,
+      ],
+      attr.valueType,
+    );
+    if (!result.ok) {
+      const first = result.errors[0]!;
+      throw new HttpError(
+        first.code === 'attribute_type_unsupported' ? 400 : 409,
+        ERROR_CODES.VALIDATION_FAILED,
+        first.message,
+      );
+    }
+    const em = this.emFactory();
+    const sortOrder =
+      input.sortOrder ??
+      (existing.length > 0 ? Math.max(...existing.map((o) => o.sortOrder)) + 1 : 0);
+    const row = em.create(AttributeOption, {
+      attributeId: attr.id,
+      value: input.value,
+      label: input.label ?? {},
+      labelDefault: input.labelDefault,
+      isDefault: input.isDefault ?? false,
+      sortOrder,
+    });
+    await em.persistAndFlush(row);
+    return row;
+  }
+
+  /** Feature 012 / US4 — patch one option (value is immutable per FR-026). */
+  async patchAttributeOption(
+    optionId: string,
+    input: {
+      label?: Record<string, string>;
+      labelDefault?: string;
+      isDefault?: boolean;
+      sortOrder?: number;
+    },
+  ): Promise<import('../entities/attribute-option.entity.js').AttributeOption> {
+    const { AttributeOption } = await import('../entities/attribute-option.entity.js');
+    const em = this.emFactory();
+    const row = await em.findOne(AttributeOption, { id: optionId });
+    if (!row) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute option ${optionId} not found.`);
+    }
+    if (input.label !== undefined) row.label = input.label;
+    if (input.labelDefault !== undefined) row.labelDefault = input.labelDefault;
+    if (input.sortOrder !== undefined) row.sortOrder = input.sortOrder;
+    if (input.isDefault !== undefined) {
+      row.isDefault = input.isDefault;
+      if (input.isDefault) {
+        const { validateOptionList } = await import('./attribute-option-validator.js');
+        const attr = await this.getAttributeByIdOrKey(row.attributeId);
+        const all = await this.listAttributeOptions(row.attributeId);
+        const reslist = all.map((o) => ({
+          value: o.value,
+          labelDefault: o.labelDefault,
+          isDefault: o.id === row.id ? true : o.isDefault,
+        }));
+        const result = validateOptionList(reslist, attr.valueType);
+        if (!result.ok) {
+          throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, result.errors[0]!.message);
+        }
+      }
+    }
+    await em.flush();
+    return row;
+  }
+
+  /** Feature 012 / US4 — remove one option. Refused while products carry it (FR-025). */
+  async removeAttributeOption(optionId: string): Promise<void> {
+    const { AttributeOption } = await import('../entities/attribute-option.entity.js');
+    const em = this.emFactory();
+    const row = await em.findOne(AttributeOption, { id: optionId });
+    if (!row) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute option ${optionId} not found.`);
+    }
+    const attr = await this.getAttributeByIdOrKey(row.attributeId);
+    const refs = (await em
+      .getConnection()
+      .execute<Array<{ count: string }>>(
+        attr.valueType === 'multiselect'
+          ? `select count(*)::text as count from products where attribute_values->? \\? ?`
+          : `select count(*)::text as count from products where attribute_values->>? = ?`,
+        [attr.key, row.value],
+      )) as Array<{ count: string }>;
+    const productCount = Number(refs[0]?.count ?? '0');
+    if (productCount > 0) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.VALIDATION_FAILED,
+        `option_in_use: ${productCount} product(s) still carry value '${row.value}'.`,
+      );
+    }
+    await em.removeAndFlush(row);
+  }
+
+  /**
+   * Feature 012 — projection of the legacy `enumValues: string[]` shape
+   * from the new `attribute_options` rows for one attribute. Returns
+   * `null` when the attribute is non-select-style or has no options.
+   */
+  async getAttributeOptionValues(attributeId: string): Promise<string[] | null> {
+    const em = this.emFactory();
+    const rows = (await em
+      .getConnection()
+      .execute<Array<{ value: string }>>(
+        `select "value" from "attribute_options" where "attribute_id" = ? order by "sort_order" asc, "value" asc`,
+        [attributeId],
+      )) as Array<{ value: string }>;
+    if (rows.length === 0) return null;
+    return rows.map((r) => r.value);
+  }
+
+  /** Feature 012 — bulk variant of getAttributeOptionValues for the list endpoint. */
+  async getAttributeOptionValuesByIds(
+    attributeIds: readonly string[],
+  ): Promise<Map<string, string[]>> {
+    const out = new Map<string, string[]>();
+    if (attributeIds.length === 0) return out;
+    const em = this.emFactory();
+    // Use individual `?` placeholders so MikroORM binds each id as a
+    // separate parameter (its array binder doesn't work with ANY()).
+    const placeholders = attributeIds.map(() => '?').join(', ');
+    const rows = (await em
+      .getConnection()
+      .execute<Array<{ attribute_id: string; value: string }>>(
+        `select "attribute_id", "value" from "attribute_options" where "attribute_id" in (${placeholders}) order by "sort_order" asc, "value" asc`,
+        attributeIds as unknown as string[],
+      )) as Array<{ attribute_id: string; value: string }>;
+    for (const r of rows) {
+      const list = out.get(r.attribute_id) ?? [];
+      list.push(r.value);
+      out.set(r.attribute_id, list);
+    }
+    return out;
+  }
+
+  /** Feature 012 — read a single attribute by UUID or snake_case key. */
+  async getAttributeByIdOrKey(idOrKey: string): Promise<ProductAttribute> {
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrKey);
+    const em = this.emFactory();
+    const attr = await em.findOne(
+      ProductAttribute,
+      isUuid ? { id: idOrKey } : { key: idOrKey },
+    );
+    if (!attr) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute "${idOrKey}" not found.`);
+    }
+    return attr;
+  }
+
+  /**
+   * Feature 012 — delete an attribute. Refused while any Attribute Set or
+   * product still references it (FR-006). The structured error names the
+   * dependent rows so the admin UI can guide the operator.
+   */
+  async deleteAttribute(idOrKey: string): Promise<void> {
+    const em = this.emFactory();
+    const attr = await this.getAttributeByIdOrKey(idOrKey);
+    const setRefs = (await em
+      .getConnection()
+      .execute<Array<{ attribute_set_id: string }>>(
+        `select attribute_set_id from attribute_set_attributes where product_attribute_id = ?`,
+        [attr.id],
+      )) as Array<{ attribute_set_id: string }>;
+    if (setRefs.length > 0) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.VALIDATION_FAILED,
+        `Attribute is still referenced by ${setRefs.length} attribute set(s); remove from sets first.`,
+      );
+    }
+    const productRefs = (await em
+      .getConnection()
+      .execute<Array<{ count: string }>>(
+        `select count(*)::text as count from products where attribute_values \\? ?`,
+        [attr.key],
+      )) as Array<{ count: string }>;
+    const productCount = Number(productRefs[0]?.count ?? '0');
+    if (productCount > 0) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.VALIDATION_FAILED,
+        `Attribute is still referenced by ${productCount} product(s); clear values first.`,
+      );
+    }
+    await em.removeAndFlush(attr);
   }
 
   // ------------------------------------------------------------------
@@ -575,6 +925,109 @@ export class CatalogAdminService {
     }
   }
 
+  /**
+   * Feature 012 / FR-013 — refuse a product save that leaves any
+   * required attribute (from the assigned set) without a value. Called
+   * after `assertAttributeValueKeysAllowed`; uses the merged
+   * (existing + patched) value map so a previously-set value satisfies
+   * the requirement even when the current patch omits it.
+   */
+  async assertRequiredAttributesPresent(
+    em: EntityManager,
+    attributeSetId: string,
+    mergedAttributeValues: Record<string, unknown>,
+  ): Promise<void> {
+    const conn = em.getConnection();
+    const rows = (await conn.execute(
+      `select pa.key
+       from attribute_set_attributes asa
+       join product_attributes pa on pa.id = asa.product_attribute_id
+       where asa.attribute_set_id = ?
+         and pa.is_required = true`,
+      [attributeSetId],
+    )) as Array<{ key: string }>;
+    const missing = rows
+      .map((r) => r.key)
+      .filter((k) => {
+        const v = mergedAttributeValues[k];
+        return v === undefined || v === null || v === '';
+      });
+    if (missing.length > 0) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.VALIDATION_FAILED,
+        `missing_required_attribute_values: ${missing.join(', ')}`,
+      );
+    }
+  }
+
+  /**
+   * Feature 012 / US2 — preview a Set swap on a Product. Returns the
+   * shape documented in `contracts/attribute-sets.contract.md` —
+   * attributesAdded, attributesRemoved, valuesPreserved (R-7),
+   * requiredButMissing.
+   */
+  async previewAttributeSetSwap(
+    productId: string,
+    targetSetId: string | null,
+  ): Promise<{
+    attributesAdded: Array<{ key: string; labelDefault: string; isRequired: boolean }>;
+    attributesRemoved: Array<{ key: string; labelDefault: string }>;
+    valuesPreserved: Array<{ key: string; valueSample: unknown }>;
+    requiredButMissing: Array<{ key: string; labelDefault: string }>;
+  }> {
+    const em = this.emFactory();
+    const product = await em.findOne(Product, { id: productId });
+    if (!product) {
+      throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+    }
+    const conn = em.getConnection();
+    const fetchKeys = async (
+      setId: string | null,
+    ): Promise<Map<string, { labelDefault: string; isRequired: boolean }>> => {
+      const out = new Map<string, { labelDefault: string; isRequired: boolean }>();
+      if (!setId) return out;
+      const rows = (await conn.execute(
+        `select pa.key, pa.label_default as label_default, pa.is_required as is_required
+         from attribute_set_attributes asa
+         join product_attributes pa on pa.id = asa.product_attribute_id
+         where asa.attribute_set_id = ?`,
+        [setId],
+      )) as Array<{ key: string; label_default: string; is_required: boolean }>;
+      for (const r of rows) {
+        out.set(r.key, { labelDefault: r.label_default, isRequired: r.is_required });
+      }
+      return out;
+    };
+    const before = await fetchKeys(product.attributeSetId ?? null);
+    const after = await fetchKeys(targetSetId);
+    const attributesAdded: Array<{ key: string; labelDefault: string; isRequired: boolean }> = [];
+    const attributesRemoved: Array<{ key: string; labelDefault: string }> = [];
+    for (const [key, meta] of after) {
+      if (!before.has(key)) attributesAdded.push({ key, labelDefault: meta.labelDefault, isRequired: meta.isRequired });
+    }
+    for (const [key, meta] of before) {
+      if (!after.has(key)) attributesRemoved.push({ key, labelDefault: meta.labelDefault });
+    }
+    const currentValues = product.attributeValues ?? {};
+    const valuesPreserved: Array<{ key: string; valueSample: unknown }> = [];
+    for (const [key, value] of Object.entries(currentValues)) {
+      if (!after.has(key) && value !== undefined && value !== null && value !== '') {
+        valuesPreserved.push({ key, valueSample: value });
+      }
+    }
+    const requiredButMissing: Array<{ key: string; labelDefault: string }> = [];
+    for (const [key, meta] of after) {
+      if (meta.isRequired) {
+        const v = currentValues[key];
+        if (v === undefined || v === null || v === '') {
+          requiredButMissing.push({ key, labelDefault: meta.labelDefault });
+        }
+      }
+    }
+    return { attributesAdded, attributesRemoved, valuesPreserved, requiredButMissing };
+  }
+
   private slugify(value: string): string {
     // \p{Diacritic} strips combining marks left over from NFKD normalization
     // so accented Latin characters collapse onto their base letter; non-Latin
@@ -666,6 +1119,11 @@ export function dbToApiAttributeType(
     case 'number':
       return { type: 'number', numericKind: null };
     case 'enum':
+      return { type: 'select', numericKind: null };
+    case 'select':
+      // Feature 012 — `'select'` shares storage with `'enum'`; differs only in
+      // rendering intent (compact pill vs full dropdown). Maps to the same
+      // API affordance for now.
       return { type: 'select', numericKind: null };
     case 'multiselect':
       return { type: 'multiselect', numericKind: null };

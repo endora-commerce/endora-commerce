@@ -57,6 +57,7 @@ export const attributeValueTypeSchema = z.enum([
   'date',
   'multiselect',
   'price',
+  'select',
 ]);
 export type AttributeValueType = z.infer<typeof attributeValueTypeSchema>;
 
@@ -76,6 +77,47 @@ export type ApiAttributeType = z.infer<typeof apiAttributeTypeSchema>;
 
 export const assetKindSchema = z.enum(['image', 'video', 'pdf', 'certificate', 'other']);
 export type AssetKind = z.infer<typeof assetKindSchema>;
+
+// --- Feature 012 — Attribute options (rich per-option metadata) -------------
+
+const attributeOptionValueRegex = /^[a-z0-9_-]{1,200}$/;
+
+export const attributeOptionSchema = z.object({
+  id: uuidSchema,
+  attributeId: uuidSchema,
+  value: z.string().regex(attributeOptionValueRegex),
+  label: z.record(z.string().min(2), z.string().min(1).max(200)),
+  labelDefault: z.string().min(1).max(200),
+  isDefault: z.boolean(),
+  sortOrder: z.number().int().min(0),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type AttributeOption = z.infer<typeof attributeOptionSchema>;
+
+export const createAttributeOptionRequestSchema = z.object({
+  value: z.string().regex(attributeOptionValueRegex),
+  label: z.record(z.string().min(2), z.string().min(1).max(200)).optional(),
+  labelDefault: z.string().min(1).max(200),
+  isDefault: z.boolean().optional(),
+  sortOrder: z.number().int().min(0).optional(),
+});
+export type CreateAttributeOptionRequest = z.infer<typeof createAttributeOptionRequestSchema>;
+
+export const replaceAttributeOptionsRequestSchema = z.object({
+  options: z.array(createAttributeOptionRequestSchema),
+});
+export type ReplaceAttributeOptionsRequest = z.infer<typeof replaceAttributeOptionsRequestSchema>;
+
+export const patchAttributeOptionRequestSchema = z
+  .object({
+    label: z.record(z.string().min(2), z.string().min(1).max(200)).optional(),
+    labelDefault: z.string().min(1).max(200).optional(),
+    isDefault: z.boolean().optional(),
+    sortOrder: z.number().int().min(0).optional(),
+  })
+  .strict();
+export type PatchAttributeOptionRequest = z.infer<typeof patchAttributeOptionRequestSchema>;
 
 // --- Assets (linked from catalog) -------------------------------------------
 
@@ -290,6 +332,25 @@ export const productDetailSchema = productSummarySchema.extend({
       }),
     )
     .optional(),
+  /**
+   * Feature 012 / FR-030 — every attribute that meets BOTH conditions:
+   *   1. attribute.isVisibleOnProductPage === true
+   *   2. product.attributeValues[attribute.key] is non-null + non-empty
+   * For select / enum / multiselect types, `valueRendered` is the
+   * resolved per-locale option label (with fallback to labelDefault).
+   * For other types it's a formatted string ('123.45', 'Yes', etc.).
+   * Optional for backwards-compat with foundation-era cached responses.
+   */
+  visibleAttributes: z
+    .array(
+      z.object({
+        key: z.string(),
+        label: z.string(),
+        valueType: attributeValueTypeSchema,
+        valueRendered: z.string(),
+      }),
+    )
+    .optional(),
 });
 export type ProductDetail = z.infer<typeof productDetailSchema>;
 
@@ -337,6 +398,12 @@ export const filterDefinitionSchema = z.object({
   valueType: attributeValueTypeSchema,
   options: z.array(filterOptionSchema).optional(),
   range: filterRangeSchema.optional(),
+  /**
+   * Feature 012 / FR-027 — ascending sort order on the storefront
+   * filter sidebar. Ties are broken alphabetically by `label`. The
+   * service pre-sorts the response so consumers don't need to.
+   */
+  filterPosition: z.number().int().min(0).default(0),
 });
 export type FilterDefinition = z.infer<typeof filterDefinitionSchema>;
 
@@ -405,10 +472,14 @@ export const createProductRequestSchema = baseProductRequestObject.refine(
 );
 export type CreateProductRequest = z.infer<typeof createProductRequestSchema>;
 
-// sku and type are immutable after creation (409 FIELD_IMMUTABLE if sent)
+// `type` is immutable after creation (409 FIELD_IMMUTABLE if sent).
+// Feature 012 / FR-016 — `sku` is now editable. Collision with another
+// product's SKU is refused with 400 sku_in_use; snapshot tables on
+// orders / quote-requests / invoices keep displaying the SKU value
+// frozen at snapshot time.
 export const updateProductRequestSchema = baseProductRequestObject
   .partial()
-  .omit({ sku: true, type: true });
+  .omit({ type: true });
 export type UpdateProductRequest = z.infer<typeof updateProductRequestSchema>;
 
 export const createVariantRequestSchema = z.object({
@@ -471,6 +542,26 @@ const baseCreateAttributeObject = z.object({
    * isFilterable. Defaults to false on create when omitted.
    */
   isComparable: z.boolean().optional(),
+  /**
+   * Feature 012 — fallback label used when the active locale is missing
+   * from `label`. Defaults server-side to the en-US label (or the first
+   * available label, or the attribute key) when omitted on create.
+   */
+  labelDefault: z.string().min(1).max(200).optional(),
+  /** Feature 012 — enforced at product save time when the attribute is in the assigned set. */
+  isRequired: z.boolean().optional(),
+  /** Feature 012 — surfaces the attribute in the Promotion Rule criterion picker. */
+  isPromoRule: z.boolean().optional(),
+  /** Feature 012 — ascending sort order on the storefront filter sidebar. Defaults 0. */
+  filterPosition: z.number().int().min(0).max(10000).optional(),
+  /** Feature 012 — gates inclusion in the storefront PDP "Parametry produktu" tab. */
+  isVisibleOnProductPage: z.boolean().optional(),
+  /**
+   * Feature 012 — rich option list for select / enum / multiselect types.
+   * When supplied alongside the legacy `enumValues`, this wins. The
+   * service layer creates corresponding `attribute_options` rows.
+   */
+  options: z.array(createAttributeOptionRequestSchema).optional(),
 });
 
 export const createAttributeRequestSchema = baseCreateAttributeObject
@@ -480,21 +571,24 @@ export const createAttributeRequestSchema = baseCreateAttributeObject
   })
   .refine(
     (v) => {
-      // multiselect (whether spelled via `type` or `valueType`) needs
-      // enumValues. `select` is the same constraint via the legacy
-      // valueType=enum spelling.
+      // Select-style attributes need either the legacy `enumValues: string[]`
+      // shape OR the new feature-012 `options: AttributeOption[]` shape.
+      // The service maps either to `attribute_options` rows.
       const wantsEnum =
         v.type === 'multiselect' ||
         v.type === 'select' ||
         v.valueType === 'enum' ||
-        v.valueType === 'multiselect';
-      return wantsEnum
-        ? Array.isArray(v.enumValues) && v.enumValues.length > 0
-        : true;
+        v.valueType === 'multiselect' ||
+        v.valueType === 'select';
+      if (!wantsEnum) return true;
+      const hasLegacy = Array.isArray(v.enumValues) && v.enumValues.length > 0;
+      const hasOptions = Array.isArray(v.options) && v.options.length > 0;
+      return hasLegacy || hasOptions;
     },
     {
-      message: 'enumValues is required when type=multiselect/select or valueType=enum/multiselect',
-      path: ['enumValues'],
+      message:
+        'either enumValues (legacy) or options (feature 012) is required for select-style attributes',
+      path: ['options'],
     },
   )
   .refine(
@@ -519,6 +613,16 @@ export const updateAttributeRequestSchema = z
     displayAsSlider: z.boolean().optional(),
     /** Feature 007 — toggles the Compare-page row for this attribute. */
     isComparable: z.boolean().optional(),
+    /** Feature 012 — fallback label used when the active locale is missing from `label`. */
+    labelDefault: z.string().min(1).max(200).optional(),
+    /** Feature 012 — enforced at product save time when the attribute is in the assigned set. */
+    isRequired: z.boolean().optional(),
+    /** Feature 012 — surfaces the attribute in the Promotion Rule criterion picker. */
+    isPromoRule: z.boolean().optional(),
+    /** Feature 012 — ascending sort order on the storefront filter sidebar. */
+    filterPosition: z.number().int().min(0).max(10000).optional(),
+    /** Feature 012 — gates inclusion in the storefront PDP "Parametry produktu" tab. */
+    isVisibleOnProductPage: z.boolean().optional(),
   })
   .strict()
   .refine(
