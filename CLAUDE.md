@@ -25,6 +25,8 @@ Auto-generated from all feature plans. Last updated: 2026-05-05
 - PostgreSQL via MikroORM. New migration `033_assets_library_init.ts` (next available number; see `data-model.md` § "Migration ordering"): (013-assets-library)
 - TypeScript 5.x strict; Node.js LTS ≥ 22.17 per repo `README` and engines field in `backend/package.json`. + existing stack — Fastify, MikroORM, Zod, Vitest, ioredis, BullMQ-class queues, Next.js (storefront), React + Vite (admin) — *plus* three new runtime dependencies on the **frontend side only**: (014-cms)
 - PostgreSQL via MikroORM. New migration `035_cms_init.ts` (next available number after `034_assets_library_init.ts`) introduces: (014-cms)
+- TypeScript 5.x strict; Node.js LTS ≥ 22.17 per repo `README` and engines field in `backend/package.json`. + Existing stack only — Fastify, MikroORM (PostgreSQL driver), Zod (boundary validation), ioredis, BullMQ-class queues, Next.js (storefront), React + Vite (admin) — **no new runtime dependency**. Drag-drop in the admin reuses `@dnd-kit/core` + `@dnd-kit/sortable` already pulled in by feature 011's price-list rule builder + feature 014's hook attachments panel. The storefront does not introduce a new layout primitive — the desktop full-width panel is a positioned `<div>` under the nav, the mobile drawer reuses the burger-drawer primitive shipped by the storefront shell in feature 014. (015-megamenu)
+- PostgreSQL via MikroORM. New migration `036_megamenu_init.ts` (next available number after `035_cms_init.ts`): (015-megamenu)
 
 - TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x) + MikroORM (PostgreSQL driver) for persistence; Zod for boundary validation; Next.js for the storefront; React for the admin panel; Meilisearch client; Redis client (cache + BullMQ-class queue). Backend HTTP layer intentionally minimal (a small, well-known Node/TypeScript HTTP router; choice deferred to Phase 0 research with a bias toward the smallest dependency footprint compatible with TDD, Zod, and modular routing). (001-b2b-platform-foundation)
 
@@ -44,9 +46,9 @@ npm test && npm run lint
 TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x): Follow standard conventions
 
 ## Recent Changes
+- 015-megamenu: Added TypeScript 5.x strict; Node.js LTS ≥ 22.17 per repo `README` and engines field in `backend/package.json`. + Existing stack only — Fastify, MikroORM (PostgreSQL driver), Zod (boundary validation), ioredis, BullMQ-class queues, Next.js (storefront), React + Vite (admin) — **no new runtime dependency**. Drag-drop in the admin reuses `@dnd-kit/core` + `@dnd-kit/sortable` already pulled in by feature 011's price-list rule builder + feature 014's hook attachments panel. The storefront does not introduce a new layout primitive — the desktop full-width panel is a positioned `<div>` under the nav, the mobile drawer reuses the burger-drawer primitive shipped by the storefront shell in feature 014.
 - 014-cms: Added TypeScript 5.x strict; Node.js LTS ≥ 22.17 per repo `README` and engines field in `backend/package.json`. + existing stack — Fastify, MikroORM, Zod, Vitest, ioredis, BullMQ-class queues, Next.js (storefront), React + Vite (admin) — *plus* three new runtime dependencies on the **frontend side only**:
 - 013-assets-library: Added TypeScript 5.x strict; Node.js LTS ≥ 22.17 per repo `README` and engines field in `backend/package.json`. + existing stack — Fastify, MikroORM, Zod, Vitest, ioredis, BullMQ-class queues — *plus* five new runtime dependencies justified below:
-- 012-attributes: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 — same as the rest of the project. + Fastify, MikroORM (PostgreSQL driver), Zod (boundary validation), Meilisearch JS client, ioredis, BullMQ, Next.js (storefront), React + Vite (admin) — **no new runtime dependency**.
 
 
 <!-- MANUAL ADDITIONS START -->
