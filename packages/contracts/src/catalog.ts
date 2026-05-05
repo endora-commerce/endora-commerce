@@ -657,6 +657,8 @@ export const updateCategoryRequestSchema = z
       .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'must be kebab-case')
       .optional(),
     sortOrder: z.number().int().optional(),
+    /** Feature 013 / US5 — Library Asset rendered as the category's main image. */
+    mainImageAssetId: uuidSchema.nullable().optional(),
   })
   .strict();
 export type UpdateCategoryRequest = z.infer<typeof updateCategoryRequestSchema>;
