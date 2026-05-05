@@ -179,10 +179,17 @@ describe('bidirectional membership: every bridge (T043)', () => {
 
   async function insertCmsPage(): Promise<string> {
     const id = randomUUID();
+    // Legacy `path`, `title`, `body` columns survive the feature-014
+    // schema as NOT-NULL mirrors and must be populated until they are
+    // dropped in a follow-up cleanup migration.
     await rawExec(
-      `insert into "cms_pages" ("id","path","status","title","body","created_at","updated_at") ` +
-        `values (?, ?, 'draft', '{"en":"P"}'::jsonb, '{"en":""}'::jsonb, now(), now())`,
-      [id, `/t043-${id.slice(0, 8)}`],
+      `insert into "cms_pages"
+         ("id","path","name","slug","status","active",
+          "title","body","content","languages","version","created_at","updated_at")
+       values (?, ?, ?, ?, 'draft', true,
+          '{}'::jsonb, '{}'::jsonb,
+          '{"schema_version":1,"languages":{}}'::jsonb, '[]'::jsonb, 1, now(), now())`,
+      [id, `t043-${id.slice(0, 8)}-path`, `Page ${id.slice(0, 8)}`, `t043-${id.slice(0, 8)}`],
     );
     return id;
   }

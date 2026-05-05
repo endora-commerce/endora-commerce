@@ -49,7 +49,11 @@ import { SeoMetaOverride } from '../modules/seo/entities/seo-meta-override.entit
 import { SitemapCache } from '../modules/seo/entities/sitemap-cache.entity.js';
 import { Language } from '../modules/languages/entities/language.entity.js';
 import { Currency } from '../modules/currencies/entities/currency.entity.js';
-import { CmsPage } from '../modules/cms_pages/entities/cms-page.entity.js';
+import { CmsPage } from '../modules/cms/entities/cms-page.entity.js';
+import { CmsBlock } from '../modules/cms/entities/cms-block.entity.js';
+import { CmsTemplate } from '../modules/cms/entities/cms-template.entity.js';
+import { CmsHook } from '../modules/cms/entities/cms-hook.entity.js';
+import { CmsHookBlockAttachment } from '../modules/cms/entities/cms-hook-block-attachment.entity.js';
 import { CustomerGroup } from '../modules/price_lists/entities/customer-group.entity.js';
 import { PriceList } from '../modules/price_lists/entities/price-list.entity.js';
 import { PriceListProduct } from '../modules/price_lists/entities/price-list-product.entity.js';
@@ -160,8 +164,12 @@ export const ALL_ENTITIES = [
   // languages + currencies (Phase 10 / T238)
   Language,
   Currency,
-  // cms (Phase 10 / T234)
+  // cms (feature 014, supersedes legacy cms_pages)
   CmsPage,
+  CmsBlock,
+  CmsTemplate,
+  CmsHook,
+  CmsHookBlockAttachment,
   // pricing (Phase 4 polish / T127)
   CustomerGroup,
   PriceList,

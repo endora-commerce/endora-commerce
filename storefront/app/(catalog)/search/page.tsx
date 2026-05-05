@@ -3,6 +3,7 @@ import CatalogPage from '../catalog/page';
 import { listProducts } from '../../../lib/api/catalog';
 import { recordPhrase } from '../../../lib/api/search';
 import { getServerContext } from '../../../lib/server-context';
+import { Hook } from '../../../components/Hook';
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -48,5 +49,11 @@ export default async function SearchPage(props: PageProps): Promise<ReactNode> {
     }
   }
 
-  return CatalogPage(props);
+  return (
+    <>
+      <Hook code="search.top" />
+      {await CatalogPage(props)}
+      <Hook code="search.bottom" />
+    </>
+  );
 }

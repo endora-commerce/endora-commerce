@@ -1,7 +1,7 @@
 {
-  "integration": "cursor-agent",
+  "integration": "codex",
   "version": "0.5.1",
   "scripts": {
-    "update-context": ".specify/integrations/cursor-agent/scripts/update-context.sh"
+    "update-context": ".specify/integrations/codex/scripts/update-context.sh"
   }
 }

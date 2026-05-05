@@ -121,7 +121,10 @@ const NAV: NavSection[] = [
     label: 'Channels',
     items: [
       { to: '/sales-channels', label: 'Sales channels', icon: Store },
-      { to: '/cms', label: 'CMS pages', icon: Newspaper },
+      { to: '/cms/pages', label: 'CMS Pages', icon: Newspaper },
+      { to: '/cms/blocks', label: 'CMS Blocks', icon: Newspaper },
+      { to: '/cms/templates', label: 'CMS Templates', icon: Newspaper },
+      { to: '/cms/hooks', label: 'CMS Hooks', icon: Webhook },
       { to: '/i18n', label: 'Languages', icon: Languages },
       { to: '/seo', label: 'SEO', icon: Search },
     ],
@@ -309,9 +312,36 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { label: 'Sales channels', href: '/sales-channels' },
     { label: 'Detail', href: null },
   ] },
-  { test: /^\/cms\/?$/, build: () => [
+  { test: /^\/cms(?:\/pages)?\/?$/, build: () => [
     { label: 'Channels', href: '/sales-channels' },
-    { label: 'CMS pages', href: null },
+    { label: 'CMS Pages', href: null },
+  ] },
+  { test: /^\/cms\/pages\/(?:new|[^/]+)\/?$/, build: () => [
+    { label: 'Channels', href: '/sales-channels' },
+    { label: 'CMS Pages', href: '/cms/pages' },
+    { label: 'Editor', href: null },
+  ] },
+  { test: /^\/cms\/blocks\/?$/, build: () => [
+    { label: 'Channels', href: '/sales-channels' },
+    { label: 'CMS Blocks', href: null },
+  ] },
+  { test: /^\/cms\/blocks\/(?:new|[^/]+)\/?$/, build: () => [
+    { label: 'Channels', href: '/sales-channels' },
+    { label: 'CMS Blocks', href: '/cms/blocks' },
+    { label: 'Editor', href: null },
+  ] },
+  { test: /^\/cms\/templates\/?$/, build: () => [
+    { label: 'Channels', href: '/sales-channels' },
+    { label: 'CMS Templates', href: null },
+  ] },
+  { test: /^\/cms\/templates\/(?:new|[^/]+)\/?$/, build: () => [
+    { label: 'Channels', href: '/sales-channels' },
+    { label: 'CMS Templates', href: '/cms/templates' },
+    { label: 'Editor', href: null },
+  ] },
+  { test: /^\/cms\/hooks\/?$/, build: () => [
+    { label: 'Channels', href: '/sales-channels' },
+    { label: 'CMS Hooks', href: null },
   ] },
   { test: /^\/i18n\/?$/, build: () => [
     { label: 'Channels', href: '/sales-channels' },

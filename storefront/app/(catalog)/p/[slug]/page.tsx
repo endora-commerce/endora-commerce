@@ -17,6 +17,7 @@ import { BackorderHint } from '../../../../components/inventory/BackorderHint';
 import { AddToRfqForm } from '../../../../components/rfq/AddToRfqForm';
 import { QuoteRequestCta } from '../../../../components/pricing/QuoteRequestCta';
 import { ParametryTab } from '../../../../components/attributes/ParametryTab';
+import { Hook } from '../../../../components/Hook';
 import { getStorefrontQuoteRequestSettings } from '../../../../lib/api/rfq';
 import { getProductBySlug } from '../../../../lib/api/catalog';
 import { getStorefrontProductStock } from '../../../../lib/api/inventory';
@@ -114,6 +115,7 @@ export default async function ProductPage({
           { href: `/p/${product.slug}`, label: product.name },
         ]}
       />
+      <Hook code="product.top" />
 
       <article className="b2b-pdp">
         {product.gallery && product.gallery.length > 0 ? (
@@ -188,6 +190,7 @@ export default async function ProductPage({
               />
             ) : null}
           </div>
+          <Hook code="product.buttons.after" />
 
           {product.type === 'configurable' && product.variants.length > 0 ? (
             <VariantPicker
@@ -280,6 +283,7 @@ export default async function ProductPage({
           }}
         />
       ) : null}
+      <Hook code="product.bottom" />
 
       <script
         type="application/ld+json"

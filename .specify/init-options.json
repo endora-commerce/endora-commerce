@@ -1,8 +1,9 @@
 {
-  "ai": "cursor-agent",
+  "ai": "codex",
+  "ai_skills": true,
   "branch_numbering": "sequential",
   "here": true,
-  "integration": "cursor-agent",
+  "integration": "codex",
   "preset": null,
   "script": "sh",
   "speckit_version": "0.5.1"

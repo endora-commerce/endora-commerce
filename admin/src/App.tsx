@@ -10,7 +10,13 @@ import { AnalyticsPage } from './modules/analytics/AnalyticsPage.js';
 import { ImportExportPage } from './modules/import_export/ImportExportPage.js';
 import { SeoPage } from './modules/seo/SeoPage.js';
 import { I18nPage } from './modules/i18n/I18nPage.js';
-import { CmsPagesPage } from './modules/cms_pages/CmsPagesPage.js';
+import { PagesListPage } from './modules/cms/pages/PagesListPage.js';
+import { PageEditor } from './modules/cms/editors/PageEditor.js';
+import { BlocksListPage } from './modules/cms/pages/BlocksListPage.js';
+import { BlockEditor } from './modules/cms/editors/BlockEditor.js';
+import { TemplatesListPage } from './modules/cms/pages/TemplatesListPage.js';
+import { TemplateEditor } from './modules/cms/editors/TemplateEditor.js';
+import { HooksPage } from './modules/cms/pages/HooksPage.js';
 import { RfqList } from './modules/quote_requests/RfqList.js';
 import { RfqDetail } from './modules/quote_requests/RfqDetail.js';
 import { AdminUsersPage } from './modules/admin_users/AdminUsersPage.js';
@@ -104,7 +110,17 @@ export function App(): ReactNode {
         <Route path="/import-export" element={<ImportExportPage />} />
         <Route path="/seo" element={<SeoPage />} />
         <Route path="/i18n" element={<I18nPage />} />
-        <Route path="/cms" element={<CmsPagesPage />} />
+        <Route path="/cms" element={<PagesListPage />} />
+        <Route path="/cms/pages" element={<PagesListPage />} />
+        <Route path="/cms/pages/new" element={<PageEditor />} />
+        <Route path="/cms/pages/:id" element={<PageEditor />} />
+        <Route path="/cms/blocks" element={<BlocksListPage />} />
+        <Route path="/cms/blocks/new" element={<BlockEditor />} />
+        <Route path="/cms/blocks/:id" element={<BlockEditor />} />
+        <Route path="/cms/templates" element={<TemplatesListPage />} />
+        <Route path="/cms/templates/new" element={<TemplateEditor />} />
+        <Route path="/cms/templates/:id" element={<TemplateEditor />} />
+        <Route path="/cms/hooks" element={<HooksPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/groups" element={<SettingsGroupsPage />} />
         <Route path="/sales-channels" element={<SalesChannelsListPage />} />

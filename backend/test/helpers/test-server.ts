@@ -23,7 +23,7 @@ import { analyticsModule } from '../../src/modules/analytics/plugin.js';
 import { importExportModule } from '../../src/modules/import_export/plugin.js';
 import { seoModule } from '../../src/modules/seo/plugin.js';
 import { i18nModule } from '../../src/modules/languages/plugin.js';
-import { cmsPagesModule } from '../../src/modules/cms_pages/plugin.js';
+import { cmsModule } from '../../src/modules/cms/plugin.js';
 import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
 import { taxesModule } from '../../src/modules/taxes/plugin.js';
 import { promotionsModule } from '../../src/modules/promotions/plugin.js';
@@ -40,7 +40,7 @@ import { priceListsManifest } from '../../src/modules/price_lists/manifest.js';
 import { assetsLibraryModule } from '../../src/modules/assets_library/plugin.js';
 import { assetsLibraryManifest } from '../../src/modules/assets_library/manifest.js';
 import { registerCatalogAssetReferences } from '../../src/modules/catalog/services/asset-references.js';
-import { registerCmsAssetReferences } from '../../src/modules/cms_pages/services/asset-references.js';
+import { registerCmsAssetReferences } from '../../src/modules/cms/services/asset-references.js';
 import { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
 import { DefaultChannelReconciler } from '../../src/modules/sales_channels/services/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/modules/settings/services/manifest-reconciler.js';
@@ -98,6 +98,8 @@ export interface BackendServerHandle {
   comparisons: ReturnType<typeof comparisonsModule>['handle'];
   /** Feature 013 — Assets Library handle (service, folders, registry, adapters). */
   assetsLibrary: ReturnType<typeof assetsLibraryModule>['handle'];
+  /** Feature 014 — CMS module handle (page builder registry, services, resolver). */
+  cms: ReturnType<typeof cmsModule>['handle'];
 }
 
 const SEEDED_TABLES = [
@@ -308,12 +310,17 @@ export async function setupBackendServer(
     }),
   });
 
-  // CMS pages (Phase 10 / T234). Hooked by SEO + sitemap.
-  const cmsPages = cmsPagesModule({
+  // Feature 014 — CMS module. Reconcile seeded Hooks once; the storefront
+  // resolver wraps Redis as a read-through cache.
+  const cms = cmsModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
-    salesChannelMembership: salesChannels.handle.membershipService,
+    redis,
   });
+  await cms.handle.reconcile();
+  // Tests rely on writes being immediately visible. Wipe the namespace
+  // before each backend boot so a previous run's keys don't bleed in.
+  if (cms.handle.cache) await cms.handle.cache.invalidateAll();
 
   // Pricing (T127 / FR-050).
   const priceLists = priceListsModule({
@@ -352,7 +359,7 @@ export async function setupBackendServer(
     importExport.plugin,
     seo.plugin,
     i18n.plugin,
-    cmsPages.plugin,
+    cms.plugin,
     priceLists.plugin,
     taxes.plugin,
     promotions.plugin,
@@ -566,6 +573,7 @@ export async function setupBackendServer(
     search: search.handle,
     comparisons: comparisons.handle,
     assetsLibrary: assetsLibrary.handle,
+    cms: cms.handle,
   };
 }
 

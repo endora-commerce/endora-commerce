@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { listProducts, getCategoryTree } from '../lib/api/catalog';
 import { getServerContext } from '../lib/server-context';
 import { ProductCard } from '../components/ProductCard';
+import { Hook } from '../components/Hook';
 
 interface CatTile {
   href: string;
@@ -42,6 +43,7 @@ export default async function HomePage(): Promise<ReactNode> {
 
   return (
     <>
+      <Hook code="homepage.top" />
       <section className="industria-hero">
         <div className="container industria-hero__inner">
           <div>
@@ -213,6 +215,7 @@ export default async function HomePage(): Promise<ReactNode> {
           </ul>
         </section>
       ) : null}
+      <Hook code="homepage.bottom" />
     </>
   );
 }

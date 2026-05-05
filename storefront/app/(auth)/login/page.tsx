@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { loginCustomer } from '../../../lib/api/auth';
 import { StorefrontApiError } from '../../../lib/api/client';
 import { setSessionCookie } from '../../../lib/session';
+import { Hook } from '../../../components/Hook';
 
 /**
  * Storefront login page (T151 / FR-040). Submits via a server action,
@@ -23,47 +24,51 @@ export default async function LoginPage({
   const nextPath = sanitiseNext(params.next);
 
   return (
-    <div className="b2b-auth">
-      <h1>Sign in</h1>
-      <p>Use your work email and password.</p>
-      {error ? <div className="b2b-auth__error">{error}</div> : null}
-      <form action={loginAction} className="b2b-auth__form">
-        <input type="hidden" name="next" value={nextPath} />
-        <div className="b2b-auth__field">
-          <label htmlFor="login-email">Email</label>
-          <input id="login-email" name="email" type="email" required autoComplete="email" />
-        </div>
-        <div className="b2b-auth__field">
-          <label htmlFor="login-password">Password</label>
-          <input
-            id="login-password"
-            name="password"
-            type="password"
-            required
-            autoComplete="current-password"
-          />
-        </div>
-        <div className="b2b-auth__field">
-          <label htmlFor="login-2fa">Two-factor code (if enabled)</label>
-          <input
-            id="login-2fa"
-            name="twoFactorCode"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            placeholder="123456"
-          />
-        </div>
-        <div className="b2b-auth__actions">
-          <button type="submit">Sign in</button>
-        </div>
-      </form>
-      <p className="b2b-auth__hint">
-        Forgot your password? <Link href="/password-reset/request">Reset it</Link>.
-      </p>
-      <p className="b2b-auth__hint">
-        New here? <Link href="/register">Create an account</Link>.
-      </p>
-    </div>
+    <>
+      <Hook code="login.top" />
+      <div className="b2b-auth">
+        <h1>Sign in</h1>
+        <p>Use your work email and password.</p>
+        {error ? <div className="b2b-auth__error">{error}</div> : null}
+        <form action={loginAction} className="b2b-auth__form">
+          <input type="hidden" name="next" value={nextPath} />
+          <div className="b2b-auth__field">
+            <label htmlFor="login-email">Email</label>
+            <input id="login-email" name="email" type="email" required autoComplete="email" />
+          </div>
+          <div className="b2b-auth__field">
+            <label htmlFor="login-password">Password</label>
+            <input
+              id="login-password"
+              name="password"
+              type="password"
+              required
+              autoComplete="current-password"
+            />
+          </div>
+          <div className="b2b-auth__field">
+            <label htmlFor="login-2fa">Two-factor code (if enabled)</label>
+            <input
+              id="login-2fa"
+              name="twoFactorCode"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="123456"
+            />
+          </div>
+          <div className="b2b-auth__actions">
+            <button type="submit">Sign in</button>
+          </div>
+        </form>
+        <p className="b2b-auth__hint">
+          Forgot your password? <Link href="/password-reset/request">Reset it</Link>.
+        </p>
+        <p className="b2b-auth__hint">
+          New here? <Link href="/register">Create an account</Link>.
+        </p>
+      </div>
+      <Hook code="login.bottom" />
+    </>
   );
 }
 

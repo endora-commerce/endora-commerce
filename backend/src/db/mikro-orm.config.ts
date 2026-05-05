@@ -14,7 +14,7 @@ import { Migration009Us7Init } from '../modules/webhooks/migrations/009_us7_init
 import { Migration010AnalyticsInit } from '../modules/analytics/migrations/010_analytics_init.js';
 import { Migration011SeoInit } from '../modules/seo/migrations/011_seo_init.js';
 import { Migration012LanguagesCurrenciesInit } from '../modules/languages/migrations/012_languages_currencies_init.js';
-import { Migration013CmsPagesInit } from '../modules/cms_pages/migrations/013_cms_pages_init.js';
+import { Migration013CmsPagesInit } from './migrations/013_cms_pages_init.js';
 import { Migration014PricingInit } from '../modules/price_lists/migrations/014_pricing_init.js';
 import { Migration015TaxesPromotionsInit } from '../modules/taxes/migrations/015_taxes_promotions_init.js';
 import { Migration016ShoppingListsInit } from '../modules/shopping_lists/migrations/016_shopping_lists_init.js';
@@ -36,6 +36,7 @@ import { Migration031PriceListsEngine } from '../modules/price_lists/migrations/
 import { Migration032AttributeOptionsAndFlags } from '../modules/catalog/migrations/032_attribute_options_and_flags.js';
 import { Migration033PromotionsCriteria } from '../modules/promotions/migrations/033_promotions_criteria.js';
 import { Migration034AssetsLibraryInit } from './migrations/034_assets_library_init.js';
+import { Migration035CmsInit } from './migrations/035_cms_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -151,6 +152,10 @@ export default defineConfig({
       {
         name: 'Migration034AssetsLibraryInit',
         class: Migration034AssetsLibraryInit,
+      },
+      {
+        name: 'Migration035CmsInit',
+        class: Migration035CmsInit,
       },
     ],
     transactional: true,

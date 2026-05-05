@@ -5,14 +5,17 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { Asset } from '../../../src/modules/assets_library/entities/asset.entity.js';
-import { CmsPage } from '../../../src/modules/cms_pages/entities/cms-page.entity.js';
+import { CmsPage } from '../../../src/modules/cms/entities/cms-page.entity.js';
 
 /**
  * T093 — CMS body scan reference descriptor.
  *
- * Verifies that an asset embedded in `cms_pages.body` as
- * `{ type: 'asset_ref', assetId: ... }` blocks soft-delete via the
- * AssetReferenceRegistry, and that removing the embed unblocks delete.
+ * Feature 014 reshaped CMS pages: the legacy `body` (Record<lang,string>
+ * of HTML) is gone; content lives in `content` as a Page Builder tree
+ * envelope. The asset-ref scan now matches any `assetId` value anywhere
+ * in the tree — Puck components like `LibraryImage` carry `assetId`
+ * directly in their `props`. This test confirms the new descriptor
+ * blocks asset deletion when an asset is embedded in cms_pages.content.
  */
 
 describe('cms body scan (T093)', () => {
@@ -30,7 +33,7 @@ describe('cms body scan (T093)', () => {
 
   const adminCookie = { b2b_session: 'stub-admin-session' };
 
-  it('blocks soft-delete when an asset_ref node points at the asset', async () => {
+  it('blocks soft-delete when an asset id is embedded in cms_pages.content', async () => {
     const em = h.em();
     const asset = em.create(Asset, {
       kind: 'image',
@@ -44,23 +47,34 @@ describe('cms body scan (T093)', () => {
     });
     await em.persistAndFlush(asset);
 
-    // Insert a CMS page whose body contains an asset_ref node. The body
-    // column is jsonb at the DB level even though TypeScript narrows it to
-    // Record<string, string> (foundation: HTML keyed by language). We cast
-    // through unknown to write a structured tree — the CMS module's body
-    // shape will be modelled as a structured tree in a follow-up.
     const slug = `t093-page-${randomUUID().slice(0, 8)}`;
-    const richBody = {
-      root: [
-        { kind: 'paragraph', text: 'See:' },
-        { type: 'asset_ref', assetId: asset.id, rendering: 'image' },
-      ],
-    } as unknown as Record<string, string>;
+    // Page Builder content envelope with an embedded LibraryImage node
+    // carrying the asset id under `props.assetId`. The new asset-ref
+    // descriptor matches by value (jsonpath `$.** ? (@ == "<id>")`).
+    const content = {
+      schema_version: 1,
+      languages: {
+        'en-US': {
+          root: { props: {} },
+          content: [
+            { type: 'Heading', props: { level: 1, text: 'See:' } },
+            { type: 'LibraryImage', props: { assetId: asset.id, alt: 'embedded' } },
+          ],
+        },
+      },
+    };
     const page = em.create(CmsPage, {
-      path: `/${slug}`,
-      status: 'published',
+      // Legacy columns kept NOT NULL by migration 013; mirror values until
+      // a follow-up migration drops them.
+      path: slug,
       title: { 'en-US': `T093 page ${slug}` },
-      body: richBody,
+      body: {} as Record<string, string>,
+      name: `T093 page ${slug}`,
+      slug,
+      status: 'published',
+      active: true,
+      content,
+      languages: ['en-US'],
     });
     await em.persistAndFlush(page);
 
@@ -77,7 +91,15 @@ describe('cms body scan (T093)', () => {
     expect(del.json()).toMatchObject({ error: { code: 'ASSET_REFERENCED' } });
 
     // Remove the embed → soft-delete now succeeds.
-    page.body = { root: [{ kind: 'paragraph', text: 'See: nothing.' }] } as unknown as Record<string, string>;
+    page.content = {
+      schema_version: 1,
+      languages: {
+        'en-US': {
+          root: { props: {} },
+          content: [{ type: 'Heading', props: { level: 1, text: 'See: nothing.' } }],
+        },
+      },
+    };
     await em.flush();
 
     const del2 = await h.app.inject({

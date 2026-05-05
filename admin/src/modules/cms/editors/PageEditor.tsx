@@ -1,0 +1,284 @@
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import type { Data } from '@measured/puck';
+import type { CmsPageDetail } from '@b2b/contracts';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { ContentLanguageTabs } from '../components/ContentLanguageTabs';
+import { PageBuilderEditor } from '../components/PageBuilderEditor';
+import { ScopePicker, type CmsScopeValue } from '../components/ScopePicker';
+import { cmsClient } from '../api/cms-client';
+
+interface FormState {
+  name: string;
+  slug: string;
+  active: boolean;
+  description: string;
+  metaTitle: string;
+  metaDescription: string;
+  metaKeywords: string;
+}
+
+const blankForm: FormState = {
+  name: '',
+  slug: '',
+  active: true,
+  description: '',
+  metaTitle: '',
+  metaDescription: '',
+  metaKeywords: '',
+};
+
+function dataFor(page: CmsPageDetail | null, language: string | null): Data | null {
+  if (!page || !language) return null;
+  const data = page.content.languages[language];
+  if (data && typeof data === 'object') return data as Data;
+  return { root: { props: {} }, content: [] };
+}
+
+export function PageEditor(): ReactNode {
+  const { id } = useParams();
+  const isNew = !id || id === 'new';
+  const navigate = useNavigate();
+  const [page, setPage] = useState<CmsPageDetail | null>(null);
+  const [form, setForm] = useState<FormState>(blankForm);
+  const [scope, setScope] = useState<CmsScopeValue>({ salesChannelIds: [], languages: [] });
+  const [activeLanguage, setActiveLanguage] = useState<string | null>(null);
+  const [draftData, setDraftData] = useState<Data | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    if (isNew || !id) return;
+    setError(null);
+    const loaded = await cmsClient.getPage(id);
+    setPage(loaded);
+    setForm({
+      name: loaded.name,
+      slug: loaded.slug,
+      active: loaded.active,
+      description: loaded.description ?? '',
+      metaTitle: loaded.meta?.['en-US']?.title ?? '',
+      metaDescription: loaded.meta?.['en-US']?.description ?? '',
+      metaKeywords: loaded.meta?.['en-US']?.keywords ?? '',
+    });
+    setScope({ salesChannelIds: loaded.salesChannelIds, languages: loaded.languages });
+    setActiveLanguage(loaded.languages[0] ?? null);
+  }, [id, isNew]);
+
+  useEffect(() => {
+    void load().catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
+  }, [load]);
+
+  useEffect(() => {
+    if (!activeLanguage && scope.languages.length > 0) setActiveLanguage(scope.languages[0] ?? null);
+    if (activeLanguage && !scope.languages.includes(activeLanguage)) {
+      setActiveLanguage(scope.languages[0] ?? null);
+    }
+  }, [activeLanguage, scope.languages]);
+
+  const currentData = useMemo(
+    () => draftData ?? dataFor(page, activeLanguage),
+    [activeLanguage, draftData, page],
+  );
+
+  const saveMeta = async (): Promise<CmsPageDetail> => {
+    const meta =
+      activeLanguage && (form.metaTitle || form.metaDescription || form.metaKeywords)
+        ? {
+            [activeLanguage]: {
+              ...(form.metaTitle ? { title: form.metaTitle } : {}),
+              ...(form.metaDescription ? { description: form.metaDescription } : {}),
+              ...(form.metaKeywords ? { keywords: form.metaKeywords } : {}),
+            },
+          }
+        : undefined;
+
+    if (isNew) {
+      return cmsClient.createPage({
+        name: form.name,
+        slug: form.slug,
+        active: form.active,
+        description: form.description || null,
+        salesChannelIds: scope.salesChannelIds,
+        languages: scope.languages,
+        ...(meta ? { meta } : {}),
+      });
+    }
+
+    if (!page) throw new Error('Page is not loaded.');
+    return cmsClient.patchPage(page.id, {
+      name: form.name,
+      slug: form.slug,
+      active: form.active,
+      description: form.description || null,
+      salesChannelIds: scope.salesChannelIds,
+      languages: scope.languages,
+      ...(meta ? { meta } : {}),
+      version: page.version,
+    });
+  };
+
+  const save = async (): Promise<void> => {
+    setSaving(true);
+    setError(null);
+    try {
+      let saved = await saveMeta();
+      if (activeLanguage && currentData) {
+        saved = await cmsClient.putPageContent(saved.id, activeLanguage, {
+          data: currentData,
+          version: saved.version,
+        });
+      }
+      setPage(saved);
+      setDraftData(null);
+      if (isNew) navigate(`/cms/pages/${saved.id}`, { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const lifecycle = async (action: 'publish' | 'archive' | 'unarchive'): Promise<void> => {
+    if (!page) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const updated =
+        action === 'publish'
+          ? await cmsClient.publishPage(page.id)
+          : action === 'archive'
+            ? await cmsClient.archivePage(page.id)
+            : await cmsClient.unarchivePage(page.id);
+      setPage(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <PageHeader
+        title={isNew ? 'New CMS Page' : form.name || 'CMS Page'}
+        description="Author page metadata, sales-channel scope, languages, and Page Builder content."
+        actions={
+          <div className="flex gap-2">
+            <Button asChild variant="outline">
+              <Link to="/cms/pages">Back</Link>
+            </Button>
+            {!isNew && page?.status !== 'published' ? (
+              <Button type="button" variant="outline" onClick={() => void lifecycle('publish')}>
+                Publish
+              </Button>
+            ) : null}
+            {!isNew && page?.status === 'published' ? (
+              <Button type="button" variant="outline" onClick={() => void lifecycle('archive')}>
+                Archive
+              </Button>
+            ) : null}
+            {!isNew && page?.status === 'archived' ? (
+              <Button type="button" variant="outline" onClick={() => void lifecycle('unarchive')}>
+                Unarchive
+              </Button>
+            ) : null}
+            <Button type="button" onClick={() => void save()} disabled={saving}>
+              {saving ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
+        }
+      />
+
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <div className="grid grid-cols-12 gap-4">
+        <div className="col-span-4 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Page metadata</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="space-y-1">
+                <Label>Name</Label>
+                <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label>Slug</Label>
+                <Input value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label>Status</Label>
+                <Select value={page?.status ?? 'draft'} disabled>
+                  <option value="draft">Draft</option>
+                  <option value="published">Published</option>
+                  <option value="archived">Archived</option>
+                </Select>
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.active}
+                  onChange={(event) => setForm({ ...form, active: event.target.checked })}
+                />
+                Active
+              </label>
+              <div className="space-y-1">
+                <Label>Description</Label>
+                <Textarea
+                  value={form.description}
+                  onChange={(event) => setForm({ ...form, description: event.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Meta title</Label>
+                <Input
+                  value={form.metaTitle}
+                  onChange={(event) => setForm({ ...form, metaTitle: event.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Meta description</Label>
+                <Textarea
+                  value={form.metaDescription}
+                  onChange={(event) => setForm({ ...form, metaDescription: event.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Meta keywords</Label>
+                <Input
+                  value={form.metaKeywords}
+                  onChange={(event) => setForm({ ...form, metaKeywords: event.target.value })}
+                />
+              </div>
+            </CardContent>
+          </Card>
+          <ScopePicker value={scope} onChange={setScope} />
+        </div>
+
+        <div className="col-span-8 space-y-3">
+          <ContentLanguageTabs
+            languages={scope.languages}
+            activeLanguage={activeLanguage}
+            onChange={(language) => {
+              setDraftData(null);
+              setActiveLanguage(language);
+            }}
+          />
+          <PageBuilderEditor data={currentData} onChange={setDraftData} />
+        </div>
+      </div>
+    </div>
+  );
+}
