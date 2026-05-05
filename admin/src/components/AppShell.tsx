@@ -121,7 +121,7 @@ const NAV: NavSection[] = [
     label: 'Channels',
     items: [
       { to: '/sales-channels', label: 'Sales channels', icon: Store },
-      { to: '/cms', label: 'CMS pages', icon: Newspaper },
+      { to: '/cms/pages', label: 'CMS Pages', icon: Newspaper },
       { to: '/i18n', label: 'Languages', icon: Languages },
       { to: '/seo', label: 'SEO', icon: Search },
     ],
@@ -309,9 +309,14 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { label: 'Sales channels', href: '/sales-channels' },
     { label: 'Detail', href: null },
   ] },
-  { test: /^\/cms\/?$/, build: () => [
+  { test: /^\/cms(?:\/pages)?\/?$/, build: () => [
     { label: 'Channels', href: '/sales-channels' },
-    { label: 'CMS pages', href: null },
+    { label: 'CMS Pages', href: null },
+  ] },
+  { test: /^\/cms\/pages\/(?:new|[^/]+)\/?$/, build: () => [
+    { label: 'Channels', href: '/sales-channels' },
+    { label: 'CMS Pages', href: '/cms/pages' },
+    { label: 'Editor', href: null },
   ] },
   { test: /^\/i18n\/?$/, build: () => [
     { label: 'Channels', href: '/sales-channels' },

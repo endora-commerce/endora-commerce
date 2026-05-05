@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@b2b/api-client": "workspace:*",
+    "@b2b/cms-components": "workspace:^",
     "@b2b/contracts": "workspace:*",
     "@measured/puck": "^0.20.2",
     "@radix-ui/react-checkbox": "^1.3.3",

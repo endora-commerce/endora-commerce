@@ -6,11 +6,13 @@ import {
 } from '@b2b/contracts';
 import type { RequireAdminFactory } from './plugin.js';
 import type { CmsPageService } from './services/cms-page-service.js';
+import type { PageBuilderRegistry } from './services/page-builder-registry.js';
 
 export async function registerCmsAdminRoutes(
   app: FastifyInstance,
   deps: {
     pageService: CmsPageService;
+    pageBuilderRegistry: PageBuilderRegistry;
     requireAdmin?: RequireAdminFactory;
   },
 ): Promise<void> {
@@ -25,6 +27,10 @@ export async function registerCmsAdminRoutes(
       ...(query['q'] ? { q: query['q'] } : {}),
     });
   });
+
+  app.get('/api/v1/admin/cms/page-builder/config', { preHandler: requireRead }, async () => ({
+    data: deps.pageBuilderRegistry.describe(),
+  }));
 
   app.post('/api/v1/admin/cms/pages', { preHandler: requireWrite }, async (request, reply) => {
     const body = createCmsPageRequestSchema.parse(request.body);

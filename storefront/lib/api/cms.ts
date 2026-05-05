@@ -1,5 +1,5 @@
-import type { CmsPage } from '@b2b/contracts';
-import { apiGet, type RequestContext } from './client';
+import type { CmsPage, CmsResolvedPage } from '@b2b/contracts';
+import { apiGet, StorefrontApiError, type RequestContext } from './client';
 
 /**
  * Public CMS paths must match `cmsPagePathSchema` (lowercase kebab segments).
@@ -30,6 +30,31 @@ export async function getCmsPage(
     return res.data;
   } catch (err) {
     if (err instanceof Error && (err as { status?: number }).status === 404) {
+      return null;
+    }
+    throw err;
+  }
+}
+
+export async function getCmsPageBySlug(
+  slug: string,
+  ctx: RequestContext,
+): Promise<CmsResolvedPage | null> {
+  const canonical = normalizeCmsUrlPath(slug);
+  const qs = new URLSearchParams({ slug: canonical });
+  if (ctx.locale) qs.set('language', ctx.locale);
+  try {
+    const res = await apiGet<{ data: CmsResolvedPage }>(
+      `/api/v1/cms/pages/by-slug?${qs.toString()}`,
+      ctx,
+      {
+        revalidate: 60,
+        tags: ['cms:page', `cms:page:${canonical}`],
+      },
+    );
+    return res.data;
+  } catch (err) {
+    if (err instanceof StorefrontApiError && err.status === 404) {
       return null;
     }
     throw err;

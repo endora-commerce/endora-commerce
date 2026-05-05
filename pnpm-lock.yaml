@@ -32,6 +32,9 @@ importers:
       '@b2b/api-client':
         specifier: workspace:*
         version: link:../packages/api-client
+      '@b2b/cms-components':
+        specifier: workspace:^
+        version: link:../packages/cms-components
       '@b2b/contracts':
         specifier: workspace:*
         version: link:../packages/contracts
@@ -338,6 +341,9 @@ importers:
       '@b2b/api-client':
         specifier: workspace:*
         version: link:../packages/api-client
+      '@b2b/cms-components':
+        specifier: workspace:^
+        version: link:../packages/cms-components
       '@b2b/contracts':
         specifier: workspace:*
         version: link:../packages/contracts

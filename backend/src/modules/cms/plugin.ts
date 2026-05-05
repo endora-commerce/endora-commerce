@@ -96,6 +96,7 @@ export function cmsModule(options: CmsModuleOptions): {
   const plugin = async (app: FastifyInstance) => {
     await registerCmsAdminRoutes(app, {
       pageService,
+      pageBuilderRegistry,
       ...(options.requireAdmin ? { requireAdmin: options.requireAdmin } : {}),
     });
     await registerCmsStorefrontRoutes(app, { storefrontResolver });
