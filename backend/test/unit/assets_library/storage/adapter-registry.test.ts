@@ -15,6 +15,13 @@ function makeRegistry(active: 'local' | 's3' | 'gcs') {
       localBaseDir: async () => '/tmp/assets',
       localPublicUrlBase: async () => 'http://localhost:3001',
       privateUrlTtlSec: async () => 300,
+      s3Config: async () => ({
+        bucket: '',
+        region: '',
+        accessKeyId: '',
+        secretAccessKey: '',
+      }),
+      gcsConfig: async () => ({ bucket: '' }),
     },
     signer: () => HmacSigner.fromEnv(KEY_HEX),
   });
@@ -43,12 +50,12 @@ describe('AdapterRegistry', () => {
     expect(a).not.toBe(b);
   });
 
-  it('throws ConfigurationError when active = s3 (Phase 2 not yet implemented)', async () => {
+  it('throws ConfigurationError when active = s3 with empty bucket', async () => {
     const registry = makeRegistry('s3');
     await expect(registry.getActive()).rejects.toBeInstanceOf(ConfigurationError);
   });
 
-  it('throws ConfigurationError when active = gcs (Phase 2 not yet implemented)', async () => {
+  it('throws ConfigurationError when active = gcs with empty bucket', async () => {
     const registry = makeRegistry('gcs');
     await expect(registry.getActive()).rejects.toBeInstanceOf(ConfigurationError);
   });

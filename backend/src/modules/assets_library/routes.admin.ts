@@ -12,6 +12,7 @@
 // land in subsequent user stories.
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
   patchAssetRequestSchema,
@@ -24,13 +25,17 @@ import {
 } from '@b2b/contracts';
 
 import { HttpError } from '../../http/error-envelope.js';
+import { Asset } from './entities/asset.entity.js';
 import type { AssetsLibraryService } from './services/assets-library.service.js';
 import type { FoldersService } from './services/folders.service.js';
+import type { AdapterRegistry } from './services/storage/adapter-registry.js';
 import type { RequireAdminFactory } from './plugin.js';
 
 export interface AdminRoutesDeps {
   service: AssetsLibraryService;
   folders: FoldersService;
+  adapters: AdapterRegistry;
+  emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
 }
 
@@ -38,7 +43,7 @@ export async function registerAssetsLibraryAdminRoutes(
   app: FastifyInstance,
   deps: AdminRoutesDeps,
 ): Promise<void> {
-  const { service, folders, requireAdmin } = deps;
+  const { service, folders, adapters, emFactory, requireAdmin } = deps;
 
   // — POST /assets (multipart upload) -----------------------------------------
   app.post(
@@ -194,6 +199,47 @@ export async function registerAssetsLibraryAdminRoutes(
       const body = moveManyAssetsRequestSchema.parse(req.body);
       const out = await service.moveMany(body.assetIds, body.folderId ?? null);
       return { data: out };
+    },
+  );
+
+  // — Storage administration -------------------------------------------------
+  app.post(
+    '/api/v1/admin/assets/storage/self-check',
+    { preHandler: requireAdmin('assets.write') },
+    async () => {
+      const adapter = await adapters.getActive();
+      const result = await adapter.selfCheck();
+      return {
+        data: { adapter: adapter.code, ...result },
+      };
+    },
+  );
+
+  app.get(
+    '/api/v1/admin/assets/storage/state',
+    { preHandler: requireAdmin('assets.read') },
+    async () => {
+      const adapter = await adapters.getActive().catch((err) => {
+        return {
+          code: 'local' as const,
+          // Surface the misconfig as a not-ok self-check rather than 500.
+          async selfCheck(): Promise<{ ok: false; reason: string }> {
+            return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+          },
+        };
+      });
+      const result = await adapter.selfCheck();
+      const em = emFactory();
+      const pendingCleanupCount = await em.count(Asset, { pendingCleanup: true });
+      const softDeletedCount = await em.count(Asset, { deletedAt: { $ne: null } });
+      return {
+        data: {
+          activeAdapter: adapter.code,
+          selfCheck: result,
+          pendingCleanupCount,
+          softDeletedCount,
+        },
+      };
     },
   );
 

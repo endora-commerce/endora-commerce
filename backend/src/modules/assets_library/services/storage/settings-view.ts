@@ -45,8 +45,6 @@ export function createSettingsView(
       if ((ADAPTER_CODES as readonly string[]).includes(v)) {
         return v as 'local' | 's3' | 'gcs';
       }
-      // Fall back to local on any garbage so the platform remains bootable;
-      // an admin who saved a bad value can fix it without a redeploy.
       return 'local';
     },
     localBaseDir() {
@@ -57,6 +55,25 @@ export function createSettingsView(
     },
     privateUrlTtlSec() {
       return readNumber('assets.private_url_ttl_sec', 300);
+    },
+    async s3Config() {
+      return {
+        bucket: await readString('assets.s3.bucket'),
+        region: await readString('assets.s3.region'),
+        accessKeyId: await readString('assets.s3.access_key_id'),
+        secretAccessKey: await readString('assets.s3.secret_access_key'),
+        endpoint: await readString('assets.s3.endpoint'),
+        prefix: await readString('assets.s3.prefix'),
+        publicBaseUrl: await readString('assets.s3.public_base_url'),
+      };
+    },
+    async gcsConfig() {
+      return {
+        bucket: await readString('assets.gcs.bucket'),
+        serviceAccountJson: await readString('assets.gcs.service_account_json'),
+        prefix: await readString('assets.gcs.prefix'),
+        publicBaseUrl: await readString('assets.gcs.public_base_url'),
+      };
     },
   };
 }

@@ -10,6 +10,8 @@
 
 import type { StorageAdapter, StorageBackendCode } from './storage-adapter.js';
 import { LocalFsStorageAdapter } from './local-fs-adapter.js';
+import { S3StorageAdapter } from './s3-adapter.js';
+import { GcsStorageAdapter } from './gcs-adapter.js';
 import { legacyAssetResolver } from './legacy-resolver.js';
 import { ConfigurationError } from './errors.js';
 import { HmacSigner } from '../hmac.js';
@@ -28,6 +30,23 @@ export interface AdapterSettingsView {
   localPublicUrlBase(): Promise<string>;
   /** Default TTL for private signed URLs (seconds). */
   privateUrlTtlSec(): Promise<number>;
+  /** S3-adapter configuration. */
+  s3Config(): Promise<{
+    bucket: string;
+    region: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    endpoint?: string;
+    prefix?: string;
+    publicBaseUrl?: string;
+  }>;
+  /** GCS-adapter configuration. */
+  gcsConfig(): Promise<{
+    bucket: string;
+    serviceAccountJson?: string;
+    prefix?: string;
+    publicBaseUrl?: string;
+  }>;
 }
 
 export interface AdapterRegistryOptions {
@@ -81,12 +100,38 @@ export class AdapterRegistry {
         signer: this.opts.signer(),
       });
     }
-    // S3 / GCS land in Phase 5 (US3 / T075–T076). Until then surface a
-    // clear admin-facing error rather than booting into a non-functional state.
-    if (code === 's3' || code === 'gcs') {
-      throw new ConfigurationError(
-        `StorageAdapter "${code}" is not yet implemented in this build (Phase 5 / US3 deliverable).`,
-      );
+    if (code === 's3') {
+      const cfg = await this.opts.settings.s3Config();
+      const ttl = await this.opts.settings.privateUrlTtlSec();
+      return new S3StorageAdapter({
+        bucket: cfg.bucket,
+        region: cfg.region,
+        accessKeyId: cfg.accessKeyId,
+        secretAccessKey: cfg.secretAccessKey,
+        ...(cfg.endpoint !== undefined && cfg.endpoint.length > 0
+          ? { endpoint: cfg.endpoint }
+          : {}),
+        ...(cfg.prefix !== undefined && cfg.prefix.length > 0 ? { prefix: cfg.prefix } : {}),
+        ...(cfg.publicBaseUrl !== undefined && cfg.publicBaseUrl.length > 0
+          ? { publicBaseUrl: cfg.publicBaseUrl }
+          : {}),
+        privateUrlTtlSec: ttl,
+      });
+    }
+    if (code === 'gcs') {
+      const cfg = await this.opts.settings.gcsConfig();
+      const ttl = await this.opts.settings.privateUrlTtlSec();
+      return new GcsStorageAdapter({
+        bucket: cfg.bucket,
+        ...(cfg.serviceAccountJson !== undefined && cfg.serviceAccountJson.length > 0
+          ? { serviceAccountJson: cfg.serviceAccountJson }
+          : {}),
+        ...(cfg.prefix !== undefined && cfg.prefix.length > 0 ? { prefix: cfg.prefix } : {}),
+        ...(cfg.publicBaseUrl !== undefined && cfg.publicBaseUrl.length > 0
+          ? { publicBaseUrl: cfg.publicBaseUrl }
+          : {}),
+        privateUrlTtlSec: ttl,
+      });
     }
     throw new ConfigurationError(`Unknown storage backend: "${code}"`);
   }

@@ -94,7 +94,13 @@ export function assetsLibraryModule(options: AssetsLibraryModuleOptions): {
         // Keep memory bounded; upload-pipeline streams directly to the adapter.
         limits: { files: 1, fields: 10 },
       });
-      await registerAssetsLibraryAdminRoutes(childApp, { service, folders, requireAdmin });
+      await registerAssetsLibraryAdminRoutes(childApp, {
+        service,
+        folders,
+        adapters,
+        emFactory: options.emFactory,
+        requireAdmin,
+      });
     });
     await registerAssetsLibraryPublicRoutes(app, {
       service,
