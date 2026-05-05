@@ -24,6 +24,7 @@ import { importExportModule } from '../../src/modules/import_export/plugin.js';
 import { seoModule } from '../../src/modules/seo/plugin.js';
 import { i18nModule } from '../../src/modules/languages/plugin.js';
 import { cmsPagesModule } from '../../src/modules/cms_pages/plugin.js';
+import { cmsModule } from '../../src/modules/cms/plugin.js';
 import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
 import { taxesModule } from '../../src/modules/taxes/plugin.js';
 import { promotionsModule } from '../../src/modules/promotions/plugin.js';
@@ -315,6 +316,11 @@ export async function setupBackendServer(
     salesChannelMembership: salesChannels.handle.membershipService,
   });
 
+  // Feature 014 — new CMS module. Reconcile seeded Hooks once; routes land
+  // in subsequent user-story phases.
+  const cms = cmsModule({ emFactory: em, requireAdmin: requireTestAdmin(permissionService) });
+  await cms.handle.reconcile();
+
   // Pricing (T127 / FR-050).
   const priceLists = priceListsModule({
     emFactory: em,
@@ -353,6 +359,7 @@ export async function setupBackendServer(
     seo.plugin,
     i18n.plugin,
     cmsPages.plugin,
+    cms.plugin,
     priceLists.plugin,
     taxes.plugin,
     promotions.plugin,
