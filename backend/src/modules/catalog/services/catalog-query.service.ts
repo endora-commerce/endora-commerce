@@ -690,27 +690,42 @@ export class CatalogQueryService {
     const visibleIds = await this.filterByChannel(em, products.map((p) => p.id), channel);
     const visible = products.filter((p) => visibleIds.has(p.id));
 
-    return attrs.map((a) => {
+    const definitions = attrs.map((a) => {
       const label = this.pickLang(a.label, ctx.preferredLanguage, channel);
       const def: FilterDefinition = {
         attributeKey: a.key,
         label,
         valueType: a.valueType,
+        filterPosition: a.filterPosition,
       };
-      if (a.valueType === 'enum' || a.valueType === 'boolean' || a.valueType === 'string') {
+      if (
+        a.valueType === 'enum' ||
+        a.valueType === 'select' ||
+        a.valueType === 'multiselect' ||
+        a.valueType === 'boolean' ||
+        a.valueType === 'string'
+      ) {
         const optionCounts = new Map<string, number>();
         for (const p of visible) {
           const v = p.attributeValues[a.key];
-          if (v === undefined) continue;
-          const key = String(v);
-          optionCounts.set(key, (optionCounts.get(key) ?? 0) + 1);
+          if (v === undefined || v === null) continue;
+          // multiselect carries an array of selected option values.
+          if (Array.isArray(v)) {
+            for (const item of v) {
+              const key = String(item);
+              optionCounts.set(key, (optionCounts.get(key) ?? 0) + 1);
+            }
+          } else {
+            const key = String(v);
+            optionCounts.set(key, (optionCounts.get(key) ?? 0) + 1);
+          }
         }
         def.options = Array.from(optionCounts.entries()).map(([value, count]) => ({
           value,
           label: value,
           count,
         }));
-      } else if (a.valueType === 'number' || a.valueType === 'date') {
+      } else if (a.valueType === 'number' || a.valueType === 'price' || a.valueType === 'date') {
         let min: number | undefined;
         let max: number | undefined;
         for (const p of visible) {
@@ -726,6 +741,25 @@ export class CatalogQueryService {
       }
       return def;
     });
+
+    // Feature 012 / FR-029 — omit filters that have zero values across
+    // every visible product. Option-style filters with an empty options
+    // array (no facet hits) are skipped; range-style filters with no
+    // resolved min/max are also skipped.
+    const nonEmpty = definitions.filter((d) => {
+      if (d.options !== undefined) return d.options.length > 0;
+      if (d.range !== undefined) return true;
+      return false;
+    });
+
+    // Feature 012 / FR-027 + FR-028 — pre-sort by filterPosition ASC,
+    // then by resolved label ASC. Storefront consumes the order verbatim.
+    nonEmpty.sort((a, b) => {
+      if (a.filterPosition !== b.filterPosition) return a.filterPosition - b.filterPosition;
+      return a.label.localeCompare(b.label);
+    });
+
+    return nonEmpty;
   }
 
   // ------------------------------------------------------------------

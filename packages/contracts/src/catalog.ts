@@ -379,6 +379,12 @@ export const filterDefinitionSchema = z.object({
   valueType: attributeValueTypeSchema,
   options: z.array(filterOptionSchema).optional(),
   range: filterRangeSchema.optional(),
+  /**
+   * Feature 012 / FR-027 — ascending sort order on the storefront
+   * filter sidebar. Ties are broken alphabetically by `label`. The
+   * service pre-sorts the response so consumers don't need to.
+   */
+  filterPosition: z.number().int().min(0).default(0),
 });
 export type FilterDefinition = z.infer<typeof filterDefinitionSchema>;
 

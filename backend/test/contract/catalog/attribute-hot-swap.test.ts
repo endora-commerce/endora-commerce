@@ -36,6 +36,26 @@ describe('PATCH /admin/catalog/attributes/:key — hot swap of isFilterable', ()
     const beforeBody = before.json() as { data: FilterDef[] };
     expect(beforeBody.data.map((f) => f.attributeKey)).not.toContain('internal_sku_notes');
 
+    // Feature 012 / FR-029 — filters with no values across the visible
+    // products are omitted. Seed at least one product value so the
+    // attribute can show up after the flip.
+    const products = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/catalog/products',
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    const firstProductId = (
+      (products.json() as { data: Array<{ id: string }> }).data[0]
+    )?.id;
+    if (firstProductId) {
+      await h.app.inject({
+        method: 'PATCH',
+        url: `/api/v1/admin/catalog/products/${firstProductId}`,
+        payload: { attributeValues: { internal_sku_notes: 'hotswap-fixture' } },
+        cookies: { b2b_session: 'stub-admin-session' },
+      });
+    }
+
     // Flip isFilterable=true.
     const patch = await h.app.inject({
       method: 'PATCH',
