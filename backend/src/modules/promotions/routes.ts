@@ -127,6 +127,7 @@ function serialize(row: Promotion): Record<string, unknown> {
     customerGroupId: row.customerGroupId ?? null,
     categoryId: row.categoryId ?? null,
     productId: row.productId ?? null,
+    criteria: row.criteria ?? [],
     isActive: row.isActive,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
