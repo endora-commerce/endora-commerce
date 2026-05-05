@@ -4,6 +4,7 @@ import { Breadcrumbs } from '../../../../components/Breadcrumbs';
 import { FilterPanel } from '../../../../components/FilterPanel';
 import { ProductGrid } from '../../../../components/ProductGrid';
 import { Pagination } from '../../../../components/Pagination';
+import { Hook } from '../../../../components/Hook';
 import {
   getCategoryTree,
   getFilters,
@@ -55,6 +56,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
           { href: `/c/${node.slug}`, label: node.name },
         ]}
       />
+      <Hook code="category.top" />
       <div className="industria-catalog">
         <FilterPanel
           filters={filters}
@@ -79,6 +81,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
           />
         </div>
       </div>
+      <Hook code="category.bottom" />
     </div>
   );
 }

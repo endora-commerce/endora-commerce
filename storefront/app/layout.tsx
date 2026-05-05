@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
+import { Hook } from '../components/Hook';
 import { PwaRegister } from '../components/PwaRegister';
 import { getServerContext } from '../lib/server-context';
 import './globals.css';
@@ -36,9 +37,21 @@ export default async function RootLayout({
     <html lang={locale}>
       <body>
         <div className="b2b-shell">
+          <Hook code="header.top" />
           <Header config={config} locale={locale} />
-          <main className="b2b-shell__main">{children}</main>
-          <Footer />
+          <Hook code="header.bottom" />
+          <main className="b2b-shell__main">
+            <Hook code="page.top" />
+            {children}
+            <Hook code="page.bottom" />
+          </main>
+          <Hook code="footer.before" />
+          <Footer
+            top={<Hook code="footer.top" />}
+            bottom={<Hook code="footer.bottom" />}
+            copyright={<Hook code="footer.copyright" />}
+          />
+          <Hook code="footer.after" />
         </div>
         <PwaRegister />
       </body>

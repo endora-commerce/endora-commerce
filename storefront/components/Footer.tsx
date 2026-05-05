@@ -4,7 +4,12 @@ import type { ReactNode } from 'react';
  * Industria-themed footer. Five-column dark layout with brand panel,
  * shop, account, support, and a newsletter sign-up.
  */
-export function Footer(props: { cmsLinks?: Array<{ path: string; title: string }> }): ReactNode {
+export function Footer(props: {
+  cmsLinks?: Array<{ path: string; title: string }>;
+  top?: ReactNode;
+  bottom?: ReactNode;
+  copyright?: ReactNode;
+}): ReactNode {
   const supportLinks = props.cmsLinks && props.cmsLinks.length > 0
     ? props.cmsLinks
     : [
@@ -18,6 +23,7 @@ export function Footer(props: { cmsLinks?: Array<{ path: string; title: string }
   return (
     <footer className="industria-footer">
       <div className="container">
+        {props.top}
         <div className="industria-footer__grid">
           <div className="industria-footer__brand">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -74,8 +80,13 @@ export function Footer(props: { cmsLinks?: Array<{ path: string; title: string }
           </div>
         </div>
 
+        {props.bottom}
         <div className="industria-footer__bottom">
-          <span>&copy; {new Date().getFullYear()} Industria B2B Sp. z o.o. · NIP 7251234567 · KRS 0000987654</span>
+          <span>
+            &copy; {new Date().getFullYear()} Industria B2B Sp. z o.o. · NIP 7251234567 · KRS
+            0000987654
+          </span>
+          {props.copyright}
           <span style={{ display: 'inline-flex', gap: 16 }}>
             <a href="/regulamin">Regulamin</a>
             <a href="/polityka-prywatnosci">Polityka prywatności</a>

@@ -1,4 +1,4 @@
-import type { CmsPage, CmsResolvedPage } from '@b2b/contracts';
+import type { CmsPage, CmsResolvedHook, CmsResolvedPage } from '@b2b/contracts';
 import { apiGet, StorefrontApiError, type RequestContext } from './client';
 
 /**
@@ -50,6 +50,30 @@ export async function getCmsPageBySlug(
       {
         revalidate: 60,
         tags: ['cms:page', `cms:page:${canonical}`],
+      },
+    );
+    return res.data;
+  } catch (err) {
+    if (err instanceof StorefrontApiError && err.status === 404) {
+      return null;
+    }
+    throw err;
+  }
+}
+
+export async function getCmsHookByCode(
+  code: string,
+  ctx: RequestContext,
+): Promise<CmsResolvedHook | null> {
+  const qs = new URLSearchParams({ code });
+  if (ctx.locale) qs.set('language', ctx.locale);
+  try {
+    const res = await apiGet<{ data: CmsResolvedHook }>(
+      `/api/v1/cms/hooks/by-code?${qs.toString()}`,
+      ctx,
+      {
+        revalidate: 60,
+        tags: ['cms:hook', `cms:hook:${code}`],
       },
     );
     return res.data;
