@@ -928,6 +928,72 @@ export class CatalogQueryService {
   }
 
   /**
+   * Feature 012 / US8 — list of attribute keys flagged `is_promo_rule=true`,
+   * sorted alphabetically. Consumed by the promotions module's rule-target
+   * picker endpoint and by the promotion-rule resolver's skip-on-toggle
+   * check (FR-039). Public because it crosses a module boundary
+   * (Constitution I — promotions MUST consume catalog through a documented
+   * service port, not by importing internals).
+   */
+  async promoRuleAttributeKeys(): Promise<string[]> {
+    const em = this.emFactory();
+    const attrs = await em.find(
+      ProductAttribute,
+      { isPromoRule: true },
+      { orderBy: { key: 'asc' } },
+    );
+    return attrs.map((a) => a.key);
+  }
+
+  /**
+   * Feature 012 / US8 — load one attribute by key with its option list
+   * inline. Returns `null` when the attribute does not exist. The option
+   * list is empty for non-select-style types. Used by:
+   *   - Promotion-rule editor (criterion picker payload)
+   *   - PromotionRuleService.matches() to validate option values
+   *     against the attribute's authoritative option set.
+   */
+  async getAttributeWithOptions(key: string): Promise<{
+    id: string;
+    key: string;
+    label: Record<string, string>;
+    labelDefault: string;
+    valueType: ProductAttribute['valueType'];
+    isPromoRule: boolean;
+    options: Array<{ value: string; label: Record<string, string>; labelDefault: string }>;
+  } | null> {
+    const em = this.emFactory();
+    const attr = await em.findOne(ProductAttribute, { key });
+    if (!attr) return null;
+    const isSelectStyle =
+      attr.valueType === 'select' || attr.valueType === 'enum' || attr.valueType === 'multiselect';
+    let options: Array<{ value: string; label: Record<string, string>; labelDefault: string }> = [];
+    if (isSelectStyle) {
+      const conn = em.getConnection();
+      const rows = (await conn.execute<
+        Array<{ value: string; label: Record<string, string>; label_default: string }>
+      >(
+        `select "value", "label", "label_default" from "attribute_options" where "attribute_id" = ? order by "sort_order" asc, "value" asc`,
+        [attr.id],
+      )) as Array<{ value: string; label: Record<string, string>; label_default: string }>;
+      options = rows.map((r) => ({
+        value: r.value,
+        label: r.label ?? {},
+        labelDefault: r.label_default,
+      }));
+    }
+    return {
+      id: attr.id,
+      key: attr.key,
+      label: attr.label ?? {},
+      labelDefault: attr.labelDefault,
+      valueType: attr.valueType,
+      isPromoRule: attr.isPromoRule,
+      options,
+    };
+  }
+
+  /**
    * Build a MikroORM where-clause for "attributeValues[key] contains query
    * (case-insensitive)". MikroORM doesn't have a first-class JSONB query
    * helper for the `->>` operator, so we use `$jsonb` style by selecting the

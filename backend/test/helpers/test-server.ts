@@ -332,6 +332,9 @@ export async function setupBackendServer(
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
     salesChannelMembership: salesChannels.handle.membershipService,
+    // Feature 012 / US8 — wire the catalog read port so the rule-target
+    // picker + criterion validation work in tests.
+    catalogQueryService: new CatalogQueryService(em),
   });
 
   const modules: ModulePlugin[] = [

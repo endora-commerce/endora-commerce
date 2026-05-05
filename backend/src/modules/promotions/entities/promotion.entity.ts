@@ -1,5 +1,6 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { randomUUID } from 'crypto';
+import type { PromotionCriterion } from '@b2b/contracts';
 
 /**
  * Promotion — a discount rule applied to a Cart snapshot (T129 / FR-052).
@@ -32,6 +33,7 @@ export class Promotion {
     | 'customerGroupId'
     | 'categoryId'
     | 'productId'
+    | 'criteria'
     | 'isActive';
 
   @PrimaryKey({ type: 'uuid' })
@@ -76,6 +78,15 @@ export class Promotion {
 
   @Property({ type: 'uuid', nullable: true })
   productId?: string | null;
+
+  /**
+   * Feature 012 / US8 — line-level discriminated criteria. ANDed with
+   * the flat `categoryId` / `productId` scope. JSONB column with default
+   * `'[]'::jsonb` so existing rows behave exactly as before until the
+   * operator authors a criterion.
+   */
+  @Property({ type: 'json', columnType: 'jsonb', default: "'[]'" })
+  criteria: PromotionCriterion[] = [];
 
   @Property({ type: 'boolean' })
   @Index()

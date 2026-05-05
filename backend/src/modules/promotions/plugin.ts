@@ -4,12 +4,20 @@ import { PromotionService } from './services/promotion-service.js';
 import { registerPromotionRoutes } from './routes.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
+import type { CatalogQueryService } from '../catalog/services/catalog-query.service.js';
 
 export interface PromotionsModuleOptions {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
   /** Feature 005 / T027b — when injected, new Promotions auto-bind to the system default. */
   salesChannelMembership?: SalesChannelMembershipService;
+  /**
+   * Feature 012 / US8 — cross-module read port. When provided, the
+   * promotions module can validate `attribute` criteria against the
+   * catalog's authoritative metadata and feed the rule-target picker
+   * endpoint.
+   */
+  catalogQueryService?: CatalogQueryService;
 }
 
 export interface PromotionsModuleHandle {
@@ -23,6 +31,7 @@ export function promotionsModule(options: PromotionsModuleOptions): {
   const promotionService = new PromotionService(
     options.emFactory,
     options.salesChannelMembership,
+    options.catalogQueryService,
   );
   return {
     handle: { promotionService },
@@ -30,6 +39,9 @@ export function promotionsModule(options: PromotionsModuleOptions): {
       await registerPromotionRoutes(app, {
         promotionService,
         requireAdmin: options.requireAdmin,
+        ...(options.catalogQueryService
+          ? { catalogQueryService: options.catalogQueryService }
+          : {}),
       });
     },
   };

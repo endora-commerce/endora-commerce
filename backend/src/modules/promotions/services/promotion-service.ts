@@ -3,10 +3,38 @@ import {
   ERROR_CODES,
   type CartSnapshot,
   type PromotionApplication,
+  type PromotionCriterion,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 import { Promotion } from '../entities/promotion.entity.js';
+import { Product } from '../../catalog/entities/product.entity.js';
+import { ProductAttribute } from '../../catalog/entities/product-attribute.entity.js';
+import {
+  lineMatchesAllCriteria,
+  type PromotionRuleAttributeLookup,
+  type PromotionRuleEvaluationContext,
+} from './promotion-rule-service.js';
+
+/**
+ * Cross-module port for fetching promotion-rule attribute metadata. The
+ * `CatalogQueryService` from feature 012 / US8 satisfies this shape;
+ * tests + the composition root pass it in through the constructor.
+ */
+export interface PromotionRuleCatalogPort {
+  getAttributeWithOptions(key: string): Promise<{
+    id: string;
+    key: string;
+    valueType: ProductAttribute['valueType'];
+    isPromoRule: boolean;
+    options: Array<{ value: string; label: Record<string, string>; labelDefault: string }>;
+  } | null>;
+}
+
+/** Audit-log sink for FR-039 skip events. Defaults to `console.info`. */
+export interface PromotionAuditLogger {
+  info(message: string, fields?: Record<string, unknown>): void;
+}
 
 /**
  * PromotionService (T132 / FR-052).
@@ -25,6 +53,16 @@ export class PromotionService {
     private readonly emFactory: () => EntityManager,
     /** Feature 005 / T027b — auto-bind newly-created Promotions to the system default. */
     private readonly salesChannelMembership?: SalesChannelMembershipService,
+    /**
+     * Feature 012 / US8 — cross-module read port (CatalogQueryService).
+     * When omitted, attribute-criteria short-circuit to `false` so legacy
+     * tests / composition setups that don't wire this stay green.
+     */
+    private readonly catalogPort?: PromotionRuleCatalogPort,
+    /** Feature 012 / US8 — audit sink for FR-039 skip-on-toggle events. */
+    private readonly auditLogger: PromotionAuditLogger = {
+      info: (message, fields) => console.info(message, fields ?? {}),
+    },
   ) {}
 
   async list(): Promise<Promotion[]> {
@@ -50,8 +88,12 @@ export class PromotionService {
     customerGroupId?: string | null;
     categoryId?: string | null;
     productId?: string | null;
+    criteria?: PromotionCriterion[];
     isActive?: boolean;
   }): Promise<Promotion> {
+    if (input.criteria) {
+      await this.validateCriteria(input.criteria);
+    }
     const em = this.emFactory();
     const existing = input.code
       ? await em.findOne(Promotion, { code: input.code })
@@ -75,6 +117,7 @@ export class PromotionService {
       ...(input.customerGroupId !== undefined ? { customerGroupId: input.customerGroupId } : {}),
       ...(input.categoryId !== undefined ? { categoryId: input.categoryId } : {}),
       ...(input.productId !== undefined ? { productId: input.productId } : {}),
+      ...(input.criteria !== undefined ? { criteria: input.criteria } : {}),
       ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
     };
     if (existing) {
@@ -134,13 +177,32 @@ export class PromotionService {
       return Number(b.value) - Number(a.value);
     });
 
+    // Feature 012 / US8 — pre-build the per-key attribute lookup for
+    // every attribute referenced by an active promotion's criteria.
+    const referencedKeys = new Set<string>();
+    for (const p of eligible) {
+      for (const c of p.criteria) {
+        if (c.type === 'attribute') referencedKeys.add(c.attributeKey);
+      }
+    }
+    const attributeLookup = await this.buildAttributeLookup([...referencedKeys]);
+
+    // Feature 012 / US8 — hydrate per-line `attributeValues` snapshots
+    // for any line whose product is referenced by a criterion. Callers
+    // MAY pre-populate the snapshot themselves; if so, we skip the
+    // round-trip.
+    const hydratedSnapshot =
+      referencedKeys.size === 0
+        ? snapshot
+        : await this.hydrateLineAttributeValues(snapshot, [...referencedKeys]);
+
     let workingSubtotal = subtotal;
     let workingDelivery = snapshot.deliveryTotal;
     let discountTotal = 0;
     const applied: PromotionApplication['appliedPromotions'] = [];
 
     for (const promotion of eligible) {
-      const lineBase = computeLineBase(snapshot, promotion);
+      const lineBase = this.computeLineBase(hydratedSnapshot, promotion, attributeLookup);
       if (lineBase <= 0 && promotion.kind !== 'free_delivery') continue;
 
       let amount = 0;
@@ -171,24 +233,234 @@ export class PromotionService {
       appliedPromotions: applied,
     };
   }
-}
 
-function computeLineBase(snapshot: CartSnapshot, p: Promotion): number {
-  // free_delivery doesn't read line totals.
-  if (p.kind === 'free_delivery') return snapshot.deliveryTotal;
-  // Scoped to a single category or product: only matching lines.
-  if (p.productId || p.categoryId) {
+  /**
+   * Feature 012 / US8 — validate a criteria array against the catalog
+   * port. Throws `HttpError(400, ...)` for the documented error codes
+   * (`attribute_not_found`, `attribute_not_promo_eligible`,
+   * `invalid_criterion_op`, `invalid_criterion_values`,
+   * `invalid_option_value`).
+   */
+  private async validateCriteria(criteria: PromotionCriterion[]): Promise<void> {
+    if (!this.catalogPort) {
+      // Without the port we can only structurally validate (already done
+      // by the Zod schema); skip the semantic per-valueType checks.
+      return;
+    }
+    for (const c of criteria) {
+      if (c.type !== 'attribute') continue;
+      const meta = await this.catalogPort.getAttributeWithOptions(c.attributeKey);
+      if (!meta) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          `attribute_not_found: ${c.attributeKey}`,
+        );
+      }
+      if (!meta.isPromoRule) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          `attribute_not_promo_eligible: ${c.attributeKey}`,
+        );
+      }
+      const allowed = allowedOpsFor(meta.valueType);
+      if (!allowed.includes(c.op)) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          `invalid_criterion_op: ${c.op} not in [${allowed.join(', ')}] for ${meta.valueType}`,
+        );
+      }
+      validateValuesShape(c.op, c.values, meta.valueType);
+      // Per-option-value membership for select-style attributes.
+      if (meta.valueType === 'select' || meta.valueType === 'enum' || meta.valueType === 'multiselect') {
+        const allowedValues = new Set(meta.options.map((o) => o.value));
+        for (const v of c.values) {
+          if (!allowedValues.has(String(v))) {
+            throw new HttpError(
+              400,
+              ERROR_CODES.VALIDATION_FAILED,
+              `invalid_option_value: ${String(v)}`,
+            );
+          }
+        }
+      }
+    }
+  }
+
+  private async buildAttributeLookup(keys: string[]): Promise<PromotionRuleAttributeLookup> {
+    const map = new Map<
+      string,
+      {
+        id: string;
+        key: string;
+        valueType: ProductAttribute['valueType'];
+        isPromoRule: boolean;
+        options: Array<{ value: string }>;
+      }
+    >();
+    if (!this.catalogPort || keys.length === 0) {
+      return { get: (k) => map.get(k) ?? null };
+    }
+    for (const key of keys) {
+      const meta = await this.catalogPort.getAttributeWithOptions(key);
+      if (meta) {
+        map.set(key, {
+          id: meta.id,
+          key: meta.key,
+          valueType: meta.valueType,
+          isPromoRule: meta.isPromoRule,
+          options: meta.options.map((o) => ({ value: o.value })),
+        });
+      }
+    }
+    return { get: (k) => map.get(k) ?? null };
+  }
+
+  private async hydrateLineAttributeValues(
+    snapshot: CartSnapshot,
+    referencedKeys: string[],
+  ): Promise<CartSnapshot> {
+    const productIds = [
+      ...new Set(
+        snapshot.lines
+          .filter((l) => !l.attributeValues)
+          .map((l) => l.productId),
+      ),
+    ];
+    if (productIds.length === 0) return snapshot;
+
+    const em = this.emFactory();
+    const products = await em.find(Product, { id: { $in: productIds } });
+    const valuesByProductId = new Map<string, Record<string, unknown>>();
+    for (const p of products) {
+      const values = (p.attributeValues ?? {}) as Record<string, unknown>;
+      const subset: Record<string, unknown> = {};
+      for (const k of referencedKeys) {
+        if (k in values) subset[k] = values[k];
+      }
+      valuesByProductId.set(p.id, subset);
+    }
+    return {
+      ...snapshot,
+      lines: snapshot.lines.map((l) =>
+        l.attributeValues
+          ? l
+          : { ...l, attributeValues: valuesByProductId.get(l.productId) ?? {} },
+      ),
+    };
+  }
+
+  private computeLineBase(
+    snapshot: CartSnapshot,
+    p: Promotion,
+    attributeLookup: PromotionRuleAttributeLookup,
+  ): number {
+    // free_delivery doesn't read line totals.
+    if (p.kind === 'free_delivery') return snapshot.deliveryTotal;
+
+    const ctx: PromotionRuleEvaluationContext = {
+      attributeLookup,
+      promotionId: p.id,
+      onSkip: ({ promotionId, criterionAttributeKey, reason }) => {
+        this.auditLogger.info('promotion_criterion_skipped', {
+          promotionId,
+          criterionAttributeKey,
+          reason,
+        });
+      },
+    };
+
     return snapshot.lines.reduce((acc, line) => {
       if (p.productId && line.productId !== p.productId) return acc;
       if (p.categoryId && !line.categoryIds.includes(p.categoryId)) return acc;
+      if (p.criteria.length > 0 && !lineMatchesAllCriteria(p.criteria, line, ctx)) return acc;
       return acc + line.unitPrice.amount * line.quantity;
     }, 0);
   }
-  return snapshot.lines.reduce(
-    (acc, line) => acc + line.unitPrice.amount * line.quantity,
-    0,
-  );
 }
+
+function allowedOpsFor(
+  valueType: ProductAttribute['valueType'],
+): Array<'equals' | 'in' | 'range'> {
+  switch (valueType) {
+    case 'string':
+      return ['equals', 'in'];
+    case 'select':
+    case 'enum':
+      return ['equals', 'in'];
+    case 'multiselect':
+      return ['in'];
+    case 'number':
+    case 'price':
+      return ['equals', 'range'];
+    case 'boolean':
+      return ['equals'];
+    case 'date':
+      return ['equals', 'range'];
+    default:
+      return [];
+  }
+}
+
+function validateValuesShape(
+  op: 'equals' | 'in' | 'range',
+  values: readonly unknown[],
+  valueType: ProductAttribute['valueType'],
+): void {
+  if (op === 'equals' && values.length !== 1) {
+    throw new HttpError(
+      400,
+      ERROR_CODES.VALIDATION_FAILED,
+      'invalid_criterion_values: equals expects a single-element values array',
+    );
+  }
+  if (op === 'range') {
+    if (values.length !== 2) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.VALIDATION_FAILED,
+        'invalid_criterion_values: range expects exactly [min, max]',
+      );
+    }
+    const [min, max] = values;
+    if (valueType === 'date') {
+      if (!Number.isFinite(Date.parse(String(min))) || !Number.isFinite(Date.parse(String(max)))) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          'invalid_criterion_values: range requires ISO date-time bounds',
+        );
+      }
+    } else {
+      if (!Number.isFinite(Number(min)) || !Number.isFinite(Number(max))) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          'invalid_criterion_values: range requires numeric bounds',
+        );
+      }
+    }
+  }
+  if (op === 'in' && values.length === 0) {
+    throw new HttpError(
+      400,
+      ERROR_CODES.VALIDATION_FAILED,
+      'invalid_criterion_values: in expects a non-empty values array',
+    );
+  }
+  if (valueType === 'boolean' && op === 'equals') {
+    if (typeof values[0] !== 'boolean') {
+      throw new HttpError(
+        400,
+        ERROR_CODES.VALIDATION_FAILED,
+        'invalid_criterion_values: boolean equals expects [true|false]',
+      );
+    }
+  }
+}
+
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
