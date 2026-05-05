@@ -19,7 +19,8 @@ export class Category {
     | 'deletedAt'
     | 'inventoryThresholdHigh'
     | 'inventoryThresholdMedium'
-    | 'inventoryThresholdLow';
+    | 'inventoryThresholdLow'
+    | 'mainImageAssetId';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -64,4 +65,10 @@ export class Category {
 
   @Property({ type: 'integer', nullable: true })
   inventoryThresholdLow?: number | null;
+
+  // Assets Library (feature 013 / US5) — Main Image asset reference
+  // rendered on the storefront category landing page.
+  @Property({ type: 'uuid', nullable: true })
+  @Index()
+  mainImageAssetId?: string | null;
 }

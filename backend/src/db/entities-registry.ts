@@ -1,6 +1,7 @@
 import { Session } from '../modules/auth/entities/session.entity.js';
 import { AuditLogEntry } from '../modules/audit_logs/entities/audit-log-entry.entity.js';
-import { Asset } from '../modules/assets/entities/asset.entity.js';
+import { Asset } from '../modules/assets_library/entities/asset.entity.js';
+import { AssetFolder } from '../modules/assets_library/entities/asset-folder.entity.js';
 import { Product } from '../modules/catalog/entities/product.entity.js';
 import { ProductVariant } from '../modules/catalog/entities/product-variant.entity.js';
 import { Category } from '../modules/catalog/entities/category.entity.js';
@@ -93,8 +94,9 @@ export const ALL_ENTITIES = [
   Session,
   // audit_logs
   AuditLogEntry,
-  // assets
+  // assets_library (feature 013, supersedes legacy `assets`)
   Asset,
+  AssetFolder,
   // catalog
   Product,
   ProductVariant,

@@ -35,6 +35,7 @@ import { Migration030InventoryWorkflow } from '../modules/inventory/migrations/0
 import { Migration031PriceListsEngine } from '../modules/price_lists/migrations/031_price_lists_engine.js';
 import { Migration032AttributeOptionsAndFlags } from '../modules/catalog/migrations/032_attribute_options_and_flags.js';
 import { Migration033PromotionsCriteria } from '../modules/promotions/migrations/033_promotions_criteria.js';
+import { Migration034AssetsLibraryInit } from './migrations/034_assets_library_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -146,6 +147,10 @@ export default defineConfig({
       {
         name: 'Migration033PromotionsCriteria',
         class: Migration033PromotionsCriteria,
+      },
+      {
+        name: 'Migration034AssetsLibraryInit',
+        class: Migration034AssetsLibraryInit,
       },
     ],
     transactional: true,

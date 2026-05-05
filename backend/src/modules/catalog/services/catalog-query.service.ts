@@ -9,7 +9,7 @@ import { GalleryItemLabel } from '../entities/gallery-item-label.entity.js';
 import { ProductAttachment } from '../entities/product-attachment.entity.js';
 import { AttachmentType } from '../entities/attachment-type.entity.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
-import { Asset } from '../../assets/entities/asset.entity.js';
+import { Asset } from '../../assets_library/entities/asset.entity.js';
 import type { ProductLinkService } from './product-link.service.js';
 import { GroupedItem } from '../entities/grouped-item.entity.js';
 import { BundleSlot } from '../entities/bundle-slot.entity.js';
