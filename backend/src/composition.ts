@@ -34,6 +34,7 @@ import { megamenuModule } from './modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
 import { blogModule } from './modules/blog/plugin.js';
+import { dictionariesModule } from './modules/dictionaries/plugin.js';
 import { blogManifest } from './modules/blog/manifest.js';
 import { priceListsModule } from './modules/price_lists/plugin.js';
 import { taxesModule } from './modules/taxes/plugin.js';
@@ -520,6 +521,21 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     assetReferenceRegistry: assetsLibrary.handle.referenceRegistry,
   });
   modules.push(blog.plugin);
+
+  // Feature 017 — Dictionary module. Boot reconciler populates the
+  // ISO 3166-1 country catalogue, the major-currency seed metadata,
+  // Polish translations for the active subset, and primary
+  // language↔country associations. Idempotent — operator edits via
+  // Admin UI / API are sticky across boots (FR-019). Admin + storefront
+  // HTTP routes ship in user-story phases (Phase 3+); the plugin
+  // currently performs the seed reconciler on first registration so
+  // the platform boots with a fully populated registry.
+  const dictionaries = dictionariesModule({
+    emFactory: em,
+    requireAdmin,
+    redis,
+  });
+  modules.push(dictionaries.plugin);
 
   // Feature 006 — Search module. Owns Meilisearch indexer + event-subscriber
   // lifecycle (R-3 — moved out of catalog). Settings-aware suggest config

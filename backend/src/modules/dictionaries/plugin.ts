@@ -8,6 +8,10 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type { DictionaryValidator } from '@b2b/contracts';
+import {
+  runDictionarySeedReconciler,
+  type SeedReconcilerSummary,
+} from './services/seed-reconciler.js';
 
 export type RequireAdminFactory = (
   permission?: string,
@@ -24,29 +28,34 @@ export interface DictionariesModuleHandle {
   /** Cross-module validator port — wired in Phase 6 (US4). */
   validator: DictionaryValidator | undefined;
   /**
-   * Run the boot reconciler (countries seed + Polish translations + primary
-   * language↔country associations). Idempotent. Wired in Phase 2 (T011).
+   * Run the boot reconciler (currencies + countries + Polish translations +
+   * primary language↔country associations). Idempotent — operator edits are
+   * preserved (FR-019).
    */
-  reconcile(): Promise<void>;
+  reconcile(): Promise<SeedReconcilerSummary>;
 }
 
-export function dictionariesModule(_options: DictionariesModuleOptions): {
+export function dictionariesModule(options: DictionariesModuleOptions): {
   plugin: (app: FastifyInstance) => Promise<void>;
   handle: DictionariesModuleHandle;
 } {
-  // Real services land in later phases. The skeleton handle keeps the
-  // composition root and the tests honest about the public shape.
+  let reconciled = false;
+
   const handle: DictionariesModuleHandle = {
     validator: undefined,
     reconcile: async () => {
-      // No-op until T011 wires the SeedReconciler.
+      const summary = await runDictionarySeedReconciler(options.emFactory);
+      reconciled = true;
+      return summary;
     },
   };
 
   const plugin = async (_app: FastifyInstance) => {
-    // No routes in Phase 1. Admin + storefront routes are registered in
-    // T029 / T043 once the underlying services exist.
-    await handle.reconcile();
+    if (!reconciled) {
+      await handle.reconcile();
+    }
+    // Admin + storefront routes are registered in T029 / T043 once the
+    // underlying services exist.
   };
 
   return { plugin, handle };

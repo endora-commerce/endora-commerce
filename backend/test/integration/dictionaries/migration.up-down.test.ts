@@ -144,18 +144,16 @@ describe('dictionary migration — 038_dictionary_init', () => {
   });
 
   it('enforces partial unique-default invariant on countries', async () => {
+    // Behavioural verification: with at least one row already
+    // `is_default = true` (the seed reconciler sets PL as default at boot
+    // — see `seed.idempotent.test.ts`), inserting another default-true
+    // row must be refused by the partial unique index.
     const conn = db.orm.em.getConnection();
-    // Insert two countries, only one of which can be default.
-    await conn.execute(
-      `insert into countries (code, alpha3_code, numeric_code, label, region, is_default, created_at, updated_at)
-       values ('AA', 'AAA', '901', 'Atest', 'Europe', true, now(), now())`,
-    );
     await expect(
       conn.execute(
         `insert into countries (code, alpha3_code, numeric_code, label, region, is_default, created_at, updated_at)
-         values ('BB', 'BBB', '902', 'Btest', 'Europe', true, now(), now())`,
+         values ('AA', 'AAA', '901', 'Atest', 'Europe', true, now(), now())`,
       ),
-    ).rejects.toThrow();
-    await conn.execute(`delete from countries where code = 'AA'`);
+    ).rejects.toThrow(/uniq_countries_one_default/);
   });
 });
