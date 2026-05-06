@@ -68,6 +68,9 @@ import { BlogPostTag } from '../modules/blog/entities/blog-post-tag.entity.js';
 import { BlogPostRelatedPost } from '../modules/blog/entities/blog-post-related-post.entity.js';
 import { BlogPostRelatedProduct } from '../modules/blog/entities/blog-post-related-product.entity.js';
 import { BlogTag } from '../modules/blog/entities/blog-tag.entity.js';
+import { Country } from '../modules/dictionaries/entities/country.entity.js';
+import { DictionaryTranslation } from '../modules/dictionaries/entities/dictionary-translation.entity.js';
+import { LanguageCountry } from '../modules/dictionaries/entities/language-country.entity.js';
 import { CustomerGroup } from '../modules/price_lists/entities/customer-group.entity.js';
 import { PriceList } from '../modules/price_lists/entities/price-list.entity.js';
 import { PriceListProduct } from '../modules/price_lists/entities/price-list-product.entity.js';
@@ -200,6 +203,10 @@ export const ALL_ENTITIES = [
   BlogPostRelatedPost,
   BlogPostRelatedProduct,
   BlogTag,
+  // dictionary (feature 017)
+  Country,
+  DictionaryTranslation,
+  LanguageCountry,
   // pricing (Phase 4 polish / T127)
   CustomerGroup,
   PriceList,

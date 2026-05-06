@@ -12,7 +12,10 @@ export class Language {
     | 'updatedAt'
     | 'isDefault'
     | 'isActive'
-    | 'sortOrder';
+    | 'sortOrder'
+    | 'nativeLabel'
+    | 'isRtl'
+    | 'fallbackCode';
 
   /** BCP-47 tag: `en-US`, `pl-PL`, `de`, …. Acts as the natural primary key. */
   @PrimaryKey({ type: 'string', length: 12 })
@@ -20,6 +23,17 @@ export class Language {
 
   @Property({ type: 'string', length: 64 })
   label!: string;
+
+  /** The language's name in itself (e.g. `Polski`, `Deutsch`). Added by feature 017. */
+  @Property({ type: 'string', length: 64 })
+  nativeLabel: string = '';
+
+  @Property({ type: 'boolean' })
+  isRtl: boolean = false;
+
+  /** Optional fallback code for missing translations. Self-FK; cycles forbidden at the service layer. */
+  @Property({ type: 'string', length: 12, nullable: true })
+  fallbackCode?: string | null;
 
   @Property({ type: 'boolean' })
   isDefault: boolean = false;
