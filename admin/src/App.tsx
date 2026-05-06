@@ -21,6 +21,8 @@ import { MegamenuListPage } from './modules/megamenu/pages/MegamenuListPage.js';
 import { MegamenuEditor } from './modules/megamenu/pages/MegamenuEditor.js';
 import { BlogPostListPage } from './modules/blog/pages/BlogPostListPage.js';
 import { BlogPostEditor } from './modules/blog/pages/BlogPostEditor.js';
+import { BlogCategoryTreePage } from './modules/blog/pages/BlogCategoryTreePage.js';
+import { BlogCategoryEditor } from './modules/blog/pages/BlogCategoryEditor.js';
 import { RfqList } from './modules/quote_requests/RfqList.js';
 import { RfqDetail } from './modules/quote_requests/RfqDetail.js';
 import { AdminUsersPage } from './modules/admin_users/AdminUsersPage.js';
@@ -130,6 +132,9 @@ export function App(): ReactNode {
         <Route path="/blog/posts" element={<BlogPostListPage />} />
         <Route path="/blog/posts/new" element={<BlogPostEditor />} />
         <Route path="/blog/posts/:id" element={<BlogPostEditor />} />
+        <Route path="/blog/categories" element={<BlogCategoryTreePage />} />
+        <Route path="/blog/categories/new" element={<BlogCategoryEditor />} />
+        <Route path="/blog/categories/:id" element={<BlogCategoryEditor />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/groups" element={<SettingsGroupsPage />} />
         <Route path="/sales-channels" element={<SalesChannelsListPage />} />

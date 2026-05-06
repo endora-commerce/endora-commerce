@@ -127,6 +127,7 @@ const NAV: NavSection[] = [
       { to: '/cms/hooks', label: 'CMS Hooks', icon: Webhook },
       { to: '/megamenu', label: 'Megamenu', icon: Newspaper },
       { to: '/blog/posts', label: 'Blog Posts', icon: Newspaper },
+      { to: '/blog/categories', label: 'Blog Categories', icon: Newspaper },
       { to: '/i18n', label: 'Languages', icon: Languages },
       { to: '/seo', label: 'SEO', icon: Search },
     ],
