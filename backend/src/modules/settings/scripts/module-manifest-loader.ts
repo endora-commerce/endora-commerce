@@ -1,6 +1,7 @@
 import type { ModuleSettingsManifest } from '@b2b/contracts';
 import { settingsManifest } from '../manifest.js';
 import { salesChannelsManifest } from '../../sales_channels/manifest.js';
+import { blogManifest } from '../../blog/manifest.js';
 
 /**
  * Map of module-code → manifest.
@@ -14,6 +15,7 @@ import { salesChannelsManifest } from '../../sales_channels/manifest.js';
 const KNOWN_MANIFESTS: Record<string, ModuleSettingsManifest> = {
   settings: settingsManifest,
   sales_channels: salesChannelsManifest,
+  blog: blogManifest,
   // Other modules add their manifest entries here as they ship their first setting.
 };
 

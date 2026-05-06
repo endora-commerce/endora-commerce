@@ -90,6 +90,14 @@ const ADMIN_COOKIES: Record<string, { adminUserId: string }> = {
   'stub-restricted-admin-session': {
     adminUserId: '00000000-0000-4000-8000-0000000000b2',
   },
+  // Feature 016 — Blog Manager (blog.read + blog.write only).
+  'stub-blog-manager-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000b3',
+  },
+  // Feature 016 — Content Manager (blog + cms permissions).
+  'stub-content-manager-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000b4',
+  },
 };
 
 declare module 'fastify' {

@@ -50,6 +50,14 @@ interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
+  /**
+   * Optional permission code that gates the entry's visibility. When
+   * unset, the entry renders for every authenticated admin. When set,
+   * the entry is hidden unless `useAuth().hasPermission(code)` returns
+   * true (the wildcard `*` permission held by `platform_admin`
+   * satisfies every code).
+   */
+  requiredPermission?: string;
 }
 
 interface NavSection {
@@ -121,11 +129,14 @@ const NAV: NavSection[] = [
     label: 'Channels',
     items: [
       { to: '/sales-channels', label: 'Sales channels', icon: Store },
-      { to: '/cms/pages', label: 'CMS Pages', icon: Newspaper },
-      { to: '/cms/blocks', label: 'CMS Blocks', icon: Newspaper },
-      { to: '/cms/templates', label: 'CMS Templates', icon: Newspaper },
-      { to: '/cms/hooks', label: 'CMS Hooks', icon: Webhook },
+      { to: '/cms/pages', label: 'CMS Pages', icon: Newspaper, requiredPermission: 'cms.read' },
+      { to: '/cms/blocks', label: 'CMS Blocks', icon: Newspaper, requiredPermission: 'cms.read' },
+      { to: '/cms/templates', label: 'CMS Templates', icon: Newspaper, requiredPermission: 'cms.read' },
+      { to: '/cms/hooks', label: 'CMS Hooks', icon: Webhook, requiredPermission: 'cms.read' },
       { to: '/megamenu', label: 'Megamenu', icon: Newspaper },
+      { to: '/blog/posts', label: 'Blog Posts', icon: Newspaper, requiredPermission: 'blog.read' },
+      { to: '/blog/categories', label: 'Blog Categories', icon: Newspaper, requiredPermission: 'blog.read' },
+      { to: '/blog/tags', label: 'Blog Tags', icon: Newspaper, requiredPermission: 'blog.read' },
       { to: '/i18n', label: 'Languages', icon: Languages },
       { to: '/seo', label: 'SEO', icon: Search },
     ],
@@ -445,7 +456,7 @@ const PALETTE_ITEMS: PaletteItem[] = [
 ];
 
 export function AppShell(): ReactNode {
-  const { me, logout } = useAuth();
+  const { me, logout, hasPermission } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Set<string>>(() => loadCollapsed());
@@ -508,6 +519,14 @@ export function AppShell(): ReactNode {
         <nav className="b2b-sidebar__nav">
           {NAV.map((section) => {
             const isOpen = !collapsed.has(section.key);
+            // Permission-gate every entry. Sections with no remaining
+            // visible items fold away entirely so the sidebar stays
+            // readable for restricted admins.
+            const visibleItems = section.items.filter(
+              (item) =>
+                !item.requiredPermission || hasPermission(item.requiredPermission),
+            );
+            if (visibleItems.length === 0) return null;
             return (
               <div
                 key={section.key}
@@ -527,7 +546,7 @@ export function AppShell(): ReactNode {
                   </button>
                 ) : null}
                 <div className="b2b-sidebar__items">
-                  {section.items.map((item) => {
+                  {visibleItems.map((item) => {
                     const Icon = item.icon;
                     // Force exact-match (`end`) when another item in the same
                     // section nests under this item's path. Without this, a

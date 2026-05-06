@@ -27,6 +27,7 @@ import { cmsModule } from '../../src/modules/cms/plugin.js';
 import { megamenuModule } from '../../src/modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from '../../src/modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from '../../src/modules/megamenu/services/cms-references.js';
+import { blogModule } from '../../src/modules/blog/plugin.js';
 import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
 import { taxesModule } from '../../src/modules/taxes/plugin.js';
 import { promotionsModule } from '../../src/modules/promotions/plugin.js';
@@ -42,6 +43,7 @@ import { inventoryManifest } from '../../src/modules/inventory/manifest.js';
 import { priceListsManifest } from '../../src/modules/price_lists/manifest.js';
 import { assetsLibraryModule } from '../../src/modules/assets_library/plugin.js';
 import { assetsLibraryManifest } from '../../src/modules/assets_library/manifest.js';
+import { blogManifest } from '../../src/modules/blog/manifest.js';
 import { registerCatalogAssetReferences } from '../../src/modules/catalog/services/asset-references.js';
 import { registerCmsAssetReferences } from '../../src/modules/cms/services/asset-references.js';
 import { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
@@ -105,6 +107,8 @@ export interface BackendServerHandle {
   cms: ReturnType<typeof cmsModule>['handle'];
   /** Feature 015 — Megamenu module handle (reference registry, cache). */
   megamenu: ReturnType<typeof megamenuModule>['handle'];
+  /** Feature 016 — Blog module handle (cache, settings resolver, reconcile). */
+  blog: ReturnType<typeof blogModule>['handle'];
 }
 
 const SEEDED_TABLES = [
@@ -115,6 +119,19 @@ const SEEDED_TABLES = [
   'taxes',
   'promotions',
   'cms_pages',
+  // Feature 016 — blog. Truncate before sales_channels so the scope
+  // rows cascade deterministically.
+  'blog_post_related_products',
+  'blog_post_related_posts',
+  'blog_post_tags',
+  'blog_post_categories',
+  'blog_post_languages',
+  'blog_post_sales_channels',
+  'blog_posts',
+  'blog_category_languages',
+  'blog_category_sales_channels',
+  'blog_categories',
+  'blog_tags',
   // Feature 015 — megamenu. Truncate before sales_channels so the
   // bindings cascade is deterministic.
   'megamenu_bindings',
@@ -557,6 +574,24 @@ export async function setupBackendServer(
   registerMegamenuCmsReferences(cms.handle.referenceRegistry, megamenu.handle.referenceRegistry);
   if (megamenu.handle.cache) await megamenu.handle.cache.invalidateAll();
 
+  // Feature 016 — Blog module. Wires the cache + settings resolver +
+  // asset-reference descriptors. Plugin runs the seed reconcilers
+  // (Default Category + Blog Manager + Content Manager) on first
+  // registration so contract tests start in a usable state.
+  const blog = blogModule({
+    emFactory: em,
+    requireAdmin: requireTestAdmin(permissionService),
+    redis,
+    eventBus,
+    settings: {
+      get: (code, salesChannelId, schema) =>
+        settings.handle.settingsService.get(code, salesChannelId, schema),
+    },
+    assetReferenceRegistry: assetsLibrary.handle.referenceRegistry,
+  });
+  modules.push(blog.plugin);
+  if (blog.handle.cache) await blog.handle.cache.invalidateAll();
+
   // Feature 006 — Search module. Owns the Meilisearch indexer + event
   // subscriber lifecycle. Wires the same settings-aware path the
   // production composition uses so contract tests can exercise the
@@ -645,6 +680,7 @@ export async function setupBackendServer(
     inventoryManifest,
     priceListsManifest,
     assetsLibraryManifest,
+    blogManifest,
   ]);
 
   const app = await buildServer({
@@ -675,6 +711,7 @@ export async function setupBackendServer(
     assetsLibrary: assetsLibrary.handle,
     cms: cms.handle,
     megamenu: megamenu.handle,
+    blog: blog.handle,
   };
 }
 

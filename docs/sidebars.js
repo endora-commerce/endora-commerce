@@ -29,6 +29,12 @@ const sidebars = {
         'modules/assets',
         'modules/audit_logs',
         'modules/auth',
+        {
+          type: 'category',
+          label: 'Blog',
+          link: { type: 'doc', id: 'modules/blog/index' },
+          items: [],
+        },
         'modules/carts',
         {
           type: 'category',

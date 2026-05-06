@@ -123,6 +123,8 @@ export const PERMISSION_CATALOGUE = [
   { code: 'admin_users:manage', module: 'admin_users', label: 'Manage admin users + roles' },
   { code: 'credit_limits:manage', module: 'credit_limits', label: 'Grant + adjust credit limits' },
   { code: 'customers:manage', module: 'customers', label: 'Manage customer organizations' },
+  { code: 'blog.read', module: 'blog', label: 'View blog content' },
+  { code: 'blog.write', module: 'blog', label: 'Author + publish blog content' },
 ] as const;
 
 // --- Audit log --------------------------------------------------------------

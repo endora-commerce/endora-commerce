@@ -33,6 +33,8 @@ import { cmsModule } from './modules/cms/plugin.js';
 import { megamenuModule } from './modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
+import { blogModule } from './modules/blog/plugin.js';
+import { blogManifest } from './modules/blog/manifest.js';
 import { priceListsModule } from './modules/price_lists/plugin.js';
 import { taxesModule } from './modules/taxes/plugin.js';
 import { promotionsModule } from './modules/promotions/plugin.js';
@@ -501,6 +503,24 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // deletion via the CMS module's reference registry.
   registerMegamenuCmsReferences(cms.handle.referenceRegistry, megamenu.handle.referenceRegistry);
 
+  // Feature 016 — Blog module. Wires the cache + settings resolver +
+  // asset-reference descriptors. Real admin/storefront routes land in
+  // user-story phases (Phase 3+); the plugin currently runs the seed
+  // reconcilers (Default Category + Blog Manager + Content Manager) on
+  // first registration so the platform boots in a usable state.
+  const blog = blogModule({
+    emFactory: em,
+    requireAdmin,
+    redis,
+    eventBus,
+    settings: {
+      get: (code, salesChannelId, schema) =>
+        settings.handle.settingsService.get(code, salesChannelId, schema),
+    },
+    assetReferenceRegistry: assetsLibrary.handle.referenceRegistry,
+  });
+  modules.push(blog.plugin);
+
   // Feature 006 — Search module. Owns Meilisearch indexer + event-subscriber
   // lifecycle (R-3 — moved out of catalog). Settings-aware suggest config
   // resolution + LLM-toggle wrapper hook in via the same handle.
@@ -630,6 +650,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     inventoryManifest,
     priceListsManifest,
     assetsLibraryManifest,
+    blogManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();
