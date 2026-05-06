@@ -23,6 +23,7 @@ import { registerBlogAssetReferences } from './services/blog-asset-references.js
 import { seedDefaultCategory } from './services/seed-default-category.js';
 import { seedBlogRoles } from './services/seed-roles.js';
 import { registerBlogAdminRoutes } from './routes.admin.js';
+import { defineModuleRoutes } from '../_lifecycle/plugin-helpers.js';
 import { registerBlogStorefrontRoutes } from './routes.storefront.js';
 import type { AssetReferenceRegistry } from '../assets_library/services/reference-registry.js';
 
@@ -126,13 +127,24 @@ export function blogModule(options: BlogModuleOptions): {
 
   const plugin = async (app: FastifyInstance) => {
     await reconcile();
-    await registerBlogAdminRoutes(app, {
-      postService,
-      categoryService,
-      tagService,
-      ...(options.requireAdmin ? { requireAdmin: options.requireAdmin } : {}),
+    // Feature 018 smoke wiring — every blog route (admin + storefront)
+    // is gated by the `blog` module's enabled state. Disabling the
+    // module via `pnpm module:disable blog` makes these routes return
+    // 503 with `MODULE_DISABLED`; re-enabling restores them without a
+    // process restart.
+    const adminPlugin = defineModuleRoutes('blog', async (scoped) => {
+      await registerBlogAdminRoutes(scoped, {
+        postService,
+        categoryService,
+        tagService,
+        ...(options.requireAdmin ? { requireAdmin: options.requireAdmin } : {}),
+      });
     });
-    await registerBlogStorefrontRoutes(app, { storefrontResolver });
+    await adminPlugin(app);
+    const storefrontPlugin = defineModuleRoutes('blog', async (scoped) => {
+      await registerBlogStorefrontRoutes(scoped, { storefrontResolver });
+    });
+    await storefrontPlugin(app);
   };
 
   return { plugin, handle };

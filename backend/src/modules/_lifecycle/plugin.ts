@@ -16,6 +16,7 @@ import {
   registerLifecycleAdminRoutes,
   type RequireAdminFactory,
 } from './routes.admin.js';
+import { ModuleRegistration } from './entities/module-registration.entity.js';
 
 export interface LifecycleModuleDeps {
   orm: MikroORM;
@@ -57,6 +58,13 @@ export function lifecycleModule(deps: LifecycleModuleDeps): LifecycleModule {
   // Plugin warms the registry cache on first registration and registers
   // the read-only admin endpoint (US4 / contracts/admin-http.md E-1).
   const plugin: ModulePlugin = async (app) => {
+    // First-boot reconciler: existing modules that don't yet have a row
+    // in `module_registrations` get one with state='installed' so the
+    // request-time enabled-check returns true. Without this every
+    // pre-feature-018 deployment would 503 the moment defineModuleRoutes
+    // was wired into a module's routes file.
+    await reconcileExistingModules(deps.emFactory, deps.registry);
+
     await registryCache.start({
       redis: deps.redis,
       redisSubscriber: deps.redisSubscriber,
@@ -72,6 +80,42 @@ export function lifecycleModule(deps: LifecycleModuleDeps): LifecycleModule {
     handle: { orchestrator, registryCache, registry: deps.registry },
     plugin,
   };
+}
+
+/**
+ * First-boot reconciler — idempotent.
+ *
+ * For every manifest in the registry that has NO row in
+ * `module_registrations`, inserts one with `state='installed'`. This
+ * lets feature 018 land on a running platform without breaking the
+ * gating wrappers (defineModuleRoutes, defineModuleWorker,
+ * subscribeForModule) — pre-existing modules continue serving traffic
+ * because their auto-created row marks them installed-and-enabled.
+ *
+ * Modules added AFTER feature 018 ships go through the explicit
+ * `module:install <id>` flow.
+ */
+async function reconcileExistingModules(
+  emFactory: () => EntityManager,
+  registry: LoadedManifestRegistry,
+): Promise<void> {
+  const em = emFactory();
+  const existing = await em.find(ModuleRegistration, {});
+  const existingIds = new Set(existing.map((r) => r.moduleId));
+  const now = new Date();
+  for (const entry of registry.modules.values()) {
+    if (existingIds.has(entry.manifest.id)) continue;
+    em.create(ModuleRegistration, {
+      moduleId: entry.manifest.id,
+      state: 'installed',
+      version: entry.manifest.version,
+      installedAt: now,
+      lastStateChangeAt: now,
+      lastInstallFailedAt: null,
+      lastInstallError: null,
+    });
+  }
+  await em.flush();
 }
 
 /**
