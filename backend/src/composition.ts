@@ -512,6 +512,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     requireAdmin,
     redis,
+    eventBus,
     settings: {
       get: (code, salesChannelId, schema) =>
         settings.handle.settingsService.get(code, salesChannelId, schema),

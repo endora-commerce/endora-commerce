@@ -582,6 +582,7 @@ export async function setupBackendServer(
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
     redis,
+    eventBus,
     settings: {
       get: (code, salesChannelId, schema) =>
         settings.handle.settingsService.get(code, salesChannelId, schema),

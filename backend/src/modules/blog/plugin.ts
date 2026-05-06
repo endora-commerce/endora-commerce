@@ -7,6 +7,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
+import type { EventBus } from '../../events/bus.js';
 
 import { BlogCacheService, type BlogCacheOptions } from './services/blog-cache.js';
 import { BlogSettingsResolver, type SettingsServicePort } from './services/blog-settings-resolver.js';
@@ -40,6 +41,13 @@ export interface BlogModuleOptions {
   assetReferenceRegistry: AssetReferenceRegistry;
   /** Cross-module ports the storefront resolver delegates to (asset URL signing, product cards). */
   storefrontDeps?: BlogStorefrontDeps;
+  /**
+   * Optional EventBus. When supplied, the plugin subscribes to
+   * `settings.value_changed` and wipes the storefront blog cache when a
+   * `blog.*` setting changes (R9 — settings writes invalidate the
+   * affected channels' keyspace).
+   */
+  eventBus?: EventBus;
 }
 
 export interface BlogModuleHandle {
@@ -79,6 +87,17 @@ export function blogModule(options: BlogModuleOptions): {
   // Register the asset-reference descriptors immediately so the Library's
   // soft-delete path picks them up before any blog write happens.
   registerBlogAssetReferences(options.assetReferenceRegistry, options.emFactory);
+
+  // When a `blog.*` setting changes, wipe the storefront blog cache so
+  // the next read picks up the new value (R9).
+  if (options.eventBus && cache) {
+    options.eventBus.on('settings.value_changed', async (payload: unknown) => {
+      const code = (payload as { settingCode?: string } | null)?.settingCode;
+      if (code && code.startsWith('blog.')) {
+        await cache.invalidateAll();
+      }
+    });
+  }
 
   let reconciled = false;
   async function reconcile(): Promise<void> {
