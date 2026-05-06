@@ -1,4 +1,7 @@
-import { defineModuleSettingsManifest } from '@b2b/contracts';
+import {
+  defineModuleManifest,
+  defineModuleSettingsManifest,
+} from '@b2b/contracts';
 
 /**
  * Built-in settings manifest for the search module — feature 006.
@@ -30,7 +33,7 @@ export const SEARCH_SETTING_CODES = {
 export const DEFAULT_POPUP_SUGGESTION_COUNT = 8;
 export const DEFAULT_POPUP_MINIMUM_QUERY_LENGTH = 3;
 
-export const searchManifest = defineModuleSettingsManifest({
+const settings = defineModuleSettingsManifest({
   moduleCode: 'search',
   groups: [
     {
@@ -95,3 +98,17 @@ export const searchManifest = defineModuleSettingsManifest({
     },
   ],
 });
+
+/** Module-lifecycle manifest (feature 018). */
+export const manifest = defineModuleManifest({
+  id: 'search',
+  name: 'Search',
+  description:
+    'Per-channel Meilisearch indexes, suggest popup, and optional LLM-augmented search.',
+  version: '1.0.0',
+  dependencies: ['settings', 'sales_channels'],
+  settings,
+});
+
+/** Legacy export retained for backward compatibility. */
+export const searchManifest = settings;

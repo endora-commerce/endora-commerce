@@ -1,0 +1,810 @@
+import { readdirSync, existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
+import type Redis from 'ioredis';
+import type {
+  ModuleInstallHook,
+  ModuleUninstallHook,
+  RegistryState,
+  ModuleListItem,
+  ModuleListItemFlag,
+} from '@b2b/contracts';
+import { ManifestReconciler } from '../../settings/services/manifest-reconciler.js';
+import { Setting } from '../../settings/entities/setting.entity.js';
+import { SettingGroup } from '../../settings/entities/setting-group.entity.js';
+import { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import { ModuleRegistration } from '../entities/module-registration.entity.js';
+import {
+  acquireLifecycleLock,
+  type LifecycleLeaseHandle,
+} from './lock.js';
+import {
+  publishStateChanged,
+  registryCache,
+} from './registry-cache.js';
+import {
+  pauseWorkersFor,
+  resumeWorkersFor,
+} from '../plugin-helpers.js';
+import type { LoadedManifestRegistry } from './manifest-loader.js';
+
+// ---------------------------------------------------------------------------
+// Public types
+// ---------------------------------------------------------------------------
+
+export interface OrchestratorDeps {
+  orm: MikroORM;
+  redis: Redis;
+  em: () => EntityManager;
+  auditLog: AuditLogService;
+  /** The loaded manifest registry — built once at boot or per CLI run. */
+  registry: LoadedManifestRegistry;
+  /**
+   * Migrations directory; defaults to `<repo>/backend/src/db/migrations`.
+   * Tests can override to point at a fixture tree.
+   */
+  migrationsDir?: string;
+  /** Optional logger (Fastify request-logger compatible). Defaults to console. */
+  log?: {
+    info(msg: string): void;
+    warn(msg: string): void;
+    error(msg: string): void;
+  };
+}
+
+export interface InstallResult {
+  moduleId: string;
+  version: string;
+  state: 'installed' | 'already-installed';
+  appliedMigrations: string[];
+  settings: { addedGroups: number; addedSettings: number; updatedGroups: number; updatedSettings: number };
+  hookDurationMs: number;
+  totalDurationMs: number;
+}
+
+export interface UninstallResult {
+  moduleId: string;
+  hard: boolean;
+  state: 'uninstalled' | 'already-uninstalled';
+  removedSettings: number;
+  removedGroups: number;
+  revertedMigrations: string[];
+}
+
+export interface EnableResult {
+  moduleId: string;
+  state: 'installed' | 'already-enabled';
+}
+
+export interface DisableResult {
+  moduleId: string;
+  state: 'disabled' | 'already-disabled';
+  cascade: boolean;
+  cascaded: string[];
+}
+
+export class LifecycleError extends Error {
+  constructor(
+    public readonly kind:
+      | 'unknown-module'
+      | 'missing-deps'
+      | 'dependents-block'
+      | 'wrong-state'
+      | 'install-failed'
+      | 'uninstall-failed'
+      | 'manifest-cycle'
+      | 'lock-busy',
+    message: string,
+    public readonly details: Record<string, unknown> = {},
+  ) {
+    super(message);
+    this.name = 'LifecycleError';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Orchestrator
+// ---------------------------------------------------------------------------
+
+export class ModuleLifecycleOrchestrator {
+  private readonly log: NonNullable<OrchestratorDeps['log']>;
+  private readonly migrationsDir: string;
+
+  constructor(private readonly deps: OrchestratorDeps) {
+    this.log = deps.log ?? consoleLogger();
+    this.migrationsDir = deps.migrationsDir ?? defaultMigrationsDir();
+  }
+
+  // -------------------------------------------------------------------------
+  // INSTALL
+  // -------------------------------------------------------------------------
+
+  async install(moduleId: string): Promise<InstallResult> {
+    const start = Date.now();
+    const entry = this.deps.registry.modules.get(moduleId);
+    if (!entry) {
+      throw new LifecycleError('unknown-module', `unknown module "${moduleId}"`);
+    }
+    const manifest = entry.manifest;
+
+    const lease = await this.acquireLock();
+    try {
+      // Read existing registration row.
+      const existing = await this.deps.em().findOne(ModuleRegistration, {
+        moduleId,
+      });
+      if (existing?.state === 'installed') {
+        return {
+          moduleId,
+          version: existing.version,
+          state: 'already-installed',
+          appliedMigrations: [],
+          settings: { addedGroups: 0, addedSettings: 0, updatedGroups: 0, updatedSettings: 0 },
+          hookDurationMs: 0,
+          totalDurationMs: Date.now() - start,
+        };
+      }
+      if (existing?.state === 'disabled') {
+        throw new LifecycleError(
+          'wrong-state',
+          `module "${moduleId}" is installed but disabled; use module:enable`,
+          { state: existing.state },
+        );
+      }
+      if (existing?.state === 'installing') {
+        throw new LifecycleError(
+          'lock-busy',
+          `module "${moduleId}" has a stale 'installing' record; see runbook`,
+        );
+      }
+
+      // Verify deps are installed (or disabled — they're still "installed" semantically).
+      const installedSet = await this.installedSet();
+      const missing = this.deps.registry.graph.unresolvedDependenciesOf(
+        moduleId,
+        installedSet,
+      );
+      if (missing.length > 0) {
+        await this.deps.auditLog.record({
+          actorAdminUserId: null,
+          action: 'module.dependency_blocked',
+          objectType: 'module',
+          objectId: moduleId,
+          stateAfter: { command: 'install', conflicting: missing },
+        });
+        throw new LifecycleError(
+          'missing-deps',
+          `module "${moduleId}" missing dependencies: ${missing.join(', ')}`,
+          { missing },
+        );
+      }
+
+      // Mark 'installing' so a crash leaves a paper trail.
+      await this.upsertRegistration(moduleId, {
+        state: 'installing',
+        version: manifest.version,
+        installedAt: existing?.installedAt ?? new Date(),
+        lastStateChangeAt: new Date(),
+        lastInstallFailedAt: null,
+        lastInstallError: null,
+      });
+
+      let appliedMigrations: string[] = [];
+      let settingsResult = { addedGroups: 0, addedSettings: 0, updatedGroups: 0, updatedSettings: 0 };
+      let hookDurationMs = 0;
+
+      try {
+        // 1. Migrations — run all pending. Per research §R3, on a single
+        //    instance migrations are global (linear log); installing a
+        //    module's migrations also runs any prior pending ones, which is
+        //    the expected outcome.
+        const migrator = this.deps.orm.getMigrator();
+        const pendingBefore = await migrator.getPendingMigrations();
+        if (pendingBefore.length > 0) {
+          const applied = await migrator.up();
+          appliedMigrations = applied.map((m) => m.name);
+        }
+
+        // 2. Settings — reuse feature 004's reconciler.
+        if (manifest.settings) {
+          const reconciler = new ManifestReconciler(this.deps.em());
+          const result = await reconciler.apply([manifest.settings]);
+          const r = result.perModule[0];
+          if (r) {
+            settingsResult = {
+              addedGroups: r.addedGroups,
+              addedSettings: r.addedSettings,
+              updatedGroups: r.updatedGroups,
+              updatedSettings: r.updatedSettings,
+            };
+          }
+        }
+
+        // 3. Install hook — runs inside the same em context.
+        if (entry.installHook) {
+          const hookStart = Date.now();
+          await (entry.installHook as ModuleInstallHook<EntityManager, Redis>)({
+            em: this.deps.em(),
+            redis: this.deps.redis,
+            log: this.log,
+            module: { id: manifest.id, version: manifest.version },
+          });
+          hookDurationMs = Date.now() - hookStart;
+        }
+
+        // 4. Mark installed.
+        await this.upsertRegistration(moduleId, {
+          state: 'installed',
+          version: manifest.version,
+          lastStateChangeAt: new Date(),
+        });
+      } catch (err) {
+        // Rollback path: revert any migrations we just applied (in reverse).
+        for (const name of [...appliedMigrations].reverse()) {
+          try {
+            await this.deps.orm.getMigrator().down({ migrations: [name] });
+          } catch (revertErr) {
+            this.log.error(
+              `[install-rollback] failed to revert migration ${name}: ` +
+                (revertErr instanceof Error ? revertErr.message : String(revertErr)),
+            );
+            break;
+          }
+        }
+        // Mark the registry as failed-uninstalled so a re-run is allowed.
+        await this.upsertRegistration(moduleId, {
+          state: 'uninstalled',
+          lastInstallFailedAt: new Date(),
+          lastInstallError:
+            err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+          lastStateChangeAt: new Date(),
+        });
+        await this.deps.auditLog.record({
+          actorAdminUserId: null,
+          action: 'module.install_failed',
+          objectType: 'module',
+          objectId: moduleId,
+          stateAfter: {
+            version: manifest.version,
+            error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+          },
+        });
+        throw new LifecycleError(
+          'install-failed',
+          `install of "${moduleId}" failed: ` +
+            (err instanceof Error ? err.message : String(err)),
+          {
+            cause: err instanceof Error ? err.message : String(err),
+            revertedMigrations: appliedMigrations,
+          },
+        );
+      }
+
+      // Audit + pub/sub on the success path.
+      await this.deps.auditLog.record({
+        actorAdminUserId: null,
+        action: 'module.installed',
+        objectType: 'module',
+        objectId: moduleId,
+        stateAfter: {
+          version: manifest.version,
+          settings: settingsResult,
+          hooks: entry.installHook ? ['install'] : [],
+          migrations: appliedMigrations,
+        },
+      });
+      await publishStateChanged(this.deps.redis, {
+        moduleId,
+        newState: 'installed',
+      });
+      // Update the in-process cache immediately so the same process sees
+      // the change without waiting for the pub/sub round-trip.
+      await registryCache.refreshFromDb(this.deps.em);
+
+      return {
+        moduleId,
+        version: manifest.version,
+        state: 'installed',
+        appliedMigrations,
+        settings: settingsResult,
+        hookDurationMs,
+        totalDurationMs: Date.now() - start,
+      };
+    } finally {
+      await lease.release();
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // UNINSTALL (soft + hard)
+  // -------------------------------------------------------------------------
+
+  async uninstall(
+    moduleId: string,
+    opts: { hard: boolean } = { hard: false },
+  ): Promise<UninstallResult> {
+    const entry = this.deps.registry.modules.get(moduleId);
+    // unknown-module is OK for uninstall — the registry might have an
+    // orphan row we want to clean up. Use whatever we know.
+    const manifest = entry?.manifest ?? null;
+
+    const lease = await this.acquireLock();
+    try {
+      const row = await this.deps.em().findOne(ModuleRegistration, {
+        moduleId,
+      });
+      if (!row || row.state === 'uninstalled') {
+        return {
+          moduleId,
+          hard: opts.hard,
+          state: 'already-uninstalled',
+          removedSettings: 0,
+          removedGroups: 0,
+          revertedMigrations: [],
+        };
+      }
+      if (row.state === 'installing') {
+        throw new LifecycleError(
+          'lock-busy',
+          `module "${moduleId}" has a stale 'installing' record; see runbook`,
+        );
+      }
+
+      // Block on dependents (any state except uninstalled).
+      const dependents = await this.installedDependentsOf(moduleId);
+      if (dependents.length > 0) {
+        await this.deps.auditLog.record({
+          actorAdminUserId: null,
+          action: 'module.dependency_blocked',
+          objectType: 'module',
+          objectId: moduleId,
+          stateAfter: { command: 'uninstall', conflicting: dependents },
+        });
+        throw new LifecycleError(
+          'dependents-block',
+          `cannot uninstall "${moduleId}": other modules depend on it: ${dependents.join(', ')}`,
+          { dependents },
+        );
+      }
+
+      // Run uninstall hook (may fail; log but continue removal of state).
+      if (entry?.uninstallHook) {
+        try {
+          await (entry.uninstallHook as ModuleUninstallHook<EntityManager, Redis>)({
+            em: this.deps.em(),
+            redis: this.deps.redis,
+            log: this.log,
+            module: {
+              id: moduleId,
+              version: manifest?.version ?? row.version,
+            },
+            hard: opts.hard,
+          });
+        } catch (err) {
+          this.log.error(
+            `[uninstall] hook for "${moduleId}" threw: ` +
+              (err instanceof Error ? err.message : String(err)),
+          );
+          throw new LifecycleError(
+            'uninstall-failed',
+            `uninstall hook for "${moduleId}" failed: ` +
+              (err instanceof Error ? err.message : String(err)),
+          );
+        }
+      }
+
+      // Unregister settings (always — soft and hard both clear settings).
+      const em = this.deps.em();
+      const ownedSettings = await em.find(Setting, { ownerModule: moduleId });
+      for (const s of ownedSettings) em.remove(s);
+      const ownedGroups = await em.find(SettingGroup, {
+        ownerModule: moduleId,
+        isSystemProtected: false,
+      });
+      for (const g of ownedGroups) em.remove(g);
+      await em.flush();
+
+      let revertedMigrations: string[] = [];
+      if (opts.hard) {
+        revertedMigrations = await this.revertMigrationsFor(moduleId);
+        // Hard uninstall deletes the row; soft preserves it as 'uninstalled'.
+        await em.removeAndFlush(row);
+      } else {
+        row.state = 'uninstalled';
+        row.lastStateChangeAt = new Date();
+        await em.flush();
+      }
+
+      await this.deps.auditLog.record({
+        actorAdminUserId: null,
+        action: 'module.uninstalled',
+        objectType: 'module',
+        objectId: moduleId,
+        stateAfter: {
+          hard: opts.hard,
+          settings: {
+            removedSettings: ownedSettings.length,
+            removedGroups: ownedGroups.length,
+          },
+          revertedMigrations,
+          hooks: entry?.uninstallHook ? ['uninstall'] : [],
+        },
+      });
+      await publishStateChanged(this.deps.redis, {
+        moduleId,
+        newState: 'uninstalled',
+      });
+      await registryCache.refreshFromDb(this.deps.em);
+
+      return {
+        moduleId,
+        hard: opts.hard,
+        state: 'uninstalled',
+        removedSettings: ownedSettings.length,
+        removedGroups: ownedGroups.length,
+        revertedMigrations,
+      };
+    } finally {
+      await lease.release();
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // ENABLE / DISABLE
+  // -------------------------------------------------------------------------
+
+  async enable(moduleId: string): Promise<EnableResult> {
+    const entry = this.deps.registry.modules.get(moduleId);
+    if (!entry) {
+      throw new LifecycleError('unknown-module', `unknown module "${moduleId}"`);
+    }
+    const lease = await this.acquireLock();
+    try {
+      const row = await this.deps.em().findOne(ModuleRegistration, {
+        moduleId,
+      });
+      if (!row || row.state === 'uninstalled' || row.state === 'installing') {
+        throw new LifecycleError(
+          'wrong-state',
+          `module "${moduleId}" is not installed (state=${row?.state ?? 'none'})`,
+        );
+      }
+      if (row.state === 'installed') {
+        return { moduleId, state: 'already-enabled' };
+      }
+      // state === 'disabled' — verify deps are enabled.
+      const enabledSet = await this.installedSet();
+      const missing = this.deps.registry.graph.unresolvedDependenciesOf(
+        moduleId,
+        enabledSet,
+      );
+      if (missing.length > 0) {
+        throw new LifecycleError(
+          'missing-deps',
+          `cannot enable "${moduleId}": dependencies not enabled: ${missing.join(', ')}`,
+          { missing },
+        );
+      }
+      row.state = 'installed';
+      row.lastStateChangeAt = new Date();
+      await this.deps.em().flush();
+      await this.deps.auditLog.record({
+        actorAdminUserId: null,
+        action: 'module.enabled',
+        objectType: 'module',
+        objectId: moduleId,
+        stateAfter: { version: row.version },
+      });
+      await publishStateChanged(this.deps.redis, { moduleId, newState: 'installed' });
+      await registryCache.refreshFromDb(this.deps.em);
+      await resumeWorkersFor(moduleId);
+      return { moduleId, state: 'installed' };
+    } finally {
+      await lease.release();
+    }
+  }
+
+  async disable(
+    moduleId: string,
+    opts: { cascade: boolean } = { cascade: false },
+  ): Promise<DisableResult> {
+    const entry = this.deps.registry.modules.get(moduleId);
+    if (!entry) {
+      throw new LifecycleError('unknown-module', `unknown module "${moduleId}"`);
+    }
+    const lease = await this.acquireLock();
+    try {
+      const row = await this.deps.em().findOne(ModuleRegistration, {
+        moduleId,
+      });
+      if (!row || row.state === 'uninstalled' || row.state === 'installing') {
+        throw new LifecycleError(
+          'wrong-state',
+          `module "${moduleId}" is not installed (state=${row?.state ?? 'none'})`,
+        );
+      }
+      if (row.state === 'disabled') {
+        return { moduleId, state: 'already-disabled', cascade: false, cascaded: [] };
+      }
+
+      // Find currently-enabled dependents.
+      const directDependents = this.deps.registry.graph.dependentsOf(moduleId);
+      const em = this.deps.em();
+      const dependentRows = await em.find(ModuleRegistration, {
+        moduleId: { $in: directDependents },
+        state: 'installed',
+      });
+      const enabledDependents = dependentRows.map((r) => r.moduleId);
+
+      const cascaded: string[] = [];
+      if (enabledDependents.length > 0) {
+        if (!opts.cascade) {
+          await this.deps.auditLog.record({
+            actorAdminUserId: null,
+            action: 'module.dependency_blocked',
+            objectType: 'module',
+            objectId: moduleId,
+            stateAfter: { command: 'disable', conflicting: enabledDependents },
+          });
+          throw new LifecycleError(
+            'dependents-block',
+            `cannot disable "${moduleId}": dependent enabled modules: ${enabledDependents.join(', ')}`,
+            { dependents: enabledDependents },
+          );
+        }
+        // Cascade: disable transitive dependents in reverse-topo order, then this one.
+        const transitive = this.deps.registry.graph.transitiveDependentsOf(moduleId);
+        // Filter to those currently enabled.
+        const transitiveRows = await em.find(ModuleRegistration, {
+          moduleId: { $in: transitive },
+          state: 'installed',
+        });
+        const enabledTransitive = new Set(transitiveRows.map((r) => r.moduleId));
+        const order = this.deps.registry.graph
+          .reverseTopologicalOrder()
+          .filter((id) => enabledTransitive.has(id));
+        for (const dep of order) {
+          const depRow = await em.findOne(ModuleRegistration, { moduleId: dep });
+          if (!depRow || depRow.state !== 'installed') continue;
+          depRow.state = 'disabled';
+          depRow.lastStateChangeAt = new Date();
+          await em.flush();
+          cascaded.push(dep);
+          await pauseWorkersFor(dep);
+          await this.deps.auditLog.record({
+            actorAdminUserId: null,
+            action: 'module.disabled',
+            objectType: 'module',
+            objectId: dep,
+            stateAfter: { version: depRow.version, cascade: true, cascaded: [] },
+          });
+          await publishStateChanged(this.deps.redis, { moduleId: dep, newState: 'disabled' });
+        }
+      }
+
+      // Disable the target itself.
+      row.state = 'disabled';
+      row.lastStateChangeAt = new Date();
+      await em.flush();
+      await pauseWorkersFor(moduleId);
+      await this.deps.auditLog.record({
+        actorAdminUserId: null,
+        action: 'module.disabled',
+        objectType: 'module',
+        objectId: moduleId,
+        stateAfter: {
+          version: row.version,
+          cascade: opts.cascade,
+          cascaded,
+        },
+      });
+      await publishStateChanged(this.deps.redis, { moduleId, newState: 'disabled' });
+      await registryCache.refreshFromDb(this.deps.em);
+
+      return { moduleId, state: 'disabled', cascade: opts.cascade, cascaded };
+    } finally {
+      await lease.release();
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // STATUS
+  // -------------------------------------------------------------------------
+
+  async status(): Promise<ModuleListItem[]> {
+    const rows = await this.deps.em().find(ModuleRegistration, {});
+    const byId = new Map(rows.map((r) => [r.moduleId, r]));
+    const out: ModuleListItem[] = [];
+
+    const enabledSet = await this.installedSet();
+    const seen = new Set<string>();
+
+    for (const [id, entry] of this.deps.registry.modules) {
+      seen.add(id);
+      const row = byId.get(id);
+      const flags: ModuleListItemFlag[] = [];
+      if (row && entry.manifest.version !== row.version) {
+        flags.push('pending-upgrade');
+      }
+      const missing = this.deps.registry.graph.unresolvedDependenciesOf(
+        id,
+        new Set([...byId.entries()].filter(([, r]) => r.state !== 'uninstalled').map(([k]) => k)),
+      );
+      if (missing.length > 0) flags.push('dep-missing');
+      if (row?.state === 'installed') {
+        const depDisabled = entry.manifest.dependencies.some((d) => !enabledSet.has(d));
+        if (depDisabled) flags.push('dep-disabled');
+      }
+      out.push({
+        id,
+        name: entry.manifest.name,
+        description: entry.manifest.description ?? null,
+        version: {
+          registered: row?.version ?? null,
+          onDisk: entry.manifest.version,
+        },
+        state: (row?.state ?? 'not-installed') as ModuleListItem['state'],
+        dependencies: entry.manifest.dependencies,
+        flags,
+        license: entry.manifest.license ?? null,
+        installedAt: row?.installedAt.toISOString() ?? null,
+        lastStateChangeAt: row?.lastStateChangeAt.toISOString() ?? null,
+      });
+    }
+
+    // Orphan rows: registry has it but no manifest on disk.
+    for (const [id, row] of byId) {
+      if (seen.has(id)) continue;
+      out.push({
+        id,
+        name: id,
+        description: null,
+        version: {
+          registered: row.version,
+          onDisk: null,
+        },
+        state: row.state as ModuleListItem['state'],
+        dependencies: [],
+        flags: ['orphan'],
+        license: null,
+        installedAt: row.installedAt.toISOString(),
+        lastStateChangeAt: row.lastStateChangeAt.toISOString(),
+      });
+    }
+
+    out.sort((a, b) => a.id.localeCompare(b.id));
+    return out;
+  }
+
+  // -------------------------------------------------------------------------
+  // Internals
+  // -------------------------------------------------------------------------
+
+  private async acquireLock(): Promise<LifecycleLeaseHandle> {
+    try {
+      return await acquireLifecycleLock(this.deps.redis);
+    } catch (err) {
+      throw new LifecycleError(
+        'lock-busy',
+        `lifecycle lock is held by another process; retry shortly`,
+        { cause: err instanceof Error ? err.message : String(err) },
+      );
+    }
+  }
+
+  private async upsertRegistration(
+    moduleId: string,
+    patch: Partial<{
+      state: RegistryState;
+      version: string;
+      installedAt: Date;
+      lastStateChangeAt: Date;
+      lastInstallFailedAt: Date | null;
+      lastInstallError: string | null;
+    }>,
+  ): Promise<void> {
+    const em = this.deps.em();
+    const row = await em.findOne(ModuleRegistration, { moduleId });
+    if (row) {
+      Object.assign(row, patch);
+      await em.flush();
+      return;
+    }
+    const created = em.create(ModuleRegistration, {
+      moduleId,
+      state: patch.state ?? 'installing',
+      version: patch.version ?? '0.0.0',
+      installedAt: patch.installedAt ?? new Date(),
+      lastStateChangeAt: patch.lastStateChangeAt ?? new Date(),
+      lastInstallFailedAt: patch.lastInstallFailedAt ?? null,
+      lastInstallError: patch.lastInstallError ?? null,
+    });
+    await em.persistAndFlush(created);
+  }
+
+  /** Set of moduleIds whose state is 'installed' OR 'disabled' (i.e. present, not removed). */
+  private async installedSet(): Promise<Set<string>> {
+    const rows = await this.deps.em().find(ModuleRegistration, {
+      state: { $in: ['installed', 'disabled'] },
+    });
+    return new Set(rows.map((r) => r.moduleId));
+  }
+
+  private async installedDependentsOf(moduleId: string): Promise<string[]> {
+    const rows = await this.deps.em().find(ModuleRegistration, {
+      state: { $in: ['installed', 'disabled'] },
+    });
+    const installed = new Set(rows.map((r) => r.moduleId));
+    return this.deps.registry.graph
+      .dependentsOf(moduleId)
+      .filter((id) => installed.has(id));
+  }
+
+  /**
+   * Revert migrations whose filename matches `^\d+_<id>_` in reverse order.
+   * Best-effort: modules that don't follow the convention will produce no
+   * matches and the orchestrator will log a warning instead of failing.
+   */
+  private async revertMigrationsFor(moduleId: string): Promise<string[]> {
+    if (!existsSync(this.migrationsDir)) return [];
+    const files = readdirSync(this.migrationsDir)
+      .filter((f) => /\.[jt]s$/.test(f))
+      .filter((f) => new RegExp(`^\\d+_${escapeRegex(moduleId)}_`).test(f))
+      .sort()
+      .reverse();
+    if (files.length === 0) {
+      this.log.warn(
+        `[uninstall] no migrations match filename pattern for "${moduleId}"; ` +
+          `skipping migration revert. Hard-uninstall relies on the uninstall hook.`,
+      );
+      return [];
+    }
+    const migrator = this.deps.orm.getMigrator();
+    const reverted: string[] = [];
+    for (const file of files) {
+      // Migrator class name is derived from filename — strip extension and
+      // prefix with `Migration`. We pass the file's basename without ext
+      // because MikroORM matches on the migration name (not class name).
+      const name = file.replace(/\.[jt]s$/, '');
+      try {
+        const result = await migrator.down({ migrations: [name] });
+        for (const m of result) reverted.push(m.name);
+      } catch (err) {
+        this.log.warn(
+          `[uninstall] failed to revert migration ${name}: ` +
+            (err instanceof Error ? err.message : String(err)),
+        );
+        // Stop reverting further migrations to avoid making the gap worse.
+        break;
+      }
+    }
+    return reverted;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// helpers
+// ---------------------------------------------------------------------------
+
+function consoleLogger(): NonNullable<OrchestratorDeps['log']> {
+  return {
+    info: (m) => console.log(m),
+    warn: (m) => console.warn(m),
+    error: (m) => console.error(m),
+  };
+}
+
+function defaultMigrationsDir(): string {
+  // Resolve relative to this source file. In dev/test (tsx + vitest) this
+  // points at `backend/src/db/migrations`; in compiled prod (`dist/`) it
+  // points at `dist/db/migrations` — same convention as MikroORM config.
+  return resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    '../../../db/migrations',
+  );
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}

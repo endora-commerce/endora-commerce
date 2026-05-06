@@ -1,4 +1,7 @@
-import { defineModuleSettingsManifest } from '@b2b/contracts';
+import {
+  defineModuleManifest,
+  defineModuleSettingsManifest,
+} from '@b2b/contracts';
 
 /**
  * Built-in settings manifest for the comparisons module — feature 007.
@@ -16,7 +19,7 @@ export const COMPARE_SETTING_CODES = {
 
 export const DEFAULT_COMPARE_MAX_PRODUCTS = 4;
 
-export const comparisonsManifest = defineModuleSettingsManifest({
+const settings = defineModuleSettingsManifest({
   moduleCode: 'comparisons',
   groups: [
     {
@@ -36,3 +39,17 @@ export const comparisonsManifest = defineModuleSettingsManifest({
     },
   ],
 });
+
+/** Module-lifecycle manifest (feature 018). */
+export const manifest = defineModuleManifest({
+  id: 'comparisons',
+  name: 'Compare Products',
+  description:
+    'Customer-facing product comparison feature with shareable links and PDF export.',
+  version: '1.0.0',
+  dependencies: ['settings', 'catalog'],
+  settings,
+});
+
+/** Legacy export retained for backward compatibility. */
+export const comparisonsManifest = settings;

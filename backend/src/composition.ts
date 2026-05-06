@@ -54,6 +54,17 @@ import { inventoryManifest } from './modules/inventory/manifest.js';
 import { priceListsManifest } from './modules/price_lists/manifest.js';
 import { assetsLibraryManifest } from './modules/assets_library/manifest.js';
 import { assetsLibraryModule } from './modules/assets_library/plugin.js';
+import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
+import { manifest as lifecycleManifest } from './modules/_lifecycle/manifest.js';
+import { manifest as settingsLifecycleManifest } from './modules/settings/manifest.js';
+import { manifest as salesChannelsLifecycleManifest } from './modules/sales_channels/manifest.js';
+import { manifest as searchLifecycleManifest } from './modules/search/manifest.js';
+import { manifest as comparisonsLifecycleManifest } from './modules/comparisons/manifest.js';
+import { manifest as quoteRequestsLifecycleManifest } from './modules/quote_requests/manifest.js';
+import { manifest as inventoryLifecycleManifest } from './modules/inventory/manifest.js';
+import { manifest as priceListsLifecycleManifest } from './modules/price_lists/manifest.js';
+import { manifest as assetsLibraryLifecycleManifest } from './modules/assets_library/manifest.js';
+import { manifest as blogLifecycleManifest } from './modules/blog/manifest.js';
 import { registerCatalogAssetReferences } from './modules/catalog/services/asset-references.js';
 import { registerCmsAssetReferences } from './modules/cms/services/asset-references.js';
 import { WarehouseChannelReconciler } from './modules/inventory/services/warehouse-channel-reconciler.js';
@@ -89,6 +100,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
   const redis = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
+  // Feature 018 — separate ioredis client for the module-state pub/sub
+  // channel. ioredis multiplexes commands and subscriptions on different
+  // sockets, so we keep them on different clients to avoid the "subscribed
+  // mode" command restriction on the main client.
+  const redisSubscriber = new Redis(redisUrl, {
+    maxRetriesPerRequest: null,
+    lazyConnect: false,
+  });
 
   const sessionService = new SessionService(em, redis);
   const auditLogService = new AuditLogService(em);
@@ -666,6 +685,35 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     }),
   );
 
+  // Feature 018 — Module Lifecycle. Builds the static manifest registry
+  // from every module's `manifest` export, exposes the orchestrator handle,
+  // and starts the Redis-backed enabled-set cache (subscribes to the
+  // `b2b:module:state-changed` pub/sub channel). The plugin pushed below
+  // does the cache warming on first registration; the registry is built
+  // here so other module compositions could consult it.
+  const lifecycle = lifecycleModuleFromStaticEntries(
+    {
+      orm,
+      redis,
+      redisSubscriber,
+      emFactory: em,
+      auditLog: auditLogService,
+    },
+    [
+      { manifest: lifecycleManifest },
+      { manifest: settingsLifecycleManifest },
+      { manifest: salesChannelsLifecycleManifest },
+      { manifest: searchLifecycleManifest },
+      { manifest: comparisonsLifecycleManifest },
+      { manifest: quoteRequestsLifecycleManifest },
+      { manifest: inventoryLifecycleManifest },
+      { manifest: priceListsLifecycleManifest },
+      { manifest: assetsLibraryLifecycleManifest },
+      { manifest: blogLifecycleManifest },
+    ],
+  );
+  modules.push(lifecycle.plugin);
+
   // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every
   // module's settings manifest and inserts any missing groups/settings
   // idempotently before the HTTP layer starts serving requests. NEVER deletes
@@ -709,6 +757,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     modules,
     dispose: async () => {
       redis.disconnect();
+      redisSubscriber.disconnect();
       await closeOrm();
     },
   };

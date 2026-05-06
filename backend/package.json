@@ -28,7 +28,12 @@
     "search:reindex": "tsx src/modules/search/scripts/reindex.ts",
     "admin:create": "tsx src/modules/admin_users/scripts/create-admin.ts",
     "modules:install": "tsx src/modules/settings/scripts/modules-install.ts",
-    "modules:uninstall": "tsx src/modules/settings/scripts/modules-uninstall.ts"
+    "modules:uninstall": "tsx src/modules/settings/scripts/modules-uninstall.ts",
+    "module:install": "tsx src/modules/_lifecycle/scripts/install.ts",
+    "module:uninstall": "tsx src/modules/_lifecycle/scripts/uninstall.ts",
+    "module:enable": "tsx src/modules/_lifecycle/scripts/enable.ts",
+    "module:disable": "tsx src/modules/_lifecycle/scripts/disable.ts",
+    "module:status": "tsx src/modules/_lifecycle/scripts/status.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",

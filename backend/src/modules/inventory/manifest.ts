@@ -1,4 +1,7 @@
-import { defineModuleSettingsManifest } from '@b2b/contracts';
+import {
+  defineModuleManifest,
+  defineModuleSettingsManifest,
+} from '@b2b/contracts';
 
 /**
  * Settings manifest for the Inventory module — feature 010.
@@ -17,7 +20,7 @@ export const INVENTORY_SETTING_CODES = {
   LOW_STOCK_ALERT_RECIPIENT_EMAIL: 'inventory.low_stock_alert_recipient_email',
 } as const;
 
-export const inventoryManifest = defineModuleSettingsManifest({
+const settings = defineModuleSettingsManifest({
   moduleCode: 'inventory',
   groups: [{ code: 'inventory', name: 'Inventory' }],
   settings: [
@@ -82,3 +85,17 @@ export const inventoryManifest = defineModuleSettingsManifest({
     },
   ],
 });
+
+/** Module-lifecycle manifest (feature 018). */
+export const manifest = defineModuleManifest({
+  id: 'inventory',
+  name: 'Inventory',
+  description:
+    'Multi-warehouse stock levels, fulfilment strategy, and storefront display modes.',
+  version: '1.0.0',
+  dependencies: ['settings', 'sales_channels', 'dictionaries'],
+  settings,
+});
+
+/** Legacy export retained for backward compatibility. */
+export const inventoryManifest = settings;

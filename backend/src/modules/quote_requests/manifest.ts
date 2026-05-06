@@ -1,4 +1,7 @@
-import { defineModuleSettingsManifest } from '@b2b/contracts';
+import {
+  defineModuleManifest,
+  defineModuleSettingsManifest,
+} from '@b2b/contracts';
 
 /**
  * Settings manifest for the Quote Requests module — feature 008.
@@ -17,7 +20,7 @@ export const QUOTE_REQUESTS_SETTING_CODES = {
 
 export const DEFAULT_QUOTE_REQUESTS_EXPIRY_DAYS = 0;
 
-export const quoteRequestsManifest = defineModuleSettingsManifest({
+const settings = defineModuleSettingsManifest({
   moduleCode: 'quote_requests',
   groups: [
     {
@@ -53,3 +56,17 @@ export const quoteRequestsManifest = defineModuleSettingsManifest({
     },
   ],
 });
+
+/** Module-lifecycle manifest (feature 018). */
+export const manifest = defineModuleManifest({
+  id: 'quote_requests',
+  name: 'Quote Requests',
+  description:
+    'Customer-initiated RFQ workflow with admin pricing, approvals, and expiry.',
+  version: '1.0.0',
+  dependencies: ['settings', 'catalog'],
+  settings,
+});
+
+/** Legacy export retained for backward compatibility. */
+export const quoteRequestsManifest = settings;
