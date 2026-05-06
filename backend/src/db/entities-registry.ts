@@ -57,6 +57,17 @@ import { CmsHookBlockAttachment } from '../modules/cms/entities/cms-hook-block-a
 import { Megamenu } from '../modules/megamenu/entities/megamenu.entity.js';
 import { MegamenuItem } from '../modules/megamenu/entities/megamenu-item.entity.js';
 import { MegamenuBinding } from '../modules/megamenu/entities/megamenu-binding.entity.js';
+import { BlogCategory } from '../modules/blog/entities/blog-category.entity.js';
+import { BlogCategorySalesChannel } from '../modules/blog/entities/blog-category-sales-channel.entity.js';
+import { BlogCategoryLanguage } from '../modules/blog/entities/blog-category-language.entity.js';
+import { BlogPost } from '../modules/blog/entities/blog-post.entity.js';
+import { BlogPostSalesChannel } from '../modules/blog/entities/blog-post-sales-channel.entity.js';
+import { BlogPostLanguage } from '../modules/blog/entities/blog-post-language.entity.js';
+import { BlogPostCategory } from '../modules/blog/entities/blog-post-category.entity.js';
+import { BlogPostTag } from '../modules/blog/entities/blog-post-tag.entity.js';
+import { BlogPostRelatedPost } from '../modules/blog/entities/blog-post-related-post.entity.js';
+import { BlogPostRelatedProduct } from '../modules/blog/entities/blog-post-related-product.entity.js';
+import { BlogTag } from '../modules/blog/entities/blog-tag.entity.js';
 import { CustomerGroup } from '../modules/price_lists/entities/customer-group.entity.js';
 import { PriceList } from '../modules/price_lists/entities/price-list.entity.js';
 import { PriceListProduct } from '../modules/price_lists/entities/price-list-product.entity.js';
@@ -177,6 +188,18 @@ export const ALL_ENTITIES = [
   Megamenu,
   MegamenuItem,
   MegamenuBinding,
+  // blog (feature 016)
+  BlogCategory,
+  BlogCategorySalesChannel,
+  BlogCategoryLanguage,
+  BlogPost,
+  BlogPostSalesChannel,
+  BlogPostLanguage,
+  BlogPostCategory,
+  BlogPostTag,
+  BlogPostRelatedPost,
+  BlogPostRelatedProduct,
+  BlogTag,
   // pricing (Phase 4 polish / T127)
   CustomerGroup,
   PriceList,
