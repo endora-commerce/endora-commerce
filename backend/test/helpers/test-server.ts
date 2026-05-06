@@ -24,6 +24,9 @@ import { importExportModule } from '../../src/modules/import_export/plugin.js';
 import { seoModule } from '../../src/modules/seo/plugin.js';
 import { i18nModule } from '../../src/modules/languages/plugin.js';
 import { cmsModule } from '../../src/modules/cms/plugin.js';
+import { megamenuModule } from '../../src/modules/megamenu/plugin.js';
+import { registerMegamenuAssetReferences } from '../../src/modules/megamenu/services/asset-references.js';
+import { registerMegamenuCmsReferences } from '../../src/modules/megamenu/services/cms-references.js';
 import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
 import { taxesModule } from '../../src/modules/taxes/plugin.js';
 import { promotionsModule } from '../../src/modules/promotions/plugin.js';
@@ -100,6 +103,8 @@ export interface BackendServerHandle {
   assetsLibrary: ReturnType<typeof assetsLibraryModule>['handle'];
   /** Feature 014 — CMS module handle (page builder registry, services, resolver). */
   cms: ReturnType<typeof cmsModule>['handle'];
+  /** Feature 015 — Megamenu module handle (reference registry, cache). */
+  megamenu: ReturnType<typeof megamenuModule>['handle'];
 }
 
 const SEEDED_TABLES = [
@@ -110,6 +115,11 @@ const SEEDED_TABLES = [
   'taxes',
   'promotions',
   'cms_pages',
+  // Feature 015 — megamenu. Truncate before sales_channels so the
+  // bindings cascade is deterministic.
+  'megamenu_bindings',
+  'megamenu_items',
+  'megamenus',
   'analytics_events',
   'sitemap_cache',
   'seo_meta_overrides',
@@ -456,6 +466,96 @@ export async function setupBackendServer(
   modules.push(assetsLibrary.plugin);
   registerCatalogAssetReferences(assetsLibrary.handle.referenceRegistry, em);
   registerCmsAssetReferences(assetsLibrary.handle.referenceRegistry, em);
+  registerMegamenuAssetReferences(assetsLibrary.handle.referenceRegistry, em);
+
+  // Feature 015 — Megamenu module. Wires the cross-module ports the
+  // target validator + storefront resolver delegate to. v1 uses small
+  // direct SQL lookups instead of forcing new upstream surfaces.
+  const megamenu = megamenuModule({
+    emFactory: em,
+    requireAdmin: requireTestAdmin(permissionService),
+    redis,
+    validatorDeps: {
+      categoryExists: async (categoryId) => {
+        const rows = (await em().getConnection().execute(
+          'select 1 from categories where id = ? limit 1',
+          [categoryId],
+        )) as Array<{ '?column?': number }>;
+        return rows.length > 0;
+      },
+      cmsPageExists: async (pageId) => {
+        const rows = (await em().getConnection().execute(
+          'select 1 from cms_pages where id = ? limit 1',
+          [pageId],
+        )) as Array<{ '?column?': number }>;
+        return rows.length > 0;
+      },
+      cmsBlockExists: async (blockId) => {
+        const rows = (await em().getConnection().execute(
+          'select 1 from cms_blocks where id = ? limit 1',
+          [blockId],
+        )) as Array<{ '?column?': number }>;
+        return rows.length > 0;
+      },
+      assetIs: async (assetId, expected) => {
+        const rows = (await em().getConnection().execute(
+          'select 1 from assets where id = ? and kind = ? limit 1',
+          [assetId, expected],
+        )) as Array<{ '?column?': number }>;
+        return rows.length > 0;
+      },
+    },
+    storefrontDeps: {
+      resolveCategoryUrl: async (categoryId) => {
+        const rows = (await em().getConnection().execute(
+          'select slug from categories where id = ? limit 1',
+          [categoryId],
+        )) as Array<{ slug: string }>;
+        return rows[0]?.slug ? `/catalog/${rows[0].slug}` : null;
+      },
+      resolveCmsPageUrl: async (pageId) => {
+        const rows = (await em().getConnection().execute(
+          'select slug from cms_pages where id = ? limit 1',
+          [pageId],
+        )) as Array<{ slug: string }>;
+        return rows[0]?.slug ? `/${rows[0].slug}` : null;
+      },
+      resolveAsset: async (assetId) => {
+        const rows = (await em().getConnection().execute(
+          'select kind, label from assets where id = ? limit 1',
+          [assetId],
+        )) as Array<{ kind: string; label: string | null }>;
+        const row = rows[0];
+        if (!row) return null;
+        if (row.kind !== 'image' && row.kind !== 'video') return null;
+        const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
+        return { url: resolved.url, label: row.label, kind: row.kind };
+      },
+      resolveCmsBlock: async (blockId, language) => {
+        const rows = (await em().getConnection().execute(
+          'select id::text, code, content from cms_blocks where id = ? and active = true limit 1',
+          [blockId],
+        )) as Array<{
+          id: string;
+          code: string;
+          content: { schema_version?: number; languages?: Record<string, unknown> };
+        }>;
+        const row = rows[0];
+        if (!row) return null;
+        const data = row.content.languages?.[language];
+        if (data === undefined) return null;
+        return {
+          id: row.id,
+          code: row.code,
+          language,
+          content: { schemaVersion: row.content.schema_version ?? 1, data },
+        };
+      },
+    },
+  });
+  modules.push(megamenu.plugin);
+  registerMegamenuCmsReferences(cms.handle.referenceRegistry, megamenu.handle.referenceRegistry);
+  if (megamenu.handle.cache) await megamenu.handle.cache.invalidateAll();
 
   // Feature 006 — Search module. Owns the Meilisearch indexer + event
   // subscriber lifecycle. Wires the same settings-aware path the
@@ -574,6 +674,7 @@ export async function setupBackendServer(
     comparisons: comparisons.handle,
     assetsLibrary: assetsLibrary.handle,
     cms: cms.handle,
+    megamenu: megamenu.handle,
   };
 }
 

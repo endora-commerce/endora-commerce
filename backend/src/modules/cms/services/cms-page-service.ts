@@ -10,6 +10,7 @@ import {
 import { HttpError } from '../../../http/error-envelope.js';
 import { walkBlockEmbeds, walkUnknownComponents } from './content-tree-walker.js';
 import type { CmsCache } from './cms-cache.js';
+import type { CmsReferenceRegistry } from './cms-reference-registry.js';
 
 type PageRow = {
   id: string;
@@ -35,6 +36,7 @@ export class CmsPageService {
     private readonly emFactory: () => EntityManager,
     private readonly knownComponentNames: () => Iterable<string>,
     private readonly cache?: CmsCache,
+    private readonly references?: CmsReferenceRegistry,
   ) {}
 
   private async invalidateForPageId(pageId: string): Promise<void> {
@@ -253,6 +255,12 @@ export class CmsPageService {
   }
 
   async delete(id: string): Promise<void> {
+    if (this.references) {
+      const refs = await this.references.findPageReferences(id);
+      if (refs.length > 0) {
+        throw new HttpError(409, ERROR_CODES.CMS_REFERENCED, 'CMS Page is referenced.');
+      }
+    }
     await this.invalidateForPageId(id);
     await this.emFactory().getConnection().execute('delete from cms_pages where id = ?', [id]);
   }

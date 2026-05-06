@@ -177,7 +177,7 @@ export class CmsTemplateService {
   async delete(id: string): Promise<void> {
     const row = await this.findRow(id);
     if (!row) throw new HttpError(404, ERROR_CODES.CMS_TEMPLATE_NOT_FOUND, 'CMS Template not found.');
-    const refs = await this.references.findTemplateReferences(row.code);
+    const refs = await this.references.findTemplateReferences(row.id, row.code);
     if (refs.length > 0) {
       throw new HttpError(409, ERROR_CODES.CMS_REFERENCED, 'CMS Template is referenced.');
     }

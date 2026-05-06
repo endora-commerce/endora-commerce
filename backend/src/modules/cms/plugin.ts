@@ -109,6 +109,7 @@ export function cmsModule(options: CmsModuleOptions): {
     options.emFactory,
     () => pageBuilderRegistry.knownNames(),
     cache,
+    referenceRegistry,
   );
   const blockService = new CmsBlockService(
     options.emFactory,

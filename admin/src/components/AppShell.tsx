@@ -125,6 +125,7 @@ const NAV: NavSection[] = [
       { to: '/cms/blocks', label: 'CMS Blocks', icon: Newspaper },
       { to: '/cms/templates', label: 'CMS Templates', icon: Newspaper },
       { to: '/cms/hooks', label: 'CMS Hooks', icon: Webhook },
+      { to: '/megamenu', label: 'Megamenu', icon: Newspaper },
       { to: '/i18n', label: 'Languages', icon: Languages },
       { to: '/seo', label: 'SEO', icon: Search },
     ],
@@ -342,6 +343,15 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   { test: /^\/cms\/hooks\/?$/, build: () => [
     { label: 'Channels', href: '/sales-channels' },
     { label: 'CMS Hooks', href: null },
+  ] },
+  { test: /^\/megamenu\/?$/, build: () => [
+    { label: 'Channels', href: '/sales-channels' },
+    { label: 'Megamenu', href: null },
+  ] },
+  { test: /^\/megamenu\/[^/]+\/?$/, build: () => [
+    { label: 'Channels', href: '/sales-channels' },
+    { label: 'Megamenu', href: '/megamenu' },
+    { label: 'Editor', href: null },
   ] },
   { test: /^\/i18n\/?$/, build: () => [
     { label: 'Channels', href: '/sales-channels' },
