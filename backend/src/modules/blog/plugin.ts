@@ -10,6 +10,7 @@ import type Redis from 'ioredis';
 
 import { BlogCacheService, type BlogCacheOptions } from './services/blog-cache.js';
 import { BlogSettingsResolver, type SettingsServicePort } from './services/blog-settings-resolver.js';
+import { BlogCategoryService } from './services/blog-category-service.js';
 import { BlogPostService } from './services/blog-post-service.js';
 import { registerBlogAssetReferences } from './services/blog-asset-references.js';
 import { seedDefaultCategory } from './services/seed-default-category.js';
@@ -37,6 +38,7 @@ export interface BlogModuleHandle {
   cache: BlogCacheService | undefined;
   settingsResolver: BlogSettingsResolver;
   postService: BlogPostService;
+  categoryService: BlogCategoryService;
   /**
    * Run the boot reconcilers (Default Category + seeded roles). Called
    * at plugin startup. Returning the result lets tests inspect what was
@@ -55,6 +57,7 @@ export function blogModule(options: BlogModuleOptions): {
 
   const settingsResolver = new BlogSettingsResolver(options.settings);
   const postService = new BlogPostService(options.emFactory, cache);
+  const categoryService = new BlogCategoryService(options.emFactory, cache);
 
   // Register the asset-reference descriptors immediately so the Library's
   // soft-delete path picks them up before any blog write happens.
@@ -68,12 +71,19 @@ export function blogModule(options: BlogModuleOptions): {
     reconciled = true;
   }
 
-  const handle: BlogModuleHandle = { cache, settingsResolver, postService, reconcile };
+  const handle: BlogModuleHandle = {
+    cache,
+    settingsResolver,
+    postService,
+    categoryService,
+    reconcile,
+  };
 
   const plugin = async (app: FastifyInstance) => {
     await reconcile();
     await registerBlogAdminRoutes(app, {
       postService,
+      categoryService,
       ...(options.requireAdmin ? { requireAdmin: options.requireAdmin } : {}),
     });
   };

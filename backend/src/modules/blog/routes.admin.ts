@@ -1,7 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import {
+  createBlogCategoryRequestSchema,
   createBlogPostRequestSchema,
+  patchBlogCategoryRequestSchema,
   patchBlogPostRequestSchema,
+  putBlogCategoryDescriptionRequestSchema,
+  putBlogCategoryTreeMovesRequestSchema,
   putBlogPostContentRequestSchema,
   setBlogPostRelatedPostsRequestSchema,
   setBlogPostRelatedProductsRequestSchema,
@@ -9,6 +13,7 @@ import {
 } from '@b2b/contracts';
 import { z } from 'zod';
 import type { RequireAdminFactory } from './plugin.js';
+import type { BlogCategoryService } from './services/blog-category-service.js';
 import type { BlogPostService } from './services/blog-post-service.js';
 
 const versionOnlySchema = z.object({ version: z.number().int() });
@@ -28,6 +33,7 @@ export async function registerBlogAdminRoutes(
   app: FastifyInstance,
   deps: {
     postService: BlogPostService;
+    categoryService: BlogCategoryService;
     requireAdmin?: RequireAdminFactory;
   },
 ): Promise<void> {
@@ -159,5 +165,60 @@ export async function registerBlogAdminRoutes(
     async (request) => ({
       data: await deps.postService.getInboundReferences(request.params.id),
     }),
+  );
+
+  // ── Categories ─────────────────────────────────────────────────────
+
+  app.get('/api/v1/admin/blog/categories', { preHandler: requireRead }, async () =>
+    deps.categoryService.getTree(),
+  );
+
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/blog/categories/:id',
+    { preHandler: requireRead },
+    async (request) => ({ data: await deps.categoryService.getById(request.params.id) }),
+  );
+
+  app.post(
+    '/api/v1/admin/blog/categories',
+    { preHandler: requireWrite },
+    async (request, reply) => {
+      const body = createBlogCategoryRequestSchema.parse(request.body);
+      const created = await deps.categoryService.create(body);
+      return reply.code(201).send({ data: created });
+    },
+  );
+
+  app.patch<{ Params: { id: string } }>(
+    '/api/v1/admin/blog/categories/:id',
+    { preHandler: requireWrite },
+    async (request) => {
+      const body = patchBlogCategoryRequestSchema.parse(request.body);
+      return { data: await deps.categoryService.patch(request.params.id, body) };
+    },
+  );
+
+  app.put<{ Params: { id: string } }>(
+    '/api/v1/admin/blog/categories/:id/description',
+    { preHandler: requireWrite },
+    async (request) => {
+      const body = putBlogCategoryDescriptionRequestSchema.parse(request.body);
+      return { data: await deps.categoryService.setDescription(request.params.id, body) };
+    },
+  );
+
+  app.put('/api/v1/admin/blog/categories/tree', { preHandler: requireWrite }, async (request) => {
+    const body = putBlogCategoryTreeMovesRequestSchema.parse(request.body);
+    return await deps.categoryService.applyTreeMoves(body.moves);
+  });
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/v1/admin/blog/categories/:id',
+    { preHandler: requireWrite },
+    async (request, reply) => {
+      const body = versionOnlySchema.partial().parse(request.body ?? {});
+      await deps.categoryService.softDelete(request.params.id, body.version);
+      return reply.code(204).send();
+    },
   );
 }
