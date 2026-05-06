@@ -12,6 +12,10 @@ import {
 } from './services/registry-cache.js';
 import { buildStaticRegistry } from './services/static-registry.js';
 import type { LoadedManifestRegistry } from './services/manifest-loader.js';
+import {
+  registerLifecycleAdminRoutes,
+  type RequireAdminFactory,
+} from './routes.admin.js';
 
 export interface LifecycleModuleDeps {
   orm: MikroORM;
@@ -20,6 +24,7 @@ export interface LifecycleModuleDeps {
   redisSubscriber: Redis;
   emFactory: () => EntityManager;
   auditLog: AuditLogService;
+  requireAdmin: RequireAdminFactory;
   /**
    * Either a pre-built registry (production composition root supplies the
    * static one), or a manifest list the module composes itself.
@@ -49,14 +54,17 @@ export function lifecycleModule(deps: LifecycleModuleDeps): LifecycleModule {
     registry: deps.registry,
   } satisfies OrchestratorDeps);
 
-  // Plugin is intentionally minimal in v1: it warms the registry cache on
-  // first registration. The read-only admin endpoint (`GET /api/v1/admin/modules`)
-  // lands in US4's routes.admin.ts.
-  const plugin: ModulePlugin = async () => {
+  // Plugin warms the registry cache on first registration and registers
+  // the read-only admin endpoint (US4 / contracts/admin-http.md E-1).
+  const plugin: ModulePlugin = async (app) => {
     await registryCache.start({
       redis: deps.redis,
       redisSubscriber: deps.redisSubscriber,
       em: deps.emFactory,
+    });
+    await registerLifecycleAdminRoutes(app, {
+      orchestrator,
+      requireAdmin: deps.requireAdmin,
     });
   };
 

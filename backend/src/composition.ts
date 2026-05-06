@@ -689,6 +689,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       redisSubscriber,
       emFactory: em,
       auditLog: auditLogService,
+      requireAdmin,
     },
     REGISTERED_MANIFESTS.map((e) => ({
       manifest: e.manifest,

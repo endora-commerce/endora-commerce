@@ -168,6 +168,21 @@ pnpm --filter backend run seed:dev            # load the synthetic dev catalog
 
 After `seed:dev` a demo Platform Administrator and a demo Customer Organization are available — credentials are printed by the seed script.
 
+## Module lifecycle
+
+Feature 018 introduces a CLI-driven module lifecycle: each backend module declares a `manifest.ts` (id, name, version, dependencies, optional settings + install/uninstall hooks) and the platform persists installed/enabled state in a `module_registrations` table. Operators run:
+
+```bash
+pnpm --filter backend run module:install <id>          # install (runs migrations + settings + install hook)
+pnpm --filter backend run module:uninstall <id>        # soft uninstall (data preserved)
+pnpm --filter backend run module:uninstall <id> --hard --force  # hard (drops tables + data)
+pnpm --filter backend run module:enable <id>           # toggle on at runtime
+pnpm --filter backend run module:disable <id> [--cascade]  # toggle off (cascade walks dependents)
+pnpm --filter backend run module:status [<id>] [--json] [--filter=<state>]
+```
+
+The legacy `modules:install` / `modules:uninstall` aliases (plural form) still work but print a deprecation notice and forward to the new singular commands; they are scheduled for removal in the next minor release. The admin app can render a read-only "Modules" panel from `GET /api/v1/admin/modules` (permission `platform.modules.read`).
+
 ## Repository layout
 
 ```text
