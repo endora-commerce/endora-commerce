@@ -73,7 +73,7 @@ Deletes go through a two-step lifecycle:
    credentials, network partition), the row stays and `pendingCleanup` is
    set to `true`; the worker retries on the next tick.
 
-## Reference protection (FR-030)
+## Reference protection (FR-030) {#asset-reference-registry}
 
 Soft-delete is rejected with `409 ASSET_REFERENCED` when any of the
 following points at the asset:

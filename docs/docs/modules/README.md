@@ -28,22 +28,26 @@ how to consume it.
 | [admin_users](./admin_users) | Platform Administrator accounts + impersonation | yes |
 | [analytics](./analytics) | Storefront event ingest + admin aggregation + optional GA4 forwarder | yes |
 | [api_keys](./api_keys) | Bearer-token integration credentials | yes |
-| [assets](./assets) | Binary asset storage references (images, PDFs) | no |
+| [assets-library](./assets-library) | Central digital-asset library with pluggable storage adapters, soft-delete, and reference-protection guards | yes |
 | [audit_logs](./audit_logs) | Sensitive-action audit trail | yes (admin viewer) |
 | [auth](./auth) | Customer + admin sessions, password hashing, TOTP | shared |
+| [blog](./blog) | Editorial Posts with Page Builder bodies, taxonomy (Categories + Tags), and storefront feeds | yes |
 | [carts](./carts) | Customer shopping cart with anonymous→logged-in merge | yes |
 | [catalog](./catalog) | Products, variants, categories, attributes, sales channels | yes |
-| [cms_pages](./cms_pages) | Editorial pages with multilingual title/body and draft→published lifecycle | yes |
+| [cms](./cms) | Page Builder authoring surface — Pages, Blocks, Templates, Hooks — per channel + language | yes |
+| [comparisons](./comparisons) | Compare Products: customer-curated set with display modes, share link, and PDF export | yes |
 | [credit_limits](./credit_limits) | Credit-limit grant + atomic reservation | yes |
 | [currencies](./currencies) | Pool of accepted ISO 4217 currencies + default | yes |
 | [customer_accounts](./customer_accounts) | Customer login, password reset, 2FA, role assignment | yes |
 | [delivery_methods](./delivery_methods) | Configured delivery options | yes |
+| [dictionary](./dictionary) | Seeded reference data — Countries, Currencies, Languages — with admin reordering | yes |
 | [health_checks](./health_checks) | Liveness + readiness probe | yes |
 | [import_export](./import_export) | CSV import / export for bulk-edit entities | yes |
 | [integrations](./integrations) | External vendor configurations (encrypted) | yes |
 | [inventory](./inventory) | Stock levels, reservations, availability notifications | yes |
 | [invoices](./invoices) | PDF invoice / proforma generation + asset linkage | yes |
 | [languages](./languages) | Pool of supported BCP-47 language tags + translation-fallback helper | yes |
+| [megamenu](./megamenu) | Configurable navigation tree with per-channel + per-language bindings | yes |
 | [orders](./orders) | Order placement, status machine, payment + delivery linkage | yes |
 | [organizations](./organizations) | Customer Organizations, registration, invitations | yes |
 | [payment_methods](./payment_methods) | Configured payment methods | yes |
