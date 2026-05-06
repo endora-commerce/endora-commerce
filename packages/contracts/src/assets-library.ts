@@ -34,6 +34,9 @@ export const assetReferenceKindSchema = z.enum([
   'category_main_image',
   'cms_body_embed',
   'megamenu_item_target',
+  'blog_category_main_image',
+  'blog_post_content',
+  'blog_category_description',
 ]);
 export type AssetReferenceKind = z.infer<typeof assetReferenceKindSchema>;
 
