@@ -21,6 +21,28 @@ import type { BlogTagService } from './services/blog-tag-service.js';
 
 const versionOnlySchema = z.object({ version: z.number().int() });
 
+const versionQuerySchema = z.object({
+  version: z.coerce.number().int().optional(),
+});
+
+/**
+ * DELETE doesn't carry a body (Fetch API limitation in some browsers),
+ * so the admin client can pass version as a query parameter. The backend
+ * accepts either form: body wins when present, query is the fallback.
+ */
+function readDeleteVersion(
+  body: unknown,
+  query: unknown,
+): number | undefined {
+  if (body && typeof body === 'object') {
+    const bv = (body as { version?: unknown }).version;
+    if (typeof bv === 'number') return bv;
+  }
+  const q = versionQuerySchema.safeParse(query ?? {});
+  if (q.success) return q.data.version;
+  return undefined;
+}
+
 const listFiltersSchema = z.object({
   q: z.string().optional(),
   status: z.enum(['draft', 'published', 'archived']).optional(),
@@ -163,8 +185,10 @@ export async function registerBlogAdminRoutes(
     '/api/v1/admin/blog/posts/:id',
     { preHandler: requireWrite },
     async (request, reply) => {
-      const body = versionOnlySchema.parse(request.body ?? {});
-      const result = await deps.postService.softDelete(request.params.id, body.version);
+      const version =
+        readDeleteVersion(request.body, request.query) ??
+        versionOnlySchema.parse(request.body ?? { version: 0 }).version;
+      const result = await deps.postService.softDelete(request.params.id, version);
       return reply.code(200).send({ data: result });
     },
   );
@@ -226,8 +250,8 @@ export async function registerBlogAdminRoutes(
     '/api/v1/admin/blog/categories/:id',
     { preHandler: requireWrite },
     async (request, reply) => {
-      const body = versionOnlySchema.partial().parse(request.body ?? {});
-      await deps.categoryService.softDelete(request.params.id, body.version);
+      const version = readDeleteVersion(request.body, request.query);
+      await deps.categoryService.softDelete(request.params.id, version);
       return reply.code(204).send();
     },
   );
@@ -268,8 +292,8 @@ export async function registerBlogAdminRoutes(
     '/api/v1/admin/blog/tags/:id',
     { preHandler: requireWrite },
     async (request, reply) => {
-      const body = versionOnlySchema.partial().parse(request.body ?? {});
-      await deps.tagService.softDelete(request.params.id, body.version);
+      const version = readDeleteVersion(request.body, request.query);
+      await deps.tagService.softDelete(request.params.id, version);
       return reply.code(204).send();
     },
   );
