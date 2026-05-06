@@ -12,10 +12,15 @@ import { BlogCacheService, type BlogCacheOptions } from './services/blog-cache.j
 import { BlogSettingsResolver, type SettingsServicePort } from './services/blog-settings-resolver.js';
 import { BlogCategoryService } from './services/blog-category-service.js';
 import { BlogPostService } from './services/blog-post-service.js';
+import {
+  BlogStorefrontResolver,
+  type BlogStorefrontDeps,
+} from './services/blog-storefront-resolver.js';
 import { registerBlogAssetReferences } from './services/blog-asset-references.js';
 import { seedDefaultCategory } from './services/seed-default-category.js';
 import { seedBlogRoles } from './services/seed-roles.js';
 import { registerBlogAdminRoutes } from './routes.admin.js';
+import { registerBlogStorefrontRoutes } from './routes.storefront.js';
 import type { AssetReferenceRegistry } from '../assets_library/services/reference-registry.js';
 
 export type RequireAdminFactory = (
@@ -32,6 +37,8 @@ export interface BlogModuleOptions {
   settings: SettingsServicePort;
   /** Library Asset reference registry (feature 013). */
   assetReferenceRegistry: AssetReferenceRegistry;
+  /** Cross-module ports the storefront resolver delegates to (asset URL signing, product cards). */
+  storefrontDeps?: BlogStorefrontDeps;
 }
 
 export interface BlogModuleHandle {
@@ -39,6 +46,7 @@ export interface BlogModuleHandle {
   settingsResolver: BlogSettingsResolver;
   postService: BlogPostService;
   categoryService: BlogCategoryService;
+  storefrontResolver: BlogStorefrontResolver;
   /**
    * Run the boot reconcilers (Default Category + seeded roles). Called
    * at plugin startup. Returning the result lets tests inspect what was
@@ -58,6 +66,12 @@ export function blogModule(options: BlogModuleOptions): {
   const settingsResolver = new BlogSettingsResolver(options.settings);
   const postService = new BlogPostService(options.emFactory, cache);
   const categoryService = new BlogCategoryService(options.emFactory, cache);
+  const storefrontResolver = new BlogStorefrontResolver(
+    options.emFactory,
+    settingsResolver,
+    options.storefrontDeps ?? {},
+    cache,
+  );
 
   // Register the asset-reference descriptors immediately so the Library's
   // soft-delete path picks them up before any blog write happens.
@@ -76,6 +90,7 @@ export function blogModule(options: BlogModuleOptions): {
     settingsResolver,
     postService,
     categoryService,
+    storefrontResolver,
     reconcile,
   };
 
@@ -86,6 +101,7 @@ export function blogModule(options: BlogModuleOptions): {
       categoryService,
       ...(options.requireAdmin ? { requireAdmin: options.requireAdmin } : {}),
     });
+    await registerBlogStorefrontRoutes(app, { storefrontResolver });
   };
 
   return { plugin, handle };

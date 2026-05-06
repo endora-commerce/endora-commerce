@@ -43,6 +43,7 @@ import { inventoryManifest } from '../../src/modules/inventory/manifest.js';
 import { priceListsManifest } from '../../src/modules/price_lists/manifest.js';
 import { assetsLibraryModule } from '../../src/modules/assets_library/plugin.js';
 import { assetsLibraryManifest } from '../../src/modules/assets_library/manifest.js';
+import { blogManifest } from '../../src/modules/blog/manifest.js';
 import { registerCatalogAssetReferences } from '../../src/modules/catalog/services/asset-references.js';
 import { registerCmsAssetReferences } from '../../src/modules/cms/services/asset-references.js';
 import { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
@@ -678,6 +679,7 @@ export async function setupBackendServer(
     inventoryManifest,
     priceListsManifest,
     assetsLibraryManifest,
+    blogManifest,
   ]);
 
   const app = await buildServer({
