@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { registerOrganization } from '../../../lib/api/auth';
 import { StorefrontApiError } from '../../../lib/api/client';
 import { Hook } from '../../../components/Hook';
+import { CountryPicker } from '../../../lib/dictionary/pickers/CountryPicker';
 
 /**
  * Storefront register page (T150 / FR-039). Renders the registration form
@@ -74,14 +75,12 @@ export default async function RegisterPage({
                 <input id="addr-postal" name="postalCode" required maxLength={20} />
               </div>
               <div className="b2b-auth__field">
-                <label htmlFor="addr-country">Country (ISO-2)</label>
-                <input
+                <label htmlFor="addr-country">Country</label>
+                <CountryPicker
                   id="addr-country"
                   name="country"
                   required
-                  minLength={2}
-                  maxLength={2}
-                  placeholder="PL"
+                  defaultValue="PL"
                 />
               </div>
             </div>

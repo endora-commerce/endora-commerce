@@ -16,6 +16,7 @@ import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { SalesChannelResolverService } from '../sales_channels/services/sales-channel-resolver.service.js';
 import type { SettingsService } from '../settings/services/settings.service.js';
 import { ConsoleMailer, type Mailer } from '../email/services/mailer.js';
+import type { DictionaryValidator } from '@b2b/contracts';
 
 /**
  * Composition root for the inventory module — feature 010.
@@ -49,6 +50,7 @@ export interface InventoryModuleOptions {
    *  threshold-settings mirror. Falls back to {@link channelResolver}
    *  when omitted. */
   resolveSystemDefaultChannelId?: () => Promise<string | null>;
+  dictionaryValidator?: DictionaryValidator;
 }
 
 export function inventoryModule(options: InventoryModuleOptions) {
@@ -97,7 +99,7 @@ export function inventoryModule(options: InventoryModuleOptions) {
       ...(options.settingsService ? { settingsService: options.settingsService } : {}),
     });
     if (options.requireAdmin) {
-      const warehouseService = new WarehouseService(options.emFactory);
+      const warehouseService = new WarehouseService(options.emFactory, options.dictionaryValidator);
       const csvStockImporter = new CsvStockImporter(options.emFactory, options.eventBus);
       await registerInventoryAdminRoutes(app, {
         emFactory: options.emFactory,

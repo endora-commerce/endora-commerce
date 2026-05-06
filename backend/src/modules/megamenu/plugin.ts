@@ -3,6 +3,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
+import type { DictionaryValidator } from '@b2b/contracts';
 
 import { MegamenuReferenceRegistry } from './services/megamenu-reference-registry.js';
 import { MegamenuCache, type MegamenuCacheOptions } from './services/megamenu-cache.js';
@@ -34,6 +35,7 @@ export interface MegamenuModuleOptions {
    */
   redis?: Redis;
   cacheOptions?: MegamenuCacheOptions;
+  dictionaryValidator?: DictionaryValidator;
 }
 
 export interface MegamenuModuleHandle {
@@ -54,7 +56,7 @@ export function megamenuModule(options: MegamenuModuleOptions): {
     : undefined;
 
   const referenceRegistry = new MegamenuReferenceRegistry(options.emFactory);
-  const menuService = new MegamenuService(options.emFactory, cache);
+  const menuService = new MegamenuService(options.emFactory, cache, options.dictionaryValidator);
   const itemService = new MegamenuItemService(
     options.emFactory,
     menuService,

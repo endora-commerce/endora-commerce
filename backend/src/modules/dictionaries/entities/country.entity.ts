@@ -25,11 +25,11 @@ export class Country {
   @PrimaryKey({ type: 'string', length: 2 })
   code!: string;
 
-  @Property({ type: 'string', length: 3 })
+  @Property({ type: 'string', length: 3, fieldName: 'alpha3_code' })
   alpha3Code!: string;
 
   /** Zero-padded ISO 3166-1 numeric code (e.g. `616` for `PL`). */
-  @Property({ type: 'string', length: 3 })
+  @Property({ type: 'string', length: 3, fieldName: 'numeric_code' })
   numericCode!: string;
 
   /** Canonical English display name. Per-locale overrides live in `dictionary_translations`. */

@@ -1,0 +1,68 @@
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { EntityManager } from '@mikro-orm/postgresql';
+import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
+import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
+import { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import { Language } from '../../../src/modules/languages/entities/language.entity.js';
+import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { MegamenuService } from '../../../src/modules/megamenu/services/megamenu-service.js';
+
+describe('Megamenu dictionary boundary', () => {
+  let db: TestDb;
+  let em: EntityManager;
+  let validator: DictionaryValidator;
+  let service: MegamenuService;
+  let salesChannelId: string;
+
+  beforeAll(async () => {
+    db = await setupTestDb();
+    const conn = db.orm.em.getConnection();
+    await conn.execute(`delete from "dictionary_translations"`);
+    await conn.execute(`delete from "language_countries"`);
+    await conn.execute(`delete from "countries"`);
+    await runDictionarySeedReconciler(() => db.orm.em);
+  });
+
+  beforeEach(async () => {
+    em = await db.beginTx();
+    validator = new DictionaryValidator(() => em);
+    service = new MegamenuService(() => em, undefined, validator);
+    const channel = em.create(SalesChannel, {
+      code: `menu-${crypto.randomUUID().slice(0, 8)}`,
+      name: { 'en-US': 'Menu Channel' },
+      languages: ['en-US', 'pl-PL'],
+      defaultLanguage: 'en-US',
+      currencies: ['PLN'],
+      defaultCurrency: 'PLN',
+      active: true,
+      systemDefault: false,
+      isPublic: false,
+      status: 'active',
+    });
+    await em.persistAndFlush(channel);
+    salesChannelId = channel.id;
+  });
+
+  afterEach(async () => {
+    await db.rollbackTx();
+  });
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  it('refuses unknown and inactive languages on binding create', async () => {
+    const menu = await service.create({ name: 'Main menu' });
+    await expect(service.addBinding(menu.id, salesChannelId, 'xx-XX')).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'DICTIONARY_ENTRY_NOT_FOUND',
+    });
+
+    await em.nativeUpdate(Language, { code: 'pl-PL' }, { isActive: false });
+    validator.invalidate();
+    await expect(service.addBinding(menu.id, salesChannelId, 'pl-PL')).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'DICTIONARY_ENTRY_INACTIVE',
+    });
+  });
+});

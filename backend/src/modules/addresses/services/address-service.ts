@@ -1,6 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import {
+  DictionaryReferenceError,
+  ERROR_CODES,
+  type DictionaryValidator,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
 import { Address } from '../entities/address.entity.js';
 
 /**
@@ -12,7 +17,10 @@ import { Address } from '../entities/address.entity.js';
  * even under concurrent callers.
  */
 export class AddressService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly dictionaryValidator?: DictionaryValidator,
+  ) {}
 
   async list(organizationId: string, kind?: 'delivery' | 'billing'): Promise<Address[]> {
     const em = this.emFactory();
@@ -34,6 +42,7 @@ export class AddressService {
       isDefault?: boolean;
     },
   ): Promise<Address> {
+    await this.validateCountry(input.country, 'create-or-change');
     const em = this.emFactory();
     return em.transactional(async (txEm) => {
       if (input.isDefault) {
@@ -86,6 +95,12 @@ export class AddressService {
           { isDefault: false },
         );
       }
+      if (patch.country !== undefined) {
+        await this.validateCountry(
+          patch.country,
+          dispatchValidatorMode(address.country, patch.country),
+        );
+      }
       if (patch.recipientName !== undefined) address.recipientName = patch.recipientName;
       if (patch.street !== undefined) address.street = patch.street;
       if (patch.city !== undefined) address.city = patch.city;
@@ -109,5 +124,27 @@ export class AddressService {
     // must query the Orders table. For now we soft-delete.
     address.deletedAt = new Date();
     await em.flush();
+  }
+
+  private async validateCountry(
+    country: string,
+    mode: 'create-or-change' | 'unchanged',
+  ): Promise<void> {
+    if (!this.dictionaryValidator) return;
+    try {
+      await this.dictionaryValidator.validateCountryCode(country, mode);
+    } catch (err) {
+      if (err instanceof DictionaryReferenceError) {
+        throw new HttpError(
+          409,
+          err.code,
+          err.code === 'DICTIONARY_ENTRY_INACTIVE'
+            ? `Country code ${err.entryCode} is no longer available for new entries.`
+            : `Country code ${err.entryCode} is not recognised.`,
+          [{ path: 'country', issue: err.code }],
+        );
+      }
+      throw err;
+    }
   }
 }

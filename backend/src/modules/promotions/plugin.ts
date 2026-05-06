@@ -5,6 +5,7 @@ import { registerPromotionRoutes } from './routes.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import type { CatalogQueryService } from '../catalog/services/catalog-query.service.js';
+import type { DictionaryValidator } from '@b2b/contracts';
 
 export interface PromotionsModuleOptions {
   emFactory: () => EntityManager;
@@ -18,6 +19,7 @@ export interface PromotionsModuleOptions {
    * endpoint.
    */
   catalogQueryService?: CatalogQueryService;
+  dictionaryValidator?: DictionaryValidator;
 }
 
 export interface PromotionsModuleHandle {
@@ -32,6 +34,7 @@ export function promotionsModule(options: PromotionsModuleOptions): {
     options.emFactory,
     options.salesChannelMembership,
     options.catalogQueryService,
+    options.dictionaryValidator,
   );
   return {
     handle: { promotionService },

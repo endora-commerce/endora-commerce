@@ -1,6 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type ResolvedTax, type TaxResolutionInput } from '@b2b/contracts';
+import {
+  DictionaryReferenceError,
+  ERROR_CODES,
+  type DictionaryValidator,
+  type ResolvedTax,
+  type TaxResolutionInput,
+} from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
 import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 import { Tax } from '../entities/tax.entity.js';
 
@@ -22,6 +29,7 @@ export class TaxService {
     private readonly emFactory: () => EntityManager,
     /** Feature 005 / T027b — auto-bind newly-created Taxes to the system default. */
     private readonly salesChannelMembership?: SalesChannelMembershipService,
+    private readonly dictionaryValidator?: DictionaryValidator,
   ) {}
 
   async list(): Promise<Tax[]> {
@@ -52,6 +60,14 @@ export class TaxService {
       );
     }
     const existing = await em.findOne(Tax, { code: input.code });
+    if (input.country != null) {
+      await this.validateCountry(
+        input.country,
+        existing
+          ? dispatchValidatorMode(existing.country, input.country)
+          : 'create-or-change',
+      );
+    }
     if (existing) {
       existing.name = input.name;
       existing.rate = String(input.rate);
@@ -123,6 +139,28 @@ export class TaxService {
       return { rate: Number(defaultRule.rate), taxId: defaultRule.id, source: 'default' };
     }
     return { rate: 0, taxId: null, source: 'none' };
+  }
+
+  private async validateCountry(
+    country: string,
+    mode: 'create-or-change' | 'unchanged',
+  ): Promise<void> {
+    if (!this.dictionaryValidator) return;
+    try {
+      await this.dictionaryValidator.validateCountryCode(country, mode);
+    } catch (err) {
+      if (err instanceof DictionaryReferenceError) {
+        throw new HttpError(
+          409,
+          err.code,
+          err.code === 'DICTIONARY_ENTRY_INACTIVE'
+            ? `Country code ${err.entryCode} is no longer available for tax rules.`
+            : `Country code ${err.entryCode} is not recognised.`,
+          [{ path: 'country', issue: err.code }],
+        );
+      }
+      throw err;
+    }
   }
 }
 

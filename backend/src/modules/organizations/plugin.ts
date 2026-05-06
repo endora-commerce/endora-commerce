@@ -20,6 +20,7 @@ import { registerOrganizationsCustomerRoutes } from './routes.customer.js';
 import { registerMembersRoutes } from './routes.members.js';
 import { registerOrganizationsAdminRoutes } from './routes.admin.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { DictionaryValidator } from '@b2b/contracts';
 
 /**
  * Composition root for the organizations + customer_accounts + addresses
@@ -60,6 +61,7 @@ export interface OrganizationsModuleOptions {
   storefrontBaseUrl?: string;
   /** Required when `requireAdmin` is set — audit trail for admin org mutations. */
   auditLogService?: AuditLogService;
+  dictionaryValidator?: DictionaryValidator;
 }
 
 export function organizationsModule(options: OrganizationsModuleOptions) {
@@ -70,6 +72,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
     const registrationService = new RegistrationService(
       options.emFactory,
       options.eventBus as OrganizationEventBus,
+      options.dictionaryValidator,
     );
     const verificationService = new EmailVerificationService(
       options.emFactory,
@@ -79,7 +82,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       options.emFactory,
       options.sessionService,
     );
-    const addressService = new AddressService(options.emFactory);
+    const addressService = new AddressService(options.emFactory, options.dictionaryValidator);
     const invitationService = new InvitationService(
       options.emFactory,
       mailer,

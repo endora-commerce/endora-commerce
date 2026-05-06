@@ -1,11 +1,14 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
+  DictionaryReferenceError,
   ERROR_CODES,
   type CartSnapshot,
+  type DictionaryValidator,
   type PromotionApplication,
   type PromotionCriterion,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
 import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 import { Promotion } from '../entities/promotion.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
@@ -59,6 +62,7 @@ export class PromotionService {
      * tests / composition setups that don't wire this stay green.
      */
     private readonly catalogPort?: PromotionRuleCatalogPort,
+    private readonly dictionaryValidator?: DictionaryValidator,
     /** Feature 012 / US8 — audit sink for FR-039 skip-on-toggle events. */
     private readonly auditLogger: PromotionAuditLogger = {
       info: (message, fields) => console.warn(`[audit] ${message}`, fields ?? {}),
@@ -98,6 +102,12 @@ export class PromotionService {
     const existing = input.code
       ? await em.findOne(Promotion, { code: input.code })
       : null;
+    if (input.currency != null) {
+      await this.validateCurrency(
+        input.currency,
+        existing ? dispatchValidatorMode(existing.currency, input.currency) : 'create-or-change',
+      );
+    }
     const data = {
       name: input.name,
       kind: input.kind,
@@ -138,6 +148,28 @@ export class PromotionService {
     const row = await em.findOne(Promotion, { id });
     if (!row) return;
     await em.removeAndFlush(row);
+  }
+
+  private async validateCurrency(
+    currency: string,
+    mode: 'create-or-change' | 'unchanged',
+  ): Promise<void> {
+    if (!this.dictionaryValidator) return;
+    try {
+      await this.dictionaryValidator.validateCurrencyCode(currency, mode);
+    } catch (err) {
+      if (err instanceof DictionaryReferenceError) {
+        throw new HttpError(
+          409,
+          err.code,
+          err.code === 'DICTIONARY_ENTRY_INACTIVE'
+            ? `Currency code ${err.entryCode} is no longer available for promotions.`
+            : `Currency code ${err.entryCode} is not recognised.`,
+          [{ path: 'currency', issue: err.code }],
+        );
+      }
+      throw err;
+    }
   }
 
   async applyToCart(snapshot: CartSnapshot): Promise<PromotionApplication> {

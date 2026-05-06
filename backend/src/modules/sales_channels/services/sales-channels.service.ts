@@ -1,12 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
+  DictionaryReferenceError,
   ERROR_CODES,
   SALES_CHANNEL_AUDIT_ACTIONS,
+  type DictionaryValidator,
   type SalesChannelCreateBody,
   type SalesChannelUpdateBody,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
 import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import type { EventBus } from '../../../events/bus.js';
 import { SalesChannel } from '../entities/sales-channel.entity.js';
@@ -53,6 +56,7 @@ export class SalesChannelsService {
     private readonly eventBus: EventBus,
     private readonly auditLogService?: AuditLogService,
     private readonly cache?: SalesChannelsCache,
+    private readonly dictionaryValidator?: DictionaryValidator,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -100,7 +104,9 @@ export class SalesChannelsService {
     const em = this.emFactory();
 
     await this.assertLanguagesValid(em, body.languages);
+    await this.validateLanguage(body.defaultLanguage, 'create-or-change', 'defaultLanguage');
     await this.assertCurrenciesValid(em, body.currencies);
+    await this.validateCurrency(body.defaultCurrency, 'create-or-change', 'defaultCurrency');
 
     const channel = em.create(SalesChannel, {
       code: body.code,
@@ -164,10 +170,24 @@ export class SalesChannelsService {
     }
 
     if (body.languages !== undefined) {
-      await this.assertLanguagesValid(em, body.languages);
+      await this.assertLanguagesValid(em, body.languages, channel.languages);
+    }
+    if (body.defaultLanguage !== undefined) {
+      await this.validateLanguage(
+        body.defaultLanguage,
+        dispatchValidatorMode(channel.defaultLanguage, body.defaultLanguage),
+        'defaultLanguage',
+      );
     }
     if (body.currencies !== undefined) {
-      await this.assertCurrenciesValid(em, body.currencies);
+      await this.assertCurrenciesValid(em, body.currencies, channel.currencies);
+    }
+    if (body.defaultCurrency !== undefined) {
+      await this.validateCurrency(
+        body.defaultCurrency,
+        dispatchValidatorMode(channel.defaultCurrency, body.defaultCurrency),
+        'defaultCurrency',
+      );
     }
 
     // Cross-field check: defaultLanguage ∈ effective languages,
@@ -369,7 +389,11 @@ export class SalesChannelsService {
     return channel;
   }
 
-  private async assertLanguagesValid(em: EntityManager, codes: string[]): Promise<void> {
+  private async assertLanguagesValid(
+    em: EntityManager,
+    codes: string[],
+    currentCodes: string[] = [],
+  ): Promise<void> {
     if (codes.length === 0) {
       throw new HttpError(
         422,
@@ -377,6 +401,17 @@ export class SalesChannelsService {
         'languages must not be empty.',
         [{ path: 'languages', issue: 'empty' }],
       );
+    }
+    if (this.dictionaryValidator) {
+      const current = new Set(currentCodes);
+      for (const code of codes) {
+        await this.validateLanguage(
+          code,
+          current.has(code) ? 'unchanged' : 'create-or-change',
+          'languages',
+        );
+      }
+      return;
     }
     const placeholders = codes.map(() => '?').join(', ');
     const rows = await em
@@ -399,7 +434,11 @@ export class SalesChannelsService {
     }
   }
 
-  private async assertCurrenciesValid(em: EntityManager, codes: string[]): Promise<void> {
+  private async assertCurrenciesValid(
+    em: EntityManager,
+    codes: string[],
+    currentCodes: string[] = [],
+  ): Promise<void> {
     if (codes.length === 0) {
       throw new HttpError(
         422,
@@ -407,6 +446,17 @@ export class SalesChannelsService {
         'currencies must not be empty.',
         [{ path: 'currencies', issue: 'empty' }],
       );
+    }
+    if (this.dictionaryValidator) {
+      const current = new Set(currentCodes);
+      for (const code of codes) {
+        await this.validateCurrency(
+          code,
+          current.has(code) ? 'unchanged' : 'create-or-change',
+          'currencies',
+        );
+      }
+      return;
     }
     const placeholders = codes.map(() => '?').join(', ');
     const rows = await em
@@ -426,6 +476,38 @@ export class SalesChannelsService {
         `Unknown currency code(s): ${missing.join(', ')}.`,
         missing.map((m) => ({ path: 'currencies', issue: m })),
       );
+    }
+  }
+
+  private async validateLanguage(
+    code: string,
+    mode: 'create-or-change' | 'unchanged',
+    field: string,
+  ): Promise<void> {
+    if (!this.dictionaryValidator) return;
+    try {
+      await this.dictionaryValidator.validateLanguageCode(code, mode);
+    } catch (err) {
+      if (err instanceof DictionaryReferenceError) {
+        throw dictionaryReferenceHttpError(err, field);
+      }
+      throw err;
+    }
+  }
+
+  private async validateCurrency(
+    code: string,
+    mode: 'create-or-change' | 'unchanged',
+    field: string,
+  ): Promise<void> {
+    if (!this.dictionaryValidator) return;
+    try {
+      await this.dictionaryValidator.validateCurrencyCode(code, mode);
+    } catch (err) {
+      if (err instanceof DictionaryReferenceError) {
+        throw dictionaryReferenceHttpError(err, field);
+      }
+      throw err;
     }
   }
 
@@ -602,3 +684,15 @@ const BRIDGE_TABLES: ReadonlyArray<{
   { entityType: 'promotion', table: 'sales_channel_promotions', entityIdColumn: 'promotion_id' },
   { entityType: 'cms-page', table: 'sales_channel_cms_pages', entityIdColumn: 'cms_page_id' },
 ];
+
+function dictionaryReferenceHttpError(err: DictionaryReferenceError, field: string): HttpError {
+  const noun = err.entryType === 'currency' ? 'Currency' : 'Language';
+  return new HttpError(
+    409,
+    err.code,
+    err.code === 'DICTIONARY_ENTRY_INACTIVE'
+      ? `${noun} code ${err.entryCode} is no longer available for sales channels.`
+      : `${noun} code ${err.entryCode} is not recognised.`,
+    [{ path: field, issue: err.code }],
+  );
+}

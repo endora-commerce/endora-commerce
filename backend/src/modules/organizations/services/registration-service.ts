@@ -1,7 +1,12 @@
 import { createHash, randomBytes } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
-import { ERROR_CODES, type RegisterOrganizationRequest } from '@b2b/contracts';
+import {
+  DictionaryReferenceError,
+  ERROR_CODES,
+  type DictionaryValidator,
+  type RegisterOrganizationRequest,
+} from '@b2b/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { hashPassword } from '../../auth/services/password-hasher.js';
@@ -44,10 +49,12 @@ export class RegistrationService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly events: OrganizationEventBus,
+    private readonly dictionaryValidator?: DictionaryValidator,
   ) {}
 
   async registerOrganization(req: RegisterOrganizationRequest): Promise<RegistrationResult> {
     const em = this.emFactory();
+    await this.validateCountry(req.organization.registeredAddress.country);
 
     // Pre-check the easy cases so we can return the right error code before
     // hashing the password (avoids a wasted ~50 ms of argon2 work).
@@ -131,6 +138,25 @@ export class RegistrationService {
     });
 
     return { organization, customerAccount, verificationToken: rawToken };
+  }
+
+  private async validateCountry(country: string): Promise<void> {
+    if (!this.dictionaryValidator) return;
+    try {
+      await this.dictionaryValidator.validateCountryCode(country, 'create-or-change');
+    } catch (err) {
+      if (err instanceof DictionaryReferenceError) {
+        throw new HttpError(
+          409,
+          err.code,
+          err.code === 'DICTIONARY_ENTRY_INACTIVE'
+            ? `Country code ${err.entryCode} is no longer available for organization registration.`
+            : `Country code ${err.entryCode} is not recognised.`,
+          [{ path: 'organization.registeredAddress.country', issue: err.code }],
+        );
+      }
+      throw err;
+    }
   }
 }
 

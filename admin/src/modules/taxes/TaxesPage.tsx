@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { CountryPicker } from '../dictionaries/components/CountryPicker';
 
 interface AdminTax {
   id: string;
@@ -232,11 +233,12 @@ function UpsertForm({ onSubmit }: { onSubmit: (input: AdminTax) => Promise<void>
         </div>
         <div className="space-y-2">
           <Label htmlFor="tctry">Country (ISO-2, blank = any)</Label>
-          <Input
+          <CountryPicker
             id="tctry"
             value={country}
-            onChange={(e): void => setCountry(e.target.value.toUpperCase())}
-            maxLength={2}
+            onChange={(e): void => setCountry(e.target.value)}
+            includeBlank
+            blankLabel="— any —"
           />
         </div>
         <div className="space-y-2">

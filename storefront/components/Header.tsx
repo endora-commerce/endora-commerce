@@ -4,6 +4,8 @@ import type { I18nConfigResponse } from '@b2b/contracts';
 import { tForLocale } from '../lib/i18n/messages';
 import { CompareCounterLink } from './CompareToggle';
 import { SearchAutocomplete } from './SearchAutocomplete';
+import { CurrencyPicker } from '../lib/dictionary/pickers/CurrencyPicker';
+import { LanguagePicker } from '../lib/dictionary/pickers/LanguagePicker';
 
 /**
  * Industria-themed storefront header. Three rows:
@@ -40,12 +42,12 @@ export function Header(props: {
             <span className="industria-topbar__chip">NIP 7251234567</span>
           </div>
           <div className="industria-topbar__right">
-            <span>PL · PLN</span>
+            <CurrencySwitcher />
             <a href="/help">
               <HelpIcon /> Wsparcie techniczne
             </a>
             {props.config.languages.length > 1 ? (
-              <LocaleSwitcher config={props.config} locale={props.locale} />
+              <LocaleSwitcher locale={props.locale} />
             ) : null}
           </div>
         </div>
@@ -113,22 +115,29 @@ export function Header(props: {
   );
 }
 
-function LocaleSwitcher(props: { config: I18nConfigResponse; locale: string }): ReactNode {
+function LocaleSwitcher(props: { locale: string }): ReactNode {
   return (
     <form action="" method="GET" style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
       <label htmlFor="b2b-locale" style={{ fontSize: 11, opacity: 0.85 }}>Język:</label>
-      <select
+      <LanguagePicker
         id="b2b-locale"
         name="lang"
         defaultValue={props.locale}
         style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.16)', color: '#fff', fontSize: 11, padding: '2px 6px', borderRadius: 4 }}
-      >
-        {props.config.languages.map((lang) => (
-          <option key={lang.code} value={lang.code} style={{ color: '#000' }}>
-            {lang.label}
-          </option>
-        ))}
-      </select>
+      />
+    </form>
+  );
+}
+
+function CurrencySwitcher(): ReactNode {
+  return (
+    <form action="" method="GET" style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+      <label htmlFor="b2b-currency" style={{ fontSize: 11, opacity: 0.85 }}>Waluta:</label>
+      <CurrencyPicker
+        id="b2b-currency"
+        name="currency"
+        style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.16)', color: '#fff', fontSize: 11, padding: '2px 6px', borderRadius: 4 }}
+      />
     </form>
   );
 }

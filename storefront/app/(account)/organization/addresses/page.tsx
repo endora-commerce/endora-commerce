@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getSessionCookie } from '../../../../lib/session';
 import { createAddress, deleteAddress, listAddresses } from '../../../../lib/api/organization';
 import { StorefrontApiError } from '../../../../lib/api/client';
+import { CountryPicker } from '../../../../lib/dictionary/pickers/CountryPicker';
 
 /**
  * Organization addresses (T155). Anyone in the org can list/create/remove
@@ -92,14 +93,12 @@ export default async function AddressesPage({
         </div>
         <div className="b2b-auth__row">
           <div className="b2b-auth__field">
-            <label htmlFor="addr-country">Country (ISO-2)</label>
-            <input
+            <label htmlFor="addr-country">Country</label>
+            <CountryPicker
               id="addr-country"
               name="country"
               required
-              minLength={2}
-              maxLength={2}
-              placeholder="PL"
+              defaultValue="PL"
             />
           </div>
           <div className="b2b-auth__field">

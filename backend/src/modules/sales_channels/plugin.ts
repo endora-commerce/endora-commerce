@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
+import type { DictionaryValidator } from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { RequireAdminFactory } from '../settings/plugin.js';
@@ -63,6 +64,7 @@ export interface SalesChannelsModuleOptions {
    * updated; T046 turns this on for the production contract tests.
    */
   strictAdmin?: boolean;
+  dictionaryValidator?: DictionaryValidator;
 }
 
 export interface SalesChannelsModuleHandle {
@@ -94,6 +96,7 @@ export function salesChannelsModule(
     options.eventBus,
     options.auditLogService,
     cache,
+    options.dictionaryValidator,
   );
   const cacheInvalidator = attachSalesChannelsCacheInvalidator(
     options.eventBus,

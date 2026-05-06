@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { CurrencyPicker } from '../dictionaries/components/CurrencyPicker';
 
 interface ActiveReservation {
   orderId: string;
@@ -369,10 +370,9 @@ function GrantPanel({
             </div>
             <div className="space-y-2">
               <Label>Currency</Label>
-              <Input
+              <CurrencyPicker
                 value={currency}
-                onChange={(e): void => setCurrency(e.target.value.toUpperCase())}
-                maxLength={3}
+                onChange={(e): void => setCurrency(e.target.value)}
                 required
               />
             </div>

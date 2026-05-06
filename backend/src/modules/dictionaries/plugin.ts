@@ -7,11 +7,22 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
-import type { DictionaryValidator } from '@b2b/contracts';
+import type { DictionaryValidator as DictionaryValidatorPort } from '@b2b/contracts';
 import {
   runDictionarySeedReconciler,
   type SeedReconcilerSummary,
 } from './services/seed-reconciler.js';
+import { CountryService } from './services/country-service.js';
+import { LanguageCountryService } from './services/language-country-service.js';
+import { DictionaryCache } from './services/dictionary-cache.js';
+import { DictionaryReadService } from './services/dictionary-read-service.js';
+import { DictionaryValidator as DictionaryValidatorService } from './services/dictionary-validator.js';
+import { LabelResolver } from './services/label-resolver.js';
+import { TranslationService } from './services/translation-service.js';
+import { registerDictionaryAdminRoutes } from './routes.admin.js';
+import { registerDictionaryStorefrontRoutes } from './routes.storefront.js';
+import { LanguageService } from '../languages/services/language-service.js';
+import { CurrencyService } from '../currencies/services/currency-service.js';
 
 export type RequireAdminFactory = (
   permission?: string,
@@ -26,7 +37,9 @@ export interface DictionariesModuleOptions {
 
 export interface DictionariesModuleHandle {
   /** Cross-module validator port — wired in Phase 6 (US4). */
-  validator: DictionaryValidator | undefined;
+  validator: DictionaryValidatorPort;
+  /** Storefront registry cache, present when Redis is wired. */
+  cache: DictionaryCache | undefined;
   /**
    * Run the boot reconciler (currencies + countries + Polish translations +
    * primary language↔country associations). Idempotent — operator edits are
@@ -40,9 +53,19 @@ export function dictionariesModule(options: DictionariesModuleOptions): {
   handle: DictionariesModuleHandle;
 } {
   let reconciled = false;
+  const cache = options.redis ? new DictionaryCache(options.redis) : undefined;
+  const validator = new DictionaryValidatorService(options.emFactory);
+  const invalidateDictionaryState = async (): Promise<void> => {
+    validator.invalidate();
+    await cache?.invalidateAll();
+  };
+  const labelResolver = new LabelResolver(options.emFactory);
+  const readService = new DictionaryReadService(options.emFactory, cache, labelResolver);
+  const translationService = new TranslationService(options.emFactory, invalidateDictionaryState);
 
   const handle: DictionariesModuleHandle = {
-    validator: undefined,
+    validator,
+    cache,
     reconcile: async () => {
       const summary = await runDictionarySeedReconciler(options.emFactory);
       reconciled = true;
@@ -50,12 +73,23 @@ export function dictionariesModule(options: DictionariesModuleOptions): {
     },
   };
 
-  const plugin = async (_app: FastifyInstance) => {
+  const plugin = async (app: FastifyInstance) => {
     if (!reconciled) {
       await handle.reconcile();
     }
-    // Admin + storefront routes are registered in T029 / T043 once the
-    // underlying services exist.
+    if (options.requireAdmin) {
+      await registerDictionaryAdminRoutes(app, {
+        emFactory: options.emFactory,
+        countryService: new CountryService(options.emFactory, invalidateDictionaryState),
+        currencyService: new CurrencyService(options.emFactory, invalidateDictionaryState),
+        languageService: new LanguageService(options.emFactory, invalidateDictionaryState),
+        languageCountryService: new LanguageCountryService(options.emFactory, invalidateDictionaryState),
+        translationService,
+        invalidateDictionaryState,
+        requireAdmin: options.requireAdmin,
+      });
+    }
+    await registerDictionaryStorefrontRoutes(app, { readService });
   };
 
   return { plugin, handle };

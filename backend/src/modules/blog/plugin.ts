@@ -6,6 +6,7 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { DictionaryValidator } from '@b2b/contracts';
 import type Redis from 'ioredis';
 import type { EventBus } from '../../events/bus.js';
 
@@ -39,6 +40,8 @@ export interface BlogModuleOptions {
   settings: SettingsServicePort;
   /** Library Asset reference registry (feature 013). */
   assetReferenceRegistry: AssetReferenceRegistry;
+  /** Feature 017 dictionary validation port for language-scope fields. */
+  dictionaryValidator?: DictionaryValidator;
   /** Cross-module ports the storefront resolver delegates to (asset URL signing, product cards). */
   storefrontDeps?: BlogStorefrontDeps;
   /**
@@ -74,8 +77,12 @@ export function blogModule(options: BlogModuleOptions): {
     : undefined;
 
   const settingsResolver = new BlogSettingsResolver(options.settings);
-  const postService = new BlogPostService(options.emFactory, cache);
-  const categoryService = new BlogCategoryService(options.emFactory, cache);
+  const postService = new BlogPostService(options.emFactory, cache, options.dictionaryValidator);
+  const categoryService = new BlogCategoryService(
+    options.emFactory,
+    cache,
+    options.dictionaryValidator,
+  );
   const tagService = new BlogTagService(options.emFactory, cache);
   const storefrontResolver = new BlogStorefrontResolver(
     options.emFactory,
