@@ -42,7 +42,7 @@ The activate transaction:
 1. `UPDATE megamenu_bindings SET active = false WHERE sales_channel_id = ? AND language = ? AND active = true;` — deactivates the prior holder (if any).
 2. `UPDATE megamenu_bindings SET active = true WHERE megamenu_id = ? AND sales_channel_id = ? AND language = ?;` — activates the requested binding.
 
-Both run in a single transaction, so the partial unique index never sees a dual-active state. The activate endpoint surfaces the prior holder in `previouslyActive` so the admin's confirmation dialog can read "switched from <name>".
+Both run in a single transaction, so the partial unique index never sees a dual-active state. The activate endpoint surfaces the prior holder in `previouslyActive` so the admin's confirmation dialog can read "switched from `<name>`".
 
 Activate refuses on an empty tree with `400 MEGAMENU_EMPTY_TREE` (per `R10`). Configuration delete refuses while at least one binding has `active = true` with `409 MEGAMENU_HAS_ACTIVE_BINDINGS` (admins must deactivate first per FR-004).
 

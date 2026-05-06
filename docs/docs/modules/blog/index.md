@@ -189,10 +189,10 @@ invalidation is correct at v1; rate of writes is low).
 | Module                                       | What the blog reads                                         |
 | -------------------------------------------- | ----------------------------------------------------------- |
 | [Settings (004)](../settings/index.md)       | Four `blog.*` settings via `settings.service.get`           |
-| [Sales Channels (005)](../sales-channels/index.md) | Channel resolution + language fallback                |
+| [Sales Channels (005)](../sales_channels/index.md) | Channel resolution + language fallback                |
 | [Assets Library (013)](../assets-library/index.md) | Asset URL signing + reference registry                |
 | [CMS (014)](../cms/index.md)                 | Page Builder envelope (`cmsContentEnvelopeSchema`)          |
-| [Catalog (002)](../catalog/index.md)         | Product card resolution for Related Products                |
+| [Catalog (002)](../catalog.md)               | Product card resolution for Related Products                |
 
 The blog module never imports another module's internals — every cross-module read goes through a documented service port.
 
