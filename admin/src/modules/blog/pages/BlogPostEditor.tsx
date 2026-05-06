@@ -13,6 +13,8 @@ import { PageBuilderEditor } from '../../cms/components/PageBuilderEditor';
 import { ScopePicker, type CmsScopeValue } from '../../cms/components/ScopePicker';
 import { blogClient } from '../api/blog-client';
 import { PostStatusBadge } from '../components/PostStatusBadge';
+import { RelatedPostsPicker } from '../components/RelatedPostsPicker';
+import { RelatedProductsPicker } from '../components/RelatedProductsPicker';
 import { TagPicker } from '../components/TagPicker';
 
 interface FormState {
@@ -215,6 +217,52 @@ export function BlogPostEditor(): ReactNode {
         const updated = await blogClient.setPostTags(post.id, tagIds, post.version);
         setPost(updated);
         setInfo(`Tags updated (${tagIds.length} attached).`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setSaving(false);
+      }
+    },
+    [post],
+  );
+
+  const onSaveRelatedPosts = useCallback(
+    async (relatedPostIds: string[]) => {
+      if (!post) return;
+      setSaving(true);
+      setError(null);
+      setInfo(null);
+      try {
+        const updated = await blogClient.setPostRelatedPosts(
+          post.id,
+          relatedPostIds,
+          post.version,
+        );
+        setPost(updated);
+        setInfo(`Related posts updated (${relatedPostIds.length} attached).`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setSaving(false);
+      }
+    },
+    [post],
+  );
+
+  const onSaveRelatedProducts = useCallback(
+    async (productIds: string[]) => {
+      if (!post) return;
+      setSaving(true);
+      setError(null);
+      setInfo(null);
+      try {
+        const updated = await blogClient.setPostRelatedProducts(
+          post.id,
+          productIds,
+          post.version,
+        );
+        setPost(updated);
+        setInfo(`Related products updated (${productIds.length} attached).`);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -429,6 +477,35 @@ export function BlogPostEditor(): ReactNode {
             <TagPicker
               value={post.tags.map((t) => t.id)}
               onChange={(next) => void onSaveTags(next)}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {!isNew && post ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Related posts</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RelatedPostsPicker
+              value={post.relatedPostIds}
+              selfId={post.id}
+              onChange={(next) => void onSaveRelatedPosts(next)}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {!isNew && post ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Related products</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RelatedProductsPicker
+              value={post.relatedProductIds}
+              onChange={(next) => void onSaveRelatedProducts(next)}
             />
           </CardContent>
         </Card>
