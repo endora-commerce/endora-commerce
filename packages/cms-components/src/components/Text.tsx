@@ -1,3 +1,5 @@
+'use client';
+
 import { generateHTML, type JSONContent } from '@tiptap/core';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';

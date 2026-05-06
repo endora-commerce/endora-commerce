@@ -156,29 +156,65 @@ export class Migration031PriceListsEngine extends Migration {
     `);
 
     // ============================================================
-    // 6. Seed Default price list (idempotent via deterministic UUID)
+    // 6. Seed Default price list (idempotent via deterministic UUID).
+    //    If a different price_list already carries is_default=true (e.g. a
+    //    pre-feature-011 dev seed produced one with a random UUID like
+    //    `default_pln`), re-point its children onto the deterministic row and
+    //    drop the legacy row. Without this, the partial unique index
+    //    `uniq_price_lists_one_default` (created by migration 014) blocks the
+    //    seed insert.
     // ============================================================
     this.addSql(`
-      insert into "price_lists" (
-        "id", "code", "name", "currency",
-        "is_default", "priority",
-        "type", "status", "modified_at",
-        "application_rule", "is_system",
-        "created_at", "updated_at"
-      )
-      values (
-        '${DEFAULT_PRICE_LIST_ID}', 'default', 'Default', 'PLN',
-        true, 0,
-        'base', 'active', now(),
-        '{"kind":"all"}'::jsonb, true,
-        now(), now()
-      )
-      on conflict ("id") do update set
-        "name" = excluded."name",
-        "type" = excluded."type",
-        "status" = excluded."status",
-        "is_system" = excluded."is_system",
-        "application_rule" = excluded."application_rule";
+      do $$
+      declare
+        v_target_id uuid := '${DEFAULT_PRICE_LIST_ID}'::uuid;
+        v_legacy_id uuid;
+      begin
+        select "id" into v_legacy_id
+          from "price_lists"
+          where "is_default" = true and "id" <> v_target_id
+          limit 1;
+
+        if v_legacy_id is not null then
+          -- Release the partial unique index before inserting the deterministic row.
+          update "price_lists" set "is_default" = false where "id" = v_legacy_id;
+        end if;
+
+        insert into "price_lists" (
+          "id", "code", "name", "currency",
+          "is_default", "priority",
+          "type", "status", "modified_at",
+          "application_rule", "is_system",
+          "created_at", "updated_at"
+        )
+        values (
+          v_target_id, 'default', 'Default', 'PLN',
+          true, 0,
+          'base', 'active', now(),
+          '{"kind":"all"}'::jsonb, true,
+          now(), now()
+        )
+        on conflict ("id") do update set
+          "name" = excluded."name",
+          "type" = excluded."type",
+          "status" = excluded."status",
+          "is_default" = true,
+          "is_system" = excluded."is_system",
+          "application_rule" = excluded."application_rule";
+
+        if v_legacy_id is not null then
+          -- Re-point legacy-feature-014 children onto the deterministic row,
+          -- then delete the legacy row.
+          update "price_list_items"
+            set "price_list_id" = v_target_id
+            where "price_list_id" = v_legacy_id;
+          update "price_list_assignments"
+            set "price_list_id" = v_target_id
+            where "price_list_id" = v_legacy_id;
+          delete from "price_lists" where "id" = v_legacy_id;
+        end if;
+      end
+      $$;
     `);
 
     // ============================================================
