@@ -128,6 +128,7 @@ const NAV: NavSection[] = [
       { to: '/megamenu', label: 'Megamenu', icon: Newspaper },
       { to: '/blog/posts', label: 'Blog Posts', icon: Newspaper },
       { to: '/blog/categories', label: 'Blog Categories', icon: Newspaper },
+      { to: '/blog/tags', label: 'Blog Tags', icon: Newspaper },
       { to: '/i18n', label: 'Languages', icon: Languages },
       { to: '/seo', label: 'SEO', icon: Search },
     ],

@@ -13,6 +13,7 @@ import { PageBuilderEditor } from '../../cms/components/PageBuilderEditor';
 import { ScopePicker, type CmsScopeValue } from '../../cms/components/ScopePicker';
 import { blogClient } from '../api/blog-client';
 import { PostStatusBadge } from '../components/PostStatusBadge';
+import { TagPicker } from '../components/TagPicker';
 
 interface FormState {
   name: string;
@@ -203,6 +204,25 @@ export function BlogPostEditor(): ReactNode {
       setSaving(false);
     }
   }, [activeLanguage, draftData, post]);
+
+  const onSaveTags = useCallback(
+    async (tagIds: string[]) => {
+      if (!post) return;
+      setSaving(true);
+      setError(null);
+      setInfo(null);
+      try {
+        const updated = await blogClient.setPostTags(post.id, tagIds, post.version);
+        setPost(updated);
+        setInfo(`Tags updated (${tagIds.length} attached).`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setSaving(false);
+      }
+    },
+    [post],
+  );
 
   const onLifecycle = useCallback(
     async (kind: 'publish' | 'unpublish' | 'archive') => {
@@ -399,6 +419,20 @@ export function BlogPostEditor(): ReactNode {
           </div>
         </CardContent>
       </Card>
+
+      {!isNew && post ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Tags</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TagPicker
+              value={post.tags.map((t) => t.id)}
+              onChange={(next) => void onSaveTags(next)}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {!isNew && post && activeLanguage && draftData !== null ? (
         <Card>
