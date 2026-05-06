@@ -2,8 +2,10 @@ import type { FastifyInstance } from 'fastify';
 import {
   createBlogCategoryRequestSchema,
   createBlogPostRequestSchema,
+  createBlogTagRequestSchema,
   patchBlogCategoryRequestSchema,
   patchBlogPostRequestSchema,
+  patchBlogTagRequestSchema,
   putBlogCategoryDescriptionRequestSchema,
   putBlogCategoryTreeMovesRequestSchema,
   putBlogPostContentRequestSchema,
@@ -15,6 +17,7 @@ import { z } from 'zod';
 import type { RequireAdminFactory } from './plugin.js';
 import type { BlogCategoryService } from './services/blog-category-service.js';
 import type { BlogPostService } from './services/blog-post-service.js';
+import type { BlogTagService } from './services/blog-tag-service.js';
 
 const versionOnlySchema = z.object({ version: z.number().int() });
 
@@ -29,11 +32,18 @@ const listFiltersSchema = z.object({
   perPage: z.coerce.number().int().positive().max(100).optional(),
 });
 
+const tagListFiltersSchema = z.object({
+  q: z.string().optional(),
+  page: z.coerce.number().int().positive().optional(),
+  perPage: z.coerce.number().int().positive().max(100).optional(),
+});
+
 export async function registerBlogAdminRoutes(
   app: FastifyInstance,
   deps: {
     postService: BlogPostService;
     categoryService: BlogCategoryService;
+    tagService: BlogTagService;
     requireAdmin?: RequireAdminFactory;
   },
 ): Promise<void> {
@@ -220,5 +230,55 @@ export async function registerBlogAdminRoutes(
       await deps.categoryService.softDelete(request.params.id, body.version);
       return reply.code(204).send();
     },
+  );
+
+  // ── Tags ───────────────────────────────────────────────────────────
+
+  app.get('/api/v1/admin/blog/tags', { preHandler: requireRead }, async (request) => {
+    const filters = tagListFiltersSchema.parse(request.query ?? {});
+    return deps.tagService.list(filters);
+  });
+
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/blog/tags/:id',
+    { preHandler: requireRead },
+    async (request) => ({ data: await deps.tagService.getById(request.params.id) }),
+  );
+
+  app.post(
+    '/api/v1/admin/blog/tags',
+    { preHandler: requireWrite },
+    async (request, reply) => {
+      const body = createBlogTagRequestSchema.parse(request.body);
+      const created = await deps.tagService.create(body);
+      return reply.code(201).send({ data: created });
+    },
+  );
+
+  app.patch<{ Params: { id: string } }>(
+    '/api/v1/admin/blog/tags/:id',
+    { preHandler: requireWrite },
+    async (request) => {
+      const body = patchBlogTagRequestSchema.parse(request.body);
+      return { data: await deps.tagService.patch(request.params.id, body) };
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/v1/admin/blog/tags/:id',
+    { preHandler: requireWrite },
+    async (request, reply) => {
+      const body = versionOnlySchema.partial().parse(request.body ?? {});
+      await deps.tagService.softDelete(request.params.id, body.version);
+      return reply.code(204).send();
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/blog/tags/:id/inbound-references',
+    { preHandler: requireRead },
+    async (request) => ({
+      data: await deps.tagService.getInboundReferences(request.params.id),
+    }),
   );
 }

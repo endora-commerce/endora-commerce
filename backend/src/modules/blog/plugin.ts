@@ -12,6 +12,7 @@ import { BlogCacheService, type BlogCacheOptions } from './services/blog-cache.j
 import { BlogSettingsResolver, type SettingsServicePort } from './services/blog-settings-resolver.js';
 import { BlogCategoryService } from './services/blog-category-service.js';
 import { BlogPostService } from './services/blog-post-service.js';
+import { BlogTagService } from './services/blog-tag-service.js';
 import {
   BlogStorefrontResolver,
   type BlogStorefrontDeps,
@@ -46,6 +47,7 @@ export interface BlogModuleHandle {
   settingsResolver: BlogSettingsResolver;
   postService: BlogPostService;
   categoryService: BlogCategoryService;
+  tagService: BlogTagService;
   storefrontResolver: BlogStorefrontResolver;
   /**
    * Run the boot reconcilers (Default Category + seeded roles). Called
@@ -66,6 +68,7 @@ export function blogModule(options: BlogModuleOptions): {
   const settingsResolver = new BlogSettingsResolver(options.settings);
   const postService = new BlogPostService(options.emFactory, cache);
   const categoryService = new BlogCategoryService(options.emFactory, cache);
+  const tagService = new BlogTagService(options.emFactory, cache);
   const storefrontResolver = new BlogStorefrontResolver(
     options.emFactory,
     settingsResolver,
@@ -90,6 +93,7 @@ export function blogModule(options: BlogModuleOptions): {
     settingsResolver,
     postService,
     categoryService,
+    tagService,
     storefrontResolver,
     reconcile,
   };
@@ -99,6 +103,7 @@ export function blogModule(options: BlogModuleOptions): {
     await registerBlogAdminRoutes(app, {
       postService,
       categoryService,
+      tagService,
       ...(options.requireAdmin ? { requireAdmin: options.requireAdmin } : {}),
     });
     await registerBlogStorefrontRoutes(app, { storefrontResolver });
