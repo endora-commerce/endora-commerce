@@ -10,9 +10,11 @@ import type Redis from 'ioredis';
 
 import { BlogCacheService, type BlogCacheOptions } from './services/blog-cache.js';
 import { BlogSettingsResolver, type SettingsServicePort } from './services/blog-settings-resolver.js';
+import { BlogPostService } from './services/blog-post-service.js';
 import { registerBlogAssetReferences } from './services/blog-asset-references.js';
 import { seedDefaultCategory } from './services/seed-default-category.js';
 import { seedBlogRoles } from './services/seed-roles.js';
+import { registerBlogAdminRoutes } from './routes.admin.js';
 import type { AssetReferenceRegistry } from '../assets_library/services/reference-registry.js';
 
 export type RequireAdminFactory = (
@@ -34,6 +36,7 @@ export interface BlogModuleOptions {
 export interface BlogModuleHandle {
   cache: BlogCacheService | undefined;
   settingsResolver: BlogSettingsResolver;
+  postService: BlogPostService;
   /**
    * Run the boot reconcilers (Default Category + seeded roles). Called
    * at plugin startup. Returning the result lets tests inspect what was
@@ -51,6 +54,7 @@ export function blogModule(options: BlogModuleOptions): {
     : undefined;
 
   const settingsResolver = new BlogSettingsResolver(options.settings);
+  const postService = new BlogPostService(options.emFactory, cache);
 
   // Register the asset-reference descriptors immediately so the Library's
   // soft-delete path picks them up before any blog write happens.
@@ -64,17 +68,14 @@ export function blogModule(options: BlogModuleOptions): {
     reconciled = true;
   }
 
-  const handle: BlogModuleHandle = { cache, settingsResolver, reconcile };
+  const handle: BlogModuleHandle = { cache, settingsResolver, postService, reconcile };
 
   const plugin = async (app: FastifyInstance) => {
-    // Real admin + storefront routes land in user-story phases. The
-    // plugin currently runs the seed reconcilers on first registration
-    // so the platform boots with the seeded Default Category + the two
-    // seeded admin roles + the four blog settings (registered through
-    // the Settings module's manifest loader).
     await reconcile();
-    // Avoid the unused-arg lint while no routes are registered yet.
-    void app;
+    await registerBlogAdminRoutes(app, {
+      postService,
+      ...(options.requireAdmin ? { requireAdmin: options.requireAdmin } : {}),
+    });
   };
 
   return { plugin, handle };
