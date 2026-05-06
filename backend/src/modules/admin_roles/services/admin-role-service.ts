@@ -22,8 +22,40 @@ export interface UpsertAdminRoleInput {
   requiresTwoFactor?: boolean;
 }
 
+/**
+ * Codes of seeded roles that other modules register as
+ * deletion-protected. Modules call `registerSystemRoleCode(...)` from
+ * their plugin to add their seeded codes to this set; once registered,
+ * `remove` refuses to delete a role whose `code` is in the set with a
+ * 409 ADMIN_ROLE_PROTECTED envelope (feature 016 / FR-025).
+ */
+const SYSTEM_ROLE_CODES = new Set<string>();
+
+/**
+ * Module-level registration for seeded role codes that should be
+ * deletion-protected. Idempotent. Exposed as a top-level function so
+ * modules can call it from their plugin without holding an
+ * AdminRoleService instance.
+ */
+export function registerSystemRoleCode(code: string): void {
+  SYSTEM_ROLE_CODES.add(code);
+}
+
+/** Test helper — clears the protected-codes registry between suites. */
+export function _resetSystemRoleCodesForTests(): void {
+  SYSTEM_ROLE_CODES.clear();
+}
+
 export class AdminRoleService {
   constructor(private readonly emFactory: () => EntityManager) {}
+
+  /**
+   * Register a role code as system-protected. Called by modules at
+   * plugin startup for their seeded roles. Idempotent.
+   */
+  registerSystemRoleCode(code: string): void {
+    SYSTEM_ROLE_CODES.add(code);
+  }
 
   async list(): Promise<AdminRole[]> {
     const em = this.emFactory();
@@ -73,6 +105,13 @@ export class AdminRoleService {
     const em = this.emFactory();
     const role = await em.findOne(AdminRole, { id });
     if (!role) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Admin role not found.');
+    if (SYSTEM_ROLE_CODES.has(role.code)) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.ADMIN_ROLE_PROTECTED,
+        `Cannot delete the system-protected role "${role.code}". Modules' seeded roles are immutable.`,
+      );
+    }
     const assignees = await em.count(AdminUser, { adminRoleId: role.id, deletedAt: null });
     if (assignees > 0) {
       throw new HttpError(

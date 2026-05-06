@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { randomUUID } from 'crypto';
+import { registerSystemRoleCode } from '../../admin_roles/services/admin-role-service.js';
 
 /**
  * SeedBlogRoles — feature 016 / R8 / T025.
@@ -47,6 +48,13 @@ export interface BlogRoleSeedResult {
 export async function seedBlogRoles(
   emFactory: () => EntityManager,
 ): Promise<BlogRoleSeedResult[]> {
+  // Register the seeded codes as system-protected up-front. Idempotent,
+  // and the registration must happen even when the rows already exist
+  // (a fresh process boot starts with an empty in-memory registry).
+  for (const def of SEED_DEFINITIONS) {
+    registerSystemRoleCode(def.code);
+  }
+
   const conn = emFactory().getConnection();
   const results: BlogRoleSeedResult[] = [];
 
