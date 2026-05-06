@@ -4,12 +4,14 @@ import { TaxService } from './services/tax-service.js';
 import { registerTaxRoutes } from './routes.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
+import type { DictionaryValidator } from '@b2b/contracts';
 
 export interface TaxesModuleOptions {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
   /** Feature 005 / T027b — when injected, new Taxes auto-bind to the system default. */
   salesChannelMembership?: SalesChannelMembershipService;
+  dictionaryValidator?: DictionaryValidator;
 }
 
 export interface TaxesModuleHandle {
@@ -20,7 +22,11 @@ export function taxesModule(options: TaxesModuleOptions): {
   plugin: (app: FastifyInstance) => Promise<void>;
   handle: TaxesModuleHandle;
 } {
-  const taxService = new TaxService(options.emFactory, options.salesChannelMembership);
+  const taxService = new TaxService(
+    options.emFactory,
+    options.salesChannelMembership,
+    options.dictionaryValidator,
+  );
   return {
     handle: { taxService },
     plugin: async (app: FastifyInstance) => {

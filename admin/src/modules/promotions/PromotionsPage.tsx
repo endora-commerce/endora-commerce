@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { CurrencyPicker } from '../dictionaries/components/CurrencyPicker';
 
 interface AdminPromotion {
   id: string;
@@ -348,11 +349,10 @@ const CreatePromotionForm = ({
         {kind === 'amount_off' ? (
           <div className="space-y-2">
             <Label htmlFor="prcur">Currency</Label>
-            <Input
+            <CurrencyPicker
               id="prcur"
               value={currency}
-              onChange={(e): void => setCurrency(e.target.value.toUpperCase())}
-              maxLength={3}
+              onChange={(e): void => setCurrency(e.target.value)}
               required
             />
           </div>

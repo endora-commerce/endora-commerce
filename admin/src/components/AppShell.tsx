@@ -137,7 +137,8 @@ const NAV: NavSection[] = [
       { to: '/blog/posts', label: 'Blog Posts', icon: Newspaper, requiredPermission: 'blog.read' },
       { to: '/blog/categories', label: 'Blog Categories', icon: Newspaper, requiredPermission: 'blog.read' },
       { to: '/blog/tags', label: 'Blog Tags', icon: Newspaper, requiredPermission: 'blog.read' },
-      { to: '/i18n', label: 'Languages', icon: Languages },
+      { to: '/dictionary', label: 'Dictionary', icon: Languages, requiredPermission: 'dictionary.write' },
+      { to: '/admin/dictionaries/audit', label: 'Dictionary audit', icon: ListChecks, requiredPermission: 'dictionary.write' },
       { to: '/seo', label: 'SEO', icon: Search },
     ],
   },
@@ -364,9 +365,14 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { label: 'Megamenu', href: '/megamenu' },
     { label: 'Editor', href: null },
   ] },
-  { test: /^\/i18n\/?$/, build: () => [
+  { test: /^\/dictionary\/?$/, build: () => [
     { label: 'Channels', href: '/sales-channels' },
-    { label: 'Languages', href: null },
+    { label: 'Dictionary', href: null },
+  ] },
+  { test: /^\/(?:admin\/)?dictionaries\/audit\/?$/, build: () => [
+    { label: 'Channels', href: '/sales-channels' },
+    { label: 'Dictionary', href: '/dictionary' },
+    { label: 'Audit', href: null },
   ] },
   { test: /^\/seo\/?$/, build: () => [
     { label: 'Channels', href: '/sales-channels' },
@@ -450,6 +456,8 @@ const PALETTE_ITEMS: PaletteItem[] = [
   { group: 'Navigate', label: 'Categories', sub: 'Tree of catalog categories', icon: Boxes, to: '/catalog/categories', keywords: 'category categories tree' },
   { group: 'Navigate', label: 'Attributes', sub: 'Attribute definitions', icon: Tag, to: '/catalog/attributes', keywords: 'attribute attributes' },
   { group: 'Navigate', label: 'Sales channels', sub: 'Storefront channels', icon: Store, to: '/sales-channels', keywords: 'sales channel channels' },
+  { group: 'Navigate', label: 'Dictionary', sub: 'Countries currencies languages', icon: Languages, to: '/dictionary', keywords: 'dictionary countries currencies languages i18n' },
+  { group: 'Navigate', label: 'Dictionary audit', sub: 'Unresolved registry references', icon: ListChecks, to: '/admin/dictionaries/audit', keywords: 'dictionary audit orphan references' },
   { group: 'Navigate', label: 'Settings', sub: 'Platform configuration', icon: Settings, to: '/settings', keywords: 'settings configuration config' },
   { group: 'Actions', label: 'New product', sub: 'Create a new catalog row', icon: Plus, to: '/catalog/products/new', keywords: 'create new product add' },
   { group: 'Actions', label: 'Import products', sub: 'Bulk upload', icon: Upload, to: '/import-export', keywords: 'csv import upload' },

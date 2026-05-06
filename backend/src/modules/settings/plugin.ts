@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { DictionaryValidator } from '@b2b/contracts';
 import type Redis from 'ioredis';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
@@ -36,6 +37,8 @@ export interface SettingsModuleOptions {
   auditLogService?: AuditLogService;
   requireAdmin?: RequireAdminFactory;
   resolveAdminAuditContext?: (req: FastifyRequest) => AdminAuditContext;
+  /** Feature 017 no-op for now; reserved for future typed dictionary-code settings. */
+  dictionaryValidator?: DictionaryValidator;
   /** When omitted, the universal getter runs without a cache. */
   redis?: Redis;
 }

@@ -1,6 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
+import { DictionaryReferenceError, type DictionaryValidator } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
 import {
   Warehouse,
   DEFAULT_WAREHOUSE_CODE,
@@ -63,7 +65,10 @@ export interface WarehouseDTO {
  * warehouse) likewise refuse delete; admins must move stock first.
  */
 export class WarehouseService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly dictionaryValidator?: DictionaryValidator,
+  ) {}
 
   async list(options: {
     page?: number;
@@ -106,6 +111,9 @@ export class WarehouseService {
   }
 
   async create(input: CreateWarehouseInput): Promise<WarehouseDTO> {
+    if (input.address?.countryCode) {
+      await this.validateCountry(input.address.countryCode, 'create-or-change');
+    }
     const em = this.emFactory();
     const row = em.create(Warehouse, {
       name: input.name,
@@ -133,6 +141,12 @@ export class WarehouseService {
     const row = await em.findOne(Warehouse, { id });
     if (!row) throw new HttpError(404, 'WAREHOUSE_NOT_FOUND', 'Warehouse not found');
 
+    if (input.address?.countryCode) {
+      await this.validateCountry(
+        input.address.countryCode,
+        dispatchValidatorMode(row.address?.countryCode, input.address.countryCode),
+      );
+    }
     if (input.name !== undefined) row.name = input.name;
     if (input.active !== undefined) row.active = input.active;
     if (input.description !== undefined) row.description = input.description;
@@ -144,6 +158,28 @@ export class WarehouseService {
     }
     await em.persistAndFlush(row);
     return this.toDTO(row);
+  }
+
+  private async validateCountry(
+    countryCode: string,
+    mode: 'create-or-change' | 'unchanged',
+  ): Promise<void> {
+    if (!this.dictionaryValidator) return;
+    try {
+      await this.dictionaryValidator.validateCountryCode(countryCode, mode);
+    } catch (err) {
+      if (err instanceof DictionaryReferenceError) {
+        throw new HttpError(
+          409,
+          err.code,
+          err.code === 'DICTIONARY_ENTRY_INACTIVE'
+            ? `Country code ${err.entryCode} is no longer available for warehouses.`
+            : `Country code ${err.entryCode} is not recognised.`,
+          [{ path: 'address.countryCode', issue: err.code }],
+        );
+      }
+      throw err;
+    }
   }
 
   async deactivate(id: string): Promise<WarehouseDTO> {

@@ -1,12 +1,14 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
+  DictionaryReferenceError,
   ERROR_CODES,
   type BlogPostDetail,
   type BlogPostInboundReferencesResponse,
   type BlogPostStatus,
   type BlogPostSummary,
   type CreateBlogPostRequest,
+  type DictionaryValidator,
   type PatchBlogPostRequest,
   type PutBlogPostContentRequest,
 } from '@b2b/contracts';
@@ -64,6 +66,7 @@ export class BlogPostService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly cache?: BlogCacheService,
+    private readonly dictionaryValidator?: DictionaryValidator,
   ) {}
 
   // ────────────────────────────────────────────────────────────────────
@@ -154,6 +157,7 @@ export class BlogPostService {
         salesChannelIds: input.salesChannelIds,
         kind: 'post',
       });
+      await this.validateLanguages(input.languages);
 
       // Auto-fill the seeded Default category when none supplied (FR-011).
       let categoryIds = input.categoryIds ?? [];
@@ -309,6 +313,8 @@ export class BlogPostService {
       }
       // Sync language scope.
       if (input.languages !== undefined) {
+        const currentLanguages = await this.loadLanguages(tx, id);
+        await this.validateLanguages(input.languages, currentLanguages);
         await this.replaceLanguages(tx, id, input.languages);
       }
       // Sync categories.
@@ -712,6 +718,42 @@ export class BlogPostService {
       [postId],
     )) as Array<{ id: string }>;
     return rows.map((r) => r.id);
+  }
+
+  private async loadLanguages(em: EntityManager, postId: string): Promise<string[]> {
+    const rows = (await em.getConnection().execute(
+      `select language from blog_post_languages where blog_post_id = ?`,
+      [postId],
+    )) as Array<{ language: string }>;
+    return rows.map((r) => r.language);
+  }
+
+  private async validateLanguages(
+    languages: string[],
+    currentLanguages: string[] = [],
+  ): Promise<void> {
+    if (!this.dictionaryValidator) return;
+    const current = new Set(currentLanguages);
+    for (const language of languages) {
+      try {
+        await this.dictionaryValidator.validateLanguageCode(
+          language,
+          current.has(language) ? 'unchanged' : 'create-or-change',
+        );
+      } catch (err) {
+        if (err instanceof DictionaryReferenceError) {
+          throw new HttpError(
+            409,
+            err.code,
+            err.code === 'DICTIONARY_ENTRY_INACTIVE'
+              ? `Language code ${err.entryCode} is no longer available for blog posts.`
+              : `Language code ${err.entryCode} is not recognised.`,
+            [{ path: 'languages', issue: err.code }],
+          );
+        }
+        throw err;
+      }
+    }
   }
 
   private async replaceChannels(

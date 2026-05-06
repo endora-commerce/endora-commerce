@@ -12,7 +12,9 @@ export class Currency {
     | 'updatedAt'
     | 'isDefault'
     | 'isActive'
-    | 'sortOrder';
+    | 'sortOrder'
+    | 'symbolPosition'
+    | 'decimalPlaces';
 
   @PrimaryKey({ type: 'string', length: 3 })
   code!: string;
@@ -22,6 +24,14 @@ export class Currency {
 
   @Property({ type: 'string', length: 8 })
   symbol!: string;
+
+  /** Where the symbol appears relative to the amount. Extended by feature 017. */
+  @Property({ type: 'string', length: 8 })
+  symbolPosition: 'prefix' | 'suffix' = 'suffix';
+
+  /** Currency's typical fractional precision (0 for JPY, 2 for most, 3 for BHD). */
+  @Property({ type: 'smallint' })
+  decimalPlaces: number = 2;
 
   @Property({ type: 'boolean' })
   isDefault: boolean = false;

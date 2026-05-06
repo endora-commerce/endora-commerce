@@ -9,7 +9,8 @@ import { IntegrationsPage } from './modules/integrations/IntegrationsPage.js';
 import { AnalyticsPage } from './modules/analytics/AnalyticsPage.js';
 import { ImportExportPage } from './modules/import_export/ImportExportPage.js';
 import { SeoPage } from './modules/seo/SeoPage.js';
-import { I18nPage } from './modules/i18n/I18nPage.js';
+import { DictionaryPage } from './modules/dictionaries/DictionaryPage.js';
+import { DictionaryAuditPage } from './modules/dictionaries/AuditPage.js';
 import { PagesListPage } from './modules/cms/pages/PagesListPage.js';
 import { PageEditor } from './modules/cms/editors/PageEditor.js';
 import { BlocksListPage } from './modules/cms/pages/BlocksListPage.js';
@@ -116,7 +117,9 @@ export function App(): ReactNode {
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/import-export" element={<ImportExportPage />} />
         <Route path="/seo" element={<SeoPage />} />
-        <Route path="/i18n" element={<I18nPage />} />
+        <Route path="/dictionary" element={<DictionaryPage />} />
+        <Route path="/dictionaries/audit" element={<DictionaryAuditPage />} />
+        <Route path="/admin/dictionaries/audit" element={<DictionaryAuditPage />} />
         <Route path="/cms" element={<PagesListPage />} />
         <Route path="/cms/pages" element={<PagesListPage />} />
         <Route path="/cms/pages/new" element={<PageEditor />} />

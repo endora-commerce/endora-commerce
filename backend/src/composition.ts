@@ -34,6 +34,7 @@ import { megamenuModule } from './modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
 import { blogModule } from './modules/blog/plugin.js';
+import { dictionariesModule } from './modules/dictionaries/plugin.js';
 import { blogManifest } from './modules/blog/manifest.js';
 import { priceListsModule } from './modules/price_lists/plugin.js';
 import { taxesModule } from './modules/taxes/plugin.js';
@@ -213,12 +214,23 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // at boot. This reconciler catches up at runtime so US3 (channel→warehouse)
   // never sees a channel without at least one (default) assignment.
   await new WarehouseChannelReconciler(em()).run();
+
+  // Feature 017 — construct the Dictionary module before its validator
+  // consumers so the shared port can be threaded through their services.
+  // The plugin itself is still registered later to preserve route order.
+  const dictionaries = dictionariesModule({
+    emFactory: em,
+    requireAdmin,
+    redis,
+  });
+
   const salesChannels = salesChannelsModule({
     emFactory: em,
     eventBus,
     redis,
     auditLogService,
     requireAdmin,
+    dictionaryValidator: dictionaries.handle.validator,
     resolveAdminAuditContext: (request) => {
       if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
       return { actorAdminUserId: request.actor.adminUserId };
@@ -243,6 +255,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     requireAdmin,
     salesChannelMembership: salesChannels.handle.membershipService,
+    dictionaryValidator: dictionaries.handle.validator,
   });
   // Feature 012 / US8 — promotions reads catalog through CatalogQueryService
   // (the documented cross-module port — Constitution I) so the rule editor
@@ -254,6 +267,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdmin,
     salesChannelMembership: salesChannels.handle.membershipService,
     catalogQueryService: catalogQueryServiceForPromotions,
+    dictionaryValidator: dictionaries.handle.validator,
   });
 
   // Settings module is constructed up here (rather than further down) so its
@@ -265,6 +279,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     auditLogService,
     requireAdmin,
     redis,
+    dictionaryValidator: dictionaries.handle.validator,
     resolveAdminAuditContext: (request) => {
       if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
       return { actorAdminUserId: request.actor.adminUserId };
@@ -335,6 +350,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCustomerContext: customerResolver,
       mailer: organizationsMailer,
       auditLogService,
+      dictionaryValidator: dictionaries.handle.validator,
       ...(process.env['STOREFRONT_BASE_URL']
         ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
         : {}),
@@ -383,6 +399,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       eventBus,
       channelResolver: salesChannels.handle.resolver,
       settingsService: settings.handle.settingsService,
+      dictionaryValidator: dictionaries.handle.validator,
     }),
   ];
 
@@ -420,6 +437,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     requireAdmin,
     redis,
+    dictionaryValidator: dictionaries.handle.validator,
     validatorDeps: {
       categoryExists: async (categoryId) => {
         const rows = (await em().getConnection().execute(
@@ -518,8 +536,19 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         settings.handle.settingsService.get(code, salesChannelId, schema),
     },
     assetReferenceRegistry: assetsLibrary.handle.referenceRegistry,
+    dictionaryValidator: dictionaries.handle.validator,
   });
   modules.push(blog.plugin);
+
+  // Feature 017 — Dictionary module. Boot reconciler populates the
+  // ISO 3166-1 country catalogue, the major-currency seed metadata,
+  // Polish translations for the active subset, and primary
+  // language↔country associations. Idempotent — operator edits via
+  // Admin UI / API are sticky across boots (FR-019). Admin + storefront
+  // HTTP routes ship in user-story phases (Phase 3+); the plugin
+  // currently performs the seed reconciler on first registration so
+  // the platform boots with a fully populated registry.
+  modules.push(dictionaries.plugin);
 
   // Feature 006 — Search module. Owns Meilisearch indexer + event-subscriber
   // lifecycle (R-3 — moved out of catalog). Settings-aware suggest config

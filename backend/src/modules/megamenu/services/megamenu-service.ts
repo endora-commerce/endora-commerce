@@ -1,9 +1,11 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
+  DictionaryReferenceError,
   ERROR_CODES,
   type ActivateBindingResponse,
   type CreateMegamenuRequest,
+  type DictionaryValidator,
   type MegamenuBinding as MegamenuBindingDto,
   type MegamenuDetail,
   type MegamenuSummary,
@@ -60,6 +62,7 @@ export class MegamenuService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly cache?: MegamenuCache,
+    private readonly dictionaryValidator?: DictionaryValidator,
   ) {}
 
   // ────────────────────────────────────────────────────────────────────
@@ -159,6 +162,7 @@ export class MegamenuService {
   ): Promise<MegamenuBindingDto> {
     const em = this.emFactory();
     await this.assertMenuExists(menuId);
+    await this.validateLanguage(language);
     const channel = await this.fetchChannel(em, salesChannelId);
     if (!channel) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Sales channel ${salesChannelId} not found.`);
@@ -196,6 +200,25 @@ export class MegamenuService {
       [menuId, salesChannelId, language],
     )) as BindingRow[];
     return this.toBindingDto(rows[0]!);
+  }
+
+  private async validateLanguage(language: string): Promise<void> {
+    if (!this.dictionaryValidator) return;
+    try {
+      await this.dictionaryValidator.validateLanguageCode(language, 'create-or-change');
+    } catch (err) {
+      if (err instanceof DictionaryReferenceError) {
+        throw new HttpError(
+          409,
+          err.code,
+          err.code === 'DICTIONARY_ENTRY_INACTIVE'
+            ? `Language code ${err.entryCode} is no longer available for megamenu bindings.`
+            : `Language code ${err.entryCode} is not recognised.`,
+          [{ path: 'language', issue: err.code }],
+        );
+      }
+      throw err;
+    }
   }
 
   async removeBinding(menuId: string, salesChannelId: string, language: string): Promise<void> {

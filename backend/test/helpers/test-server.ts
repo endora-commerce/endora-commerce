@@ -28,6 +28,7 @@ import { megamenuModule } from '../../src/modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from '../../src/modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from '../../src/modules/megamenu/services/cms-references.js';
 import { blogModule } from '../../src/modules/blog/plugin.js';
+import { dictionariesModule } from '../../src/modules/dictionaries/plugin.js';
 import { priceListsModule } from '../../src/modules/price_lists/plugin.js';
 import { taxesModule } from '../../src/modules/taxes/plugin.js';
 import { promotionsModule } from '../../src/modules/promotions/plugin.js';
@@ -109,6 +110,8 @@ export interface BackendServerHandle {
   megamenu: ReturnType<typeof megamenuModule>['handle'];
   /** Feature 016 — Blog module handle (cache, settings resolver, reconcile). */
   blog: ReturnType<typeof blogModule>['handle'];
+  /** Feature 017 — Dictionary module handle (cache + future validator). */
+  dictionaries: ReturnType<typeof dictionariesModule>['handle'];
 }
 
 const SEEDED_TABLES = [
@@ -225,9 +228,13 @@ export async function setupBackendServer(
     `delete from "attachment_types" where "code" not in ('certificate', 'tech_spec', 'product_card', 'pdf')`,
   );
 
-  // Reset the i18n config tables to a known state so parallel-running tests
-  // don't inherit each other's mutations. We don't truncate them in
-  // SEEDED_TABLES because they're configuration, not transactional state.
+  // Reset the i18n + dictionary config tables to a known state so
+  // parallel-running tests don't inherit each other's mutations. We don't
+  // truncate them in SEEDED_TABLES because they're configuration, not
+  // transactional state.
+  await conn.execute('delete from "dictionary_translations"');
+  await conn.execute('delete from "language_countries"');
+  await conn.execute('delete from "countries"');
   await conn.execute('delete from "languages"');
   await conn.execute('delete from "currencies"');
   await conn.execute(
@@ -322,6 +329,12 @@ export async function setupBackendServer(
     requireAdmin: requireTestAdmin(permissionService),
   });
 
+  const dictionaries = dictionariesModule({
+    emFactory: em,
+    requireAdmin: requireTestAdmin(permissionService),
+    redis,
+  });
+
   // Feature 005 — sales-channels module is built BEFORE every other module
   // that consumes its membership service in their composition (catalog,
   // cms, taxes, promotions, commerce for payment + delivery methods).
@@ -331,6 +344,7 @@ export async function setupBackendServer(
     redis,
     auditLogService,
     requireAdmin: requireTestAdmin(permissionService),
+    dictionaryValidator: dictionaries.handle.validator,
     resolveAdminAuditContext: (request) => ({
       actorAdminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
@@ -367,6 +381,7 @@ export async function setupBackendServer(
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
     salesChannelMembership: salesChannels.handle.membershipService,
+    dictionaryValidator: dictionaries.handle.validator,
   });
   const promotions = promotionsModule({
     emFactory: em,
@@ -375,6 +390,7 @@ export async function setupBackendServer(
     // Feature 012 / US8 — wire the catalog read port so the rule-target
     // picker + criterion validation work in tests.
     catalogQueryService: new CatalogQueryService(em),
+    dictionaryValidator: dictionaries.handle.validator,
   });
 
   const modules: ModulePlugin[] = [
@@ -427,6 +443,7 @@ export async function setupBackendServer(
       resolveCustomerContext: customerResolver,
       auditLogService,
       exposeTestProbe: true,
+      dictionaryValidator: dictionaries.handle.validator,
       ...(options.organizationsMailer ? { mailer: options.organizationsMailer } : {}),
       storefrontBaseUrl: 'http://localhost:3000',
       onLogin: async (ctx) => {
@@ -457,6 +474,7 @@ export async function setupBackendServer(
       requireCustomer: requireTestCustomer(),
       resolveCustomerContext: customerResolver,
       requireAdmin: requireTestAdmin(permissionService),
+      dictionaryValidator: dictionaries.handle.validator,
     }),
   ];
 
@@ -466,6 +484,7 @@ export async function setupBackendServer(
     auditLogService,
     redis,
     requireAdmin: requireTestAdmin(permissionService),
+    dictionaryValidator: dictionaries.handle.validator,
     resolveAdminAuditContext: (request) => ({
       actorAdminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
@@ -492,6 +511,7 @@ export async function setupBackendServer(
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
     redis,
+    dictionaryValidator: dictionaries.handle.validator,
     validatorDeps: {
       categoryExists: async (categoryId) => {
         const rows = (await em().getConnection().execute(
@@ -588,9 +608,13 @@ export async function setupBackendServer(
         settings.handle.settingsService.get(code, salesChannelId, schema),
     },
     assetReferenceRegistry: assetsLibrary.handle.referenceRegistry,
+    dictionaryValidator: dictionaries.handle.validator,
   });
   modules.push(blog.plugin);
   if (blog.handle.cache) await blog.handle.cache.invalidateAll();
+
+  modules.push(dictionaries.plugin);
+  if (dictionaries.handle.cache) await dictionaries.handle.cache.invalidateAll();
 
   // Feature 006 — Search module. Owns the Meilisearch indexer + event
   // subscriber lifecycle. Wires the same settings-aware path the
@@ -712,6 +736,7 @@ export async function setupBackendServer(
     cms: cms.handle,
     megamenu: megamenu.handle,
     blog: blog.handle,
+    dictionaries: dictionaries.handle,
   };
 }
 

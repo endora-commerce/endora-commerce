@@ -1,0 +1,76 @@
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { EntityManager } from '@mikro-orm/postgresql';
+import type { RegisterOrganizationRequest } from '@b2b/contracts';
+import { EventBus } from '../../../src/events/bus.js';
+import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
+import { runDictionarySeedReconciler } from '../../../src/modules/dictionaries/services/seed-reconciler.js';
+import { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import { Country } from '../../../src/modules/dictionaries/entities/country.entity.js';
+import { RegistrationService } from '../../../src/modules/organizations/services/registration-service.js';
+
+describe('Organizations dictionary boundary', () => {
+  let db: TestDb;
+  let em: EntityManager;
+  let validator: DictionaryValidator;
+  let service: RegistrationService;
+
+  beforeAll(async () => {
+    db = await setupTestDb();
+    const conn = db.orm.em.getConnection();
+    await conn.execute(`delete from "dictionary_translations"`);
+    await conn.execute(`delete from "language_countries"`);
+    await conn.execute(`delete from "countries"`);
+    await runDictionarySeedReconciler(() => db.orm.em);
+  });
+
+  beforeEach(async () => {
+    em = await db.beginTx();
+    validator = new DictionaryValidator(() => em);
+    service = new RegistrationService(() => em, new EventBus(), validator);
+  });
+
+  afterEach(async () => {
+    await db.rollbackTx();
+  });
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  it('refuses unknown and inactive registered-address countries on registration', async () => {
+    await expect(service.registerOrganization(request('ZZ'))).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'DICTIONARY_ENTRY_NOT_FOUND',
+    });
+
+    await em.nativeUpdate(Country, { code: 'PL' }, { isActive: false });
+    validator.invalidate();
+    await expect(service.registerOrganization(request('PL'))).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'DICTIONARY_ENTRY_INACTIVE',
+    });
+  });
+});
+
+function request(country: string): RegisterOrganizationRequest {
+  const id = crypto.randomUUID().slice(0, 8);
+  return {
+    organization: {
+      name: `Org ${id}`,
+      taxId: `TAX-${id}`,
+      registeredAddress: {
+        street: 'Main',
+        city: 'Warsaw',
+        postalCode: '00-001',
+        country,
+      },
+    },
+    firstUser: {
+      email: `buyer-${id}@example.com`,
+      password: 'super-secret-password',
+      firstName: 'Buyer',
+      lastName: 'User',
+    },
+    acceptedTermsVersion: '2026-05-06',
+  };
+}

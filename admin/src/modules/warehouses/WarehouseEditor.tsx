@@ -9,6 +9,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import type { CreateWarehouseRequest, Warehouse } from '@b2b/contracts';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { ApiError } from '@/lib/api-client';
+import { CountryPicker } from '../dictionaries/components/CountryPicker';
 import { warehousesClient } from './api/warehouses-client';
 
 interface FormState {
@@ -290,7 +291,13 @@ export function WarehouseEditor(): ReactNode {
               </div>
               <div>
                 <label className="b2b-label">Country code</label>
-                <input className="b2b-field" value={form.countryCode} onChange={(e): void => update({ countryCode: e.target.value })} maxLength={2} />
+                <CountryPicker
+                  className="b2b-field"
+                  value={form.countryCode}
+                  onChange={(e): void => update({ countryCode: e.target.value })}
+                  includeBlank
+                  blankLabel="— none —"
+                />
               </div>
             </div>
           </div>

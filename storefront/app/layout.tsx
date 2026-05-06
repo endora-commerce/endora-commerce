@@ -6,6 +6,8 @@ import { Megamenu } from '../components/Megamenu/Megamenu';
 import { PwaRegister } from '../components/PwaRegister';
 import { getActiveMegamenu } from '../lib/api/megamenu';
 import { getServerContext } from '../lib/server-context';
+import { fetchDictionary } from '../lib/dictionary/client';
+import { DictionaryProvider } from '../lib/dictionary/DictionaryProvider';
 import './globals.css';
 
 export const metadata = {
@@ -35,28 +37,37 @@ export default async function RootLayout({
   children: ReactNode;
 }): Promise<ReactNode> {
   const { config, locale, ctx } = await getServerContext();
-  const megamenu = await getActiveMegamenu(ctx);
+  const [megamenu, dictionary] = await Promise.all([
+    getActiveMegamenu(ctx),
+    fetchDictionary({ ctx }),
+  ]);
   return (
     <html lang={locale}>
       <body>
-        <div className="b2b-shell">
-          <Hook code="header.top" />
-          <Header config={config} locale={locale} />
-          <Megamenu megamenu={megamenu} />
-          <Hook code="header.bottom" />
-          <main className="b2b-shell__main">
-            <Hook code="page.top" />
-            {children}
-            <Hook code="page.bottom" />
-          </main>
-          <Hook code="footer.before" />
-          <Footer
-            top={<Hook code="footer.top" />}
-            bottom={<Hook code="footer.bottom" />}
-            copyright={<Hook code="footer.copyright" />}
-          />
-          <Hook code="footer.after" />
-        </div>
+        <DictionaryProvider
+          initialDictionary={dictionary}
+          locale={locale}
+          channel={ctx.salesChannelCode}
+        >
+          <div className="b2b-shell">
+            <Hook code="header.top" />
+            <Header config={config} locale={locale} />
+            <Megamenu megamenu={megamenu} />
+            <Hook code="header.bottom" />
+            <main className="b2b-shell__main">
+              <Hook code="page.top" />
+              {children}
+              <Hook code="page.bottom" />
+            </main>
+            <Hook code="footer.before" />
+            <Footer
+              top={<Hook code="footer.top" />}
+              bottom={<Hook code="footer.bottom" />}
+              copyright={<Hook code="footer.copyright" />}
+            />
+            <Hook code="footer.after" />
+          </div>
+        </DictionaryProvider>
         <PwaRegister />
       </body>
     </html>
