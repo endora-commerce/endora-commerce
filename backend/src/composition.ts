@@ -55,16 +55,7 @@ import { priceListsManifest } from './modules/price_lists/manifest.js';
 import { assetsLibraryManifest } from './modules/assets_library/manifest.js';
 import { assetsLibraryModule } from './modules/assets_library/plugin.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
-import { manifest as lifecycleManifest } from './modules/_lifecycle/manifest.js';
-import { manifest as settingsLifecycleManifest } from './modules/settings/manifest.js';
-import { manifest as salesChannelsLifecycleManifest } from './modules/sales_channels/manifest.js';
-import { manifest as searchLifecycleManifest } from './modules/search/manifest.js';
-import { manifest as comparisonsLifecycleManifest } from './modules/comparisons/manifest.js';
-import { manifest as quoteRequestsLifecycleManifest } from './modules/quote_requests/manifest.js';
-import { manifest as inventoryLifecycleManifest } from './modules/inventory/manifest.js';
-import { manifest as priceListsLifecycleManifest } from './modules/price_lists/manifest.js';
-import { manifest as assetsLibraryLifecycleManifest } from './modules/assets_library/manifest.js';
-import { manifest as blogLifecycleManifest } from './modules/blog/manifest.js';
+import { REGISTERED_MANIFESTS } from './modules/_lifecycle/registered-manifests.js';
 import { registerCatalogAssetReferences } from './modules/catalog/services/asset-references.js';
 import { registerCmsAssetReferences } from './modules/cms/services/asset-references.js';
 import { WarehouseChannelReconciler } from './modules/inventory/services/warehouse-channel-reconciler.js';
@@ -699,18 +690,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       emFactory: em,
       auditLog: auditLogService,
     },
-    [
-      { manifest: lifecycleManifest },
-      { manifest: settingsLifecycleManifest },
-      { manifest: salesChannelsLifecycleManifest },
-      { manifest: searchLifecycleManifest },
-      { manifest: comparisonsLifecycleManifest },
-      { manifest: quoteRequestsLifecycleManifest },
-      { manifest: inventoryLifecycleManifest },
-      { manifest: priceListsLifecycleManifest },
-      { manifest: assetsLibraryLifecycleManifest },
-      { manifest: blogLifecycleManifest },
-    ],
+    REGISTERED_MANIFESTS.map((e) => ({
+      manifest: e.manifest,
+      ...(e.installHook ? { installHook: e.installHook } : {}),
+      ...(e.uninstallHook ? { uninstallHook: e.uninstallHook } : {}),
+    })),
   );
   modules.push(lifecycle.plugin);
 

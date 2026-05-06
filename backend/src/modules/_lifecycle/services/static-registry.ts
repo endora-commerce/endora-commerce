@@ -41,13 +41,19 @@ export function buildStaticRegistry(
       ...(e.uninstallHook ? { uninstallHook: e.uninstallHook } : {}),
     });
   }
-  // Verify orphan deps + cycles up front so misconfiguration fails at boot.
+  // Orphan deps: per research §R7, BOOT IS TOLERANT — modules whose
+  // dependencies haven't been retrofitted yet (Pass B is a separate
+  // feature) are accepted with a warning. The orchestrator's install/
+  // enable validation re-checks against the registry at command time
+  // and refuses misconfigured installs.
   for (const e of modules.values()) {
     for (const dep of e.manifest.dependencies) {
       if (!modules.has(dep)) {
-        throw new Error(
-          `[static-registry] manifest "${e.manifest.id}" depends on "${dep}" ` +
-            `which is not present in the static registry.`,
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[static-registry] manifest "${e.manifest.id}" depends on ` +
+            `"${dep}" which is not in the static registry — ` +
+            `treating as always-installed (Pass B retrofit pending).`,
         );
       }
     }
