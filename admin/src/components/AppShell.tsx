@@ -26,6 +26,8 @@ import {
   Newspaper,
   Package,
   PackageOpen,
+  PanelLeftClose,
+  PanelLeftOpen,
   PercentDiamond,
   Receipt,
   Scale,
@@ -176,6 +178,31 @@ const NAV: NavSection[] = [
 ];
 
 const STORAGE_KEY = 'b2b-admin.nav.collapsed-groups';
+const RAIL_STORAGE_KEY = 'b2b-admin.nav.rail-mode';
+
+/**
+ * Rail (icon-only) mode persistence. The whole sidebar shrinks to a
+ * 64px-wide column showing just icons; section labels disappear and
+ * each section becomes a single icon (the first item's icon). Hovering
+ * or clicking the icon reveals a popover with the section's items.
+ */
+function loadRailMode(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(RAIL_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function persistRailMode(value: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(RAIL_STORAGE_KEY, value ? '1' : '0');
+  } catch {
+    /* ignore */
+  }
+}
 
 function loadCollapsed(): Set<string> {
   if (typeof window === 'undefined') return new Set();
@@ -485,7 +512,16 @@ export function AppShell(): ReactNode {
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Set<string>>(() => loadCollapsed());
+  const [railMode, setRailMode] = useState<boolean>(() => loadRailMode());
   const [paletteOpen, setPaletteOpen] = useState(false);
+
+  const toggleRailMode = useCallback((): void => {
+    setRailMode((prev) => {
+      const next = !prev;
+      persistRailMode(next);
+      return next;
+    });
+  }, []);
   const t = useTranslation('core');
   const { language } = useAppLanguage();
 
@@ -502,45 +538,70 @@ export function AppShell(): ReactNode {
     });
   }, []);
 
-  // ⌘K opens the palette anywhere in the admin.
+  // ⌘K opens the palette anywhere in the admin; ⌘B toggles the
+  // sidebar rail (matches the shadcn / VS Code shortcut convention).
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setPaletteOpen(true);
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        toggleRailMode();
       }
     };
     window.addEventListener('keydown', onKey);
     return (): void => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [toggleRailMode]);
 
   const crumbs = useMemo(() => buildCrumbs(location.pathname), [location.pathname]);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '248px 1fr', minHeight: '100vh' }}>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: railMode ? '64px 1fr' : '248px 1fr',
+        minHeight: '100vh',
+      }}
+    >
       {/* ============ Sidebar ============ */}
-      <aside className="b2b-sidebar">
+      <aside className={cn('b2b-sidebar', railMode && 'b2b-sidebar--rail')}>
         <NavLink
           to="/"
           end
           className="b2b-sidebar__brand"
           style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}
           aria-label="Go to dashboard"
+          title={railMode ? 'Endora B2B' : undefined}
         >
           <span className="b2b-sidebar__brand-logo">B2</span>
-          <span>Endora B2B</span>
+          <span className="b2b-sidebar__brand-text">Endora B2B</span>
         </NavLink>
 
         <div className="b2b-sidebar__search">
-          <Search size={14} className="b2b-sidebar__search-icon" />
-          <input
-            className="b2b-sidebar__search-input"
-            placeholder="Search or jump to…"
-            readOnly
-            onClick={(): void => setPaletteOpen(true)}
-            onFocus={(): void => setPaletteOpen(true)}
-          />
-          <span className="b2b-sidebar__search-kbd">⌘K</span>
+          {railMode ? (
+            <button
+              type="button"
+              className="b2b-sidebar__search-rail"
+              onClick={(): void => setPaletteOpen(true)}
+              title={t('appShell.search.openPalette') || 'Search (⌘K)'}
+              aria-label="Search (⌘K)"
+            >
+              <Search size={16} />
+            </button>
+          ) : (
+            <>
+              <Search size={14} className="b2b-sidebar__search-icon" />
+              <input
+                className="b2b-sidebar__search-input"
+                placeholder="Search or jump to…"
+                readOnly
+                onClick={(): void => setPaletteOpen(true)}
+                onFocus={(): void => setPaletteOpen(true)}
+              />
+              <span className="b2b-sidebar__search-kbd">⌘K</span>
+            </>
+          )}
         </div>
 
         <nav className="b2b-sidebar__nav">
@@ -561,6 +622,19 @@ export function AppShell(): ReactNode {
             const translatedLabel = section.label
               ? t(`appShell.section.${section.key}`)
               : '';
+            // In rail mode the section reduces to one icon (the first
+            // visible item's icon). Hover or click reveals a popover
+            // listing every visible item in the section.
+            if (railMode) {
+              return (
+                <RailSection
+                  key={section.key}
+                  section={section}
+                  visibleItems={visibleItems}
+                  translatedLabel={translatedLabel}
+                />
+              );
+            }
             return (
               <div
                 key={section.key}
@@ -620,7 +694,11 @@ export function AppShell(): ReactNode {
             <NavLink
               to="/profile"
               className="b2b-sidebar__foot-identity"
-              title={t('appShell.profileMenu.profile')}
+              title={
+                railMode
+                  ? `${fullName || me.adminUser.email} — ${t('appShell.profileMenu.profile')}`
+                  : t('appShell.profileMenu.profile')
+              }
               aria-label={t('appShell.profileMenu.profile')}
             >
               <div className="b2b-avatar">
@@ -642,6 +720,29 @@ export function AppShell(): ReactNode {
             </button>
           </div>
         ) : null}
+        <button
+          type="button"
+          className="b2b-sidebar__rail-toggle"
+          onClick={toggleRailMode}
+          title={
+            railMode
+              ? (t('appShell.sidebarToggle.expand') || 'Expand sidebar (⌘B)')
+              : (t('appShell.sidebarToggle.collapse') || 'Collapse sidebar (⌘B)')
+          }
+          aria-label={
+            railMode
+              ? (t('appShell.sidebarToggle.expand') || 'Expand sidebar')
+              : (t('appShell.sidebarToggle.collapse') || 'Collapse sidebar')
+          }
+          aria-pressed={railMode}
+        >
+          {railMode ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
+          {!railMode ? (
+            <span className="b2b-sidebar__rail-toggle-label">
+              {t('appShell.sidebarToggle.collapse') || 'Collapse'}
+            </span>
+          ) : null}
+        </button>
       </aside>
 
       {/* ============ Main column (topbar + content) ============ */}
@@ -727,6 +828,161 @@ export function AppShell(): ReactNode {
           setPaletteOpen(false);
         }}
       />
+    </div>
+  );
+}
+
+/* ============================================================
+   RailSection — icon-only sidebar entry with hover/click popover
+   ============================================================
+   When the sidebar is in rail mode, every NAV section renders as a
+   single icon (the first visible item's icon). Hovering or clicking
+   the icon reveals a popover with every visible item in the section,
+   styled like a mini-version of the regular nav. Sections with one
+   item collapse to a plain link with no popover.
+
+   Hover-out has a small grace period so the cursor can travel from
+   the icon to the popover without it disappearing. Click toggles the
+   popover sticky-open; clicking elsewhere closes it. The active-route
+   highlight propagates to the rail icon: if any item in the section
+   matches the current URL, the icon shows the is-active style. */
+interface RailSectionProps {
+  section: NavSection;
+  visibleItems: NavItem[];
+  translatedLabel: string;
+}
+
+function RailSection(props: RailSectionProps): ReactNode {
+  const { section, visibleItems, translatedLabel } = props;
+  const [hover, setHover] = useState(false);
+  const [sticky, setSticky] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
+  const open = hover || sticky;
+  const location = useLocation();
+
+  // Active-state for the rail icon: light up when ANY visible item in
+  // the section matches the current URL (exact for the home route,
+  // prefix-with-segment-boundary for everything else).
+  const sectionActive = visibleItems.some((item) => {
+    if (item.to === '/') return location.pathname === '/';
+    return (
+      location.pathname === item.to ||
+      location.pathname.startsWith(`${item.to}/`)
+    );
+  });
+
+  const cancelClose = useCallback((): void => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleClose = useCallback((): void => {
+    cancelClose();
+    closeTimerRef.current = window.setTimeout(() => setHover(false), 120);
+  }, [cancelClose]);
+
+  // Click outside the wrapper closes the sticky popover.
+  useEffect(() => {
+    if (!sticky) return;
+    const onDown = (e: MouseEvent): void => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setSticky(false);
+      }
+    };
+    window.addEventListener('mousedown', onDown);
+    return (): void => window.removeEventListener('mousedown', onDown);
+  }, [sticky]);
+
+  useEffect(() => () => cancelClose(), [cancelClose]);
+
+  const railSource = visibleItems[0] ?? section.items[0];
+  if (!railSource) return null;
+  const RailIcon = railSource.icon;
+  const headerLabel = translatedLabel || visibleItems[0]?.label || '';
+
+  // Single-item section: render a plain link with no popover. The
+  // hover area is the link itself; tooltip carries the label.
+  if (visibleItems.length === 1) {
+    const only = visibleItems[0]!;
+    const Icon = only.icon;
+    return (
+      <div className="b2b-sidebar__rail-row">
+        <NavLink
+          to={only.to}
+          end={only.to === '/'}
+          className={({ isActive }): string =>
+            cn('b2b-nav-item b2b-nav-item--rail', isActive && 'is-active')
+          }
+          title={only.label}
+          aria-label={only.label}
+        >
+          <Icon size={18} />
+        </NavLink>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={wrapperRef}
+      className="b2b-sidebar__rail-row"
+      onMouseEnter={(): void => {
+        cancelClose();
+        setHover(true);
+      }}
+      onMouseLeave={scheduleClose}
+    >
+      <button
+        type="button"
+        className={cn(
+          'b2b-nav-item b2b-nav-item--rail',
+          sectionActive && 'is-active',
+          open && 'is-open',
+        )}
+        onClick={(): void => setSticky((prev) => !prev)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={headerLabel}
+        title={headerLabel}
+      >
+        <RailIcon size={18} />
+      </button>
+      {open ? (
+        <div className="b2b-sidebar__rail-popover" role="menu">
+          {headerLabel ? (
+            <div className="b2b-sidebar__rail-popover-header">{headerLabel}</div>
+          ) : null}
+          {visibleItems.map((item) => {
+            const Icon = item.icon;
+            const hasNestedSibling = visibleItems.some(
+              (other) =>
+                other !== item &&
+                other.to.startsWith(item.to === '/' ? '/' : `${item.to}/`),
+            );
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === '/' || hasNestedSibling}
+                role="menuitem"
+                className={({ isActive }): string =>
+                  cn('b2b-sidebar__rail-popover-item', isActive && 'is-active')
+                }
+                onClick={(): void => {
+                  setSticky(false);
+                  setHover(false);
+                }}
+              >
+                <Icon size={14} />
+                <span>{item.label}</span>
+              </NavLink>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }
