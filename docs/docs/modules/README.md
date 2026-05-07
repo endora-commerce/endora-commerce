@@ -48,6 +48,7 @@ how to consume it.
 | [invoices](./invoices) | PDF invoice / proforma generation + asset linkage | yes |
 | [languages](./languages) | Pool of supported BCP-47 language tags + translation-fallback helper | yes |
 | [megamenu](./megamenu) | Configurable navigation tree with per-channel + per-language bindings | yes |
+| [module-lifecycle](./module-lifecycle) | CLI-driven install / uninstall / enable / disable / status for every backend module + dependency validation + first-boot reconciliation | yes (read-only admin endpoint) |
 | [orders](./orders) | Order placement, status machine, payment + delivery linkage | yes |
 | [organizations](./organizations) | Customer Organizations, registration, invitations | yes |
 | [payment_methods](./payment_methods) | Configured payment methods | yes |
