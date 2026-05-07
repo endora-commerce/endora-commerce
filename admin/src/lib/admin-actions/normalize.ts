@@ -30,7 +30,6 @@ const STROKED_LETTER_MAP: Record<string, string> = {
   ħ: 'h',
   Ŧ: 'T',
   ŧ: 't',
-  Ł: 'L',
 };
 
 export function normalize(input: string): string {

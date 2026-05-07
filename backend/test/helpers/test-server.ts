@@ -13,6 +13,7 @@ import { CustomerAccount } from '../../src/modules/customer_accounts/entities/cu
 import { AdminUser } from '../../src/modules/admin_users/entities/admin-user.entity.js';
 import { AdminUserService } from '../../src/modules/admin_users/services/admin-user-service.js';
 import { i18nModule as adminI18nModule } from '../../src/modules/_i18n/plugin.js';
+import { adminActionsModule } from '../../src/modules/admin_actions/plugin.js';
 import { AdminRole } from '../../src/modules/admin_roles/entities/admin-role.entity.js';
 import { organizationsModule } from '../../src/modules/organizations/plugin.js';
 import { commerceModule } from '../../src/modules/orders/plugin.js';
@@ -517,6 +518,24 @@ export async function setupBackendServer(
     }),
   });
   modules.push(adminI18n.plugin);
+
+  // Feature 020 — Admin Command Palette actions registry. Mounts the
+  // GET /api/v1/admin/admin-actions read endpoint. Tests that need
+  // module_actions rows seed them directly via `h.em()`.
+  const adminActions = adminActionsModule({
+    orm,
+    emFactory: em,
+    i18nService: adminI18n.handle.i18nService,
+    permissionService,
+    requireAdmin: requireTestAdmin(permissionService),
+    resolveAdminContext: (request) => ({
+      adminUserId:
+        request.testActor?.kind === 'admin'
+          ? request.testActor.adminUserId
+          : TEST_ADMIN_ID,
+    }),
+  });
+  modules.push(adminActions.plugin);
 
   // Feature 013 — Assets Library. Routes mount under /api/v1/admin/assets/*
   // and /assets/file/:assetId.
