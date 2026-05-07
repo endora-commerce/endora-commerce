@@ -99,8 +99,8 @@ export const manifest = defineModuleManifest({
   actions: [
     {
       id: 'open-inventory',
-      labelKey: 'inventory.actions.openInventory.label',
-      descriptionKey: 'inventory.actions.openInventory.description',
+      labelKey: 'actions.openInventory.label',
+      descriptionKey: 'actions.openInventory.description',
       icon: 'Boxes',
       targetRoute: '/inventory',
       requiredPermission: 'catalog:write',

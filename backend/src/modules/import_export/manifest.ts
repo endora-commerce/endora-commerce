@@ -18,8 +18,8 @@ export const manifest = defineModuleManifest({
   actions: [
     {
       id: 'import-products',
-      labelKey: 'import_export.actions.importProducts.label',
-      descriptionKey: 'import_export.actions.importProducts.description',
+      labelKey: 'actions.importProducts.label',
+      descriptionKey: 'actions.importProducts.description',
       icon: 'Upload',
       targetRoute: '/import-export',
       requiredPermission: 'catalog:write',
@@ -28,8 +28,8 @@ export const manifest = defineModuleManifest({
     },
     {
       id: 'open-import-export-center',
-      labelKey: 'import_export.actions.openCenter.label',
-      descriptionKey: 'import_export.actions.openCenter.description',
+      labelKey: 'actions.openCenter.label',
+      descriptionKey: 'actions.openCenter.description',
       icon: 'FileUp',
       targetRoute: '/import-export',
       requiredPermission: 'catalog:write',

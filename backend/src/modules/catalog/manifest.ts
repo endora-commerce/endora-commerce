@@ -28,8 +28,8 @@ export const manifest = defineModuleManifest({
   actions: [
     {
       id: 'new-product',
-      labelKey: 'catalog.actions.newProduct.label',
-      descriptionKey: 'catalog.actions.newProduct.description',
+      labelKey: 'actions.newProduct.label',
+      descriptionKey: 'actions.newProduct.description',
       icon: 'Plus',
       targetRoute: '/catalog/products/new',
       requiredPermission: 'catalog:write',

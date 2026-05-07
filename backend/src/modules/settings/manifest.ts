@@ -36,8 +36,8 @@ export const manifest = defineModuleManifest({
   actions: [
     {
       id: 'open-settings',
-      labelKey: 'settings.actions.openSettings.label',
-      descriptionKey: 'settings.actions.openSettings.description',
+      labelKey: 'actions.openSettings.label',
+      descriptionKey: 'actions.openSettings.description',
       icon: 'Settings',
       targetRoute: '/settings',
       keywords: ['settings', 'preferences', 'config', 'ustawienia'],

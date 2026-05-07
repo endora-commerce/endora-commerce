@@ -16,8 +16,8 @@ export const manifest = defineModuleManifest({
   actions: [
     {
       id: 'edit-megamenu',
-      labelKey: 'megamenu.actions.editMegamenu.label',
-      descriptionKey: 'megamenu.actions.editMegamenu.description',
+      labelKey: 'actions.editMegamenu.label',
+      descriptionKey: 'actions.editMegamenu.description',
       icon: 'Menu',
       targetRoute: '/megamenu',
       requiredPermission: 'megamenu.write',

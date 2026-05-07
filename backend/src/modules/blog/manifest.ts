@@ -92,8 +92,8 @@ export const manifest = defineModuleManifest({
   actions: [
     {
       id: 'new-post',
-      labelKey: 'blog.actions.newPost.label',
-      descriptionKey: 'blog.actions.newPost.description',
+      labelKey: 'actions.newPost.label',
+      descriptionKey: 'actions.newPost.description',
       icon: 'BookOpen',
       targetRoute: '/blog/posts/new',
       requiredPermission: 'blog.write',

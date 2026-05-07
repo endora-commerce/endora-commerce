@@ -22,6 +22,129 @@
 }
 .b2b-sidebar--rail { width: 64px; }
 
+/* Rail (icon-only) mode — hide everything that has running text and
+   center the remaining icons. The popover handles labels on demand. */
+.b2b-sidebar--rail .b2b-sidebar__brand {
+  padding: 14px 0;
+  justify-content: center;
+}
+.b2b-sidebar--rail .b2b-sidebar__brand-text { display: none; }
+.b2b-sidebar--rail .b2b-sidebar__search { padding: 8px 0; display: flex; justify-content: center; }
+.b2b-sidebar__search-rail {
+  width: 36px; height: 36px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: var(--r-sm);
+  color: var(--sidebar-fg-muted);
+  display: grid; place-items: center;
+  cursor: pointer;
+}
+.b2b-sidebar__search-rail:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.b2b-sidebar--rail .b2b-sidebar__nav { padding: 4px 6px 8px; }
+.b2b-sidebar--rail .b2b-sidebar__group { padding: 4px 0; }
+.b2b-sidebar--rail .b2b-sidebar__group-label { display: none; }
+.b2b-sidebar__rail-row { display: flex; justify-content: center; padding: 2px 0; }
+.b2b-nav-item--rail {
+  width: 40px; height: 40px;
+  display: grid; place-items: center;
+  padding: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--sidebar-fg);
+}
+.b2b-nav-item--rail svg { width: 18px; height: 18px; color: var(--sidebar-fg-muted); }
+.b2b-nav-item--rail:hover { background: var(--bg-sidebar-hover); }
+.b2b-nav-item--rail:hover svg { color: var(--sidebar-fg-active); }
+.b2b-nav-item--rail.is-active { background: var(--bg-sidebar-active); }
+.b2b-nav-item--rail.is-active svg { color: hsl(var(--accent-h) 90% 75%); }
+.b2b-nav-item--rail.is-open { background: var(--bg-sidebar-hover); }
+.b2b-nav-item--rail:focus-visible {
+  outline: 2px solid var(--ring-color);
+  outline-offset: 1px;
+}
+
+/* Floating popover that appears next to a rail icon on hover or click. */
+.b2b-sidebar__rail-popover {
+  position: absolute;
+  left: 60px;
+  margin-top: -36px;
+  min-width: 200px;
+  max-width: 260px;
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--r-md);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  padding: 4px;
+  z-index: 60;
+}
+.b2b-sidebar__rail-popover-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 6px 10px 4px;
+}
+.b2b-sidebar__rail-popover-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--fg);
+  border-radius: var(--r-sm);
+  text-decoration: none;
+}
+.b2b-sidebar__rail-popover-item svg {
+  width: 14px; height: 14px;
+  color: var(--fg-muted);
+  flex-shrink: 0;
+}
+.b2b-sidebar__rail-popover-item:hover {
+  background: var(--bg-muted);
+  color: var(--fg);
+}
+.b2b-sidebar__rail-popover-item.is-active {
+  background: hsl(var(--accent-h) 70% 50% / 0.12);
+  color: hsl(var(--accent-h) 70% 30%);
+  font-weight: 500;
+}
+.b2b-sidebar__rail-popover-item.is-active svg {
+  color: hsl(var(--accent-h) 70% 45%);
+}
+
+.b2b-sidebar__rail-toggle {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--sidebar-fg-muted);
+  background: transparent;
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.b2b-sidebar__rail-toggle:hover { color: #fff; background: rgba(255,255,255,0.04); }
+.b2b-sidebar__rail-toggle svg { flex-shrink: 0; }
+.b2b-sidebar--rail .b2b-sidebar__rail-toggle { justify-content: center; padding: 10px 0; }
+.b2b-sidebar__rail-toggle-label { line-height: 1; }
+
+/* Foot — hide identity text in rail mode, keep the avatar + sign-out
+   icon stacked vertically so they don't overflow the 64px column. */
+.b2b-sidebar--rail .b2b-sidebar__foot {
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+  align-items: center;
+}
+.b2b-sidebar--rail .b2b-sidebar__foot-identity {
+  margin: 0;
+  padding: 0;
+}
+.b2b-sidebar--rail .b2b-sidebar__foot .meta { display: none; }
+
 .b2b-sidebar__brand {
   display: flex; align-items: center; gap: 10px;
   padding: 14px 16px;
