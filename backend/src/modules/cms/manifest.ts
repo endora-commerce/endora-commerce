@@ -16,8 +16,8 @@ export const manifest = defineModuleManifest({
   actions: [
     {
       id: 'new-page',
-      labelKey: 'cms.actions.newPage.label',
-      descriptionKey: 'cms.actions.newPage.description',
+      labelKey: 'actions.newPage.label',
+      descriptionKey: 'actions.newPage.description',
       icon: 'FileText',
       targetRoute: '/cms/pages/new',
       requiredPermission: 'cms.write',

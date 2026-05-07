@@ -32,8 +32,8 @@ export const manifest = defineModuleManifest({
   actions: [
     {
       id: 'new-sales-channel',
-      labelKey: 'sales_channels.actions.newSalesChannel.label',
-      descriptionKey: 'sales_channels.actions.newSalesChannel.description',
+      labelKey: 'actions.newSalesChannel.label',
+      descriptionKey: 'actions.newSalesChannel.description',
       icon: 'Layers',
       targetRoute: '/sales-channels/new',
       requiredPermission: 'sales_channels:write',

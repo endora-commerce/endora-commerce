@@ -70,8 +70,8 @@ export const manifest = defineModuleManifest({
   actions: [
     {
       id: 'open-rfq-inbox',
-      labelKey: 'quote_requests.actions.openInbox.label',
-      descriptionKey: 'quote_requests.actions.openInbox.description',
+      labelKey: 'actions.openInbox.label',
+      descriptionKey: 'actions.openInbox.description',
       icon: 'Inbox',
       targetRoute: '/quote-requests',
       requiredPermission: 'rfqs:handle',

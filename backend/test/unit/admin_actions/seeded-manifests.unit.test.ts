@@ -38,7 +38,7 @@ const EXPECTED: ReadonlyArray<ExpectedAction> = [
     icon: 'Plus',
     requiredPermission: 'catalog:write',
     weight: 100,
-    labelKey: 'catalog.actions.newProduct.label',
+    labelKey: 'actions.newProduct.label',
   },
   {
     module: { id: 'import_export', manifest: importExportManifest },
@@ -47,7 +47,7 @@ const EXPECTED: ReadonlyArray<ExpectedAction> = [
     icon: 'Upload',
     requiredPermission: 'catalog:write',
     weight: 110,
-    labelKey: 'import_export.actions.importProducts.label',
+    labelKey: 'actions.importProducts.label',
   },
   {
     module: { id: 'import_export', manifest: importExportManifest },
@@ -56,7 +56,7 @@ const EXPECTED: ReadonlyArray<ExpectedAction> = [
     icon: 'FileUp',
     requiredPermission: 'catalog:write',
     weight: 220,
-    labelKey: 'import_export.actions.openCenter.label',
+    labelKey: 'actions.openCenter.label',
   },
   {
     module: { id: 'inventory', manifest: inventoryManifest },
@@ -65,7 +65,7 @@ const EXPECTED: ReadonlyArray<ExpectedAction> = [
     icon: 'Boxes',
     requiredPermission: 'catalog:write',
     weight: 230,
-    labelKey: 'inventory.actions.openInventory.label',
+    labelKey: 'actions.openInventory.label',
   },
   {
     module: { id: 'quote_requests', manifest: quoteRequestsManifest },
@@ -74,7 +74,7 @@ const EXPECTED: ReadonlyArray<ExpectedAction> = [
     icon: 'Inbox',
     requiredPermission: 'rfqs:handle',
     weight: 310,
-    labelKey: 'quote_requests.actions.openInbox.label',
+    labelKey: 'actions.openInbox.label',
   },
   {
     module: { id: 'cms', manifest: cmsManifest },
@@ -83,7 +83,7 @@ const EXPECTED: ReadonlyArray<ExpectedAction> = [
     icon: 'FileText',
     requiredPermission: 'cms.write',
     weight: 130,
-    labelKey: 'cms.actions.newPage.label',
+    labelKey: 'actions.newPage.label',
   },
   {
     module: { id: 'blog', manifest: blogManifest },
@@ -92,7 +92,7 @@ const EXPECTED: ReadonlyArray<ExpectedAction> = [
     icon: 'BookOpen',
     requiredPermission: 'blog.write',
     weight: 140,
-    labelKey: 'blog.actions.newPost.label',
+    labelKey: 'actions.newPost.label',
   },
   {
     module: { id: 'megamenu', manifest: megamenuManifest },
@@ -101,7 +101,7 @@ const EXPECTED: ReadonlyArray<ExpectedAction> = [
     icon: 'Menu',
     requiredPermission: 'megamenu.write',
     weight: 240,
-    labelKey: 'megamenu.actions.editMegamenu.label',
+    labelKey: 'actions.editMegamenu.label',
   },
   {
     module: { id: 'sales_channels', manifest: salesChannelsManifest },
@@ -110,7 +110,7 @@ const EXPECTED: ReadonlyArray<ExpectedAction> = [
     icon: 'Layers',
     requiredPermission: 'sales_channels:write',
     weight: 150,
-    labelKey: 'sales_channels.actions.newSalesChannel.label',
+    labelKey: 'actions.newSalesChannel.label',
   },
   {
     module: { id: 'settings', manifest: settingsManifest },
@@ -119,7 +119,7 @@ const EXPECTED: ReadonlyArray<ExpectedAction> = [
     icon: 'Settings',
     requiredPermission: undefined,
     weight: 250,
-    labelKey: 'settings.actions.openSettings.label',
+    labelKey: 'actions.openSettings.label',
   },
 ];
 
