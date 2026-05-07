@@ -214,4 +214,15 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
       b2bVip.id, exampleC.id,
     ],
   );
+  await conn.execute(
+    `insert into sales_channel_categories (sales_channel_id, category_id) values (?,?), (?,?), (?,?), (?,?), (?,?), (?,?)`,
+    [
+      retail.id, root.id,
+      retail.id, childA.id,
+      retail.id, childB.id,
+      b2bVip.id, root.id,
+      b2bVip.id, childA.id,
+      b2bVip.id, childB.id,
+    ],
+  );
 }

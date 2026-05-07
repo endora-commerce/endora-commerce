@@ -17,7 +17,17 @@ const settings = defineModuleSettingsManifest({
       name: 'Sales Channels',
     },
   ],
-  settings: [],
+  settings: [
+    {
+      code: 'sales_channels.storefront_url',
+      name: 'Storefront URL',
+      description:
+        'Public base URL of the storefront for this sales channel. Used by the SEO sitemap generator and any other module that stamps absolute URLs into outgoing payloads. Empty value falls back to STOREFRONT_BASE_URL env.',
+      groupCode: 'sales_channels',
+      valueType: 'string',
+      defaultValue: '',
+    },
+  ],
 });
 
 /** Module-lifecycle manifest (feature 018). */
