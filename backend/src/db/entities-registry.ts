@@ -95,6 +95,7 @@ import { WarehouseChannelAssignment } from '../modules/inventory/entities/wareho
 import { InventoryThreshold } from '../modules/inventory/entities/inventory-threshold.entity.js';
 import { StockAllocation } from '../modules/inventory/entities/stock-allocation.entity.js';
 import { ModuleRegistration } from '../modules/_lifecycle/entities/module-registration.entity.js';
+import { TranslationBundle } from '../modules/_i18n/entities/translation-bundle.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -242,4 +243,6 @@ export const ALL_ENTITIES = [
   StockAllocation,
   // module lifecycle registry (feature 018)
   ModuleRegistration,
+  // admin UI i18n bundles (feature 019)
+  TranslationBundle,
 ] as const;
