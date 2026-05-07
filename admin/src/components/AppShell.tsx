@@ -45,6 +45,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
+import { useTranslation } from '@/i18n/useTranslation';
+import { useAppLanguage } from '@/i18n/app-language-context';
 
 interface NavItem {
   to: string;
@@ -481,6 +483,8 @@ export function AppShell(): ReactNode {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Set<string>>(() => loadCollapsed());
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const t = useTranslation('core');
+  const { language } = useAppLanguage();
 
   const fullName = me ? `${me.adminUser.firstName} ${me.adminUser.lastName}`.trim() : '';
   const role = me?.role?.name ?? 'Admin';
@@ -606,8 +610,8 @@ export function AppShell(): ReactNode {
             <NavLink
               to="/profile"
               className="b2b-sidebar__foot-identity"
-              title="Edit profile"
-              aria-label="Edit profile"
+              title={t('appShell.profileMenu.profile')}
+              aria-label={t('appShell.profileMenu.profile')}
             >
               <div className="b2b-avatar">
                 {(fullName || me.adminUser.email).slice(0, 2).toUpperCase()}
@@ -620,8 +624,8 @@ export function AppShell(): ReactNode {
             <button
               type="button"
               className="icon-btn"
-              title="Sign out"
-              aria-label="Sign out"
+              title={t('appShell.profileMenu.signOut')}
+              aria-label={t('appShell.profileMenu.signOut')}
               onClick={(): void => void logout()}
             >
               <LogOut size={14} />
@@ -668,12 +672,31 @@ export function AppShell(): ReactNode {
               <HelpCircle size={16} />
             </button>
             <div style={{ width: 1, height: 22, background: 'var(--border-color)', margin: '0 4px' }} />
+            {/*
+              Feature 019 / FR-017 — visible language indicator. Linked to the
+              profile page so the user can change the language with one click
+              from any screen.
+            */}
+            <NavLink
+              to="/profile"
+              className="b2b-topbar__icon-btn"
+              title={t('appShell.languageIndicator.label')}
+              aria-label={t('appShell.languageIndicator.label')}
+              style={{
+                fontWeight: 600,
+                fontSize: 11,
+                letterSpacing: 0.5,
+                textDecoration: 'none',
+              }}
+            >
+              {language.toUpperCase()}
+            </NavLink>
             {me ? (
               <NavLink
                 to="/profile"
                 className="b2b-avatar"
-                title={`${fullName || me.adminUser.email} — edit profile`}
-                aria-label="Edit profile"
+                title={`${fullName || me.adminUser.email} — ${t('appShell.profileMenu.profile')}`}
+                aria-label={t('appShell.profileMenu.profile')}
                 style={{ textDecoration: 'none', cursor: 'pointer' }}
               >
                 {(fullName || me.adminUser.email).slice(0, 2).toUpperCase()}

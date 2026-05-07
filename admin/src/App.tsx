@@ -1,8 +1,11 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell.js';
 import { LoginPage } from './components/LoginPage.js';
 import { useAuth } from './lib/auth.js';
+import { TranslationProvider } from './i18n/TranslationProvider.js';
+import { AppLanguageContext } from './i18n/app-language-context.js';
+import type { SupportedAdminLanguage } from './i18n/types.js';
 import { ApiKeysPage } from './modules/api_keys/ApiKeysPage.js';
 import { WebhooksPage } from './modules/webhooks/WebhooksPage.js';
 import { IntegrationsPage } from './modules/integrations/IntegrationsPage.js';
@@ -65,7 +68,13 @@ import { ComparisonDetailPage } from './modules/comparisons/pages/ComparisonDeta
 import { ProfilePage } from './modules/profile/ProfilePage.js';
 
 export function App(): ReactNode {
-  const { status } = useAuth();
+  const { status, me } = useAuth();
+  // Feature 019 — admin-side language state. Seeded from the session
+  // payload's `preferredLanguage`; falls back to English (FR-003).
+  // Lives at App scope so changes to it (driven by ProfilePage's
+  // language selector) re-render the whole authenticated tree.
+  const initialLanguage = (me?.adminUser.preferredLanguage ?? 'en') as SupportedAdminLanguage;
+  const [language, setLanguage] = useState<SupportedAdminLanguage>(initialLanguage);
   if (status === 'loading') {
     return (
       <div className="grid min-h-screen place-items-center bg-muted/40">
@@ -75,8 +84,10 @@ export function App(): ReactNode {
   }
   if (status === 'unauthenticated') return <LoginPage />;
   return (
-    <Routes>
-      <Route element={<AppShell />}>
+    <TranslationProvider language={language}>
+      <AppLanguageContext.Provider value={{ language, setLanguage }}>
+        <Routes>
+          <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
         <Route path="/catalog/products" element={<ProductsList />} />
         <Route path="/catalog/products/:id" element={<ProductEditor />} />
@@ -154,7 +165,9 @@ export function App(): ReactNode {
             </div>
           }
         />
-      </Route>
-    </Routes>
+          </Route>
+        </Routes>
+      </AppLanguageContext.Provider>
+    </TranslationProvider>
   );
 }

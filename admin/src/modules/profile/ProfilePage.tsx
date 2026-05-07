@@ -1,6 +1,10 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth';
+import { useAppLanguage } from '@/i18n/app-language-context';
+import { setPreferredLanguage } from '@/i18n/language-storage';
+import { useTranslation } from '@/i18n/useTranslation';
+import type { SupportedAdminLanguage } from '@/i18n/types';
 
 /**
  * ProfilePage — feature 010 admin polish.
@@ -173,6 +177,120 @@ export function ProfilePage(): ReactNode {
           </button>
         </div>
       </form>
+
+      <LanguageSection />
+    </div>
+  );
+}
+
+/**
+ * Language section — feature 019 / FR-002, FR-004, FR-005, FR-006.
+ *
+ * Self-service language picker. Calls
+ * `PATCH /api/v1/admin/me/preferred-language` and flips the
+ * `<TranslationProvider>` language at the App scope so every screen
+ * re-renders without sign-out.
+ */
+function LanguageSection(): ReactNode {
+  const t = useTranslation('core');
+  const { language, setLanguage } = useAppLanguage();
+  const { refresh } = useAuth();
+  const [pending, setPending] = useState<SupportedAdminLanguage>(language);
+  const [submitting, setSubmitting] = useState(false);
+  const [info, setInfo] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPending(language);
+  }, [language]);
+
+  const handleSave = async (): Promise<void> => {
+    if (pending === language) return;
+    setSubmitting(true);
+    setError(null);
+    setInfo(null);
+    const previous = language;
+    setLanguage(pending);
+    try {
+      await setPreferredLanguage(pending);
+      await refresh();
+      setInfo(t('profilePage.language.saved'));
+    } catch (err) {
+      setLanguage(previous);
+      setPending(previous);
+      const message =
+        err instanceof ApiError
+          ? err.envelope.error.message
+          : t('profilePage.language.failed');
+      setError(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="b2b-card" style={{ marginTop: 16 }}>
+      <div className="b2b-card__head">
+        <h2>{t('profilePage.section.language')}</h2>
+      </div>
+      <div className="b2b-card__body">
+        <p className="b2b-help" style={{ marginBottom: 12 }}>
+          {t('profilePage.section.language.help')}
+        </p>
+        {error ? (
+          <div
+            className="b2b-card"
+            style={{
+              background: 'var(--danger-soft)',
+              color: 'var(--danger-soft-fg)',
+              padding: 12,
+              marginBottom: 12,
+              border: '1px solid hsl(8 80% 85%)',
+            }}
+          >
+            {error}
+          </div>
+        ) : null}
+        {info ? (
+          <div
+            className="b2b-card"
+            style={{
+              background: 'var(--success-soft)',
+              color: 'var(--success-soft-fg)',
+              padding: 12,
+              marginBottom: 12,
+              border: '1px solid hsl(142 50% 80%)',
+            }}
+          >
+            {info}
+          </div>
+        ) : null}
+        <div className="b2b-row" style={{ gap: 12, alignItems: 'center' }}>
+          <select
+            className="b2b-field"
+            value={pending}
+            onChange={(e): void =>
+              setPending(e.target.value as SupportedAdminLanguage)
+            }
+            style={{ maxWidth: 240 }}
+          >
+            <option value="en">{t('profilePage.language.option.en')}</option>
+            <option value="pl">{t('profilePage.language.option.pl')}</option>
+          </select>
+          <button
+            type="button"
+            className="b2b-btn b2b-btn--primary"
+            disabled={submitting || pending === language}
+            onClick={(): void => {
+              void handleSave();
+            }}
+          >
+            {submitting
+              ? t('common.state.loading')
+              : t('profilePage.language.action.save')}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
