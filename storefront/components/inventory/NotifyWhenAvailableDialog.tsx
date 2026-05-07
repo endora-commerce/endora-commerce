@@ -116,24 +116,20 @@ export function NotifyWhenAvailableDialog(props: {
           <p style={{ marginTop: 16 }}>{props.labels.success}</p>
         ) : (
           <form onSubmit={(e): void => { void handleSubmit(e); }}>
-            <label style={{ display: 'block', fontSize: 13, marginBottom: 6 }} htmlFor={`${dialogId}-email`}>
-              {props.labels.emailLabel}
-            </label>
-            <input
-              id={`${dialogId}-email`}
-              type="email"
-              required
-              autoFocus
-              value={email}
-              onChange={(e): void => setEmail(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 10px',
-                border: '1px solid var(--border, #ccc)',
-                borderRadius: 4,
-                fontSize: 14,
-              }}
-            />
+            <div className="b2b-auth__field">
+              <label htmlFor={`${dialogId}-email`}>
+                {props.labels.emailLabel}
+              </label>
+              <input
+                id={`${dialogId}-email`}
+                type="email"
+                required
+                autoFocus
+                placeholder=" "
+                value={email}
+                onChange={(e): void => setEmail(e.target.value)}
+              />
+            </div>
             {error ? (
               <p
                 style={{

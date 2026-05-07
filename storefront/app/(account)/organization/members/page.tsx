@@ -127,7 +127,7 @@ export default async function MembersPage({
         <div className="b2b-auth__row">
           <div className="b2b-auth__field">
             <label htmlFor="invite-email">Email</label>
-            <input id="invite-email" name="email" type="email" required />
+            <input id="invite-email" name="email" type="email" required placeholder=" " />
           </div>
           <div className="b2b-auth__field">
             <label htmlFor="invite-role">Role</label>
