@@ -92,6 +92,11 @@ const sidebars = {
           id: 'modules/admin-i18n',
           label: 'Admin UI Languages',
         },
+        {
+          type: 'doc',
+          id: 'modules/admin-actions',
+          label: 'Admin Command Palette Actions',
+        },
         'modules/orders',
         'modules/organizations',
         'modules/payment_methods',
