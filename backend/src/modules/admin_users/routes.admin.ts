@@ -197,6 +197,9 @@ function serializeAdminUser(u: AdminUser) {
     adminRoleId: u.adminRoleId ?? null,
     twoFactorEnabled: !!u.twoFactorConfirmedAt,
     status: u.status,
+    // Feature 019: surface the per-user Admin UI language preference so the
+    // SPA's TranslationProvider can seed itself without a separate fetch.
+    preferredLanguage: u.preferredLanguage ?? null,
     lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
     createdAt: u.createdAt.toISOString(),
     updatedAt: u.updatedAt.toISOString(),

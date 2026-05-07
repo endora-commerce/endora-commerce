@@ -11,6 +11,8 @@ import { catalogModule } from '../../src/modules/catalog/plugin.js';
 import { quoteRequestsModule } from '../../src/modules/quote_requests/plugin.js';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { AdminUser } from '../../src/modules/admin_users/entities/admin-user.entity.js';
+import { AdminUserService } from '../../src/modules/admin_users/services/admin-user-service.js';
+import { i18nModule as adminI18nModule } from '../../src/modules/_i18n/plugin.js';
 import { AdminRole } from '../../src/modules/admin_roles/entities/admin-role.entity.js';
 import { organizationsModule } from '../../src/modules/organizations/plugin.js';
 import { commerceModule } from '../../src/modules/orders/plugin.js';
@@ -268,6 +270,11 @@ export async function setupBackendServer(
   // organizations can merge anonymous baskets after sign-in.
   let cartService: CartService | null = null;
 
+  // Standalone AdminUserService for modules that need direct service-level
+  // access to admin users (feature 019 — wires the preferred-language
+  // setter into the i18n module's PATCH route).
+  const testAdminUserService = new AdminUserService(em);
+
   // Build the admin module first so we can hand its handle (auditLogService,
   // permissionService) to other modules that need it.
   const admin = adminModule({
@@ -492,6 +499,24 @@ export async function setupBackendServer(
   });
   modules.push(salesChannels.plugin);
   modules.push(settings.plugin);
+
+  // Feature 019 — Admin UI i18n. Test wiring uses no lifecycle registry
+  // (the boot-time bundle reconciler is skipped), so route-level tests
+  // exercise only the HTTP surface and the in-process resolver. Tests
+  // that need bundle rows seed the table directly via `h.em()`.
+  const adminI18n = adminI18nModule({
+    orm,
+    emFactory: em,
+    adminUserService: testAdminUserService,
+    requireAdmin: requireTestAdmin(permissionService),
+    resolveAdminContext: (request) => ({
+      adminUserId:
+        request.testActor?.kind === 'admin'
+          ? request.testActor.adminUserId
+          : TEST_ADMIN_ID,
+    }),
+  });
+  modules.push(adminI18n.plugin);
 
   // Feature 013 — Assets Library. Routes mount under /api/v1/admin/assets/*
   // and /assets/file/:assetId.

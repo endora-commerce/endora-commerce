@@ -31,6 +31,7 @@ export * from './integrations.js';
 export * from './analytics.js';
 export * from './seo.js';
 export * from './i18n.js';
+export * from './admin-i18n.js';
 export * from './cms-pages.js';
 export {
   cmsContentEnvelopeSchema,

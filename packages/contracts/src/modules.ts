@@ -41,6 +41,19 @@ export const moduleVersionRe = /^\d+\.\d+\.\d+(?:-[a-z0-9.]+)?$/;
 export const ModuleLicenseTierSchema = z.enum(['core', 'pro', 'enterprise']);
 export type ModuleLicenseTier = z.infer<typeof ModuleLicenseTierSchema>;
 
+/**
+ * Per-module Admin UI translation declaration (feature 019).
+ * When present, the lifecycle install hook reads
+ * `<modulePath>/<bundlesDir>/<lang>.json` for every supported Admin UI
+ * language and registers the bundle into `translation_bundles`. Default
+ * `bundlesDir` is `'i18n'` — every module that ships translations is
+ * expected to follow this convention.
+ */
+export const ModuleI18nManifestSchema = z.object({
+  bundlesDir: z.string().min(1).default('i18n'),
+});
+export type ModuleI18nManifest = z.infer<typeof ModuleI18nManifestSchema>;
+
 export const ModuleManifestSchema = z.object({
   id: z.string().regex(moduleIdRe),
   name: z.string().min(1).max(120),
@@ -54,6 +67,12 @@ export const ModuleManifestSchema = z.object({
    * outer `id` — the loader enforces this at boot.
    */
   settings: ModuleSettingsManifestSchema.optional(),
+  /**
+   * Per-module Admin UI translation declaration (feature 019).
+   * When present, the lifecycle install hook ingests bundle JSON files
+   * from `<bundlesDir>` into the platform's `translation_bundles` store.
+   */
+  i18n: ModuleI18nManifestSchema.optional(),
 });
 export type ModuleManifest = z.infer<typeof ModuleManifestSchema>;
 

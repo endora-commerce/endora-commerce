@@ -17,7 +17,8 @@ export class AdminUser {
     | 'twoFactorSecret'
     | 'twoFactorConfirmedAt'
     | 'lastLoginAt'
-    | 'deletedAt';
+    | 'deletedAt'
+    | 'preferredLanguage';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -51,6 +52,16 @@ export class AdminUser {
 
   @Property({ type: 'datetime', nullable: true })
   lastLoginAt?: Date | null;
+
+  /**
+   * Admin UI preferred language — feature 019. NULL means "no preference
+   * saved", which the resolver treats as the platform default (English).
+   * The column is bounded by the `SupportedAdminLanguageSchema` allowlist
+   * in `@b2b/contracts/src/admin-i18n.ts`; the validation lives at the
+   * service / route boundary, not at the column level.
+   */
+  @Property({ type: 'string', length: 12, nullable: true })
+  preferredLanguage?: string | null;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

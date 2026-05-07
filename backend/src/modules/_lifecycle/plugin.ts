@@ -31,6 +31,13 @@ export interface LifecycleModuleDeps {
    * static one), or a manifest list the module composes itself.
    */
   registry: LoadedManifestRegistry;
+  /**
+   * Optional Admin UI i18n reconciler — feature 019. When supplied, the
+   * orchestrator drives bundle install on module:install and bundle
+   * removal on module:uninstall --hard. Soft-uninstall preserves bundles.
+   * The reconciler is provided by `_i18n`'s plugin handle.
+   */
+  i18nReconciler?: OrchestratorDeps['i18nReconciler'];
 }
 
 export interface LifecycleModuleHandle {
@@ -53,6 +60,7 @@ export function lifecycleModule(deps: LifecycleModuleDeps): LifecycleModule {
     em: deps.emFactory,
     auditLog: deps.auditLog,
     registry: deps.registry,
+    ...(deps.i18nReconciler ? { i18nReconciler: deps.i18nReconciler } : {}),
   } satisfies OrchestratorDeps);
 
   // Plugin warms the registry cache on first registration and registers

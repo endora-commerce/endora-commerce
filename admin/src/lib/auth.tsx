@@ -25,6 +25,8 @@ export interface AdminMe {
     adminRoleId: string | null;
     twoFactorEnabled: boolean;
     status: 'active' | 'inactive';
+    /** Feature 019 — Admin UI preferred language; null = no preference saved (default to English). */
+    preferredLanguage: 'en' | 'pl' | null;
   };
   role: {
     id: string;

@@ -24,7 +24,7 @@ const settings = defineModuleSettingsManifest({
   settings: [],
 });
 
-/** Module-lifecycle manifest (feature 018). */
+/** Module-lifecycle manifest (feature 018) + i18n bundle declaration (feature 019). */
 export const manifest = defineModuleManifest({
   id: 'settings',
   name: 'Settings',
@@ -32,6 +32,7 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   dependencies: [],
   settings,
+  i18n: { bundlesDir: 'i18n' },
 });
 
 /** Legacy export retained for backward compatibility. */

@@ -51,6 +51,22 @@ export interface OrchestratorDeps {
     warn(msg: string): void;
     error(msg: string): void;
   };
+  /**
+   * Optional Admin UI i18n reconciler — feature 019. When supplied, the
+   * orchestrator delegates per-module bundle install (after settings
+   * reconciliation, before the module's own install hook) and per-module
+   * bundle removal (during hard-uninstall) so `translation_bundles` rows
+   * stay aligned with the lifecycle. Omitted in tests / CLI runs that
+   * don't need translation bookkeeping.
+   */
+  i18nReconciler?: {
+    install(args: {
+      moduleId: string;
+      modulePath: string;
+      bundlesDir: string;
+    }): Promise<{ installed: string[] }>;
+    remove(moduleId: string): Promise<{ removed: number }>;
+  };
 }
 
 export interface InstallResult {
@@ -219,6 +235,18 @@ export class ModuleLifecycleOrchestrator {
               updatedSettings: r.updatedSettings,
             };
           }
+        }
+
+        // 2b. Admin UI i18n bundles — feature 019. Optional reconciler;
+        // when wired, refreshes translation_bundles rows for the module
+        // from `<modulePath>/<bundlesDir>/<lang>.json`. Bundle-loader
+        // failures bubble out of install transaction (FR-016).
+        if (manifest.i18n && this.deps.i18nReconciler) {
+          await this.deps.i18nReconciler.install({
+            moduleId: manifest.id,
+            modulePath: dirname(entry.filePath),
+            bundlesDir: manifest.i18n.bundlesDir,
+          });
         }
 
         // 3. Install hook — runs inside the same em context.
@@ -410,6 +438,12 @@ export class ModuleLifecycleOrchestrator {
         revertedMigrations = await this.revertMigrationsFor(moduleId);
         // Hard uninstall deletes the row; soft preserves it as 'uninstalled'.
         await em.removeAndFlush(row);
+        // Feature 019 — hard-uninstall drops the module's translation
+        // bundles too. Soft-uninstall preserves them so a re-install
+        // picks them up unchanged (data-model §3).
+        if (manifest?.i18n && this.deps.i18nReconciler) {
+          await this.deps.i18nReconciler.remove(moduleId);
+        }
       } else {
         row.state = 'uninstalled';
         row.lastStateChangeAt = new Date();

@@ -87,6 +87,11 @@ const sidebars = {
           id: 'modules/module-lifecycle',
           label: 'Module Lifecycle',
         },
+        {
+          type: 'doc',
+          id: 'modules/admin-i18n',
+          label: 'Admin UI Languages',
+        },
         'modules/orders',
         'modules/organizations',
         'modules/payment_methods',

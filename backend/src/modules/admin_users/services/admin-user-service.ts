@@ -102,6 +102,24 @@ export class AdminUserService {
     await em.flush();
   }
 
+  /**
+   * Set (or revert) an admin user's preferred Admin UI language —
+   * feature 019 / FR-002, FR-004, FR-006. Validation against the
+   * supported allowlist lives at the route boundary so this method
+   * trusts its input. Passing `null` reverts to the platform default
+   * ("no preference saved" → resolver treats as English).
+   */
+  async setPreferredLanguage(
+    id: string,
+    preferredLanguage: string | null,
+  ): Promise<AdminUser> {
+    const em = this.emFactory();
+    const user = await this.#getByIdOn(em, id);
+    user.preferredLanguage = preferredLanguage;
+    await em.flush();
+    return user;
+  }
+
   async #getByIdOn(em: EntityManager, id: string): Promise<AdminUser> {
     const row = await em.findOne(AdminUser, { id, deletedAt: null });
     if (!row) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Admin user not found.');

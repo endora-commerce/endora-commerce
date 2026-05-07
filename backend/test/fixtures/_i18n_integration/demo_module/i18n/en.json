@@ -1,0 +1,5 @@
+{
+  "actions.save": "Save",
+  "actions.cancel": "Cancel",
+  "validation.required": "This field is required."
+}
