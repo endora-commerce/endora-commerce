@@ -684,6 +684,21 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // `b2b:module:state-changed` pub/sub channel). The plugin pushed below
   // does the cache warming on first registration; the registry is built
   // here so other module compositions could consult it.
+  // Feature 019 — Admin UI i18n. Built BEFORE the lifecycle so its
+  // reconciler can be plugged into the orchestrator at construction
+  // time. The boot-time bundle reconciler runs at plugin-attach via a
+  // lazy registry accessor (the lifecycle's registry is populated by
+  // the time the plugin chain is registered).
+  let lifecycleRef: typeof lifecycle | undefined;
+  const adminI18n = adminI18nModule({
+    orm,
+    emFactory: em,
+    registry: () => lifecycleRef?.handle.registry,
+    adminUserService: new AdminUserService(em),
+    requireAdmin,
+    resolveAdminContext: adminContextResolver,
+  });
+
   const lifecycle = lifecycleModuleFromStaticEntries(
     {
       orm,
@@ -692,6 +707,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       emFactory: em,
       auditLog: auditLogService,
       requireAdmin,
+      // Feature 019: hand the i18n reconciler to the orchestrator so
+      // module:install and module:uninstall --hard keep
+      // translation_bundles aligned with the lifecycle.
+      i18nReconciler: adminI18n.handle.reconciler,
     },
     REGISTERED_MANIFESTS.map((e) => ({
       manifest: e.manifest,
@@ -699,21 +718,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       ...(e.uninstallHook ? { uninstallHook: e.uninstallHook } : {}),
     })),
   );
-  modules.push(lifecycle.plugin);
+  lifecycleRef = lifecycle;
 
-  // Feature 019 — Admin UI i18n. Builds the per-language merged-bundle
-  // resolver, runs the boot-time bundle reconciler against the lifecycle
-  // registry (mirrors feature 018's reconcileExistingModules pattern),
-  // and registers the two HTTP endpoints documented in
-  // specs/019-admin-i18n/contracts/admin-http.md.
-  const adminI18n = adminI18nModule({
-    orm,
-    emFactory: em,
-    registry: lifecycle.handle.registry,
-    adminUserService: new AdminUserService(em),
-    requireAdmin,
-    resolveAdminContext: adminContextResolver,
-  });
+  modules.push(lifecycle.plugin);
   modules.push(adminI18n.plugin);
 
   // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every

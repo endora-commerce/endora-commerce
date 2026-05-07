@@ -34,13 +34,19 @@ export interface I18nModuleDeps {
   orm: MikroORM;
   emFactory: () => EntityManager;
   /**
-   * Lifecycle registry — optional. When supplied, the boot-time reconciler
-   * walks every module declaring `manifest.i18n` and refreshes its bundle
-   * rows. Tests can omit it; the routes still work because they read from
-   * `translation_bundles` directly (rows seeded by another path or absent
-   * → resolver returns the placeholder per FR-013).
+   * Lifecycle registry — optional. Accepted as either a value (eager) or
+   * a function (lazy, evaluated at plugin-attach time). The lazy form
+   * resolves the chicken-and-egg with feature 018's lifecycle module:
+   * `_i18n` constructs first so its reconciler can be plugged into the
+   * orchestrator, then the lifecycle registry exists; the lazy accessor
+   * reads it when the boot-time reconciler walks every manifest.
+   *
+   * When the registry is absent, the routes still work because they read
+   * from `translation_bundles` directly (rows seeded by the orchestrator
+   * during module:install or absent → resolver returns the placeholder
+   * per FR-013).
    */
-  registry?: LoadedManifestRegistry;
+  registry?: LoadedManifestRegistry | (() => LoadedManifestRegistry | undefined);
   adminUserService: AdminUserService;
   requireAdmin: RequireAdminFactory;
   resolveAdminContext: (req: FastifyRequest) => { adminUserId: string };
@@ -49,6 +55,19 @@ export interface I18nModuleDeps {
 
 export interface I18nModuleHandle {
   i18nService: I18nService;
+  /**
+   * Lifecycle-orchestrator-shaped reconciler. Wired into feature 018's
+   * `OrchestratorDeps.i18nReconciler` so module install / hard-uninstall
+   * keeps `translation_bundles` rows aligned with the lifecycle.
+   */
+  reconciler: {
+    install(args: {
+      moduleId: string;
+      modulePath: string;
+      bundlesDir: string;
+    }): Promise<{ installed: string[] }>;
+    remove(moduleId: string): Promise<{ removed: number }>;
+  };
 }
 
 export interface I18nModule {
@@ -61,8 +80,10 @@ export function i18nModule(deps: I18nModuleDeps): I18nModule {
   const log = deps.log ?? { info: () => {}, warn: (msg) => console.warn(msg) };
 
   const plugin: ModulePlugin = async (app) => {
-    if (deps.registry) {
-      await reconcileBundles(deps.registry, i18nService, log);
+    const registry =
+      typeof deps.registry === 'function' ? deps.registry() : deps.registry;
+    if (registry) {
+      await reconcileBundles(registry, i18nService, log);
     }
     await registerI18nAdminRoutes(app, {
       i18nService,
@@ -73,7 +94,20 @@ export function i18nModule(deps: I18nModuleDeps): I18nModule {
   };
 
   return {
-    handle: { i18nService },
+    handle: {
+      i18nService,
+      reconciler: {
+        install: async ({ moduleId, modulePath, bundlesDir }) => {
+          const result = await i18nService.installBundlesForModule(
+            moduleId,
+            modulePath,
+            bundlesDir,
+          );
+          return { installed: result.installed };
+        },
+        remove: async (moduleId) => i18nService.removeBundlesForModule(moduleId),
+      },
+    },
     plugin,
   };
 }
