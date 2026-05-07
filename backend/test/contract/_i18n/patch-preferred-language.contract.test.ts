@@ -23,7 +23,7 @@ describe('PATCH /api/v1/admin/me/preferred-language', () => {
   });
 
   async function patch(
-    body: unknown,
+    body: Record<string, unknown>,
     cookie: string = 'stub-admin-session',
   ): Promise<{ status: number; body: unknown }> {
     const res = await h.app.inject({

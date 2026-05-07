@@ -551,6 +551,13 @@ export function AppShell(): ReactNode {
                 !item.requiredPermission || hasPermission(item.requiredPermission),
             );
             if (visibleItems.length === 0) return null;
+            // Feature 019 — section labels go through useTranslation('core').
+            // The empty-label "main" cluster keeps no label; every other
+            // group resolves `appShell.section.<key>`. The English literal
+            // in NAV is the fallback when a translation is absent.
+            const translatedLabel = section.label
+              ? t(`appShell.section.${section.key}`)
+              : '';
             return (
               <div
                 key={section.key}
@@ -566,7 +573,7 @@ export function AppShell(): ReactNode {
                     onClick={(): void => toggleSection(section.key)}
                   >
                     <ChevronDown size={11} />
-                    <span>{section.label}</span>
+                    <span>{translatedLabel}</span>
                   </button>
                 ) : null}
                 <div className="b2b-sidebar__items">

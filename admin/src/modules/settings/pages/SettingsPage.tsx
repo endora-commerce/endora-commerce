@@ -156,15 +156,15 @@ export function SettingsPage(): ReactNode {
                 <CardContent>
                   {group.settings.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                      No settings registered in this group.
+                      {t('groups.empty')}
                     </p>
                   ) : (
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Code</TableHead>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Type</TableHead>
+                          <TableHead>{t('table.column.code')}</TableHead>
+                          <TableHead>{t('table.column.name')}</TableHead>
+                          <TableHead>{t('table.column.type')}</TableHead>
                           <TableHead className="w-24" />
                         </TableRow>
                       </TableHeader>
@@ -180,7 +180,7 @@ export function SettingsPage(): ReactNode {
                                 size="sm"
                                 onClick={() => setSelectedSetting(s)}
                               >
-                                Edit
+                                {t('actions.edit')}
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -215,14 +215,14 @@ export function SettingsPage(): ReactNode {
                     onClick={() => void onReset()}
                     disabled={saving || selectedSetting.valuesByChannel.length === 0}
                   >
-                    Reset to default for all channels
+                    {t('actions.resetToDefault')}
                   </Button>
                 </div>
                 <div className="border-t pt-4 text-xs text-muted-foreground">
-                  <div>Default: {JSON.stringify(selectedSetting.defaultValue)}</div>
-                  <div>Module: {selectedSetting.ownerModule}</div>
+                  <div>{t('editor.default')}: {JSON.stringify(selectedSetting.defaultValue)}</div>
+                  <div>{t('editor.module')}: {selectedSetting.ownerModule}</div>
                   <div>
-                    Per-channel values: {selectedSetting.valuesByChannel.length}
+                    {t('editor.perChannelValues')}: {selectedSetting.valuesByChannel.length}
                   </div>
                 </div>
               </CardContent>
@@ -230,7 +230,7 @@ export function SettingsPage(): ReactNode {
           ) : (
             <Card>
               <CardContent className="pt-6 text-sm text-muted-foreground">
-                Select a setting from the left to edit its value.
+                {t('editor.empty')}
               </CardContent>
             </Card>
           )}
