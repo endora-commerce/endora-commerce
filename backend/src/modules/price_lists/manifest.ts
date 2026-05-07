@@ -1,4 +1,8 @@
-import { defineModuleSettingsManifest, PRICING_SETTING_CODES } from '@b2b/contracts';
+import {
+  defineModuleManifest,
+  defineModuleSettingsManifest,
+  PRICING_SETTING_CODES,
+} from '@b2b/contracts';
 
 /**
  * Settings manifest for the Price Lists module — feature 011.
@@ -6,7 +10,7 @@ import { defineModuleSettingsManifest, PRICING_SETTING_CODES } from '@b2b/contra
  * Two settings (FR-037). Setting codes follow the foundation regex
  * `^[a-z][a-z0-9_][a-z0-9_.]*[a-z0-9]$`.
  */
-export const priceListsManifest = defineModuleSettingsManifest({
+const settings = defineModuleSettingsManifest({
   moduleCode: 'price_lists',
   groups: [{ code: 'pricing', name: 'Pricing' }],
   settings: [
@@ -30,3 +34,17 @@ export const priceListsManifest = defineModuleSettingsManifest({
     },
   ],
 });
+
+/** Module-lifecycle manifest (feature 018). */
+export const manifest = defineModuleManifest({
+  id: 'price_lists',
+  name: 'Price Lists',
+  description:
+    'Customer-group pricing, brackets, display modes, and rule-based engine.',
+  version: '1.0.0',
+  dependencies: ['settings'],
+  settings,
+});
+
+/** Legacy export retained for backward compatibility. */
+export const priceListsManifest = settings;

@@ -1,4 +1,7 @@
-import { defineModuleSettingsManifest } from '@b2b/contracts';
+import {
+  defineModuleManifest,
+  defineModuleSettingsManifest,
+} from '@b2b/contracts';
 
 /**
  * Built-in settings manifest for the Blog module — feature 016 / R7.
@@ -28,7 +31,7 @@ export const BLOG_DEFAULT_URL_PREFIX = 'blog';
 export const BLOG_DEFAULT_LATEST_COUNT = 5;
 export const BLOG_DEFAULT_POSTS_PER_PAGE = 12;
 
-export const blogManifest = defineModuleSettingsManifest({
+const settings = defineModuleSettingsManifest({
   moduleCode: 'blog',
   groups: [
     {
@@ -75,3 +78,17 @@ export const blogManifest = defineModuleSettingsManifest({
     },
   ],
 });
+
+/** Module-lifecycle manifest (feature 018). */
+export const manifest = defineModuleManifest({
+  id: 'blog',
+  name: 'Blog',
+  description:
+    'Multi-channel, multi-language blog with categories, tags, and Page Builder posts.',
+  version: '1.0.0',
+  dependencies: ['settings', 'cms', 'assets_library', 'dictionaries'],
+  settings,
+});
+
+/** Legacy export retained for backward compatibility. */
+export const blogManifest = settings;

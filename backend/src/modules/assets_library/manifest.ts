@@ -1,4 +1,7 @@
-import { defineModuleSettingsManifest } from '@b2b/contracts';
+import {
+  defineModuleManifest,
+  defineModuleSettingsManifest,
+} from '@b2b/contracts';
 
 /**
  * Built-in manifest for the Assets Library — feature 013 / research.md R13.
@@ -13,7 +16,7 @@ import { defineModuleSettingsManifest } from '@b2b/contracts';
  * change to spec 004's manifest schema will add `redactedRead`; until then,
  * operators must restrict admin Settings access to trusted users.
  */
-export const assetsLibraryManifest = defineModuleSettingsManifest({
+const settings = defineModuleSettingsManifest({
   moduleCode: 'assets_library',
   groups: [
     {
@@ -99,3 +102,17 @@ export const assetsLibraryManifest = defineModuleSettingsManifest({
     },
   ],
 });
+
+/** Module-lifecycle manifest (feature 018). */
+export const manifest = defineModuleManifest({
+  id: 'assets_library',
+  name: 'Assets Library',
+  description:
+    'Storage adapter registry (local / S3 / GCS), asset upload, and reference tracking.',
+  version: '1.0.0',
+  dependencies: [],
+  settings,
+});
+
+/** Legacy export retained for backward compatibility. */
+export const assetsLibraryManifest = settings;

@@ -96,3 +96,4 @@ export * from './assets-library.js';
 export * from './megamenu.js';
 export * from './blog.js';
 export * from './dictionary.js';
+export * from './modules.js';

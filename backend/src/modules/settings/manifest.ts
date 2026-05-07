@@ -1,14 +1,17 @@
-import { defineModuleSettingsManifest } from '@b2b/contracts';
+import {
+  defineModuleManifest,
+  defineModuleSettingsManifest,
+} from '@b2b/contracts';
 
 /**
- * Built-in manifest for the settings module itself — feature 004 / T022.
+ * Built-in settings manifest for the settings module itself — feature 004.
  *
  * Seeds the platform-wide `general` group on every backend boot so other
  * modules' manifests can default-attach to it without a chicken-and-egg
  * problem. The group is `isSystemProtected: true`, which the admin service
- * (T034) refuses to delete.
+ * refuses to delete.
  */
-export const settingsManifest = defineModuleSettingsManifest({
+const settings = defineModuleSettingsManifest({
   moduleCode: 'settings',
   groups: [
     {
@@ -20,3 +23,16 @@ export const settingsManifest = defineModuleSettingsManifest({
   ],
   settings: [],
 });
+
+/** Module-lifecycle manifest (feature 018). */
+export const manifest = defineModuleManifest({
+  id: 'settings',
+  name: 'Settings',
+  description: 'Per-module setting registry, admin UI, and value resolver.',
+  version: '1.0.0',
+  dependencies: [],
+  settings,
+});
+
+/** Legacy export retained for backward compatibility. */
+export const settingsManifest = settings;
