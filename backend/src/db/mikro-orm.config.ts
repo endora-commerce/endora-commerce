@@ -40,6 +40,7 @@ import { Migration035CmsInit } from './migrations/035_cms_init.js';
 import { Migration036MegamenuInit } from './migrations/036_megamenu_init.js';
 import { Migration037BlogInit } from './migrations/037_blog_init.js';
 import { Migration038DictionaryInit } from './migrations/038_dictionary_init.js';
+import { Migration039ModuleLifecycleInit } from './migrations/039_module_lifecycle_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -171,6 +172,10 @@ export default defineConfig({
       {
         name: 'Migration038DictionaryInit',
         class: Migration038DictionaryInit,
+      },
+      {
+        name: 'Migration039ModuleLifecycleInit',
+        class: Migration039ModuleLifecycleInit,
       },
     ],
     transactional: true,
