@@ -133,7 +133,15 @@ export class I18nService {
     const merged: Record<string, TranslationBundleEntries> = {};
     let highest = 0;
     for (const row of rows) {
-      merged[row.moduleId] = row.entries;
+      // The `_i18n` module ships its own bundle as the synthetic `core`
+      // namespace that owns admin-chrome strings (AppShell, login,
+      // profile). DB rows stay keyed by `_i18n` so they line up with
+      // `module_registrations`; the rename happens at the resolver
+      // boundary so consumers (Admin SPA + backend `translate(...)`
+      // calls) look it up under `core`. See data-model.md §3 / §4 and
+      // research.md §R7.
+      const exposedId = row.moduleId === I18N_CHROME_MODULE_ID ? CORE_NAMESPACE : row.moduleId;
+      merged[exposedId] = row.entries;
       if (Number(row.version) > highest) highest = Number(row.version);
     }
     this.cache.set(language, { version: highest, merged });
@@ -186,6 +194,11 @@ export class I18nService {
 
 // Allowed: list of supported languages re-exported for tests / consumers.
 export { SUPPORTED_ADMIN_LANGUAGES, BundleLoadError };
+
+/** Manifest id of the platform-internal i18n module (= the chrome bundle owner). */
+const I18N_CHROME_MODULE_ID = '_i18n';
+/** Synthetic namespace exposed to clients for the `_i18n` module's bundle. */
+const CORE_NAMESPACE = 'core';
 
 /** Substitute `{name}` placeholders. Missing params are left as-is. */
 function interpolate(
