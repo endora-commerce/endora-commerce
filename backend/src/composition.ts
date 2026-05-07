@@ -56,6 +56,8 @@ import { assetsLibraryManifest } from './modules/assets_library/manifest.js';
 import { assetsLibraryModule } from './modules/assets_library/plugin.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
 import { REGISTERED_MANIFESTS } from './modules/_lifecycle/registered-manifests.js';
+import { i18nModule as adminI18nModule } from './modules/_i18n/plugin.js';
+import { AdminUserService } from './modules/admin_users/services/admin-user-service.js';
 import { registerCatalogAssetReferences } from './modules/catalog/services/asset-references.js';
 import { registerCmsAssetReferences } from './modules/cms/services/asset-references.js';
 import { WarehouseChannelReconciler } from './modules/inventory/services/warehouse-channel-reconciler.js';
@@ -698,6 +700,21 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     })),
   );
   modules.push(lifecycle.plugin);
+
+  // Feature 019 — Admin UI i18n. Builds the per-language merged-bundle
+  // resolver, runs the boot-time bundle reconciler against the lifecycle
+  // registry (mirrors feature 018's reconcileExistingModules pattern),
+  // and registers the two HTTP endpoints documented in
+  // specs/019-admin-i18n/contracts/admin-http.md.
+  const adminI18n = adminI18nModule({
+    orm,
+    emFactory: em,
+    registry: lifecycle.handle.registry,
+    adminUserService: new AdminUserService(em),
+    requireAdmin,
+    resolveAdminContext: adminContextResolver,
+  });
+  modules.push(adminI18n.plugin);
 
   // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every
   // module's settings manifest and inserts any missing groups/settings

@@ -13,6 +13,7 @@ import { manifest as inventoryManifest } from '../inventory/manifest.js';
 import { manifest as priceListsManifest } from '../price_lists/manifest.js';
 import { manifest as assetsLibraryManifest } from '../assets_library/manifest.js';
 import { manifest as blogManifest } from '../blog/manifest.js';
+import { manifest as adminI18nManifest } from '../_i18n/manifest.js';
 
 /**
  * Single source of truth for the static manifest list consumed by both
@@ -40,4 +41,6 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   { manifest: priceListsManifest },
   { manifest: assetsLibraryManifest },
   { manifest: blogManifest },
+  // Feature 019 — Admin UI i18n. Ships its own `core` namespace bundle.
+  { manifest: adminI18nManifest },
 ];
