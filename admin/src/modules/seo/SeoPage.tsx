@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type {
   ResolvedMeta,
   SeoEntityType,
-  SitemapStatus,
+  SitemapChannelStatus,
   UpsertSeoMetaOverrideRequest,
 } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
@@ -19,14 +19,20 @@ import {
   TableBody,
   TableCell,
   TableHead,
+  TableHeader,
   TableRow,
 } from '@/components/ui/table';
 
-interface SitemapStatusEnvelope {
-  data: SitemapStatus;
+interface SitemapListEnvelope {
+  data: SitemapChannelStatus[];
 }
 interface RegenerateEnvelope {
-  data: { generatedAt: string; urlCount: number; byteSize: number };
+  data: {
+    salesChannelCode: string;
+    generatedAt: string;
+    urlCount: number;
+    byteSize: number;
+  };
 }
 interface MetaEnvelope {
   data: {
@@ -43,12 +49,15 @@ interface MetaEnvelope {
 
 const ENTITY_TYPES: SeoEntityType[] = ['product', 'category'];
 
+const API_BASE_URL =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
+
 export function SeoPage(): ReactNode {
   return (
     <>
       <PageHeader
         title="SEO"
-        description="Sitemap regeneration and per-page meta-tag overrides."
+        description="Per-channel sitemap generation and meta-tag overrides."
       />
       <div className="space-y-4">
         <SitemapCard />
@@ -59,19 +68,19 @@ export function SeoPage(): ReactNode {
 }
 
 function SitemapCard(): ReactNode {
-  const [status, setStatus] = useState<SitemapStatus | null>(null);
+  const [rows, setRows] = useState<SitemapChannelStatus[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [busyChannel, setBusyChannel] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
-      const res = await apiClient.get<SitemapStatusEnvelope>('/api/v1/admin/seo/sitemap/status');
-      setStatus(res.data);
+      const res = await apiClient.get<SitemapListEnvelope>('/api/v1/admin/seo/sitemap');
+      setRows(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load status.');
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load sitemap status.');
     } finally {
       setLoading(false);
     }
@@ -81,20 +90,81 @@ function SitemapCard(): ReactNode {
     void refresh();
   }, [refresh]);
 
-  const regenerate = useCallback(async (): Promise<void> => {
-    setBusy(true);
-    setMessage(null);
-    setError(null);
-    try {
-      const res = await apiClient.post<RegenerateEnvelope>('/api/v1/admin/seo/sitemap/regenerate');
-      setMessage(`Regenerated — ${res.data.urlCount} URLs (${formatBytes(res.data.byteSize)}).`);
-      await refresh();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Regenerate failed.');
-    } finally {
-      setBusy(false);
+  const regenerate = useCallback(
+    async (code: string): Promise<void> => {
+      setBusyChannel(code);
+      setMessage(null);
+      setError(null);
+      try {
+        const res = await apiClient.post<RegenerateEnvelope>(
+          `/api/v1/admin/seo/sitemap/${encodeURIComponent(code)}/regenerate`,
+        );
+        setMessage(
+          `Regenerated sitemap for "${code}" — ${res.data.urlCount} URLs (${formatBytes(res.data.byteSize)}).`,
+        );
+        await refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Regenerate failed.');
+      } finally {
+        setBusyChannel(null);
+      }
+    },
+    [refresh],
+  );
+
+  const fetchXml = useCallback(async (code: string): Promise<Blob> => {
+    const url = `${API_BASE_URL}/api/v1/admin/seo/sitemap/${encodeURIComponent(code)}/xml`;
+    const response = await fetch(url, { credentials: 'include' });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
     }
-  }, [refresh]);
+    return response.blob();
+  }, []);
+
+  const preview = useCallback(
+    async (code: string): Promise<void> => {
+      setBusyChannel(code);
+      setError(null);
+      try {
+        const blob = await fetchXml(code);
+        const objectUrl = URL.createObjectURL(blob);
+        const newWindow = window.open(objectUrl, '_blank', 'noopener,noreferrer');
+        // Revoke after the new window has had a chance to load.
+        setTimeout((): void => URL.revokeObjectURL(objectUrl), 60_000);
+        if (!newWindow) {
+          setError('Popup was blocked — allow popups for this site to preview the sitemap.');
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Preview failed.');
+      } finally {
+        setBusyChannel(null);
+      }
+    },
+    [fetchXml],
+  );
+
+  const download = useCallback(
+    async (code: string): Promise<void> => {
+      setBusyChannel(code);
+      setError(null);
+      try {
+        const blob = await fetchXml(code);
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = `sitemap-${code}.xml`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(objectUrl);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Download failed.');
+      } finally {
+        setBusyChannel(null);
+      }
+    },
+    [fetchXml],
+  );
 
   return (
     <Card>
@@ -114,32 +184,91 @@ function SitemapCard(): ReactNode {
         ) : null}
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No active sales channels.</p>
         ) : (
           <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Sales channel</TableHead>
+                <TableHead>Storefront URL</TableHead>
+                <TableHead>Last generated</TableHead>
+                <TableHead className="text-right">URLs</TableHead>
+                <TableHead className="text-right">Size</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
             <TableBody>
-              <TableRow>
-                <TableHead className="w-40">Last generated</TableHead>
-                <TableCell>{formatDateTime(status?.generatedAt ?? null)}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableHead className="w-40">URL count</TableHead>
-                <TableCell>{status?.urlCount?.toLocaleString() ?? '—'}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableHead className="w-40">Size</TableHead>
-                <TableCell>{status?.byteSize ? formatBytes(status.byteSize) : '—'}</TableCell>
-              </TableRow>
+              {rows.map((row) => {
+                const busy = busyChannel === row.salesChannelCode;
+                return (
+                  <TableRow key={row.salesChannelCode}>
+                    <TableCell>
+                      <div className="font-medium">{row.salesChannelName}</div>
+                      <div className="font-mono text-xs text-muted-foreground">
+                        {row.salesChannelCode}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-mono text-xs">{row.storefrontUrl}</div>
+                      <div className="text-xs text-muted-foreground">
+                        source: {row.storefrontUrlSource}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {row.generatedAt ? formatDateTime(row.generatedAt) : '—'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {row.urlCount?.toLocaleString() ?? '—'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {row.byteSize ? formatBytes(row.byteSize) : '—'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busy}
+                          onClick={(): void => {
+                            void regenerate(row.salesChannelCode);
+                          }}
+                        >
+                          {busy ? '…' : 'Regenerate'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={busy || row.generatedAt === null}
+                          onClick={(): void => {
+                            void preview(row.salesChannelCode);
+                          }}
+                        >
+                          Preview
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={busy || row.generatedAt === null}
+                          onClick={(): void => {
+                            void download(row.salesChannelCode);
+                          }}
+                        >
+                          Download
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}
-        <Button
-          disabled={busy}
-          onClick={(): void => {
-            void regenerate();
-          }}
-        >
-          {busy ? 'Regenerating…' : 'Regenerate sitemap'}
-        </Button>
+        <p className="text-xs text-muted-foreground">
+          Storefront URL is read from the per-channel <code>sales_channels.storefront_url</code>{' '}
+          setting. Configure it in Settings → Sales Channels for each channel; empty falls back to
+          the <code>STOREFRONT_BASE_URL</code> environment variable.
+        </p>
       </CardContent>
     </Card>
   );

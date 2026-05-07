@@ -7,11 +7,15 @@ import {
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
 
 /**
- * T235 — public sitemap.xml is generated from active, public-visibility
- * products + non-deleted categories. The cache row is overwritten on
- * `regenerate`, and the public route falls through to a fresh build when
- * the cache is empty or stale.
+ * Per-channel sitemap. Public `/api/v1/catalog/sitemap.xml` resolves the
+ * channel from `X-Sales-Channel`; admin endpoints take the channel code in
+ * the path. Each channel filters by its own membership (sales_channel_*
+ * bridge tables) and stamps URLs with its own storefront URL (read from
+ * the `sales_channels.storefront_url` setting; tests fall back to the
+ * shared baseUrl baked into the seoModule options).
  */
+
+const RETAIL = 'pl_retail';
 
 describe('GET /api/v1/catalog/sitemap.xml', () => {
   let h: BackendServerHandle;
@@ -28,6 +32,7 @@ describe('GET /api/v1/catalog/sitemap.xml', () => {
     const res = await h.app.inject({
       method: 'GET',
       url: '/api/v1/catalog/sitemap.xml',
+      headers: { 'x-sales-channel': RETAIL },
     });
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toMatch(/application\/xml/);
@@ -48,12 +53,17 @@ describe('GET /api/v1/catalog/sitemap.xml', () => {
     // Force a fresh build — the test fixture pins staleAfterMs=0.
     const regenRes = await h.app.inject({
       method: 'POST',
-      url: '/api/v1/admin/seo/sitemap/regenerate',
+      url: `/api/v1/admin/seo/sitemap/${RETAIL}/regenerate`,
       cookies: { b2b_session: 'stub-admin-session' },
+      headers: { 'x-sales-channel': RETAIL },
     });
     expect(regenRes.statusCode).toBe(200);
 
-    const res = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/sitemap.xml' });
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/catalog/sitemap.xml',
+      headers: { 'x-sales-channel': RETAIL },
+    });
     expect(res.body).not.toContain(`/p/${product.slug}`);
 
     // Restore for downstream tests.
@@ -64,13 +74,20 @@ describe('GET /api/v1/catalog/sitemap.xml', () => {
   it('regenerate endpoint returns the new metadata', async () => {
     const res = await h.app.inject({
       method: 'POST',
-      url: '/api/v1/admin/seo/sitemap/regenerate',
+      url: `/api/v1/admin/seo/sitemap/${RETAIL}/regenerate`,
       cookies: { b2b_session: 'stub-admin-session' },
+      headers: { 'x-sales-channel': RETAIL },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
-      data: { generatedAt: string; urlCount: number; byteSize: number };
+      data: {
+        salesChannelCode: string;
+        generatedAt: string;
+        urlCount: number;
+        byteSize: number;
+      };
     };
+    expect(body.data.salesChannelCode).toBe(RETAIL);
     expect(body.data.urlCount).toBeGreaterThan(0);
     expect(body.data.byteSize).toBeGreaterThan(0);
     expect(new Date(body.data.generatedAt).getTime()).toBeGreaterThan(0);

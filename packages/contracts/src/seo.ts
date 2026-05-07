@@ -55,3 +55,22 @@ export const sitemapStatusSchema = z.object({
   urlCount: z.number().int().nonnegative().nullable(),
 });
 export type SitemapStatus = z.infer<typeof sitemapStatusSchema>;
+
+/**
+ * Per-channel sitemap row returned by the admin list endpoint
+ * (`GET /api/v1/admin/seo/sitemap`). One row per active sales channel —
+ * each carries its own cache (regenerate, preview and download act on a
+ * single channel) and its own resolved storefront URL.
+ */
+export const sitemapChannelStatusSchema = sitemapStatusSchema.extend({
+  salesChannelCode: z.string(),
+  salesChannelName: z.string(),
+  storefrontUrl: z.string(),
+  storefrontUrlSource: z.enum(['setting', 'env', 'fallback']),
+});
+export type SitemapChannelStatus = z.infer<typeof sitemapChannelStatusSchema>;
+
+export const sitemapChannelListResponseSchema = z.object({
+  data: z.array(sitemapChannelStatusSchema),
+});
+export type SitemapChannelListResponse = z.infer<typeof sitemapChannelListResponseSchema>;

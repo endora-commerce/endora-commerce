@@ -199,14 +199,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   const analytics = analyticsModule({ emFactory: em, requireAdmin });
   const importExport = importExportModule({ emFactory: em, requireAdmin });
-  const seo = seoModule({
-    emFactory: em,
-    requireAdmin,
-    sitemap: {
-      staleAfterMs: 60 * 60 * 1000,
-      baseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-    },
-  });
+  // `seoModule` is instantiated AFTER settings (further below) so the
+  // sitemap generator can read the per-channel `sales_channels.storefront_url`
+  // setting via the SettingsService port. See `const seo = seoModule(...)` /
+  // `modules.push(seo.plugin)` further down.
   const i18n = i18nModule({ emFactory: em, requireAdmin });
 
   // Feature 005 — Sales Channels module. The boot-time
@@ -296,6 +292,22 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveAdminAuditContext: (request) => {
       if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
       return { actorAdminUserId: request.actor.adminUserId };
+    },
+  });
+
+  // SEO module — needs the SettingsService port for the per-channel
+  // `sales_channels.storefront_url` setting that the sitemap generator
+  // stamps into URLs. Plugin is pushed onto `modules` further below.
+  const seo = seoModule({
+    emFactory: em,
+    requireAdmin,
+    settings: {
+      get: (code, salesChannelId, schema) =>
+        settings.handle.settingsService.get(code, salesChannelId, schema),
+    },
+    sitemap: {
+      staleAfterMs: 60 * 60 * 1000,
+      baseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
     },
   });
 
