@@ -76,7 +76,15 @@ const NAV: NavSection[] = [
     label: '',
     items: [
       { to: '/', label: 'Home', icon: LayoutDashboard },
+    ],
+  },
+  {
+    key: 'sales',
+    label: 'Sales',
+    items: [
       { to: '/orders', label: 'Orders', icon: ClipboardCheck },
+      { to: '/quote-requests', label: 'Quote requests', icon: FileText },
+      { to: '/invoices', label: 'Invoices', icon: Receipt },
     ],
   },
   {
@@ -119,9 +127,7 @@ const NAV: NavSection[] = [
     items: [
       { to: '/organizations', label: 'Organizations', icon: Building2 },
       { to: '/credit-limits', label: 'Credit limits', icon: CreditCard },
-      { to: '/quote-requests', label: 'Quote requests', icon: FileText },
       { to: '/comparisons', label: 'Comparisons', icon: Scale },
-      { to: '/invoices', label: 'Invoices', icon: Receipt },
     ],
   },
   {
@@ -129,6 +135,15 @@ const NAV: NavSection[] = [
     label: 'Channels',
     items: [
       { to: '/sales-channels', label: 'Sales channels', icon: Store },
+      { to: '/dictionary', label: 'Dictionary', icon: Languages, requiredPermission: 'dictionary.write' },
+      { to: '/admin/dictionaries/audit', label: 'Dictionary audit', icon: ListChecks, requiredPermission: 'dictionary.write' },
+      { to: '/seo', label: 'SEO', icon: Search },
+    ],
+  },
+  {
+    key: 'content',
+    label: 'Content',
+    items: [
       { to: '/cms/pages', label: 'CMS Pages', icon: Newspaper, requiredPermission: 'cms.read' },
       { to: '/cms/blocks', label: 'CMS Blocks', icon: Newspaper, requiredPermission: 'cms.read' },
       { to: '/cms/templates', label: 'CMS Templates', icon: Newspaper, requiredPermission: 'cms.read' },
@@ -137,9 +152,6 @@ const NAV: NavSection[] = [
       { to: '/blog/posts', label: 'Blog Posts', icon: Newspaper, requiredPermission: 'blog.read' },
       { to: '/blog/categories', label: 'Blog Categories', icon: Newspaper, requiredPermission: 'blog.read' },
       { to: '/blog/tags', label: 'Blog Tags', icon: Newspaper, requiredPermission: 'blog.read' },
-      { to: '/dictionary', label: 'Dictionary', icon: Languages, requiredPermission: 'dictionary.write' },
-      { to: '/admin/dictionaries/audit', label: 'Dictionary audit', icon: ListChecks, requiredPermission: 'dictionary.write' },
-      { to: '/seo', label: 'SEO', icon: Search },
     ],
   },
   {
@@ -712,6 +724,10 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
   useEffect(() => {
     setCursor(0);
   }, [query, open]);
+
+  useEffect(() => {
+    if (!open) setQuery('');
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
