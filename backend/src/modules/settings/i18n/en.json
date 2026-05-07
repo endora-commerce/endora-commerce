@@ -21,5 +21,7 @@
   "conflict.title": "This setting was changed by another administrator.",
   "conflict.description": "Refresh the page and reapply your edit, then save again.",
   "state.loading": "Loading settings…",
-  "state.empty": "No settings registered yet."
+  "state.empty": "No settings registered yet.",
+  "actions.openSettings.label": "Open platform settings",
+  "actions.openSettings.description": "Configure platform settings and preferences"
 }

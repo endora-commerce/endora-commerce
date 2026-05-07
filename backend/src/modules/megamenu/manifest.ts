@@ -1,0 +1,28 @@
+import { defineModuleManifest } from '@b2b/contracts';
+
+/**
+ * Megamenu module — feature 015.
+ *
+ * Owns the megamenu (multi-column dropdown navigation) configuration.
+ * Manifest backfilled alongside feature 020.
+ */
+export const manifest = defineModuleManifest({
+  id: 'megamenu',
+  name: 'Megamenu',
+  description: 'Multi-column dropdown navigation builder.',
+  version: '1.0.0',
+  dependencies: ['cms'],
+  i18n: { bundlesDir: 'i18n' },
+  actions: [
+    {
+      id: 'edit-megamenu',
+      labelKey: 'megamenu.actions.editMegamenu.label',
+      descriptionKey: 'megamenu.actions.editMegamenu.description',
+      icon: 'Menu',
+      targetRoute: '/megamenu',
+      requiredPermission: 'megamenu.write',
+      keywords: ['menu', 'edit', 'navigation', 'edytuj', 'nawigacja'],
+      weight: 240,
+    },
+  ],
+});

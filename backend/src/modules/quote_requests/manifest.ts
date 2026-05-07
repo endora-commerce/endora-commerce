@@ -66,6 +66,19 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   dependencies: ['settings', 'catalog'],
   settings,
+  i18n: { bundlesDir: 'i18n' },
+  actions: [
+    {
+      id: 'open-rfq-inbox',
+      labelKey: 'quote_requests.actions.openInbox.label',
+      descriptionKey: 'quote_requests.actions.openInbox.description',
+      icon: 'Inbox',
+      targetRoute: '/quote-requests',
+      requiredPermission: 'rfqs:handle',
+      keywords: ['rfq', 'quote', 'inbox', 'zapytanie', 'oferta'],
+      weight: 310,
+    },
+  ],
 });
 
 /** Legacy export retained for backward compatibility. */

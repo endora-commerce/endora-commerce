@@ -4,6 +4,7 @@ import { AppShell } from './components/AppShell.js';
 import { LoginPage } from './components/LoginPage.js';
 import { useAuth } from './lib/auth.js';
 import { TranslationProvider } from './i18n/TranslationProvider.js';
+import { AdminActionsProvider } from './lib/admin-actions/AdminActionsProvider.js';
 import { AppLanguageContext } from './i18n/app-language-context.js';
 import type { SupportedAdminLanguage } from './i18n/types.js';
 import { ApiKeysPage } from './modules/api_keys/ApiKeysPage.js';
@@ -86,6 +87,7 @@ export function App(): ReactNode {
   return (
     <TranslationProvider language={language}>
       <AppLanguageContext.Provider value={{ language, setLanguage }}>
+        <AdminActionsProvider language={language}>
         <Routes>
           <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
@@ -167,6 +169,7 @@ export function App(): ReactNode {
         />
           </Route>
         </Routes>
+        </AdminActionsProvider>
       </AppLanguageContext.Provider>
     </TranslationProvider>
   );

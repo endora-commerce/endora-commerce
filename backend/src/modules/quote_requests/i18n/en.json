@@ -1,0 +1,4 @@
+{
+  "actions.openInbox.label": "Open RFQ inbox",
+  "actions.openInbox.description": "Review pending quote requests"
+}

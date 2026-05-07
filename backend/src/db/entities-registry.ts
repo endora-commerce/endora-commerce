@@ -96,6 +96,7 @@ import { InventoryThreshold } from '../modules/inventory/entities/inventory-thre
 import { StockAllocation } from '../modules/inventory/entities/stock-allocation.entity.js';
 import { ModuleRegistration } from '../modules/_lifecycle/entities/module-registration.entity.js';
 import { TranslationBundle } from '../modules/_i18n/entities/translation-bundle.entity.js';
+import { ModuleAction } from '../modules/admin_actions/entities/module-action.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -245,4 +246,6 @@ export const ALL_ENTITIES = [
   ModuleRegistration,
   // admin UI i18n bundles (feature 019)
   TranslationBundle,
+  // module-contributed admin command palette actions (feature 020)
+  ModuleAction,
 ] as const;

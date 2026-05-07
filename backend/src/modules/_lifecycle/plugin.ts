@@ -38,6 +38,13 @@ export interface LifecycleModuleDeps {
    * The reconciler is provided by `_i18n`'s plugin handle.
    */
   i18nReconciler?: OrchestratorDeps['i18nReconciler'];
+  /**
+   * Optional Admin Command Palette actions reconciler — feature 020.
+   * When supplied, the orchestrator drives module_actions UPSERT on
+   * module:install and DELETE on module:uninstall --hard. Soft-uninstall
+   * leaves rows in place; visibility is gated by the registry-state join.
+   */
+  adminActionsReconciler?: OrchestratorDeps['adminActionsReconciler'];
 }
 
 export interface LifecycleModuleHandle {
@@ -61,6 +68,9 @@ export function lifecycleModule(deps: LifecycleModuleDeps): LifecycleModule {
     auditLog: deps.auditLog,
     registry: deps.registry,
     ...(deps.i18nReconciler ? { i18nReconciler: deps.i18nReconciler } : {}),
+    ...(deps.adminActionsReconciler
+      ? { adminActionsReconciler: deps.adminActionsReconciler }
+      : {}),
   } satisfies OrchestratorDeps);
 
   // Plugin warms the registry cache on first registration and registers

@@ -21,5 +21,7 @@
   "conflict.title": "To ustawienie zostało zmienione przez innego administratora.",
   "conflict.description": "Odśwież stronę, ponownie wprowadź zmianę i zapisz.",
   "state.loading": "Wczytywanie ustawień…",
-  "state.empty": "Brak zarejestrowanych ustawień."
+  "state.empty": "Brak zarejestrowanych ustawień.",
+  "actions.openSettings.label": "Otwórz ustawienia platformy",
+  "actions.openSettings.description": "Skonfiguruj ustawienia i preferencje platformy"
 }

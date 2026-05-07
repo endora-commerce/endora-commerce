@@ -88,6 +88,19 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   dependencies: ['settings', 'cms', 'assets_library', 'dictionaries'],
   settings,
+  i18n: { bundlesDir: 'i18n' },
+  actions: [
+    {
+      id: 'new-post',
+      labelKey: 'blog.actions.newPost.label',
+      descriptionKey: 'blog.actions.newPost.description',
+      icon: 'BookOpen',
+      targetRoute: '/blog/posts/new',
+      requiredPermission: 'blog.write',
+      keywords: ['post', 'new', 'create', 'wpis', 'nowy'],
+      weight: 140,
+    },
+  ],
 });
 
 /** Legacy export retained for backward compatibility. */

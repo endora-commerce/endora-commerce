@@ -27,7 +27,6 @@ import {
   Package,
   PackageOpen,
   PercentDiamond,
-  Plus,
   Receipt,
   Scale,
   Search,
@@ -47,6 +46,8 @@ import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useAppLanguage } from '@/i18n/app-language-context';
+import { useAdminActions } from '@/lib/admin-actions/useAdminActions';
+import { resolveIcon } from '@/lib/admin-actions/icon-map';
 
 interface NavItem {
   to: string;
@@ -473,8 +474,10 @@ const PALETTE_ITEMS: PaletteItem[] = [
   { group: 'Navigate', label: 'Dictionary', sub: 'Countries currencies languages', icon: Languages, to: '/dictionary', keywords: 'dictionary countries currencies languages i18n' },
   { group: 'Navigate', label: 'Dictionary audit', sub: 'Unresolved registry references', icon: ListChecks, to: '/admin/dictionaries/audit', keywords: 'dictionary audit orphan references' },
   { group: 'Navigate', label: 'Settings', sub: 'Platform configuration', icon: Settings, to: '/settings', keywords: 'settings configuration config' },
-  { group: 'Actions', label: 'New product', sub: 'Create a new catalog row', icon: Plus, to: '/catalog/products/new', keywords: 'create new product add' },
-  { group: 'Actions', label: 'Import products', sub: 'Bulk upload', icon: Upload, to: '/import-export', keywords: 'csv import upload' },
+  // Feature 020 — the Actions group is now sourced from the module
+  // registry via useAdminActions(); the previously-hardcoded "New
+  // product" and "Import products" entries are declared by the
+  // catalog and import_export module manifests respectively.
 ];
 
 export function AppShell(): ReactNode {
@@ -739,17 +742,42 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const { actions: registryActions } = useAdminActions(query);
+
+  // Map registry-supplied actions into the local PaletteItem shape so
+  // the rendering loop stays uniform across Navigate (static) and
+  // Actions (registry-driven) groups.
+  const actionItems = useMemo<PaletteItem[]>(
+    () =>
+      registryActions.map((a) => ({
+        group: 'Actions',
+        label: a.label,
+        sub: a.description ?? '',
+        icon: resolveIcon(a.icon),
+        to: a.targetRoute,
+        // Keywords are already pre-normalized by the registry; we keep
+        // them on the item so the navigate-group filter below can hit
+        // them via includes(). Lowercased for the existing filter.
+        keywords: a.keywords.join(' ').toLowerCase(),
+      })),
+    [registryActions],
+  );
 
   const items = useMemo(() => {
-    if (!query.trim()) return PALETTE_ITEMS;
+    if (!query.trim()) return [...PALETTE_ITEMS, ...actionItems];
     const t = query.toLowerCase();
-    return PALETTE_ITEMS.filter(
+    // Navigate group keeps the existing case-insensitive substring
+    // filter. The Actions group has already been filtered by
+    // useAdminActions(query) which applies diacritic-insensitive
+    // matching against label, description, and keywords.
+    const filteredNav = PALETTE_ITEMS.filter(
       (i) =>
         i.label.toLowerCase().includes(t) ||
         i.sub.toLowerCase().includes(t) ||
         i.keywords.includes(t),
     );
-  }, [query]);
+    return [...filteredNav, ...actionItems];
+  }, [query, actionItems]);
 
   useEffect(() => {
     setCursor(0);

@@ -1,0 +1,6 @@
+{
+  "actions.importProducts.label": "Import products",
+  "actions.importProducts.description": "Upload products from a CSV or Excel file",
+  "actions.openCenter.label": "Open import/export center",
+  "actions.openCenter.description": "Browse all import and export operations"
+}

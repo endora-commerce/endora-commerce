@@ -13,6 +13,7 @@
 
 import { z } from 'zod';
 import { ModuleSettingsManifestSchema } from './settings.js';
+import { ModuleActionsManifestSchema } from './admin-actions.js';
 
 // ---------------------------------------------------------------------------
 // Identifier / version regexes
@@ -73,6 +74,13 @@ export const ModuleManifestSchema = z.object({
    * from `<bundlesDir>` into the platform's `translation_bundles` store.
    */
   i18n: ModuleI18nManifestSchema.optional(),
+  /**
+   * Per-module Admin Command Palette action declarations (feature 020).
+   * Each entry becomes a row in `module_actions` at install time and is
+   * surfaced in the admin's command palette under the Actions group.
+   * Within-module id uniqueness is enforced by the schema.
+   */
+  actions: ModuleActionsManifestSchema.optional(),
 });
 export type ModuleManifest = z.infer<typeof ModuleManifestSchema>;
 
