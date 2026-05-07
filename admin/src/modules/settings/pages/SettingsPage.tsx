@@ -19,6 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { settingsClient } from '../api/settings-client';
+import { useTranslation } from '@/i18n/useTranslation';
 import { ConflictBanner } from '../components/ConflictBanner';
 import { SettingValueEditor } from '../components/SettingValueEditor';
 
@@ -30,6 +31,7 @@ import { SettingValueEditor } from '../components/SettingValueEditor';
  * or to a chosen subset, with optimistic-concurrency conflict handling.
  */
 export function SettingsPage(): ReactNode {
+  const t = useTranslation('settings');
   const [groups, setGroups] = useState<SettingGroupDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -115,8 +117,8 @@ export function SettingsPage(): ReactNode {
   return (
     <>
       <PageHeader
-        title="Settings"
-        description="Per-sales-channel configuration grouped by section. Each setting is declared by a backend module; values can be applied to all channels or to a chosen subset."
+        title={t('page.title')}
+        description={t('page.description')}
       />
       {error && (
         <Alert variant="destructive" className="mb-4">

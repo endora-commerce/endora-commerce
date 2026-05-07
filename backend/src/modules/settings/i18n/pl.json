@@ -1,0 +1,18 @@
+{
+  "page.title": "Ustawienia",
+  "page.description": "Konfiguracja per kanał sprzedaży, pogrupowana w sekcje. Każde ustawienie jest deklarowane przez moduł backendu; wartości można stosować do wszystkich kanałów lub do wybranego podzbioru.",
+  "groups.page.title": "Grupy ustawień",
+  "groups.page.description": "Zarządzaj sekcjami, w których prezentowane są ustawienia. Systemowej grupy `general` nie można usunąć.",
+  "table.column.code": "Kod",
+  "table.column.name": "Nazwa",
+  "table.column.value": "Wartość",
+  "table.column.scope": "Zakres",
+  "actions.edit": "Edytuj",
+  "actions.applyToAll": "Zastosuj do wszystkich kanałów",
+  "actions.applyToSubset": "Zastosuj do wybranych kanałów",
+  "validation.atLeastOneChannel": "Wybierz co najmniej jeden kanał sprzedaży.",
+  "conflict.title": "To ustawienie zostało zmienione przez innego administratora.",
+  "conflict.description": "Odśwież stronę, ponownie wprowadź zmianę i zapisz.",
+  "state.loading": "Wczytywanie ustawień…",
+  "state.empty": "Brak zarejestrowanych ustawień."
+}
