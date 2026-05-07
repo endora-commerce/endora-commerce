@@ -42,6 +42,7 @@ import { Migration037BlogInit } from './migrations/037_blog_init.js';
 import { Migration038DictionaryInit } from './migrations/038_dictionary_init.js';
 import { Migration039ModuleLifecycleInit } from './migrations/039_module_lifecycle_init.js';
 import { Migration040AdminI18nInit } from './migrations/040_admin_i18n_init.js';
+import { Migration041AdminActionsInit } from './migrations/041_admin_actions_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -181,6 +182,10 @@ export default defineConfig({
       {
         name: 'Migration040AdminI18nInit',
         class: Migration040AdminI18nInit,
+      },
+      {
+        name: 'Migration041AdminActionsInit',
+        class: Migration041AdminActionsInit,
       },
     ],
     transactional: true,

@@ -57,6 +57,7 @@ import { assetsLibraryModule } from './modules/assets_library/plugin.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
 import { REGISTERED_MANIFESTS } from './modules/_lifecycle/registered-manifests.js';
 import { i18nModule as adminI18nModule } from './modules/_i18n/plugin.js';
+import { adminActionsModule } from './modules/admin_actions/plugin.js';
 import { AdminUserService } from './modules/admin_users/services/admin-user-service.js';
 import { registerCatalogAssetReferences } from './modules/catalog/services/asset-references.js';
 import { registerCmsAssetReferences } from './modules/cms/services/asset-references.js';
@@ -699,6 +700,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveAdminContext: adminContextResolver,
   });
 
+  // Feature 020 — Admin Command Palette actions registry. Built before
+  // the lifecycle so its reconciler can be plugged into the orchestrator
+  // at construction time.
+  const adminActions = adminActionsModule({
+    orm,
+    emFactory: em,
+    registry: () => lifecycleRef?.handle.registry,
+    i18nService: adminI18n.handle.i18nService,
+    permissionService,
+    redisSubscriber,
+    requireAdmin,
+    resolveAdminContext: adminContextResolver,
+  });
+
   const lifecycle = lifecycleModuleFromStaticEntries(
     {
       orm,
@@ -711,6 +726,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // module:install and module:uninstall --hard keep
       // translation_bundles aligned with the lifecycle.
       i18nReconciler: adminI18n.handle.reconciler,
+      // Feature 020: hand the admin-actions reconciler to the
+      // orchestrator so module:install and module:uninstall --hard keep
+      // module_actions aligned with the lifecycle.
+      adminActionsReconciler: adminActions.handle.reconciler,
     },
     REGISTERED_MANIFESTS.map((e) => ({
       manifest: e.manifest,
@@ -722,6 +741,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   modules.push(lifecycle.plugin);
   modules.push(adminI18n.plugin);
+  modules.push(adminActions.plugin);
 
   // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every
   // module's settings manifest and inserts any missing groups/settings

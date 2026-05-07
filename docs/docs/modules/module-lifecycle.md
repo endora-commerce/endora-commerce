@@ -86,6 +86,8 @@ Manifest fields:
 - `dependencies` (required, string array) — module ids the platform needs installed before this one. Validated against the manifest registry at boot.
 - `license` (optional, enum `'core' | 'pro' | 'enterprise'`) — reserved for future edition gating; declared and audited but not enforced in v1.
 - `settings` (optional) — feature 004's `ModuleSettingsManifest` shape; the lifecycle's install path runs the existing settings reconciler over it.
+- `i18n` (optional) — feature 019's `{ bundlesDir: string }` shape; when present, the install path reads `<modulePath>/<bundlesDir>/<lang>.json` for every supported Admin UI language and UPSERTs the bundle into `translation_bundles`. Soft-uninstall preserves bundles; hard-uninstall removes them.
+- `actions` (optional) — feature 020's `ModuleAction[]` shape; an inline list of command-palette action declarations (id, label key, icon, target route, optional required-permission, weight, keywords). The install path UPSERTs every declared action into `module_actions` and prunes any rows the new manifest no longer declares; hard-uninstall removes them. See the [Admin Command Palette Actions](./admin-actions) module page for the full schema and operator-side behaviour.
 
 ## Lifecycle state machine
 
@@ -254,6 +256,8 @@ Expected output:
   ✓ dependencies satisfied (settings, sales_channels, pricing)
   ✓ migrations applied: 040
   ✓ settings reconciled: +1 group, +1 setting
+  ✓ i18n bundles installed: en, pl
+  ✓ admin actions reconciled: +1 row
   ✓ install hook completed (12 ms)
   ✓ registry updated: state=installed
 done in 380 ms

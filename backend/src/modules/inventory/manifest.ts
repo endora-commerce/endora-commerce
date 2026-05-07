@@ -95,6 +95,19 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   dependencies: ['settings', 'sales_channels', 'dictionaries'],
   settings,
+  i18n: { bundlesDir: 'i18n' },
+  actions: [
+    {
+      id: 'open-inventory',
+      labelKey: 'inventory.actions.openInventory.label',
+      descriptionKey: 'inventory.actions.openInventory.description',
+      icon: 'Boxes',
+      targetRoute: '/inventory',
+      requiredPermission: 'catalog:write',
+      keywords: ['stock', 'inventory', 'warehouse', 'magazyn', 'zapasy'],
+      weight: 230,
+    },
+  ],
 });
 
 /** Legacy export retained for backward compatibility. */

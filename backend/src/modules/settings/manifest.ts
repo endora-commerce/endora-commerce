@@ -33,6 +33,17 @@ export const manifest = defineModuleManifest({
   dependencies: [],
   settings,
   i18n: { bundlesDir: 'i18n' },
+  actions: [
+    {
+      id: 'open-settings',
+      labelKey: 'settings.actions.openSettings.label',
+      descriptionKey: 'settings.actions.openSettings.description',
+      icon: 'Settings',
+      targetRoute: '/settings',
+      keywords: ['settings', 'preferences', 'config', 'ustawienia'],
+      weight: 250,
+    },
+  ],
 });
 
 /** Legacy export retained for backward compatibility. */

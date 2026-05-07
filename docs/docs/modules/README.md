@@ -24,6 +24,8 @@ how to consume it.
 | Module | Capability | Owns HTTP surface? |
 | --- | --- | --- |
 | [addresses](./addresses) | Customer postal addresses with default-per-kind invariant | yes |
+| [admin-actions](./admin-actions) | Module-contributed action registry surfaced in the Admin Command Palette (⌘K Actions group) | yes (read-only admin endpoint) |
+| [admin-i18n](./admin-i18n) | Admin UI per-user language preference + module-scoped translation bundles | yes |
 | [admin_roles](./admin_roles) | Admin role definitions + per-module Permissions | yes |
 | [admin_users](./admin_users) | Platform Administrator accounts + impersonation | yes |
 | [analytics](./analytics) | Storefront event ingest + admin aggregation + optional GA4 forwarder | yes |

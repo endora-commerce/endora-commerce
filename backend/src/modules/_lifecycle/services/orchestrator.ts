@@ -67,6 +67,21 @@ export interface OrchestratorDeps {
     }): Promise<{ installed: string[] }>;
     remove(moduleId: string): Promise<{ removed: number }>;
   };
+  /**
+   * Optional Admin Command Palette actions reconciler — feature 020.
+   * When supplied, install delegates per-module action UPSERT-and-prune
+   * (after i18n bundles, before the install hook) and hard-uninstall
+   * delegates per-module action removal so `module_actions` rows stay
+   * aligned with the lifecycle. Omitted in tests / CLI runs that don't
+   * need command-palette bookkeeping.
+   */
+  adminActionsReconciler?: {
+    install(args: {
+      moduleId: string;
+      actions: readonly import('@b2b/contracts').ModuleAction[];
+    }): Promise<{ upserted: number; pruned: number }>;
+    remove(moduleId: string): Promise<{ removed: number }>;
+  };
 }
 
 export interface InstallResult {
@@ -246,6 +261,18 @@ export class ModuleLifecycleOrchestrator {
             moduleId: manifest.id,
             modulePath: dirname(entry.filePath),
             bundlesDir: manifest.i18n.bundlesDir,
+          });
+        }
+
+        // 2c. Admin Command Palette actions — feature 020. Optional
+        // reconciler; when wired, refreshes module_actions rows for the
+        // module from `manifest.actions`. Reconciler errors abort the
+        // install transaction (FR-005 — duplicate-id surfaces as the
+        // install failure rather than a silent drop).
+        if (this.deps.adminActionsReconciler) {
+          await this.deps.adminActionsReconciler.install({
+            moduleId: manifest.id,
+            actions: manifest.actions ?? [],
           });
         }
 
@@ -441,6 +468,9 @@ export class ModuleLifecycleOrchestrator {
         // Feature 019 — hard-uninstall drops the module's translation
         // bundles too. Soft-uninstall preserves them so a re-install
         // picks them up unchanged (data-model §3).
+        if (this.deps.adminActionsReconciler) {
+          await this.deps.adminActionsReconciler.remove(moduleId);
+        }
         if (manifest?.i18n && this.deps.i18nReconciler) {
           await this.deps.i18nReconciler.remove(moduleId);
         }

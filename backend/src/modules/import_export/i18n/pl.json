@@ -1,0 +1,6 @@
+{
+  "actions.importProducts.label": "Importuj produkty",
+  "actions.importProducts.description": "Wgraj produkty z pliku CSV lub Excel",
+  "actions.openCenter.label": "Otwórz centrum importu/eksportu",
+  "actions.openCenter.description": "Przeglądaj wszystkie operacje importu i eksportu"
+}

@@ -28,6 +28,19 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   dependencies: ['settings'],
   settings,
+  i18n: { bundlesDir: 'i18n' },
+  actions: [
+    {
+      id: 'new-sales-channel',
+      labelKey: 'sales_channels.actions.newSalesChannel.label',
+      descriptionKey: 'sales_channels.actions.newSalesChannel.description',
+      icon: 'Layers',
+      targetRoute: '/sales-channels/new',
+      requiredPermission: 'sales_channels:write',
+      keywords: ['channel', 'new', 'storefront', 'kanał', 'sprzedaży'],
+      weight: 150,
+    },
+  ],
 });
 
 /** Legacy export retained for backward compatibility. */
