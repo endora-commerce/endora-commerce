@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { defineModuleManifest } from '@b2b/contracts';
 import { ModuleLifecycleOrchestrator, LifecycleError } from '../../../src/modules/_lifecycle/services/orchestrator.js';
 import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-graph.js';
