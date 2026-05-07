@@ -82,6 +82,11 @@ const sidebars = {
           link: { type: 'doc', id: 'modules/megamenu/index' },
           items: [],
         },
+        {
+          type: 'doc',
+          id: 'modules/module-lifecycle',
+          label: 'Module Lifecycle',
+        },
         'modules/orders',
         'modules/organizations',
         'modules/payment_methods',
@@ -117,6 +122,19 @@ const sidebars = {
       label: 'Integrations',
       link: { type: 'generated-index', title: 'Integrations' },
       items: ['integrations/README'],
+    },
+    {
+      type: 'category',
+      label: 'Operations',
+      link: { type: 'generated-index', title: 'Operations' },
+      items: [
+        {
+          type: 'category',
+          label: 'Runbooks',
+          link: { type: 'generated-index', title: 'Runbooks' },
+          items: ['operations/runbooks/module-lifecycle-stuck-lock'],
+        },
+      ],
     },
     {
       type: 'category',
