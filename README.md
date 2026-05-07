@@ -183,6 +183,10 @@ pnpm --filter backend run module:status [<id>] [--json] [--filter=<state>]
 
 The legacy `modules:install` / `modules:uninstall` aliases (plural form) still work but print a deprecation notice and forward to the new singular commands; they are scheduled for removal in the next minor release. The admin app can render a read-only "Modules" panel from `GET /api/v1/admin/modules` (permission `platform.modules.read`).
 
+## Admin UI languages
+
+Feature 019 adds a per-user Admin UI language preference (Polish + English at launch; English is the platform-wide fallback) and a module-scoped translation pipeline so every backend module ships its own bundle of translated strings under `backend/src/modules/<id>/i18n/<lang>.json`. Each Admin UI user picks their language from the **Profile** page; the entire Admin UI re-renders without sign-out and the choice follows the user across devices. Modules opt in by adding `i18n: { bundlesDir: 'i18n' }` to their `manifest.ts` and shipping JSON files alongside; the boot-time reconciler picks them up. Migration `040_admin_i18n_init.ts` introduces the `translation_bundles` table and `admin_users.preferred_language` column. See `docs/docs/modules/admin-i18n.md` for the full guide.
+
 ## Repository layout
 
 ```text

@@ -29,7 +29,7 @@ export const manifest = defineModuleManifest({
   id: 'settings',
   name: 'Settings',
   description: 'Per-module setting registry, admin UI, and value resolver.',
-  version: '1.1.0',
+  version: '1.0.0',
   dependencies: [],
   settings,
   i18n: { bundlesDir: 'i18n' },

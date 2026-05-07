@@ -4,16 +4,17 @@
 
 import type { ModuleManifest } from '@b2b/contracts';
 
-import { manifest as manifest_0 } from '../_lifecycle/manifest.js';
-import { manifest as manifest_1 } from '../assets_library/manifest.js';
-import { manifest as manifest_2 } from '../blog/manifest.js';
-import { manifest as manifest_3 } from '../comparisons/manifest.js';
-import { manifest as manifest_4 } from '../inventory/manifest.js';
-import { manifest as manifest_5 } from '../price_lists/manifest.js';
-import { manifest as manifest_6 } from '../quote_requests/manifest.js';
-import { manifest as manifest_7 } from '../sales_channels/manifest.js';
-import { manifest as manifest_8 } from '../search/manifest.js';
-import { manifest as manifest_9 } from '../settings/manifest.js';
+import { manifest as manifest_0 } from '../_i18n/manifest.js';
+import { manifest as manifest_1 } from '../_lifecycle/manifest.js';
+import { manifest as manifest_2 } from '../assets_library/manifest.js';
+import { manifest as manifest_3 } from '../blog/manifest.js';
+import { manifest as manifest_4 } from '../comparisons/manifest.js';
+import { manifest as manifest_5 } from '../inventory/manifest.js';
+import { manifest as manifest_6 } from '../price_lists/manifest.js';
+import { manifest as manifest_7 } from '../quote_requests/manifest.js';
+import { manifest as manifest_8 } from '../sales_channels/manifest.js';
+import { manifest as manifest_9 } from '../search/manifest.js';
+import { manifest as manifest_10 } from '../settings/manifest.js';
 
 export interface DiscoveredManifestEntry {
   id: string;
@@ -21,14 +22,15 @@ export interface DiscoveredManifestEntry {
 }
 
 export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
-  { id: '_lifecycle', manifest: manifest_0 },
-  { id: 'assets_library', manifest: manifest_1 },
-  { id: 'blog', manifest: manifest_2 },
-  { id: 'comparisons', manifest: manifest_3 },
-  { id: 'inventory', manifest: manifest_4 },
-  { id: 'price_lists', manifest: manifest_5 },
-  { id: 'quote_requests', manifest: manifest_6 },
-  { id: 'sales_channels', manifest: manifest_7 },
-  { id: 'search', manifest: manifest_8 },
-  { id: 'settings', manifest: manifest_9 },
+  { id: '_i18n', manifest: manifest_0 },
+  { id: '_lifecycle', manifest: manifest_1 },
+  { id: 'assets_library', manifest: manifest_2 },
+  { id: 'blog', manifest: manifest_3 },
+  { id: 'comparisons', manifest: manifest_4 },
+  { id: 'inventory', manifest: manifest_5 },
+  { id: 'price_lists', manifest: manifest_6 },
+  { id: 'quote_requests', manifest: manifest_7 },
+  { id: 'sales_channels', manifest: manifest_8 },
+  { id: 'search', manifest: manifest_9 },
+  { id: 'settings', manifest: manifest_10 },
 ];

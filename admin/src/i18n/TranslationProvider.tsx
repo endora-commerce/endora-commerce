@@ -83,7 +83,6 @@ export function TranslationProvider(props: TranslationProviderProps): ReactNode 
         // Logging only; the provider keeps the prior bundle so the UI
         // stays usable. The toast is the consumer's responsibility.
         if (import.meta.env.DEV) {
-          // eslint-disable-next-line no-console
           console.warn('[i18n] bundle fetch failed', err);
         }
       }
@@ -105,7 +104,6 @@ export function TranslationProvider(props: TranslationProviderProps): ReactNode 
       });
       if (import.meta.env.DEV && result.outcome !== 'requested') {
         const target = result.outcome === 'en' ? 'en' : 'placeholder';
-        // eslint-disable-next-line no-console
         console.warn(
           `[i18n] missing ${language}: ${scope}.${key} → fell back to ${target}`,
         );

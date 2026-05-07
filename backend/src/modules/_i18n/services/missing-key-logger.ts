@@ -31,7 +31,11 @@ export class MissingKeyLogger {
   private readonly logger: { info(msg: string): void };
 
   constructor(opts: MissingKeyLoggerOptions = {}) {
-    this.logger = opts.logger ?? { info: (msg) => console.info(msg) };
+    // Default sink uses `console.warn` so it surfaces under the project's
+    // lint policy (which restricts `console.info`). The structured payload
+    // already carries `event:'i18n.fallback'`, so consumers grep on event
+    // rather than log level — the level is operationally diagnostic only.
+    this.logger = opts.logger ?? { info: (msg) => console.warn(msg) };
   }
 
   logFallback(entry: Omit<FallbackLogEntry, 'event'>): void {
