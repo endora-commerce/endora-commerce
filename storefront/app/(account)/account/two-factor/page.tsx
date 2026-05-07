@@ -90,6 +90,7 @@ function ConfirmForm({ otpauth, backups }: { otpauth: string; backups: string[] 
             required
             minLength={4}
             maxLength={64}
+            placeholder=" "
           />
         </div>
         <div className="b2b-auth__actions">
@@ -115,6 +116,7 @@ function DisableForm(): ReactNode {
             required
             minLength={4}
             maxLength={64}
+            placeholder=" "
           />
         </div>
         <div className="b2b-auth__actions">

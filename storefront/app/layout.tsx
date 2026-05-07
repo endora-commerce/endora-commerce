@@ -4,6 +4,7 @@ import { Footer } from '../components/Footer';
 import { Hook } from '../components/Hook';
 import { Megamenu } from '../components/Megamenu/Megamenu';
 import { PwaRegister } from '../components/PwaRegister';
+import { RouteTransition } from '../components/RouteTransition';
 import { getActiveMegamenu } from '../lib/api/megamenu';
 import { getServerContext } from '../lib/server-context';
 import { fetchDictionary } from '../lib/dictionary/client';
@@ -56,7 +57,7 @@ export default async function RootLayout({
             <Hook code="header.bottom" />
             <main className="b2b-shell__main">
               <Hook code="page.top" />
-              {children}
+              <RouteTransition>{children}</RouteTransition>
               <Hook code="page.bottom" />
             </main>
             <Hook code="footer.before" />

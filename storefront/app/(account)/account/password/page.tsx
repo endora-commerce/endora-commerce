@@ -34,6 +34,7 @@ export default async function ChangePasswordPage({
             type="password"
             required
             autoComplete="current-password"
+            placeholder=" "
           />
         </div>
         <div className="b2b-auth__field">
@@ -46,6 +47,7 @@ export default async function ChangePasswordPage({
             minLength={12}
             maxLength={256}
             autoComplete="new-password"
+            placeholder=" "
           />
         </div>
         <div className="b2b-auth__actions">

@@ -34,7 +34,7 @@ export default async function LoginPage({
           <input type="hidden" name="next" value={nextPath} />
           <div className="b2b-auth__field">
             <label htmlFor="login-email">Email</label>
-            <input id="login-email" name="email" type="email" required autoComplete="email" />
+            <input id="login-email" name="email" type="email" required autoComplete="email" placeholder=" " />
           </div>
           <div className="b2b-auth__field">
             <label htmlFor="login-password">Password</label>
@@ -44,6 +44,7 @@ export default async function LoginPage({
               type="password"
               required
               autoComplete="current-password"
+              placeholder=" "
             />
           </div>
           <div className="b2b-auth__field">

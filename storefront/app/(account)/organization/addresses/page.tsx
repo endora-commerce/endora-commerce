@@ -74,21 +74,21 @@ export default async function AddressesPage({
           </div>
           <div className="b2b-auth__field">
             <label htmlFor="addr-recipient">Recipient</label>
-            <input id="addr-recipient" name="recipientName" required maxLength={160} />
+            <input id="addr-recipient" name="recipientName" required maxLength={160} placeholder=" " />
           </div>
         </div>
         <div className="b2b-auth__field">
           <label htmlFor="addr-street">Street</label>
-          <input id="addr-street" name="street" required maxLength={255} />
+          <input id="addr-street" name="street" required maxLength={255} placeholder=" " />
         </div>
         <div className="b2b-auth__row">
           <div className="b2b-auth__field">
             <label htmlFor="addr-city">City</label>
-            <input id="addr-city" name="city" required maxLength={120} />
+            <input id="addr-city" name="city" required maxLength={120} placeholder=" " />
           </div>
           <div className="b2b-auth__field">
             <label htmlFor="addr-postal">Postal code</label>
-            <input id="addr-postal" name="postalCode" required maxLength={20} />
+            <input id="addr-postal" name="postalCode" required maxLength={20} placeholder=" " />
           </div>
         </div>
         <div className="b2b-auth__row">
@@ -103,7 +103,7 @@ export default async function AddressesPage({
           </div>
           <div className="b2b-auth__field">
             <label htmlFor="addr-phone">Phone (optional)</label>
-            <input id="addr-phone" name="phone" maxLength={32} />
+            <input id="addr-phone" name="phone" maxLength={32} placeholder=" " />
           </div>
         </div>
         <label>

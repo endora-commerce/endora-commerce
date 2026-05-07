@@ -59,6 +59,7 @@ export default async function PasswordResetConfirmPage({
             minLength={12}
             maxLength={256}
             autoComplete="new-password"
+            placeholder=" "
           />
         </div>
         <div className="b2b-auth__actions">

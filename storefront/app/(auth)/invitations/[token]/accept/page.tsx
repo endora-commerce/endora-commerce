@@ -31,11 +31,11 @@ export default async function AcceptInvitationPage({
         <input type="hidden" name="token" value={token} />
         <div className="b2b-auth__field">
           <label htmlFor="invite-fn">First name</label>
-          <input id="invite-fn" name="firstName" required autoComplete="given-name" maxLength={120} />
+          <input id="invite-fn" name="firstName" required autoComplete="given-name" maxLength={120} placeholder=" " />
         </div>
         <div className="b2b-auth__field">
           <label htmlFor="invite-ln">Last name</label>
-          <input id="invite-ln" name="lastName" required autoComplete="family-name" maxLength={120} />
+          <input id="invite-ln" name="lastName" required autoComplete="family-name" maxLength={120} placeholder=" " />
         </div>
         <div className="b2b-auth__field">
           <label htmlFor="invite-pw">Password (at least 12 characters)</label>
@@ -47,6 +47,7 @@ export default async function AcceptInvitationPage({
             minLength={12}
             maxLength={256}
             autoComplete="new-password"
+            placeholder=" "
           />
         </div>
         <div className="b2b-auth__actions">

@@ -53,26 +53,26 @@ export default async function RegisterPage({
             <legend style={{ fontWeight: 600 }}>Organization</legend>
             <div className="b2b-auth__field">
               <label htmlFor="org-name">Legal name</label>
-              <input id="org-name" name="organizationName" required maxLength={255} />
+              <input id="org-name" name="organizationName" required maxLength={255} placeholder=" " />
             </div>
             <div className="b2b-auth__field">
               <label htmlFor="org-tax">Tax ID</label>
-              <input id="org-tax" name="taxId" required minLength={8} maxLength={32} />
+              <input id="org-tax" name="taxId" required minLength={8} maxLength={32} placeholder=" " />
             </div>
             <div className="b2b-auth__row">
               <div className="b2b-auth__field">
                 <label htmlFor="addr-street">Street</label>
-                <input id="addr-street" name="street" required maxLength={255} />
+                <input id="addr-street" name="street" required maxLength={255} placeholder=" " />
               </div>
               <div className="b2b-auth__field">
                 <label htmlFor="addr-city">City</label>
-                <input id="addr-city" name="city" required maxLength={120} />
+                <input id="addr-city" name="city" required maxLength={120} placeholder=" " />
               </div>
             </div>
             <div className="b2b-auth__row">
               <div className="b2b-auth__field">
                 <label htmlFor="addr-postal">Postal code</label>
-                <input id="addr-postal" name="postalCode" required maxLength={20} />
+                <input id="addr-postal" name="postalCode" required maxLength={20} placeholder=" " />
               </div>
               <div className="b2b-auth__field">
                 <label htmlFor="addr-country">Country</label>
@@ -90,16 +90,16 @@ export default async function RegisterPage({
             <div className="b2b-auth__row">
               <div className="b2b-auth__field">
                 <label htmlFor="user-first">First name</label>
-                <input id="user-first" name="firstName" required maxLength={120} />
+                <input id="user-first" name="firstName" required maxLength={120} placeholder=" " />
               </div>
               <div className="b2b-auth__field">
                 <label htmlFor="user-last">Last name</label>
-                <input id="user-last" name="lastName" required maxLength={120} />
+                <input id="user-last" name="lastName" required maxLength={120} placeholder=" " />
               </div>
             </div>
             <div className="b2b-auth__field">
               <label htmlFor="user-email">Email</label>
-              <input id="user-email" name="email" type="email" required />
+              <input id="user-email" name="email" type="email" required placeholder=" " />
             </div>
             <div className="b2b-auth__field">
               <label htmlFor="user-password">Password (min 12 characters)</label>
@@ -110,6 +110,7 @@ export default async function RegisterPage({
                 required
                 minLength={12}
                 maxLength={256}
+                placeholder=" "
               />
             </div>
           </fieldset>

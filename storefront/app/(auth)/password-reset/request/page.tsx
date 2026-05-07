@@ -36,7 +36,7 @@ export default async function PasswordResetRequestPage({
       <form action={requestAction} className="b2b-auth__form">
         <div className="b2b-auth__field">
           <label htmlFor="reset-email">Email</label>
-          <input id="reset-email" name="email" type="email" required autoComplete="email" />
+          <input id="reset-email" name="email" type="email" required autoComplete="email" placeholder=" " />
         </div>
         <div className="b2b-auth__actions">
           <button type="submit">Send reset link</button>

@@ -176,12 +176,15 @@ h3 { font-size: 16px; font-weight: 600; }
   font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
-  transition: background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease,
+    box-shadow 0.18s ease, transform 0.12s ease;
   background: var(--surface);
   color: var(--ink-900);
   border-color: var(--line);
+  will-change: transform;
 }
-.btn:hover { border-color: var(--line-strong); }
+.btn:hover { border-color: var(--line-strong); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.btn:active { transform: translateY(0); box-shadow: none; }
 .btn:focus-visible { outline: 2px solid var(--brand-600); outline-offset: 2px; }
 
 .btn--primary { background: var(--brand-700); color: #fff; border-color: var(--brand-700); }
@@ -851,11 +854,16 @@ h3 { font-size: 16px; font-weight: 600; }
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   overflow: hidden;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.2s ease, box-shadow 0.25s ease, transform 0.25s ease;
   display: flex;
   flex-direction: column;
+  will-change: transform;
 }
-.industria-product-card:hover { border-color: var(--ink-700); box-shadow: var(--shadow-md); }
+.industria-product-card:hover {
+  border-color: var(--ink-700);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-3px);
+}
 
 .industria-product-card__media {
   position: relative;
@@ -870,7 +878,9 @@ h3 { font-size: 16px; font-weight: 600; }
   max-width: 70%;
   max-height: 70%;
   object-fit: contain;
+  transition: transform 0.4s ease;
 }
+.industria-product-card:hover .industria-product-card__media img { transform: scale(1.05); }
 .industria-product-card__media-placeholder {
   width: 60%;
   height: 60%;
@@ -2040,16 +2050,85 @@ h3 { font-size: 16px; font-weight: 600; }
 }
 .b2b-auth h1 { margin: 0 0 16px; font-size: 24px; }
 .b2b-auth p { color: var(--ink-500); margin: 0 0 16px; }
-.b2b-auth__form { display: grid; gap: 12px; }
-.b2b-auth__field { display: grid; gap: 4px; }
-.b2b-auth__field label { font-weight: 500; font-size: 13px; }
-.b2b-auth__field input, .b2b-auth__field select, .b2b-auth__field textarea {
-  padding: 9px 12px;
+.b2b-auth__form { display: grid; gap: 14px; }
+
+/* Floating-label field — Hyva-inspired. Markup stays
+ * `<div class="b2b-auth__field"><label>…</label><input placeholder=" " …/></div>`
+ * (label first, input with a single-space placeholder so
+ * `:placeholder-shown` tracks the empty state). The `:has()` selector
+ * lets the wrapper restyle itself based on input state without
+ * reordering the markup. */
+.b2b-auth__field {
+  position: relative;
+  display: block;
+}
+.b2b-auth__field input,
+.b2b-auth__field select,
+.b2b-auth__field textarea {
+  width: 100%;
+  padding: 20px 12px 6px;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   font: inherit;
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--ink-900);
+  outline: none;
+  line-height: 1.4;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
-.b2b-auth__field input:focus { border-color: var(--ink-700); outline: none; }
+.b2b-auth__field textarea { min-height: 100px; resize: vertical; padding-top: 24px; }
+.b2b-auth__field input:hover,
+.b2b-auth__field select:hover,
+.b2b-auth__field textarea:hover { border-color: var(--line-strong); }
+.b2b-auth__field input:focus,
+.b2b-auth__field select:focus,
+.b2b-auth__field textarea:focus {
+  border-color: var(--brand-600);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+}
+/* Hide the native placeholder until the field is focused so it doesn't
+ * compete visually with the centred label in the empty state. The
+ * sentinel `placeholder=" "` value only exists to make `:placeholder-shown`
+ * track the empty input — its text was never meant to be visible. */
+.b2b-auth__field input::placeholder,
+.b2b-auth__field textarea::placeholder { color: transparent; transition: color 0.16s ease; }
+.b2b-auth__field input:focus::placeholder,
+.b2b-auth__field textarea:focus::placeholder { color: var(--ink-400); }
+
+.b2b-auth__field label {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%) scale(1);
+  transform-origin: top left;
+  pointer-events: none;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-500);
+  background: transparent;
+  transition: top 0.16s ease, transform 0.16s ease, color 0.16s ease;
+}
+/* Textareas: label always sits at the top — vertical centring would
+ * land it inside the multiline body. */
+.b2b-auth__field:has(textarea) label { top: 18px; transform: translateY(0); }
+
+/* Floats label up when input has focus, has content, or for selects /
+ * textareas (which always show the label floated since they don't have
+ * a meaningful placeholder-shown state). */
+.b2b-auth__field:has(input:focus) label,
+.b2b-auth__field:has(textarea:focus) label,
+.b2b-auth__field:has(input:not(:placeholder-shown)) label,
+.b2b-auth__field:has(textarea:not(:placeholder-shown)) label,
+.b2b-auth__field:has(select) label {
+  top: 6px;
+  transform: translateY(0) scale(0.82);
+}
+.b2b-auth__field:has(input:focus) label,
+.b2b-auth__field:has(textarea:focus) label,
+.b2b-auth__field:has(select:focus) label {
+  color: var(--brand-700);
+}
 .b2b-auth__row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 480px) { .b2b-auth__row { grid-template-columns: 1fr; } }
 .b2b-auth__actions { display: flex; gap: 8px; margin-top: 8px; }
@@ -2108,5 +2187,169 @@ h3 { font-size: 16px; font-weight: 600; }
   font-size: 13px;
 }
 .b2b-cta:hover { background: var(--ink-800); text-decoration: none; }
+
+/* ================================================================== */
+/* Motion / micro-interactions (Hyva-inspired)                          */
+/* ================================================================== */
+
+/* --- Route transition: fade+slide on URL change ------------------- */
+@keyframes b2b-route-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.b2b-route-fade {
+  animation: b2b-route-enter 260ms ease-out both;
+}
+
+/* --- Top progress bar (used inside loading.tsx) ------------------- */
+@keyframes b2b-progress-indeterminate {
+  0%   { transform: translateX(-60%); }
+  100% { transform: translateX(160%); }
+}
+.b2b-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: transparent;
+  overflow: hidden;
+  z-index: 9999;
+  pointer-events: none;
+}
+.b2b-progress::after {
+  content: '';
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--brand-600) 30%,
+    var(--brand-700) 50%,
+    var(--brand-600) 70%,
+    transparent 100%);
+  animation: b2b-progress-indeterminate 1.1s ease-in-out infinite;
+}
+
+/* --- Skeleton primitives ----------------------------------------- */
+@keyframes b2b-skel-shimmer {
+  0%   { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+.b2b-skel {
+  display: block;
+  border-radius: var(--r-sm);
+  background-color: var(--surface-alt);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 100%
+  );
+  background-repeat: no-repeat;
+  background-size: 200px 100%;
+  animation: b2b-skel-shimmer 1.4s linear infinite;
+  color: transparent;
+}
+.b2b-skel--text { height: 12px; }
+.b2b-skel--line { height: 14px; }
+.b2b-skel--block { height: 100%; min-height: 120px; }
+.b2b-skel--circle { border-radius: 999px; }
+
+.b2b-skel-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.b2b-skel-card__media { aspect-ratio: 1 / 1; }
+.b2b-skel-card__body { padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.b2b-skel-card__line--short { width: 40%; }
+.b2b-skel-card__line--mid   { width: 75%; }
+.b2b-skel-card__line--long  { width: 92%; }
+.b2b-skel-card__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+}
+
+/* --- Floating-label form field ------------------------------------ */
+.b2b-field {
+  position: relative;
+  display: block;
+}
+.b2b-field input,
+.b2b-field textarea,
+.b2b-field select {
+  width: 100%;
+  padding: 18px 12px 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  font: inherit;
+  color: var(--ink-900);
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+.b2b-field input:hover,
+.b2b-field textarea:hover,
+.b2b-field select:hover { border-color: var(--line-strong); }
+.b2b-field input:focus,
+.b2b-field textarea:focus,
+.b2b-field select:focus {
+  border-color: var(--brand-600);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+  background: var(--surface);
+}
+.b2b-field label {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--ink-500);
+  font-size: 13px;
+  transition: top 0.16s ease, font-size 0.16s ease, color 0.16s ease, transform 0.16s ease;
+  background: transparent;
+}
+.b2b-field input:focus + label,
+.b2b-field textarea:focus + label,
+.b2b-field select:focus + label,
+.b2b-field input:not(:placeholder-shown) + label,
+.b2b-field textarea:not(:placeholder-shown) + label,
+.b2b-field select:not([value=""]) + label,
+.b2b-field--filled label {
+  top: 8px;
+  transform: translateY(0);
+  font-size: 11px;
+  color: var(--brand-700);
+  letter-spacing: 0.02em;
+}
+
+/* --- Generic input focus-ring polish (covers existing forms) ------ */
+input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  border-color: var(--brand-600);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+/* --- Reduced-motion guard: honor user preference ----------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .b2b-route-fade { animation: none !important; }
+}
 
 /* Breadcrumbs already styled via .b2b-breadcrumbs above */

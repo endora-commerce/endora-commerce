@@ -144,11 +144,11 @@ export default async function CheckoutPage({
 
         <div className="b2b-auth__field">
           <label htmlFor="promo">Promotion code (optional)</label>
-          <input id="promo" name="promotionCode" maxLength={64} />
+          <input id="promo" name="promotionCode" maxLength={64} placeholder=" " />
         </div>
         <div className="b2b-auth__field">
           <label htmlFor="note">Note for the seller (optional)</label>
-          <textarea id="note" name="customerNote" rows={3} maxLength={4000} />
+          <textarea id="note" name="customerNote" rows={3} maxLength={4000} placeholder=" " />
         </div>
 
         {creditLimit ? (
