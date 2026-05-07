@@ -33,7 +33,14 @@ import type { FastifyRequest } from 'fastify';
 export interface I18nModuleDeps {
   orm: MikroORM;
   emFactory: () => EntityManager;
-  registry: LoadedManifestRegistry;
+  /**
+   * Lifecycle registry — optional. When supplied, the boot-time reconciler
+   * walks every module declaring `manifest.i18n` and refreshes its bundle
+   * rows. Tests can omit it; the routes still work because they read from
+   * `translation_bundles` directly (rows seeded by another path or absent
+   * → resolver returns the placeholder per FR-013).
+   */
+  registry?: LoadedManifestRegistry;
   adminUserService: AdminUserService;
   requireAdmin: RequireAdminFactory;
   resolveAdminContext: (req: FastifyRequest) => { adminUserId: string };
@@ -54,7 +61,9 @@ export function i18nModule(deps: I18nModuleDeps): I18nModule {
   const log = deps.log ?? { info: () => {}, warn: (msg) => console.warn(msg) };
 
   const plugin: ModulePlugin = async (app) => {
-    await reconcileBundles(deps.registry, i18nService, log);
+    if (deps.registry) {
+      await reconcileBundles(deps.registry, i18nService, log);
+    }
     await registerI18nAdminRoutes(app, {
       i18nService,
       adminUserService: deps.adminUserService,
