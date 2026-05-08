@@ -477,11 +477,58 @@ export class CatalogAdminService {
 
   // --- Read methods (admin lists / detail) --------------------------------
 
-  async listProducts(options: { includeArchived?: boolean } = {}): Promise<Product[]> {
+  async listProducts(
+    options: {
+      includeArchived?: boolean;
+      status?: 'active' | 'draft' | 'archived';
+      page?: number;
+      pageSize?: number;
+    } = {},
+  ): Promise<{
+    items: Product[];
+    page: number;
+    pageSize: number;
+    total: number;
+    counts: { all: number; active: number; draft: number; archived: number };
+  }> {
     const em = this.emFactory();
+    const page = Math.max(0, options.page ?? 0);
+    const pageSize = Math.min(Math.max(1, options.pageSize ?? 20), 500);
+
+    // `status` overrides `includeArchived` — if the caller explicitly asks for
+    // a specific status (including 'archived'), we honour it; otherwise the
+    // legacy `includeArchived` flag controls whether archived rows appear.
     const where: Record<string, unknown> = {};
-    if (!options.includeArchived) where['status'] = { $ne: 'archived' };
-    return em.find(Product, where, { orderBy: { createdAt: 'desc' }, limit: 200 });
+    if (options.status) {
+      where['status'] = options.status;
+    } else if (!options.includeArchived) {
+      where['status'] = { $ne: 'archived' };
+    }
+
+    const [items, total] = await em.findAndCount(Product, where, {
+      orderBy: { createdAt: 'desc' },
+      offset: page * pageSize,
+      limit: pageSize,
+    });
+
+    // Counts are computed across the *full* product set (including archived)
+    // so the admin's status tabs always have honest badges, regardless of
+    // which tab is currently active.
+    const knex = em.getKnex();
+    const countRows = (await knex('products')
+      .select('status')
+      .count<{ status: string; count: string | number }[]>('* as count')
+      .groupBy('status')) as Array<{ status: string; count: string | number }>;
+    const counts = { all: 0, active: 0, draft: 0, archived: 0 };
+    for (const row of countRows) {
+      const n = Number(row.count) || 0;
+      counts.all += n;
+      if (row.status === 'active') counts.active = n;
+      else if (row.status === 'draft') counts.draft = n;
+      else if (row.status === 'archived') counts.archived = n;
+    }
+
+    return { items, page, pageSize, total, counts };
   }
 
   async getProductById(id: string): Promise<Product> {

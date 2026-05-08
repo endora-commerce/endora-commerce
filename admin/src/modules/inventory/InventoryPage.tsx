@@ -13,6 +13,8 @@ import type {
 } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
+import { PaginationFooter } from '@/components/PaginationFooter';
+import { usePageSizePreference } from '@/lib/use-page-size-preference';
 
 interface RosterResponse {
   items: StockLevelRow[];
@@ -36,10 +38,13 @@ interface KpiResponse {
 export function InventoryPage(): ReactNode {
   const [kpis, setKpis] = useState<InventoryLandingKpis | null>(null);
   const [rows, setRows] = useState<StockLevelRow[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'low' | 'out'>('all');
+  const { pageSize, setPageSize } = usePageSizePreference('inventory-levels');
+  const [page, setPage] = useState(0);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -47,20 +52,29 @@ export function InventoryPage(): ReactNode {
     try {
       const [kpiRes, rosterRes] = await Promise.all([
         apiClient.get<KpiResponse>('/api/v1/admin/inventory'),
-        apiClient.get<RosterResponse>('/api/v1/admin/inventory/levels?pageSize=200'),
+        apiClient.get<RosterResponse>(
+          `/api/v1/admin/inventory/levels?page=${page}&pageSize=${pageSize}`,
+        ),
       ]);
       setKpis(kpiRes.data);
       setRows(rosterRes.items);
+      setTotal(rosterRes.total);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, pageSize]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Reset to the first page whenever the user switches list-shape so they
+  // never land on an out-of-range page.
+  useEffect(() => {
+    setPage(0);
+  }, [pageSize]);
 
   const filtered = useMemo(() => {
     const t = query.trim().toLowerCase();
@@ -241,6 +255,15 @@ export function InventoryPage(): ReactNode {
             </table>
           )}
         </div>
+
+        <PaginationFooter
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageSizeChange={setPageSize}
+          onPrev={(): void => setPage((p) => Math.max(0, p - 1))}
+          onNext={(): void => setPage((p) => p + 1)}
+        />
       </div>
     </div>
   );

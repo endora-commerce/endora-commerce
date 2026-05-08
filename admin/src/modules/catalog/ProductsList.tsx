@@ -10,8 +10,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   Archive,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   CircleDollarSign,
   Download,
   MoreHorizontal,
@@ -27,6 +25,8 @@ import {
 } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
+import { PaginationFooter } from '@/components/PaginationFooter';
+import { usePageSizePreference } from '@/lib/use-page-size-preference';
 
 interface AdminProduct {
   id: string;
@@ -56,9 +56,19 @@ const STOCK_CYCLE: StockFilter[] = ['all', 'low', 'out'];
  * appears when rows are selected. Table view only — the grid variant
  * was explicitly out of scope for this redesign.
  */
+interface ProductsResponse {
+  data: AdminProduct[];
+  pagination: { page: number; pageSize: number; total: number };
+  counts: { all: number; active: number; draft: number; archived: number };
+}
+
 export function ProductsList(): ReactNode {
   const navigate = useNavigate();
   const [rows, setRows] = useState<AdminProduct[]>([]);
+  const [total, setTotal] = useState(0);
+  const [counts, setCounts] = useState<{ all: number; active: number; draft: number; archived: number }>(
+    { all: 0, active: 0, draft: 0, archived: 0 },
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -66,46 +76,55 @@ export function ProductsList(): ReactNode {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [stockFilter, setStockFilter] = useState<StockFilter>('all');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const { pageSize, setPageSize } = usePageSizePreference('catalog-products');
+  const [page, setPage] = useState(0);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get<{ data: AdminProduct[] }>(
-        '/api/v1/admin/catalog/products?includeArchived=1',
+      const params = new URLSearchParams();
+      params.set('includeArchived', '1');
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      params.set('page', String(page));
+      params.set('pageSize', String(pageSize));
+      const res = await apiClient.get<ProductsResponse>(
+        `/api/v1/admin/catalog/products?${params.toString()}`,
       );
       setRows(res.data);
+      setTotal(res.pagination.total);
+      setCounts(res.counts);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [statusFilter, page, pageSize]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  const counts = useMemo(
-    () => ({
-      all: rows.length,
-      active: rows.filter((r) => r.status === 'active').length,
-      draft: rows.filter((r) => r.status === 'draft').length,
-      archived: rows.filter((r) => r.status === 'archived').length,
-    }),
-    [rows],
-  );
+  // Server-side pagination: when the user picks a different status tab or
+  // page size, jump back to the first page so they never land out of range.
+  // The text query and type chip still filter client-side (best-effort on
+  // the current page) — those filters don't drive the server fetch.
+  useEffect(() => {
+    setPage(0);
+  }, [statusFilter, pageSize]);
 
+  // Client-side text/type filter applied on top of the server-paginated
+  // page. This means the search and Type chip filter the visible rows
+  // only — switching pages re-fetches and the filter applies to the new
+  // page. Server-side support for these filters is a follow-up.
   const filtered = useMemo(() => {
     const t = query.trim().toLowerCase();
     return rows.filter((r) => {
-      if (statusFilter !== 'all' && r.status !== statusFilter) return false;
       if (typeFilter !== 'all' && r.type !== typeFilter) return false;
       // The list payload doesn't yet carry stock numbers — treat the
       // stock chip as a hint for now; once the backend exposes
       // available + onHand inline this branch lights up.
       if (stockFilter !== 'all') {
-        // best-effort placeholder: never match while stock data is absent
         return false;
       }
       if (t) {
@@ -119,7 +138,7 @@ export function ProductsList(): ReactNode {
       }
       return true;
     });
-  }, [rows, query, statusFilter, typeFilter, stockFilter]);
+  }, [rows, query, typeFilter, stockFilter]);
 
   const allSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.id));
   const someSelected = selected.size > 0 && !allSelected;
@@ -405,19 +424,14 @@ export function ProductsList(): ReactNode {
           )}
         </div>
 
-        <div className="b2b-card__foot">
-          <div className="b2b-muted" style={{ fontSize: 12 }}>
-            Showing {filtered.length} of {counts.all}
-          </div>
-          <div className="b2b-row" style={{ gap: 8 }}>
-            <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm" disabled>
-              <ChevronLeft size={13} /> Previous
-            </button>
-            <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm">
-              Next <ChevronRight size={13} />
-            </button>
-          </div>
-        </div>
+        <PaginationFooter
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageSizeChange={setPageSize}
+          onPrev={(): void => setPage((p) => Math.max(0, p - 1))}
+          onNext={(): void => setPage((p) => p + 1)}
+        />
       </div>
     </div>
   );

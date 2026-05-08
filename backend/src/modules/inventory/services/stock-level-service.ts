@@ -151,7 +151,7 @@ export class StockLevelService {
   } = {}): Promise<{ items: StockLevelRow[]; page: number; pageSize: number; total: number }> {
     const em = this.emFactory();
     const page = Math.max(0, filter.page ?? 0);
-    const pageSize = Math.min(Math.max(1, filter.pageSize ?? 50), 200);
+    const pageSize = Math.min(Math.max(1, filter.pageSize ?? 50), 500);
 
     const where: Record<string, unknown> = {};
     if (filter.productId) where['productId'] = filter.productId;
