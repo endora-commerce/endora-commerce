@@ -12,14 +12,15 @@ import { manifest as manifest_4 } from '../blog/manifest.js';
 import { manifest as manifest_5 } from '../catalog/manifest.js';
 import { manifest as manifest_6 } from '../cms/manifest.js';
 import { manifest as manifest_7 } from '../comparisons/manifest.js';
-import { manifest as manifest_8 } from '../import_export/manifest.js';
-import { manifest as manifest_9 } from '../inventory/manifest.js';
-import { manifest as manifest_10 } from '../megamenu/manifest.js';
-import { manifest as manifest_11 } from '../price_lists/manifest.js';
-import { manifest as manifest_12 } from '../quote_requests/manifest.js';
-import { manifest as manifest_13 } from '../sales_channels/manifest.js';
-import { manifest as manifest_14 } from '../search/manifest.js';
-import { manifest as manifest_15 } from '../settings/manifest.js';
+import { manifest as manifest_8 } from '../dictionaries/manifest.js';
+import { manifest as manifest_9 } from '../import_export/manifest.js';
+import { manifest as manifest_10 } from '../inventory/manifest.js';
+import { manifest as manifest_11 } from '../megamenu/manifest.js';
+import { manifest as manifest_12 } from '../price_lists/manifest.js';
+import { manifest as manifest_13 } from '../quote_requests/manifest.js';
+import { manifest as manifest_14 } from '../sales_channels/manifest.js';
+import { manifest as manifest_15 } from '../search/manifest.js';
+import { manifest as manifest_16 } from '../settings/manifest.js';
 
 export interface DiscoveredManifestEntry {
   id: string;
@@ -35,12 +36,13 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'catalog', manifest: manifest_5 },
   { id: 'cms', manifest: manifest_6 },
   { id: 'comparisons', manifest: manifest_7 },
-  { id: 'import_export', manifest: manifest_8 },
-  { id: 'inventory', manifest: manifest_9 },
-  { id: 'megamenu', manifest: manifest_10 },
-  { id: 'price_lists', manifest: manifest_11 },
-  { id: 'quote_requests', manifest: manifest_12 },
-  { id: 'sales_channels', manifest: manifest_13 },
-  { id: 'search', manifest: manifest_14 },
-  { id: 'settings', manifest: manifest_15 },
+  { id: 'dictionaries', manifest: manifest_8 },
+  { id: 'import_export', manifest: manifest_9 },
+  { id: 'inventory', manifest: manifest_10 },
+  { id: 'megamenu', manifest: manifest_11 },
+  { id: 'price_lists', manifest: manifest_12 },
+  { id: 'quote_requests', manifest: manifest_13 },
+  { id: 'sales_channels', manifest: manifest_14 },
+  { id: 'search', manifest: manifest_15 },
+  { id: 'settings', manifest: manifest_16 },
 ];

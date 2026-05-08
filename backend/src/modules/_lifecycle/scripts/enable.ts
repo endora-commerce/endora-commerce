@@ -48,6 +48,7 @@ async function main(): Promise<number> {
     registry = buildStaticRegistry(
       REGISTERED_MANIFESTS.map((e) => ({
         manifest: e.manifest,
+        filePath: e.filePath,
         ...(e.installHook ? { installHook: e.installHook } : {}),
         ...(e.uninstallHook ? { uninstallHook: e.uninstallHook } : {}),
       })),

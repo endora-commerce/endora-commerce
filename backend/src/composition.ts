@@ -745,6 +745,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
     REGISTERED_MANIFESTS.map((e) => ({
       manifest: e.manifest,
+      filePath: e.filePath,
       ...(e.installHook ? { installHook: e.installHook } : {}),
       ...(e.uninstallHook ? { uninstallHook: e.uninstallHook } : {}),
     })),
