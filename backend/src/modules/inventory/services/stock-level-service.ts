@@ -148,22 +148,71 @@ export class StockLevelService {
     warehouseId?: string;
     page?: number;
     pageSize?: number;
+    /** Case-insensitive substring search across product SKU, name, and id. */
+    q?: string;
+    /** When true, return only products whose cumulative on-hand is at or
+     *  below the low-stock threshold (and >0 — out-of-stock is its own filter). */
+    lowOnly?: boolean;
+    /** When true, return only products whose cumulative on-hand is 0
+     *  (and `manageStock = true` — backorderable / unmanaged products
+     *  aren't considered out). */
+    outOnly?: boolean;
   } = {}): Promise<{ items: StockLevelRow[]; page: number; pageSize: number; total: number }> {
     const em = this.emFactory();
     const page = Math.max(0, filter.page ?? 0);
-    const pageSize = Math.min(Math.max(1, filter.pageSize ?? 50), 200);
+    const pageSize = Math.min(Math.max(1, filter.pageSize ?? 50), 500);
 
-    const where: Record<string, unknown> = {};
-    if (filter.productId) where['productId'] = filter.productId;
-    if (filter.warehouseId) where['warehouseId'] = filter.warehouseId;
+    // The visible roster is per-product (one row aggregates all warehouses
+    // for that product), so we paginate over products — not over the raw
+    // `stock_levels` rows. Building a single SQL aggregate gets us:
+    //  1. A consistent `total` that matches the displayed item count.
+    //  2. A place to push down the SKU/name search and low/out filters
+    //     instead of post-filtering on the JS side.
+    const knex = em.getKnex();
+    const trimmedQ = filter.q?.trim().toLowerCase();
 
-    const [stockRows, total] = await em.findAndCount(StockLevel, where, {
-      orderBy: { updatedAt: 'desc' },
-      offset: page * pageSize,
-      limit: pageSize,
-    });
+    const baseQuery = knex({ p: 'products' })
+      .innerJoin({ sl: 'stock_levels' }, 'sl.product_id', 'p.id')
+      .modify((qb) => {
+        if (filter.productId) qb.where('p.id', filter.productId);
+        if (filter.warehouseId) qb.where('sl.warehouse_id', filter.warehouseId);
+        if (trimmedQ) {
+          const needle = `%${trimmedQ}%`;
+          qb.andWhere((inner) => {
+            inner
+              .whereRaw('LOWER("p"."sku") LIKE ?', [needle])
+              .orWhereRaw('LOWER("p"."name"::text) LIKE ?', [needle])
+              .orWhereRaw('LOWER("p"."id"::text) LIKE ?', [needle]);
+          });
+        }
+      })
+      .groupBy('p.id', 'p.sku', 'p.manage_stock', 'p.low_stock_threshold')
+      .modify((qb) => {
+        if (filter.outOnly) {
+          qb.havingRaw('"p"."manage_stock" IS NOT FALSE AND COALESCE(SUM("sl"."on_hand"), 0) <= 0');
+        } else if (filter.lowOnly) {
+          qb.havingRaw(
+            '"p"."manage_stock" IS NOT FALSE AND "p"."low_stock_threshold" IS NOT NULL AND COALESCE(SUM("sl"."on_hand"), 0) > 0 AND COALESCE(SUM("sl"."on_hand"), 0) <= "p"."low_stock_threshold"',
+          );
+        }
+      });
 
-    const productIds = Array.from(new Set(stockRows.map((r) => r.productId)));
+    // Total count of matching products. We wrap the grouped query in a
+    // subselect so `count(*)` counts groups, not rows.
+    const totalRow = (await knex
+      .from(baseQuery.clone().select('p.id'))
+      .as('grouped')
+      .count<{ count: string | number }>('* as count')
+      .first()) as { count: string | number } | undefined;
+    const total = Number(totalRow?.count ?? 0);
+
+    const idRows = (await baseQuery
+      .clone()
+      .select<Array<{ id: string }>>('p.id')
+      .orderByRaw('MAX("sl"."updated_at") DESC')
+      .offset(page * pageSize)
+      .limit(pageSize)) as Array<{ id: string }>;
+    const productIds = idRows.map((r) => r.id);
     if (productIds.length === 0) {
       return { items: [], page, pageSize, total };
     }
@@ -171,7 +220,6 @@ export class StockLevelService {
     // Pull cumulative across ALL warehouses for the candidate products so the
     // band/threshold logic uses the right total even if the filter narrowed
     // the row set.
-    const knex = em.getKnex();
     const cumulativeRows = await knex('stock_levels')
       .whereIn('product_id', productIds)
       .select<Array<{ product_id: string; warehouse_id: string; on_hand: string; reserved: string }>>(

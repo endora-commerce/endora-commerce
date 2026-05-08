@@ -477,11 +477,107 @@ export class CatalogAdminService {
 
   // --- Read methods (admin lists / detail) --------------------------------
 
-  async listProducts(options: { includeArchived?: boolean } = {}): Promise<Product[]> {
+  async listProducts(
+    options: {
+      includeArchived?: boolean;
+      status?: 'active' | 'draft' | 'archived';
+      type?: 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
+      q?: string;
+      page?: number;
+      pageSize?: number;
+    } = {},
+  ): Promise<{
+    items: Product[];
+    page: number;
+    pageSize: number;
+    total: number;
+    counts: { all: number; active: number; draft: number; archived: number };
+  }> {
     const em = this.emFactory();
+    const page = Math.max(0, options.page ?? 0);
+    const pageSize = Math.min(Math.max(1, options.pageSize ?? 20), 500);
+
+    // `status` overrides `includeArchived` — if the caller explicitly asks for
+    // a specific status (including 'archived'), we honour it; otherwise the
+    // legacy `includeArchived` flag controls whether archived rows appear.
     const where: Record<string, unknown> = {};
-    if (!options.includeArchived) where['status'] = { $ne: 'archived' };
-    return em.find(Product, where, { orderBy: { createdAt: 'desc' }, limit: 200 });
+    if (options.status) {
+      where['status'] = options.status;
+    } else if (!options.includeArchived) {
+      where['status'] = { $ne: 'archived' };
+    }
+    if (options.type) {
+      where['type'] = options.type;
+    }
+
+    let items: Product[];
+    let total: number;
+    const trimmedQ = options.q?.trim();
+    if (trimmedQ) {
+      // Text search: case-insensitive substring on SKU, slug, and any value
+      // in the localized `name` JSON column. The JSON filter uses a raw
+      // `LOWER("name"::text) LIKE ?` because MikroORM's structured operators
+      // don't reach into JSON columns. We page via knex to keep the SQL
+      // single-statement, then re-hydrate Product entities by id.
+      const knex = em.getKnex();
+      const needle = `%${trimmedQ.toLowerCase()}%`;
+      const baseQuery = knex('products').where((qb) => {
+        if (options.status) qb.where('status', options.status);
+        else if (!options.includeArchived) qb.whereNot('status', 'archived');
+        if (options.type) qb.where('type', options.type);
+        qb.andWhere((inner) => {
+          inner
+            .whereRaw('LOWER("sku") LIKE ?', [needle])
+            .orWhereRaw('LOWER("slug") LIKE ?', [needle])
+            .orWhereRaw('LOWER("name"::text) LIKE ?', [needle]);
+        });
+      });
+      const totalRow = (await baseQuery.clone().count<{ count: string | number }>('* as count').first()) as
+        | { count: string | number }
+        | undefined;
+      total = Number(totalRow?.count ?? 0);
+      const idRows = (await baseQuery
+        .clone()
+        .orderBy('created_at', 'desc')
+        .offset(page * pageSize)
+        .limit(pageSize)
+        .select<Array<{ id: string }>>('id')) as Array<{ id: string }>;
+      const ids = idRows.map((r) => r.id);
+      if (ids.length === 0) {
+        items = [];
+      } else {
+        const found = await em.find(Product, { id: { $in: ids } });
+        // Preserve the SQL ordering (created_at DESC) — `find` returns rows
+        // in arbitrary order when filtering by `$in`.
+        const byId = new Map(found.map((p) => [p.id, p]));
+        items = ids.map((id) => byId.get(id)).filter((p): p is Product => Boolean(p));
+      }
+    } else {
+      [items, total] = await em.findAndCount(Product, where, {
+        orderBy: { createdAt: 'desc' },
+        offset: page * pageSize,
+        limit: pageSize,
+      });
+    }
+
+    // Counts are computed across the *full* product set (including archived)
+    // so the admin's status tabs always have honest badges, regardless of
+    // which tab is currently active.
+    const knex = em.getKnex();
+    const countRows = (await knex('products')
+      .select('status')
+      .count<{ status: string; count: string | number }[]>('* as count')
+      .groupBy('status')) as Array<{ status: string; count: string | number }>;
+    const counts = { all: 0, active: 0, draft: 0, archived: 0 };
+    for (const row of countRows) {
+      const n = Number(row.count) || 0;
+      counts.all += n;
+      if (row.status === 'active') counts.active = n;
+      else if (row.status === 'draft') counts.draft = n;
+      else if (row.status === 'archived') counts.archived = n;
+    }
+
+    return { items, page, pageSize, total, counts };
   }
 
   async getProductById(id: string): Promise<Product> {

@@ -87,11 +87,17 @@ export async function registerInventoryAdminRoutes(
     { preHandler: requireAdmin('orders:read') },
     async (request) => {
       const q = (request.query ?? {}) as Record<string, string | undefined>;
+      const search = q['q']?.trim();
+      const lowOnly = q['low'] === '1' || q['low'] === 'true';
+      const outOnly = q['out'] === '1' || q['out'] === 'true';
       const data = await stockLevelService.listRoster({
         ...(q['productId'] ? { productId: q['productId'] } : {}),
         ...(q['warehouseId'] ? { warehouseId: q['warehouseId'] } : {}),
         ...(q['page'] ? { page: Number.parseInt(q['page'], 10) } : {}),
         ...(q['pageSize'] ? { pageSize: Number.parseInt(q['pageSize'], 10) } : {}),
+        ...(search ? { q: search } : {}),
+        ...(lowOnly ? { lowOnly: true } : {}),
+        ...(outOnly ? { outOnly: true } : {}),
       });
       return data;
     },

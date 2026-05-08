@@ -54,9 +54,14 @@ export function HomePage(): ReactNode {
       // Best-effort KPI fetches. Each one is independent — if any
       // endpoint isn't wired or returns 4xx/5xx, we leave a "—".
       await Promise.all([
-        fetchKpi('/api/v1/admin/catalog/products', (data: unknown) => {
-          const arr = (data as { data?: unknown[] }).data ?? [];
-          next[0] = { label: 'Active products', value: String(arr.length) };
+        // The list endpoint paginates server-side; ask for one row so the
+        // network payload is tiny and read the live `counts.active` field
+        // (which the endpoint computes across the full product set).
+        fetchKpi('/api/v1/admin/catalog/products?pageSize=1', (data: unknown) => {
+          const counts = (data as { counts?: { active?: number } }).counts;
+          if (counts?.active !== undefined) {
+            next[0] = { label: 'Active products', value: String(counts.active) };
+          }
         }),
         fetchKpi('/api/v1/admin/quote-requests?status=submitted', (data: unknown) => {
           const arr = (data as { data?: unknown[] }).data ?? [];

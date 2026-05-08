@@ -240,10 +240,41 @@ export async function registerCatalogAdminRoutes(
     async (request) => {
       const q = (request.query ?? {}) as Record<string, string | undefined>;
       const includeArchived = q['includeArchived'] === '1' || q['includeArchived'] === 'true';
-      const rows = await adminService.listProducts({ includeArchived });
+      const statusRaw = q['status'];
+      const status =
+        statusRaw === 'active' || statusRaw === 'draft' || statusRaw === 'archived'
+          ? statusRaw
+          : undefined;
+      const typeRaw = q['type'];
+      const type =
+        typeRaw === 'simple' ||
+        typeRaw === 'configurable' ||
+        typeRaw === 'grouped' ||
+        typeRaw === 'bundle' ||
+        typeRaw === 'virtual'
+          ? typeRaw
+          : undefined;
+      const search = q['q']?.trim();
+      const result = await adminService.listProducts({
+        includeArchived,
+        ...(status ? { status } : {}),
+        ...(type ? { type } : {}),
+        ...(search ? { q: search } : {}),
+        ...(q['page'] ? { page: Number.parseInt(q['page'], 10) } : {}),
+        ...(q['pageSize'] ? { pageSize: Number.parseInt(q['pageSize'], 10) } : {}),
+      });
       return {
-        data: rows.map(serializeAdminProduct),
-        pagination: { cursor: null, hasMore: false, limit: rows.length },
+        data: result.items.map(serializeAdminProduct),
+        pagination: {
+          page: result.page,
+          pageSize: result.pageSize,
+          total: result.total,
+          // Legacy fields kept for any back-compat consumer that read them.
+          cursor: null,
+          hasMore: (result.page + 1) * result.pageSize < result.total,
+          limit: result.items.length,
+        },
+        counts: result.counts,
       };
     },
   );
