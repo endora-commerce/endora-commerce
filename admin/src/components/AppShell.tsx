@@ -264,6 +264,10 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { label: 'Catalog', href: '/catalog/products' },
     { label: 'Attachment Types', href: null },
   ] },
+  { test: /^\/assets-library\/?$/, build: () => [
+    { label: 'Catalog', href: '/catalog/products' },
+    { label: 'Assets Library', href: null },
+  ] },
   { test: /^\/inventory\/?$/, build: () => [
     { label: 'Inventory', href: null },
   ] },
