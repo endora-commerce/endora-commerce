@@ -56,6 +56,8 @@ packages/contracts/src/generated/
 # PDFs and uploaded assets (dev only)
 uploads/
 tmp/
+# Local-FS storage adapter for the Assets Library — dev-only blob store.
+backend/var/assets/
 
 # Claude Code local agent state (skills/ stays tracked)
 .claude/scheduled_tasks.lock
