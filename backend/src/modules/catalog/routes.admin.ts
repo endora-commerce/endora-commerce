@@ -245,9 +245,21 @@ export async function registerCatalogAdminRoutes(
         statusRaw === 'active' || statusRaw === 'draft' || statusRaw === 'archived'
           ? statusRaw
           : undefined;
+      const typeRaw = q['type'];
+      const type =
+        typeRaw === 'simple' ||
+        typeRaw === 'configurable' ||
+        typeRaw === 'grouped' ||
+        typeRaw === 'bundle' ||
+        typeRaw === 'virtual'
+          ? typeRaw
+          : undefined;
+      const search = q['q']?.trim();
       const result = await adminService.listProducts({
         includeArchived,
         ...(status ? { status } : {}),
+        ...(type ? { type } : {}),
+        ...(search ? { q: search } : {}),
         ...(q['page'] ? { page: Number.parseInt(q['page'], 10) } : {}),
         ...(q['pageSize'] ? { pageSize: Number.parseInt(q['pageSize'], 10) } : {}),
       });

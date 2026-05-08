@@ -481,6 +481,8 @@ export class CatalogAdminService {
     options: {
       includeArchived?: boolean;
       status?: 'active' | 'draft' | 'archived';
+      type?: 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
+      q?: string;
       page?: number;
       pageSize?: number;
     } = {},
@@ -504,12 +506,59 @@ export class CatalogAdminService {
     } else if (!options.includeArchived) {
       where['status'] = { $ne: 'archived' };
     }
+    if (options.type) {
+      where['type'] = options.type;
+    }
 
-    const [items, total] = await em.findAndCount(Product, where, {
-      orderBy: { createdAt: 'desc' },
-      offset: page * pageSize,
-      limit: pageSize,
-    });
+    let items: Product[];
+    let total: number;
+    const trimmedQ = options.q?.trim();
+    if (trimmedQ) {
+      // Text search: case-insensitive substring on SKU, slug, and any value
+      // in the localized `name` JSON column. The JSON filter uses a raw
+      // `LOWER("name"::text) LIKE ?` because MikroORM's structured operators
+      // don't reach into JSON columns. We page via knex to keep the SQL
+      // single-statement, then re-hydrate Product entities by id.
+      const knex = em.getKnex();
+      const needle = `%${trimmedQ.toLowerCase()}%`;
+      const baseQuery = knex('products').where((qb) => {
+        if (options.status) qb.where('status', options.status);
+        else if (!options.includeArchived) qb.whereNot('status', 'archived');
+        if (options.type) qb.where('type', options.type);
+        qb.andWhere((inner) => {
+          inner
+            .whereRaw('LOWER("sku") LIKE ?', [needle])
+            .orWhereRaw('LOWER("slug") LIKE ?', [needle])
+            .orWhereRaw('LOWER("name"::text) LIKE ?', [needle]);
+        });
+      });
+      const totalRow = (await baseQuery.clone().count<{ count: string | number }>('* as count').first()) as
+        | { count: string | number }
+        | undefined;
+      total = Number(totalRow?.count ?? 0);
+      const idRows = (await baseQuery
+        .clone()
+        .orderBy('created_at', 'desc')
+        .offset(page * pageSize)
+        .limit(pageSize)
+        .select<Array<{ id: string }>>('id')) as Array<{ id: string }>;
+      const ids = idRows.map((r) => r.id);
+      if (ids.length === 0) {
+        items = [];
+      } else {
+        const found = await em.find(Product, { id: { $in: ids } });
+        // Preserve the SQL ordering (created_at DESC) — `find` returns rows
+        // in arbitrary order when filtering by `$in`.
+        const byId = new Map(found.map((p) => [p.id, p]));
+        items = ids.map((id) => byId.get(id)).filter((p): p is Product => Boolean(p));
+      }
+    } else {
+      [items, total] = await em.findAndCount(Product, where, {
+        orderBy: { createdAt: 'desc' },
+        offset: page * pageSize,
+        limit: pageSize,
+      });
+    }
 
     // Counts are computed across the *full* product set (including archived)
     // so the admin's status tabs always have honest badges, regardless of

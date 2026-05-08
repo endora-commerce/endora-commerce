@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useMemo,
   useState,
   type ReactNode,
 } from 'react';
@@ -46,14 +45,29 @@ export function InventoryPage(): ReactNode {
   const { pageSize, setPageSize } = usePageSizePreference('inventory-levels');
   const [page, setPage] = useState(0);
 
+  // Debounce the text query so typing doesn't fire a fetch on every
+  // keystroke. 250 ms feels live but coalesces typing bursts.
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedQuery(query), 250);
+    return (): void => window.clearTimeout(id);
+  }, [query]);
+
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
     try {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('pageSize', String(pageSize));
+      const trimmed = debouncedQuery.trim();
+      if (trimmed) params.set('q', trimmed);
+      if (statusFilter === 'low') params.set('low', '1');
+      else if (statusFilter === 'out') params.set('out', '1');
       const [kpiRes, rosterRes] = await Promise.all([
         apiClient.get<KpiResponse>('/api/v1/admin/inventory'),
         apiClient.get<RosterResponse>(
-          `/api/v1/admin/inventory/levels?page=${page}&pageSize=${pageSize}`,
+          `/api/v1/admin/inventory/levels?${params.toString()}`,
         ),
       ]);
       setKpis(kpiRes.data);
@@ -64,35 +78,20 @@ export function InventoryPage(): ReactNode {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize]);
+  }, [page, pageSize, debouncedQuery, statusFilter]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  // Reset to the first page whenever the user switches list-shape so they
-  // never land on an out-of-range page.
+  // Reset to the first page whenever the result-shaping inputs change so
+  // the user never lands on an out-of-range page.
   useEffect(() => {
     setPage(0);
-  }, [pageSize]);
+  }, [pageSize, debouncedQuery, statusFilter]);
 
-  const filtered = useMemo(() => {
-    const t = query.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (statusFilter === 'out' && !r.isOutOfStock) return false;
-      if (statusFilter === 'low' && (!r.isLowStock || r.isOutOfStock)) return false;
-      if (t) {
-        if (
-          !r.productSku.toLowerCase().includes(t) &&
-          !r.productName.toLowerCase().includes(t) &&
-          !r.productId.toLowerCase().includes(t)
-        ) {
-          return false;
-        }
-      }
-      return true;
-    });
-  }, [rows, query, statusFilter]);
+  // Filters are server-side now; rows arrive pre-filtered and pre-paginated.
+  const filtered = rows;
 
   return (
     <div className="b2b-page b2b-page--wide">

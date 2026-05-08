@@ -79,6 +79,14 @@ export function ProductsList(): ReactNode {
   const { pageSize, setPageSize } = usePageSizePreference('catalog-products');
   const [page, setPage] = useState(0);
 
+  // Debounce the text query so each keystroke doesn't fire a fetch. 250 ms
+  // is fast enough to feel live and slow enough to coalesce typing bursts.
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedQuery(query), 250);
+    return (): void => window.clearTimeout(id);
+  }, [query]);
+
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
@@ -86,6 +94,9 @@ export function ProductsList(): ReactNode {
       const params = new URLSearchParams();
       params.set('includeArchived', '1');
       if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (typeFilter !== 'all') params.set('type', typeFilter);
+      const trimmed = debouncedQuery.trim();
+      if (trimmed) params.set('q', trimmed);
       params.set('page', String(page));
       params.set('pageSize', String(pageSize));
       const res = await apiClient.get<ProductsResponse>(
@@ -99,46 +110,26 @@ export function ProductsList(): ReactNode {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, page, pageSize]);
+  }, [statusFilter, typeFilter, debouncedQuery, page, pageSize]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  // Server-side pagination: when the user picks a different status tab or
-  // page size, jump back to the first page so they never land out of range.
-  // The text query and type chip still filter client-side (best-effort on
-  // the current page) — those filters don't drive the server fetch.
+  // Reset to the first page whenever the result-shaping inputs change so
+  // the user never lands on an out-of-range page. Page-size, status, type,
+  // and the (debounced) text query all reshape the result set.
   useEffect(() => {
     setPage(0);
-  }, [statusFilter, pageSize]);
+  }, [statusFilter, typeFilter, debouncedQuery, pageSize]);
 
-  // Client-side text/type filter applied on top of the server-paginated
-  // page. This means the search and Type chip filter the visible rows
-  // only — switching pages re-fetches and the filter applies to the new
-  // page. Server-side support for these filters is a follow-up.
+  // The stock chip remains a placeholder until the list payload carries
+  // stock numbers — apply it client-side as a kill-switch so the UI stays
+  // honest (returns 0 rows when "Out"/"Low" is picked).
   const filtered = useMemo(() => {
-    const t = query.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (typeFilter !== 'all' && r.type !== typeFilter) return false;
-      // The list payload doesn't yet carry stock numbers — treat the
-      // stock chip as a hint for now; once the backend exposes
-      // available + onHand inline this branch lights up.
-      if (stockFilter !== 'all') {
-        return false;
-      }
-      if (t) {
-        if (
-          !r.sku.toLowerCase().includes(t) &&
-          !r.slug.toLowerCase().includes(t) &&
-          !pickName(r.name).toLowerCase().includes(t)
-        ) {
-          return false;
-        }
-      }
-      return true;
-    });
-  }, [rows, query, typeFilter, stockFilter]);
+    if (stockFilter !== 'all') return [];
+    return rows;
+  }, [rows, stockFilter]);
 
   const allSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.id));
   const someSelected = selected.size > 0 && !allSelected;
