@@ -85,14 +85,31 @@ export function assetsLibraryModule(options: AssetsLibraryModuleOptions): {
   const requireAdmin = options.requireAdmin ?? noOpRequireAdmin;
 
   const plugin = async (app: FastifyInstance) => {
+    // Resolve the upload policy ONCE at registration so the multipart
+    // parser's hard cap matches the operator-configured maximum. Without
+    // an explicit `fileSize`, @fastify/multipart silently falls back to
+    // its 1 MiB default and tears down the file stream on anything larger
+    // — which surfaces as a 500 from the awaited adapter pipeline rather
+    // than a clean 413 (the symptom that motivated this code).
+    //
+    // The pipeline's per-request size check still runs against the LIVE
+    // setting on every upload, so tightening the cap takes effect without
+    // a restart. Loosening it (or switching from a finite cap to "no cap")
+    // requires a backend restart for the multipart parser to pick up the
+    // new `fileSize` value.
+    const initialPolicy = await loadUploadPolicy(options.emFactory);
+    const FALLBACK_HARD_CEILING_BYTES = 5 * 1024 * 1024 * 1024; // 5 GiB
+    const multipartFileSize =
+      initialPolicy.maxFileSizeMb > 0
+        ? initialPolicy.maxFileSizeMb * 1024 * 1024
+        : FALLBACK_HARD_CEILING_BYTES;
+
     // Multipart is registered in a child encapsulation context so other modules'
     // routes are unaffected by its options.
     await app.register(async (childApp) => {
-      // No size cap here; the upload pipeline enforces the per-request setting
-      // (loadUploadPolicy) so that operator changes take effect without restart.
       await childApp.register(fastifyMultipart, {
         // Keep memory bounded; upload-pipeline streams directly to the adapter.
-        limits: { files: 1, fields: 10 },
+        limits: { files: 1, fields: 10, fileSize: multipartFileSize },
       });
       await registerAssetsLibraryAdminRoutes(childApp, {
         service,
