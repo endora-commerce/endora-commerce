@@ -35,12 +35,98 @@ export interface UpdateAdminUserInput {
   password?: string;
 }
 
+export interface ListAdminUsersOptions {
+  /** Case-insensitive substring on first name, last name, and email. Trimmed. */
+  q?: string;
+  /** Zero-indexed page (matches the catalog admin convention). */
+  page?: number;
+  /** Page size. Default 50, max 200. */
+  pageSize?: number;
+}
+
+export interface ListAdminUsersResult {
+  items: AdminUser[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
 export class AdminUserService {
   constructor(private readonly emFactory: () => EntityManager) {}
 
-  async list(): Promise<AdminUser[]> {
+  /**
+   * List non-deleted admin users with optional substring search and offset
+   * pagination. When `q` is provided, results are ordered by a relevance
+   * CASE: first-name prefix > first-name contains > last-name prefix >
+   * last-name contains > email prefix > email contains, then by email.
+   * When `q` is empty, results are ordered by email ASC (legacy default).
+   *
+   * Note: search is case-insensitive but NOT diacritic-insensitive on the
+   * server side — Postgres `unaccent` is not enabled in this codebase. The
+   * admin Combobox handles diacritic folding client-side when `manualFilter`
+   * is off; the server falls back to plain `LOWER(...) LIKE`. If a future
+   * picker (customers, products) needs diacritic-insensitive server search,
+   * add `unaccent` via a migration.
+   */
+  async list(options: ListAdminUsersOptions = {}): Promise<ListAdminUsersResult> {
     const em = this.emFactory();
-    return em.find(AdminUser, { deletedAt: null }, { orderBy: { email: 'asc' } });
+    const page = Math.max(0, options.page ?? 0);
+    const pageSize = Math.min(Math.max(1, options.pageSize ?? 50), 200);
+    const trimmedQ = options.q?.trim() ?? '';
+
+    if (trimmedQ === '') {
+      const [items, total] = await em.findAndCount(
+        AdminUser,
+        { deletedAt: null },
+        { orderBy: { email: 'asc' }, offset: page * pageSize, limit: pageSize },
+      );
+      return { items, page, pageSize, total };
+    }
+
+    const knex = em.getKnex();
+    const needle = trimmedQ.toLowerCase();
+    const prefix = `${needle}%`;
+    const contains = `%${needle}%`;
+
+    const baseQuery = knex('admin_users')
+      .whereNull('deleted_at')
+      .andWhere((qb) => {
+        qb.whereRaw('LOWER("first_name") LIKE ?', [contains])
+          .orWhereRaw('LOWER("last_name") LIKE ?', [contains])
+          .orWhereRaw('LOWER("email") LIKE ?', [contains]);
+      });
+
+    const totalRow = (await baseQuery
+      .clone()
+      .count<{ count: string | number }>('* as count')
+      .first()) as { count: string | number } | undefined;
+    const total = Number(totalRow?.count ?? 0);
+
+    const idRows = (await baseQuery
+      .clone()
+      .select('id')
+      .orderByRaw(
+        `CASE
+           WHEN LOWER("first_name") LIKE ? THEN 1
+           WHEN LOWER("first_name") LIKE ? THEN 2
+           WHEN LOWER("last_name")  LIKE ? THEN 3
+           WHEN LOWER("last_name")  LIKE ? THEN 4
+           WHEN LOWER("email")      LIKE ? THEN 5
+           WHEN LOWER("email")      LIKE ? THEN 6
+           ELSE 7
+         END ASC, "email" ASC`,
+        [prefix, contains, prefix, contains, prefix, contains],
+      )
+      .offset(page * pageSize)
+      .limit(pageSize)) as Array<{ id: string }>;
+
+    const ids = idRows.map((r) => r.id);
+    if (ids.length === 0) return { items: [], page, pageSize, total };
+    const found = await em.find(AdminUser, { id: { $in: ids } });
+    // Preserve the SQL ordering — `find` with `$in` returns arbitrary order.
+    const byId = new Map(found.map((u) => [u.id, u]));
+    const items = ids.map((id) => byId.get(id)).filter((u): u is AdminUser => Boolean(u));
+    return { items, page, pageSize, total };
   }
 
   async getById(id: string): Promise<AdminUser> {
