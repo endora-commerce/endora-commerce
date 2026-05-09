@@ -95,9 +95,25 @@ export async function registerAdminUsersAdminRoutes(
   app.get(
     '/api/v1/admin/admin-users',
     { preHandler: requireAdmin('admin_users:manage') },
-    async () => {
-      const rows = await adminUserService.list();
-      return { data: rows.map(serializeAdminUser) };
+    async (request) => {
+      const q = (request.query ?? {}) as Record<string, string | undefined>;
+      const search = q['q']?.trim();
+      const result = await adminUserService.list({
+        ...(search ? { q: search } : {}),
+        ...(q['page'] ? { page: Number.parseInt(q['page'], 10) } : {}),
+        ...(q['pageSize'] ? { pageSize: Number.parseInt(q['pageSize'], 10) } : {}),
+      });
+      return {
+        data: result.items.map(serializeAdminUser),
+        pagination: {
+          page: result.page,
+          pageSize: result.pageSize,
+          total: result.total,
+          cursor: null,
+          hasMore: (result.page + 1) * result.pageSize < result.total,
+          limit: result.items.length,
+        },
+      };
     },
   );
 

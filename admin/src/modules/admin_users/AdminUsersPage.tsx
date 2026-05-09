@@ -45,8 +45,11 @@ export function AdminUsersPage(): ReactNode {
     setLoading(true);
     setError(null);
     try {
+      // The list endpoint is paginated (default pageSize=50, max 200). Until
+      // this page grows real pagination UI, we ask for the largest single
+      // page so the visible behaviour matches the pre-server-search version.
       const [u, r] = await Promise.all([
-        apiClient.get<{ data: AdminUser[] }>('/api/v1/admin/admin-users'),
+        apiClient.get<{ data: AdminUser[] }>('/api/v1/admin/admin-users?pageSize=200'),
         apiClient.get<{ data: AdminRole[] }>('/api/v1/admin/admin-roles'),
       ]);
       setUsers(u.data);
