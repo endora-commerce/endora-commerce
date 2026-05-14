@@ -47,7 +47,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
-import { useAppLanguage } from '@/i18n/app-language-context';
+import { LanguagePicker } from './LanguagePicker.js';
 import { useAdminActions } from '@/lib/admin-actions/useAdminActions';
 import { resolveIcon } from '@/lib/admin-actions/icon-map';
 
@@ -527,7 +527,6 @@ export function AppShell(): ReactNode {
     });
   }, []);
   const t = useTranslation('core');
-  const { language } = useAppLanguage();
 
   const fullName = me ? `${me.adminUser.firstName} ${me.adminUser.lastName}`.trim() : '';
   const role = me?.role?.name ?? 'Admin';
@@ -788,24 +787,11 @@ export function AppShell(): ReactNode {
             </button>
             <div style={{ width: 1, height: 22, background: 'var(--border-color)', margin: '0 4px' }} />
             {/*
-              Feature 019 / FR-017 — visible language indicator. Linked to the
-              profile page so the user can change the language with one click
-              from any screen.
+              Feature 019 / FR-017 — language picker. Same backend round-trip
+              as ProfilePage's language section, exposed inline so the user
+              can switch the UI language from any screen without navigating.
             */}
-            <NavLink
-              to="/profile"
-              className="b2b-topbar__icon-btn"
-              title={t('appShell.languageIndicator.label')}
-              aria-label={t('appShell.languageIndicator.label')}
-              style={{
-                fontWeight: 600,
-                fontSize: 11,
-                letterSpacing: 0.5,
-                textDecoration: 'none',
-              }}
-            >
-              {language.toUpperCase()}
-            </NavLink>
+            <LanguagePicker />
             {me ? (
               <NavLink
                 to="/profile"

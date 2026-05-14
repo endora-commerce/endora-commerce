@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell.js';
 import { LoginPage } from './components/LoginPage.js';
@@ -77,6 +77,23 @@ export function App(): ReactNode {
   // language selector) re-render the whole authenticated tree.
   const initialLanguage = (me?.adminUser.preferredLanguage ?? 'en') as SupportedAdminLanguage;
   const [language, setLanguage] = useState<SupportedAdminLanguage>(initialLanguage);
+
+  // `useState` reads `initialLanguage` only on first mount, when `me` is
+  // still null (auth is loading) — so without this sync the language is
+  // locked to 'en' even when the session payload that arrives next carries
+  // `preferredLanguage: 'pl'`. Re-sync whenever `me.preferredLanguage`
+  // flips, but only when the user hasn't already chosen a different one
+  // via ProfilePage in this same session.
+  const sessionLanguage = me?.adminUser.preferredLanguage ?? null;
+  useEffect(() => {
+    if (sessionLanguage && sessionLanguage !== language) {
+      setLanguage(sessionLanguage as SupportedAdminLanguage);
+    }
+    // We intentionally depend only on sessionLanguage — re-running on every
+    // `language` change would clobber the user's in-session override.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionLanguage]);
+
   if (status === 'loading') {
     return (
       <div className="grid min-h-screen place-items-center bg-muted/40">
