@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type SelectHTMLAttributes } from 'react';
 import type { Country } from '@b2b/contracts';
 import { Select } from '@/components/ui/select';
+import { useTranslation } from '@/i18n/useTranslation';
 import { dictionaryClient } from '../client';
 
 export interface CountryPickerProps
@@ -12,10 +13,12 @@ export interface CountryPickerProps
 
 export function CountryPicker({
   includeBlank = false,
-  blankLabel = 'Select country',
+  blankLabel,
   activeOnly = true,
   ...props
 }: CountryPickerProps): React.ReactElement {
+  const t = useTranslation('dictionaries');
+  const resolvedBlankLabel = blankLabel ?? t('countryPicker.selectCountry');
   const [rows, setRows] = useState<Country[]>([]);
 
   useEffect(() => {
@@ -44,17 +47,17 @@ export function CountryPicker({
 
   return (
     <Select {...props}>
-      {includeBlank ? <option value="">{blankLabel}</option> : null}
+      {includeBlank ? <option value="">{resolvedBlankLabel}</option> : null}
       {visible.map((row) => (
         <option key={row.code} value={row.code}>
           {row.label}
         </option>
       ))}
       {inactive.length > 0 ? (
-        <optgroup label="Inactive">
+        <optgroup label={t('countryPicker.inactiveGroup')}>
           {inactive.map((row) => (
             <option key={row.code} value={row.code}>
-              {row.label} (inactive)
+              {t('countryPicker.inactiveLabel', { label: row.label })}
             </option>
           ))}
         </optgroup>

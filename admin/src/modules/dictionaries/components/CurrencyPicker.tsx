@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type SelectHTMLAttributes } from 'react';
 import type { DictionaryCurrency } from '@b2b/contracts';
 import { Select } from '@/components/ui/select';
+import { useTranslation } from '@/i18n/useTranslation';
 import { dictionaryClient } from '../client';
 
 export interface CurrencyPickerProps
@@ -12,10 +13,12 @@ export interface CurrencyPickerProps
 
 export function CurrencyPicker({
   includeBlank = false,
-  blankLabel = 'Select currency',
+  blankLabel,
   activeOnly = true,
   ...props
 }: CurrencyPickerProps): React.ReactElement {
+  const t = useTranslation('dictionaries');
+  const resolvedBlankLabel = blankLabel ?? t('currencyPicker.selectCurrency');
   const [rows, setRows] = useState<DictionaryCurrency[]>([]);
 
   useEffect(() => {
@@ -44,17 +47,17 @@ export function CurrencyPicker({
 
   return (
     <Select {...props}>
-      {includeBlank ? <option value="">{blankLabel}</option> : null}
+      {includeBlank ? <option value="">{resolvedBlankLabel}</option> : null}
       {visible.map((row) => (
         <option key={row.code} value={row.code}>
           {row.label} ({row.code})
         </option>
       ))}
       {inactive.length > 0 ? (
-        <optgroup label="Inactive">
+        <optgroup label={t('currencyPicker.inactiveGroup')}>
           {inactive.map((row) => (
             <option key={row.code} value={row.code}>
-              {row.label} ({row.code}, inactive)
+              {t('currencyPicker.inactiveLabel', { label: row.label, code: row.code })}
             </option>
           ))}
         </optgroup>

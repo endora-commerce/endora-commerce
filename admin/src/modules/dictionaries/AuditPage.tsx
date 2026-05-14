@@ -14,9 +14,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 import { dictionaryClient, type DictionaryAuditRow } from './client';
 
 export function DictionaryAuditPage(): ReactNode {
+  const t = useTranslation('dictionaries');
   const [rows, setRows] = useState<DictionaryAuditRow[]>([]);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,11 +33,11 @@ export function DictionaryAuditPage(): ReactNode {
       setRows(res.data);
       setGeneratedAt(res.meta.generatedAt);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load audit report.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('audit.error.load'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void refresh();
@@ -46,45 +48,45 @@ export function DictionaryAuditPage(): ReactNode {
   const copyCsv = useCallback(async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(csv);
-      setInfo('Copied audit report as CSV.');
+      setInfo(t('audit.info.copied'));
     } catch {
-      setError('Could not copy CSV to clipboard.');
+      setError(t('audit.error.copy'));
     }
-  }, [csv]);
+  }, [csv, t]);
 
   const invalidateCache = useCallback(async (): Promise<void> => {
     setError(null);
     try {
       await dictionaryClient.invalidateCache();
-      setInfo('Dictionary cache invalidated.');
+      setInfo(t('audit.info.invalidated'));
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Cache invalidation failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('audit.error.invalidate'));
     }
-  }, []);
+  }, [t]);
 
   return (
     <>
       <PageHeader
-        title="Dictionary audit"
-        description="Unresolved country, currency, and language references across platform consumers."
+        title={t('audit.page.title')}
+        description={t('audit.page.description')}
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Button type="button" variant="outline" onClick={() => void refresh()} disabled={loading}>
           <RefreshCw />
-          Refresh
+          {t('audit.refresh')}
         </Button>
         <Button type="button" variant="outline" onClick={() => void copyCsv()} disabled={rows.length === 0}>
           <ClipboardCopy />
-          Copy CSV
+          {t('audit.copyCsv')}
         </Button>
         <Button type="button" variant="outline" onClick={() => void invalidateCache()}>
           <RefreshCw />
-          Invalidate cache
+          {t('audit.invalidateCache')}
         </Button>
         {generatedAt ? (
           <span className="text-sm text-muted-foreground">
-            Generated {new Date(generatedAt).toLocaleString()}
+            {t('audit.generatedAt', { date: new Date(generatedAt).toLocaleString() })}
           </span>
         ) : null}
       </div>
@@ -102,28 +104,28 @@ export function DictionaryAuditPage(): ReactNode {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-3">
-          <CardTitle>Orphan references</CardTitle>
+          <CardTitle>{t('audit.orphanReferences')}</CardTitle>
           <Badge variant={rows.length === 0 ? 'outline' : 'destructive'}>
-            {loading ? 'Loading' : `${rows.length} groups`}
+            {loading ? t('audit.loading') : t('audit.groupCount', { count: rows.length })}
           </Badge>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Dictionary</TableHead>
-                <TableHead>Consumer</TableHead>
-                <TableHead>Table</TableHead>
-                <TableHead>Column</TableHead>
-                <TableHead>Code</TableHead>
-                <TableHead className="text-right">Rows</TableHead>
+                <TableHead>{t('audit.column.dictionary')}</TableHead>
+                <TableHead>{t('audit.column.consumer')}</TableHead>
+                <TableHead>{t('audit.column.table')}</TableHead>
+                <TableHead>{t('audit.column.column')}</TableHead>
+                <TableHead>{t('audit.column.code')}</TableHead>
+                <TableHead className="text-right">{t('audit.column.rows')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-muted-foreground">
-                    {loading ? 'Loading audit report.' : 'No unresolved references found.'}
+                    {loading ? t('audit.loadingReport') : t('audit.empty')}
                   </TableCell>
                 </TableRow>
               ) : (
