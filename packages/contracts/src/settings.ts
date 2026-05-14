@@ -117,6 +117,13 @@ export const SettingDtoSchema = z.object({
   salesChannelCodes: z.array(z.string()),
   defaultValue: z.unknown(),
   valuesByChannel: z.array(SettingValueByChannelSchema),
+  /**
+   * Server-computed effective version (= `max(setting.updatedAt,
+   * max(values.updatedAt))`). Echo back as `expectedVersion` on PUT
+   * /:code/value to detect concurrent edits — matches the ETag header
+   * returned by the detail endpoint.
+   */
+  version: z.iso.datetime(),
 });
 export type SettingDto = z.infer<typeof SettingDtoSchema>;
 

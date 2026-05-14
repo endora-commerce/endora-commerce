@@ -79,6 +79,7 @@ export async function registerSettingsAdminRoutes(
         value: v.value,
         updatedAt: v.updatedAt.toISOString(),
       })),
+      version: adminService.computeSettingVersion(setting, values),
     };
   }
 

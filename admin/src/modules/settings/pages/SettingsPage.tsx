@@ -5,10 +5,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { ChevronDown, ChevronRight, Copy, Check, Search } from 'lucide-react';
+import { ChevronDown, ChevronRight, Search } from 'lucide-react';
 import type {
   SalesChannelSummary,
-  SetValueRequest,
   SettingDto,
   SettingGroupDto,
 } from '@b2b/contracts';
@@ -18,27 +17,26 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { cn } from '@/lib/utils';
 import { settingsClient } from '../api/settings-client';
 import { salesChannelsClient } from '@/modules/sales_channels/api/sales-channels-client';
 import { useTranslation } from '@/i18n/useTranslation';
 import { ConflictBanner } from '../components/ConflictBanner';
-import { SettingValueEditor } from '../components/SettingValueEditor';
+import {
+  SettingRowEditor,
+  computeVersion,
+  deriveDisplayValue,
+  parseValue,
+  type SettingDraft,
+} from '../components/SettingRowEditor';
 
 /**
- * Settings page — feature 004 / US2.
+ * Settings page — feature 004 / US2, redesigned for batch editing.
  *
- * Lists every registered group with its settings. Selecting a setting opens
- * an inline editor; saving applies the value to all sales channels in scope
- * or to a chosen subset, with optimistic-concurrency conflict handling.
+ * Every setting renders inline within its group card and is always editable;
+ * changes accumulate in `drafts` and are flushed in one "Save N changes"
+ * sequence per group. Per-setting "Apply to" scope (all-in-scope / subset)
+ * is still honoured and each write carries its own optimistic-version
+ * check, so conflicts are reported per setting.
  */
 export function SettingsPage(): ReactNode {
   const t = useTranslation('settings');
@@ -46,12 +44,14 @@ export function SettingsPage(): ReactNode {
   const [allChannels, setAllChannels] = useState<SalesChannelSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedSetting, setSelectedSetting] = useState<SettingDto | null>(null);
-  const [conflict, setConflict] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [info, setInfo] = useState<string | null>(null);
+  const [conflicts, setConflicts] = useState<Record<string, string>>({});
+  const [savingGroup, setSavingGroup] = useState<string | null>(null);
+  const [resettingCode, setResettingCode] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, SettingDraft>>({});
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -59,10 +59,15 @@ export function SettingsPage(): ReactNode {
     try {
       const [list, channels] = await Promise.all([
         settingsClient.list(),
-        salesChannelsClient.list({ activeOnly: false, pageSize: 200 }).catch(() => ({ items: [] as SalesChannelSummary[] })),
+        salesChannelsClient
+          .list({ activeOnly: false, pageSize: 200 })
+          .catch(() => ({ items: [] as SalesChannelSummary[] })),
       ]);
       setGroups(list.groups);
       setAllChannels(channels.items);
+      // Re-baseline drafts for settings that the user has NOT touched, so
+      // server-side changes flow through; preserve any active dirty drafts.
+      setDrafts((prev) => mergeDrafts(prev, list.groups));
     } catch (err) {
       setError(
         err instanceof ApiError ? err.envelope.error.message : 'Failed to load settings.',
@@ -80,60 +85,6 @@ export function SettingsPage(): ReactNode {
     () => mergeChannelCodes(groups, allChannels),
     [groups, allChannels],
   );
-
-  const reloadSelected = useCallback(async (): Promise<void> => {
-    if (!selectedSetting) return;
-    try {
-      const fresh = await settingsClient.getByCode(selectedSetting.code);
-      setSelectedSetting(fresh);
-      setConflict(null);
-    } catch (err) {
-      setError(
-        err instanceof ApiError ? err.envelope.error.message : 'Failed to reload setting.',
-      );
-    }
-  }, [selectedSetting]);
-
-  const onSubmit = useCallback(
-    async (body: SetValueRequest & { expectedVersion?: string }): Promise<void> => {
-      if (!selectedSetting) return;
-      setSaving(true);
-      setConflict(null);
-      const expectedVersion = computeVersion(selectedSetting);
-      try {
-        await settingsClient.setValue(selectedSetting.code, {
-          ...body,
-          expectedVersion,
-        });
-        await refresh();
-        await reloadSelected();
-      } catch (err) {
-        if (err instanceof ApiError && err.envelope.error.code === 'VERSION_CONFLICT') {
-          setConflict(err.envelope.error.message);
-        } else {
-          setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
-        }
-      } finally {
-        setSaving(false);
-      }
-    },
-    [refresh, reloadSelected, selectedSetting],
-  );
-
-  const onReset = useCallback(async (): Promise<void> => {
-    if (!selectedSetting) return;
-    if (!confirm(`Reset all per-channel values for "${selectedSetting.code}"?`)) return;
-    setSaving(true);
-    try {
-      await settingsClient.resetValues(selectedSetting.code);
-      await refresh();
-      await reloadSelected();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Reset failed.');
-    } finally {
-      setSaving(false);
-    }
-  }, [refresh, reloadSelected, selectedSetting]);
 
   const filteredGroups = useMemo(
     () => filterGroupsBySearch(groups, search),
@@ -158,7 +109,18 @@ export function SettingsPage(): ReactNode {
     });
   };
 
-  const onCopyCode = async (code: string): Promise<void> => {
+  const patchDraft = useCallback(
+    (code: string, patch: Partial<SettingDraft>): void => {
+      setDrafts((prev) => {
+        const current = prev[code];
+        if (!current) return prev;
+        return { ...prev, [code]: { ...current, ...patch } };
+      });
+    },
+    [],
+  );
+
+  const onCopyCode = useCallback(async (code: string): Promise<void> => {
     try {
       await navigator.clipboard.writeText(code);
       setCopiedCode(code);
@@ -166,10 +128,127 @@ export function SettingsPage(): ReactNode {
         setCopiedCode((current) => (current === code ? null : current));
       }, 1500);
     } catch {
-      // Clipboard API can fail under insecure contexts; surface a subtle error.
       setError('Failed to copy to clipboard.');
     }
-  };
+  }, []);
+
+  const dirtyCountFor = useCallback(
+    (group: SettingGroupDto): number => {
+      let n = 0;
+      for (const s of group.settings) {
+        const d = drafts[s.code];
+        if (d && d.text !== d.initialText) n += 1;
+      }
+      return n;
+    },
+    [drafts],
+  );
+
+  const discardGroup = useCallback(
+    (group: SettingGroupDto): void => {
+      setDrafts((prev) => {
+        const out = { ...prev };
+        for (const s of group.settings) {
+          out[s.code] = baselineDraft(s);
+        }
+        return out;
+      });
+      setConflicts((prev) => {
+        const out = { ...prev };
+        for (const s of group.settings) delete out[s.code];
+        return out;
+      });
+    },
+    [],
+  );
+
+  const findSetting = useCallback(
+    (code: string): SettingDto | undefined => {
+      for (const g of groups) {
+        for (const s of g.settings) if (s.code === code) return s;
+      }
+      return undefined;
+    },
+    [groups],
+  );
+
+  const saveGroup = useCallback(
+    async (group: SettingGroupDto): Promise<void> => {
+      const dirtySettings = group.settings.filter((s) => {
+        const d = drafts[s.code];
+        return d && d.text !== d.initialText;
+      });
+      if (dirtySettings.length === 0) return;
+
+      setSavingGroup(group.code);
+      setError(null);
+      setInfo(null);
+      const newConflicts: Record<string, string> = {};
+      let saved = 0;
+
+      for (const s of dirtySettings) {
+        const draft = drafts[s.code];
+        if (!draft) continue;
+        if (draft.scope === 'subset' && draft.subsetCodes.length === 0) {
+          newConflicts[s.code] = t('editor.applyTo.subsetEmpty');
+          continue;
+        }
+        try {
+          const value = parseValue(s.valueType, draft.text);
+          const expectedVersion = computeVersion(s);
+          if (draft.scope === 'all') {
+            await settingsClient.setValue(s.code, {
+              scope: 'all',
+              value,
+              expectedVersion,
+            });
+          } else {
+            await settingsClient.setValue(s.code, {
+              scope: 'subset',
+              salesChannelCodes: draft.subsetCodes,
+              value,
+              expectedVersion,
+            });
+          }
+          saved += 1;
+        } catch (err) {
+          if (err instanceof ApiError && err.envelope.error.code === 'VERSION_CONFLICT') {
+            newConflicts[s.code] = err.envelope.error.message;
+          } else {
+            newConflicts[s.code] =
+              err instanceof ApiError ? err.envelope.error.message : 'Save failed.';
+          }
+        }
+      }
+
+      setConflicts((prev) => ({ ...prev, ...newConflicts }));
+      if (saved > 0) {
+        setInfo(t('editor.savedNotice', { count: saved }));
+      }
+      await refresh();
+      setSavingGroup(null);
+    },
+    [drafts, refresh, t],
+  );
+
+  const resetSetting = useCallback(
+    async (code: string): Promise<void> => {
+      const setting = findSetting(code);
+      if (!setting) return;
+      if (!confirm(`Reset all per-channel values for "${code}"?`)) return;
+      setResettingCode(code);
+      setError(null);
+      try {
+        await settingsClient.resetValues(code);
+        await refresh();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Reset failed.');
+      } finally {
+        setResettingCode(null);
+      }
+    },
+    [findSetting, refresh],
+  );
 
   return (
     <>
@@ -182,15 +261,10 @@ export function SettingsPage(): ReactNode {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      {conflict && (
-        <div className="mb-4">
-          <ConflictBanner
-            message={conflict}
-            onRefresh={() => {
-              void reloadSelected();
-            }}
-          />
-        </div>
+      {info && (
+        <Alert className="mb-4">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
       )}
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-sm">
@@ -212,24 +286,26 @@ export function SettingsPage(): ReactNode {
           </Button>
         )}
       </div>
-      <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
-        <div className="space-y-4">
-          {loading && (
-            <p className="text-sm text-muted-foreground">Loading settings…</p>
-          )}
-          {!loading && filteredGroups.length === 0 && search && (
-            <p className="text-sm text-muted-foreground">{t('search.noResults')}</p>
-          )}
-          {!loading &&
-            filteredGroups.map((group) => {
-              const isCollapsed = !!collapsed[group.code];
-              return (
-                <Card key={group.code}>
-                  <CardHeader>
+      <div className="space-y-4">
+        {loading && (
+          <p className="text-sm text-muted-foreground">Loading settings…</p>
+        )}
+        {!loading && filteredGroups.length === 0 && search && (
+          <p className="text-sm text-muted-foreground">{t('search.noResults')}</p>
+        )}
+        {!loading &&
+          filteredGroups.map((group) => {
+            const isCollapsed = !!collapsed[group.code];
+            const dirtyCount = dirtyCountFor(group);
+            const isSaving = savingGroup === group.code;
+            return (
+              <Card key={group.code}>
+                <CardHeader>
+                  <div className="flex items-center justify-between gap-2">
                     <button
                       type="button"
                       onClick={() => toggleGroup(group.code)}
-                      className="flex w-full items-center gap-2 text-left"
+                      className="flex flex-1 items-center gap-2 text-left"
                       aria-expanded={!isCollapsed}
                     >
                       {isCollapsed ? (
@@ -247,126 +323,143 @@ export function SettingsPage(): ReactNode {
                         <span className="text-xs font-normal text-muted-foreground">
                           ({group.settings.length})
                         </span>
+                        {dirtyCount > 0 && (
+                          <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-900">
+                            {t('actions.saveChanges', { count: dirtyCount })}
+                          </span>
+                        )}
                       </CardTitle>
                     </button>
-                  </CardHeader>
-                  {!isCollapsed && (
-                    <CardContent>
-                      {group.settings.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                          {t('groups.empty')}
-                        </p>
-                      ) : (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>{t('table.column.name')}</TableHead>
-                              <TableHead>{t('table.column.description')}</TableHead>
-                              <TableHead className="w-24" />
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {group.settings.map((s) => {
-                              const isCopied = copiedCode === s.code;
-                              return (
-                                <TableRow key={s.code}>
-                                  <TableCell>
-                                    <div className="flex items-center gap-2">
-                                      <span>{s.name}</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          void onCopyCode(s.code);
-                                        }}
-                                        title={
-                                          isCopied
-                                            ? t('actions.copyCode.copied')
-                                            : `${t('actions.copyCode.label')}: ${s.code}`
-                                        }
-                                        aria-label={`${t('actions.copyCode.label')}: ${s.code}`}
-                                        className={cn(
-                                          'rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
-                                          isCopied && 'text-emerald-600 hover:text-emerald-600',
-                                        )}
-                                      >
-                                        {isCopied ? (
-                                          <Check className="h-3.5 w-3.5" />
-                                        ) : (
-                                          <Copy className="h-3.5 w-3.5" />
-                                        )}
-                                      </button>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-sm text-muted-foreground">
-                                    {s.description ?? ''}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => setSelectedSetting(s)}
-                                    >
-                                      {t('actions.edit')}
-                                    </Button>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      )}
-                    </CardContent>
-                  )}
-                </Card>
-              );
-            })}
-        </div>
-        <div>
-          {selectedSetting ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">{selectedSetting.name}</CardTitle>
-                <p className="font-mono text-xs text-muted-foreground">
-                  {selectedSetting.code}
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <SettingValueEditor
-                  setting={selectedSetting}
-                  availableChannelCodes={allChannelCodes}
-                  onSubmit={onSubmit}
-                  saving={saving}
-                />
-                <div className="border-t pt-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void onReset()}
-                    disabled={saving || selectedSetting.valuesByChannel.length === 0}
-                  >
-                    {t('actions.resetToDefault')}
-                  </Button>
-                </div>
-                <div className="border-t pt-4 text-xs text-muted-foreground">
-                  <div>{t('editor.default')}: {JSON.stringify(selectedSetting.defaultValue)}</div>
-                  <div>{t('editor.module')}: {selectedSetting.ownerModule}</div>
-                  <div>
-                    {t('editor.perChannelValues')}: {selectedSetting.valuesByChannel.length}
+                    {dirtyCount > 0 && !isCollapsed && (
+                      <div className="flex shrink-0 gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => discardGroup(group)}
+                          disabled={isSaving}
+                        >
+                          {t('actions.discard')}
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => void saveGroup(group)}
+                          disabled={isSaving}
+                        >
+                          {isSaving
+                            ? t('actions.saveAll') + '…'
+                            : t('actions.saveChanges', { count: dirtyCount })}
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent className="pt-6 text-sm text-muted-foreground">
-                {t('editor.empty')}
-              </CardContent>
-            </Card>
-          )}
-        </div>
+                </CardHeader>
+                {!isCollapsed && (
+                  <CardContent>
+                    {group.settings.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        {t('groups.empty')}
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {group.settings.map((s) => {
+                          const draft = drafts[s.code] ?? baselineDraft(s);
+                          const conflict = conflicts[s.code];
+                          return (
+                            <div key={s.code} className="space-y-2">
+                              {conflict && (
+                                <ConflictBanner
+                                  message={conflict}
+                                  onRefresh={() => {
+                                    setConflicts((prev) => {
+                                      const out = { ...prev };
+                                      delete out[s.code];
+                                      return out;
+                                    });
+                                    void refresh();
+                                  }}
+                                />
+                              )}
+                              <SettingRowEditor
+                                setting={s}
+                                draft={draft}
+                                availableChannelCodes={allChannelCodes}
+                                isCopied={copiedCode === s.code}
+                                resetting={resettingCode === s.code}
+                                onChange={(patch) => patchDraft(s.code, patch)}
+                                onCopyCode={() => void onCopyCode(s.code)}
+                                onReset={() => void resetSetting(s.code)}
+                              />
+                            </div>
+                          );
+                        })}
+                        {dirtyCount > 0 && (
+                          <div className="flex justify-end gap-2 border-t pt-3">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => discardGroup(group)}
+                              disabled={isSaving}
+                            >
+                              {t('actions.discard')}
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => void saveGroup(group)}
+                              disabled={isSaving}
+                            >
+                              {isSaving
+                                ? t('actions.saveAll') + '…'
+                                : t('actions.saveChanges', { count: dirtyCount })}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })}
       </div>
     </>
   );
+}
+
+function baselineDraft(setting: SettingDto): SettingDraft {
+  const text = deriveDisplayValue(setting);
+  return {
+    text,
+    initialText: text,
+    scope: 'all',
+    subsetCodes: [],
+  };
+}
+
+/**
+ * After a refresh, re-baseline drafts that the user has NOT modified so the
+ * UI reflects newly persisted values; preserve any dirty drafts (and their
+ * scope choice) so unsaved edits aren't blown away by a peer's write.
+ */
+function mergeDrafts(
+  prev: Record<string, SettingDraft>,
+  groups: SettingGroupDto[],
+): Record<string, SettingDraft> {
+  const out: Record<string, SettingDraft> = {};
+  for (const g of groups) {
+    for (const s of g.settings) {
+      const existing = prev[s.code];
+      const base = baselineDraft(s);
+      if (existing && existing.text !== existing.initialText) {
+        out[s.code] = {
+          ...existing,
+          initialText: base.initialText,
+        };
+      } else {
+        out[s.code] = base;
+      }
+    }
+  }
+  return out;
 }
 
 function mergeChannelCodes(
@@ -404,16 +497,4 @@ function settingMatches(s: SettingDto, q: string): boolean {
   if (s.code.toLowerCase().includes(q)) return true;
   if (s.description && s.description.toLowerCase().includes(q)) return true;
   return false;
-}
-
-function computeVersion(setting: SettingDto): string {
-  let max = 0;
-  for (const v of setting.valuesByChannel) {
-    const t = new Date(v.updatedAt).getTime();
-    if (t > max) max = t;
-  }
-  // Without an explicit setting.updatedAt in the DTO, the value max is the
-  // best signal available; the server still returns 409 if any other write
-  // bumps the effective version after this client loaded.
-  return new Date(max).toISOString();
 }
