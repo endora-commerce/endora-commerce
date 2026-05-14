@@ -52,3 +52,38 @@ export const UnsupportedLanguageErrorSchema = z.object({
   supported: z.array(SupportedAdminLanguageSchema),
 });
 export type UnsupportedLanguageError = z.infer<typeof UnsupportedLanguageErrorSchema>;
+
+// ---------------------------------------------------------------------------
+// Coverage diagnostic — feature 021
+// ---------------------------------------------------------------------------
+
+export const I18nCoverageLanguageSchema = z.object({
+  languageCode: SupportedAdminLanguageSchema,
+  totalKeysSeen: z.number().int().nonnegative(),
+  missingCount: z.number().int().nonnegative(),
+  missingKeys: z.array(z.string()),
+  fellBackToEnCount: z.number().int().nonnegative(),
+  fellBackToEnKeys: z.array(z.string()),
+});
+export type I18nCoverageLanguage = z.infer<typeof I18nCoverageLanguageSchema>;
+
+export const I18nCoverageModuleSchema = z.object({
+  moduleId: z.string(),
+  languages: z.array(I18nCoverageLanguageSchema),
+});
+export type I18nCoverageModule = z.infer<typeof I18nCoverageModuleSchema>;
+
+export const I18nCoverageResponseSchema = z.object({
+  capturedAt: z.iso.datetime(),
+  modules: z.array(I18nCoverageModuleSchema),
+});
+export type I18nCoverageResponse = z.infer<typeof I18nCoverageResponseSchema>;
+
+export const I18nCoverageQuerySchema = z.object({
+  module: z.union([z.string(), z.array(z.string())]).optional(),
+  language: z
+    .union([SupportedAdminLanguageSchema, z.array(SupportedAdminLanguageSchema)])
+    .optional(),
+  includeKeys: z.enum(['missing', 'all']).default('missing').optional(),
+});
+export type I18nCoverageQuery = z.infer<typeof I18nCoverageQuerySchema>;

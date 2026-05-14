@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 
 const KNOWN_EVENT_TYPES = [
   'product.created.v1',
@@ -46,6 +47,7 @@ interface DeliveriesListResponse {
 }
 
 export function WebhooksPage(): ReactNode {
+  const t = useTranslation('core');
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
   const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([]);
   const [loadingHooks, setLoadingHooks] = useState(true);
@@ -61,11 +63,11 @@ export function WebhooksPage(): ReactNode {
       const res = await apiClient.get<WebhooksListResponse>('/api/v1/admin/webhooks');
       setWebhooks(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load webhooks.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('webhooks.error.load'));
     } finally {
       setLoadingHooks(false);
     }
-  }, []);
+  }, [t]);
 
   const refreshDeliveries = useCallback(async (): Promise<void> => {
     setLoadingDeliveries(true);
@@ -76,11 +78,11 @@ export function WebhooksPage(): ReactNode {
       );
       setDeliveries(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load deliveries.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('webhooks.error.loadDeliveries'));
     } finally {
       setLoadingDeliveries(false);
     }
-  }, [filter]);
+  }, [filter, t]);
 
   useEffect(() => {
     void refreshWebhooks();
@@ -94,13 +96,13 @@ export function WebhooksPage(): ReactNode {
     async (input: { name: string; url: string; eventTypes: string[] }): Promise<void> => {
       try {
         await apiClient.post<{ data: Webhook }>('/api/v1/admin/webhooks', input);
-        setInfo('Webhook created. Its signing secret is stored on the server.');
+        setInfo(t('webhooks.create.success'));
         await refreshWebhooks();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to create webhook.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('webhooks.error.create'));
       }
     },
-    [refreshWebhooks],
+    [refreshWebhooks, t],
   );
 
   const handleToggleStatus = useCallback(
@@ -110,29 +112,25 @@ export function WebhooksPage(): ReactNode {
         await apiClient.patch<{ data: Webhook }>(`/api/v1/admin/webhooks/${w.id}`, { status: next });
         await refreshWebhooks();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to update webhook.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('webhooks.error.update'));
       }
     },
-    [refreshWebhooks],
+    [refreshWebhooks, t],
   );
 
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
-      if (
-        !confirm(
-          'Delete this webhook? Pending deliveries will continue but no new ones will be enqueued.',
-        )
-      ) {
+      if (!confirm(t('webhooks.action.deleteConfirm'))) {
         return;
       }
       try {
         await apiClient.delete<void>(`/api/v1/admin/webhooks/${id}`);
         await refreshWebhooks();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to delete webhook.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('webhooks.error.delete'));
       }
     },
-    [refreshWebhooks],
+    [refreshWebhooks, t],
   );
 
   const handleReplay = useCallback(
@@ -141,13 +139,13 @@ export function WebhooksPage(): ReactNode {
         await apiClient.post<{ data: WebhookDelivery }>(
           `/api/v1/admin/webhooks/deliveries/${deliveryId}/replay`,
         );
-        setInfo('Replay queued — a new delivery row is now pending.');
+        setInfo(t('webhooks.delivery.replayQueued'));
         await refreshDeliveries();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Replay failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('webhooks.error.replay'));
       }
     },
-    [refreshDeliveries],
+    [refreshDeliveries, t],
   );
 
   const webhookNameById = new Map(webhooks.map((w) => [w.id, w.name]));
@@ -155,8 +153,8 @@ export function WebhooksPage(): ReactNode {
   return (
     <>
       <PageHeader
-        title="Webhooks"
-        description="HMAC-signed outbound notifications. Receivers must be idempotent on event id."
+        title={t('webhooks.page.title')}
+        description={t('webhooks.page.description')}
       />
 
       {error ? (
@@ -172,7 +170,7 @@ export function WebhooksPage(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Subscribe to events</CardTitle>
+          <CardTitle>{t('webhooks.create.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <CreateWebhookForm onSubmit={handleCreate} />
@@ -181,21 +179,21 @@ export function WebhooksPage(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Subscriptions</CardTitle>
+          <CardTitle>{t('webhooks.list.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           {loadingHooks ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
           ) : webhooks.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No subscriptions yet.</p>
+            <p className="text-sm text-muted-foreground">{t('webhooks.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>URL</TableHead>
-                  <TableHead>Events</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>{t('webhooks.column.name')}</TableHead>
+                  <TableHead>{t('webhooks.column.url')}</TableHead>
+                  <TableHead>{t('webhooks.column.events')}</TableHead>
+                  <TableHead>{t('webhooks.column.status')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -228,7 +226,7 @@ export function WebhooksPage(): ReactNode {
                           }}
                         >
                           {w.status === 'active' ? <Pause /> : <Play />}
-                          {w.status === 'active' ? 'Pause' : 'Resume'}
+                          {w.status === 'active' ? t('webhooks.action.pause') : t('webhooks.action.resume')}
                         </Button>
                         <Button
                           variant="destructive"
@@ -238,7 +236,7 @@ export function WebhooksPage(): ReactNode {
                           }}
                         >
                           <Trash2 />
-                          Delete
+                          {t('webhooks.action.delete')}
                         </Button>
                       </div>
                     </TableCell>
@@ -252,7 +250,7 @@ export function WebhooksPage(): ReactNode {
 
       <Card>
         <CardHeader className="flex-row items-center justify-between">
-          <CardTitle>Recent deliveries</CardTitle>
+          <CardTitle>{t('webhooks.deliveries.title')}</CardTitle>
           <div className="flex items-center gap-2">
             <Select
               className="w-auto"
@@ -261,9 +259,9 @@ export function WebhooksPage(): ReactNode {
                 setFilter(e.target.value as 'all' | 'failed' | 'dead_lettered')
               }
             >
-              <option value="all">All statuses</option>
-              <option value="failed">Failed</option>
-              <option value="dead_lettered">Dead-lettered</option>
+              <option value="all">{t('webhooks.deliveries.filter.all')}</option>
+              <option value="failed">{t('webhooks.deliveries.filter.failed')}</option>
+              <option value="dead_lettered">{t('webhooks.deliveries.filter.deadLettered')}</option>
             </Select>
             <Button
               variant="outline"
@@ -273,26 +271,26 @@ export function WebhooksPage(): ReactNode {
               }}
             >
               <RefreshCw />
-              Refresh
+              {t('webhooks.action.refresh')}
             </Button>
           </div>
         </CardHeader>
         <CardContent>
           {loadingDeliveries ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
           ) : deliveries.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No deliveries match this filter.</p>
+            <p className="text-sm text-muted-foreground">{t('webhooks.deliveries.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Webhook</TableHead>
-                  <TableHead>Event</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Attempts</TableHead>
-                  <TableHead>Last response</TableHead>
-                  <TableHead>Last error</TableHead>
-                  <TableHead>Created</TableHead>
+                  <TableHead>{t('webhooks.deliveries.column.webhook')}</TableHead>
+                  <TableHead>{t('webhooks.deliveries.column.event')}</TableHead>
+                  <TableHead>{t('webhooks.deliveries.column.status')}</TableHead>
+                  <TableHead>{t('webhooks.deliveries.column.attempts')}</TableHead>
+                  <TableHead>{t('webhooks.deliveries.column.lastResponse')}</TableHead>
+                  <TableHead>{t('webhooks.deliveries.column.lastError')}</TableHead>
+                  <TableHead>{t('webhooks.deliveries.column.created')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -322,7 +320,7 @@ export function WebhooksPage(): ReactNode {
                             void handleReplay(d.id);
                           }}
                         >
-                          Replay
+                          {t('webhooks.action.replay')}
                         </Button>
                       ) : null}
                     </TableCell>
@@ -350,6 +348,7 @@ function DeliveryStatusBadge({ status }: { status: WebhookDelivery['status'] }):
 function CreateWebhookForm(props: {
   onSubmit: (input: { name: string; url: string; eventTypes: string[] }) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('core');
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
   const [events, setEvents] = useState<Set<string>>(new Set());
@@ -387,29 +386,29 @@ function CreateWebhookForm(props: {
     >
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="webhook-name">Name</Label>
+          <Label htmlFor="webhook-name">{t('webhooks.create.nameLabel')}</Label>
           <Input
             id="webhook-name"
             value={name}
             onChange={(e): void => setName(e.target.value)}
-            placeholder="e.g. ERP order sync"
+            placeholder={t('webhooks.create.namePlaceholder')}
             required
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="webhook-url">Receiver URL</Label>
+          <Label htmlFor="webhook-url">{t('webhooks.create.urlLabel')}</Label>
           <Input
             id="webhook-url"
             type="url"
             value={url}
             onChange={(e): void => setUrl(e.target.value)}
-            placeholder="https://example.com/hooks"
+            placeholder={t('webhooks.create.urlPlaceholder')}
             required
           />
         </div>
       </div>
       <div className="space-y-2">
-        <Label>Events</Label>
+        <Label>{t('webhooks.create.eventsLabel')}</Label>
         <div className="flex flex-wrap gap-3">
           {KNOWN_EVENT_TYPES.map((event) => (
             <label
@@ -426,7 +425,7 @@ function CreateWebhookForm(props: {
         type="submit"
         disabled={submitting || !name.trim() || !url.trim() || events.size === 0}
       >
-        {submitting ? 'Creating…' : 'Subscribe'}
+        {submitting ? t('webhooks.create.submitting') : t('webhooks.create.submit')}
       </Button>
     </form>
   );

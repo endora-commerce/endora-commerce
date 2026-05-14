@@ -20,6 +20,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { settingsClient, type GroupRow } from '../api/settings-client';
+import { useTranslation } from '@/i18n/useTranslation';
 
 /**
  * Settings groups page — feature 004 / US2.
@@ -30,6 +31,7 @@ import { settingsClient, type GroupRow } from '../api/settings-client';
  * their per-channel values (T033 integration).
  */
 export function GroupsPage(): ReactNode {
+  const t = useTranslation('settings');
   const [rows, setRows] = useState<GroupRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,8 +108,8 @@ export function GroupsPage(): ReactNode {
   return (
     <>
       <PageHeader
-        title="Setting groups"
-        description="Logical sections shown in the Settings page. The built-in “general” group is system-protected and cannot be deleted. Deleting any other group reassigns its settings to “general” and preserves their values."
+        title={t('groups.page.title')}
+        description={t('groups.page.description')}
       />
       {error && (
         <Alert variant="destructive" className="mb-4">
@@ -116,37 +118,37 @@ export function GroupsPage(): ReactNode {
       )}
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle className="text-base">New group</CardTitle>
+          <CardTitle className="text-base">{t('groups.newGroup.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <form className="grid gap-3 md:grid-cols-[1fr_2fr_auto]" onSubmit={onCreate}>
             <Input
-              placeholder="code (snake_case)"
+              placeholder={t('groups.newGroup.codePlaceholder')}
               value={draftCode}
               onChange={(e) => setDraftCode(e.target.value)}
             />
             <Input
-              placeholder="Display name"
+              placeholder={t('groups.newGroup.namePlaceholder')}
               value={draftName}
               onChange={(e) => setDraftName(e.target.value)}
             />
-            <Button type="submit">Create</Button>
+            <Button type="submit">{t('groups.newGroup.create')}</Button>
           </form>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="pt-6">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading groups…</p>
+            <p className="text-sm text-muted-foreground">{t('groups.loading')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Owner module</TableHead>
-                  <TableHead>Settings</TableHead>
-                  <TableHead className="w-44 text-right">Actions</TableHead>
+                  <TableHead>{t('groups.column.code')}</TableHead>
+                  <TableHead>{t('groups.column.name')}</TableHead>
+                  <TableHead>{t('groups.column.ownerModule')}</TableHead>
+                  <TableHead>{t('groups.column.settings')}</TableHead>
+                  <TableHead className="w-44 text-right">{t('groups.column.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -163,7 +165,7 @@ export function GroupsPage(): ReactNode {
                         onClick={() => void onRename(g.code)}
                         disabled={g.isSystemProtected}
                       >
-                        Rename
+                        {t('groups.action.rename')}
                       </Button>
                       <Button
                         variant="ghost"
@@ -171,7 +173,7 @@ export function GroupsPage(): ReactNode {
                         onClick={() => void onDelete(g.code)}
                         disabled={g.isSystemProtected}
                       >
-                        Delete
+                        {t('groups.action.delete')}
                       </Button>
                     </TableCell>
                   </TableRow>

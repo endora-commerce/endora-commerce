@@ -2,6 +2,9 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ADMIN_LANGUAGE_FALLBACK,
   SUPPORTED_ADMIN_LANGUAGES,
+  type I18nCoverageLanguage,
+  type I18nCoverageModule,
+  type I18nCoverageResponse,
   type SupportedAdminLanguage,
   type TranslationBundleEntries,
 } from '@b2b/contracts';
@@ -105,7 +108,117 @@ export class I18nService {
     const removed = await targetEm.nativeDelete(TranslationBundle, { moduleId });
     // Affected languages are unknown without a SELECT-then-DELETE; clear all.
     this.cache.clear();
+    // Feature 021: drop accumulator entries so the diagnostic stops reporting
+    // the now-uninstalled module.
+    this.missingKeyLogger.pruneModule(moduleId);
     return { removed };
+  }
+
+  // -------------------------------------------------------------------------
+  // Coverage diagnostic — feature 021.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Build a `(moduleId, languageCode)` coverage snapshot combining:
+   *   - the `MissingKeyLogger` accumulator (runtime fallback events), and
+   *   - a static comparison of the shipped bundle entries per language.
+   *
+   * Modules and languages can be filtered before serialisation. `includeKeys`
+   * defaults to `'missing'`; set `'all'` to return every key the runtime has
+   * seen (large; intended for deep inspection).
+   */
+  async getCoverageSnapshot(
+    filter: {
+      moduleIds?: string[];
+      languageCodes?: SupportedAdminLanguage[];
+      includeKeys?: 'missing' | 'all';
+    } = {},
+    em?: EntityManager,
+  ): Promise<I18nCoverageResponse> {
+    const targetEm = em ?? this.em();
+    const moduleFilter = filter.moduleIds && filter.moduleIds.length > 0
+      ? new Set(filter.moduleIds)
+      : null;
+    const langFilter = filter.languageCodes && filter.languageCodes.length > 0
+      ? new Set(filter.languageCodes)
+      : null;
+
+    // Load every bundle from the DB. The bundles table is small (one row per
+    // module-language pair); a full scan is fine for a diagnostic that runs
+    // at admin-review cadence.
+    const rows = await targetEm.find(TranslationBundle, {});
+    const byModule = new Map<string, Map<SupportedAdminLanguage, TranslationBundleEntries>>();
+    for (const row of rows) {
+      const exposedId = row.moduleId === I18N_CHROME_MODULE_ID ? CORE_NAMESPACE : row.moduleId;
+      if (moduleFilter && !moduleFilter.has(exposedId)) continue;
+      const langs = byModule.get(exposedId) ?? new Map();
+      langs.set(row.languageCode as SupportedAdminLanguage, row.entries);
+      byModule.set(exposedId, langs);
+    }
+
+    // Index the accumulator by (moduleId, languageCode) → Set<key>.
+    const runtimeMissing = new Map<string, Map<SupportedAdminLanguage, Set<string>>>();
+    const runtimeFellBackToEn = new Map<string, Map<SupportedAdminLanguage, Set<string>>>();
+    for (const entry of this.missingKeyLogger.snapshot()) {
+      if (moduleFilter && !moduleFilter.has(entry.moduleId)) continue;
+      const lang = entry.languageCode as SupportedAdminLanguage;
+      if (langFilter && !langFilter.has(lang)) continue;
+      const missingMap = runtimeMissing.get(entry.moduleId) ?? new Map();
+      const missingSet = missingMap.get(lang) ?? new Set<string>();
+      missingSet.add(entry.key);
+      missingMap.set(lang, missingSet);
+      runtimeMissing.set(entry.moduleId, missingMap);
+      if (entry.fellBackTo === 'en') {
+        const fbMap = runtimeFellBackToEn.get(entry.moduleId) ?? new Map();
+        const fbSet = fbMap.get(lang) ?? new Set<string>();
+        fbSet.add(entry.key);
+        fbMap.set(lang, fbSet);
+        runtimeFellBackToEn.set(entry.moduleId, fbMap);
+      }
+    }
+
+    const allModuleIds = new Set<string>([
+      ...byModule.keys(),
+      ...runtimeMissing.keys(),
+    ]);
+
+    const modules: I18nCoverageModule[] = [];
+    for (const moduleId of Array.from(allModuleIds).sort()) {
+      const langs = byModule.get(moduleId) ?? new Map();
+      const languages: I18nCoverageLanguage[] = [];
+      for (const lang of SUPPORTED_ADMIN_LANGUAGES) {
+        if (langFilter && !langFilter.has(lang)) continue;
+        const entries = langs.get(lang) ?? {};
+        const otherEntries = lang === ADMIN_LANGUAGE_FALLBACK
+          ? (Array.from(langs.entries()).find(([k]) => k !== ADMIN_LANGUAGE_FALLBACK)?.[1] ?? {})
+          : (langs.get(ADMIN_LANGUAGE_FALLBACK) ?? {});
+        // Static-scan missing: keys present in any other language but absent
+        // in this one.
+        const staticMissing = new Set<string>();
+        for (const k of Object.keys(otherEntries)) {
+          if (!(k in entries)) staticMissing.add(k);
+        }
+        // Union with the runtime accumulator's missing set.
+        const runtimeSet = runtimeMissing.get(moduleId)?.get(lang) ?? new Set();
+        for (const k of runtimeSet) staticMissing.add(k);
+        const missingKeys = Array.from(staticMissing).sort();
+        const fbSet = runtimeFellBackToEn.get(moduleId)?.get(lang) ?? new Set();
+        languages.push({
+          languageCode: lang,
+          totalKeysSeen: Object.keys(entries).length + (filter.includeKeys === 'all' ? 0 : 0),
+          missingCount: missingKeys.length,
+          missingKeys,
+          fellBackToEnCount: fbSet.size,
+          fellBackToEnKeys: Array.from(fbSet).sort(),
+        });
+      }
+      modules.push({ moduleId, languages });
+    }
+
+    return {
+      capturedAt: new Date().toISOString(),
+      modules,
+    };
   }
 
   // -------------------------------------------------------------------------

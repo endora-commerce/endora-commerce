@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { PAGE_SIZE_OPTIONS, type PageSizeOption } from '@/lib/use-page-size-preference';
+import { useTranslation } from '@/i18n/useTranslation';
 
 export interface PaginationFooterProps {
   /** Zero-based page index. */
@@ -26,6 +27,7 @@ export interface PaginationFooterProps {
  */
 export function PaginationFooter(props: PaginationFooterProps): ReactNode {
   const { page, pageSize, total, onPageSizeChange, onPrev, onNext } = props;
+  const t = useTranslation('core');
   const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize);
   const safePage = Math.min(Math.max(0, page), Math.max(0, totalPages - 1));
   const start = total === 0 ? 0 : safePage * pageSize + 1;
@@ -37,13 +39,15 @@ export function PaginationFooter(props: PaginationFooterProps): ReactNode {
     <div className="b2b-card__foot">
       <div className="b2b-row" style={{ gap: 12, alignItems: 'center' }}>
         <div className="b2b-muted" style={{ fontSize: 12 }}>
-          {total === 0 ? 'No results' : `Showing ${start}–${end} of ${total}`}
+          {total === 0
+            ? t('common.pagination.noResults')
+            : t('common.pagination.showingRange', { start, end, total })}
         </div>
         <label
           className="b2b-row"
           style={{ gap: 6, alignItems: 'center', fontSize: 12, color: 'var(--fg-muted)' }}
         >
-          Rows per page:
+          {t('common.pagination.rowsPerPage')}
           <select
             className="b2b-field b2b-field--sm"
             value={pageSize}
@@ -65,7 +69,10 @@ export function PaginationFooter(props: PaginationFooterProps): ReactNode {
       </div>
       <div className="b2b-row" style={{ gap: 8, alignItems: 'center' }}>
         <span className="b2b-muted" style={{ fontSize: 12 }}>
-          Page {totalPages === 0 ? 0 : safePage + 1} of {totalPages}
+          {t('common.pagination.pageXofY', {
+            page: totalPages === 0 ? 0 : safePage + 1,
+            total: totalPages,
+          })}
         </span>
         <button
           type="button"
@@ -73,7 +80,7 @@ export function PaginationFooter(props: PaginationFooterProps): ReactNode {
           onClick={onPrev}
           disabled={isFirst}
         >
-          <ChevronLeft size={13} /> Previous
+          <ChevronLeft size={13} /> {t('common.pagination.previous')}
         </button>
         <button
           type="button"
@@ -81,7 +88,7 @@ export function PaginationFooter(props: PaginationFooterProps): ReactNode {
           onClick={onNext}
           disabled={isLast}
         >
-          Next <ChevronRight size={13} />
+          {t('common.pagination.next')} <ChevronRight size={13} />
         </button>
       </div>
     </div>

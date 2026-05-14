@@ -34,7 +34,9 @@
     "module:uninstall": "tsx src/modules/_lifecycle/scripts/uninstall.ts",
     "module:enable": "tsx src/modules/_lifecycle/scripts/enable.ts",
     "module:disable": "tsx src/modules/_lifecycle/scripts/disable.ts",
-    "module:status": "tsx src/modules/_lifecycle/scripts/status.ts"
+    "module:status": "tsx src/modules/_lifecycle/scripts/status.ts",
+    "i18n:coverage": "tsx src/modules/_i18n/scripts/coverage.ts",
+    "i18n:hardcoded": "tsx scripts/i18n-hardcoded-strings.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",

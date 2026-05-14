@@ -27,6 +27,7 @@ import { ApiError, apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { PaginationFooter } from '@/components/PaginationFooter';
 import { usePageSizePreference } from '@/lib/use-page-size-preference';
+import { useTranslation } from '@/i18n/useTranslation';
 
 interface AdminProduct {
   id: string;
@@ -63,6 +64,7 @@ interface ProductsResponse {
 }
 
 export function ProductsList(): ReactNode {
+  const t = useTranslation('catalog');
   const navigate = useNavigate();
   const [rows, setRows] = useState<AdminProduct[]>([]);
   const [total, setTotal] = useState(0);
@@ -106,11 +108,11 @@ export function ProductsList(): ReactNode {
       setTotal(res.pagination.total);
       setCounts(res.counts);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('productsList.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, typeFilter, debouncedQuery, page, pageSize]);
+  }, [statusFilter, typeFilter, debouncedQuery, page, pageSize, t]);
 
   useEffect(() => {
     void refresh();
@@ -154,24 +156,24 @@ export function ProductsList(): ReactNode {
     <div className="b2b-page b2b-page--wide">
       <div className="b2b-page-head">
         <div className="b2b-grow">
-          <div className="b2b-page-head__title">Products</div>
+          <div className="b2b-page-head__title">{t('productsList.title')}</div>
           <div className="b2b-page-head__sub">
-            {counts.all} catalog rows · pricing &amp; stock visible inline
+            {t('productsList.subtitle', { count: counts.all })}
           </div>
         </div>
         <div className="b2b-page-head__actions">
           <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm">
-            <Upload size={13} /> Import
+            <Upload size={13} /> {t('productsList.action.import')}
           </button>
           <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm">
-            <Download size={13} /> Export
+            <Download size={13} /> {t('productsList.action.export')}
           </button>
           <button
             type="button"
             className="b2b-btn b2b-btn--primary"
             onClick={(): void => { navigate('/catalog/products/new'); }}
           >
-            <Plus size={14} /> New product
+            <Plus size={14} /> {t('productsList.action.newProduct')}
           </button>
         </div>
       </div>
@@ -194,10 +196,10 @@ export function ProductsList(): ReactNode {
       <div className="b2b-card">
         <div style={{ padding: '4px 12px 0' }}>
           <div className="b2b-tabs" role="tablist">
-            <Tab id="all" label="All" count={counts.all} active={statusFilter} onChange={setStatusFilter} />
-            <Tab id="active" label="Active" count={counts.active} active={statusFilter} onChange={setStatusFilter} />
-            <Tab id="draft" label="Draft" count={counts.draft} active={statusFilter} onChange={setStatusFilter} />
-            <Tab id="archived" label="Archived" count={counts.archived} active={statusFilter} onChange={setStatusFilter} />
+            <Tab id="all" label={t('productsList.tab.all')} count={counts.all} active={statusFilter} onChange={setStatusFilter} />
+            <Tab id="active" label={t('productsList.tab.active')} count={counts.active} active={statusFilter} onChange={setStatusFilter} />
+            <Tab id="draft" label={t('productsList.tab.draft')} count={counts.draft} active={statusFilter} onChange={setStatusFilter} />
+            <Tab id="archived" label={t('productsList.tab.archived')} count={counts.archived} active={statusFilter} onChange={setStatusFilter} />
           </div>
         </div>
 
@@ -207,7 +209,7 @@ export function ProductsList(): ReactNode {
               <Search size={16} className="lead" />
               <input
                 className="b2b-field b2b-field--addon"
-                placeholder="Search SKU, slug, name…"
+                placeholder={t('productsList.search.placeholder')}
                 value={query}
                 onChange={(e): void => setQuery(e.target.value)}
               />
@@ -216,7 +218,7 @@ export function ProductsList(): ReactNode {
           <Chip
             icon={<Package size={12} />}
             active={typeFilter !== 'all'}
-            label={typeFilter === 'all' ? 'Type' : `Type: ${typeFilter}`}
+            label={typeFilter === 'all' ? t('productsList.chip.type') : t('productsList.chip.typeWithValue', { value: typeFilter })}
             onClick={(): void => {
               const idx = TYPE_CYCLE.indexOf(typeFilter);
               setTypeFilter(TYPE_CYCLE[(idx + 1) % TYPE_CYCLE.length]!);
@@ -229,7 +231,11 @@ export function ProductsList(): ReactNode {
             icon={<Warehouse size={12} />}
             active={stockFilter !== 'all'}
             label={
-              stockFilter === 'all' ? 'Stock' : stockFilter === 'out' ? 'Out of stock' : 'Low stock'
+              stockFilter === 'all'
+                ? t('productsList.chip.stock')
+                : stockFilter === 'out'
+                  ? t('productsList.chip.outOfStock')
+                  : t('productsList.chip.lowStock')
             }
             onClick={(): void => {
               const idx = STOCK_CYCLE.indexOf(stockFilter);
@@ -239,8 +245,8 @@ export function ProductsList(): ReactNode {
               ? { onRemove: (): void => setStockFilter('all') }
               : {})}
           />
-          <Chip icon={<Tag size={12} />} active={false} label="Category" onClick={(): void => {}} />
-          <Chip icon={<Store size={12} />} active={false} label="Channel" onClick={(): void => {}} />
+          <Chip icon={<Tag size={12} />} active={false} label={t('productsList.chip.category')} onClick={(): void => {}} />
+          <Chip icon={<Store size={12} />} active={false} label={t('productsList.chip.channel')} onClick={(): void => {}} />
         </div>
 
         {selected.size > 0 ? (
@@ -254,22 +260,22 @@ export function ProductsList(): ReactNode {
               }}
               onChange={toggleAll}
             />
-            <span className="count">{selected.size} selected</span>
+            <span className="count">{t('productsList.bulk.selected', { count: selected.size })}</span>
             <div className="actions">
               <button type="button" className="b2b-btn">
-                <CheckCircle2 size={13} /> Activate
+                <CheckCircle2 size={13} /> {t('productsList.bulk.activate')}
               </button>
               <button type="button" className="b2b-btn">
-                <Archive size={13} /> Archive
+                <Archive size={13} /> {t('productsList.bulk.archive')}
               </button>
               <button type="button" className="b2b-btn">
-                <CircleDollarSign size={13} /> Edit price
+                <CircleDollarSign size={13} /> {t('productsList.bulk.editPrice')}
               </button>
               <button type="button" className="b2b-btn">
-                <Tag size={13} /> Add to category
+                <Tag size={13} /> {t('productsList.bulk.addToCategory')}
               </button>
               <button type="button" className="b2b-btn b2b-btn--danger">
-                <Trash2 size={13} /> Delete
+                <Trash2 size={13} /> {t('productsList.bulk.delete')}
               </button>
             </div>
             <button
@@ -285,24 +291,24 @@ export function ProductsList(): ReactNode {
 
         <div className="b2b-card__body b2b-card__body--flush">
           {loading ? (
-            <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>Loading…</div>
+            <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>{t('productsList.loading')}</div>
           ) : filtered.length === 0 ? (
             <div className="b2b-empty">
               <div className="b2b-empty__icon">
                 <Package size={20} />
               </div>
-              <div className="b2b-empty__title">No products match these filters</div>
+              <div className="b2b-empty__title">{t('productsList.empty.title')}</div>
               <div className="b2b-empty__sub">
-                Try clearing filters, or use{' '}
+                {t('productsList.empty.prefix')}{' '}
                 <button
                   type="button"
                   className="b2b-btn b2b-btn--ghost"
                   onClick={(): void => { navigate('/catalog/products/new'); }}
                   style={{ display: 'inline-flex', height: 'auto', padding: 0, color: 'var(--primary-color)' }}
                 >
-                  + New product
+                  {t('productsList.empty.button')}
                 </button>{' '}
-                to create one.
+                {t('productsList.empty.suffix')}
               </div>
             </div>
           ) : (
@@ -320,12 +326,12 @@ export function ProductsList(): ReactNode {
                       onChange={toggleAll}
                     />
                   </th>
-                  <th>Product</th>
-                  <th>SKU</th>
-                  <th>Status</th>
-                  <th>Type</th>
-                  <th>Visibility</th>
-                  <th>Updated</th>
+                  <th>{t('productsList.column.product')}</th>
+                  <th>{t('productsList.column.sku')}</th>
+                  <th>{t('productsList.column.status')}</th>
+                  <th>{t('productsList.column.type')}</th>
+                  <th>{t('productsList.column.visibility')}</th>
+                  <th>{t('productsList.column.updated')}</th>
                   <th />
                 </tr>
               </thead>

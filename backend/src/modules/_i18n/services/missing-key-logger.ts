@@ -27,8 +27,21 @@ export interface MissingKeyLoggerOptions {
   logger?: Pick<ModuleLifecycleLogger, 'info'> & { info(msg: string): void };
 }
 
+export interface MissingKeyEntry {
+  moduleId: string;
+  languageCode: string;
+  key: string;
+  fellBackTo: 'en' | 'placeholder';
+}
+
 export class MissingKeyLogger {
   private readonly logger: { info(msg: string): void };
+  /**
+   * Feature 021: in-process accumulator backing the coverage diagnostic.
+   * Keyed by `${moduleId}:${languageCode}:${key}` so repeated resolutions
+   * of the same missing entry don't inflate the count.
+   */
+  private readonly entries = new Map<string, MissingKeyEntry>();
 
   constructor(opts: MissingKeyLoggerOptions = {}) {
     // Default sink uses `console.warn` so it surfaces under the project's
@@ -41,5 +54,22 @@ export class MissingKeyLogger {
   logFallback(entry: Omit<FallbackLogEntry, 'event'>): void {
     const payload: FallbackLogEntry = { event: 'i18n.fallback', ...entry };
     this.logger.info(JSON.stringify(payload));
+    const k = `${entry.moduleId}:${entry.languageCode}:${entry.key}`;
+    this.entries.set(k, { ...entry });
+  }
+
+  /** Coverage diagnostic — return a defensive copy of the accumulator. */
+  snapshot(): MissingKeyEntry[] {
+    return Array.from(this.entries.values());
+  }
+
+  /**
+   * Drop every accumulator entry owned by `moduleId`. Called on module
+   * hard-uninstall so the diagnostic doesn't report a phantom module.
+   */
+  pruneModule(moduleId: string): void {
+    for (const k of Array.from(this.entries.keys())) {
+      if (k.startsWith(`${moduleId}:`)) this.entries.delete(k);
+    }
   }
 }

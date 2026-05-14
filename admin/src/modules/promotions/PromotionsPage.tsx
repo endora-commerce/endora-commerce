@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 import { CurrencyPicker } from '../dictionaries/components/CurrencyPicker';
 
 interface AdminPromotion {
@@ -91,6 +92,7 @@ function allowedOpsFor(valueType: AttributeValueType): AttributeOp[] {
 }
 
 export const PromotionsPage = (): ReactNode => {
+  const t = useTranslation('core');
   const [rows, setRows] = useState<AdminPromotion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -103,11 +105,11 @@ export const PromotionsPage = (): ReactNode => {
       const res = await apiClient.get<{ data: AdminPromotion[] }>('/api/v1/admin/promotions');
       setRows(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('promotions.error.load'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void refresh();
@@ -133,33 +135,33 @@ export const PromotionsPage = (): ReactNode => {
           ...(input.criteria.length > 0 ? { criteria: input.criteria } : {}),
           isActive: input.isActive,
         });
-        setInfo(`Promotion ${input.code || input.name} created.`);
+        setInfo(t('promotions.success.create', { name: input.code || input.name }));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('promotions.error.save'));
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
-      if (!confirm('Delete this promotion?')) return;
+      if (!confirm(t('promotions.deleteConfirm'))) return;
       try {
         await apiClient.delete<void>(`/api/v1/admin/promotions/${id}`);
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('promotions.error.delete'));
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   return (
     <>
       <PageHeader
-        title="Promotions"
-        description="Cart-level discounts. Percentage values are 0..100; amount-off requires a currency."
+        title={t('promotions.page.title')}
+        description={t('promotions.page.description')}
       />
 
       {error ? (
@@ -175,7 +177,7 @@ export const PromotionsPage = (): ReactNode => {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Create promotion</CardTitle>
+          <CardTitle>{t('promotions.create.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <CreatePromotionForm onSubmit={handleCreate} />
@@ -185,21 +187,21 @@ export const PromotionsPage = (): ReactNode => {
       <Card>
         <CardContent className="pt-6">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('promotions.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No promotions yet.</p>
+            <p className="text-sm text-muted-foreground">{t('promotions.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Kind</TableHead>
-                  <TableHead>Value</TableHead>
-                  <TableHead>Min cart</TableHead>
-                  <TableHead>Valid</TableHead>
-                  <TableHead>Criteria</TableHead>
-                  <TableHead>Active</TableHead>
+                  <TableHead>{t('promotions.column.code')}</TableHead>
+                  <TableHead>{t('promotions.column.name')}</TableHead>
+                  <TableHead>{t('promotions.column.kind')}</TableHead>
+                  <TableHead>{t('promotions.column.value')}</TableHead>
+                  <TableHead>{t('promotions.column.minCart')}</TableHead>
+                  <TableHead>{t('promotions.column.valid')}</TableHead>
+                  <TableHead>{t('promotions.column.criteria')}</TableHead>
+                  <TableHead>{t('promotions.column.active')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -216,7 +218,7 @@ export const PromotionsPage = (): ReactNode => {
                         ? `${p.value}%`
                         : p.kind === 'amount_off'
                           ? `${p.value} ${p.currency}`
-                          : 'free delivery'}
+                          : t('promotions.value.freeDelivery')}
                     </TableCell>
                     <TableCell className="tabular-nums">
                       {p.minCartSubtotal != null ? p.minCartSubtotal.toFixed(2) : '—'}
@@ -238,7 +240,7 @@ export const PromotionsPage = (): ReactNode => {
                     </TableCell>
                     <TableCell>
                       <Badge variant={p.isActive ? 'success' : 'secondary'}>
-                        {p.isActive ? 'yes' : 'no'}
+                        {p.isActive ? t('promotions.active.yes') : t('promotions.active.no')}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -249,7 +251,7 @@ export const PromotionsPage = (): ReactNode => {
                         onClick={(): void => void handleDelete(p.id)}
                       >
                         <Trash2 />
-                        Delete
+                        {t('promotions.action.delete')}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -276,6 +278,7 @@ const CreatePromotionForm = ({
     criteria: AttributeCriterion[];
   }) => Promise<void>;
 }): ReactNode => {
+  const t = useTranslation('core');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [kind, setKind] = useState<'percentage_off' | 'amount_off' | 'free_delivery'>('percentage_off');
@@ -307,11 +310,11 @@ const CreatePromotionForm = ({
     >
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="prcode">Code (optional)</Label>
+          <Label htmlFor="prcode">{t('promotions.field.code')}</Label>
           <Input id="prcode" value={code} onChange={(e): void => setCode(e.target.value)} />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="prname">Display name</Label>
+          <Label htmlFor="prname">{t('promotions.field.name')}</Label>
           <Input
             id="prname"
             value={name}
@@ -320,7 +323,7 @@ const CreatePromotionForm = ({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="prkind">Kind</Label>
+          <Label htmlFor="prkind">{t('promotions.field.kind')}</Label>
           <Select
             id="prkind"
             value={kind}
@@ -335,7 +338,11 @@ const CreatePromotionForm = ({
         </div>
         <div className="space-y-2">
           <Label htmlFor="prvalue">
-            Value {kind === 'percentage_off' ? '(%)' : kind === 'amount_off' ? '' : '(ignored)'}
+            {kind === 'percentage_off'
+              ? t('promotions.field.valuePercent')
+              : kind === 'amount_off'
+                ? t('promotions.field.value')
+                : t('promotions.field.valueIgnored')}
           </Label>
           <Input
             id="prvalue"
@@ -348,7 +355,7 @@ const CreatePromotionForm = ({
         </div>
         {kind === 'amount_off' ? (
           <div className="space-y-2">
-            <Label htmlFor="prcur">Currency</Label>
+            <Label htmlFor="prcur">{t('promotions.field.currency')}</Label>
             <CurrencyPicker
               id="prcur"
               value={currency}
@@ -363,13 +370,13 @@ const CreatePromotionForm = ({
           checked={isActive}
           onChange={(e): void => setIsActive(e.target.checked)}
         />
-        Active
+        {t('promotions.field.active')}
       </label>
 
       <CriteriaEditor value={criteria} onChange={setCriteria} />
 
       <div>
-        <Button type="submit">Create</Button>
+        <Button type="submit">{t('promotions.action.create')}</Button>
       </div>
     </form>
   );
@@ -394,6 +401,7 @@ const CriteriaEditor = ({
   value: AttributeCriterion[];
   onChange: (next: AttributeCriterion[]) => void;
 }): ReactNode => {
+  const t = useTranslation('core');
   const [attrs, setAttrs] = useState<PromoRuleAttribute[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -407,7 +415,7 @@ const CriteriaEditor = ({
         );
         if (!cancelled) setAttrs(res.data.items);
       } catch (err) {
-        if (!cancelled) setLoadError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load attributes.');
+        if (!cancelled) setLoadError(err instanceof ApiError ? err.envelope.error.message : t('promotions.error.loadAttributes'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -415,7 +423,7 @@ const CriteriaEditor = ({
     return (): void => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   const addCriterion = (): void => {
     const first = attrs[0];
@@ -442,7 +450,7 @@ const CriteriaEditor = ({
   return (
     <div className="space-y-2 rounded-md border p-3">
       <div className="flex items-center justify-between">
-        <Label>Criteria (attribute-based)</Label>
+        <Label>{t('promotions.criteria.title')}</Label>
         <Button
           type="button"
           variant="secondary"
@@ -450,22 +458,20 @@ const CriteriaEditor = ({
           disabled={loading || attrs.length === 0}
           onClick={addCriterion}
         >
-          Add criterion
+          {t('promotions.criteria.add')}
         </Button>
       </div>
       {loading ? (
-        <p className="text-xs text-muted-foreground">Loading promo-eligible attributes…</p>
+        <p className="text-xs text-muted-foreground">{t('promotions.criteria.loading')}</p>
       ) : loadError ? (
         <p className="text-xs text-destructive">{loadError}</p>
       ) : attrs.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          No attribute is flagged <code>isPromoRule</code> yet. Flip the flag in
-          Catalog → Attributes to expose it here.
+          {t('promotions.criteria.noAttributes')}
         </p>
       ) : value.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          No criteria configured. The promotion applies to every cart line that
-          passes the existing flat scope.
+          {t('promotions.criteria.empty')}
         </p>
       ) : (
         <ul className="space-y-2">
@@ -496,6 +502,7 @@ const CriterionRow = ({
   onChange: (next: AttributeCriterion) => void;
   onRemove: () => void;
 }): ReactNode => {
+  const t = useTranslation('core');
   const attr = attrs.find((a) => a.key === criterion.attributeKey);
   const allowedOps = attr ? allowedOpsFor(attr.valueType) : [];
 
@@ -547,7 +554,7 @@ const CriterionRow = ({
           onChange={(values): void => onChange({ ...criterion, values })}
         />
       ) : (
-        <Input disabled placeholder="(unknown attribute)" />
+        <Input disabled placeholder={t('promotions.criterion.unknownAttribute')} />
       )}
       <Button type="button" variant="destructive" size="sm" onClick={onRemove}>
         <Trash2 />
@@ -567,6 +574,7 @@ const ValuePicker = ({
   values: unknown[];
   onChange: (next: unknown[]) => void;
 }): ReactNode => {
+  const t = useTranslation('core');
   const isSelectStyle = attr.valueType === 'select' || attr.valueType === 'enum' || attr.valueType === 'multiselect';
 
   if (isSelectStyle && attr.options) {
@@ -619,13 +627,13 @@ const ValuePicker = ({
             type="number"
             value={String(values[0] ?? '')}
             onChange={(e): void => onChange([Number(e.target.value), values[1] ?? 0])}
-            placeholder="min"
+            placeholder={t('promotions.range.min')}
           />
           <Input
             type="number"
             value={String(values[1] ?? '')}
             onChange={(e): void => onChange([values[0] ?? 0, Number(e.target.value)])}
-            placeholder="max"
+            placeholder={t('promotions.range.max')}
           />
         </div>
       );
@@ -668,7 +676,7 @@ const ValuePicker = ({
   // string fallback
   return (
     <Input
-      placeholder={op === 'in' ? 'comma-separated values' : 'value'}
+      placeholder={op === 'in' ? t('promotions.placeholder.csv') : t('promotions.placeholder.value')}
       value={values.map((v) => String(v)).join(', ')}
       onChange={(e): void => {
         const parts = e.target.value

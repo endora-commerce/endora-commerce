@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { Check, ChevronDown, Loader2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslation } from '@/i18n/useTranslation';
 
 /**
  * Generic searchable dropdown. The input narrows the visible options as
@@ -109,6 +110,7 @@ function comboboxInner<T>(
   const reactId = useId();
   const inputId = id ?? `combobox-${reactId}`;
   const listboxId = `${inputId}-listbox`;
+  const t = useTranslation('core');
 
   const selectedOption = useMemo(
     () => options.find((opt) => sameValue(opt.value, value)) ?? null,
@@ -295,7 +297,7 @@ function comboboxInner<T>(
               tabIndex={-1}
               onMouseDown={(e): void => e.preventDefault()}
               onClick={clear}
-              aria-label="Clear selection"
+              aria-label={t('common.combobox.clearSelection')}
               className="rounded-sm p-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               <X className="size-3.5" aria-hidden="true" />

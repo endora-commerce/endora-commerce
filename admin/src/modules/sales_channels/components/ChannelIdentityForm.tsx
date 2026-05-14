@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { dictionaryClient } from '../../dictionaries/client';
+import { useTranslation } from '@/i18n/useTranslation';
 
 /**
  * ChannelIdentityForm — feature 005 / T040.
@@ -64,6 +65,7 @@ export function ChannelIdentityForm({
   onSubmit,
   onCancel,
 }: ChannelIdentityFormProps): ReactNode {
+  const t = useTranslation('sales_channels');
   const [code, setCode] = useState(initial?.code ?? '');
   const [name, setName] = useState(pickEnglishName(initial?.name));
   const [themeCode, setThemeCode] = useState(initial?.themeCode ?? '');
@@ -179,7 +181,7 @@ export function ChannelIdentityForm({
     <Card>
       <CardHeader>
         <CardTitle className="text-base">
-          {mode === 'create' ? 'New Sales Channel' : 'Identity'}
+          {mode === 'create' ? t('identity.title.create') : t('identity.title.edit')}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -190,7 +192,7 @@ export function ChannelIdentityForm({
         )}
         <form className="grid gap-4" onSubmit={handleSubmit}>
           <div className="grid gap-2">
-            <Label htmlFor="sc-code">Code</Label>
+            <Label htmlFor="sc-code">{t('identity.code.label')}</Label>
             <Input
               id="sc-code"
               value={code}
@@ -200,56 +202,50 @@ export function ChannelIdentityForm({
               required
             />
             {lockCode && (
-              <p className="text-xs text-muted-foreground">
-                Channel codes are write-once after creation; edit them through a future
-                rename action that handles redirects from cached storefront responses.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('identity.code.lockedHelp')}</p>
             )}
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="sc-name">Display name (en-US)</Label>
+            <Label htmlFor="sc-name">{t('identity.name.label')}</Label>
             <Input
               id="sc-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Serwis A"
+              placeholder={t('identity.name.placeholder')}
               required
             />
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="sc-theme">Theme code</Label>
+            <Label htmlFor="sc-theme">{t('identity.theme.label')}</Label>
             <Input
               id="sc-theme"
               value={themeCode}
               onChange={(e) => setThemeCode(e.target.value)}
-              placeholder="storefront-a (optional)"
+              placeholder={t('identity.theme.placeholder')}
             />
           </div>
 
           <div className="grid gap-2 md:grid-cols-[2fr_1fr]">
             <div className="grid gap-2">
-              <Label>Languages</Label>
+              <Label>{t('identity.languages.label')}</Label>
               <DictionaryCheckboxList
                 rows={languageRows}
                 selected={languages}
                 onToggle={toggleLanguage}
               />
-              <p className="text-xs text-muted-foreground">
-                Active Dictionary languages are available for new selections. Inactive stored
-                values remain visible until removed.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('identity.languages.help')}</p>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="sc-default-lang">Default language</Label>
+              <Label htmlFor="sc-default-lang">{t('identity.defaultLanguage.label')}</Label>
               <Select
                 id="sc-default-lang"
                 value={defaultLanguage}
                 onChange={(e) => setDefaultLanguage(e.target.value)}
               >
                 <option value="" disabled>
-                  Pick
+                  {t('identity.pickOption')}
                 </option>
                 {languages.map((lang) => (
                   <option key={lang} value={lang}>
@@ -262,26 +258,23 @@ export function ChannelIdentityForm({
 
           <div className="grid gap-2 md:grid-cols-[2fr_1fr]">
             <div className="grid gap-2">
-              <Label>Currencies</Label>
+              <Label>{t('identity.currencies.label')}</Label>
               <DictionaryCheckboxList
                 rows={currencyRows}
                 selected={currencies}
                 onToggle={toggleCurrency}
               />
-              <p className="text-xs text-muted-foreground">
-                Active Dictionary currencies are available for new selections. Inactive stored
-                values remain visible until removed.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('identity.currencies.help')}</p>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="sc-default-curr">Default currency</Label>
+              <Label htmlFor="sc-default-curr">{t('identity.defaultCurrency.label')}</Label>
               <Select
                 id="sc-default-curr"
                 value={defaultCurrency}
                 onChange={(e) => setDefaultCurrency(e.target.value)}
               >
                 <option value="" disabled>
-                  Pick
+                  {t('identity.pickOption')}
                 </option>
                 {currencies.map((curr) => (
                   <option key={curr} value={curr}>
@@ -300,11 +293,11 @@ export function ChannelIdentityForm({
               disabled={initial?.systemDefault === true}
             />
             <Label htmlFor="sc-active" className="cursor-pointer">
-              Active
+              {t('identity.active')}
             </Label>
             {initial?.systemDefault && (
               <span className="text-xs text-muted-foreground">
-                The system-default channel cannot be deactivated.
+                {t('identity.cannotDeactivateDefault')}
               </span>
             )}
           </div>
@@ -312,11 +305,11 @@ export function ChannelIdentityForm({
           <div className="flex justify-end gap-2">
             {onCancel && (
               <Button type="button" variant="ghost" onClick={onCancel} disabled={saving}>
-                Cancel
+                {t('identity.action.cancel')}
               </Button>
             )}
             <Button type="submit" disabled={cannotSubmit}>
-              {mode === 'create' ? 'Create channel' : 'Save changes'}
+              {mode === 'create' ? t('identity.action.create') : t('identity.action.save')}
             </Button>
           </div>
         </form>
@@ -351,6 +344,7 @@ function DictionaryCheckboxList({
   selected: string[];
   onToggle: (code: string) => void;
 }): ReactNode {
+  const t = useTranslation('sales_channels');
   const activeRows = rows.filter((row) => row.isActive);
   const inactiveSelected = rows.filter((row) => !row.isActive && selected.includes(row.code));
   const visibleRows = [...activeRows, ...inactiveSelected];
@@ -366,12 +360,12 @@ function DictionaryCheckboxList({
           <span className="font-mono text-xs">{row.code}</span>
           <span>{row.label}</span>
           {!row.isActive ? (
-            <span className="text-xs text-muted-foreground">(inactive)</span>
+            <span className="text-xs text-muted-foreground">{t('identity.dictionary.inactive')}</span>
           ) : null}
         </label>
       ))}
       {visibleRows.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No Dictionary entries available.</p>
+        <p className="text-xs text-muted-foreground">{t('identity.dictionary.empty')}</p>
       ) : null}
     </div>
   );

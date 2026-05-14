@@ -48,4 +48,43 @@ describe('MissingKeyLogger', () => {
     new MissingKeyLogger({ logger: sink });
     expect(sink.info).not.toHaveBeenCalled();
   });
+
+  // Feature 021 — accumulator tests.
+  describe('snapshot() accumulator (feature 021)', () => {
+    it('returns an empty snapshot when no fallback has occurred', () => {
+      const logger = new MissingKeyLogger({ logger: { info: vi.fn() } });
+      expect(logger.snapshot()).toEqual([]);
+    });
+
+    it('accumulates one entry per distinct (module, language, key) triple', () => {
+      const logger = new MissingKeyLogger({ logger: { info: vi.fn() } });
+      logger.logFallback({ moduleId: 'settings', languageCode: 'pl', key: 'a', fellBackTo: 'en' });
+      logger.logFallback({ moduleId: 'settings', languageCode: 'pl', key: 'a', fellBackTo: 'en' });
+      logger.logFallback({ moduleId: 'settings', languageCode: 'pl', key: 'b', fellBackTo: 'placeholder' });
+      logger.logFallback({ moduleId: 'catalog', languageCode: 'pl', key: 'a', fellBackTo: 'en' });
+      const snap = logger.snapshot();
+      expect(snap).toHaveLength(3);
+      const keys = snap.map((e) => `${e.moduleId}:${e.languageCode}:${e.key}`).sort();
+      expect(keys).toEqual(['catalog:pl:a', 'settings:pl:a', 'settings:pl:b']);
+    });
+
+    it('pruneModule drops entries for the named module only', () => {
+      const logger = new MissingKeyLogger({ logger: { info: vi.fn() } });
+      logger.logFallback({ moduleId: 'settings', languageCode: 'pl', key: 'a', fellBackTo: 'en' });
+      logger.logFallback({ moduleId: 'catalog', languageCode: 'pl', key: 'a', fellBackTo: 'en' });
+      logger.pruneModule('settings');
+      const snap = logger.snapshot();
+      expect(snap).toHaveLength(1);
+      expect(snap[0]!.moduleId).toBe('catalog');
+    });
+
+    it('snapshot returns defensive copies — mutating the result does not affect later snapshots', () => {
+      const logger = new MissingKeyLogger({ logger: { info: vi.fn() } });
+      logger.logFallback({ moduleId: 'settings', languageCode: 'pl', key: 'a', fellBackTo: 'en' });
+      const first = logger.snapshot();
+      first.pop();
+      const second = logger.snapshot();
+      expect(second).toHaveLength(1);
+    });
+  });
 });

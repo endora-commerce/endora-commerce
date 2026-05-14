@@ -53,7 +53,11 @@ import { resolveIcon } from '@/lib/admin-actions/icon-map';
 
 interface NavItem {
   to: string;
-  label: string;
+  /**
+   * Translation key under the `core` scope. Resolved at render time so
+   * the label flips when the admin changes preferred language.
+   */
+  labelKey: string;
   icon: LucideIcon;
   /**
    * Optional permission code that gates the entry's visibility. When
@@ -68,8 +72,11 @@ interface NavItem {
 interface NavSection {
   /** Stable key — used as the localStorage slot for collapse state. */
   key: string;
-  /** Empty string = no group label (rendered flat). */
-  label: string;
+  /**
+   * Translation key under the `core` scope for the section heading.
+   * Empty string = no group label (rendered flat).
+   */
+  labelKey: string;
   items: NavItem[];
 }
 
@@ -78,101 +85,101 @@ interface NavSection {
 const NAV: NavSection[] = [
   {
     key: 'main',
-    label: '',
+    labelKey: '',
     items: [
-      { to: '/', label: 'Home', icon: LayoutDashboard },
+      { to: '/', labelKey: 'appShell.nav.home', icon: LayoutDashboard },
     ],
   },
   {
     key: 'sales',
-    label: 'Sales',
+    labelKey: 'appShell.section.sales',
     items: [
-      { to: '/orders', label: 'Orders', icon: ClipboardCheck },
-      { to: '/quote-requests', label: 'Quote requests', icon: FileText },
-      { to: '/invoices', label: 'Invoices', icon: Receipt },
+      { to: '/orders', labelKey: 'appShell.nav.orders', icon: ClipboardCheck },
+      { to: '/quote-requests', labelKey: 'appShell.nav.quoteRequests', icon: FileText },
+      { to: '/invoices', labelKey: 'appShell.nav.invoices', icon: Receipt },
     ],
   },
   {
     key: 'catalog',
-    label: 'Catalog',
+    labelKey: 'appShell.section.catalog',
     items: [
-      { to: '/catalog/products', label: 'Products', icon: Package },
-      { to: '/catalog/categories', label: 'Categories', icon: Boxes },
-      { to: '/catalog/attributes', label: 'Attributes', icon: Tag },
-      { to: '/catalog/attribute-sets', label: 'Attribute Sets', icon: Tag },
-      { to: '/catalog/attachment-types', label: 'Attachment Types', icon: FileText },
-      { to: '/assets-library', label: 'Assets Library', icon: ImageIcon },
+      { to: '/catalog/products', labelKey: 'appShell.nav.products', icon: Package },
+      { to: '/catalog/categories', labelKey: 'appShell.nav.categories', icon: Boxes },
+      { to: '/catalog/attributes', labelKey: 'appShell.nav.attributes', icon: Tag },
+      { to: '/catalog/attribute-sets', labelKey: 'appShell.nav.attributeSets', icon: Tag },
+      { to: '/catalog/attachment-types', labelKey: 'appShell.nav.attachmentTypes', icon: FileText },
+      { to: '/assets-library', labelKey: 'appShell.nav.assetsLibrary', icon: ImageIcon },
     ],
   },
   {
     key: 'inventory',
-    label: 'Inventory',
+    labelKey: 'appShell.section.inventory',
     items: [
-      { to: '/inventory', label: 'Stock overview', icon: Box },
-      { to: '/warehouses', label: 'Warehouses', icon: WarehouseIcon },
-      { to: '/inventory/low-stock', label: 'Low stock', icon: TrendingDown },
-      { to: '/inventory/notifications', label: 'Notify-when-available', icon: BellOutline },
-      { to: '/inventory/import', label: 'Import stock', icon: PackageOpen },
+      { to: '/inventory', labelKey: 'appShell.nav.stockOverview', icon: Box },
+      { to: '/warehouses', labelKey: 'appShell.nav.warehouses', icon: WarehouseIcon },
+      { to: '/inventory/low-stock', labelKey: 'appShell.nav.lowStock', icon: TrendingDown },
+      { to: '/inventory/notifications', labelKey: 'appShell.nav.notifyWhenAvailable', icon: BellOutline },
+      { to: '/inventory/import', labelKey: 'appShell.nav.importStock', icon: PackageOpen },
     ],
   },
   {
     key: 'pricing',
-    label: 'Pricing',
+    labelKey: 'appShell.section.pricing',
     items: [
-      { to: '/price-lists', label: 'Price lists', icon: CircleDollarSign },
-      { to: '/promotions', label: 'Promotions', icon: PercentDiamond },
-      { to: '/taxes', label: 'Taxes', icon: Receipt },
-      { to: '/delivery-methods', label: 'Delivery methods', icon: Truck },
-      { to: '/payment-methods', label: 'Payment methods', icon: CreditCard },
+      { to: '/price-lists', labelKey: 'appShell.nav.priceLists', icon: CircleDollarSign },
+      { to: '/promotions', labelKey: 'appShell.nav.promotions', icon: PercentDiamond },
+      { to: '/taxes', labelKey: 'appShell.nav.taxes', icon: Receipt },
+      { to: '/delivery-methods', labelKey: 'appShell.nav.deliveryMethods', icon: Truck },
+      { to: '/payment-methods', labelKey: 'appShell.nav.paymentMethods', icon: CreditCard },
     ],
   },
   {
     key: 'customers',
-    label: 'Customers',
+    labelKey: 'appShell.section.customers',
     items: [
-      { to: '/organizations', label: 'Organizations', icon: Building2 },
-      { to: '/credit-limits', label: 'Credit limits', icon: CreditCard },
-      { to: '/comparisons', label: 'Comparisons', icon: Scale },
+      { to: '/organizations', labelKey: 'appShell.nav.organizations', icon: Building2 },
+      { to: '/credit-limits', labelKey: 'appShell.nav.creditLimits', icon: CreditCard },
+      { to: '/comparisons', labelKey: 'appShell.nav.comparisons', icon: Scale },
     ],
   },
   {
     key: 'channels',
-    label: 'Channels',
+    labelKey: 'appShell.section.channels',
     items: [
-      { to: '/sales-channels', label: 'Sales channels', icon: Store },
-      { to: '/dictionary', label: 'Dictionary', icon: Languages, requiredPermission: 'dictionary.write' },
-      { to: '/admin/dictionaries/audit', label: 'Dictionary audit', icon: ListChecks, requiredPermission: 'dictionary.write' },
-      { to: '/seo', label: 'SEO', icon: Search },
+      { to: '/sales-channels', labelKey: 'appShell.nav.salesChannels', icon: Store },
+      { to: '/dictionary', labelKey: 'appShell.nav.dictionary', icon: Languages, requiredPermission: 'dictionary.write' },
+      { to: '/admin/dictionaries/audit', labelKey: 'appShell.nav.dictionaryAudit', icon: ListChecks, requiredPermission: 'dictionary.write' },
+      { to: '/seo', labelKey: 'appShell.nav.seo', icon: Search },
     ],
   },
   {
     key: 'content',
-    label: 'Content',
+    labelKey: 'appShell.section.content',
     items: [
-      { to: '/cms/pages', label: 'CMS Pages', icon: Newspaper, requiredPermission: 'cms.read' },
-      { to: '/cms/blocks', label: 'CMS Blocks', icon: Newspaper, requiredPermission: 'cms.read' },
-      { to: '/cms/templates', label: 'CMS Templates', icon: Newspaper, requiredPermission: 'cms.read' },
-      { to: '/cms/hooks', label: 'CMS Hooks', icon: Webhook, requiredPermission: 'cms.read' },
-      { to: '/megamenu', label: 'Megamenu', icon: Newspaper },
-      { to: '/blog/posts', label: 'Blog Posts', icon: Newspaper, requiredPermission: 'blog.read' },
-      { to: '/blog/categories', label: 'Blog Categories', icon: Newspaper, requiredPermission: 'blog.read' },
-      { to: '/blog/tags', label: 'Blog Tags', icon: Newspaper, requiredPermission: 'blog.read' },
+      { to: '/cms/pages', labelKey: 'appShell.nav.cmsPages', icon: Newspaper, requiredPermission: 'cms.read' },
+      { to: '/cms/blocks', labelKey: 'appShell.nav.cmsBlocks', icon: Newspaper, requiredPermission: 'cms.read' },
+      { to: '/cms/templates', labelKey: 'appShell.nav.cmsTemplates', icon: Newspaper, requiredPermission: 'cms.read' },
+      { to: '/cms/hooks', labelKey: 'appShell.nav.cmsHooks', icon: Webhook, requiredPermission: 'cms.read' },
+      { to: '/megamenu', labelKey: 'appShell.nav.megamenu', icon: Newspaper },
+      { to: '/blog/posts', labelKey: 'appShell.nav.blogPosts', icon: Newspaper, requiredPermission: 'blog.read' },
+      { to: '/blog/categories', labelKey: 'appShell.nav.blogCategories', icon: Newspaper, requiredPermission: 'blog.read' },
+      { to: '/blog/tags', labelKey: 'appShell.nav.blogTags', icon: Newspaper, requiredPermission: 'blog.read' },
     ],
   },
   {
     key: 'system',
-    label: 'System',
+    labelKey: 'appShell.section.system',
     items: [
-      { to: '/admin-users', label: 'Users', icon: Users },
-      { to: '/admin-roles', label: 'Roles', icon: ShieldCheck },
-      { to: '/audit-log', label: 'Audit log', icon: ListChecks },
-      { to: '/api-keys', label: 'API keys', icon: KeyRound },
-      { to: '/webhooks', label: 'Webhooks', icon: Webhook },
-      { to: '/integrations', label: 'Integrations', icon: Code2 },
-      { to: '/analytics', label: 'Analytics', icon: LineChart },
-      { to: '/import-export', label: 'Import / Export', icon: Upload },
-      { to: '/settings', label: 'Settings', icon: Settings },
-      { to: '/settings/groups', label: 'Setting groups', icon: Settings },
+      { to: '/admin-users', labelKey: 'appShell.nav.users', icon: Users },
+      { to: '/admin-roles', labelKey: 'appShell.nav.roles', icon: ShieldCheck },
+      { to: '/audit-log', labelKey: 'appShell.nav.auditLog', icon: ListChecks },
+      { to: '/api-keys', labelKey: 'appShell.nav.apiKeys', icon: KeyRound },
+      { to: '/webhooks', labelKey: 'appShell.nav.webhooks', icon: Webhook },
+      { to: '/integrations', labelKey: 'appShell.nav.integrations', icon: Code2 },
+      { to: '/analytics', labelKey: 'appShell.nav.analytics', icon: LineChart },
+      { to: '/import-export', labelKey: 'appShell.nav.importExport', icon: Upload },
+      { to: '/settings', labelKey: 'appShell.nav.settings', icon: Settings },
+      { to: '/settings/groups', labelKey: 'appShell.nav.settingGroups', icon: Settings },
     ],
   },
 ];
@@ -235,237 +242,249 @@ function persistCollapsed(value: Set<string>): void {
  * intermediate crumb routes the operator back to a useful list page
  * (e.g. "Catalog" → /catalog/products).
  */
-type Crumb = { label: string; href: string | null };
+/**
+ * Either a translation key (preferred — resolved via `useTranslation('core')`)
+ * or a verbatim literal (used by the URL-segment fallback when the path
+ * doesn't match any CRUMB_DICT entry). The renderer picks whichever is set.
+ *
+ * The static CRUMB_DICT entries always set `labelKey` and reuse the
+ * `appShell.nav.*` / `appShell.section.*` keys plus a small
+ * `appShell.crumb.*` namespace for the editor / detail / new / edit
+ * leaves that aren't represented in the side navigation.
+ */
+type Crumb =
+  | { labelKey: string; literal?: undefined; href: string | null }
+  | { labelKey?: undefined; literal: string; href: string | null };
 
 const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] }> = [
-  { test: /^\/$/, build: () => [{ label: 'Home', href: null }] },
+  { test: /^\/$/, build: () => [{ labelKey: 'appShell.nav.home', href: null }] },
   { test: /^\/catalog\/products\/?$/, build: () => [
-    { label: 'Catalog', href: '/catalog/products' },
-    { label: 'Products', href: null },
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.products', href: null },
   ] },
   { test: /^\/catalog\/products\/[^/]+\/?$/, build: () => [
-    { label: 'Catalog', href: '/catalog/products' },
-    { label: 'Products', href: '/catalog/products' },
-    { label: 'Editor', href: null },
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.products', href: '/catalog/products' },
+    { labelKey: 'appShell.crumb.editor', href: null },
   ] },
   { test: /^\/catalog\/categories\/?$/, build: () => [
-    { label: 'Catalog', href: '/catalog/products' },
-    { label: 'Categories', href: null },
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.categories', href: null },
   ] },
   { test: /^\/catalog\/attributes\/?$/, build: () => [
-    { label: 'Catalog', href: '/catalog/products' },
-    { label: 'Attributes', href: null },
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.attributes', href: null },
   ] },
   { test: /^\/catalog\/attribute-sets\/?$/, build: () => [
-    { label: 'Catalog', href: '/catalog/products' },
-    { label: 'Attribute Sets', href: null },
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.attributeSets', href: null },
   ] },
   { test: /^\/catalog\/attachment-types\/?$/, build: () => [
-    { label: 'Catalog', href: '/catalog/products' },
-    { label: 'Attachment Types', href: null },
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.attachmentTypes', href: null },
   ] },
   { test: /^\/assets-library\/?$/, build: () => [
-    { label: 'Catalog', href: '/catalog/products' },
-    { label: 'Assets Library', href: null },
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.assetsLibrary', href: null },
   ] },
   { test: /^\/inventory\/?$/, build: () => [
-    { label: 'Inventory', href: null },
+    { labelKey: 'appShell.section.inventory', href: null },
   ] },
   { test: /^\/inventory\/low-stock\/?$/, build: () => [
-    { label: 'Inventory', href: '/inventory' },
-    { label: 'Low stock', href: null },
+    { labelKey: 'appShell.section.inventory', href: '/inventory' },
+    { labelKey: 'appShell.nav.lowStock', href: null },
   ] },
   { test: /^\/inventory\/notifications\/?$/, build: () => [
-    { label: 'Inventory', href: '/inventory' },
-    { label: 'Notify-when-available', href: null },
+    { labelKey: 'appShell.section.inventory', href: '/inventory' },
+    { labelKey: 'appShell.nav.notifyWhenAvailable', href: null },
   ] },
   { test: /^\/inventory\/import\/?$/, build: () => [
-    { label: 'Inventory', href: '/inventory' },
-    { label: 'Import stock', href: null },
+    { labelKey: 'appShell.section.inventory', href: '/inventory' },
+    { labelKey: 'appShell.nav.importStock', href: null },
   ] },
   { test: /^\/warehouses\/?$/, build: () => [
-    { label: 'Inventory', href: '/inventory' },
-    { label: 'Warehouses', href: null },
+    { labelKey: 'appShell.section.inventory', href: '/inventory' },
+    { labelKey: 'appShell.nav.warehouses', href: null },
   ] },
   { test: /^\/warehouses\/new\/?$/, build: () => [
-    { label: 'Inventory', href: '/inventory' },
-    { label: 'Warehouses', href: '/warehouses' },
-    { label: 'New', href: null },
+    { labelKey: 'appShell.section.inventory', href: '/inventory' },
+    { labelKey: 'appShell.nav.warehouses', href: '/warehouses' },
+    { labelKey: 'appShell.crumb.new', href: null },
   ] },
   { test: /^\/warehouses\/[^/]+\/?$/, build: () => [
-    { label: 'Inventory', href: '/inventory' },
-    { label: 'Warehouses', href: '/warehouses' },
-    { label: 'Edit', href: null },
+    { labelKey: 'appShell.section.inventory', href: '/inventory' },
+    { labelKey: 'appShell.nav.warehouses', href: '/warehouses' },
+    { labelKey: 'appShell.crumb.edit', href: null },
   ] },
   { test: /^\/price-lists\/?$/, build: () => [
-    { label: 'Pricing', href: '/price-lists' },
-    { label: 'Price lists', href: null },
+    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
+    { labelKey: 'appShell.nav.priceLists', href: null },
   ] },
   { test: /^\/price-lists\/[^/]+\/?$/, build: () => [
-    { label: 'Pricing', href: '/price-lists' },
-    { label: 'Price lists', href: '/price-lists' },
-    { label: 'Detail', href: null },
+    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
+    { labelKey: 'appShell.nav.priceLists', href: '/price-lists' },
+    { labelKey: 'appShell.crumb.detail', href: null },
   ] },
   { test: /^\/promotions\/?$/, build: () => [
-    { label: 'Pricing', href: '/price-lists' },
-    { label: 'Promotions', href: null },
+    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
+    { labelKey: 'appShell.nav.promotions', href: null },
   ] },
   { test: /^\/taxes\/?$/, build: () => [
-    { label: 'Pricing', href: '/price-lists' },
-    { label: 'Taxes', href: null },
+    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
+    { labelKey: 'appShell.nav.taxes', href: null },
   ] },
   { test: /^\/delivery-methods\/?$/, build: () => [
-    { label: 'Pricing', href: '/price-lists' },
-    { label: 'Delivery methods', href: null },
+    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
+    { labelKey: 'appShell.nav.deliveryMethods', href: null },
   ] },
   { test: /^\/payment-methods\/?$/, build: () => [
-    { label: 'Pricing', href: '/price-lists' },
-    { label: 'Payment methods', href: null },
+    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
+    { labelKey: 'appShell.nav.paymentMethods', href: null },
   ] },
   { test: /^\/organizations\/?$/, build: () => [
-    { label: 'Customers', href: '/organizations' },
-    { label: 'Organizations', href: null },
+    { labelKey: 'appShell.section.customers', href: '/organizations' },
+    { labelKey: 'appShell.nav.organizations', href: null },
   ] },
   { test: /^\/organizations\/[^/]+\/?$/, build: () => [
-    { label: 'Customers', href: '/organizations' },
-    { label: 'Organizations', href: '/organizations' },
-    { label: 'Detail', href: null },
+    { labelKey: 'appShell.section.customers', href: '/organizations' },
+    { labelKey: 'appShell.nav.organizations', href: '/organizations' },
+    { labelKey: 'appShell.crumb.detail', href: null },
   ] },
-  { test: /^\/orders\/?$/, build: () => [{ label: 'Orders', href: null }] },
+  { test: /^\/orders\/?$/, build: () => [{ labelKey: 'appShell.nav.orders', href: null }] },
   { test: /^\/orders\/[^/]+\/?$/, build: () => [
-    { label: 'Orders', href: '/orders' },
-    { label: 'Detail', href: null },
+    { labelKey: 'appShell.nav.orders', href: '/orders' },
+    { labelKey: 'appShell.crumb.detail', href: null },
   ] },
   { test: /^\/invoices\/?$/, build: () => [
-    { label: 'Customers', href: '/organizations' },
-    { label: 'Invoices', href: null },
+    { labelKey: 'appShell.section.customers', href: '/organizations' },
+    { labelKey: 'appShell.nav.invoices', href: null },
   ] },
   { test: /^\/credit-limits\/?$/, build: () => [
-    { label: 'Customers', href: '/organizations' },
-    { label: 'Credit limits', href: null },
+    { labelKey: 'appShell.section.customers', href: '/organizations' },
+    { labelKey: 'appShell.nav.creditLimits', href: null },
   ] },
   { test: /^\/quote-requests\/?$/, build: () => [
-    { label: 'Customers', href: '/organizations' },
-    { label: 'Quote requests', href: null },
+    { labelKey: 'appShell.section.customers', href: '/organizations' },
+    { labelKey: 'appShell.nav.quoteRequests', href: null },
   ] },
   { test: /^\/quote-requests\/[^/]+\/?$/, build: () => [
-    { label: 'Customers', href: '/organizations' },
-    { label: 'Quote requests', href: '/quote-requests' },
-    { label: 'Detail', href: null },
+    { labelKey: 'appShell.section.customers', href: '/organizations' },
+    { labelKey: 'appShell.nav.quoteRequests', href: '/quote-requests' },
+    { labelKey: 'appShell.crumb.detail', href: null },
   ] },
   { test: /^\/comparisons\/?$/, build: () => [
-    { label: 'Customers', href: '/organizations' },
-    { label: 'Comparisons', href: null },
+    { labelKey: 'appShell.section.customers', href: '/organizations' },
+    { labelKey: 'appShell.nav.comparisons', href: null },
   ] },
   { test: /^\/comparisons\/[^/]+\/?$/, build: () => [
-    { label: 'Customers', href: '/organizations' },
-    { label: 'Comparisons', href: '/comparisons' },
-    { label: 'Detail', href: null },
+    { labelKey: 'appShell.section.customers', href: '/organizations' },
+    { labelKey: 'appShell.nav.comparisons', href: '/comparisons' },
+    { labelKey: 'appShell.crumb.detail', href: null },
   ] },
   { test: /^\/sales-channels\/?$/, build: () => [
-    { label: 'Channels', href: '/sales-channels' },
-    { label: 'Sales channels', href: null },
+    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
+    { labelKey: 'appShell.nav.salesChannels', href: null },
   ] },
   { test: /^\/sales-channels\/[^/]+\/?$/, build: () => [
-    { label: 'Channels', href: '/sales-channels' },
-    { label: 'Sales channels', href: '/sales-channels' },
-    { label: 'Detail', href: null },
+    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
+    { labelKey: 'appShell.nav.salesChannels', href: '/sales-channels' },
+    { labelKey: 'appShell.crumb.detail', href: null },
   ] },
   { test: /^\/cms(?:\/pages)?\/?$/, build: () => [
-    { label: 'Channels', href: '/sales-channels' },
-    { label: 'CMS Pages', href: null },
+    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
+    { labelKey: 'appShell.nav.cmsPages', href: null },
   ] },
   { test: /^\/cms\/pages\/(?:new|[^/]+)\/?$/, build: () => [
-    { label: 'Channels', href: '/sales-channels' },
-    { label: 'CMS Pages', href: '/cms/pages' },
-    { label: 'Editor', href: null },
+    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
+    { labelKey: 'appShell.nav.cmsPages', href: '/cms/pages' },
+    { labelKey: 'appShell.crumb.editor', href: null },
   ] },
   { test: /^\/cms\/blocks\/?$/, build: () => [
-    { label: 'Channels', href: '/sales-channels' },
-    { label: 'CMS Blocks', href: null },
+    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
+    { labelKey: 'appShell.nav.cmsBlocks', href: null },
   ] },
   { test: /^\/cms\/blocks\/(?:new|[^/]+)\/?$/, build: () => [
-    { label: 'Channels', href: '/sales-channels' },
-    { label: 'CMS Blocks', href: '/cms/blocks' },
-    { label: 'Editor', href: null },
+    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
+    { labelKey: 'appShell.nav.cmsBlocks', href: '/cms/blocks' },
+    { labelKey: 'appShell.crumb.editor', href: null },
   ] },
   { test: /^\/cms\/templates\/?$/, build: () => [
-    { label: 'Channels', href: '/sales-channels' },
-    { label: 'CMS Templates', href: null },
+    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
+    { labelKey: 'appShell.nav.cmsTemplates', href: null },
   ] },
   { test: /^\/cms\/templates\/(?:new|[^/]+)\/?$/, build: () => [
-    { label: 'Channels', href: '/sales-channels' },
-    { label: 'CMS Templates', href: '/cms/templates' },
-    { label: 'Editor', href: null },
+    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
+    { labelKey: 'appShell.nav.cmsTemplates', href: '/cms/templates' },
+    { labelKey: 'appShell.crumb.editor', href: null },
   ] },
   { test: /^\/cms\/hooks\/?$/, build: () => [
-    { label: 'Channels', href: '/sales-channels' },
-    { label: 'CMS Hooks', href: null },
+    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
+    { labelKey: 'appShell.nav.cmsHooks', href: null },
   ] },
   { test: /^\/megamenu\/?$/, build: () => [
-    { label: 'Channels', href: '/sales-channels' },
-    { label: 'Megamenu', href: null },
+    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
+    { labelKey: 'appShell.nav.megamenu', href: null },
   ] },
   { test: /^\/megamenu\/[^/]+\/?$/, build: () => [
-    { label: 'Channels', href: '/sales-channels' },
-    { label: 'Megamenu', href: '/megamenu' },
-    { label: 'Editor', href: null },
+    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
+    { labelKey: 'appShell.nav.megamenu', href: '/megamenu' },
+    { labelKey: 'appShell.crumb.editor', href: null },
   ] },
   { test: /^\/dictionary\/?$/, build: () => [
-    { label: 'Channels', href: '/sales-channels' },
-    { label: 'Dictionary', href: null },
+    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
+    { labelKey: 'appShell.nav.dictionary', href: null },
   ] },
   { test: /^\/(?:admin\/)?dictionaries\/audit\/?$/, build: () => [
-    { label: 'Channels', href: '/sales-channels' },
-    { label: 'Dictionary', href: '/dictionary' },
-    { label: 'Audit', href: null },
+    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
+    { labelKey: 'appShell.nav.dictionary', href: '/dictionary' },
+    { labelKey: 'appShell.crumb.audit', href: null },
   ] },
   { test: /^\/seo\/?$/, build: () => [
-    { label: 'Channels', href: '/sales-channels' },
-    { label: 'SEO', href: null },
+    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
+    { labelKey: 'appShell.nav.seo', href: null },
   ] },
   { test: /^\/admin-users\/?$/, build: () => [
-    { label: 'System', href: '/admin-users' },
-    { label: 'Users', href: null },
+    { labelKey: 'appShell.section.system', href: '/admin-users' },
+    { labelKey: 'appShell.nav.users', href: null },
   ] },
   { test: /^\/admin-roles\/?$/, build: () => [
-    { label: 'System', href: '/admin-users' },
-    { label: 'Roles', href: null },
+    { labelKey: 'appShell.section.system', href: '/admin-users' },
+    { labelKey: 'appShell.nav.roles', href: null },
   ] },
   { test: /^\/audit-log\/?$/, build: () => [
-    { label: 'System', href: '/admin-users' },
-    { label: 'Audit log', href: null },
+    { labelKey: 'appShell.section.system', href: '/admin-users' },
+    { labelKey: 'appShell.nav.auditLog', href: null },
   ] },
   { test: /^\/api-keys\/?$/, build: () => [
-    { label: 'System', href: '/admin-users' },
-    { label: 'API keys', href: null },
+    { labelKey: 'appShell.section.system', href: '/admin-users' },
+    { labelKey: 'appShell.nav.apiKeys', href: null },
   ] },
   { test: /^\/webhooks\/?$/, build: () => [
-    { label: 'System', href: '/admin-users' },
-    { label: 'Webhooks', href: null },
+    { labelKey: 'appShell.section.system', href: '/admin-users' },
+    { labelKey: 'appShell.nav.webhooks', href: null },
   ] },
   { test: /^\/integrations\/?$/, build: () => [
-    { label: 'System', href: '/admin-users' },
-    { label: 'Integrations', href: null },
+    { labelKey: 'appShell.section.system', href: '/admin-users' },
+    { labelKey: 'appShell.nav.integrations', href: null },
   ] },
   { test: /^\/analytics\/?$/, build: () => [
-    { label: 'System', href: '/admin-users' },
-    { label: 'Analytics', href: null },
+    { labelKey: 'appShell.section.system', href: '/admin-users' },
+    { labelKey: 'appShell.nav.analytics', href: null },
   ] },
   { test: /^\/import-export\/?$/, build: () => [
-    { label: 'System', href: '/admin-users' },
-    { label: 'Import / Export', href: null },
+    { labelKey: 'appShell.section.system', href: '/admin-users' },
+    { labelKey: 'appShell.nav.importExport', href: null },
   ] },
   { test: /^\/settings\/?$/, build: () => [
-    { label: 'System', href: '/admin-users' },
-    { label: 'Settings', href: null },
+    { labelKey: 'appShell.section.system', href: '/admin-users' },
+    { labelKey: 'appShell.nav.settings', href: null },
   ] },
   { test: /^\/settings\/groups\/?$/, build: () => [
-    { label: 'System', href: '/admin-users' },
-    { label: 'Setting groups', href: null },
+    { labelKey: 'appShell.section.system', href: '/admin-users' },
+    { labelKey: 'appShell.nav.settingGroups', href: null },
   ] },
   { test: /^\/profile\/?$/, build: () => [
-    { label: 'My profile', href: null },
+    { labelKey: 'appShell.crumb.myProfile', href: null },
   ] },
 ];
 
@@ -475,36 +494,47 @@ function buildCrumbs(pathname: string): Crumb[] {
     if (match) return entry.build(match);
   }
   const segments = pathname.split('/').filter(Boolean).map((s) => s.replace('-', ' '));
-  return segments.map((label, idx) => ({
-    label,
+  return segments.map((literal, idx) => ({
+    literal,
     href: idx === segments.length - 1 ? null : '/' + segments.slice(0, idx + 1).join('/'),
   }));
 }
 
 interface PaletteItem {
   group: 'Navigate' | 'Actions';
+  /**
+   * For static Navigate items: a translation key under the `core` scope.
+   * For registry-driven Actions items (feature 020): an already-resolved
+   * string the registry produced via the module's labelKey.
+   */
   label: string;
+  /** Translation key (Navigate) or resolved string (Actions). */
   sub: string;
+  /**
+   * `'key'` when `label`/`sub` are translation keys (Navigate group);
+   * `'literal'` when they are already-resolved strings (Actions group).
+   */
+  labelMode: 'key' | 'literal';
   icon: LucideIcon;
   to: string;
   keywords: string;
 }
 
 const PALETTE_ITEMS: PaletteItem[] = [
-  { group: 'Navigate', label: 'Home', sub: 'Dashboard', icon: HomeIcon, to: '/', keywords: 'home dashboard' },
-  { group: 'Navigate', label: 'Products', sub: 'Catalog rows', icon: Package, to: '/catalog/products', keywords: 'products catalog items' },
-  { group: 'Navigate', label: 'Inventory', sub: 'Stock levels per warehouse', icon: Factory, to: '/inventory', keywords: 'inventory stock warehouse' },
-  { group: 'Navigate', label: 'Price lists', sub: 'Pricing rules + assignments', icon: CircleDollarSign, to: '/price-lists', keywords: 'pricing prices price list' },
-  { group: 'Navigate', label: 'Organizations', sub: 'Customer accounts', icon: Building2, to: '/organizations', keywords: 'org orgs customer organization' },
-  { group: 'Navigate', label: 'Orders', sub: 'Open and recent orders', icon: ClipboardCheck, to: '/orders', keywords: 'orders sales' },
-  { group: 'Navigate', label: 'Quote requests', sub: 'Customer RFQs', icon: FileText, to: '/quote-requests', keywords: 'rfq quote' },
-  { group: 'Navigate', label: 'Comparisons', sub: 'Compare-feature audit', icon: Scale, to: '/comparisons', keywords: 'compare comparisons' },
-  { group: 'Navigate', label: 'Categories', sub: 'Tree of catalog categories', icon: Boxes, to: '/catalog/categories', keywords: 'category categories tree' },
-  { group: 'Navigate', label: 'Attributes', sub: 'Attribute definitions', icon: Tag, to: '/catalog/attributes', keywords: 'attribute attributes' },
-  { group: 'Navigate', label: 'Sales channels', sub: 'Storefront channels', icon: Store, to: '/sales-channels', keywords: 'sales channel channels' },
-  { group: 'Navigate', label: 'Dictionary', sub: 'Countries currencies languages', icon: Languages, to: '/dictionary', keywords: 'dictionary countries currencies languages i18n' },
-  { group: 'Navigate', label: 'Dictionary audit', sub: 'Unresolved registry references', icon: ListChecks, to: '/admin/dictionaries/audit', keywords: 'dictionary audit orphan references' },
-  { group: 'Navigate', label: 'Settings', sub: 'Platform configuration', icon: Settings, to: '/settings', keywords: 'settings configuration config' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.home', sub: 'appShell.palette.sub.dashboard', icon: HomeIcon, to: '/', keywords: 'home dashboard strona główna pulpit' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.products', sub: 'appShell.palette.sub.catalogRows', icon: Package, to: '/catalog/products', keywords: 'products catalog items produkty katalog' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.stockOverview', sub: 'appShell.palette.sub.stockLevels', icon: Factory, to: '/inventory', keywords: 'inventory stock warehouse magazyn stany' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.priceLists', sub: 'appShell.palette.sub.pricingRules', icon: CircleDollarSign, to: '/price-lists', keywords: 'pricing prices price list cennik' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.organizations', sub: 'appShell.palette.sub.customerAccounts', icon: Building2, to: '/organizations', keywords: 'org orgs customer organization organizacja klient' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.orders', sub: 'appShell.palette.sub.openOrders', icon: ClipboardCheck, to: '/orders', keywords: 'orders sales zamówienia sprzedaż' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.quoteRequests', sub: 'appShell.palette.sub.customerRfqs', icon: FileText, to: '/quote-requests', keywords: 'rfq quote zapytanie ofertowe' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.comparisons', sub: 'appShell.palette.sub.compareAudit', icon: Scale, to: '/comparisons', keywords: 'compare comparisons porównanie' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.categories', sub: 'appShell.palette.sub.categoryTree', icon: Boxes, to: '/catalog/categories', keywords: 'category categories tree kategorie' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.attributes', sub: 'appShell.palette.sub.attributeDefinitions', icon: Tag, to: '/catalog/attributes', keywords: 'attribute attributes atrybuty' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.salesChannels', sub: 'appShell.palette.sub.storefrontChannels', icon: Store, to: '/sales-channels', keywords: 'sales channel channels kanał sprzedaży' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionary', sub: 'appShell.palette.sub.dictionary', icon: Languages, to: '/dictionary', keywords: 'dictionary countries currencies languages i18n słownik kraje waluty języki' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionaryAudit', sub: 'appShell.palette.sub.dictionaryAudit', icon: ListChecks, to: '/admin/dictionaries/audit', keywords: 'dictionary audit orphan references audyt słownika' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.settings', sub: 'appShell.palette.sub.platformConfiguration', icon: Settings, to: '/settings', keywords: 'settings configuration config ustawienia konfiguracja' },
   // Feature 020 — the Actions group is now sourced from the module
   // registry via useAdminActions(); the previously-hardcoded "New
   // product" and "Import products" entries are declared by the
@@ -574,11 +604,11 @@ export function AppShell(): ReactNode {
           end
           className="b2b-sidebar__brand"
           style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}
-          aria-label="Go to dashboard"
-          title={railMode ? 'Endora B2B' : undefined}
+          aria-label={t('appShell.brand.dashboardLink')}
+          title={railMode ? t('appShell.brand.text') : undefined}
         >
           <span className="b2b-sidebar__brand-logo">B2</span>
-          <span className="b2b-sidebar__brand-text">Endora B2B</span>
+          <span className="b2b-sidebar__brand-text">{t('appShell.brand.text')}</span>
         </NavLink>
 
         <div className="b2b-sidebar__search">
@@ -587,8 +617,8 @@ export function AppShell(): ReactNode {
               type="button"
               className="b2b-sidebar__search-rail"
               onClick={(): void => setPaletteOpen(true)}
-              title={t('appShell.search.openPalette') || 'Search (⌘K)'}
-              aria-label="Search (⌘K)"
+              title={t('appShell.search.openPalette')}
+              aria-label={t('appShell.search.openPalette')}
             >
               <Search size={16} />
             </button>
@@ -597,7 +627,7 @@ export function AppShell(): ReactNode {
               <Search size={14} className="b2b-sidebar__search-icon" />
               <input
                 className="b2b-sidebar__search-input"
-                placeholder="Search or jump to…"
+                placeholder={t('appShell.search.placeholder')}
                 readOnly
                 onClick={(): void => setPaletteOpen(true)}
                 onFocus={(): void => setPaletteOpen(true)}
@@ -618,13 +648,11 @@ export function AppShell(): ReactNode {
                 !item.requiredPermission || hasPermission(item.requiredPermission),
             );
             if (visibleItems.length === 0) return null;
-            // Feature 019 — section labels go through useTranslation('core').
-            // The empty-label "main" cluster keeps no label; every other
-            // group resolves `appShell.section.<key>`. The English literal
-            // in NAV is the fallback when a translation is absent.
-            const translatedLabel = section.label
-              ? t(`appShell.section.${section.key}`)
-              : '';
+            // Feature 019 / 021 — section labels go through useTranslation('core').
+            // The empty-labelKey "main" cluster keeps no label; every other
+            // group resolves its declared `labelKey`. Polish strings live
+            // in backend/src/modules/_i18n/i18n/pl.json under the same key.
+            const translatedLabel = section.labelKey ? t(section.labelKey) : '';
             // In rail mode the section reduces to one icon (the first
             // visible item's icon). Hover or click reveals a popover
             // listing every visible item in the section.
@@ -643,10 +671,10 @@ export function AppShell(): ReactNode {
                 key={section.key}
                 className={cn(
                   'b2b-sidebar__group',
-                  !isOpen && section.label && 'b2b-sidebar__group--collapsed',
+                  !isOpen && section.labelKey && 'b2b-sidebar__group--collapsed',
                 )}
               >
-                {section.label ? (
+                {section.labelKey ? (
                   <button
                     type="button"
                     className="b2b-sidebar__group-label"
@@ -682,7 +710,7 @@ export function AppShell(): ReactNode {
                         }
                       >
                         <Icon size={16} />
-                        <span style={{ flex: 1 }}>{item.label}</span>
+                        <span style={{ flex: 1 }}>{t(item.labelKey)}</span>
                       </NavLink>
                     );
                   })}
@@ -761,10 +789,12 @@ export function AppShell(): ReactNode {
                     className="crumb-link"
                     style={{ color: 'inherit', textDecoration: 'none' }}
                   >
-                    {c.label}
+                    {c.labelKey !== undefined ? t(c.labelKey) : c.literal}
                   </NavLink>
                 ) : (
-                  <span className="crumb-cur">{c.label}</span>
+                  <span className="crumb-cur">
+                    {c.labelKey !== undefined ? t(c.labelKey) : c.literal}
+                  </span>
                 )}
               </span>
             ))}
@@ -773,16 +803,27 @@ export function AppShell(): ReactNode {
             <button
               type="button"
               className="b2b-topbar__icon-btn"
-              title="Search (⌘K)"
+              title={t('appShell.search.openPalette')}
+              aria-label={t('appShell.search.openPalette')}
               onClick={(): void => setPaletteOpen(true)}
             >
               <Search size={16} />
             </button>
-            <button type="button" className="b2b-topbar__icon-btn" title="Notifications">
+            <button
+              type="button"
+              className="b2b-topbar__icon-btn"
+              title={t('appShell.topbar.notifications')}
+              aria-label={t('appShell.topbar.notifications')}
+            >
               <Bell size={16} />
               <span className="dot" />
             </button>
-            <button type="button" className="b2b-topbar__icon-btn" title="Help">
+            <button
+              type="button"
+              className="b2b-topbar__icon-btn"
+              title={t('appShell.topbar.help')}
+              aria-label={t('appShell.topbar.help')}
+            >
               <HelpCircle size={16} />
             </button>
             <div style={{ width: 1, height: 22, background: 'var(--border-color)', margin: '0 4px' }} />
@@ -844,6 +885,7 @@ interface RailSectionProps {
 
 function RailSection(props: RailSectionProps): ReactNode {
   const { section, visibleItems, translatedLabel } = props;
+  const t = useTranslation('core');
   const [hover, setHover] = useState(false);
   const [sticky, setSticky] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -891,13 +933,14 @@ function RailSection(props: RailSectionProps): ReactNode {
   const railSource = visibleItems[0] ?? section.items[0];
   if (!railSource) return null;
   const RailIcon = railSource.icon;
-  const headerLabel = translatedLabel || visibleItems[0]?.label || '';
+  const headerLabel = translatedLabel || (visibleItems[0]?.labelKey ? t(visibleItems[0]!.labelKey) : '');
 
   // Single-item section: render a plain link with no popover. The
   // hover area is the link itself; tooltip carries the label.
   if (visibleItems.length === 1) {
     const only = visibleItems[0]!;
     const Icon = only.icon;
+    const onlyLabel = t(only.labelKey);
     return (
       <div className="b2b-sidebar__rail-row">
         <NavLink
@@ -906,8 +949,8 @@ function RailSection(props: RailSectionProps): ReactNode {
           className={({ isActive }): string =>
             cn('b2b-nav-item b2b-nav-item--rail', isActive && 'is-active')
           }
-          title={only.label}
-          aria-label={only.label}
+          title={onlyLabel}
+          aria-label={onlyLabel}
         >
           <Icon size={18} />
         </NavLink>
@@ -967,7 +1010,7 @@ function RailSection(props: RailSectionProps): ReactNode {
                 }}
               >
                 <Icon size={14} />
-                <span>{item.label}</span>
+                <span>{t(item.labelKey)}</span>
               </NavLink>
             );
           })}
@@ -985,6 +1028,7 @@ interface CommandPaletteProps {
 
 function CommandPalette(props: CommandPaletteProps): ReactNode {
   const { open, onClose, onNavigate } = props;
+  const t = useTranslation('core');
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -997,6 +1041,7 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
     () =>
       registryActions.map((a) => ({
         group: 'Actions',
+        labelMode: 'literal',
         label: a.label,
         sub: a.description ?? '',
         icon: resolveIcon(a.icon),
@@ -1009,19 +1054,24 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
     [registryActions],
   );
 
+  // Build a derived view that translates Navigate-group keys at render
+  // time and leaves the registry-supplied Actions strings untouched.
+  const resolveLabel = (it: PaletteItem): string =>
+    it.labelMode === 'key' ? t(it.label) : it.label;
+  const resolveSub = (it: PaletteItem): string =>
+    it.labelMode === 'key' ? t(it.sub) : it.sub;
+
   const items = useMemo(() => {
     if (!query.trim()) return [...PALETTE_ITEMS, ...actionItems];
-    const t = query.toLowerCase();
-    // Navigate group keeps the existing case-insensitive substring
-    // filter. The Actions group has already been filtered by
-    // useAdminActions(query) which applies diacritic-insensitive
-    // matching against label, description, and keywords.
-    const filteredNav = PALETTE_ITEMS.filter(
-      (i) =>
-        i.label.toLowerCase().includes(t) ||
-        i.sub.toLowerCase().includes(t) ||
-        i.keywords.includes(t),
-    );
+    const q = query.toLowerCase();
+    // Navigate group: filter against the *translated* label + sub plus
+    // the raw keywords list so a Polish user can search in Polish and
+    // an English user in English.
+    const filteredNav = PALETTE_ITEMS.filter((i) => {
+      const label = resolveLabel(i).toLowerCase();
+      const sub = resolveSub(i).toLowerCase();
+      return label.includes(q) || sub.includes(q) || i.keywords.includes(q);
+    });
     return [...filteredNav, ...actionItems];
   }, [query, actionItems]);
 
@@ -1066,7 +1116,7 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
           <Search size={18} style={{ color: 'var(--fg-muted)' }} />
           <input
             ref={inputRef}
-            placeholder="Search products, organizations, actions…"
+            placeholder={t('appShell.search.commandPalettePlaceholder')}
             value={query}
             onChange={(e): void => setQuery(e.target.value)}
           />
@@ -1075,16 +1125,22 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
         <div className="b2b-palette__list">
           {items.length === 0 ? (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--fg-muted)', fontSize: 13 }}>
-              No matches.
+              {t('appShell.search.noMatches')}
             </div>
           ) : (
             items.map((it, i) => {
               const showGroup = it.group !== lastGroup;
               lastGroup = it.group;
               const Icon = it.icon;
+              const groupHeader =
+                it.group === 'Navigate'
+                  ? t('appShell.palette.group.navigate')
+                  : t('appShell.palette.group.actions');
+              const label = resolveLabel(it);
+              const sub = resolveSub(it);
               return (
                 <div key={`${it.group}-${it.label}`}>
-                  {showGroup ? <div className="b2b-palette__group">{it.group}</div> : null}
+                  {showGroup ? <div className="b2b-palette__group">{groupHeader}</div> : null}
                   <div
                     className={cn('b2b-palette__item', i === cursor && 'is-cur')}
                     onMouseEnter={(): void => setCursor(i)}
@@ -1092,8 +1148,8 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
                   >
                     <Icon size={16} />
                     <div>
-                      <div>{it.label}</div>
-                      <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{it.sub}</div>
+                      <div>{label}</div>
+                      <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{sub}</div>
                     </div>
                     <span className="meta">{i === cursor ? <span className="b2b-kbd-sm">↵</span> : null}</span>
                   </div>

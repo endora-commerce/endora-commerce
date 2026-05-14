@@ -9,6 +9,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import type { CreateWarehouseRequest, Warehouse } from '@b2b/contracts';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { ApiError } from '@/lib/api-client';
+import { useTranslation } from '@/i18n/useTranslation';
 import { CountryPicker } from '../dictionaries/components/CountryPicker';
 import { warehousesClient } from './api/warehouses-client';
 
@@ -81,6 +82,7 @@ function buildContact(s: FormState) {
  * WarehouseEditor — create + edit a single warehouse (feature 010 / US1).
  */
 export function WarehouseEditor(): ReactNode {
+  const t = useTranslation('core');
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isNew = !id || id === 'new';
@@ -100,11 +102,11 @@ export function WarehouseEditor(): ReactNode {
       setLoaded(w);
       setForm(fromWarehouse(w));
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load warehouse.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('warehouses.editor.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [id, isNew]);
+  }, [id, isNew, t]);
 
   useEffect(() => {
     void refresh();
@@ -139,7 +141,7 @@ export function WarehouseEditor(): ReactNode {
         setLoaded(updated);
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('warehouses.editor.error.save'));
     } finally {
       setSubmitting(false);
     }
@@ -147,20 +149,20 @@ export function WarehouseEditor(): ReactNode {
 
   const handleDelete = async (): Promise<void> => {
     if (!loaded) return;
-    if (!window.confirm(`Delete warehouse "${loaded.name}"? This cannot be undone.`)) return;
+    if (!window.confirm(t('warehouses.editor.deleteConfirm', { name: loaded.name }))) return;
     setSubmitting(true);
     setError(null);
     try {
       await warehousesClient.remove(loaded.id);
       navigate('/warehouses', { replace: true });
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('warehouses.editor.error.delete'));
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) return <div className="b2b-page">Loading…</div>;
+  if (loading) return <div className="b2b-page">{t('warehouses.loading')}</div>;
 
   const isDefault = loaded?.code === 'default';
   const canDelete = !isNew && !isDefault;
@@ -175,17 +177,19 @@ export function WarehouseEditor(): ReactNode {
             onClick={(): void => { void navigate('/warehouses'); }}
             style={{ marginBottom: 8 }}
           >
-            <ArrowLeft size={13} /> All warehouses
+            <ArrowLeft size={13} /> {t('warehouses.editor.backToList')}
           </button>
           <div className="b2b-page-head__title">
-            {isNew ? 'New warehouse' : loaded?.name ?? 'Warehouse'}
+            {isNew ? t('warehouses.editor.newTitle') : loaded?.name ?? t('warehouses.editor.fallbackTitle')}
           </div>
           {!isNew && loaded ? (
             <div className="b2b-page-head__sub">
               <code className="b2b-mono">{loaded.code}</code>
-              {isDefault ? ' · system default' : ''}
+              {isDefault ? t('warehouses.editor.systemDefaultSuffix') : ''}
               {' · '}
-              {loaded.totals?.isDefaultForChannelCount ?? 0} channel default(s)
+              {t('warehouses.editor.channelDefaultsSuffix', {
+                count: loaded.totals?.isDefaultForChannelCount ?? 0,
+              })}
             </div>
           ) : null}
         </div>
@@ -197,7 +201,7 @@ export function WarehouseEditor(): ReactNode {
               onClick={(): void => void handleDelete()}
               disabled={submitting}
             >
-              <Trash2 size={13} /> Delete
+              <Trash2 size={13} /> {t('warehouses.action.delete')}
             </button>
           </div>
         ) : null}
@@ -220,11 +224,11 @@ export function WarehouseEditor(): ReactNode {
 
       <form onSubmit={(e): void => { void handleSubmit(e); }}>
         <div className="b2b-card" style={{ marginBottom: 16 }}>
-          <div className="b2b-card__head"><h2>Identity</h2></div>
+          <div className="b2b-card__head"><h2>{t('warehouses.editor.identityTitle')}</h2></div>
           <div className="b2b-card__body">
             <div className="b2b-grid b2b-grid--cols-2">
               <div>
-                <label className="b2b-label" htmlFor="wh-name">Name</label>
+                <label className="b2b-label" htmlFor="wh-name">{t('warehouses.editor.field.name')}</label>
                 <input
                   id="wh-name"
                   className="b2b-field"
@@ -235,7 +239,7 @@ export function WarehouseEditor(): ReactNode {
                 />
               </div>
               <div>
-                <label className="b2b-label" htmlFor="wh-code">Code</label>
+                <label className="b2b-label" htmlFor="wh-code">{t('warehouses.editor.field.code')}</label>
                 <input
                   id="wh-code"
                   className="b2b-field b2b-field--mono"
@@ -246,11 +250,11 @@ export function WarehouseEditor(): ReactNode {
                   maxLength={64}
                   disabled={!isNew}
                 />
-                <div className="b2b-help">Lowercase, digits, dashes, underscores. Immutable after creation.</div>
+                <div className="b2b-help">{t('warehouses.editor.field.codeHelp')}</div>
               </div>
             </div>
             <div style={{ marginTop: 12 }}>
-              <label className="b2b-label" htmlFor="wh-desc">Description</label>
+              <label className="b2b-label" htmlFor="wh-desc">{t('warehouses.editor.field.description')}</label>
               <textarea
                 id="wh-desc"
                 className="b2b-field"
@@ -267,36 +271,36 @@ export function WarehouseEditor(): ReactNode {
                   checked={form.active}
                   onChange={(e): void => update({ active: e.target.checked })}
                 />
-                Active
+                {t('warehouses.editor.field.active')}
               </label>
             </div>
           </div>
         </div>
 
         <div className="b2b-card" style={{ marginBottom: 16 }}>
-          <div className="b2b-card__head"><h2>Address (optional)</h2></div>
+          <div className="b2b-card__head"><h2>{t('warehouses.editor.addressTitle')}</h2></div>
           <div className="b2b-card__body">
             <div className="b2b-grid b2b-grid--cols-2">
               <div>
-                <label className="b2b-label">Street</label>
+                <label className="b2b-label">{t('warehouses.editor.field.street')}</label>
                 <input className="b2b-field" value={form.street} onChange={(e): void => update({ street: e.target.value })} />
               </div>
               <div>
-                <label className="b2b-label">City</label>
+                <label className="b2b-label">{t('warehouses.editor.field.city')}</label>
                 <input className="b2b-field" value={form.city} onChange={(e): void => update({ city: e.target.value })} />
               </div>
               <div>
-                <label className="b2b-label">Postal code</label>
+                <label className="b2b-label">{t('warehouses.editor.field.postalCode')}</label>
                 <input className="b2b-field" value={form.postalCode} onChange={(e): void => update({ postalCode: e.target.value })} />
               </div>
               <div>
-                <label className="b2b-label">Country code</label>
+                <label className="b2b-label">{t('warehouses.editor.field.countryCode')}</label>
                 <CountryPicker
                   className="b2b-field"
                   value={form.countryCode}
                   onChange={(e): void => update({ countryCode: e.target.value })}
                   includeBlank
-                  blankLabel="— none —"
+                  blankLabel={t('warehouses.editor.field.countryNone')}
                 />
               </div>
             </div>
@@ -304,19 +308,19 @@ export function WarehouseEditor(): ReactNode {
         </div>
 
         <div className="b2b-card" style={{ marginBottom: 16 }}>
-          <div className="b2b-card__head"><h2>Contact (optional)</h2></div>
+          <div className="b2b-card__head"><h2>{t('warehouses.editor.contactTitle')}</h2></div>
           <div className="b2b-card__body">
             <div className="b2b-grid b2b-grid--cols-3">
               <div>
-                <label className="b2b-label">Name</label>
+                <label className="b2b-label">{t('warehouses.editor.field.contactName')}</label>
                 <input className="b2b-field" value={form.contactName} onChange={(e): void => update({ contactName: e.target.value })} />
               </div>
               <div>
-                <label className="b2b-label">Email</label>
+                <label className="b2b-label">{t('warehouses.editor.field.contactEmail')}</label>
                 <input className="b2b-field" type="email" value={form.contactEmail} onChange={(e): void => update({ contactEmail: e.target.value })} />
               </div>
               <div>
-                <label className="b2b-label">Phone</label>
+                <label className="b2b-label">{t('warehouses.editor.field.contactPhone')}</label>
                 <input className="b2b-field" value={form.contactPhone} onChange={(e): void => update({ contactPhone: e.target.value })} />
               </div>
             </div>
@@ -330,10 +334,10 @@ export function WarehouseEditor(): ReactNode {
             onClick={(): void => { void navigate('/warehouses'); }}
             disabled={submitting}
           >
-            Cancel
+            {t('warehouses.action.cancel')}
           </button>
           <button type="submit" className="b2b-btn b2b-btn--primary" disabled={submitting}>
-            {submitting ? 'Saving…' : isNew ? 'Create warehouse' : 'Save changes'}
+            {submitting ? t('warehouses.action.saving') : isNew ? t('warehouses.action.create') : t('warehouses.action.saveChanges')}
           </button>
         </div>
       </form>

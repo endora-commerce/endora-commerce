@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 import { CountryPicker } from '../dictionaries/components/CountryPicker';
 
 interface AdminTax {
@@ -36,6 +37,7 @@ const PRODUCT_TYPES = ['simple', 'variant', 'grouped', 'virtual'] as const;
 const VAT_STATUSES = ['vat_payer', 'vat_exempt', 'reverse_charge'] as const;
 
 export function TaxesPage(): ReactNode {
+  const t = useTranslation('core');
   const [rows, setRows] = useState<AdminTax[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,11 +50,11 @@ export function TaxesPage(): ReactNode {
       const res = await apiClient.get<{ data: AdminTax[] }>('/api/v1/admin/taxes');
       setRows(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('taxes.error.load'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void refresh();
@@ -74,33 +76,33 @@ export function TaxesPage(): ReactNode {
             priority: input.priority,
           },
         );
-        setInfo(`Saved tax ${input.code}.`);
+        setInfo(t('taxes.success.save', { code: input.code }));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('taxes.error.save'));
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
-      if (!confirm('Delete this tax rule?')) return;
+      if (!confirm(t('taxes.deleteConfirm'))) return;
       try {
         await apiClient.delete<void>(`/api/v1/admin/taxes/${id}`);
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('taxes.error.delete'));
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   return (
     <>
       <PageHeader
-        title="Taxes"
-        description="Per-rule rates narrowed by country, product type, and buyer VAT status."
+        title={t('taxes.page.title')}
+        description={t('taxes.page.description')}
       />
 
       {error ? (
@@ -116,7 +118,7 @@ export function TaxesPage(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>New / update tax rule</CardTitle>
+          <CardTitle>{t('taxes.upsert.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <UpsertForm onSubmit={handleUpsert} />
@@ -126,21 +128,21 @@ export function TaxesPage(): ReactNode {
       <Card>
         <CardContent className="pt-6">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('taxes.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No tax rules yet.</p>
+            <p className="text-sm text-muted-foreground">{t('taxes.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Rate</TableHead>
-                  <TableHead>Country</TableHead>
-                  <TableHead>Product type</TableHead>
-                  <TableHead>VAT statuses</TableHead>
-                  <TableHead>Default</TableHead>
-                  <TableHead>Priority</TableHead>
+                  <TableHead>{t('taxes.column.code')}</TableHead>
+                  <TableHead>{t('taxes.column.name')}</TableHead>
+                  <TableHead>{t('taxes.column.rate')}</TableHead>
+                  <TableHead>{t('taxes.column.country')}</TableHead>
+                  <TableHead>{t('taxes.column.productType')}</TableHead>
+                  <TableHead>{t('taxes.column.vatStatuses')}</TableHead>
+                  <TableHead>{t('taxes.column.default')}</TableHead>
+                  <TableHead>{t('taxes.column.priority')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -158,7 +160,7 @@ export function TaxesPage(): ReactNode {
                       {r.appliesToVatStatuses.join(', ') || '—'}
                     </TableCell>
                     <TableCell>
-                      {r.isDefault ? <Badge variant="default">default</Badge> : null}
+                      {r.isDefault ? <Badge variant="default">{t('taxes.badge.default')}</Badge> : null}
                     </TableCell>
                     <TableCell>{r.priority}</TableCell>
                     <TableCell>
@@ -169,7 +171,7 @@ export function TaxesPage(): ReactNode {
                         onClick={(): void => void handleDelete(r.id)}
                       >
                         <Trash2 />
-                        Delete
+                        {t('taxes.action.delete')}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -184,6 +186,7 @@ export function TaxesPage(): ReactNode {
 }
 
 function UpsertForm({ onSubmit }: { onSubmit: (input: AdminTax) => Promise<void> }): ReactNode {
+  const t = useTranslation('core');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [rate, setRate] = useState('0.23');
@@ -213,15 +216,15 @@ function UpsertForm({ onSubmit }: { onSubmit: (input: AdminTax) => Promise<void>
     >
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="tcode">Code</Label>
+          <Label htmlFor="tcode">{t('taxes.field.code')}</Label>
           <Input id="tcode" value={code} onChange={(e): void => setCode(e.target.value)} required />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="tname">Display name</Label>
+          <Label htmlFor="tname">{t('taxes.field.name')}</Label>
           <Input id="tname" value={name} onChange={(e): void => setName(e.target.value)} required />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="trate">Rate (decimal — 0.23 = 23%)</Label>
+          <Label htmlFor="trate">{t('taxes.field.rate')}</Label>
           <Input
             id="trate"
             type="number"
@@ -232,32 +235,32 @@ function UpsertForm({ onSubmit }: { onSubmit: (input: AdminTax) => Promise<void>
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="tctry">Country (ISO-2, blank = any)</Label>
+          <Label htmlFor="tctry">{t('taxes.field.country')}</Label>
           <CountryPicker
             id="tctry"
             value={country}
             onChange={(e): void => setCountry(e.target.value)}
             includeBlank
-            blankLabel="— any —"
+            blankLabel={t('taxes.option.any')}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="tptype">Product type (blank = any)</Label>
+          <Label htmlFor="tptype">{t('taxes.field.productType')}</Label>
           <Select
             id="tptype"
             value={productType}
             onChange={(e): void => setProductType(e.target.value)}
           >
-            <option value="">— any —</option>
-            {PRODUCT_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
+            <option value="">{t('taxes.option.any')}</option>
+            {PRODUCT_TYPES.map((pt) => (
+              <option key={pt} value={pt}>
+                {pt}
               </option>
             ))}
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="tprio">Priority (higher wins on ties)</Label>
+          <Label htmlFor="tprio">{t('taxes.field.priority')}</Label>
           <Input
             id="tprio"
             type="number"
@@ -267,7 +270,7 @@ function UpsertForm({ onSubmit }: { onSubmit: (input: AdminTax) => Promise<void>
         </div>
       </div>
       <div className="space-y-2">
-        <Label>Applies to VAT statuses (none = any)</Label>
+        <Label>{t('taxes.field.vatStatuses')}</Label>
         <div className="flex flex-wrap gap-3">
           {VAT_STATUSES.map((v) => (
             <label key={v} className="inline-flex items-center gap-2 text-sm">
@@ -292,10 +295,10 @@ function UpsertForm({ onSubmit }: { onSubmit: (input: AdminTax) => Promise<void>
           checked={isDefault}
           onChange={(e): void => setIsDefault(e.target.checked)}
         />
-        Default fallback rule
+        {t('taxes.field.isDefault')}
       </label>
       <div>
-        <Button type="submit">Save</Button>
+        <Button type="submit">{t('taxes.action.save')}</Button>
       </div>
     </form>
   );

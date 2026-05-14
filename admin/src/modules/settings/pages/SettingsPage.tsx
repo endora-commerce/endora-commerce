@@ -384,7 +384,7 @@ export function SettingsPage(): ReactNode {
 
       <div className={cn('space-y-4', totalDirtyCount > 0 && 'pb-24')}>
         {loading && (
-          <p className="text-sm text-muted-foreground">Loading settings…</p>
+          <p className="text-sm text-muted-foreground">{t('state.loading')}</p>
         )}
         {!loading && filteredGroups.length === 0 && search && (
           <p className="text-sm text-muted-foreground">{t('search.noResults')}</p>

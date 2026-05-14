@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
+import { useTranslation } from '@/i18n/useTranslation';
 import {
   Table,
   TableBody,
@@ -40,6 +41,7 @@ interface AdminAttribute {
  * delete non-system sets.
  */
 export function AttributeSetsPage(): ReactNode {
+  const t = useTranslation('catalog');
   const [sets, setSets] = useState<AttributeSet[]>([]);
   const [allAttributes, setAllAttributes] = useState<AdminAttribute[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,8 +72,8 @@ export function AttributeSetsPage(): ReactNode {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Attribute Sets"
-        description="Named groups of Product Attributes. The system Default set ships with every install and cannot be deleted; custom sets can be assigned to Products via the Product editor."
+        title={t('attributeSets.page.title')}
+        description={t('attributeSets.page.description')}
       />
 
       {error ? (
@@ -87,7 +89,7 @@ export function AttributeSetsPage(): ReactNode {
 
       <CreateAttributeSetForm
         onCreated={(setName) => {
-          setInfo(`Created attribute set "${setName}".`);
+          setInfo(t('attributeSets.success.create', { name: setName }));
           void refresh();
         }}
         onError={(msg) => setError(msg)}
@@ -95,20 +97,20 @@ export function AttributeSetsPage(): ReactNode {
 
       <Card>
         <CardHeader>
-          <CardTitle>All sets</CardTitle>
+          <CardTitle>{t('attributeSets.list.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('attributeSets.loading')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Attributes</TableHead>
-                  <TableHead>Products</TableHead>
-                  <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+                  <TableHead>{t('attributeSets.column.code')}</TableHead>
+                  <TableHead>{t('attributeSets.column.name')}</TableHead>
+                  <TableHead>{t('attributeSets.column.attributes')}</TableHead>
+                  <TableHead>{t('attributeSets.column.products')}</TableHead>
+                  <TableHead className="w-[1%] whitespace-nowrap">{t('attributeSets.column.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -127,7 +129,7 @@ export function AttributeSetsPage(): ReactNode {
                 {sets.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      No sets yet.
+                      {t('attributeSets.empty')}
                     </TableCell>
                   </TableRow>
                 ) : null}
@@ -150,6 +152,7 @@ interface CreateFormProps {
 }
 
 function CreateAttributeSetForm({ onCreated, onError }: CreateFormProps): ReactNode {
+  const t = useTranslation('catalog');
   const [code, setCode] = useState('');
   const [labelEn, setLabelEn] = useState('');
   const [labelPl, setLabelPl] = useState('');
@@ -162,7 +165,7 @@ function CreateAttributeSetForm({ onCreated, onError }: CreateFormProps): ReactN
       if (labelEn) name['en-US'] = labelEn;
       if (labelPl) name['pl-PL'] = labelPl;
       if (!code || Object.keys(name).length === 0) {
-        onError('Code and at least one localized name are required.');
+        onError(t('attributeSets.create.validationError'));
         return;
       }
       setSubmitting(true);
@@ -176,35 +179,35 @@ function CreateAttributeSetForm({ onCreated, onError }: CreateFormProps): ReactN
         setLabelEn('');
         setLabelPl('');
       } catch (err) {
-        onError(err instanceof ApiError ? err.envelope.error.message : 'Create failed.');
+        onError(err instanceof ApiError ? err.envelope.error.message : t('attributeSets.error.create'));
       } finally {
         setSubmitting(false);
       }
     },
-    [code, labelEn, labelPl, onCreated, onError],
+    [code, labelEn, labelPl, onCreated, onError, t],
   );
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Create new set</CardTitle>
+        <CardTitle>{t('attributeSets.create.title')}</CardTitle>
       </CardHeader>
       <CardContent>
         <form className="grid gap-4 md:grid-cols-3" onSubmit={handleSubmit}>
           <div>
-            <Label htmlFor="set-code">Code</Label>
+            <Label htmlFor="set-code">{t('attributeSets.field.code')}</Label>
             <Input
               id="set-code"
               placeholder="electronics"
               value={code}
               onChange={(e) => setCode(e.target.value)}
               pattern="[a-z0-9_]+"
-              title="snake_case (a-z, 0-9, _)"
+              title={t('attributeSets.field.codeTitle')}
               required
             />
           </div>
           <div>
-            <Label htmlFor="set-label-en">Name (en-US)</Label>
+            <Label htmlFor="set-label-en">{t('attributeSets.field.nameEn')}</Label>
             <Input
               id="set-label-en"
               placeholder="Electronics"
@@ -213,7 +216,7 @@ function CreateAttributeSetForm({ onCreated, onError }: CreateFormProps): ReactN
             />
           </div>
           <div>
-            <Label htmlFor="set-label-pl">Name (pl-PL)</Label>
+            <Label htmlFor="set-label-pl">{t('attributeSets.field.namePl')}</Label>
             <Input
               id="set-label-pl"
               placeholder="Elektronika"
@@ -223,7 +226,7 @@ function CreateAttributeSetForm({ onCreated, onError }: CreateFormProps): ReactN
           </div>
           <div className="md:col-span-3">
             <Button type="submit" disabled={submitting}>
-              {submitting ? 'Creating…' : 'Create set'}
+              {submitting ? t('attributeSets.create.submitting') : t('attributeSets.create.submit')}
             </Button>
           </div>
         </form>
@@ -244,6 +247,7 @@ interface RowProps {
 }
 
 function AttributeSetRow({ set, allAttributes, onChanged, onError }: RowProps): ReactNode {
+  const t = useTranslation('catalog');
   const [expanded, setExpanded] = useState(false);
   const [detail, setDetail] = useState<AttributeSetDetail | null>(null);
   const [busy, setBusy] = useState(false);
@@ -256,7 +260,7 @@ function AttributeSetRow({ set, allAttributes, onChanged, onError }: RowProps): 
       );
       setDetail(res.data);
     } catch (err) {
-      onError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load detail.');
+      onError(err instanceof ApiError ? err.envelope.error.message : t('attributeSets.error.loadDetail'));
     } finally {
       setBusy(false);
     }
@@ -275,12 +279,12 @@ function AttributeSetRow({ set, allAttributes, onChanged, onError }: RowProps): 
           { assignments: [{ attributeId }] },
         );
         setDetail(res.data);
-        onChanged(`Assigned attribute to "${set.code}".`);
+        onChanged(t('attributeSets.success.assign', { code: set.code }));
       } catch (err) {
-        onError(err instanceof ApiError ? err.envelope.error.message : 'Assign failed.');
+        onError(err instanceof ApiError ? err.envelope.error.message : t('attributeSets.error.assign'));
       }
     },
-    [set.id, set.code, onChanged, onError],
+    [set.id, set.code, onChanged, onError, t],
   );
 
   const handleUnassign = useCallback(
@@ -290,25 +294,25 @@ function AttributeSetRow({ set, allAttributes, onChanged, onError }: RowProps): 
           `/api/v1/admin/catalog/attribute-sets/${set.id}/attributes/${attributeId}`,
         );
         await loadDetail();
-        onChanged(`Removed attribute from "${set.code}".`);
+        onChanged(t('attributeSets.success.unassign', { code: set.code }));
       } catch (err) {
-        onError(err instanceof ApiError ? err.envelope.error.message : 'Remove failed.');
+        onError(err instanceof ApiError ? err.envelope.error.message : t('attributeSets.error.remove'));
       }
     },
-    [set.id, set.code, loadDetail, onChanged, onError],
+    [set.id, set.code, loadDetail, onChanged, onError, t],
   );
 
   const handleDelete = useCallback(async (): Promise<void> => {
-    if (!confirm(`Delete attribute set "${set.code}"? Products referencing it must be reassigned first.`)) {
+    if (!confirm(t('attributeSets.deleteConfirm', { code: set.code }))) {
       return;
     }
     try {
       await apiClient.delete<void>(`/api/v1/admin/catalog/attribute-sets/${set.id}`);
-      onChanged(`Deleted "${set.code}".`);
+      onChanged(t('attributeSets.success.delete', { code: set.code }));
     } catch (err) {
-      onError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+      onError(err instanceof ApiError ? err.envelope.error.message : t('attributeSets.error.delete'));
     }
-  }, [set.id, set.code, onChanged, onError]);
+  }, [set.id, set.code, onChanged, onError, t]);
 
   const localizedName = set.name['en-US'] ?? set.name['pl-PL'] ?? Object.values(set.name)[0] ?? '—';
 
@@ -331,7 +335,7 @@ function AttributeSetRow({ set, allAttributes, onChanged, onError }: RowProps): 
         <TableCell>{set.productCount}</TableCell>
         <TableCell className="space-x-2 whitespace-nowrap">
           <Button variant="outline" size="sm" onClick={handleToggleExpanded} disabled={busy}>
-            {expanded ? 'Collapse' : 'Manage'}
+            {expanded ? t('attributeSets.action.collapse') : t('attributeSets.action.manage')}
           </Button>
           <Button
             variant="destructive"
@@ -340,13 +344,13 @@ function AttributeSetRow({ set, allAttributes, onChanged, onError }: RowProps): 
             disabled={set.isSystem || set.productCount > 0}
             title={
               set.isSystem
-                ? 'System set cannot be deleted'
+                ? t('attributeSets.deleteHint.system')
                 : set.productCount > 0
-                  ? 'Reassign products before deleting'
-                  : 'Delete'
+                  ? t('attributeSets.deleteHint.hasProducts')
+                  : t('attributeSets.action.delete')
             }
           >
-            Delete
+            {t('attributeSets.action.delete')}
           </Button>
         </TableCell>
       </TableRow>
@@ -354,7 +358,7 @@ function AttributeSetRow({ set, allAttributes, onChanged, onError }: RowProps): 
         <TableRow>
           <TableCell colSpan={5} className="bg-muted/30">
             <div className="space-y-3 p-2">
-              <p className="text-sm font-medium">Assigned attributes</p>
+              <p className="text-sm font-medium">{t('attributeSets.assigned.title')}</p>
               {detail && detail.attributes.length > 0 ? (
                 <ul className="space-y-1 text-sm">
                   {detail.attributes.map((a) => (
@@ -367,19 +371,19 @@ function AttributeSetRow({ set, allAttributes, onChanged, onError }: RowProps): 
                           size="sm"
                           onClick={() => void handleUnassign(a.id)}
                         >
-                          Remove
+                          {t('attributeSets.action.remove')}
                         </Button>
                       </span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-muted-foreground">No attributes assigned yet.</p>
+                <p className="text-sm text-muted-foreground">{t('attributeSets.assigned.empty')}</p>
               )}
 
               {unassigned.length > 0 ? (
                 <div>
-                  <p className="text-sm font-medium">Add attribute</p>
+                  <p className="text-sm font-medium">{t('attributeSets.add.title')}</p>
                   <div className="flex flex-wrap gap-2">
                     {unassigned.map((a) => (
                       <Button
