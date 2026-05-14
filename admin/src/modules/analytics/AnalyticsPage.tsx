@@ -16,18 +16,22 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 
-const RANGE_OPTIONS = [
-  { value: 7, label: 'Last 7 days' },
-  { value: 30, label: 'Last 30 days' },
-  { value: 90, label: 'Last 90 days' },
-] as const;
+const RANGE_OPTION_VALUES = [7, 30, 90] as const;
 
 interface SummaryEnvelope {
   data: AnalyticsSummaryResponse;
 }
 
 export function AnalyticsPage(): ReactNode {
+  const t = useTranslation('core');
+  const RANGE_OPTIONS = [
+    { value: 7, label: t('analytics.range.7days') },
+    { value: 30, label: t('analytics.range.30days') },
+    { value: 90, label: t('analytics.range.90days') },
+  ];
+  void RANGE_OPTION_VALUES;
   const [rangeDays, setRangeDays] = useState<number>(30);
   const [summary, setSummary] = useState<AnalyticsSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,11 +51,11 @@ export function AnalyticsPage(): ReactNode {
       const res = await apiClient.get<SummaryEnvelope>(`/api/v1/admin/analytics/summary${qs}`);
       setSummary(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load summary.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('analytics.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [window.fromIso, window.toIso]);
+  }, [window.fromIso, window.toIso, t]);
 
   useEffect(() => {
     void refresh();
@@ -66,10 +70,10 @@ export function AnalyticsPage(): ReactNode {
   return (
     <>
       <PageHeader
-        title="Analytics"
+        title={t('analytics.page.title')}
         description={
           <>
-            Aggregated counts of storefront events. Window: {formatDateTime(window.fromIso)} –{' '}
+            {t('analytics.page.descriptionPrefix')} {formatDateTime(window.fromIso)} –{' '}
             {formatDateTime(window.toIso)}.
           </>
         }
@@ -94,7 +98,7 @@ export function AnalyticsPage(): ReactNode {
               }}
             >
               <RefreshCw />
-              Refresh
+              {t('analytics.refresh')}
             </Button>
           </>
         }
@@ -108,19 +112,19 @@ export function AnalyticsPage(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Totals by event type</CardTitle>
+          <CardTitle>{t('analytics.totals.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('analytics.loading')}</p>
           ) : !summary || summary.totalsByType.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No events recorded in this window.</p>
+            <p className="text-sm text-muted-foreground">{t('analytics.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Event type</TableHead>
-                  <TableHead className="text-right">Count</TableHead>
+                  <TableHead>{t('analytics.column.eventType')}</TableHead>
+                  <TableHead className="text-right">{t('analytics.column.count')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -138,21 +142,21 @@ export function AnalyticsPage(): ReactNode {
 
       <Card>
         <CardHeader>
-          <CardTitle>Daily breakdown</CardTitle>
+          <CardTitle>{t('analytics.daily.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('analytics.loading')}</p>
           ) : dailyByDay.size === 0 ? (
-            <p className="text-sm text-muted-foreground">No events recorded in this window.</p>
+            <p className="text-sm text-muted-foreground">{t('analytics.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Day</TableHead>
-                  {allTypes.map((t) => (
-                    <TableHead key={t} className="text-right font-mono text-xs">
-                      {t}
+                  <TableHead>{t('analytics.column.day')}</TableHead>
+                  {allTypes.map((type) => (
+                    <TableHead key={type} className="text-right font-mono text-xs">
+                      {type}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -161,9 +165,9 @@ export function AnalyticsPage(): ReactNode {
                 {Array.from(dailyByDay.entries()).map(([day, counts]) => (
                   <TableRow key={day}>
                     <TableCell>{day}</TableCell>
-                    {allTypes.map((t) => (
-                      <TableCell key={t} className="text-right">
-                        {(counts[t] ?? 0).toLocaleString()}
+                    {allTypes.map((type) => (
+                      <TableCell key={type} className="text-right">
+                        {(counts[type] ?? 0).toLocaleString()}
                       </TableCell>
                     ))}
                   </TableRow>

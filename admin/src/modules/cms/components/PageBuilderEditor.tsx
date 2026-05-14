@@ -4,6 +4,7 @@ import '@measured/puck/puck.css';
 import { defaultPageBuilderConfig, makeMissingComponentConfig } from '@b2b/cms-components';
 import type { CmsPageBuilderDescriptor } from '@b2b/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useTranslation } from '@/i18n/useTranslation';
 import { cmsClient } from '../api/cms-client';
 
 const emptyData: Data = { root: { props: {} }, content: [] };
@@ -16,7 +17,7 @@ const emptyData: Data = { root: { props: {} }, content: [] };
  * `MissingComponentPlaceholder` so the editor stays usable while the
  * contributing module's renderer is being built.
  */
-function mergeConfig(descriptor: CmsPageBuilderDescriptor | null): Config {
+function mergeConfig(descriptor: CmsPageBuilderDescriptor | null, extensionTitle: string): Config {
   const base = defaultPageBuilderConfig;
   if (!descriptor) return base;
 
@@ -38,7 +39,7 @@ function mergeConfig(descriptor: CmsPageBuilderDescriptor | null): Config {
     ? {
         ...baseCategories,
         extensions: {
-          title: 'Extensions',
+          title: extensionTitle,
           components: extensionNames,
         },
       }
@@ -54,6 +55,7 @@ export function PageBuilderEditor({
   data: Data | null;
   onChange: (data: Data) => void;
 }): ReactNode {
+  const t = useTranslation('cms');
   const [descriptor, setDescriptor] = useState<CmsPageBuilderDescriptor | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,7 +74,7 @@ export function PageBuilderEditor({
     };
   }, []);
 
-  const config = useMemo(() => mergeConfig(descriptor), [descriptor]);
+  const config = useMemo(() => mergeConfig(descriptor, t('pageBuilder.extensions')), [descriptor, t]);
   const editorData = data ?? emptyData;
 
   return (
@@ -83,7 +85,7 @@ export function PageBuilderEditor({
         </Alert>
       ) : null}
       {!descriptor && !error ? (
-        <p className="text-sm text-muted-foreground">Loading Page Builder config…</p>
+        <p className="text-sm text-muted-foreground">{t('pageBuilder.loadingConfig')}</p>
       ) : null}
       <div className="min-h-[640px] overflow-hidden rounded-md border">
         <Puck config={config} data={editorData} onChange={onChange} onPublish={onChange} />

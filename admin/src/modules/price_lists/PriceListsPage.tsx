@@ -18,6 +18,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { useTranslation } from '@/i18n/useTranslation';
 
 type PriceListType = 'base' | 'sale';
 type PriceListStatus = 'draft' | 'active' | 'scheduled' | 'expired';
@@ -35,23 +36,11 @@ interface PriceListEngineRow {
   createdAt: string;
 }
 
-const STATUS_LABEL: Record<PriceListStatus, string> = {
-  draft: 'Draft',
-  active: 'Active',
-  scheduled: 'Scheduled',
-  expired: 'Expired',
-};
-
 const STATUS_BADGE_CLASS: Record<PriceListStatus, string> = {
   draft: 'b2b-badge b2b-badge--outline',
   active: 'b2b-badge b2b-badge--success',
   scheduled: 'b2b-badge b2b-badge--info',
   expired: 'b2b-badge b2b-badge--muted',
-};
-
-const TYPE_LABEL: Record<PriceListType, string> = {
-  base: 'Base',
-  sale: 'Sale',
 };
 
 /**
@@ -63,6 +52,17 @@ const TYPE_LABEL: Record<PriceListType, string> = {
  * `price-list-service.ts` refuse delete/state-change/rule-attach on it.
  */
 export function PriceListsPage(): ReactNode {
+  const t = useTranslation('core');
+  const STATUS_LABEL: Record<PriceListStatus, string> = {
+    draft: t('priceLists.status.draft'),
+    active: t('priceLists.status.active'),
+    scheduled: t('priceLists.status.scheduled'),
+    expired: t('priceLists.status.expired'),
+  };
+  const TYPE_LABEL: Record<PriceListType, string> = {
+    base: t('priceLists.type.base'),
+    sale: t('priceLists.type.sale'),
+  };
   const navigate = useNavigate();
   const [rows, setRows] = useState<PriceListEngineRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,7 +79,7 @@ export function PriceListsPage(): ReactNode {
     try {
       const params = new URLSearchParams();
       for (const s of statusFilter) params.append('status', s);
-      for (const t of typeFilter) params.append('type', t);
+      for (const ty of typeFilter) params.append('type', ty);
       if (query.trim()) params.set('search', query.trim());
       const qs = params.toString();
       const res = await apiClient.get<{ data: { items: PriceListEngineRow[] } }>(
@@ -87,11 +87,11 @@ export function PriceListsPage(): ReactNode {
       );
       setRows(res.data.items);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('priceLists.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, typeFilter, query]);
+  }, [statusFilter, typeFilter, query, t]);
 
   useEffect(() => {
     void refresh();
@@ -113,37 +113,35 @@ export function PriceListsPage(): ReactNode {
           '/api/v1/admin/price-lists-engine',
           input,
         );
-        setInfo(`Created “${res.data.name}”.`);
+        setInfo(t('priceLists.info.created', { name: res.data.name }));
         setCreating(false);
         navigate(`/price-lists/${res.data.id}`);
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Create failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('priceLists.error.create'));
       }
     },
-    [navigate],
+    [navigate, t],
   );
 
   return (
     <div className="b2b-page b2b-page--wide">
       <div className="b2b-page-head">
         <div className="b2b-grow">
-          <div className="b2b-page-head__title">Price lists</div>
+          <div className="b2b-page-head__title">{t('priceLists.page.title')}</div>
           <div className="b2b-page-head__sub">
-            B2B pricing engine — Base + Sale lists, multi-bracket per-currency prices,
-            application rules, and lifecycle status. The seeded Default list is the
-            terminal-fallback price source.
+            {t('priceLists.page.description')}
           </div>
         </div>
         <div className="b2b-page-head__actions">
           <Link to="/price-lists/display-modes" className="b2b-btn b2b-btn--default">
-            <Eye size={14} /> Display modes
+            <Eye size={14} /> {t('priceLists.action.displayModes')}
           </Link>
           <button
             type="button"
             className="b2b-btn b2b-btn--primary"
             onClick={(): void => setCreating(true)}
           >
-            <Plus size={14} /> New price list
+            <Plus size={14} /> {t('priceLists.action.newPriceList')}
           </button>
         </div>
       </div>
@@ -156,10 +154,10 @@ export function PriceListsPage(): ReactNode {
       ) : null}
 
       <div className="b2b-row" style={{ gap: 16, marginBottom: 16 }}>
-        <Stat label="Total price lists" value={String(stats.total)} />
-        <Stat label="Active" value={String(stats.active)} />
-        <Stat label="Scheduled" value={String(stats.scheduled)} />
-        <Stat label="Sale lists" value={String(stats.sale)} />
+        <Stat label={t('priceLists.stat.total')} value={String(stats.total)} />
+        <Stat label={t('priceLists.stat.active')} value={String(stats.active)} />
+        <Stat label={t('priceLists.stat.scheduled')} value={String(stats.scheduled)} />
+        <Stat label={t('priceLists.stat.sale')} value={String(stats.sale)} />
       </div>
 
       <div className="b2b-card">
@@ -169,7 +167,7 @@ export function PriceListsPage(): ReactNode {
               <Search size={16} className="lead" />
               <input
                 className="b2b-field b2b-field--addon"
-                placeholder="Search by name…"
+                placeholder={t('priceLists.search.placeholder')}
                 value={query}
                 onChange={(e): void => setQuery(e.target.value)}
               />
@@ -177,7 +175,7 @@ export function PriceListsPage(): ReactNode {
           </div>
           <FilterChip
             icon={<Zap size={12} />}
-            label="Status"
+            label={t('priceLists.filter.status')}
             options={(['draft', 'active', 'scheduled', 'expired'] as const).map((s) => ({
               value: s,
               label: STATUS_LABEL[s],
@@ -195,8 +193,8 @@ export function PriceListsPage(): ReactNode {
           />
           <FilterChip
             icon={<Tag size={12} />}
-            label="Type"
-            options={(['base', 'sale'] as const).map((t) => ({ value: t, label: TYPE_LABEL[t] }))}
+            label={t('priceLists.filter.type')}
+            options={(['base', 'sale'] as const).map((ty) => ({ value: ty, label: TYPE_LABEL[ty] }))}
             selected={typeFilter as Set<string>}
             onToggle={(value): void => {
               setTypeFilter((prev) => {
@@ -211,7 +209,7 @@ export function PriceListsPage(): ReactNode {
         </div>
         <div className="b2b-card__body b2b-card__body--flush">
           {loading ? (
-            <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>Loading…</div>
+            <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>{t('priceLists.loading')}</div>
           ) : rows.length === 0 ? (
             <div className="b2b-empty">
               <div className="b2b-empty__icon">
@@ -219,30 +217,29 @@ export function PriceListsPage(): ReactNode {
               </div>
               <div className="b2b-empty__title">
                 {query.trim() || statusFilter.size > 0 || typeFilter.size > 0
-                  ? 'No price lists match the current filters.'
-                  : 'No price lists yet'}
+                  ? t('priceLists.empty.filtered')
+                  : t('priceLists.empty.none')}
               </div>
               <div className="b2b-empty__sub">
-                Create one to override the Default catalog price for a customer group, an
-                organization, a sales channel, or a category.
+                {t('priceLists.empty.subtitle')}
               </div>
               <button
                 type="button"
                 className="b2b-btn b2b-btn--primary"
                 onClick={(): void => setCreating(true)}
               >
-                <Plus size={14} /> New price list
+                <Plus size={14} /> {t('priceLists.action.newPriceList')}
               </button>
             </div>
           ) : (
             <table className="b2b-tbl">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Active window</th>
-                  <th>Last modified</th>
+                  <th>{t('priceLists.column.name')}</th>
+                  <th>{t('priceLists.column.type')}</th>
+                  <th>{t('priceLists.column.status')}</th>
+                  <th>{t('priceLists.column.activeWindow')}</th>
+                  <th>{t('priceLists.column.lastModified')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -277,7 +274,7 @@ export function PriceListsPage(): ReactNode {
                               className="b2b-badge b2b-badge--success"
                               style={{ marginTop: 2, display: 'inline-flex', alignItems: 'center', gap: 4 }}
                             >
-                              <Lock size={10} /> System
+                              <Lock size={10} /> {t('priceLists.systemBadge')}
                             </span>
                           ) : null}
                         </div>
@@ -294,7 +291,7 @@ export function PriceListsPage(): ReactNode {
                     <td>
                       <span style={{ fontSize: 12, color: 'var(--fg-muted)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                         <Calendar size={12} />
-                        {formatRange(r.startsAt, r.endsAt)}
+                        {formatRange(r.startsAt, r.endsAt, t)}
                       </span>
                     </td>
                     <td>
@@ -340,6 +337,7 @@ function Banner({
   message: string;
   onDismiss: () => void;
 }): ReactNode {
+  const t = useTranslation('core');
   const palette =
     kind === 'error'
       ? { bg: 'var(--danger-soft)', fg: 'var(--danger-soft-fg)', border: 'hsl(8 80% 85%)' }
@@ -363,7 +361,7 @@ function Banner({
         className="b2b-btn b2b-btn--ghost b2b-btn--sm"
         onClick={onDismiss}
       >
-        Dismiss
+        {t('priceLists.dismiss')}
       </button>
     </div>
   );
@@ -449,6 +447,7 @@ function CreateDrawer({
     endsAt: string | null;
   }) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('core');
   const [name, setName] = useState('');
   const [type, setType] = useState<PriceListType>('base');
   const [startsAt, setStartsAt] = useState('');
@@ -476,42 +475,41 @@ function CreateDrawer({
       <aside className="b2b-drawer" role="dialog" aria-modal="true">
         <div className="b2b-drawer__head">
           <div className="b2b-grow">
-            <div className="b2b-drawer__title">New price list</div>
+            <div className="b2b-drawer__title">{t('priceLists.create.title')}</div>
             <div className="b2b-card__sub">
-              Lists start as Draft. Add products, brackets, and an application rule on
-              the editor; activate when ready.
+              {t('priceLists.create.description')}
             </div>
           </div>
         </div>
         <div className="b2b-drawer__body">
           <div className="b2b-col" style={{ gap: 14 }}>
             <div>
-              <label className="b2b-label" htmlFor="pl-name">Name</label>
+              <label className="b2b-label" htmlFor="pl-name">{t('priceLists.create.name')}</label>
               <input
                 id="pl-name"
                 className="b2b-field"
                 value={name}
                 onChange={(e): void => setName(e.target.value)}
-                placeholder="Spring promotion 2026"
+                placeholder={t('priceLists.create.namePlaceholder')}
                 required
               />
-              <div className="b2b-help">Shown to admins; not exposed to customers.</div>
+              <div className="b2b-help">{t('priceLists.create.nameHelp')}</div>
             </div>
             <div>
-              <label className="b2b-label" htmlFor="pl-type">Type</label>
+              <label className="b2b-label" htmlFor="pl-type">{t('priceLists.create.type')}</label>
               <select
                 id="pl-type"
                 className="b2b-field"
                 value={type}
                 onChange={(e): void => setType(e.target.value as PriceListType)}
               >
-                <option value="base">Base — replaces the catalogue price</option>
-                <option value="sale">Sale — Special Price shown alongside the Base</option>
+                <option value="base">{t('priceLists.create.typeBaseOption')}</option>
+                <option value="sale">{t('priceLists.create.typeSaleOption')}</option>
               </select>
             </div>
             <div className="b2b-row" style={{ gap: 12 }}>
               <div className="b2b-grow">
-                <label className="b2b-label" htmlFor="pl-starts">Starts at (optional)</label>
+                <label className="b2b-label" htmlFor="pl-starts">{t('priceLists.create.startsAt')}</label>
                 <input
                   id="pl-starts"
                   className="b2b-field"
@@ -521,7 +519,7 @@ function CreateDrawer({
                 />
               </div>
               <div className="b2b-grow">
-                <label className="b2b-label" htmlFor="pl-ends">Ends at (optional)</label>
+                <label className="b2b-label" htmlFor="pl-ends">{t('priceLists.create.endsAt')}</label>
                 <input
                   id="pl-ends"
                   className="b2b-field"
@@ -532,15 +530,13 @@ function CreateDrawer({
               </div>
             </div>
             <div className="b2b-help">
-              When a window is set, the list moves to <strong>Scheduled</strong> on activate
-              and flips to <strong>Active</strong> at <code>startsAt</code>; it auto-expires
-              after <code>endsAt</code>.
+              {t('priceLists.create.windowHint')}
             </div>
           </div>
         </div>
         <div className="b2b-drawer__foot">
           <button type="button" className="b2b-btn b2b-btn--ghost" onClick={onClose}>
-            Cancel
+            {t('priceLists.create.cancel')}
           </button>
           <button
             type="button"
@@ -550,7 +546,7 @@ function CreateDrawer({
               void handle();
             }}
           >
-            {submitting ? 'Creating…' : 'Create price list'}
+            {submitting ? t('priceLists.create.creating') : t('priceLists.create.submit')}
           </button>
         </div>
       </aside>
@@ -558,8 +554,8 @@ function CreateDrawer({
   );
 }
 
-function formatRange(startsAt: string | null, endsAt: string | null): string {
-  if (!startsAt && !endsAt) return 'Always';
+function formatRange(startsAt: string | null, endsAt: string | null, t: (k: string) => string): string {
+  if (!startsAt && !endsAt) return t('priceLists.window.always');
   const fmt = (s: string | null): string => (s ? new Date(s).toLocaleDateString() : '—');
   return `${fmt(startsAt)} → ${fmt(endsAt)}`;
 }

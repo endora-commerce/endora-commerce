@@ -15,6 +15,7 @@ import {
   registerOpenApiRoutes,
   type OpenApiMetadata,
 } from './openapi.js';
+import type { ErrorEnvelopeOptions } from './error-envelope.js';
 
 /**
  * Module registration hook — each backend module exposes a plugin that takes
@@ -41,6 +42,8 @@ export interface BuildServerOptions {
   disableRateLimit?: boolean;
   /** Business-module route registrations, invoked after cross-cutting hooks are installed. */
   modules?: ModulePlugin[];
+  /** Optional i18n bridge for translating standardized error envelopes. */
+  errorEnvelope?: ErrorEnvelopeOptions;
 }
 
 export async function buildServer(options: BuildServerOptions): Promise<FastifyInstance> {
@@ -106,7 +109,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     reply.header('x-request-id', request.id);
   });
 
-  registerErrorEnvelope(app);
+  registerErrorEnvelope(app, options.errorEnvelope);
   attachOpenApiAutoRegistration(app);
   registerOpenApiRoutes(app, options.openApi);
 

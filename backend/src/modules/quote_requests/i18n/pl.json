@@ -1,4 +1,13 @@
 {
   "actions.openInbox.label": "Otwórz skrzynkę zapytań",
-  "actions.openInbox.description": "Przejrzyj oczekujące zapytania ofertowe"
+  "actions.openInbox.description": "Przejrzyj oczekujące zapytania ofertowe",
+  "errors.RFQ_NOT_DRAFT": "Błąd: rfq not draft.",
+  "errors.RFQ_EMPTY": "Błąd: rfq empty.",
+  "errors.RFQ_NOT_QUOTED": "Błąd: rfq not quoted.",
+  "errors.RFQ_NOT_ACCEPTED": "Błąd: rfq not accepted.",
+  "errors.RFQ_NOT_NEW": "Błąd: rfq not new.",
+  "errors.RFQ_ALREADY_CLAIMED": "Błąd: rfq already claimed.",
+  "errors.RFQ_EXPIRED": "Błąd: rfq expired.",
+  "errors.QUOTE_INCOMPLETE": "Błąd: quote incomplete.",
+  "errors.QUOTE_VALIDITY_ENDED": "Błąd: quote validity ended."
 }

@@ -23,6 +23,7 @@ import {
 import type { ApplicationRule } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
+import { useTranslation } from '@/i18n/useTranslation';
 import { BracketGrid, type BracketsByCurrency } from './BracketGrid';
 import { ApplicationRuleBuilder } from './ApplicationRuleBuilder';
 
@@ -42,23 +43,11 @@ interface PriceListEngineRow {
   createdAt: string;
 }
 
-const STATUS_LABEL: Record<PriceListStatus, string> = {
-  draft: 'Draft',
-  active: 'Active',
-  scheduled: 'Scheduled',
-  expired: 'Expired',
-};
-
 const STATUS_BADGE_CLASS: Record<PriceListStatus, string> = {
   draft: 'b2b-badge b2b-badge--outline',
   active: 'b2b-badge b2b-badge--success',
   scheduled: 'b2b-badge b2b-badge--info',
   expired: 'b2b-badge b2b-badge--muted',
-};
-
-const TYPE_LABEL: Record<PriceListType, string> = {
-  base: 'Base',
-  sale: 'Sale',
 };
 
 type Tab = 'details' | 'products' | 'rule';
@@ -78,6 +67,17 @@ type Tab = 'details' | 'products' | 'rule';
  * disables those affordances so the operator never sees a 403 popup.
  */
 export function PriceListDetailPage(): ReactNode {
+  const t = useTranslation('core');
+  const STATUS_LABEL: Record<PriceListStatus, string> = {
+    draft: t('priceLists.status.draft'),
+    active: t('priceLists.status.active'),
+    scheduled: t('priceLists.status.scheduled'),
+    expired: t('priceLists.status.expired'),
+  };
+  const TYPE_LABEL: Record<PriceListType, string> = {
+    base: t('priceLists.type.base'),
+    sale: t('priceLists.type.sale'),
+  };
   const params = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -98,12 +98,12 @@ export function PriceListDetailPage(): ReactNode {
       );
       setList(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('priceLists.detail.error.load'));
       setList(null);
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     void refresh();
@@ -123,12 +123,12 @@ export function PriceListDetailPage(): ReactNode {
           patch,
         );
         setList(res.data);
-        setInfo('Saved.');
+        setInfo(t('priceLists.detail.info.saved'));
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('priceLists.detail.error.save'));
       }
     },
-    [id],
+    [id, t],
   );
 
   const handleActivate = useCallback(async (): Promise<void> => {
@@ -138,11 +138,11 @@ export function PriceListDetailPage(): ReactNode {
         {},
       );
       setList(res.data);
-      setInfo(`Status → ${STATUS_LABEL[res.data.status]}.`);
+      setInfo(t('priceLists.detail.info.statusChanged', { status: STATUS_LABEL[res.data.status] }));
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Activate failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('priceLists.detail.error.activate'));
     }
-  }, [id]);
+  }, [id, t, STATUS_LABEL]);
 
   const handleDraftify = useCallback(async (): Promise<void> => {
     try {
@@ -151,11 +151,11 @@ export function PriceListDetailPage(): ReactNode {
         {},
       );
       setList(res.data);
-      setInfo('Status → Draft.');
+      setInfo(t('priceLists.detail.info.statusDraft'));
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Draftify failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('priceLists.detail.error.draftify'));
     }
-  }, [id]);
+  }, [id, t]);
 
   const handleDuplicate = useCallback(async (): Promise<void> => {
     try {
@@ -165,26 +165,26 @@ export function PriceListDetailPage(): ReactNode {
       );
       navigate(`/price-lists/${res.data.id}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Duplicate failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('priceLists.detail.error.duplicate'));
     }
-  }, [id, navigate]);
+  }, [id, navigate, t]);
 
   const handleDelete = useCallback(async (): Promise<void> => {
-    if (!confirm('Delete this price list? This cannot be undone.')) return;
+    if (!confirm(t('priceLists.detail.confirmDelete'))) return;
     try {
       await apiClient.delete<void>(
         `/api/v1/admin/price-lists-engine/${encodeURIComponent(id)}`,
       );
       navigate('/price-lists');
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('priceLists.detail.error.delete'));
     }
-  }, [id, navigate]);
+  }, [id, navigate, t]);
 
   if (loading) {
     return (
       <div className="b2b-page b2b-page--wide">
-        <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>Loading…</div>
+        <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>{t('priceLists.loading')}</div>
       </div>
     );
   }
@@ -197,7 +197,7 @@ export function PriceListDetailPage(): ReactNode {
           className="b2b-page-head__back"
           onClick={(): void => { navigate('/price-lists'); }}
         >
-          <ChevronLeft size={14} /> Price lists
+          <ChevronLeft size={14} /> {t('priceLists.page.title')}
         </button>
         <div
           className="b2b-card"
@@ -209,7 +209,7 @@ export function PriceListDetailPage(): ReactNode {
             border: '1px solid hsl(8 80% 85%)',
           }}
         >
-          {error ?? 'Not found.'}
+          {error ?? t('priceLists.detail.notFound')}
         </div>
       </div>
     );
@@ -226,7 +226,7 @@ export function PriceListDetailPage(): ReactNode {
             className="b2b-page-head__back"
             onClick={(): void => { navigate('/price-lists'); }}
           >
-            <ChevronLeft size={14} /> Price lists
+            <ChevronLeft size={14} /> {t('priceLists.page.title')}
           </button>
           <div className="b2b-page-head__title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {list.name}
@@ -235,7 +235,7 @@ export function PriceListDetailPage(): ReactNode {
                 className="b2b-badge b2b-badge--success"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
               >
-                <Lock size={11} /> System
+                <Lock size={11} /> {t('priceLists.systemBadge')}
               </span>
             ) : null}
             <span className={STATUS_BADGE_CLASS[list.status]}>{STATUS_LABEL[list.status]}</span>
@@ -244,9 +244,9 @@ export function PriceListDetailPage(): ReactNode {
           <div className="b2b-page-head__sub" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <Calendar size={12} />
-              {formatRange(list.startsAt, list.endsAt)}
+              {formatRange(list.startsAt, list.endsAt, t)}
             </span>
-            <span>Modified {formatDate(list.modifiedAt)}</span>
+            <span>{t('priceLists.detail.modifiedAt', { date: formatDate(list.modifiedAt) })}</span>
           </div>
         </div>
         <div className="b2b-page-head__actions" style={{ gap: 8 }}>
@@ -255,24 +255,24 @@ export function PriceListDetailPage(): ReactNode {
               type="button"
               className="b2b-btn b2b-btn--primary b2b-btn--sm"
               disabled={lifecycleDisabled}
-              title={lifecycleDisabled ? 'System list cannot change state.' : undefined}
+              title={lifecycleDisabled ? t('priceLists.detail.systemStateLocked') : undefined}
               onClick={(): void => {
                 void handleActivate();
               }}
             >
-              <Zap size={13} /> Activate
+              <Zap size={13} /> {t('priceLists.detail.activate')}
             </button>
           ) : (
             <button
               type="button"
               className="b2b-btn b2b-btn--default b2b-btn--sm"
               disabled={lifecycleDisabled}
-              title={lifecycleDisabled ? 'System list cannot change state.' : undefined}
+              title={lifecycleDisabled ? t('priceLists.detail.systemStateLocked') : undefined}
               onClick={(): void => {
                 void handleDraftify();
               }}
             >
-              <Star size={13} /> Move to draft
+              <Star size={13} /> {t('priceLists.detail.moveToDraft')}
             </button>
           )}
           <button
@@ -282,18 +282,18 @@ export function PriceListDetailPage(): ReactNode {
               void handleDuplicate();
             }}
           >
-            <Copy size={13} /> Duplicate
+            <Copy size={13} /> {t('priceLists.detail.duplicate')}
           </button>
           <button
             type="button"
             className="b2b-btn b2b-btn--danger b2b-btn--sm"
             disabled={lifecycleDisabled}
-            title={lifecycleDisabled ? 'System list cannot be deleted.' : undefined}
+            title={lifecycleDisabled ? t('priceLists.detail.systemDeleteLocked') : undefined}
             onClick={(): void => {
               void handleDelete();
             }}
           >
-            <Trash2 size={13} /> Delete
+            <Trash2 size={13} /> {t('priceLists.detail.delete')}
           </button>
         </div>
       </div>
@@ -308,9 +308,9 @@ export function PriceListDetailPage(): ReactNode {
       <div className="b2b-card">
         <div style={{ padding: '4px 4px 0' }}>
           <div className="b2b-tabs" role="tablist">
-            <TabBtn id="details" label="Details" icon={<Cog size={14} />} active={tab} onChange={setTab} />
-            <TabBtn id="products" label="Products & brackets" icon={<Layers size={14} />} active={tab} onChange={setTab} />
-            <TabBtn id="rule" label="Application rule" icon={<Filter size={14} />} active={tab} onChange={setTab} />
+            <TabBtn id="details" label={t('priceLists.detail.tab.details')} icon={<Cog size={14} />} active={tab} onChange={setTab} />
+            <TabBtn id="products" label={t('priceLists.detail.tab.products')} icon={<Layers size={14} />} active={tab} onChange={setTab} />
+            <TabBtn id="rule" label={t('priceLists.detail.tab.rule')} icon={<Filter size={14} />} active={tab} onChange={setTab} />
           </div>
         </div>
 
@@ -368,6 +368,7 @@ function Banner({
   message: string;
   onDismiss: () => void;
 }): ReactNode {
+  const t = useTranslation('core');
   const palette =
     kind === 'error'
       ? { bg: 'var(--danger-soft)', fg: 'var(--danger-soft-fg)', border: 'hsl(8 80% 85%)' }
@@ -387,7 +388,7 @@ function Banner({
     >
       <div className="b2b-grow">{message}</div>
       <button type="button" className="b2b-btn b2b-btn--ghost b2b-btn--sm" onClick={onDismiss}>
-        Dismiss
+        {t('priceLists.dismiss')}
       </button>
     </div>
   );
@@ -407,6 +408,7 @@ function DetailsPanel({
   }) => Promise<void>;
   disabled: boolean;
 }): ReactNode {
+  const t = useTranslation('core');
   const [name, setName] = useState(list.name);
   const [type, setType] = useState<PriceListType>(list.type);
   const [startsAt, setStartsAt] = useState(toLocalInput(list.startsAt));
@@ -456,15 +458,13 @@ function DetailsPanel({
         >
           <Lock size={14} style={{ marginTop: 2 }} />
           <div>
-            This is the seeded <strong>Default</strong> price list. Its name and type
-            cannot be changed; lifecycle, delete, and rule edits are refused by the
-            backend (FR-005, FR-006).
+            {t('priceLists.detail.systemNotice')}
           </div>
         </div>
       ) : null}
       <div className="b2b-row" style={{ gap: 12 }}>
         <div className="b2b-grow">
-          <label className="b2b-label" htmlFor="ed-name">Name</label>
+          <label className="b2b-label" htmlFor="ed-name">{t('priceLists.detail.field.name')}</label>
           <input
             id="ed-name"
             className="b2b-field"
@@ -474,7 +474,7 @@ function DetailsPanel({
           />
         </div>
         <div className="b2b-grow">
-          <label className="b2b-label" htmlFor="ed-type">Type</label>
+          <label className="b2b-label" htmlFor="ed-type">{t('priceLists.detail.field.type')}</label>
           <select
             id="ed-type"
             className="b2b-field"
@@ -482,18 +482,17 @@ function DetailsPanel({
             disabled={disabled}
             onChange={(e): void => setType(e.target.value as PriceListType)}
           >
-            <option value="base">Base</option>
-            <option value="sale">Sale</option>
+            <option value="base">{t('priceLists.type.base')}</option>
+            <option value="sale">{t('priceLists.type.sale')}</option>
           </select>
           <div className="b2b-help">
-            Base lists replace the catalogue price; Sale lists render alongside the Base
-            as a Special Price.
+            {t('priceLists.detail.field.typeHelp')}
           </div>
         </div>
       </div>
       <div className="b2b-row" style={{ gap: 12 }}>
         <div className="b2b-grow">
-          <label className="b2b-label" htmlFor="ed-starts">Starts at</label>
+          <label className="b2b-label" htmlFor="ed-starts">{t('priceLists.detail.field.startsAt')}</label>
           <input
             id="ed-starts"
             className="b2b-field"
@@ -504,7 +503,7 @@ function DetailsPanel({
           />
         </div>
         <div className="b2b-grow">
-          <label className="b2b-label" htmlFor="ed-ends">Ends at</label>
+          <label className="b2b-label" htmlFor="ed-ends">{t('priceLists.detail.field.endsAt')}</label>
           <input
             id="ed-ends"
             className="b2b-field"
@@ -524,7 +523,7 @@ function DetailsPanel({
             void handle();
           }}
         >
-          <Save size={14} /> {submitting ? 'Saving…' : 'Save changes'}
+          <Save size={14} /> {submitting ? t('priceLists.detail.saving') : t('priceLists.detail.saveChanges')}
         </button>
       </div>
     </div>
@@ -551,6 +550,7 @@ function ProductsAndBracketsPanel({
   systemList: boolean;
   focusProductId?: string | null;
 }): ReactNode {
+  const t = useTranslation('core');
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [products, setProducts] = useState<Record<string, AdminProductSummary>>({});
   const [loading, setLoading] = useState(true);
@@ -585,11 +585,11 @@ function ProductsAndBracketsPanel({
         setSelectedId(rosterRes.data.items[0]!.productId);
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('priceLists.detail.products.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [priceListId, selectedId, focusProductId]);
+  }, [priceListId, selectedId, focusProductId, t]);
 
   useEffect(() => {
     void refresh();
@@ -605,12 +605,12 @@ function ProductsAndBracketsPanel({
       setSelectedId(productId);
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Add failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('priceLists.detail.products.error.add'));
     }
   };
 
   const handleRemoveProduct = async (productId: string): Promise<void> => {
-    if (!confirm('Remove this product from the price list? Its brackets will be deleted.')) return;
+    if (!confirm(t('priceLists.detail.products.confirmRemove'))) return;
     try {
       await apiClient.delete(
         `/api/v1/admin/price-lists-engine/${encodeURIComponent(priceListId)}/products/${encodeURIComponent(productId)}`,
@@ -618,7 +618,7 @@ function ProductsAndBracketsPanel({
       if (selectedId === productId) setSelectedId(null);
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Remove failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('priceLists.detail.products.error.remove'));
     }
   };
 
@@ -629,7 +629,7 @@ function ProductsAndBracketsPanel({
   };
 
   if (loading) {
-    return <div style={{ padding: 16, color: 'var(--fg-muted)', fontSize: 13 }}>Loading…</div>;
+    return <div style={{ padding: 16, color: 'var(--fg-muted)', fontSize: 13 }}>{t('priceLists.loading')}</div>;
   }
 
   const selected = roster.find((e) => e.productId === selectedId) ?? null;
@@ -665,9 +665,7 @@ function ProductsAndBracketsPanel({
         >
           <Lock size={14} style={{ marginTop: 2 }} />
           <div>
-            The Default list's roster is seeded from the legacy <code>defaultPrice</code>
-            attribute by migration 031. Products and brackets are read-only here; manage
-            non-Default lists for any price overrides.
+            {t('priceLists.detail.products.systemNotice')}
           </div>
         </div>
       ) : null}
@@ -684,7 +682,7 @@ function ProductsAndBracketsPanel({
             }}
           >
             <div className="b2b-grow" style={{ fontSize: 12, fontWeight: 600 }}>
-              Products ({roster.length})
+              {t('priceLists.detail.products.title', { count: roster.length })}
             </div>
             <button
               type="button"
@@ -692,12 +690,12 @@ function ProductsAndBracketsPanel({
               disabled={systemList}
               onClick={(): void => setPicker(true)}
             >
-              <Plus size={12} /> Add
+              <Plus size={12} /> {t('priceLists.detail.products.add')}
             </button>
           </div>
           {roster.length === 0 ? (
             <div className="b2b-help" style={{ padding: 16 }}>
-              No products yet. Add one to start pricing.
+              {t('priceLists.detail.products.empty')}
             </div>
           ) : (
             <ul style={{ margin: 0, padding: 0, listStyle: 'none', maxHeight: 480, overflow: 'auto' }}>
@@ -722,7 +720,7 @@ function ProductsAndBracketsPanel({
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--fg-muted)', display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
                       <span className="b2b-mono">{product?.sku ?? '—'}</span>
-                      <span>{currencyCount === 0 ? 'no prices' : `${currencyCount} cur.`}</span>
+                      <span>{currencyCount === 0 ? t('priceLists.detail.products.noPrices') : t('priceLists.detail.products.currencyCount', { count: currencyCount })}</span>
                     </div>
                   </li>
                 );
@@ -743,11 +741,11 @@ function ProductsAndBracketsPanel({
             />
           ) : selectedId ? (
             <div className="b2b-help" style={{ padding: 16 }}>
-              Loading product…
+              {t('priceLists.detail.products.loadingProduct')}
             </div>
           ) : (
             <div className="b2b-help" style={{ padding: 16 }}>
-              Select a product on the left to edit its brackets.
+              {t('priceLists.detail.products.selectHint')}
             </div>
           )}
           {selected && !systemList ? (
@@ -760,7 +758,7 @@ function ProductsAndBracketsPanel({
                   void handleRemoveProduct(selected.productId);
                 }}
               >
-                <Trash2 size={12} /> Remove from price list
+                <Trash2 size={12} /> {t('priceLists.detail.products.removeFromList')}
               </button>
             </div>
           ) : null}
@@ -789,6 +787,7 @@ function ProductPickerDialog({
   onClose: () => void;
   onPick: (productId: string) => void;
 }): ReactNode {
+  const t = useTranslation('core');
   const [products, setProducts] = useState<AdminProductSummary[]>([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -799,10 +798,10 @@ function ProductPickerDialog({
       .get<{ data: AdminProductSummary[] }>('/api/v1/admin/catalog/products')
       .then((res) => setProducts(res.data))
       .catch((err: unknown) => {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('priceLists.detail.picker.error.load'));
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   const candidates = products.filter((p) => {
     if (existing.has(p.id)) return false;
@@ -816,10 +815,9 @@ function ProductPickerDialog({
       <div className="b2b-scrim" onClick={onClose} />
       <aside className="b2b-drawer" role="dialog" aria-modal="true">
         <div className="b2b-drawer__head">
-          <div className="b2b-drawer__title">Add product</div>
+          <div className="b2b-drawer__title">{t('priceLists.detail.picker.title')}</div>
           <div className="b2b-card__sub">
-            Pick a product to add to this price list. Each product can only appear once
-            per list.
+            {t('priceLists.detail.picker.subtitle')}
           </div>
         </div>
         <div className="b2b-drawer__body">
@@ -828,7 +826,7 @@ function ProductPickerDialog({
             <input
               autoFocus
               className="b2b-field b2b-field--addon"
-              placeholder="Search by name or SKU…"
+              placeholder={t('priceLists.detail.picker.searchPlaceholder')}
               value={query}
               onChange={(e): void => setQuery(e.target.value)}
             />
@@ -838,9 +836,9 @@ function ProductPickerDialog({
               {error}
             </div>
           ) : loading ? (
-            <div className="b2b-help">Loading…</div>
+            <div className="b2b-help">{t('priceLists.loading')}</div>
           ) : candidates.length === 0 ? (
-            <div className="b2b-help">No matching products.</div>
+            <div className="b2b-help">{t('priceLists.detail.picker.empty')}</div>
           ) : (
             <ul style={{ margin: 0, padding: 0, listStyle: 'none', maxHeight: 380, overflow: 'auto' }}>
               {candidates.slice(0, 100).map((p) => (
@@ -864,7 +862,7 @@ function ProductPickerDialog({
         </div>
         <div className="b2b-drawer__foot">
           <button type="button" className="b2b-btn b2b-btn--ghost" onClick={onClose}>
-            Cancel
+            {t('priceLists.detail.picker.cancel')}
           </button>
         </div>
       </aside>
@@ -881,6 +879,7 @@ function ApplicationRulePanel({
   isSystem: boolean;
   onSave: (next: ApplicationRule) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('core');
   const [draft, setDraft] = useState<ApplicationRule>(rule);
   const [submitting, setSubmitting] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
@@ -897,9 +896,9 @@ function ApplicationRulePanel({
     setError(null);
     try {
       await onSave(draft);
-      setInfo('Saved.');
+      setInfo(t('priceLists.detail.info.saved'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed.');
+      setError(err instanceof Error ? err.message : t('priceLists.detail.error.save'));
     } finally {
       setSubmitting(false);
     }
@@ -918,10 +917,9 @@ function ApplicationRulePanel({
         <div className="b2b-row" style={{ gap: 12, alignItems: 'flex-start' }}>
           <Lock size={18} style={{ color: 'var(--fg-muted)', marginTop: 2 }} />
           <div className="b2b-grow">
-            <div style={{ fontSize: 13, fontWeight: 600 }}>Application rule</div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{t('priceLists.detail.rule.title')}</div>
             <div className="b2b-help" style={{ marginTop: 4 }}>
-              The seeded Default list always matches and cannot carry a rule (FR-005).
-              The backend refuses any non-empty rule attached to it.
+              {t('priceLists.detail.rule.systemNotice')}
             </div>
           </div>
         </div>
@@ -967,7 +965,7 @@ function ApplicationRulePanel({
           disabled={!dirty || submitting}
           onClick={(): void => setDraft(rule)}
         >
-          Discard
+          {t('priceLists.detail.rule.discard')}
         </button>
         <button
           type="button"
@@ -977,7 +975,7 @@ function ApplicationRulePanel({
             void handle();
           }}
         >
-          <Save size={13} /> {submitting ? 'Saving…' : 'Save rule'}
+          <Save size={13} /> {submitting ? t('priceLists.detail.saving') : t('priceLists.detail.rule.save')}
         </button>
       </div>
     </div>
@@ -991,8 +989,8 @@ function toLocalInput(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function formatRange(startsAt: string | null, endsAt: string | null): string {
-  if (!startsAt && !endsAt) return 'Always';
+function formatRange(startsAt: string | null, endsAt: string | null, t: (k: string) => string): string {
+  if (!startsAt && !endsAt) return t('priceLists.window.always');
   const fmt = (s: string | null): string => (s ? new Date(s).toLocaleDateString() : '—');
   return `${fmt(startsAt)} → ${fmt(endsAt)}`;
 }

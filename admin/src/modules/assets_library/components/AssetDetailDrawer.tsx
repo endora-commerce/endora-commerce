@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { useTranslation } from '@/i18n/useTranslation';
 import {
   assetsLibraryClient,
   type AssetDetail,
@@ -26,6 +27,7 @@ export function AssetDetailDrawer({
   onChanged,
   onClose,
 }: AssetDetailDrawerProps): ReactNode {
+  const t = useTranslation('assets_library');
   const [detail, setDetail] = useState<AssetDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -51,7 +53,7 @@ export function AssetDetailDrawer({
     );
   }
   if (!detail) {
-    return <p className="text-sm text-muted-foreground">Loading…</p>;
+    return <p className="text-sm text-muted-foreground">{t('common.loading')}</p>;
   }
 
   const save = async (patch: {
@@ -90,7 +92,7 @@ export function AssetDetailDrawer({
   return (
     <Card className="sticky top-2 max-h-[calc(100vh-2rem)] overflow-y-auto">
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-base">Asset detail</CardTitle>
+        <CardTitle className="text-base">{t('detail.title')}</CardTitle>
         <Button type="button" size="sm" variant="ghost" onClick={onClose}>
           ✕
         </Button>
@@ -114,26 +116,28 @@ export function AssetDetailDrawer({
           rel="noopener"
           className="inline-flex items-center gap-1 text-xs underline"
         >
-          Open file <ExternalLink className="size-3" />
+          {t('detail.openFile')} <ExternalLink className="size-3" />
         </a>
 
-        <Field label="Filename" value={detail.filename} onSave={(v): Promise<void> => save({ filename: v })} disabled={busy} />
+        <Field label={t('detail.filename')} value={detail.filename} onSave={(v): Promise<void> => save({ filename: v })} disabled={busy} saveLabel={t('common.save')} />
         <Field
-          label="Label (storefront)"
+          label={t('detail.label')}
           value={detail.label ?? ''}
-          placeholder="(optional)"
+          placeholder={t('common.optional')}
           onSave={(v): Promise<void> => save({ label: v.length === 0 ? null : v })}
           disabled={busy}
+          saveLabel={t('common.save')}
         />
         <Field
-          label="MIME type"
+          label={t('detail.mimeType')}
           value={detail.mimeType}
           onSave={(v): Promise<void> => save({ mimeType: v })}
           disabled={busy}
+          saveLabel={t('common.save')}
         />
 
         <div className="space-y-1">
-          <Label>Visibility</Label>
+          <Label>{t('detail.visibility')}</Label>
           <Select
             value={detail.visibility}
             onChange={(e): void => {
@@ -142,19 +146,19 @@ export function AssetDetailDrawer({
             }}
             disabled={busy}
           >
-            <option value="public">public</option>
-            <option value="private">private</option>
+            <option value="public">{t('visibility.public')}</option>
+            <option value="private">{t('visibility.private')}</option>
           </Select>
         </div>
 
         <div className="text-xs text-muted-foreground">
-          Storage: {detail.storageBackend} · Size: {detail.sizeBytes} bytes
+          {t('detail.storage')}: {detail.storageBackend} · {t('detail.size')}: {detail.sizeBytes} {t('detail.bytes')}
         </div>
 
         <div className="border-t pt-3">
-          <p className="mb-1 text-sm font-medium">Referenced by</p>
+          <p className="mb-1 text-sm font-medium">{t('detail.referencedBy')}</p>
           {detail.references.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Not referenced.</p>
+            <p className="text-xs text-muted-foreground">{t('detail.notReferenced')}</p>
           ) : (
             <ul className="space-y-1 text-xs">
               {detail.references.map((r, i) => (
@@ -176,12 +180,12 @@ export function AssetDetailDrawer({
             disabled={busy || detail.references.length > 0}
             title={
               detail.references.length > 0
-                ? 'Remove every reference first'
-                : 'Soft-delete this asset'
+                ? t('detail.softDeleteBlockedTitle')
+                : t('detail.softDeleteTitle')
             }
             onClick={(): void => void softDelete()}
           >
-            <Trash2 className="size-4 mr-1" /> Soft-delete
+            <Trash2 className="size-4 mr-1" /> {t('detail.softDelete')}
           </Button>
         </div>
       </CardContent>
@@ -195,12 +199,14 @@ function Field({
   placeholder,
   onSave,
   disabled,
+  saveLabel,
 }: {
   label: string;
   value: string;
   placeholder?: string;
   onSave: (v: string) => Promise<void> | void;
   disabled?: boolean;
+  saveLabel: string;
 }): ReactNode {
   const [v, setV] = useState(value);
   useEffect(() => setV(value), [value]);
@@ -217,7 +223,7 @@ function Field({
         />
         {dirty ? (
           <Button type="button" size="sm" onClick={(): void => void onSave(v)} disabled={disabled}>
-            Save
+            {saveLabel}
           </Button>
         ) : null}
       </div>

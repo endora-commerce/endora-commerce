@@ -4,6 +4,7 @@ import { ApiError } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useTranslation } from '@/i18n/useTranslation';
 import { dictionaryClient } from '../client';
 
 interface TranslationsDrawerProps {
@@ -17,6 +18,7 @@ export function TranslationsDrawer({
   entryCode,
   languages,
 }: TranslationsDrawerProps): ReactNode {
+  const t = useTranslation('dictionaries');
   const [rows, setRows] = useState<DictionaryTranslation[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [savingLanguage, setSavingLanguage] = useState<string | null>(null);
@@ -38,12 +40,12 @@ export function TranslationsDrawer({
         setDrafts(Object.fromEntries(res.data.map((row) => [row.languageCode, row.label])));
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(formatError(err, 'Failed to load translations.'));
+        if (!cancelled) setError(formatError(err, t('translations.error.load')));
       });
     return () => {
       cancelled = true;
     };
-  }, [entryCode, entryType]);
+  }, [entryCode, entryType, t]);
 
   const byLanguage = useMemo(
     () => new Map(rows.map((row) => [row.languageCode, row])),
@@ -66,14 +68,14 @@ export function TranslationsDrawer({
         res.data,
       ].sort((a, b) => a.languageCode.localeCompare(b.languageCode)));
     } catch (err) {
-      setError(formatError(err, 'Save failed.'));
+      setError(formatError(err, t('translations.error.save')));
     } finally {
       setSavingLanguage(null);
     }
   };
 
   const remove = async (languageCode: string): Promise<void> => {
-    if (!confirm(`Remove ${languageCode} translation?`)) return;
+    if (!confirm(t('translations.confirmRemove', { languageCode }))) return;
     setSavingLanguage(languageCode);
     setError(null);
     try {
@@ -81,7 +83,7 @@ export function TranslationsDrawer({
       setRows((prev) => prev.filter((row) => row.languageCode !== languageCode));
       setDrafts((prev) => ({ ...prev, [languageCode]: '' }));
     } catch (err) {
-      setError(formatError(err, 'Remove failed.'));
+      setError(formatError(err, t('translations.error.remove')));
     } finally {
       setSavingLanguage(null);
     }
@@ -89,7 +91,7 @@ export function TranslationsDrawer({
 
   return (
     <div className="border-t pt-4">
-      <div className="mb-2 text-sm font-medium">Translations</div>
+      <div className="mb-2 text-sm font-medium">{t('translations.title')}</div>
       {error ? (
         <Alert variant="destructive" className="mb-3">
           <AlertDescription>{error}</AlertDescription>
@@ -104,7 +106,7 @@ export function TranslationsDrawer({
               <div className="flex items-center gap-2 text-sm">
                 <span className="font-mono text-xs">{language.code}</span>
                 {!language.isActive ? (
-                  <span className="text-xs text-muted-foreground">(inactive)</span>
+                  <span className="text-xs text-muted-foreground">{t('translations.inactive')}</span>
                 ) : null}
               </div>
               <Input
@@ -121,7 +123,7 @@ export function TranslationsDrawer({
                 disabled={savingLanguage === language.code || value.trim().length === 0}
                 onClick={() => void save(language.code)}
               >
-                Save
+                {t('translations.save')}
               </Button>
               <Button
                 type="button"
@@ -130,13 +132,13 @@ export function TranslationsDrawer({
                 disabled={savingLanguage === language.code || !existing}
                 onClick={() => void remove(language.code)}
               >
-                Remove
+                {t('translations.remove')}
               </Button>
             </div>
           );
         })}
         {languages.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No languages registered.</p>
+          <p className="text-sm text-muted-foreground">{t('translations.noLanguages')}</p>
         ) : null}
       </div>
     </div>

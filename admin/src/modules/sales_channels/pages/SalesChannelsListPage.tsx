@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/table';
 import { salesChannelsClient } from '../api/sales-channels-client';
 import { DefaultChannelBadge } from '../components/DefaultChannelBadge';
+import { useTranslation } from '@/i18n/useTranslation';
 
 /**
  * SalesChannelsListPage — feature 005 / T041.
@@ -29,6 +30,7 @@ import { DefaultChannelBadge } from '../components/DefaultChannelBadge';
  * to the create form (`/sales-channels/new`).
  */
 export function SalesChannelsListPage(): ReactNode {
+  const t = useTranslation('sales_channels');
   const [rows, setRows] = useState<SalesChannelSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,12 +46,12 @@ export function SalesChannelsListPage(): ReactNode {
       setError(
         err instanceof ApiError
           ? err.envelope.error.message
-          : 'Failed to load sales channels.',
+          : t('list.error.load'),
       );
     } finally {
       setLoading(false);
     }
-  }, [activeOnly]);
+  }, [activeOnly, t]);
 
   useEffect(() => {
     void refresh();
@@ -58,11 +60,11 @@ export function SalesChannelsListPage(): ReactNode {
   return (
     <>
       <PageHeader
-        title="Sales channels"
-        description="Each channel represents a place of sale (web storefront, marketplace, brick-and-mortar location). Products, customers, prices, and content are scoped to the channels they belong to. The “system default” channel is the implicit fallback for any entity created without explicit channel selection."
+        title={t('list.page.title')}
+        description={t('list.page.description')}
         actions={
           <Button asChild>
-            <Link to="/sales-channels/new">+ New channel</Link>
+            <Link to="/sales-channels/new">{t('list.action.newChannel')}</Link>
           </Button>
         }
       />
@@ -80,7 +82,7 @@ export function SalesChannelsListPage(): ReactNode {
               onChange={(e) => setActiveOnly(e.target.checked)}
             />
             <Label htmlFor="sc-active-only" className="cursor-pointer">
-              Show active channels only
+              {t('list.filter.activeOnly')}
             </Label>
           </div>
         </CardContent>
@@ -88,18 +90,18 @@ export function SalesChannelsListPage(): ReactNode {
       <Card>
         <CardContent className="pt-6">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading sales channels…</p>
+            <p className="text-sm text-muted-foreground">{t('list.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No channels match the filter.</p>
+            <p className="text-sm text-muted-foreground">{t('list.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Default lang / currency</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-32 text-right">Version</TableHead>
+                  <TableHead>{t('list.column.code')}</TableHead>
+                  <TableHead>{t('list.column.name')}</TableHead>
+                  <TableHead>{t('list.column.defaultLangCurrency')}</TableHead>
+                  <TableHead>{t('list.column.status')}</TableHead>
+                  <TableHead className="w-32 text-right">{t('list.column.version')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -123,11 +125,11 @@ export function SalesChannelsListPage(): ReactNode {
                     <TableCell>
                       {c.active ? (
                         <Badge variant="default" className="text-[10px]">
-                          Active
+                          {t('status.active')}
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="text-[10px]">
-                          Inactive
+                          {t('status.inactive')}
                         </Badge>
                       )}
                     </TableCell>

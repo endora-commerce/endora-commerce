@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { useTranslation } from '@/i18n/useTranslation';
 import { ContentLanguageTabs } from '../components/ContentLanguageTabs';
 import { PageBuilderEditor } from '../components/PageBuilderEditor';
 import { ScopePicker, type CmsScopeValue } from '../components/ScopePicker';
@@ -43,6 +44,7 @@ function dataFor(page: CmsPageDetail | null, language: string | null): Data | nu
 }
 
 export function PageEditor(): ReactNode {
+  const t = useTranslation('cms');
   const { id } = useParams();
   const isNew = !id || id === 'new';
   const navigate = useNavigate();
@@ -112,7 +114,7 @@ export function PageEditor(): ReactNode {
       });
     }
 
-    if (!page) throw new Error('Page is not loaded.');
+    if (!page) throw new Error(t('pageEditor.notLoaded'));
     return cmsClient.patchPage(page.id, {
       name: form.name,
       slug: form.slug,
@@ -168,30 +170,30 @@ export function PageEditor(): ReactNode {
   return (
     <div className="space-y-4">
       <PageHeader
-        title={isNew ? 'New CMS Page' : form.name || 'CMS Page'}
-        description="Author page metadata, sales-channel scope, languages, and Page Builder content."
+        title={isNew ? t('pageEditor.title.new') : form.name || t('pageEditor.title.edit')}
+        description={t('pageEditor.description')}
         actions={
           <div className="flex gap-2">
             <Button asChild variant="outline">
-              <Link to="/cms/pages">Back</Link>
+              <Link to="/cms/pages">{t('common.back')}</Link>
             </Button>
             {!isNew && page?.status !== 'published' ? (
               <Button type="button" variant="outline" onClick={() => void lifecycle('publish')}>
-                Publish
+                {t('common.publish')}
               </Button>
             ) : null}
             {!isNew && page?.status === 'published' ? (
               <Button type="button" variant="outline" onClick={() => void lifecycle('archive')}>
-                Archive
+                {t('common.archive')}
               </Button>
             ) : null}
             {!isNew && page?.status === 'archived' ? (
               <Button type="button" variant="outline" onClick={() => void lifecycle('unarchive')}>
-                Unarchive
+                {t('common.unarchive')}
               </Button>
             ) : null}
             <Button type="button" onClick={() => void save()} disabled={saving}>
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? t('common.saving') : t('common.save')}
             </Button>
           </div>
         }
@@ -207,23 +209,23 @@ export function PageEditor(): ReactNode {
         <div className="col-span-4 space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Page metadata</CardTitle>
+              <CardTitle className="text-base">{t('pageEditor.metadata')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1">
-                <Label>Name</Label>
+                <Label>{t('fields.name')}</Label>
                 <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label>Slug</Label>
+                <Label>{t('fields.slug')}</Label>
                 <Input value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label>Status</Label>
+                <Label>{t('fields.status')}</Label>
                 <Select value={page?.status ?? 'draft'} disabled>
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                  <option value="archived">Archived</option>
+                  <option value="draft">{t('status.draft')}</option>
+                  <option value="published">{t('status.published')}</option>
+                  <option value="archived">{t('status.archived')}</option>
                 </Select>
               </div>
               <label className="flex items-center gap-2 text-sm">
@@ -232,31 +234,31 @@ export function PageEditor(): ReactNode {
                   checked={form.active}
                   onChange={(event) => setForm({ ...form, active: event.target.checked })}
                 />
-                Active
+                {t('fields.active')}
               </label>
               <div className="space-y-1">
-                <Label>Description</Label>
+                <Label>{t('fields.description')}</Label>
                 <Textarea
                   value={form.description}
                   onChange={(event) => setForm({ ...form, description: event.target.value })}
                 />
               </div>
               <div className="space-y-1">
-                <Label>Meta title</Label>
+                <Label>{t('fields.metaTitle')}</Label>
                 <Input
                   value={form.metaTitle}
                   onChange={(event) => setForm({ ...form, metaTitle: event.target.value })}
                 />
               </div>
               <div className="space-y-1">
-                <Label>Meta description</Label>
+                <Label>{t('fields.metaDescription')}</Label>
                 <Textarea
                   value={form.metaDescription}
                   onChange={(event) => setForm({ ...form, metaDescription: event.target.value })}
                 />
               </div>
               <div className="space-y-1">
-                <Label>Meta keywords</Label>
+                <Label>{t('fields.metaKeywords')}</Label>
                 <Input
                   value={form.metaKeywords}
                   onChange={(event) => setForm({ ...form, metaKeywords: event.target.value })}

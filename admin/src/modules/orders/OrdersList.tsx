@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 
 interface AdminOrderRow {
   id: string;
@@ -41,6 +42,7 @@ const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'warn
 };
 
 export function OrdersList(): ReactNode {
+  const t = useTranslation('core');
   const [rows, setRows] = useState<AdminOrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,11 +55,11 @@ export function OrdersList(): ReactNode {
       const res = await apiClient.get<{ data: AdminOrderRow[] }>('/api/v1/admin/orders');
       setRows(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('orders.error.load'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void refresh();
@@ -67,7 +69,7 @@ export function OrdersList(): ReactNode {
 
   return (
     <>
-      <PageHeader title="Orders" description="All orders across organizations." />
+      <PageHeader title={t('orders.page.title')} description={t('orders.page.description')} />
 
       {error ? (
         <Alert variant="destructive" className="mb-4">
@@ -78,13 +80,13 @@ export function OrdersList(): ReactNode {
       <Card className="mb-4">
         <CardContent className="pt-6">
           <div className="space-y-2 md:max-w-xs">
-            <Label htmlFor="ostatus">Status</Label>
+            <Label htmlFor="ostatus">{t('orders.field.status')}</Label>
             <Select
               id="ostatus"
               value={statusFilter}
               onChange={(e): void => setStatusFilter(e.target.value as typeof statusFilter)}
             >
-              <option value="">All</option>
+              <option value="">{t('orders.filter.all')}</option>
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
                   {s}
@@ -98,19 +100,19 @@ export function OrdersList(): ReactNode {
       <Card>
         <CardContent className="pt-6">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('orders.loading')}</p>
           ) : visible.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No orders match the current filter.</p>
+            <p className="text-sm text-muted-foreground">{t('orders.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Placed</TableHead>
-                  <TableHead>Order</TableHead>
-                  <TableHead>Org</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Payment</TableHead>
-                  <TableHead>Total</TableHead>
+                  <TableHead>{t('orders.column.placed')}</TableHead>
+                  <TableHead>{t('orders.column.order')}</TableHead>
+                  <TableHead>{t('orders.column.org')}</TableHead>
+                  <TableHead>{t('orders.column.status')}</TableHead>
+                  <TableHead>{t('orders.column.payment')}</TableHead>
+                  <TableHead>{t('orders.column.total')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -139,7 +141,7 @@ export function OrdersList(): ReactNode {
                     <TableCell>
                       <Button asChild variant="outline" size="sm">
                         <Link to={`/orders/${o.id}`}>
-                          Open
+                          {t('orders.open')}
                           <ArrowRight />
                         </Link>
                       </Button>

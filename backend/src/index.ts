@@ -27,6 +27,7 @@ async function main(): Promise<void> {
       serverUrl: `http://localhost:${port}`,
     },
     modules: composition.modules,
+    errorEnvelope: composition.errorEnvelope,
   });
 
   const shutdown = async (signal: string): Promise<void> => {

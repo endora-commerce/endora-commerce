@@ -5,12 +5,14 @@ import { Plus, Search, Warehouse as WarehouseIcon } from 'lucide-react';
 import { ApiError } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { useTranslation } from '@/i18n/useTranslation';
 import { warehousesClient } from './api/warehouses-client';
 
 /**
  * WarehousesList — admin landing for warehouse identity (feature 010 / US1).
  */
 export function WarehousesList(): ReactNode {
+  const t = useTranslation('core');
   const [rows, setRows] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,23 +26,23 @@ export function WarehousesList(): ReactNode {
       const res = await warehousesClient.list({ activeOnly, withTotals: true });
       setRows(res.items);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('warehouses.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [activeOnly]);
+  }, [activeOnly, t]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   const filtered = useMemo(() => {
-    const t = query.trim().toLowerCase();
-    if (!t) return rows;
+    const q = query.trim().toLowerCase();
+    if (!q) return rows;
     return rows.filter(
       (r) =>
-        r.code.toLowerCase().includes(t) ||
-        r.name.toLowerCase().includes(t),
+        r.code.toLowerCase().includes(q) ||
+        r.name.toLowerCase().includes(q),
     );
   }, [rows, query]);
 
@@ -48,14 +50,14 @@ export function WarehousesList(): ReactNode {
     <div className="b2b-page b2b-page--wide">
       <div className="b2b-page-head">
         <div className="b2b-grow">
-          <div className="b2b-page-head__title">Warehouses</div>
+          <div className="b2b-page-head__title">{t('warehouses.page.title')}</div>
           <div className="b2b-page-head__sub">
-            Stocking locations · The seeded <code className="b2b-mono">default</code> warehouse cannot be deleted while it backs sales channels.
+            {t('warehouses.page.sub.prefix')} <code className="b2b-mono">default</code> {t('warehouses.page.sub.suffix')}
           </div>
         </div>
         <div className="b2b-page-head__actions">
           <Link to="/warehouses/new" className="b2b-btn b2b-btn--primary">
-            <Plus size={14} /> New warehouse
+            <Plus size={14} /> {t('warehouses.action.new')}
           </Link>
         </div>
       </div>
@@ -82,7 +84,7 @@ export function WarehousesList(): ReactNode {
               <Search size={16} className="lead" />
               <input
                 className="b2b-field b2b-field--addon"
-                placeholder="Search code or name…"
+                placeholder={t('warehouses.search.placeholder')}
                 value={query}
                 onChange={(e): void => setQuery(e.target.value)}
               />
@@ -94,29 +96,29 @@ export function WarehousesList(): ReactNode {
               checked={activeOnly}
               onChange={(e): void => setActiveOnly(e.target.checked)}
             />
-            Active only
+            {t('warehouses.filter.activeOnly')}
           </label>
         </div>
 
         <div className="b2b-card__body b2b-card__body--flush">
           {loading ? (
-            <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>Loading…</div>
+            <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>{t('warehouses.loading')}</div>
           ) : filtered.length === 0 ? (
             <div className="b2b-empty">
               <div className="b2b-empty__icon"><WarehouseIcon size={20} /></div>
-              <div className="b2b-empty__title">No warehouses match the current filters</div>
+              <div className="b2b-empty__title">{t('warehouses.empty')}</div>
             </div>
           ) : (
             <table className="b2b-tbl">
               <thead>
                 <tr>
-                  <th>Code</th>
-                  <th>Name</th>
-                  <th className="num">Products</th>
-                  <th className="num">On hand</th>
-                  <th className="num">Default for</th>
-                  <th>Status</th>
-                  <th>Updated</th>
+                  <th>{t('warehouses.column.code')}</th>
+                  <th>{t('warehouses.column.name')}</th>
+                  <th className="num">{t('warehouses.column.products')}</th>
+                  <th className="num">{t('warehouses.column.onHand')}</th>
+                  <th className="num">{t('warehouses.column.defaultFor')}</th>
+                  <th>{t('warehouses.column.status')}</th>
+                  <th>{t('warehouses.column.updated')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -137,7 +139,7 @@ export function WarehousesList(): ReactNode {
                     <td className="num b2b-tabular">{r.totals?.isDefaultForChannelCount ?? '—'}</td>
                     <td>
                       <span className={cn('b2b-badge', r.active ? 'b2b-badge--success' : 'b2b-badge--muted')}>
-                        {r.active ? 'Active' : 'Inactive'}
+                        {r.active ? t('warehouses.status.active') : t('warehouses.status.inactive')}
                       </span>
                     </td>
                     <td>

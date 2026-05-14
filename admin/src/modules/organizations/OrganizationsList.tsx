@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 
 interface AdminOrganization {
   id: string;
@@ -38,6 +39,7 @@ const STATUS_VARIANT: Record<AdminOrganization['status'], 'default' | 'secondary
 };
 
 export function OrganizationsList(): ReactNode {
+  const t = useTranslation('core');
   const [rows, setRows] = useState<AdminOrganization[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,11 +58,11 @@ export function OrganizationsList(): ReactNode {
       const res = await apiClient.get<{ data: AdminOrganization[] }>(path);
       setRows(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [status, q]);
+  }, [status, q, t]);
 
   useEffect(() => {
     void refresh();
@@ -69,8 +71,8 @@ export function OrganizationsList(): ReactNode {
   return (
     <>
       <PageHeader
-        title="Organizations"
-        description="Customer organizations registered on the platform."
+        title={t('organizations.page.title')}
+        description={t('organizations.page.description')}
       />
 
       {error ? (
@@ -82,13 +84,13 @@ export function OrganizationsList(): ReactNode {
       <Card className="mb-4">
         <CardContent className="grid gap-4 pt-6 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="ostatus">Status</Label>
+            <Label htmlFor="ostatus">{t('organizations.field.status')}</Label>
             <Select
               id="ostatus"
               value={status}
               onChange={(e): void => setStatus(e.target.value as typeof status)}
             >
-              <option value="">All</option>
+              <option value="">{t('organizations.filter.all')}</option>
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
                   {s}
@@ -97,7 +99,7 @@ export function OrganizationsList(): ReactNode {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="oq">Search (name / tax id)</Label>
+            <Label htmlFor="oq">{t('organizations.field.search')}</Label>
             <Input id="oq" value={q} onChange={(e): void => setQ(e.target.value)} />
           </div>
         </CardContent>
@@ -106,18 +108,18 @@ export function OrganizationsList(): ReactNode {
       <Card>
         <CardContent className="pt-6">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('organizations.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No organizations match the current filter.</p>
+            <p className="text-sm text-muted-foreground">{t('organizations.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Tax ID</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>VAT</TableHead>
-                  <TableHead>Registered</TableHead>
+                  <TableHead>{t('organizations.column.name')}</TableHead>
+                  <TableHead>{t('organizations.column.taxId')}</TableHead>
+                  <TableHead>{t('organizations.column.status')}</TableHead>
+                  <TableHead>{t('organizations.column.vat')}</TableHead>
+                  <TableHead>{t('organizations.column.registered')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -134,7 +136,7 @@ export function OrganizationsList(): ReactNode {
                     <TableCell>
                       <Button asChild variant="outline" size="sm">
                         <Link to={`/organizations/${o.id}`}>
-                          Open
+                          {t('organizations.action.open')}
                           <ArrowRight />
                         </Link>
                       </Button>

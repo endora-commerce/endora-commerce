@@ -13,10 +13,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 
 interface EntityConfig {
   slug: string;
-  label: string;
+  labelKey: string;
   importable: boolean;
   importHeader?: string;
 }
@@ -24,35 +25,36 @@ interface EntityConfig {
 const ENTITIES: EntityConfig[] = [
   {
     slug: 'products',
-    label: 'Products',
+    labelKey: 'importExport.entity.products',
     importable: true,
     importHeader: 'sku, status, visibility, name_en, description_en',
   },
   {
     slug: 'categories',
-    label: 'Categories',
+    labelKey: 'importExport.entity.categories',
     importable: true,
     importHeader: 'slug, parent_slug, sort_order, name_en',
   },
   {
     slug: 'stock',
-    label: 'Stock levels',
+    labelKey: 'importExport.entity.stock',
     importable: true,
     importHeader: 'product_sku, variant_id, on_hand',
   },
-  { slug: 'customers', label: 'Customers', importable: false },
-  { slug: 'orders', label: 'Orders', importable: false },
+  { slug: 'customers', labelKey: 'importExport.entity.customers', importable: false },
+  { slug: 'orders', labelKey: 'importExport.entity.orders', importable: false },
 ];
 
 const apiBaseUrl =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
 
 export function ImportExportPage(): ReactNode {
+  const t = useTranslation('core');
   return (
     <>
       <PageHeader
-        title="Import / Export"
-        description="CSV-only round-trips for the bulk-edit cases. Per-row errors roll the entire upload back, so re-uploads are deterministic."
+        title={t('importExport.page.title')}
+        description={t('importExport.page.description')}
       />
       <div className="space-y-4">
         {ENTITIES.map((entity) => (
@@ -64,6 +66,7 @@ export function ImportExportPage(): ReactNode {
 }
 
 function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
+  const t = useTranslation('core');
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importErrors, setImportErrors] = useState<Array<{ rowNumber: number; reason: string }>>(
@@ -89,20 +92,18 @@ function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
           headers: { 'Content-Type': 'text/csv' },
         });
         if (res.data.errors.length === 0) {
-          setImportMessage(`Imported ${res.data.imported} row(s).`);
+          setImportMessage(t('importExport.imported', { count: res.data.imported }));
         } else {
-          setImportMessage(
-            `Rolled back: ${res.data.errors.length} row(s) failed. No changes applied.`,
-          );
+          setImportMessage(t('importExport.rolledBack', { count: res.data.errors.length }));
           setImportErrors(res.data.errors);
         }
       } catch (err) {
-        setImportError(err instanceof ApiError ? err.envelope.error.message : 'Import failed.');
+        setImportError(err instanceof ApiError ? err.envelope.error.message : t('importExport.error.import'));
       } finally {
         setImporting(false);
       }
     },
-    [entity.slug],
+    [entity.slug, t],
   );
 
   const exportHref = `${apiBaseUrl}/api/v1/admin/export/${entity.slug}.csv`;
@@ -110,14 +111,14 @@ function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{entity.label}</CardTitle>
+        <CardTitle>{t(entity.labelKey)}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <Button asChild variant="outline" size="sm">
             <a href={exportHref} download>
               <Download />
-              Export CSV
+              {t('importExport.exportCsv')}
             </a>
           </Button>
           {entity.importable ? (
@@ -129,7 +130,7 @@ function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
             >
               <label className="relative">
                 <Upload />
-                {importing ? 'Uploading…' : 'Import CSV'}
+                {importing ? t('importExport.uploading') : t('importExport.importCsv')}
                 <input
                   type="file"
                   accept=".csv,text/csv"
@@ -143,14 +144,14 @@ function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
             </Button>
           ) : (
             <span className="text-xs text-muted-foreground">
-              Import not supported — see the docs site for the rationale.
+              {t('importExport.importNotSupported')}
             </span>
           )}
         </div>
 
         {entity.importable && entity.importHeader ? (
           <p className="text-xs text-muted-foreground">
-            Required header:{' '}
+            {t('importExport.requiredHeader')}{' '}
             <code className="rounded bg-muted px-1 font-mono">{entity.importHeader}</code>
           </p>
         ) : null}
@@ -169,8 +170,8 @@ function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Row #</TableHead>
-                <TableHead>Reason</TableHead>
+                <TableHead>{t('importExport.column.rowNumber')}</TableHead>
+                <TableHead>{t('importExport.column.reason')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

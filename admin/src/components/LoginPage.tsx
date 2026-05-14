@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/lib/auth';
+import { loginCopy } from '@/i18n/preauth-login-copy';
 
 /**
  * Admin login screen. Rendered by App when no session is active; the
@@ -27,10 +28,10 @@ export function LoginPage(): ReactNode {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <LogIn className="size-5 text-primary" />
-            B2B Admin · sign in
+            {loginCopy.title}
           </CardTitle>
           <CardDescription>
-            Use the email and password issued by your platform administrator.
+            {loginCopy.subheading}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -38,7 +39,7 @@ export function LoginPage(): ReactNode {
             <Alert variant="destructive">
               <ShieldAlert className="size-4" />
               <AlertTitle>
-                {/expired/i.test(lastLoginError) ? 'Session expired' : 'Sign-in failed'}
+                {/expired/i.test(lastLoginError) ? loginCopy.sessionExpired : loginCopy.failed}
               </AlertTitle>
               <AlertDescription>{lastLoginError}</AlertDescription>
             </Alert>
@@ -52,7 +53,7 @@ export function LoginPage(): ReactNode {
             }}
           >
             <div className="space-y-2">
-              <Label htmlFor="login-email">Email</Label>
+              <Label htmlFor="login-email">{loginCopy.email}</Label>
               <Input
                 id="login-email"
                 type="email"
@@ -63,7 +64,7 @@ export function LoginPage(): ReactNode {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="login-password">Password</Label>
+              <Label htmlFor="login-password">{loginCopy.password}</Label>
               <Input
                 id="login-password"
                 type="password"
@@ -74,15 +75,15 @@ export function LoginPage(): ReactNode {
               />
             </div>
             <Button type="submit" className="w-full" disabled={submitting || status === 'loading'}>
-              {submitting ? 'Signing in…' : 'Sign in'}
+              {submitting ? loginCopy.submitting : loginCopy.submit}
             </Button>
           </form>
           <p className="text-xs text-muted-foreground">
-            No account yet? Run{' '}
+            {loginCopy.footerPrefix}{' '}
             <code className="rounded bg-muted px-1 py-0.5 text-[0.7rem]">
               pnpm --filter backend run admin:create
             </code>{' '}
-            from the repository root.
+            {loginCopy.footerSuffix}
           </p>
         </CardContent>
       </Card>

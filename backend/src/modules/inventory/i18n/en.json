@@ -1,4 +1,17 @@
 {
   "actions.openInventory.label": "Open inventory",
-  "actions.openInventory.description": "View and manage warehouse stock levels"
+  "actions.openInventory.description": "View and manage warehouse stock levels",
+  "errors.STOCK_UNAVAILABLE": "Stock Unavailable.",
+  "errors.WAREHOUSE_NOT_FOUND": "Warehouse Not Found.",
+  "errors.WAREHOUSE_CODE_TAKEN": "Warehouse Code Taken.",
+  "errors.WAREHOUSE_INVALID_CODE": "Warehouse Invalid Code.",
+  "errors.WAREHOUSE_CANNOT_DELETE_DEFAULT": "Warehouse Cannot Delete Default.",
+  "errors.WAREHOUSE_IS_DEFAULT_FOR_CHANNELS": "Warehouse Is Default For Channels.",
+  "errors.WAREHOUSE_HAS_STOCK": "Warehouse Has Stock.",
+  "errors.CHANNEL_NO_WAREHOUSES": "Channel No Warehouses.",
+  "errors.CHANNEL_WAREHOUSE_NOT_FOUND": "Channel Warehouse Not Found.",
+  "errors.STOCK_LEVEL_NOT_FOUND": "Stock Level Not Found.",
+  "errors.THRESHOLDS_INVALID": "Thresholds Invalid.",
+  "errors.AVAILABILITY_NOTIFICATION_NOT_FOUND": "Availability Notification Not Found.",
+  "errors.STOCK_IMPORT_INVALID_FILE": "Stock Import Invalid File."
 }

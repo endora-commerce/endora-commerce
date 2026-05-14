@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, GripVertical, Plus, Tras
 import type { MegamenuItem, MegamenuItemKind } from '@b2b/contracts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useTranslation } from '@/i18n/useTranslation';
 
 interface MenuItemTreeProps {
   items: MegamenuItem[];
@@ -19,14 +20,9 @@ type IndexedItem = MegamenuItem & {
   position: number;
 };
 
-const kindLabel: Record<MegamenuItemKind, string> = {
-  'category-link': 'Category',
-  'cms-page-link': 'CMS Page',
-  'external-link': 'External link',
-  button: 'Button',
-  asset: 'Asset',
-  'cms-block-embed': 'Block embed',
-};
+function kindLabel(t: (key: string) => string, kind: MegamenuItemKind): string {
+  return t(`treeKind.${kind}`);
+}
 
 function indexItems(items: MegamenuItem[]): IndexedItem[] {
   return items
@@ -34,11 +30,11 @@ function indexItems(items: MegamenuItem[]): IndexedItem[] {
     .map((item) => ({ ...item, parentId: item.parentId ?? null }));
 }
 
-function pickLabel(labels: Record<string, string> | undefined): string {
-  if (!labels) return '(no label)';
+function pickLabel(labels: Record<string, string> | undefined, fallback: string): string {
+  if (!labels) return fallback;
   const langs = Object.keys(labels);
-  if (langs.length === 0) return '(no label)';
-  return labels[langs[0]!] ?? '(no label)';
+  if (langs.length === 0) return fallback;
+  return labels[langs[0]!] ?? fallback;
 }
 
 export function MenuItemTree({
@@ -49,6 +45,7 @@ export function MenuItemTree({
   onDelete,
   onAddChild,
 }: MenuItemTreeProps): ReactNode {
+  const t = useTranslation('megamenu');
   const indexed = useMemo(() => indexItems(items), [items]);
   const byParent = useMemo(() => {
     const map = new Map<string | null, IndexedItem[]>();
@@ -86,9 +83,9 @@ export function MenuItemTree({
             className="flex-1 truncate text-left text-sm"
             onClick={() => onSelect(item.id)}
           >
-            {pickLabel(item.labels)}
+            {pickLabel(item.labels, t('tree.noLabel'))}
             <Badge variant="outline" className="ml-2 text-[10px] uppercase tracking-wide">
-              {kindLabel[item.kind]}
+              {kindLabel(t, item.kind)}
             </Badge>
           </button>
           <Button
@@ -96,7 +93,7 @@ export function MenuItemTree({
             size="sm"
             variant="ghost"
             onClick={() => onMove(item.id, 'up')}
-            title="Move up"
+            title={t('common.moveUp')}
           >
             <ArrowUp className="h-3 w-3" />
           </Button>
@@ -105,7 +102,7 @@ export function MenuItemTree({
             size="sm"
             variant="ghost"
             onClick={() => onMove(item.id, 'down')}
-            title="Move down"
+            title={t('common.moveDown')}
           >
             <ArrowDown className="h-3 w-3" />
           </Button>
@@ -114,7 +111,7 @@ export function MenuItemTree({
             size="sm"
             variant="ghost"
             onClick={() => onAddChild(item.id)}
-            title="Add child item"
+            title={t('tree.addChild')}
           >
             <Plus className="h-3 w-3" />
           </Button>
@@ -123,7 +120,7 @@ export function MenuItemTree({
             size="sm"
             variant="ghost"
             onClick={() => onDelete(item.id)}
-            title="Delete item"
+            title={t('tree.deleteItem')}
           >
             <Trash2 className="h-3 w-3" />
           </Button>
@@ -138,13 +135,13 @@ export function MenuItemTree({
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between border-b pb-2">
-        <span className="text-sm font-medium">Tree</span>
+        <span className="text-sm font-medium">{t('tree.title')}</span>
         <Button type="button" size="sm" variant="outline" onClick={() => onAddChild(null)}>
-          <Plus className="mr-1 h-3 w-3" /> Add top-level item
+          <Plus className="mr-1 h-3 w-3" /> {t('tree.addTopLevel')}
         </Button>
       </div>
       {roots.length === 0 ? (
-        <p className="px-2 py-3 text-sm text-muted-foreground">No items yet — add one above.</p>
+        <p className="px-2 py-3 text-sm text-muted-foreground">{t('tree.empty')}</p>
       ) : (
         roots.map((root) => renderRow(root, 0))
       )}

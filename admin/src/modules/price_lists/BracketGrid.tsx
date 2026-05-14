@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Copy, Plus, Save, Trash2, AlertTriangle, RotateCcw } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { useTranslation } from '@/i18n/useTranslation';
 
 export interface Bracket {
   minQuantity: number;
@@ -31,6 +32,7 @@ export function BracketGrid(props: {
   systemList: boolean;
   onSaved: (next: BracketsByCurrency) => void;
 }): ReactNode {
+  const t = useTranslation('core');
   const { priceListId, productId, productName, initial, systemList, onSaved } = props;
   const initialCurrencies = Object.keys(initial).sort();
   const [draft, setDraft] = useState<BracketsByCurrency>(() => normaliseInitial(initial));
@@ -95,7 +97,7 @@ export function BracketGrid(props: {
 
   const removeCurrency = (): void => {
     if (!activeCurrency) return;
-    if (!confirm(`Remove every ${activeCurrency} bracket from this product?`)) return;
+    if (!confirm(t('priceLists.bracket.confirmRemoveCurrency', { code: activeCurrency }))) return;
     setDraft((prev) => {
       const { [activeCurrency]: _, ...rest } = prev;
       return rest;
@@ -120,9 +122,9 @@ export function BracketGrid(props: {
         { bracketsByCurrency: draft },
       );
       onSaved(res.data.bracketsByCurrency);
-      setInfo('Saved.');
+      setInfo(t('priceLists.bracket.info.saved'));
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('priceLists.bracket.error.save'));
     } finally {
       setSubmitting(false);
     }
@@ -147,10 +149,13 @@ export function BracketGrid(props: {
         }
         return next;
       });
-      setInfo(`Copied ${activeCurrency} brackets to ${toCurrencies.join(', ')}.`);
+      setInfo(t('priceLists.bracket.info.copied', {
+        source: activeCurrency,
+        targets: toCurrencies.join(', '),
+      }));
       setShowCopy(false);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Copy failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('priceLists.bracket.error.copy'));
     } finally {
       setSubmitting(false);
     }
@@ -165,8 +170,7 @@ export function BracketGrid(props: {
         <div className="b2b-grow">
           <div style={{ fontSize: 13, fontWeight: 600 }}>{productName}</div>
           <div className="b2b-help" style={{ marginTop: 2 }}>
-            Add brackets per currency. Brackets cannot overlap; the last row should
-            normally have no upper bound.
+            {t('priceLists.bracket.help')}
           </div>
         </div>
         {dirty && !systemList ? (
@@ -175,7 +179,7 @@ export function BracketGrid(props: {
             className="b2b-btn b2b-btn--ghost b2b-btn--sm"
             onClick={handleReset}
           >
-            <RotateCcw size={12} /> Discard
+            <RotateCcw size={12} /> {t('priceLists.bracket.discard')}
           </button>
         ) : null}
         <button
@@ -186,7 +190,7 @@ export function BracketGrid(props: {
             void handleSave();
           }}
         >
-          <Save size={13} /> {submitting ? 'Saving…' : 'Save brackets'}
+          <Save size={13} /> {submitting ? t('priceLists.bracket.saving') : t('priceLists.bracket.save')}
         </button>
       </div>
 
@@ -221,7 +225,7 @@ export function BracketGrid(props: {
 
       <div className="b2b-row" style={{ gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
         {currencies.length === 0 ? (
-          <span className="b2b-help">No currencies yet — add one to start pricing.</span>
+          <span className="b2b-help">{t('priceLists.bracket.noCurrencies')}</span>
         ) : (
           currencies.map((c) => {
             const isActive = c === activeCurrency;
@@ -262,7 +266,7 @@ export function BracketGrid(props: {
             disabled={systemList}
             onClick={(): void => setShowCopy(true)}
           >
-            <Copy size={12} /> Copy {activeCurrency} →
+            <Copy size={12} /> {t('priceLists.bracket.copyFrom', { code: activeCurrency })}
           </button>
         ) : null}
         {activeCurrency ? (
@@ -273,7 +277,7 @@ export function BracketGrid(props: {
             onClick={removeCurrency}
             style={{ color: 'hsl(8 80% 50%)' }}
           >
-            <Trash2 size={12} /> Remove {activeCurrency}
+            <Trash2 size={12} /> {t('priceLists.bracket.removeCurrency', { code: activeCurrency })}
           </button>
         ) : null}
       </div>
@@ -282,9 +286,9 @@ export function BracketGrid(props: {
         <table className="b2b-tbl">
           <thead>
             <tr>
-              <th style={{ width: 100 }}>Min qty</th>
-              <th style={{ width: 100 }}>Max qty</th>
-              <th>Unit price ({activeCurrency})</th>
+              <th style={{ width: 100 }}>{t('priceLists.bracket.column.minQty')}</th>
+              <th style={{ width: 100 }}>{t('priceLists.bracket.column.maxQty')}</th>
+              <th>{t('priceLists.bracket.column.unitPrice', { code: activeCurrency })}</th>
               <th style={{ width: 50 }}></th>
             </tr>
           </thead>
@@ -292,7 +296,7 @@ export function BracketGrid(props: {
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={4} className="b2b-help" style={{ padding: 16 }}>
-                  No brackets yet for {activeCurrency}. Add one to start pricing.
+                  {t('priceLists.bracket.emptyForCurrency', { code: activeCurrency })}
                 </td>
               </tr>
             ) : (
@@ -365,7 +369,7 @@ export function BracketGrid(props: {
           style={{ alignSelf: 'flex-start' }}
           onClick={addBracket}
         >
-          <Plus size={12} /> Add bracket
+          <Plus size={12} /> {t('priceLists.bracket.addBracket')}
         </button>
       ) : null}
 
@@ -395,6 +399,7 @@ function AddCurrencyMenu({
   onAdd: (code: string) => void;
   disabled: boolean;
 }): ReactNode {
+  const t = useTranslation('core');
   const [open, setOpen] = useState(false);
   const candidates = allCurrencies.filter((c) => !existing.includes(c));
   if (candidates.length === 0) return null;
@@ -406,7 +411,7 @@ function AddCurrencyMenu({
         disabled={disabled}
         onClick={(): void => setOpen((v) => !v)}
       >
-        <Plus size={12} /> Add currency
+        <Plus size={12} /> {t('priceLists.bracket.addCurrency')}
       </button>
       {open ? (
         <div
@@ -454,6 +459,7 @@ function CopyDialog({
   onClose: () => void;
   onConfirm: (targets: string[]) => void;
 }): ReactNode {
+  const t = useTranslation('core');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const candidates = Array.from(new Set([...allCurrencies, ...existing])).filter((c) => c !== source).sort();
   const toggle = (c: string): void => {
@@ -469,16 +475,14 @@ function CopyDialog({
       <div className="b2b-scrim" onClick={onClose} />
       <aside className="b2b-drawer" role="dialog" aria-modal="true" style={{ maxWidth: 360 }}>
         <div className="b2b-drawer__head">
-          <div className="b2b-drawer__title">Copy {source} brackets</div>
+          <div className="b2b-drawer__title">{t('priceLists.bracket.copy.title', { source })}</div>
           <div className="b2b-card__sub">
-            Server-side identity copy — the target currencies receive the same
-            min/max/amount rows as the source. Targets that already have brackets
-            will be replaced.
+            {t('priceLists.bracket.copy.description')}
           </div>
         </div>
         <div className="b2b-drawer__body">
           {candidates.length === 0 ? (
-            <div className="b2b-help">No other currencies available.</div>
+            <div className="b2b-help">{t('priceLists.bracket.copy.noOthers')}</div>
           ) : (
             <div className="b2b-col" style={{ gap: 6 }}>
               {candidates.map((c) => (
@@ -500,7 +504,7 @@ function CopyDialog({
         </div>
         <div className="b2b-drawer__foot">
           <button type="button" className="b2b-btn b2b-btn--ghost" onClick={onClose}>
-            Cancel
+            {t('priceLists.bracket.copy.cancel')}
           </button>
           <button
             type="button"
@@ -508,7 +512,9 @@ function CopyDialog({
             disabled={selected.size === 0}
             onClick={(): void => onConfirm(Array.from(selected))}
           >
-            Copy to {selected.size} {selected.size === 1 ? 'currency' : 'currencies'}
+            {selected.size === 1
+              ? t('priceLists.bracket.copy.confirmSingle', { count: selected.size })
+              : t('priceLists.bracket.copy.confirmPlural', { count: selected.size })}
           </button>
         </div>
       </aside>

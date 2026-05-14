@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useTranslation } from '@/i18n/useTranslation';
 import { AssetUploader } from './AssetUploader';
 import {
   assetsLibraryClient,
@@ -27,6 +28,7 @@ export interface AssetPickerProps {
 }
 
 export function AssetPicker(props: AssetPickerProps): ReactNode {
+  const t = useTranslation('assets_library');
   const [q, setQ] = useState('');
   const [items, setItems] = useState<AssetSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -58,18 +60,18 @@ export function AssetPicker(props: AssetPickerProps): ReactNode {
         <div className="flex items-center gap-2">
           <Input
             value={q}
-            placeholder="Search by filename or label…"
+            placeholder={t('picker.searchPlaceholder')}
             onChange={(e): void => setQ(e.target.value)}
             onKeyDown={(e): void => {
               if (e.key === 'Enter') reload();
             }}
           />
           <Button type="button" variant="outline" size="sm" onClick={reload}>
-            Search
+            {t('common.search')}
           </Button>
           {props.onClose ? (
             <Button type="button" variant="ghost" size="sm" onClick={props.onClose}>
-              Close
+              {t('common.close')}
             </Button>
           ) : null}
         </div>
@@ -81,9 +83,9 @@ export function AssetPicker(props: AssetPickerProps): ReactNode {
         ) : null}
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
         ) : items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No assets match this query yet.</p>
+          <p className="text-sm text-muted-foreground">{t('picker.empty')}</p>
         ) : (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {items.map((a) => (
@@ -114,7 +116,7 @@ export function AssetPicker(props: AssetPickerProps): ReactNode {
 
         {props.allowUpload ? (
           <div className="border-t pt-3">
-            <p className="mb-1 text-sm font-medium">Or upload a new asset</p>
+            <p className="mb-1 text-sm font-medium">{t('picker.uploadNew')}</p>
             <AssetUploader
               {...(props.acceptMimePrefix !== undefined
                 ? { acceptPrefix: props.acceptMimePrefix }

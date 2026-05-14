@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Textarea } from '@/components/ui/textarea';
+import { useTranslation } from '@/i18n/useTranslation';
 import { BindingsPanel } from '../components/BindingsPanel';
 import {
   defaultTargetFor,
@@ -56,6 +57,7 @@ function deleteSubtree(items: IndexedItem[], itemId: string): IndexedItem[] {
 }
 
 export function MegamenuEditor(): ReactNode {
+  const t = useTranslation('megamenu');
   const { id } = useParams();
   const [menu, setMenu] = useState<MegamenuDetail | null>(null);
   const [name, setName] = useState('');
@@ -103,7 +105,7 @@ export function MegamenuEditor(): ReactNode {
       parentId,
       position: items.filter((i) => i.parentId === parentId).length,
       kind,
-      labels: { 'en-US': 'New item' },
+      labels: { 'en-US': t('editor.newItemLabel') },
       target: defaultTargetFor(kind) as MegamenuItem['target'],
     } as IndexedItem;
     setItems([...items, next]);
@@ -153,17 +155,17 @@ export function MegamenuEditor(): ReactNode {
   };
 
   if (!menu) {
-    return <p className="px-2 py-6 text-sm text-muted-foreground">Loading…</p>;
+    return <p className="px-2 py-6 text-sm text-muted-foreground">{t('common.loading')}</p>;
   }
 
   return (
     <div className="space-y-4">
       <PageHeader
-        title={menu.name || 'Megamenu'}
-        description="Author the navigation tree, scope it to (channel, language), activate it."
+        title={menu.name || t('editor.fallbackTitle')}
+        description={t('editor.description')}
         actions={
           <Button asChild variant="outline">
-            <Link to="/megamenu">Back</Link>
+            <Link to="/megamenu">{t('common.back')}</Link>
           </Button>
         }
       />
@@ -182,15 +184,15 @@ export function MegamenuEditor(): ReactNode {
         <div className="col-span-4 space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Metadata</CardTitle>
+              <CardTitle className="text-base">{t('sections.metadata')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1">
-                <Label>Name</Label>
+                <Label>{t('fields.name')}</Label>
                 <Input value={name} onChange={(event) => setName(event.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label>Description</Label>
+                <Label>{t('fields.description')}</Label>
                 <Textarea
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
@@ -198,7 +200,7 @@ export function MegamenuEditor(): ReactNode {
               </div>
               <div className="text-right">
                 <Button onClick={() => void saveMetadata()} disabled={saving}>
-                  Save metadata
+                  {t('common.saveMetadata')}
                 </Button>
               </div>
             </CardContent>
@@ -206,7 +208,7 @@ export function MegamenuEditor(): ReactNode {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Bindings</CardTitle>
+              <CardTitle className="text-base">{t('sections.bindings')}</CardTitle>
             </CardHeader>
             <CardContent>
               <BindingsPanel menuId={menu.id} bindings={menu.bindings} onChanged={() => void load()} />
@@ -217,7 +219,7 @@ export function MegamenuEditor(): ReactNode {
         <div className="col-span-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Items</CardTitle>
+              <CardTitle className="text-base">{t('sections.items')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <MenuItemTree
@@ -230,7 +232,7 @@ export function MegamenuEditor(): ReactNode {
               />
               <div className="text-right">
                 <Button onClick={() => void saveTree()} disabled={saving}>
-                  Save tree
+                  {t('common.saveTree')}
                 </Button>
               </div>
             </CardContent>
@@ -240,7 +242,7 @@ export function MegamenuEditor(): ReactNode {
         <div className="col-span-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Item</CardTitle>
+              <CardTitle className="text-base">{t('sections.item')}</CardTitle>
             </CardHeader>
             <CardContent>
               <MenuItemConfigPanel

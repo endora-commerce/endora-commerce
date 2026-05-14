@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
+import { useTranslation } from '@/i18n/useTranslation';
 import { FolderTree } from '../components/FolderTree';
 import { AssetUploader } from '../components/AssetUploader';
 import { AssetDetailDrawer } from '../components/AssetDetailDrawer';
@@ -18,6 +19,7 @@ import {
 } from '../api/assets-library-client';
 
 export function LibraryPage(): ReactNode {
+  const t = useTranslation('assets_library');
   const [folders, setFolders] = useState<AssetFolder[]>([]);
   const [folderId, setFolderId] = useState<string | null>(null); // null = Unsorted (root)
   const [items, setItems] = useState<AssetSummary[]>([]);
@@ -80,15 +82,13 @@ export function LibraryPage(): ReactNode {
   const onDeleteFolder = async (id: string): Promise<void> => {
     try {
       const choice = window.confirm(
-        'Delete this folder?\n\n' +
-          'OK = move its contents to the parent folder, then delete.\n' +
-          'Cancel = abort.',
+        t('folders.deleteConfirm'),
       );
       if (!choice) return;
       const out = await assetsLibraryClient.deleteFolder(id, {
         ifNonEmpty: 'moveContentsToParent',
       });
-      setInfo(`Folder removed (${out.deletedFolderId}).`);
+      setInfo(t('folders.removed', { id: out.deletedFolderId }));
       if (folderId === id) setFolderId(null);
       await loadFolders();
       await loadItems();
@@ -100,8 +100,8 @@ export function LibraryPage(): ReactNode {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Assets Library"
-        description="Upload, organize, and reuse images, videos, PDFs, and other files across the platform."
+        title={t('page.title')}
+        description={t('page.description')}
       />
 
       {error ? (
@@ -119,7 +119,7 @@ export function LibraryPage(): ReactNode {
         {/* Folder tree */}
         <Card className="col-span-3">
           <CardHeader>
-            <CardTitle className="text-base">Folders</CardTitle>
+            <CardTitle className="text-base">{t('folders.title')}</CardTitle>
           </CardHeader>
           <CardContent>
             <FolderTree
@@ -136,7 +136,7 @@ export function LibraryPage(): ReactNode {
         {/* Grid */}
         <Card className={selected ? 'col-span-6' : 'col-span-9'}>
           <CardHeader className="flex flex-row items-center justify-between gap-2">
-            <CardTitle className="text-base">Assets</CardTitle>
+            <CardTitle className="text-base">{t('assets.title')}</CardTitle>
             <div className="flex items-center gap-2">
               <Input
                 value={q}
@@ -144,28 +144,28 @@ export function LibraryPage(): ReactNode {
                 onKeyDown={(e): void => {
                   if (e.key === 'Enter') void loadItems();
                 }}
-                placeholder="Search filename or label…"
+                placeholder={t('assets.searchPlaceholder')}
                 className="w-64"
               />
               <Button type="button" variant="outline" size="sm" onClick={(): void => void loadItems()}>
-                Search
+                {t('common.search')}
               </Button>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <AssetUploader
               defaults={{ folderId }}
-              triggerLabel="Upload to current folder"
+              triggerLabel={t('uploader.triggerCurrentFolder')}
               onUploaded={(): void => {
                 void loadItems();
               }}
             />
 
             {loading ? (
-              <p className="text-sm text-muted-foreground">Loading…</p>
+              <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
             ) : items.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No assets in this folder yet.
+                {t('assets.emptyFolder')}
               </p>
             ) : (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">

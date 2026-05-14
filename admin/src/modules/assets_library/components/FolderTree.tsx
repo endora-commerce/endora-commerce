@@ -5,6 +5,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Folder, FolderPlus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useTranslation } from '@/i18n/useTranslation';
 import type { AssetFolder } from '../api/assets-library-client';
 
 export interface FolderTreeProps {
@@ -41,6 +42,7 @@ function flatten(
 }
 
 export function FolderTree(props: FolderTreeProps): ReactNode {
+  const t = useTranslation('assets_library');
   const [creatingFor, setCreatingFor] = useState<string | null | undefined>(undefined);
   const [newName, setNewName] = useState('');
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -59,7 +61,7 @@ export function FolderTree(props: FolderTreeProps): ReactNode {
       >
         <span className="flex items-center gap-2">
           <Folder className="size-4" />
-          Unsorted (root)
+          {t('folders.root')}
         </span>
         <Button
           type="button"
@@ -90,6 +92,9 @@ export function FolderTree(props: FolderTreeProps): ReactNode {
             setNewName('');
           }}
           depth={1}
+          placeholder={t('folders.namePlaceholder')}
+          confirmLabel={t('common.ok')}
+          cancelLabel={t('common.cancel')}
         />
       ) : null}
 
@@ -106,6 +111,9 @@ export function FolderTree(props: FolderTreeProps): ReactNode {
               }}
               onCancel={() => setRenamingId(null)}
               depth={r.depth}
+              placeholder={t('folders.namePlaceholder')}
+              confirmLabel={t('common.ok')}
+              cancelLabel={t('common.cancel')}
             />
           ) : (
             <div
@@ -131,7 +139,7 @@ export function FolderTree(props: FolderTreeProps): ReactNode {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  title="New sub-folder"
+                  title={t('folders.newSubfolder')}
                   onClick={(): void => {
                     setCreatingFor(r.id);
                     setNewName('');
@@ -143,7 +151,7 @@ export function FolderTree(props: FolderTreeProps): ReactNode {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  title="Delete"
+                  title={t('common.delete')}
                   onClick={(): void => {
                     void props.onDelete(r.id);
                   }}
@@ -168,6 +176,9 @@ export function FolderTree(props: FolderTreeProps): ReactNode {
                 setNewName('');
               }}
               depth={r.depth + 1}
+              placeholder={t('folders.namePlaceholder')}
+              confirmLabel={t('common.ok')}
+              cancelLabel={t('common.cancel')}
             />
           ) : null}
         </div>
@@ -182,12 +193,18 @@ function InlineCreator({
   onConfirm,
   onCancel,
   depth,
+  placeholder,
+  confirmLabel,
+  cancelLabel,
 }: {
   value: string;
   onChange: (v: string) => void;
   onConfirm: () => Promise<void> | void;
   onCancel: () => void;
   depth: number;
+  placeholder: string;
+  confirmLabel: string;
+  cancelLabel: string;
 }): ReactNode {
   return (
     <div
@@ -202,13 +219,13 @@ function InlineCreator({
           if (e.key === 'Enter') void onConfirm();
           if (e.key === 'Escape') onCancel();
         }}
-        placeholder="Folder name"
+        placeholder={placeholder}
       />
       <Button type="button" size="sm" onClick={(): void => void onConfirm()}>
-        OK
+        {confirmLabel}
       </Button>
       <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
-        Cancel
+        {cancelLabel}
       </Button>
     </div>
   );

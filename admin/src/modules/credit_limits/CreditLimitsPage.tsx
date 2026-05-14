@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 import { CurrencyPicker } from '../dictionaries/components/CurrencyPicker';
 
 interface ActiveReservation {
@@ -34,6 +35,7 @@ interface CreditLimitView {
 }
 
 export function CreditLimitsPage(): ReactNode {
+  const t = useTranslation('core');
   const [rows, setRows] = useState<CreditLimitView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,11 +52,11 @@ export function CreditLimitsPage(): ReactNode {
       const res = await apiClient.get<{ data: CreditLimitView[] }>('/api/v1/admin/credit-limits');
       setRows(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('creditLimits.error.load'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void refreshList();
@@ -73,12 +75,12 @@ export function CreditLimitsPage(): ReactNode {
       if (err instanceof ApiError && err.envelope.error.code === 'CREDIT_LIMIT_NOT_GRANTED') {
         setSelected(null);
       } else {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Lookup failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('creditLimits.error.lookup'));
       }
     } finally {
       setSelectedLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const handleGrant = useCallback(
     async (input: { grantedAmount: number; currency: string; reason?: string }): Promise<void> => {
@@ -88,14 +90,20 @@ export function CreditLimitsPage(): ReactNode {
           `/api/v1/admin/organizations/${selectedOrgId}/credit-limit`,
           input,
         );
-        setInfo(`Granted ${input.grantedAmount} ${input.currency} to ${selectedOrgId.slice(0, 8)}.`);
+        setInfo(
+          t('creditLimits.success.grant', {
+            amount: input.grantedAmount,
+            currency: input.currency,
+            orgId: selectedOrgId.slice(0, 8),
+          }),
+        );
         await loadSelected(selectedOrgId);
         await refreshList();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Grant failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('creditLimits.error.grant'));
       }
     },
-    [selectedOrgId, loadSelected, refreshList],
+    [selectedOrgId, loadSelected, refreshList, t],
   );
 
   const handleAdjust = useCallback(
@@ -110,21 +118,21 @@ export function CreditLimitsPage(): ReactNode {
           `/api/v1/admin/organizations/${selectedOrgId}/credit-limit`,
           input,
         );
-        setInfo(`Adjusted credit limit for ${selectedOrgId.slice(0, 8)}.`);
+        setInfo(t('creditLimits.success.adjust', { orgId: selectedOrgId.slice(0, 8) }));
         await loadSelected(selectedOrgId);
         await refreshList();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Adjust failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('creditLimits.error.adjust'));
       }
     },
-    [selectedOrgId, loadSelected, refreshList],
+    [selectedOrgId, loadSelected, refreshList, t],
   );
 
   return (
     <>
       <PageHeader
-        title="Credit limits"
-        description="Grant and adjust deferred-payment limits per organization. Adjustments below the active-reservations sum are rejected unless explicitly overridden."
+        title={t('creditLimits.page.title')}
+        description={t('creditLimits.page.description')}
       />
 
       {error ? (
@@ -141,18 +149,18 @@ export function CreditLimitsPage(): ReactNode {
       <Card className="mb-4">
         <CardContent className="pt-6">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('creditLimits.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No credit limits granted yet.</p>
+            <p className="text-sm text-muted-foreground">{t('creditLimits.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Organization</TableHead>
-                  <TableHead>Granted</TableHead>
-                  <TableHead>Available</TableHead>
-                  <TableHead>Reservations</TableHead>
-                  <TableHead>Granted at</TableHead>
+                  <TableHead>{t('creditLimits.column.organization')}</TableHead>
+                  <TableHead>{t('creditLimits.column.granted')}</TableHead>
+                  <TableHead>{t('creditLimits.column.available')}</TableHead>
+                  <TableHead>{t('creditLimits.column.reservations')}</TableHead>
+                  <TableHead>{t('creditLimits.column.grantedAt')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -179,7 +187,7 @@ export function CreditLimitsPage(): ReactNode {
                           void loadSelected(r.organizationId);
                         }}
                       >
-                        Open
+                        {t('creditLimits.action.open')}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -192,7 +200,7 @@ export function CreditLimitsPage(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Per-organization editor</CardTitle>
+          <CardTitle>{t('creditLimits.editor.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <form
@@ -203,16 +211,16 @@ export function CreditLimitsPage(): ReactNode {
             }}
           >
             <div className="flex-1 space-y-2">
-              <Label>Organization id</Label>
+              <Label>{t('creditLimits.field.orgId')}</Label>
               <Input
                 value={orgIdInput}
                 onChange={(e): void => setOrgIdInput(e.target.value)}
-                placeholder="UUID"
+                placeholder={t('creditLimits.placeholder.uuid')}
                 required
               />
             </div>
             <Button type="submit" variant="outline">
-              Look up
+              {t('creditLimits.action.lookup')}
             </Button>
           </form>
         </CardContent>
@@ -240,6 +248,7 @@ function ExistingLimitPanel({
     allowOverAllocation: boolean;
   }) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('core');
   const [grantedAmount, setGrantedAmount] = useState(String(limit.grantedAmount));
   const [reason, setReason] = useState('');
   const [allowOverAllocation, setAllowOverAllocation] = useState(false);
@@ -247,22 +256,28 @@ function ExistingLimitPanel({
     <Card>
       <CardHeader>
         <CardTitle>
-          Adjust {limit.organizationId.slice(0, 8)} ({limit.currency})
+          {t('creditLimits.adjust.title', {
+            orgId: limit.organizationId.slice(0, 8),
+            currency: limit.currency,
+          })}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Granted {limit.grantedAmount.toFixed(2)} · Available {limit.availableAmount.toFixed(2)} ·
-          Reserved {(limit.grantedAmount - limit.availableAmount).toFixed(2)} across{' '}
-          {limit.activeReservations.length} order(s).
+          {t('creditLimits.adjust.summary', {
+            granted: limit.grantedAmount.toFixed(2),
+            available: limit.availableAmount.toFixed(2),
+            reserved: (limit.grantedAmount - limit.availableAmount).toFixed(2),
+            count: limit.activeReservations.length,
+          })}
         </p>
         {limit.activeReservations.length > 0 ? (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Order</TableHead>
-                <TableHead>Reserved</TableHead>
-                <TableHead>Since</TableHead>
+                <TableHead>{t('creditLimits.column.order')}</TableHead>
+                <TableHead>{t('creditLimits.column.reserved')}</TableHead>
+                <TableHead>{t('creditLimits.column.since')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -292,7 +307,7 @@ function ExistingLimitPanel({
           }}
         >
           <div className="space-y-2">
-            <Label>New granted amount ({limit.currency})</Label>
+            <Label>{t('creditLimits.field.newGranted', { currency: limit.currency })}</Label>
             <Input
               type="number"
               step="0.01"
@@ -303,7 +318,7 @@ function ExistingLimitPanel({
             />
           </div>
           <div className="space-y-2">
-            <Label>Reason (optional, kept on the audit log)</Label>
+            <Label>{t('creditLimits.field.reasonAudit')}</Label>
             <Input
               value={reason}
               onChange={(e): void => setReason(e.target.value)}
@@ -315,10 +330,10 @@ function ExistingLimitPanel({
               checked={allowOverAllocation}
               onChange={(e): void => setAllowOverAllocation(e.target.checked)}
             />
-            Allow reduction below active reservations (override)
+            {t('creditLimits.field.allowOverAllocation')}
           </label>
           <div>
-            <Button type="submit">Save adjustment</Button>
+            <Button type="submit">{t('creditLimits.action.saveAdjust')}</Button>
           </div>
         </form>
       </CardContent>
@@ -333,17 +348,18 @@ function GrantPanel({
   orgId: string;
   onGrant: (input: { grantedAmount: number; currency: string; reason?: string }) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('core');
   const [grantedAmount, setGrantedAmount] = useState('5000');
   const [currency, setCurrency] = useState('PLN');
   const [reason, setReason] = useState('');
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Grant credit limit to {orgId.slice(0, 8)}</CardTitle>
+        <CardTitle>{t('creditLimits.grant.title', { orgId: orgId.slice(0, 8) })}</CardTitle>
       </CardHeader>
       <CardContent>
         <p className="mb-4 text-sm text-muted-foreground">
-          No credit limit is granted for this organization yet.
+          {t('creditLimits.grant.notGrantedYet')}
         </p>
         <form
           className="space-y-4"
@@ -358,7 +374,7 @@ function GrantPanel({
         >
           <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
             <div className="space-y-2">
-              <Label>Granted amount</Label>
+              <Label>{t('creditLimits.field.grantedAmount')}</Label>
               <Input
                 type="number"
                 step="0.01"
@@ -369,7 +385,7 @@ function GrantPanel({
               />
             </div>
             <div className="space-y-2">
-              <Label>Currency</Label>
+              <Label>{t('creditLimits.field.currency')}</Label>
               <CurrencyPicker
                 value={currency}
                 onChange={(e): void => setCurrency(e.target.value)}
@@ -378,14 +394,14 @@ function GrantPanel({
             </div>
           </div>
           <div className="space-y-2">
-            <Label>Reason (optional)</Label>
+            <Label>{t('creditLimits.field.reasonOptional')}</Label>
             <Input
               value={reason}
               onChange={(e): void => setReason(e.target.value)}
               maxLength={2000}
             />
           </div>
-          <Button type="submit">Grant</Button>
+          <Button type="submit">{t('creditLimits.action.grant')}</Button>
         </form>
       </CardContent>
     </Card>

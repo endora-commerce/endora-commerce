@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 
 const KNOWN_SCOPES = [
   'catalog:read',
@@ -37,6 +38,7 @@ interface CreateApiKeyEnvelope {
 }
 
 export function ApiKeysPage(): ReactNode {
+  const t = useTranslation('core');
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,11 +51,11 @@ export function ApiKeysPage(): ReactNode {
       const res = await apiClient.get<ApiKeyListResponse>('/api/v1/admin/api-keys');
       setKeys(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load API keys.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('apiKeys.error.load'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void refresh();
@@ -66,30 +68,30 @@ export function ApiKeysPage(): ReactNode {
         setRevealedToken({ name: input.name, token: res.data.bearerToken });
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to create key.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('apiKeys.error.create'));
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   const handleRevoke = useCallback(
     async (id: string): Promise<void> => {
-      if (!confirm('Revoke this key? Calls using it will start failing immediately.')) return;
+      if (!confirm(t('apiKeys.action.revokeConfirm'))) return;
       try {
         await apiClient.delete<void>(`/api/v1/admin/api-keys/${id}`);
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to revoke key.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('apiKeys.error.revoke'));
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   return (
     <>
       <PageHeader
-        title="API keys"
-        description="Bearer tokens for machine-to-machine integrations. The full token is shown once, on creation."
+        title={t('apiKeys.page.title')}
+        description={t('apiKeys.page.description')}
       />
 
       {error ? (
@@ -100,7 +102,7 @@ export function ApiKeysPage(): ReactNode {
 
       {revealedToken ? (
         <Alert variant="warning" className="mb-4">
-          <AlertTitle>Save this bearer token now — it will not be shown again.</AlertTitle>
+          <AlertTitle>{t('apiKeys.revealed.title')}</AlertTitle>
           <AlertDescription>
             <p className="text-xs text-muted-foreground">{revealedToken.name}</p>
             <code className="mt-2 block break-all rounded bg-muted px-2 py-1 font-mono text-xs">
@@ -112,7 +114,7 @@ export function ApiKeysPage(): ReactNode {
               className="mt-3"
               onClick={(): void => setRevealedToken(null)}
             >
-              I have stored it
+              {t('apiKeys.revealed.confirm')}
             </Button>
           </AlertDescription>
         </Alert>
@@ -120,7 +122,7 @@ export function ApiKeysPage(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Create new key</CardTitle>
+          <CardTitle>{t('apiKeys.create.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <CreateKeyForm onSubmit={handleCreate} />
@@ -130,19 +132,19 @@ export function ApiKeysPage(): ReactNode {
       <Card>
         <CardContent className="pt-6">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
           ) : keys.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No API keys yet.</p>
+            <p className="text-sm text-muted-foreground">{t('apiKeys.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Scopes</TableHead>
-                  <TableHead>Last 4</TableHead>
-                  <TableHead>Last used</TableHead>
-                  <TableHead>Created</TableHead>
+                  <TableHead>{t('apiKeys.column.name')}</TableHead>
+                  <TableHead>{t('apiKeys.column.status')}</TableHead>
+                  <TableHead>{t('apiKeys.column.scopes')}</TableHead>
+                  <TableHead>{t('apiKeys.column.last4')}</TableHead>
+                  <TableHead>{t('apiKeys.column.lastUsed')}</TableHead>
+                  <TableHead>{t('apiKeys.column.created')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -152,7 +154,7 @@ export function ApiKeysPage(): ReactNode {
                     <TableCell className="font-medium">{k.name}</TableCell>
                     <TableCell>
                       <Badge variant={k.status === 'active' ? 'success' : 'destructive'}>
-                        {k.status}
+                        {t(`apiKeys.status.${k.status}`)}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -177,7 +179,7 @@ export function ApiKeysPage(): ReactNode {
                           }}
                         >
                           <Trash2 />
-                          Revoke
+                          {t('apiKeys.action.revoke')}
                         </Button>
                       ) : null}
                     </TableCell>
@@ -195,6 +197,7 @@ export function ApiKeysPage(): ReactNode {
 function CreateKeyForm(props: {
   onSubmit: (input: { name: string; scopes: string[] }) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('core');
   const [name, setName] = useState('');
   const [scopes, setScopes] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
@@ -229,17 +232,17 @@ function CreateKeyForm(props: {
       }}
     >
       <div className="space-y-2">
-        <Label htmlFor="api-key-name">Name</Label>
+        <Label htmlFor="api-key-name">{t('apiKeys.create.nameLabel')}</Label>
         <Input
           id="api-key-name"
           value={name}
           onChange={(e): void => setName(e.target.value)}
-          placeholder="e.g. PIM sync"
+          placeholder={t('apiKeys.create.namePlaceholder')}
           required
         />
       </div>
       <div className="space-y-2">
-        <Label>Scopes</Label>
+        <Label>{t('apiKeys.create.scopesLabel')}</Label>
         <div className="flex flex-wrap gap-3">
           {KNOWN_SCOPES.map((scope) => (
             <label
@@ -251,12 +254,10 @@ function CreateKeyForm(props: {
             </label>
           ))}
         </div>
-        <p className="text-xs text-muted-foreground">
-          Pick the smallest set that lets the integration work.
-        </p>
+        <p className="text-xs text-muted-foreground">{t('apiKeys.create.scopesHelp')}</p>
       </div>
       <Button type="submit" disabled={submitting || !name.trim() || scopes.size === 0}>
-        {submitting ? 'Creating…' : 'Create key'}
+        {submitting ? t('apiKeys.create.submitting') : t('apiKeys.create.submit')}
       </Button>
     </form>
   );

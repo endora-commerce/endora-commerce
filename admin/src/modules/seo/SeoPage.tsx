@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 
 interface SitemapListEnvelope {
   data: SitemapChannelStatus[];
@@ -53,11 +54,12 @@ const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
 
 export function SeoPage(): ReactNode {
+  const t = useTranslation('core');
   return (
     <>
       <PageHeader
-        title="SEO"
-        description="Per-channel sitemap generation and meta-tag overrides."
+        title={t('seo.page.title')}
+        description={t('seo.page.description')}
       />
       <div className="space-y-4">
         <SitemapCard />
@@ -68,6 +70,7 @@ export function SeoPage(): ReactNode {
 }
 
 function SitemapCard(): ReactNode {
+  const t = useTranslation('core');
   const [rows, setRows] = useState<SitemapChannelStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyChannel, setBusyChannel] = useState<string | null>(null);
@@ -80,11 +83,11 @@ function SitemapCard(): ReactNode {
       const res = await apiClient.get<SitemapListEnvelope>('/api/v1/admin/seo/sitemap');
       setRows(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load sitemap status.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('seo.sitemap.error.load'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void refresh();
@@ -100,16 +103,20 @@ function SitemapCard(): ReactNode {
           `/api/v1/admin/seo/sitemap/${encodeURIComponent(code)}/regenerate`,
         );
         setMessage(
-          `Regenerated sitemap for "${code}" — ${res.data.urlCount} URLs (${formatBytes(res.data.byteSize)}).`,
+          t('seo.sitemap.regenerated', {
+            code,
+            count: res.data.urlCount,
+            size: formatBytes(res.data.byteSize),
+          }),
         );
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Regenerate failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('seo.sitemap.error.regenerate'));
       } finally {
         setBusyChannel(null);
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   const fetchXml = useCallback(async (code: string): Promise<Blob> => {
@@ -132,15 +139,15 @@ function SitemapCard(): ReactNode {
         // Revoke after the new window has had a chance to load.
         setTimeout((): void => URL.revokeObjectURL(objectUrl), 60_000);
         if (!newWindow) {
-          setError('Popup was blocked — allow popups for this site to preview the sitemap.');
+          setError(t('seo.sitemap.error.popupBlocked'));
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Preview failed.');
+        setError(err instanceof Error ? err.message : t('seo.sitemap.error.preview'));
       } finally {
         setBusyChannel(null);
       }
     },
-    [fetchXml],
+    [fetchXml, t],
   );
 
   const download = useCallback(
@@ -158,18 +165,18 @@ function SitemapCard(): ReactNode {
         document.body.removeChild(a);
         URL.revokeObjectURL(objectUrl);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Download failed.');
+        setError(err instanceof Error ? err.message : t('seo.sitemap.error.download'));
       } finally {
         setBusyChannel(null);
       }
     },
-    [fetchXml],
+    [fetchXml, t],
   );
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Sitemap</CardTitle>
+        <CardTitle>{t('seo.sitemap.title')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {error ? (
@@ -183,19 +190,19 @@ function SitemapCard(): ReactNode {
           </Alert>
         ) : null}
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">{t('seo.sitemap.loading')}</p>
         ) : rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No active sales channels.</p>
+          <p className="text-sm text-muted-foreground">{t('seo.sitemap.empty')}</p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Sales channel</TableHead>
-                <TableHead>Storefront URL</TableHead>
-                <TableHead>Last generated</TableHead>
-                <TableHead className="text-right">URLs</TableHead>
-                <TableHead className="text-right">Size</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>{t('seo.sitemap.column.channel')}</TableHead>
+                <TableHead>{t('seo.sitemap.column.storefrontUrl')}</TableHead>
+                <TableHead>{t('seo.sitemap.column.lastGenerated')}</TableHead>
+                <TableHead className="text-right">{t('seo.sitemap.column.urls')}</TableHead>
+                <TableHead className="text-right">{t('seo.sitemap.column.size')}</TableHead>
+                <TableHead className="text-right">{t('seo.sitemap.column.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -212,7 +219,7 @@ function SitemapCard(): ReactNode {
                     <TableCell>
                       <div className="font-mono text-xs">{row.storefrontUrl}</div>
                       <div className="text-xs text-muted-foreground">
-                        source: {row.storefrontUrlSource}
+                        {t('seo.sitemap.sourcePrefix')} {row.storefrontUrlSource}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -234,7 +241,7 @@ function SitemapCard(): ReactNode {
                             void regenerate(row.salesChannelCode);
                           }}
                         >
-                          {busy ? '…' : 'Regenerate'}
+                          {busy ? '…' : t('seo.sitemap.regenerate')}
                         </Button>
                         <Button
                           size="sm"
@@ -244,7 +251,7 @@ function SitemapCard(): ReactNode {
                             void preview(row.salesChannelCode);
                           }}
                         >
-                          Preview
+                          {t('seo.sitemap.preview')}
                         </Button>
                         <Button
                           size="sm"
@@ -254,7 +261,7 @@ function SitemapCard(): ReactNode {
                             void download(row.salesChannelCode);
                           }}
                         >
-                          Download
+                          {t('seo.sitemap.download')}
                         </Button>
                       </div>
                     </TableCell>
@@ -265,9 +272,8 @@ function SitemapCard(): ReactNode {
           </Table>
         )}
         <p className="text-xs text-muted-foreground">
-          Storefront URL is read from the per-channel <code>sales_channels.storefront_url</code>{' '}
-          setting. Configure it in Settings → Sales Channels for each channel; empty falls back to
-          the <code>STOREFRONT_BASE_URL</code> environment variable.
+          {t('seo.sitemap.help.prefix')} <code>sales_channels.storefront_url</code>{' '}
+          {t('seo.sitemap.help.middle')} <code>STOREFRONT_BASE_URL</code> {t('seo.sitemap.help.suffix')}
         </p>
       </CardContent>
     </Card>
@@ -275,6 +281,7 @@ function SitemapCard(): ReactNode {
 }
 
 function MetaEditorCard(): ReactNode {
+  const t = useTranslation('core');
   const [entityType, setEntityType] = useState<SeoEntityType>('product');
   const [entityId, setEntityId] = useState('');
   const [locale, setLocale] = useState('en-US');
@@ -303,12 +310,12 @@ function MetaEditorCard(): ReactNode {
         ogImageUrl: res.data.override?.ogImageUrl ?? null,
       });
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load meta.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('seo.meta.error.load'));
       setMeta(null);
     } finally {
       setBusy(false);
     }
-  }, [entityType, entityId, locale]);
+  }, [entityType, entityId, locale, t]);
 
   const save = useCallback(async (): Promise<void> => {
     if (!entityId.trim()) return;
@@ -317,19 +324,19 @@ function MetaEditorCard(): ReactNode {
     setMessage(null);
     try {
       await apiClient.put(`/api/v1/admin/seo/meta/${entityType}/${entityId}`, draft);
-      setMessage('Override saved.');
+      setMessage(t('seo.meta.info.saved'));
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('seo.meta.error.save'));
     } finally {
       setBusy(false);
     }
-  }, [entityType, entityId, draft, load]);
+  }, [entityType, entityId, draft, load, t]);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Meta-tag overrides</CardTitle>
+        <CardTitle>{t('seo.meta.title')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? (
@@ -349,9 +356,9 @@ function MetaEditorCard(): ReactNode {
             value={entityType}
             onChange={(e): void => setEntityType(e.target.value as SeoEntityType)}
           >
-            {ENTITY_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
+            {ENTITY_TYPES.map((et) => (
+              <option key={et} value={et}>
+                {et}
               </option>
             ))}
           </Select>
@@ -359,13 +366,13 @@ function MetaEditorCard(): ReactNode {
             className="w-80"
             value={entityId}
             onChange={(e): void => setEntityId(e.target.value)}
-            placeholder="Entity UUID"
+            placeholder={t('seo.meta.field.entityUuid')}
           />
           <Input
             className="w-24"
             value={locale}
             onChange={(e): void => setLocale(e.target.value)}
-            placeholder="locale"
+            placeholder={t('seo.meta.field.locale')}
           />
           <Button
             variant="outline"
@@ -374,7 +381,7 @@ function MetaEditorCard(): ReactNode {
             }}
             disabled={busy || !entityId.trim()}
           >
-            Load
+            {t('seo.meta.load')}
           </Button>
         </div>
 
@@ -383,30 +390,30 @@ function MetaEditorCard(): ReactNode {
             <Card className="bg-muted/30">
               <CardHeader>
                 <CardTitle className="text-sm">
-                  Resolved (source: {meta.resolved.source})
+                  {t('seo.meta.resolvedTitle', { source: meta.resolved.source })}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableBody>
                     <TableRow>
-                      <TableHead className="w-40">Title</TableHead>
+                      <TableHead className="w-40">{t('seo.meta.field.title')}</TableHead>
                       <TableCell>{meta.resolved.title}</TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableHead className="w-40">Description</TableHead>
+                      <TableHead className="w-40">{t('seo.meta.field.description')}</TableHead>
                       <TableCell>{meta.resolved.description}</TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableHead className="w-40">OG title</TableHead>
+                      <TableHead className="w-40">{t('seo.meta.field.ogTitle')}</TableHead>
                       <TableCell>{meta.resolved.openGraph.title}</TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableHead className="w-40">OG description</TableHead>
+                      <TableHead className="w-40">{t('seo.meta.field.ogDescription')}</TableHead>
                       <TableCell>{meta.resolved.openGraph.description}</TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableHead className="w-40">OG image</TableHead>
+                      <TableHead className="w-40">{t('seo.meta.field.ogImage')}</TableHead>
                       <TableCell className="font-mono text-xs">
                         {meta.resolved.openGraph.image ?? '—'}
                       </TableCell>
@@ -416,10 +423,10 @@ function MetaEditorCard(): ReactNode {
               </CardContent>
             </Card>
 
-            <h3 className="text-sm font-semibold">Override (leave blank to fall back to rule)</h3>
+            <h3 className="text-sm font-semibold">{t('seo.meta.overrideHeading')}</h3>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label>Title</Label>
+                <Label>{t('seo.meta.field.title')}</Label>
                 <Input
                   value={draft.title ?? ''}
                   onChange={(e): void =>
@@ -428,7 +435,7 @@ function MetaEditorCard(): ReactNode {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Description</Label>
+                <Label>{t('seo.meta.field.description')}</Label>
                 <Input
                   value={draft.description ?? ''}
                   onChange={(e): void =>
@@ -437,7 +444,7 @@ function MetaEditorCard(): ReactNode {
                 />
               </div>
               <div className="space-y-2">
-                <Label>OG title</Label>
+                <Label>{t('seo.meta.field.ogTitle')}</Label>
                 <Input
                   value={draft.ogTitle ?? ''}
                   onChange={(e): void =>
@@ -446,7 +453,7 @@ function MetaEditorCard(): ReactNode {
                 />
               </div>
               <div className="space-y-2">
-                <Label>OG description</Label>
+                <Label>{t('seo.meta.field.ogDescription')}</Label>
                 <Input
                   value={draft.ogDescription ?? ''}
                   onChange={(e): void =>
@@ -455,7 +462,7 @@ function MetaEditorCard(): ReactNode {
                 />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label>OG image URL</Label>
+                <Label>{t('seo.meta.field.ogImageUrl')}</Label>
                 <Input
                   type="url"
                   value={draft.ogImageUrl ?? ''}
@@ -472,7 +479,7 @@ function MetaEditorCard(): ReactNode {
                 void save();
               }}
             >
-              {busy ? 'Saving…' : 'Save override'}
+              {busy ? t('seo.meta.saving') : t('seo.meta.saveOverride')}
             </Button>
           </>
         ) : null}

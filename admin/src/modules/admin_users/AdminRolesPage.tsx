@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { cn } from '@/lib/utils';
+import { useTranslation } from '@/i18n/useTranslation';
 
 interface AdminRole {
   id: string;
@@ -29,6 +30,7 @@ interface PermissionRow {
 const NEW_ROLE_KEY = '__new__';
 
 export function AdminRolesPage(): ReactNode {
+  const t = useTranslation('core');
   const [roles, setRoles] = useState<AdminRole[]>([]);
   const [permissions, setPermissions] = useState<PermissionRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,11 +49,11 @@ export function AdminRolesPage(): ReactNode {
       setRoles(r.data);
       setPermissions(p.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('adminRoles.error.load'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void refresh();
@@ -84,40 +86,40 @@ export function AdminRolesPage(): ReactNode {
           permissions: input.permissions,
           requiresTwoFactor: input.requiresTwoFactor,
         });
-        setInfo(`Saved role ${input.code}.`);
+        setInfo(t('adminRoles.info.saved', { code: input.code }));
         setEditingCode(input.code);
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('adminRoles.error.save'));
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   const handleDelete = useCallback(
     async (role: AdminRole): Promise<void> => {
-      if (!confirm(`Delete role "${role.name}"?`)) return;
+      if (!confirm(t('adminRoles.confirmDelete', { name: role.name }))) return;
       try {
         await apiClient.delete<void>(`/api/v1/admin/admin-roles/${role.id}`);
-        setInfo(`Deleted role ${role.code}.`);
+        setInfo(t('adminRoles.info.deleted', { code: role.code }));
         if (editingCode === role.code) setEditingCode(null);
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('adminRoles.error.delete'));
       }
     },
-    [refresh, editingCode],
+    [refresh, editingCode, t],
   );
 
   return (
     <>
       <PageHeader
-        title="Roles"
+        title={t('adminRoles.page.title')}
         description={
           <>
-            Permission bundles assigned in{' '}
+            {t('adminRoles.page.descriptionPrefix')}{' '}
             <Link to="/admin-users" className="underline underline-offset-2">
-              Users
+              {t('adminRoles.usersLink')}
             </Link>
             .
           </>
@@ -125,7 +127,7 @@ export function AdminRolesPage(): ReactNode {
         actions={
           <Button onClick={(): void => setEditingCode(NEW_ROLE_KEY)}>
             <Plus />
-            New role
+            {t('adminRoles.newRole')}
           </Button>
         }
       />
@@ -142,7 +144,7 @@ export function AdminRolesPage(): ReactNode {
       ) : null}
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <p className="text-sm text-muted-foreground">{t('adminRoles.loading')}</p>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
           <Card>
@@ -160,7 +162,7 @@ export function AdminRolesPage(): ReactNode {
                           : 'hover:bg-accent hover:text-accent-foreground',
                       )}
                     >
-                      <span className="font-medium">{r.name}</span>
+                      <span className="font-medium">{translateRoleName(t, r)}</span>
                       <span
                         className={cn(
                           'text-xs',
@@ -175,7 +177,7 @@ export function AdminRolesPage(): ReactNode {
                   </li>
                 ))}
                 {roles.length === 0 ? (
-                  <li className="text-sm text-muted-foreground">No roles yet.</li>
+                  <li className="text-sm text-muted-foreground">{t('adminRoles.empty')}</li>
                 ) : null}
               </ul>
             </CardContent>
@@ -204,7 +206,7 @@ export function AdminRolesPage(): ReactNode {
           ) : (
             <Card>
               <CardContent className="pt-6 text-sm text-muted-foreground">
-                Pick a role on the left or create a new one.
+                {t('adminRoles.selectHint')}
               </CardContent>
             </Card>
           )}
@@ -227,6 +229,7 @@ interface RoleEditorProps {
 }
 
 function RoleEditor(props: RoleEditorProps): ReactNode {
+  const t = useTranslation('core');
   const [code, setCode] = useState(props.role.code);
   const [name, setName] = useState(props.role.name);
   const [permissions, setPermissions] = useState<Set<string>>(
@@ -251,11 +254,9 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
         {isWildcard ? (
           <Alert variant="warning">
             <ShieldAlert className="size-4" />
-            <AlertTitle>Wildcard role</AlertTitle>
+            <AlertTitle>{t('adminRoles.wildcardTitle')}</AlertTitle>
             <AlertDescription>
-              This role uses the wildcard <code className="font-mono">*</code> permission
-              (bootstrap admin). The matrix below is informational; saving the role will replace
-              the wildcard with whatever the matrix shows.
+              {t('adminRoles.wildcardPrefix')} <code className="font-mono">*</code> {t('adminRoles.wildcardSuffix')}
             </AlertDescription>
           </Alert>
         ) : null}
@@ -273,7 +274,7 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
         >
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="rcode">Code</Label>
+              <Label htmlFor="rcode">{t('adminRoles.field.code')}</Label>
               <Input
                 id="rcode"
                 value={code}
@@ -284,7 +285,7 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="rname">Display name</Label>
+              <Label htmlFor="rname">{t('adminRoles.field.displayName')}</Label>
               <Input
                 id="rname"
                 value={name}
@@ -299,11 +300,11 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
               checked={requiresTwoFactor}
               onChange={(e): void => setRequiresTwoFactor(e.target.checked)}
             />
-            Requires two-factor authentication on assigned users
+            {t('adminRoles.field.requires2fa')}
           </label>
 
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold">Permissions</h3>
+            <h3 className="text-sm font-semibold">{t('adminRoles.permissionsHeading')}</h3>
             {grouped.map(([module, perms]) => (
               <fieldset key={module} className="rounded-md border p-3">
                 <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -327,7 +328,7 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
                         }}
                       />
                       <code className="font-mono text-xs">{p.code}</code>
-                      <span className="text-muted-foreground">— {p.label}</span>
+                      <span className="text-muted-foreground">— {translatePermissionLabel(t, p)}</span>
                     </label>
                   ))}
                 </div>
@@ -336,10 +337,10 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
           </div>
 
           <div className="flex gap-2">
-            <Button type="submit">Save</Button>
+            <Button type="submit">{t('adminRoles.save')}</Button>
             {props.onDelete ? (
               <Button type="button" variant="destructive" onClick={props.onDelete}>
-                Delete role
+                {t('adminRoles.delete')}
               </Button>
             ) : null}
           </div>
@@ -347,4 +348,22 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
       </CardContent>
     </Card>
   );
+}
+
+function translateRoleName(
+  t: (key: string, params?: Record<string, string | number>) => string,
+  role: Pick<AdminRole, 'code' | 'name'>,
+): string {
+  const key = `adminRoles.seeded.${role.code}`;
+  const label = t(key);
+  return label === `core.${key}` ? role.name : label;
+}
+
+function translatePermissionLabel(
+  t: (key: string, params?: Record<string, string | number>) => string,
+  permission: PermissionRow,
+): string {
+  const key = `adminRoles.permission.${permission.code}`;
+  const label = t(key);
+  return label === `core.${key}` ? permission.label : label;
 }

@@ -13,9 +13,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 import { cmsClient } from '../api/cms-client';
 
 export function TemplatesListPage(): ReactNode {
+  const t = useTranslation('cms');
   const [rows, setRows] = useState<CmsTemplateSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,11 +42,11 @@ export function TemplatesListPage(): ReactNode {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="CMS Templates"
-        description="Reusable Page Builder fragments embedded in pages or blocks via InsertTemplate."
+        title={t('templatesList.title')}
+        description={t('templatesList.description')}
         actions={
           <Button asChild>
-            <Link to="/cms/templates/new">New template</Link>
+            <Link to="/cms/templates/new">{t('templatesList.new')}</Link>
           </Button>
         }
       />
@@ -55,21 +57,21 @@ export function TemplatesListPage(): ReactNode {
       ) : null}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Templates</CardTitle>
+          <CardTitle className="text-base">{t('templatesList.cardTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading CMS templates…</p>
+            <p className="text-sm text-muted-foreground">{t('templatesList.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No templates found.</p>
+            <p className="text-sm text-muted-foreground">{t('templatesList.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Languages</TableHead>
-                  <TableHead className="text-right">Version</TableHead>
+                  <TableHead>{t('columns.name')}</TableHead>
+                  <TableHead>{t('columns.code')}</TableHead>
+                  <TableHead>{t('columns.languages')}</TableHead>
+                  <TableHead className="text-right">{t('columns.version')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

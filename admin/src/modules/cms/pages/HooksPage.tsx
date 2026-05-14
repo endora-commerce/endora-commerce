@@ -13,10 +13,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 import { cmsClient } from '../api/cms-client';
 import { HookBlockAttachmentsPanel } from '../components/HookBlockAttachmentsPanel';
 
 export function HooksPage(): ReactNode {
+  const t = useTranslation('cms');
   const [rows, setRows] = useState<CmsHookSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -45,11 +47,11 @@ export function HooksPage(): ReactNode {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="CMS Hooks"
-        description="Manage storefront insertion points and the ordered Blocks attached to each one."
+        title={t('hooksList.title')}
+        description={t('hooksList.description')}
         actions={
           <Button type="button" variant="outline" onClick={() => void load()} disabled={loading}>
-            Refresh
+            {t('common.refresh')}
           </Button>
         }
       />
@@ -61,22 +63,22 @@ export function HooksPage(): ReactNode {
       <div className="grid grid-cols-12 gap-4">
         <Card className="col-span-7">
           <CardHeader>
-            <CardTitle className="text-base">Hooks</CardTitle>
+            <CardTitle className="text-base">{t('hooksList.cardTitle')}</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <p className="text-sm text-muted-foreground">Loading CMS hooks…</p>
+              <p className="text-sm text-muted-foreground">{t('hooksList.loading')}</p>
             ) : rows.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No hooks found.</p>
+              <p className="text-sm text-muted-foreground">{t('hooksList.empty')}</p>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Code</TableHead>
-                    <TableHead>State</TableHead>
-                    <TableHead className="text-right">Channels</TableHead>
-                    <TableHead className="text-right">Blocks</TableHead>
+                    <TableHead>{t('columns.name')}</TableHead>
+                    <TableHead>{t('columns.code')}</TableHead>
+                    <TableHead>{t('columns.state')}</TableHead>
+                    <TableHead className="text-right">{t('columns.channels')}</TableHead>
+                    <TableHead className="text-right">{t('columns.blocks')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -98,12 +100,12 @@ export function HooksPage(): ReactNode {
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           <Badge variant={hook.active ? 'default' : 'outline'}>
-                            {hook.active ? 'active' : 'inactive'}
+                            {hook.active ? t('state.active') : t('state.inactive')}
                           </Badge>
                           {hook.isSystem ? (
-                            <Badge variant="outline">system</Badge>
+                            <Badge variant="outline">{t('state.system')}</Badge>
                           ) : (
-                            <Badge variant="secondary">custom</Badge>
+                            <Badge variant="secondary">{t('state.custom')}</Badge>
                           )}
                         </div>
                       </TableCell>

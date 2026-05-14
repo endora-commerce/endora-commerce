@@ -1,0 +1,10 @@
+{
+  "errors.QUERY_TOO_SHORT": "Query Too Short.",
+  "errors.QUERY_TOO_LONG": "Query Too Long.",
+  "errors.LIMIT_OUT_OF_RANGE": "Limit Out Of Range.",
+  "errors.SEARCH_BACKEND_UNAVAILABLE": "Search Backend Unavailable.",
+  "errors.PHRASE_REQUIRED": "Phrase Required.",
+  "errors.PHRASE_TOO_LONG": "Phrase Too Long.",
+  "errors.RESULT_COUNT_INVALID": "Result Count Invalid.",
+  "errors.LLM_CONFIG_INCOMPLETE": "LLM search configuration is incomplete."
+}

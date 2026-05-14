@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
+import { useTranslation } from '@/i18n/useTranslation';
 import {
   Table,
   TableBody,
@@ -33,6 +34,7 @@ interface FormState {
 const blankForm: FormState = { name: '', code: '', description: '' };
 
 export function BlogTagListPage(): ReactNode {
+  const t = useTranslation('blog');
   const [rows, setRows] = useState<BlogTagDetail[]>([]);
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
@@ -83,7 +85,7 @@ export function BlogTagListPage(): ReactNode {
 
   const onSubmit = useCallback(async () => {
     if (!form.name.trim() || !/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(form.code)) {
-      setError('Name is required; code must match ^[a-z0-9-]+$ (1–64 chars).');
+      setError(t('tagList.validation.invalidForm'));
       return;
     }
     setSaving(true);
@@ -92,7 +94,7 @@ export function BlogTagListPage(): ReactNode {
     try {
       if (editingId) {
         const existing = rows.find((r) => r.id === editingId);
-        if (!existing) throw new Error('Tag vanished from the list — reload and try again.');
+        if (!existing) throw new Error(t('tagList.validation.missingTag'));
         await blogClient.patchTag(editingId, {
           name: { 'en-US': form.name },
           code: form.code,
@@ -101,14 +103,14 @@ export function BlogTagListPage(): ReactNode {
             : { description: null }),
           version: existing.version,
         });
-        setInfo(`Updated tag "${form.code}".`);
+        setInfo(t('tagList.messages.updated', { code: form.code }));
       } else {
         await blogClient.createTag({
           name: { 'en-US': form.name },
           code: form.code,
           ...(form.description ? { description: { 'en-US': form.description } } : {}),
         });
-        setInfo(`Created tag "${form.code}".`);
+        setInfo(t('tagList.messages.created', { code: form.code }));
       }
       cancelEdit();
       await load();
@@ -126,19 +128,23 @@ export function BlogTagListPage(): ReactNode {
         const slugs = probe.posts.map((p) => p.slug).join(', ');
         if (
           !window.confirm(
-            `Tag "${tag.code}" is attached to ${probe.totalPosts} post(s) (${slugs}). The DELETE will be refused; detach first. Proceed anyway to see the error?`,
+            t('tagList.deleteConfirm.inUse', {
+              code: tag.code,
+              count: probe.totalPosts,
+              slugs,
+            }),
           )
         ) {
           return;
         }
-      } else if (!window.confirm(`Delete tag "${tag.code}"?`)) {
+      } else if (!window.confirm(t('tagList.deleteConfirm.default', { code: tag.code }))) {
         return;
       }
       setSaving(true);
       setError(null);
       try {
         await blogClient.deleteTag(tag.id, tag.version);
-        setInfo(`Deleted tag "${tag.code}".`);
+        setInfo(t('tagList.messages.deleted', { code: tag.code }));
         await load();
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
@@ -152,8 +158,8 @@ export function BlogTagListPage(): ReactNode {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Blog tags"
-        description="Globally-unique codes used in tag URLs and chip strips. Block-on-delete."
+        title={t('tagList.title')}
+        description={t('tagList.description')}
       />
 
       {error ? (
@@ -169,12 +175,14 @@ export function BlogTagListPage(): ReactNode {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle className="text-base">{editingId ? 'Edit tag' : 'New tag'}</CardTitle>
+          <CardTitle className="text-base">
+            {editingId ? t('tagList.editTag') : t('tagList.newTag')}
+          </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="tag-name">Name (en-US)</Label>
+              <Label htmlFor="tag-name">{t('tagList.nameLabel')}</Label>
               <Input
                 id="tag-name"
                 value={form.name}
@@ -182,7 +190,7 @@ export function BlogTagListPage(): ReactNode {
               />
             </div>
             <div>
-              <Label htmlFor="tag-code">Code (URL-safe, globally unique)</Label>
+              <Label htmlFor="tag-code">{t('tagList.codeLabel')}</Label>
               <Input
                 id="tag-code"
                 value={form.code}
@@ -190,12 +198,12 @@ export function BlogTagListPage(): ReactNode {
                   setForm((f) => ({ ...f, code: event.target.value.toLowerCase() }))
                 }
                 className="font-mono"
-                placeholder="comparison"
+                placeholder={t('tagList.codePlaceholder')}
               />
             </div>
           </div>
           <div>
-            <Label htmlFor="tag-description">Description (en-US, optional)</Label>
+            <Label htmlFor="tag-description">{t('tagList.descriptionLabel')}</Label>
             <Input
               id="tag-description"
               value={form.description}
@@ -207,11 +215,11 @@ export function BlogTagListPage(): ReactNode {
           <div className="flex justify-end gap-2">
             {editingId ? (
               <Button type="button" variant="outline" onClick={cancelEdit}>
-                Cancel
+                {t('common.cancel')}
               </Button>
             ) : null}
             <Button type="button" disabled={saving} onClick={() => void onSubmit()}>
-              {saving ? 'Saving…' : editingId ? 'Save tag' : 'Create tag'}
+              {saving ? t('common.saving') : editingId ? t('tagList.saveTag') : t('tagList.createTag')}
             </Button>
           </div>
         </CardContent>
@@ -219,7 +227,7 @@ export function BlogTagListPage(): ReactNode {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle className="text-base">Tags</CardTitle>
+          <CardTitle className="text-base">{t('tagList.cardTitle')}</CardTitle>
           <div className="flex items-center gap-2">
             <Input
               value={q}
@@ -230,25 +238,25 @@ export function BlogTagListPage(): ReactNode {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') void load();
               }}
-              placeholder="Search name or code…"
+              placeholder={t('tagList.searchPlaceholder')}
               className="w-64"
             />
           </div>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No tags yet.</p>
+            <p className="text-sm text-muted-foreground">{t('tagList.empty')}</p>
           ) : (
             <>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Version</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>{t('columns.name')}</TableHead>
+                    <TableHead>{t('columns.code')}</TableHead>
+                    <TableHead>{t('columns.version')}</TableHead>
+                    <TableHead className="text-right">{t('columns.actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -271,7 +279,7 @@ export function BlogTagListPage(): ReactNode {
                           onClick={() => startEdit(tag)}
                           className="mr-2"
                         >
-                          Edit
+                          {t('common.edit')}
                         </Button>
                         <Button
                           type="button"
@@ -280,7 +288,7 @@ export function BlogTagListPage(): ReactNode {
                           disabled={saving}
                           onClick={() => void onDelete(tag)}
                         >
-                          Delete
+                          {t('common.delete')}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -291,7 +299,7 @@ export function BlogTagListPage(): ReactNode {
               {totalPages > 1 ? (
                 <div className="mt-4 flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">
-                    Page {page} / {totalPages}
+                    {t('pagination.page', { page, totalPages })}
                   </span>
                   <div className="flex gap-2">
                     <Button
@@ -301,7 +309,7 @@ export function BlogTagListPage(): ReactNode {
                       disabled={page === 1}
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
                     >
-                      Previous
+                      {t('pagination.previous')}
                     </Button>
                     <Button
                       type="button"
@@ -310,7 +318,7 @@ export function BlogTagListPage(): ReactNode {
                       disabled={page >= totalPages}
                       onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                     >
-                      Next
+                      {t('pagination.next')}
                     </Button>
                   </div>
                 </div>

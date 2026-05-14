@@ -27,6 +27,10 @@ jobs:
         run: bash scripts/check-pdfmake-footprint.sh
       - run: pnpm -r run typecheck
       - run: pnpm -r run lint
+      - name: Check admin translation coverage
+        run: pnpm --filter backend run i18n:coverage -- --strict
+      - name: Check admin hardcoded strings
+        run: pnpm --filter backend run i18n:hardcoded -- ../admin/src --strict
 
   test:
     name: Unit / Contract / Integration Tests

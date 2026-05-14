@@ -15,9 +15,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 import { cmsClient } from '../api/cms-client';
 
 export function PagesListPage(): ReactNode {
+  const t = useTranslation('cms');
   const [rows, setRows] = useState<CmsPageSummary[]>([]);
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
@@ -43,11 +45,11 @@ export function PagesListPage(): ReactNode {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="CMS Pages"
-        description="Create and publish Page Builder content scoped by sales channel and language."
+        title={t('pagesList.title')}
+        description={t('pagesList.description')}
         actions={
           <Button asChild>
-            <Link to="/cms/pages/new">New page</Link>
+            <Link to="/cms/pages/new">{t('pagesList.new')}</Link>
           </Button>
         }
       />
@@ -60,7 +62,7 @@ export function PagesListPage(): ReactNode {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle className="text-base">Pages</CardTitle>
+          <CardTitle className="text-base">{t('pagesList.cardTitle')}</CardTitle>
           <div className="flex items-center gap-2">
             <Input
               value={q}
@@ -68,28 +70,28 @@ export function PagesListPage(): ReactNode {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') void load();
               }}
-              placeholder="Search name or slug…"
+              placeholder={t('pagesList.searchPlaceholder')}
               className="w-64"
             />
             <Button type="button" variant="outline" size="sm" onClick={() => void load()}>
-              Search
+              {t('common.search')}
             </Button>
           </div>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading CMS pages…</p>
+            <p className="text-sm text-muted-foreground">{t('pagesList.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No pages found.</p>
+            <p className="text-sm text-muted-foreground">{t('pagesList.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Slug</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Languages</TableHead>
-                  <TableHead className="text-right">Version</TableHead>
+                  <TableHead>{t('columns.name')}</TableHead>
+                  <TableHead>{t('columns.slug')}</TableHead>
+                  <TableHead>{t('columns.status')}</TableHead>
+                  <TableHead>{t('columns.languages')}</TableHead>
+                  <TableHead className="text-right">{t('columns.version')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -106,11 +108,11 @@ export function PagesListPage(): ReactNode {
                     <TableCell className="font-mono text-xs">{page.slug}</TableCell>
                     <TableCell>
                       <Badge variant={page.status === 'published' ? 'default' : 'outline'}>
-                        {page.status}
+                        {t(`status.${page.status}`)}
                       </Badge>
                       {!page.active ? (
                         <Badge variant="outline" className="ml-2">
-                          inactive
+                          {t('state.inactive')}
                         </Badge>
                       ) : null}
                     </TableCell>

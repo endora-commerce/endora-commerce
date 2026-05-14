@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { DisplayModeOverrideRow } from '../price_lists/DisplayModeOverrideRow';
 import { AssetPicker } from '@/modules/assets_library/components/AssetPicker';
+import { useTranslation } from '@/i18n/useTranslation';
 import {
   Table,
   TableBody,
@@ -35,6 +36,7 @@ interface TreeNode {
 }
 
 export function CategoriesTree(): ReactNode {
+  const t = useTranslation('catalog');
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export function CategoriesTree(): ReactNode {
       );
       setCategories(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('categories.error.load'));
     } finally {
       setLoading(false);
     }
@@ -79,14 +81,14 @@ export function CategoriesTree(): ReactNode {
           slug: input.slug,
           name,
         });
-        setInfo('Category created.');
+        setInfo(t('categories.success.create'));
         setCreateUnderId(null);
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Create failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('categories.error.create'));
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   const handleUpdate = useCallback(
@@ -109,25 +111,25 @@ export function CategoriesTree(): ReactNode {
           `/api/v1/admin/catalog/categories/${id}`,
           payload,
         );
-        setInfo('Saved.');
+        setInfo(t('categories.success.save'));
         setEditing(null);
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Update failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('categories.error.update'));
       }
     },
-    [refresh, categories],
+    [refresh, categories, t],
   );
 
   const handleDelete = useCallback(
     async (cat: AdminCategory): Promise<void> => {
-      if (!confirm(`Delete category "${pickName(cat.name)}"?`)) return;
+      if (!confirm(t('categories.deleteConfirm', { name: pickName(cat.name) }))) return;
       try {
         await apiClient.delete<void>(`/api/v1/admin/catalog/categories/${cat.id}`);
-        setInfo('Deleted.');
+        setInfo(t('categories.success.delete'));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('categories.error.delete'));
       }
     },
     [refresh],
@@ -136,12 +138,12 @@ export function CategoriesTree(): ReactNode {
   return (
     <>
       <PageHeader
-        title="Categories"
-        description="Hierarchical tree. Cycles + non-empty deletions are rejected by the backend."
+        title={t('categories.page.title')}
+        description={t('categories.page.description')}
         actions={
           <Button type="button" onClick={(): void => setCreateUnderId('__root__')}>
             <Plus />
-            New root category
+            {t('categories.action.newRoot')}
           </Button>
         }
       />
@@ -168,17 +170,17 @@ export function CategoriesTree(): ReactNode {
       <Card>
         <CardContent className="pt-6">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('categories.loading')}</p>
           ) : tree.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No categories yet.</p>
+            <p className="text-sm text-muted-foreground">{t('categories.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Slug</TableHead>
-                  <TableHead>Sort</TableHead>
-                  <TableHead>Main image</TableHead>
+                  <TableHead>{t('categories.column.category')}</TableHead>
+                  <TableHead>{t('categories.column.slug')}</TableHead>
+                  <TableHead>{t('categories.column.sort')}</TableHead>
+                  <TableHead>{t('categories.column.mainImage')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -230,7 +232,7 @@ export function CategoriesTree(): ReactNode {
                               onClick={(): void => setEditing(c.id)}
                             >
                               <Pencil />
-                              Edit
+                              {t('categories.action.edit')}
                             </Button>
                             <Button
                               variant="outline"
@@ -239,7 +241,7 @@ export function CategoriesTree(): ReactNode {
                               onClick={(): void => setCreateUnderId(c.id)}
                             >
                               <Plus />
-                              New child
+                              {t('categories.action.newChild')}
                             </Button>
                             <Button
                               variant="destructive"
@@ -248,7 +250,7 @@ export function CategoriesTree(): ReactNode {
                               onClick={(): void => void handleDelete(c)}
                             >
                               <Trash2 />
-                              Delete
+                              {t('categories.action.delete')}
                             </Button>
                           </div>
                         )}
@@ -287,6 +289,7 @@ function CreateForm({
   onSubmit: (input: { slug: string; nameEn: string; namePl: string }) => void;
   onCancel: () => void;
 }): ReactNode {
+  const t = useTranslation('catalog');
   const [slug, setSlug] = useState('');
   const [nameEn, setNameEn] = useState('');
   const [namePl, setNamePl] = useState('');
@@ -301,11 +304,11 @@ function CreateForm({
           }}
         >
           <p className="text-sm">
-            New category under <strong>{parentLabel}</strong>
+            {t('categories.create.under')} <strong>{parentLabel}</strong>
           </p>
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
-              <Label htmlFor="cslug">Slug</Label>
+              <Label htmlFor="cslug">{t('categories.field.slug')}</Label>
               <Input
                 id="cslug"
                 value={slug}
@@ -316,18 +319,18 @@ function CreateForm({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="cen">Name [en-US]</Label>
+              <Label htmlFor="cen">{t('categories.field.nameEn')}</Label>
               <Input id="cen" value={nameEn} onChange={(e): void => setNameEn(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="cpl">Name [pl-PL]</Label>
+              <Label htmlFor="cpl">{t('categories.field.namePl')}</Label>
               <Input id="cpl" value={namePl} onChange={(e): void => setNamePl(e.target.value)} />
             </div>
           </div>
           <div className="flex gap-2">
-            <Button type="submit">Create</Button>
+            <Button type="submit">{t('categories.action.create')}</Button>
             <Button type="button" variant="outline" onClick={onCancel}>
-              Cancel
+              {t('categories.action.cancel')}
             </Button>
           </div>
         </form>
@@ -352,6 +355,7 @@ function EditForm({
   }) => void;
   onCancel: () => void;
 }): ReactNode {
+  const t = useTranslation('catalog');
   const [slug, setSlug] = useState(category.slug);
   const [nameEn, setNameEn] = useState(category.name['en-US'] ?? '');
   const [namePl, setNamePl] = useState(category.name['pl-PL'] ?? '');
@@ -366,7 +370,7 @@ function EditForm({
     >
       <div className="grid gap-3 md:grid-cols-2">
         <div className="space-y-2">
-          <Label>Slug</Label>
+          <Label>{t('categories.field.slug')}</Label>
           <Input
             value={slug}
             onChange={(e): void => setSlug(e.target.value.toLowerCase())}
@@ -375,9 +379,9 @@ function EditForm({
           />
         </div>
         <div className="space-y-2">
-          <Label>Parent</Label>
+          <Label>{t('categories.field.parent')}</Label>
           <Select value={parentId} onChange={(e): void => setParentId(e.target.value)}>
-            <option value="">— root —</option>
+            <option value="">{t('categories.field.parentRoot')}</option>
             {categories
               .filter((c) => c.id !== category.id)
               .map((c) => (
@@ -388,28 +392,28 @@ function EditForm({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Name [en-US]</Label>
+          <Label>{t('categories.field.nameEn')}</Label>
           <Input value={nameEn} onChange={(e): void => setNameEn(e.target.value)} />
         </div>
         <div className="space-y-2">
-          <Label>Name [pl-PL]</Label>
+          <Label>{t('categories.field.namePl')}</Label>
           <Input value={namePl} onChange={(e): void => setNamePl(e.target.value)} />
         </div>
       </div>
       <div className="flex gap-2">
         <Button type="submit" size="sm">
-          Save
+          {t('categories.action.save')}
         </Button>
         <Button type="button" variant="outline" size="sm" onClick={onCancel}>
-          Cancel
+          {t('categories.action.cancel')}
         </Button>
       </div>
       <div className="space-y-2 pt-3 border-t mt-2">
         <DisplayModeOverrideRow
           scope="category"
           targetId={category.id}
-          label="Price display mode for this category"
-          inheritHint="Inherits from the next-deepest category, then Organization, then the platform default."
+          label={t('categories.priceDisplayMode.label')}
+          inheritHint={t('categories.priceDisplayMode.help')}
         />
       </div>
     </form>
@@ -454,12 +458,13 @@ function CategoryMainImage({
   mainImageAssetId: string | null;
   onChange: (id: string | null) => void;
 }): ReactNode {
+  const t = useTranslation('catalog');
   const [pickerOpen, setPickerOpen] = useState(false);
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted-foreground">
-          {mainImageAssetId ? `${mainImageAssetId.slice(0, 8)}…` : '(none)'}
+          {mainImageAssetId ? `${mainImageAssetId.slice(0, 8)}…` : t('categories.mainImage.none')}
         </span>
         <Button
           type="button"
@@ -467,7 +472,11 @@ function CategoryMainImage({
           size="sm"
           onClick={(): void => setPickerOpen((v) => !v)}
         >
-          {pickerOpen ? 'Cancel' : mainImageAssetId ? 'Change' : 'Pick'}
+          {pickerOpen
+            ? t('categories.action.cancel')
+            : mainImageAssetId
+              ? t('categories.mainImage.change')
+              : t('categories.mainImage.pick')}
         </Button>
         {mainImageAssetId ? (
           <Button
@@ -475,7 +484,7 @@ function CategoryMainImage({
             variant="ghost"
             size="sm"
             onClick={(): void => onChange(null)}
-            title="Clear main image"
+            title={t('categories.mainImage.clear')}
           >
             ✕
           </Button>

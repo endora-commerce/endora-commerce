@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { StockLevelRow, Warehouse } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { useTranslation } from '@/i18n/useTranslation';
 
 interface RosterResponse {
   items: StockLevelRow[];
@@ -20,6 +21,7 @@ interface SetStockResponse {
  * `PUT /api/v1/admin/inventory/levels` with the (product, warehouse) pair.
  */
 export function ProductInventoryTab({ productId }: { productId: string }): ReactNode {
+  const t = useTranslation('catalog');
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [perWarehouse, setPerWarehouse] = useState<Map<string, number>>(new Map());
   const [draft, setDraft] = useState<Map<string, string>>(new Map());
@@ -82,15 +84,15 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
         next.set(warehouseId, res.data.after);
         return next;
       });
-      setInfo(`Saved ${res.data.after} for warehouse.`);
+      setInfo(t('inventoryTab.success.save', { value: res.data.after }));
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('inventoryTab.error.save'));
     } finally {
       setSaving(null);
     }
   };
 
-  if (loading) return <div className="b2b-help">Loading per-warehouse stock…</div>;
+  if (loading) return <div className="b2b-help">{t('inventoryTab.loading')}</div>;
 
   return (
     <div className="b2b-col" style={{ gap: 16 }}>
@@ -98,13 +100,13 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
         <div className="b2b-row" style={{ gap: 16 }}>
           <div>
             <div className="b2b-muted" style={{ fontSize: 11, textTransform: 'uppercase' }}>
-              Cumulative on hand
+              {t('inventoryTab.summary.cumulativeOnHand')}
             </div>
             <div style={{ fontSize: 22, fontWeight: 600 }}>{totalOnHand.toLocaleString()}</div>
           </div>
           <div>
             <div className="b2b-muted" style={{ fontSize: 11, textTransform: 'uppercase' }}>
-              Active warehouses
+              {t('inventoryTab.summary.activeWarehouses')}
             </div>
             <div style={{ fontSize: 22, fontWeight: 600 }}>{warehouses.length}</div>
           </div>
@@ -129,14 +131,14 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
       ) : null}
 
       <div className="b2b-card">
-        <div className="b2b-card__head"><h2>Stock by warehouse</h2></div>
+        <div className="b2b-card__head"><h2>{t('inventoryTab.table.title')}</h2></div>
         <table className="b2b-tbl">
           <thead>
             <tr>
-              <th>Warehouse</th>
-              <th>Code</th>
-              <th className="num">On hand</th>
-              <th className="num">New value</th>
+              <th>{t('inventoryTab.column.warehouse')}</th>
+              <th>{t('inventoryTab.column.code')}</th>
+              <th className="num">{t('inventoryTab.column.onHand')}</th>
+              <th className="num">{t('inventoryTab.column.newValue')}</th>
               <th />
             </tr>
           </thead>

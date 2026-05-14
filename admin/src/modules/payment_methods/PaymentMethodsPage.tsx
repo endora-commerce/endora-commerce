@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
+import { useTranslation } from '@/i18n/useTranslation';
 import {
   Table,
   TableBody,
@@ -29,6 +30,7 @@ interface AdminPaymentMethod {
 const KINDS = ['bank_transfer', 'pickup', 'credit_limit', 'gateway'] as const;
 
 export function PaymentMethodsPage(): ReactNode {
+  const t = useTranslation('core');
   const [rows, setRows] = useState<AdminPaymentMethod[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,10 +76,10 @@ export function PaymentMethodsPage(): ReactNode {
             status: input.status,
           },
         );
-        setInfo(`Saved ${input.code}.`);
+        setInfo(t('legacyMethods.messages.saved', { code: input.code }));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('legacyMethods.errors.save'));
       }
     },
     [refresh],
@@ -85,12 +87,12 @@ export function PaymentMethodsPage(): ReactNode {
 
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
-      if (!confirm('Delete this payment method?')) return;
+      if (!confirm(t('legacyMethods.payment.deleteConfirm'))) return;
       try {
         await apiClient.delete<void>(`/api/v1/admin/payment-methods/${id}`);
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('legacyMethods.errors.delete'));
       }
     },
     [refresh],
@@ -99,8 +101,8 @@ export function PaymentMethodsPage(): ReactNode {
   return (
     <>
       <PageHeader
-        title="Payment methods"
-        description="The kind picks the backend driver; gateway adapters ship in follow-up specs."
+        title={t('legacyMethods.payment.title')}
+        description={t('legacyMethods.payment.description')}
       />
 
       {error ? (
@@ -116,7 +118,7 @@ export function PaymentMethodsPage(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>New / update method</CardTitle>
+          <CardTitle>{t('legacyMethods.formTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           <UpsertForm onSubmit={handleUpsert} />
@@ -126,17 +128,17 @@ export function PaymentMethodsPage(): ReactNode {
       <Card>
         <CardContent className="pt-6">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No payment methods yet.</p>
+            <p className="text-sm text-muted-foreground">{t('legacyMethods.payment.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Kind</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>{t('legacyMethods.columns.code')}</TableHead>
+                  <TableHead>{t('legacyMethods.columns.name')}</TableHead>
+                  <TableHead>{t('legacyMethods.columns.kind')}</TableHead>
+                  <TableHead>{t('legacyMethods.columns.status')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -147,10 +149,10 @@ export function PaymentMethodsPage(): ReactNode {
                       <code className="font-mono text-xs">{r.code}</code>
                     </TableCell>
                     <TableCell>{r.name['en-US'] ?? Object.values(r.name)[0]}</TableCell>
-                    <TableCell>{r.kind}</TableCell>
+                    <TableCell>{t(`legacyMethods.payment.kind.${r.kind}`)}</TableCell>
                     <TableCell>
                       <Badge variant={r.status === 'active' ? 'success' : 'secondary'}>
-                        {r.status}
+                        {t(`legacyMethods.status.${r.status}`)}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -161,7 +163,7 @@ export function PaymentMethodsPage(): ReactNode {
                         onClick={(): void => void handleDelete(r.id)}
                       >
                         <Trash2 />
-                        Delete
+                        {t('common.action.delete')}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -186,6 +188,7 @@ function UpsertForm({
     status: 'active' | 'inactive';
   }) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('core');
   const [code, setCode] = useState('');
   const [nameEn, setNameEn] = useState('');
   const [namePl, setNamePl] = useState('');
@@ -201,7 +204,7 @@ function UpsertForm({
     >
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="pmcode">Code</Label>
+          <Label htmlFor="pmcode">{t('legacyMethods.fields.code')}</Label>
           <Input
             id="pmcode"
             value={code}
@@ -210,7 +213,7 @@ function UpsertForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="pmkind">Kind</Label>
+          <Label htmlFor="pmkind">{t('legacyMethods.fields.kind')}</Label>
           <Select
             id="pmkind"
             value={kind}
@@ -218,13 +221,13 @@ function UpsertForm({
           >
             {KINDS.map((k) => (
               <option key={k} value={k}>
-                {k}
+                {t(`legacyMethods.payment.kind.${k}`)}
               </option>
             ))}
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="pmnameen">Name [en-US]</Label>
+          <Label htmlFor="pmnameen">{t('legacyMethods.fields.nameEn')}</Label>
           <Input
             id="pmnameen"
             value={nameEn}
@@ -232,7 +235,7 @@ function UpsertForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="pmnamepl">Name [pl-PL]</Label>
+          <Label htmlFor="pmnamepl">{t('legacyMethods.fields.namePl')}</Label>
           <Input
             id="pmnamepl"
             value={namePl}
@@ -240,18 +243,18 @@ function UpsertForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="pmstatus">Status</Label>
+          <Label htmlFor="pmstatus">{t('legacyMethods.fields.status')}</Label>
           <Select
             id="pmstatus"
             value={status}
             onChange={(e): void => setStatus(e.target.value as 'active' | 'inactive')}
           >
-            <option value="active">active</option>
-            <option value="inactive">inactive</option>
+            <option value="active">{t('legacyMethods.status.active')}</option>
+            <option value="inactive">{t('legacyMethods.status.inactive')}</option>
           </Select>
         </div>
       </div>
-      <Button type="submit">Save</Button>
+      <Button type="submit">{t('common.action.save')}</Button>
     </form>
   );
 }

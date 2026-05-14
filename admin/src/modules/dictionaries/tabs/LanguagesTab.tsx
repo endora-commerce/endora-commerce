@@ -29,6 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 import { dictionaryClient } from '../client';
 import { EntryStatusBadges } from '../components/EntryStatusBadges';
 import { TranslationsDrawer } from '../components/TranslationsDrawer';
@@ -54,6 +55,7 @@ const emptyLanguage: LanguageFormState = {
 };
 
 export function LanguagesTab(): ReactNode {
+  const t = useTranslation('dictionaries');
   const [rows, setRows] = useState<DictionaryLanguage[]>([]);
   const [countries, setCountries] = useState<Country[]>([]);
   const [translationCompleteness, setTranslationCompleteness] = useState<Record<string, boolean>>({});
@@ -265,17 +267,17 @@ export function LanguagesTab(): ReactNode {
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
       <Card>
         <CardHeader className="gap-3 md:flex-row md:items-center md:justify-between md:space-y-0">
-          <CardTitle>Languages</CardTitle>
+          <CardTitle>{t('languages.title')}</CardTitle>
           <div className="flex w-full flex-wrap gap-2 md:w-auto">
             <Input
               className="min-w-56 md:w-72"
-              placeholder="Search code or label"
+              placeholder={t('languages.searchPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
             <Button type="button" onClick={openCreate}>
               <Plus />
-              Add language
+              {t('languages.addLanguage')}
             </Button>
           </div>
         </CardHeader>
@@ -291,7 +293,7 @@ export function LanguagesTab(): ReactNode {
             </Alert>
           ) : null}
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading languages…</p>
+            <p className="text-sm text-muted-foreground">{t('languages.loading')}</p>
           ) : (
             <Table>
               <TableHeader>
@@ -337,7 +339,7 @@ export function LanguagesTab(): ReactNode {
                           variant="ghost"
                           size="icon"
                           disabled={index === 0}
-                          title="Move up"
+                          title={t('action.moveUp')}
                           onClick={() => void move(row, -1)}
                         >
                           <ArrowUp />
@@ -347,19 +349,19 @@ export function LanguagesTab(): ReactNode {
                           variant="ghost"
                           size="icon"
                           disabled={index === filtered.length - 1}
-                          title="Move down"
+                          title={t('action.moveDown')}
                           onClick={() => void move(row, 1)}
                         >
                           <ArrowDown />
                         </Button>
                         <Button type="button" variant="outline" size="sm" onClick={() => openEdit(row)}>
-                          Edit
+                          {t('action.edit')}
                         </Button>
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          title="Set default"
+                          title={t('action.setDefault')}
                           disabled={row.isDefault || !row.isActive}
                           onClick={() => void setDefault(row.code)}
                         >
@@ -369,7 +371,7 @@ export function LanguagesTab(): ReactNode {
                           type="button"
                           variant="destructive"
                           size="icon"
-                          title="Delete"
+                          title={t('action.delete')}
                           disabled={row.isDefault}
                           onClick={() => void remove(row.code)}
                         >
@@ -386,7 +388,7 @@ export function LanguagesTab(): ReactNode {
       </Card>
 
       <LanguageEditor
-        title={creating ? 'New language' : selected ? `Edit ${selected.code}` : 'Language editor'}
+        title={creating ? t('languages.editor.newLanguage') : selected ? t('languages.editor.editTitle', { code: selected.code }) : t('languages.editor.title')}
         form={form}
         setForm={setForm}
         languages={rows}
@@ -443,6 +445,7 @@ function LanguageEditor({
   ) => Promise<void>;
   onMakePrimary: (language: DictionaryLanguage, countryCode: string) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('dictionaries');
   const submit = (event: FormEvent): void => {
     event.preventDefault();
     onSubmit();
@@ -455,7 +458,7 @@ function LanguageEditor({
       </CardHeader>
       <CardContent>
         {disabled ? (
-          <p className="text-sm text-muted-foreground">Select a language or create a new one.</p>
+          <p className="text-sm text-muted-foreground">{t('languages.editor.selectHint')}</p>
         ) : (
           <form className="space-y-4" onSubmit={submit}>
             <Field label="Code">
@@ -532,7 +535,7 @@ function LanguageEditor({
 
             {selected ? (
               <div className="border-t pt-4">
-                <div className="mb-2 text-sm font-medium">Associated countries</div>
+                <div className="mb-2 text-sm font-medium">{t('languages.editor.associatedCountries')}</div>
                 <div className="max-h-72 space-y-2 overflow-auto rounded-md border p-2">
                   {countries.map((country) => {
                     const checked = selected.countries.includes(country.code);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type SelectHTMLAttributes } from 'react';
 import type { DictionaryLanguage } from '@b2b/contracts';
 import { Select } from '@/components/ui/select';
+import { useTranslation } from '@/i18n/useTranslation';
 import { dictionaryClient } from '../client';
 
 export interface LanguagePickerProps
@@ -12,10 +13,12 @@ export interface LanguagePickerProps
 
 export function LanguagePicker({
   includeBlank = false,
-  blankLabel = 'Select language',
+  blankLabel,
   activeOnly = true,
   ...props
 }: LanguagePickerProps): React.ReactElement {
+  const t = useTranslation('dictionaries');
+  const resolvedBlankLabel = blankLabel ?? t('languagePicker.selectLanguage');
   const [rows, setRows] = useState<DictionaryLanguage[]>([]);
 
   useEffect(() => {
@@ -44,17 +47,17 @@ export function LanguagePicker({
 
   return (
     <Select {...props}>
-      {includeBlank ? <option value="">{blankLabel}</option> : null}
+      {includeBlank ? <option value="">{resolvedBlankLabel}</option> : null}
       {visible.map((row) => (
         <option key={row.code} value={row.code}>
           {row.label}
         </option>
       ))}
       {inactive.length > 0 ? (
-        <optgroup label="Inactive">
+        <optgroup label={t('languagePicker.inactiveGroup')}>
           {inactive.map((row) => (
             <option key={row.code} value={row.code}>
-              {row.label} (inactive)
+              {t('languagePicker.inactiveLabel', { label: row.label })}
             </option>
           ))}
         </optgroup>

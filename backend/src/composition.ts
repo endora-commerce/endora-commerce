@@ -7,6 +7,7 @@ import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
+import type { ErrorEnvelopeOptions } from './http/error-envelope.js';
 import { initOrm, closeOrm } from './db/index.js';
 import { EventBus } from './events/bus.js';
 import { authPlugin } from './modules/auth/plugin.js';
@@ -84,6 +85,7 @@ export interface ComposeAppHandle {
   orm: MikroORM;
   redis: Redis;
   modules: ModulePlugin[];
+  errorEnvelope: ErrorEnvelopeOptions;
   /** Closes the ORM + redis connection; call from a SIGTERM handler. */
   dispose: () => Promise<void>;
 }
@@ -797,6 +799,21 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     orm,
     redis,
     modules,
+    errorEnvelope: {
+      resolvePreferredLanguage: async (request) => {
+        if (request.actor.kind !== 'admin') return null;
+        const adminUser = await em().findOne(AdminUser, { id: request.actor.adminUserId });
+        return adminUser?.preferredLanguage === 'pl' ? 'pl' : 'en';
+      },
+      translateErrorMessage: async ({ moduleId, key, language, originalMessage }) => {
+        const translated = await adminI18n.handle.i18nService.translate(
+          moduleId,
+          key,
+          language,
+        );
+        return translated === `${moduleId}.${key}` ? originalMessage : translated;
+      },
+    },
     dispose: async () => {
       redis.disconnect();
       redisSubscriber.disconnect();

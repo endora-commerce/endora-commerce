@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
+import { useTranslation } from '@/i18n/useTranslation';
 import { ContentLanguageTabs } from '../../cms/components/ContentLanguageTabs';
 import { PageBuilderEditor } from '../../cms/components/PageBuilderEditor';
 import { ScopePicker, type CmsScopeValue } from '../../cms/components/ScopePicker';
@@ -49,6 +50,7 @@ function pickValue(map: Record<string, string> | null | undefined, lang: string)
 }
 
 export function BlogCategoryEditor(): ReactNode {
+  const t = useTranslation('blog');
   const { id } = useParams();
   const isNew = !id || id === 'new';
   const [searchParams] = useSearchParams();
@@ -175,7 +177,7 @@ export function BlogCategoryEditor(): ReactNode {
         version: category.version,
       });
       setCategory(updated);
-      setInfo('Saved.');
+      setInfo(t('messages.saved'));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -201,7 +203,7 @@ export function BlogCategoryEditor(): ReactNode {
         version: category.version,
       });
       setCategory(updated);
-      setInfo('Description saved.');
+      setInfo(t('messages.descriptionSaved'));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -212,15 +214,15 @@ export function BlogCategoryEditor(): ReactNode {
   return (
     <div className="space-y-4">
       <PageHeader
-        title={isNew ? 'New blog category' : 'Edit blog category'}
+        title={isNew ? t('categoryEditor.title.new') : t('categoryEditor.title.edit')}
         description={
           category?.isSystem
-            ? 'System-protected category. You can edit fields but cannot delete it.'
-            : 'Tree node + per-language metadata + optional Page Builder description.'
+            ? t('categoryEditor.description.system')
+            : t('categoryEditor.description.default')
         }
         actions={
           <Button asChild variant="outline">
-            <Link to="/blog/categories">Back to tree</Link>
+            <Link to="/blog/categories">{t('categoryEditor.backToTree')}</Link>
           </Button>
         }
       />
@@ -240,7 +242,7 @@ export function BlogCategoryEditor(): ReactNode {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Metadata</CardTitle>
+          <CardTitle className="text-base">{t('sections.metadata')}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
           <ContentLanguageTabs
@@ -251,16 +253,16 @@ export function BlogCategoryEditor(): ReactNode {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="cat-name">Name (per language)</Label>
+              <Label htmlFor="cat-name">{t('fields.namePerLanguage')}</Label>
               <Input
                 id="cat-name"
                 value={form.name}
                 onChange={(event) => setForm((f) => ({ ...f, name: event.target.value }))}
-                placeholder="Guides"
+                placeholder={t('categoryEditor.namePlaceholder')}
               />
             </div>
             <div>
-              <Label htmlFor="cat-slug">Slug</Label>
+              <Label htmlFor="cat-slug">{t('fields.slug')}</Label>
               <Input
                 id="cat-slug"
                 value={form.slug}
@@ -268,14 +270,14 @@ export function BlogCategoryEditor(): ReactNode {
                   setForm((f) => ({ ...f, slug: event.target.value.toLowerCase() }))
                 }
                 className="font-mono"
-                placeholder="guides"
+                placeholder={t('categoryEditor.slugPlaceholder')}
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="cat-meta-title">Meta title (per language)</Label>
+              <Label htmlFor="cat-meta-title">{t('fields.metaTitlePerLanguage')}</Label>
               <Input
                 id="cat-meta-title"
                 value={form.metaTitle}
@@ -285,7 +287,7 @@ export function BlogCategoryEditor(): ReactNode {
               />
             </div>
             <div>
-              <Label htmlFor="cat-meta-description">Meta description (per language)</Label>
+              <Label htmlFor="cat-meta-description">{t('fields.metaDescriptionPerLanguage')}</Label>
               <Input
                 id="cat-meta-description"
                 value={form.metaDescription}
@@ -298,7 +300,7 @@ export function BlogCategoryEditor(): ReactNode {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="cat-meta-keywords">Meta keywords (per language)</Label>
+              <Label htmlFor="cat-meta-keywords">{t('fields.metaKeywordsPerLanguage')}</Label>
               <Input
                 id="cat-meta-keywords"
                 value={form.metaKeywords}
@@ -308,7 +310,7 @@ export function BlogCategoryEditor(): ReactNode {
               />
             </div>
             <div>
-              <Label htmlFor="cat-image">Main image asset id (UUID, optional)</Label>
+              <Label htmlFor="cat-image">{t('fields.mainImageAssetId')}</Label>
               <Input
                 id="cat-image"
                 value={form.mainImageAssetId}
@@ -316,7 +318,7 @@ export function BlogCategoryEditor(): ReactNode {
                   setForm((f) => ({ ...f, mainImageAssetId: event.target.value }))
                 }
                 className="font-mono"
-                placeholder="00000000-0000-…"
+                placeholder={t('categoryEditor.assetPlaceholder')}
               />
             </div>
           </div>
@@ -328,13 +330,13 @@ export function BlogCategoryEditor(): ReactNode {
               checked={form.enabled}
               onChange={(event) => setForm((f) => ({ ...f, enabled: event.target.checked }))}
             />
-            <Label htmlFor="cat-enabled">Enabled (storefront-visible)</Label>
+            <Label htmlFor="cat-enabled">{t('fields.enabledStorefrontVisible')}</Label>
           </div>
 
           <div className="flex justify-end gap-2">
             {isNew ? (
               <Button type="button" disabled={!canSave || saving} onClick={() => void onCreate()}>
-                {saving ? 'Saving…' : 'Create'}
+                {saving ? t('common.saving') : t('common.create')}
               </Button>
             ) : (
               <Button
@@ -342,7 +344,7 @@ export function BlogCategoryEditor(): ReactNode {
                 disabled={!canSave || saving}
                 onClick={() => void onSaveMetadata()}
               >
-                {saving ? 'Saving…' : 'Save metadata'}
+                {saving ? t('common.saving') : t('common.saveMetadata')}
               </Button>
             )}
           </div>
@@ -352,14 +354,16 @@ export function BlogCategoryEditor(): ReactNode {
       {!isNew && category && activeLanguage && draftDescription !== null ? (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2">
-            <CardTitle className="text-base">Description — {activeLanguage}</CardTitle>
+            <CardTitle className="text-base">
+              {t('categoryEditor.descriptionTitle', { language: activeLanguage })}
+            </CardTitle>
             <Button
               type="button"
               size="sm"
               disabled={saving}
               onClick={() => void onSaveDescription()}
             >
-              {saving ? 'Saving…' : 'Save description'}
+              {saving ? t('common.saving') : t('common.saveDescription')}
             </Button>
           </CardHeader>
           <CardContent>

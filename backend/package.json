@@ -34,7 +34,9 @@
     "module:uninstall": "tsx --env-file-if-exists=.env src/modules/_lifecycle/scripts/uninstall.ts",
     "module:enable": "tsx --env-file-if-exists=.env src/modules/_lifecycle/scripts/enable.ts",
     "module:disable": "tsx --env-file-if-exists=.env src/modules/_lifecycle/scripts/disable.ts",
-    "module:status": "tsx --env-file-if-exists=.env src/modules/_lifecycle/scripts/status.ts"
+    "module:status": "tsx --env-file-if-exists=.env src/modules/_lifecycle/scripts/status.ts",
+    "i18n:coverage": "tsx --env-file-if-exists=.env src/modules/_i18n/scripts/coverage.ts",
+    "i18n:hardcoded": "tsx scripts/i18n-hardcoded-strings.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",

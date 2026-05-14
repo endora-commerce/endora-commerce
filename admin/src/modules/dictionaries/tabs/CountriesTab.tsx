@@ -31,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 import { dictionaryClient } from '../client';
 import { EntryStatusBadges } from '../components/EntryStatusBadges';
 import { TranslationsDrawer } from '../components/TranslationsDrawer';
@@ -66,6 +67,7 @@ const emptyCountry: CountryFormState = {
 };
 
 export function CountriesTab(): ReactNode {
+  const t = useTranslation('dictionaries');
   const [rows, setRows] = useState<Country[]>([]);
   const [currencies, setCurrencies] = useState<DictionaryCurrency[]>([]);
   const [languages, setLanguages] = useState<DictionaryLanguage[]>([]);
@@ -244,17 +246,17 @@ export function CountriesTab(): ReactNode {
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
       <Card>
         <CardHeader className="gap-3 md:flex-row md:items-center md:justify-between md:space-y-0">
-          <CardTitle>Countries</CardTitle>
+          <CardTitle>{t('countries.title')}</CardTitle>
           <div className="flex w-full flex-wrap gap-2 md:w-auto">
             <Input
               className="min-w-56 md:w-72"
-              placeholder="Search code, label, region"
+              placeholder={t('countries.searchPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
             <Button type="button" onClick={openCreate}>
               <Plus />
-              Add country
+              {t('countries.addCountry')}
             </Button>
           </div>
         </CardHeader>
@@ -270,7 +272,7 @@ export function CountriesTab(): ReactNode {
             </Alert>
           ) : null}
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading countries…</p>
+            <p className="text-sm text-muted-foreground">{t('countries.loading')}</p>
           ) : (
             <Table>
               <TableHeader>
@@ -316,7 +318,7 @@ export function CountriesTab(): ReactNode {
                           variant="ghost"
                           size="icon"
                           disabled={index === 0}
-                          title="Move up"
+                          title={t('action.moveUp')}
                           onClick={() => void move(row, -1)}
                         >
                           <ArrowUp />
@@ -326,19 +328,19 @@ export function CountriesTab(): ReactNode {
                           variant="ghost"
                           size="icon"
                           disabled={index === filtered.length - 1}
-                          title="Move down"
+                          title={t('action.moveDown')}
                           onClick={() => void move(row, 1)}
                         >
                           <ArrowDown />
                         </Button>
                         <Button type="button" variant="outline" size="sm" onClick={() => openEdit(row)}>
-                          Edit
+                          {t('action.edit')}
                         </Button>
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          title="Set default"
+                          title={t('action.setDefault')}
                           disabled={row.isDefault || !row.isActive}
                           onClick={() => void setDefault(row.code)}
                         >
@@ -348,7 +350,7 @@ export function CountriesTab(): ReactNode {
                           type="button"
                           variant="destructive"
                           size="icon"
-                          title="Delete"
+                          title={t('action.delete')}
                           disabled={row.isDefault}
                           onClick={() => void remove(row.code)}
                         >
@@ -365,7 +367,7 @@ export function CountriesTab(): ReactNode {
       </Card>
 
       <CountryEditor
-        title={creating ? 'New country' : selected ? `Edit ${selected.code}` : 'Country editor'}
+        title={creating ? t('countries.editor.newCountry') : selected ? t('countries.editor.editTitle', { code: selected.code }) : t('countries.editor.title')}
         form={form}
         setForm={setForm}
         currencies={currencies}
@@ -406,6 +408,7 @@ function CountryEditor({
   onSubmit: () => void;
   onCancel: () => void;
 }): ReactNode {
+  const t = useTranslation('dictionaries');
   const submit = (event: FormEvent): void => {
     event.preventDefault();
     onSubmit();
@@ -418,7 +421,7 @@ function CountryEditor({
       </CardHeader>
       <CardContent>
         {disabled ? (
-          <p className="text-sm text-muted-foreground">Select a country or create a new one.</p>
+          <p className="text-sm text-muted-foreground">{t('countries.editor.selectHint')}</p>
         ) : (
           <form className="space-y-4" onSubmit={submit}>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -508,7 +511,7 @@ function CountryEditor({
                   checked={form.isEuMember}
                   onChange={(e) => setForm({ ...form, isEuMember: e.target.checked })}
                 />
-                EU member
+                {t('countries.editor.euMember')}
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox

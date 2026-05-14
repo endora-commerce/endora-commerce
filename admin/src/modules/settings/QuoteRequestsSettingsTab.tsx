@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useTranslation } from '@/i18n/useTranslation';
 
 /**
  * Quote Requests settings tab (feature 008 / T080).
@@ -28,6 +29,7 @@ const KEYS = {
 } as const;
 
 export function QuoteRequestsSettingsTab(): ReactNode {
+  const t = useTranslation('settings');
   const [expiry, setExpiry] = useState('0');
   const [card, setCard] = useState(true);
   const [pdp, setPdp] = useState(true);
@@ -47,9 +49,9 @@ export function QuoteRequestsSettingsTab(): ReactNode {
         if (v.code === KEYS.pdp && typeof v.value === 'boolean') setPdp(v.value);
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load settings.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('quoteRequestsTab.error.load'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void refresh();
@@ -61,7 +63,7 @@ export function QuoteRequestsSettingsTab(): ReactNode {
     setInfo(null);
     const expiryDays = Number(expiry);
     if (!Number.isFinite(expiryDays) || expiryDays < 0) {
-      setError('Expiry must be an integer ≥ 0.');
+      setError(t('quoteRequestsTab.error.invalidExpiry'));
       setBusy(false);
       return;
     }
@@ -73,9 +75,9 @@ export function QuoteRequestsSettingsTab(): ReactNode {
           { code: KEYS.pdp, value: pdp },
         ],
       });
-      setInfo('Saved.');
+      setInfo(t('quoteRequestsTab.saved'));
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('quoteRequestsTab.error.save'));
     } finally {
       setBusy(false);
     }
@@ -84,7 +86,7 @@ export function QuoteRequestsSettingsTab(): ReactNode {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Quote Requests</CardTitle>
+        <CardTitle>{t('quoteRequestsTab.title')}</CardTitle>
       </CardHeader>
       <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {error ? (
@@ -99,7 +101,7 @@ export function QuoteRequestsSettingsTab(): ReactNode {
         ) : null}
 
         <div>
-          <Label htmlFor="expiry">Auto-expire pending after (days)</Label>
+          <Label htmlFor="expiry">{t('quoteRequestsTab.expiry.label')}</Label>
           <Input
             id="expiry"
             type="number"
@@ -108,8 +110,7 @@ export function QuoteRequestsSettingsTab(): ReactNode {
             onChange={(e): void => setExpiry(e.target.value)}
           />
           <p style={{ fontSize: 12, color: 'var(--b2b-muted)', marginTop: 4 }}>
-            0 disables auto-expiry entirely. Pending and Created from admin Quote Requests older
-            than this threshold flip to Expired automatically.
+            {t('quoteRequestsTab.expiry.help')}
           </p>
         </div>
 
@@ -119,7 +120,7 @@ export function QuoteRequestsSettingsTab(): ReactNode {
             checked={card}
             onChange={(e): void => setCard(e.target.checked)}
           />
-          Show "Add to quote" button on storefront product cards
+          {t('quoteRequestsTab.showOnCards')}
         </label>
 
         <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -128,12 +129,12 @@ export function QuoteRequestsSettingsTab(): ReactNode {
             checked={pdp}
             onChange={(e): void => setPdp(e.target.checked)}
           />
-          Show "Add to quote" button on storefront product detail pages
+          {t('quoteRequestsTab.showOnPdp')}
         </label>
 
         <div>
           <Button onClick={(): void => void save()} disabled={busy}>
-            <Save size={14} style={{ marginRight: 4 }} /> Save
+            <Save size={14} style={{ marginRight: 4 }} /> {t('quoteRequestsTab.save')}
           </Button>
         </div>
       </CardContent>

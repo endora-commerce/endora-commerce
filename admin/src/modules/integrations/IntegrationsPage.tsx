@@ -20,6 +20,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import { useTranslation } from '@/i18n/useTranslation';
 
 const KIND_OPTIONS = ['payment_gateway', 'shipping_carrier', 'analytics', 'crm', 'erp'] as const;
 
@@ -34,6 +35,7 @@ interface TestResponse {
 }
 
 export function IntegrationsPage(): ReactNode {
+  const t = useTranslation('core');
   const [items, setItems] = useState<ExternalIntegration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,11 +48,11 @@ export function IntegrationsPage(): ReactNode {
       const res = await apiClient.get<IntegrationsListResponse>('/api/v1/admin/integrations');
       setItems(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load integrations.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('integrations.error.load'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void refresh();
@@ -72,18 +74,18 @@ export function IntegrationsPage(): ReactNode {
         if (test) {
           setInfo(
             test.ok
-              ? `Connection test succeeded — status is now "${test.status}".`
-              : `Connection test failed: ${test.message ?? 'unknown error'}.`,
+              ? t('integrations.test.successWithStatus', { status: test.status })
+              : t('integrations.test.failedWithReason', { reason: test.message ?? t('integrations.test.unknownError') }),
           );
         } else {
-          setInfo('Integration created.');
+          setInfo(t('integrations.create.success'));
         }
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to create integration.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('integrations.error.create'));
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   const handleTest = useCallback(
@@ -92,35 +94,35 @@ export function IntegrationsPage(): ReactNode {
         const res = await apiClient.post<TestResponse>(`/api/v1/admin/integrations/${id}/test`);
         setInfo(
           res.data.ok
-            ? `Test passed — status "${res.data.status}".`
-            : `Test failed: ${res.data.message ?? 'unknown error'}`,
+            ? t('integrations.test.successWithStatus', { status: res.data.status })
+            : t('integrations.test.failedWithReason', { reason: res.data.message ?? t('integrations.test.unknownError') }),
         );
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Test call failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('integrations.error.test'));
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
-      if (!confirm('Delete this integration? Stored credentials will be removed.')) return;
+      if (!confirm(t('integrations.action.deleteConfirm'))) return;
       try {
         await apiClient.delete<void>(`/api/v1/admin/integrations/${id}`);
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to delete integration.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('integrations.error.delete'));
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   return (
     <>
       <PageHeader
-        title="External integrations"
-        description="Per-vendor credentials. Encrypted at rest; only redacted fields are returned by GET."
+        title={t('integrations.page.title')}
+        description={t('integrations.page.description')}
       />
 
       {error ? (
@@ -136,7 +138,7 @@ export function IntegrationsPage(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Configure new integration</CardTitle>
+          <CardTitle>{t('integrations.create.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <CreateIntegrationForm onSubmit={handleCreate} />
@@ -145,23 +147,23 @@ export function IntegrationsPage(): ReactNode {
 
       <Card>
         <CardHeader>
-          <CardTitle>Configured</CardTitle>
+          <CardTitle>{t('integrations.list.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
           ) : items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No integrations configured yet.</p>
+            <p className="text-sm text-muted-foreground">{t('integrations.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Kind</TableHead>
-                  <TableHead>Vendor</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Last tested</TableHead>
-                  <TableHead>Last error</TableHead>
+                  <TableHead>{t('integrations.column.name')}</TableHead>
+                  <TableHead>{t('integrations.column.kind')}</TableHead>
+                  <TableHead>{t('integrations.column.vendor')}</TableHead>
+                  <TableHead>{t('integrations.column.status')}</TableHead>
+                  <TableHead>{t('integrations.column.lastTested')}</TableHead>
+                  <TableHead>{t('integrations.column.lastError')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -170,7 +172,7 @@ export function IntegrationsPage(): ReactNode {
                   <TableRow key={i.id}>
                     <TableCell className="font-medium">{i.name}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{i.kind}</Badge>
+                      <Badge variant="outline">{t(`integrations.kind.${i.kind}`)}</Badge>
                     </TableCell>
                     <TableCell>{i.vendor}</TableCell>
                     <TableCell>
@@ -189,7 +191,7 @@ export function IntegrationsPage(): ReactNode {
                             void handleTest(i.id);
                           }}
                         >
-                          Test
+                          {t('integrations.action.test')}
                         </Button>
                         <Button
                           variant="destructive"
@@ -199,7 +201,7 @@ export function IntegrationsPage(): ReactNode {
                           }}
                         >
                           <Trash2 />
-                          Delete
+                          {t('integrations.action.delete')}
                         </Button>
                       </div>
                     </TableCell>
@@ -215,9 +217,10 @@ export function IntegrationsPage(): ReactNode {
 }
 
 function IntegrationStatusBadge({ status }: { status: ExternalIntegration['status'] }): ReactNode {
+  const t = useTranslation('core');
   const variant =
     status === 'active' ? 'success' : status === 'error' ? 'destructive' : 'warning';
-  return <Badge variant={variant}>{status}</Badge>;
+  return <Badge variant={variant}>{t(`integrations.status.${status}`)}</Badge>;
 }
 
 function CreateIntegrationForm(props: {
@@ -228,6 +231,7 @@ function CreateIntegrationForm(props: {
     config: Record<string, unknown>;
   }) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('core');
   const [name, setName] = useState('');
   const [vendor, setVendor] = useState('');
   const [kind, setKind] = useState<string>(KIND_OPTIONS[0]);
@@ -242,11 +246,11 @@ function CreateIntegrationForm(props: {
     try {
       const parsed = JSON.parse(configText) as unknown;
       if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new Error('Config must be a JSON object.');
+        throw new Error(t('integrations.create.configMustBeObject'));
       }
       config = parsed as Record<string, unknown>;
     } catch (err) {
-      setParseError(err instanceof Error ? err.message : 'Invalid JSON.');
+      setParseError(err instanceof Error ? err.message : t('integrations.create.invalidJson'));
       return;
     }
     setParseError(null);
@@ -270,21 +274,21 @@ function CreateIntegrationForm(props: {
     >
       <div className="grid gap-4 md:grid-cols-3">
         <div className="space-y-2">
-          <Label htmlFor="int-name">Name</Label>
+          <Label htmlFor="int-name">{t('integrations.create.nameLabel')}</Label>
           <Input id="int-name" value={name} onChange={(e): void => setName(e.target.value)} required />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="int-vendor">Vendor</Label>
+          <Label htmlFor="int-vendor">{t('integrations.create.vendorLabel')}</Label>
           <Input
             id="int-vendor"
             value={vendor}
             onChange={(e): void => setVendor(e.target.value)}
-            placeholder="e.g. stripe, inpost"
+            placeholder={t('integrations.create.vendorPlaceholder')}
             required
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="int-kind">Kind</Label>
+          <Label htmlFor="int-kind">{t('integrations.create.kindLabel')}</Label>
           <Select id="int-kind" value={kind} onChange={(e): void => setKind(e.target.value)}>
             {KIND_OPTIONS.map((k) => (
               <option key={k} value={k}>
@@ -295,7 +299,7 @@ function CreateIntegrationForm(props: {
         </div>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="int-config">Config (JSON)</Label>
+        <Label htmlFor="int-config">{t('integrations.create.configLabel')}</Label>
         <Textarea
           id="int-config"
           value={configText}
@@ -305,12 +309,10 @@ function CreateIntegrationForm(props: {
           className="font-mono text-xs"
         />
         {parseError ? <p className="text-xs text-destructive">{parseError}</p> : null}
-        <p className="text-xs text-muted-foreground">
-          Stored encrypted at rest. Only the per-vendor adapter ever decrypts it.
-        </p>
+        <p className="text-xs text-muted-foreground">{t('integrations.create.configHelp')}</p>
       </div>
       <Button type="submit" disabled={submitting || !name.trim() || !vendor.trim()}>
-        {submitting ? 'Creating…' : 'Create + test connection'}
+        {submitting ? t('integrations.create.submitting') : t('integrations.create.submit')}
       </Button>
     </form>
   );

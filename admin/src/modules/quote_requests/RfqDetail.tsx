@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 
 /**
  * Admin Quote Request detail (feature 008 / T043). Renders status,
@@ -97,6 +98,7 @@ const STATUS_VARIANT: Record<
 };
 
 export function RfqDetail(): ReactNode {
+  const t = useTranslation('core');
   const { id } = useParams<{ id: string }>();
   const [rfq, setRfq] = useState<AdminRfqDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,11 +117,11 @@ export function RfqDetail(): ReactNode {
       );
       setRfq(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('rfq.detail.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     void refresh();
@@ -136,10 +138,10 @@ export function RfqDetail(): ReactNode {
         {},
         { headers: { 'If-Match': `"${rfq.version}"` } },
       );
-      setInfo('Quote Request approved.');
+      setInfo(t('rfq.detail.info.approved'));
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Approve failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('rfq.detail.error.approve'));
     } finally {
       setBusy(false);
     }
@@ -157,11 +159,11 @@ export function RfqDetail(): ReactNode {
         body,
         { headers: { 'If-Match': `"${rfq.version}"` } },
       );
-      setInfo('Quote Request canceled.');
+      setInfo(t('rfq.detail.info.canceled'));
       setCancelReason('');
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Cancel failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('rfq.detail.error.cancel'));
     } finally {
       setBusy(false);
     }
@@ -170,7 +172,7 @@ export function RfqDetail(): ReactNode {
   if (loading)
     return (
       <div className="b2b-page b2b-page--wide">
-        <p style={{ padding: 32, color: 'var(--b2b-muted)' }}>Loading…</p>
+        <p style={{ padding: 32, color: 'var(--b2b-muted)' }}>{t('rfq.detail.loading')}</p>
       </div>
     );
 
@@ -178,7 +180,7 @@ export function RfqDetail(): ReactNode {
     return (
       <div className="b2b-page b2b-page--wide">
         <Alert variant="destructive">
-          <AlertDescription>{error ?? 'Quote Request not found.'}</AlertDescription>
+          <AlertDescription>{error ?? t('rfq.detail.notFound')}</AlertDescription>
         </Alert>
       </div>
     );
@@ -192,22 +194,25 @@ export function RfqDetail(): ReactNode {
     <div className="b2b-page b2b-page--wide">
       <Button asChild variant="ghost" size="sm" style={{ marginBottom: 8 }}>
         <Link to="/quote-requests">
-          <ArrowLeft size={14} style={{ marginRight: 4 }} /> Back to list
+          <ArrowLeft size={14} style={{ marginRight: 4 }} /> {t('rfq.detail.backToList')}
         </Link>
       </Button>
 
       <PageHeader
-        title={`Quote Request ${rfq.id.slice(0, 8)}`}
-        description={`Organization ${rfq.organizationId.slice(0, 8)} · Customer ${rfq.customerAccountId.slice(0, 8)}`}
+        title={t('rfq.detail.title', { id: rfq.id.slice(0, 8) })}
+        description={t('rfq.detail.description', {
+          orgId: rfq.organizationId.slice(0, 8),
+          customerId: rfq.customerAccountId.slice(0, 8),
+        })}
       />
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         <Badge variant={STATUS_VARIANT[rfq.status]}>{rfq.status}</Badge>
         {rfq.awaitingCustomerRevisionAcceptance ? (
-          <Badge variant="warning">Awaiting customer acceptance of revision</Badge>
+          <Badge variant="warning">{t('rfq.detail.badge.awaitingRevision')}</Badge>
         ) : null}
         {rfq.cancellationReason ? (
-          <Badge variant="destructive">Cancel reason: {rfq.cancellationReason}</Badge>
+          <Badge variant="destructive">{t('rfq.detail.badge.cancelReason', { reason: rfq.cancellationReason })}</Badge>
         ) : null}
       </div>
 
@@ -225,7 +230,7 @@ export function RfqDetail(): ReactNode {
       {rfq.headerNote ? (
         <Card style={{ marginBottom: 16 }}>
           <CardHeader>
-            <CardTitle>Header note</CardTitle>
+            <CardTitle>{t('rfq.detail.headerNote')}</CardTitle>
           </CardHeader>
           <CardContent>{rfq.headerNote}</CardContent>
         </Card>
@@ -233,17 +238,17 @@ export function RfqDetail(): ReactNode {
 
       <Card style={{ marginBottom: 16 }}>
         <CardHeader>
-          <CardTitle>Line items ({rfq.items.length})</CardTitle>
+          <CardTitle>{t('rfq.detail.lineItems', { count: rfq.items.length })}</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead>Qty</TableHead>
-                <TableHead>Desired</TableHead>
-                <TableHead>Agreed</TableHead>
-                <TableHead>Line total</TableHead>
+                <TableHead>{t('rfq.detail.column.product')}</TableHead>
+                <TableHead>{t('rfq.detail.column.qty')}</TableHead>
+                <TableHead>{t('rfq.detail.column.desired')}</TableHead>
+                <TableHead>{t('rfq.detail.column.agreed')}</TableHead>
+                <TableHead>{t('rfq.detail.column.lineTotal')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -275,7 +280,7 @@ export function RfqDetail(): ReactNode {
               {total !== null ? (
                 <TableRow>
                   <TableCell colSpan={4} style={{ textAlign: 'right', fontWeight: 600 }}>
-                    Total
+                    {t('rfq.detail.totalLabel')}
                   </TableCell>
                   <TableCell style={{ fontWeight: 600 }}>
                     {total.toLocaleString('pl-PL', { minimumFractionDigits: 2 })}{' '}
@@ -291,27 +296,27 @@ export function RfqDetail(): ReactNode {
       {!isTerminal ? (
         <Card style={{ marginBottom: 16 }}>
           <CardHeader>
-            <CardTitle>Actions</CardTitle>
+            <CardTitle>{t('rfq.detail.actions')}</CardTitle>
           </CardHeader>
           <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {rfq.status === 'Pending' ? (
               <Button onClick={(): void => void approve()} disabled={busy}>
-                <Check size={14} style={{ marginRight: 4 }} /> Approve
+                <Check size={14} style={{ marginRight: 4 }} /> {t('rfq.detail.approve')}
               </Button>
             ) : null}
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
               <div style={{ flex: 1 }}>
-                <Label htmlFor="cancel-reason">Cancellation reason (optional)</Label>
+                <Label htmlFor="cancel-reason">{t('rfq.detail.cancelReason')}</Label>
                 <Textarea
                   id="cancel-reason"
                   value={cancelReason}
                   onChange={(e): void => setCancelReason(e.target.value)}
-                  placeholder="What should we tell the customer?"
+                  placeholder={t('rfq.detail.cancelReasonPlaceholder')}
                   rows={2}
                 />
               </div>
               <Button variant="destructive" onClick={(): void => void cancel()} disabled={busy}>
-                <XCircle size={14} style={{ marginRight: 4 }} /> Cancel RFQ
+                <XCircle size={14} style={{ marginRight: 4 }} /> {t('rfq.detail.cancelRfq')}
               </Button>
             </div>
           </CardContent>
@@ -325,12 +330,11 @@ export function RfqDetail(): ReactNode {
       {rfq.status === 'Approved' ? (
         <Card style={{ marginBottom: 16 }}>
           <CardHeader>
-            <CardTitle>Convert to order</CardTitle>
+            <CardTitle>{t('rfq.detail.convert.title')}</CardTitle>
           </CardHeader>
           <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <p style={{ fontSize: 13, color: 'var(--b2b-muted)', margin: 0 }}>
-              Loads the negotiated lines into the customer&apos;s cart at the agreed unit prices and
-              opens checkout. The Quote Request flips to Completed once the order is placed.
+              {t('rfq.detail.convert.description')}
             </p>
             <div>
               <Button
@@ -343,16 +347,19 @@ export function RfqDetail(): ReactNode {
                       `/api/v1/quote-requests/${rfq.id}/convert-to-order`,
                       {},
                     );
-                    setInfo(`Cart prepared: ${res.data.cartId.slice(0, 8)} — open ${res.data.checkoutUrl}`);
+                    setInfo(t('rfq.detail.convert.success', {
+                      cartId: res.data.cartId.slice(0, 8),
+                      url: res.data.checkoutUrl,
+                    }));
                   } catch (err) {
-                    setError(err instanceof ApiError ? err.envelope.error.message : 'Convert failed.');
+                    setError(err instanceof ApiError ? err.envelope.error.message : t('rfq.detail.convert.error'));
                   } finally {
                     setBusy(false);
                   }
                 }}
                 disabled={busy}
               >
-                Place order from this quote
+                {t('rfq.detail.convert.placeOrder')}
               </Button>
             </div>
           </CardContent>
@@ -361,11 +368,11 @@ export function RfqDetail(): ReactNode {
 
       <Card>
         <CardHeader>
-          <CardTitle>Change history</CardTitle>
+          <CardTitle>{t('rfq.detail.history.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           {rfq.events.length === 0 ? (
-            <p style={{ color: 'var(--b2b-muted)' }}>No events.</p>
+            <p style={{ color: 'var(--b2b-muted)' }}>{t('rfq.detail.history.empty')}</p>
           ) : (
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
               {rfq.events.map((e) => (
@@ -405,6 +412,7 @@ function ModifyCard({
   setError: (msg: string | null) => void;
   setInfo: (msg: string | null) => void;
 }): ReactNode {
+  const t = useTranslation('core');
   const [headerNote, setHeaderNote] = useState(rfq.headerNote ?? '');
   const [lines, setLines] = useState<ModifyLineDraft[]>(
     rfq.items.map((it) => ({
@@ -430,7 +438,7 @@ function ModifyCard({
             : {}),
         }));
       if (items.length === 0) {
-        setError('At least one line is required.');
+        setError(t('rfq.detail.modify.error.atLeastOneLine'));
         setBusy(false);
         return;
       }
@@ -439,10 +447,10 @@ function ModifyCard({
         { headerNote: headerNote.trim().length > 0 ? headerNote.trim() : null, items },
         { headers: { 'If-Match': `"${rfq.version}"` } },
       );
-      setInfo('Quote Request modified — customer notified.');
+      setInfo(t('rfq.detail.modify.info.saved'));
       await onSaved();
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Modify failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('rfq.detail.modify.error.save'));
     } finally {
       setBusy(false);
     }
@@ -455,11 +463,11 @@ function ModifyCard({
   return (
     <Card style={{ marginBottom: 16 }}>
       <CardHeader>
-        <CardTitle>Modify (negotiation)</CardTitle>
+        <CardTitle>{t('rfq.detail.modify.title')}</CardTitle>
       </CardHeader>
       <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div>
-          <Label htmlFor="modify-note">Header note</Label>
+          <Label htmlFor="modify-note">{t('rfq.detail.modify.headerNote')}</Label>
           <Textarea
             id="modify-note"
             value={headerNote}
@@ -470,9 +478,9 @@ function ModifyCard({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Product id</TableHead>
-              <TableHead>Quantity</TableHead>
-              <TableHead>Agreed unit price</TableHead>
+              <TableHead>{t('rfq.detail.modify.productId')}</TableHead>
+              <TableHead>{t('rfq.detail.modify.quantity')}</TableHead>
+              <TableHead>{t('rfq.detail.modify.agreedUnitPrice')}</TableHead>
               <TableHead></TableHead>
             </TableRow>
           </TableHeader>
@@ -511,7 +519,7 @@ function ModifyCard({
                     size="sm"
                     onClick={(): void => setLines((prev) => prev.filter((_, j) => j !== i))}
                   >
-                    Remove
+                    {t('rfq.detail.modify.remove')}
                   </Button>
                 </TableCell>
               </TableRow>
@@ -526,12 +534,12 @@ function ModifyCard({
               setLines((prev) => [...prev, { productId: '', quantity: '1', agreedUnitPrice: '' }])
             }
           >
-            + Add line
+            {t('rfq.detail.modify.addLine')}
           </Button>
         </div>
         <div>
           <Button onClick={(): void => void save()} disabled={busy}>
-            Save revision (notifies customer)
+            {t('rfq.detail.modify.saveRevision')}
           </Button>
         </div>
       </CardContent>

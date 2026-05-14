@@ -2,9 +2,12 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
   GetBundlesResponseSchema,
+  I18nCoverageQuerySchema,
+  I18nCoverageResponseSchema,
   PatchPreferredLanguageBodySchema,
   SupportedAdminLanguageSchema,
   type GetBundlesResponse,
+  type I18nCoverageResponse,
   type SupportedAdminLanguage,
 } from '@b2b/contracts';
 import type { I18nService } from './services/i18n-service.js';
@@ -86,6 +89,34 @@ export async function registerI18nAdminRoutes(
             null,
         },
       };
+    },
+  );
+
+  // --- E-3 GET coverage diagnostic — feature 021 ---------------------------
+  app.get(
+    '/api/v1/admin/i18n/coverage',
+    {
+      preHandler: deps.requireAdmin(),
+      schema: { querystring: I18nCoverageQuerySchema },
+    },
+    async (request): Promise<{ data: I18nCoverageResponse }> => {
+      const q = I18nCoverageQuerySchema.parse(request.query ?? {});
+      const moduleIds = q.module === undefined
+        ? undefined
+        : Array.isArray(q.module)
+          ? q.module
+          : [q.module];
+      const languageCodes = q.language === undefined
+        ? undefined
+        : Array.isArray(q.language)
+          ? q.language
+          : [q.language];
+      const snapshot = await deps.i18nService.getCoverageSnapshot({
+        ...(moduleIds !== undefined ? { moduleIds } : {}),
+        ...(languageCodes !== undefined ? { languageCodes } : {}),
+        ...(q.includeKeys !== undefined ? { includeKeys: q.includeKeys } : {}),
+      });
+      return { data: I18nCoverageResponseSchema.parse(snapshot) };
     },
   );
 }

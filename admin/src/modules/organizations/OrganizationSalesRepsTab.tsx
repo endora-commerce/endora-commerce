@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 
 /**
  * Organization → Sales reps assignment tab (feature 008 / T079).
@@ -64,6 +65,7 @@ export function OrganizationSalesRepsTab({
 }: {
   organizationId: string;
 }): ReactNode {
+  const t = useTranslation('core');
   const [rows, setRows] = useState<SalesRepRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,11 +86,11 @@ export function OrganizationSalesRepsTab({
       );
       setRows(reps.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.salesReps.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [organizationId]);
+  }, [organizationId, t]);
 
   useEffect(() => {
     void refresh();
@@ -122,13 +124,13 @@ export function OrganizationSalesRepsTab({
         setPickerOptions(filtered);
       } catch (err) {
         if (seq !== searchSeqRef.current) return;
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Search failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.salesReps.error.search'));
         setPickerOptions([]);
       } finally {
         if (seq === searchSeqRef.current) setPickerSearching(false);
       }
     },
-    [assignedIds],
+    [assignedIds, t],
   );
 
   const handleSearchChange = useCallback(
@@ -165,13 +167,13 @@ export function OrganizationSalesRepsTab({
         `/api/v1/admin/organizations/${organizationId}/sales-reps`,
         { adminUserId: selectedAdminUserId },
       );
-      setInfo('Sales rep assigned.');
+      setInfo(t('organizations.salesReps.info.assigned'));
       setSelectedAdminUserId(null);
       setSelectedLabel('');
       setPickerOptions([]);
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Assign failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.salesReps.error.assign'));
     } finally {
       setBusy(false);
     }
@@ -185,10 +187,10 @@ export function OrganizationSalesRepsTab({
       await apiClient.delete(
         `/api/v1/admin/organizations/${organizationId}/sales-reps/${id}`,
       );
-      setInfo('Sales rep unassigned.');
+      setInfo(t('organizations.salesReps.info.unassigned'));
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Unassign failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.salesReps.error.unassign'));
     } finally {
       setBusy(false);
     }
@@ -197,7 +199,7 @@ export function OrganizationSalesRepsTab({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Sales representatives</CardTitle>
+        <CardTitle>{t('organizations.salesReps.title')}</CardTitle>
       </CardHeader>
       <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {error ? (
@@ -212,16 +214,15 @@ export function OrganizationSalesRepsTab({
         ) : null}
         {rows.length === 0 && !loading ? (
           <p style={{ color: 'var(--b2b-muted)', fontSize: 13 }}>
-            No sales reps assigned. Quote Requests from this organization are visible to every
-            sales rep (unassigned-org fallback).
+            {t('organizations.salesReps.empty')}
           </p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Assigned at</TableHead>
+                <TableHead>{t('organizations.salesReps.column.name')}</TableHead>
+                <TableHead>{t('organizations.salesReps.column.email')}</TableHead>
+                <TableHead>{t('organizations.salesReps.column.assignedAt')}</TableHead>
                 <TableHead style={{ width: 60 }}></TableHead>
               </TableRow>
             </TableHeader>
@@ -249,7 +250,7 @@ export function OrganizationSalesRepsTab({
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
           <div style={{ flex: 1 }}>
-            <Label htmlFor="rep-picker">Assign new sales rep</Label>
+            <Label htmlFor="rep-picker">{t('organizations.salesReps.assignLabel')}</Label>
             <Combobox<string>
               id="rep-picker"
               options={pickerOptions}
@@ -259,16 +260,16 @@ export function OrganizationSalesRepsTab({
               onSearchChange={handleSearchChange}
               manualFilter
               loading={pickerSearching}
-              placeholder="Search by name or email…"
+              placeholder={t('organizations.salesReps.searchPlaceholder')}
               disabled={busy}
-              emptyMessage={pickerSearching ? 'Searching…' : 'No matching admin user.'}
+              emptyMessage={pickerSearching ? t('organizations.salesReps.searching') : t('organizations.salesReps.noMatch')}
             />
           </div>
           <Button
             onClick={(): void => void assign()}
             disabled={busy || loading || selectedAdminUserId === null}
           >
-            <UserPlus size={14} style={{ marginRight: 4 }} /> Assign
+            <UserPlus size={14} style={{ marginRight: 4 }} /> {t('organizations.salesReps.assign')}
           </Button>
         </div>
       </CardContent>

@@ -44,6 +44,7 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   dependencies: ['settings'],
   settings,
+  i18n: { bundlesDir: 'i18n' },
 });
 
 /** Legacy export retained for backward compatibility. */

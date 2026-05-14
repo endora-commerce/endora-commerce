@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 
 // Feature 002 (T035) — DB-level value types. Foundation 001 had
 // the original 5 (string, number, boolean, enum, date); 002 adds
@@ -56,6 +57,7 @@ interface AdminAttribute {
 }
 
 export function AttributesManager(): ReactNode {
+  const t = useTranslation('catalog');
   const [attrs, setAttrs] = useState<AdminAttribute[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +72,7 @@ export function AttributesManager(): ReactNode {
       );
       setAttrs(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('attributes.error.load'));
     } finally {
       setLoading(false);
     }
@@ -122,10 +124,10 @@ export function AttributesManager(): ReactNode {
             ? { displayAsSlider: true }
             : {}),
         });
-        setInfo(`Attribute "${input.key}" created.`);
+        setInfo(t('attributes.success.create', { key: input.key }));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Create failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('attributes.error.create'));
       }
     },
     [refresh],
@@ -154,10 +156,10 @@ export function AttributesManager(): ReactNode {
           `/api/v1/admin/catalog/attributes/${attr.key}`,
           patch,
         );
-        setInfo(`Updated ${attr.key}.`);
+        setInfo(t('attributes.success.update', { key: attr.key }));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Update failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('attributes.error.update'));
       }
     },
     [refresh],
@@ -166,8 +168,8 @@ export function AttributesManager(): ReactNode {
   return (
     <>
       <PageHeader
-        title="Attributes"
-        description="Searchable + filterable attributes drive Meilisearch and the storefront filter panel. Hot-toggle to see results within seconds."
+        title={t('attributes.page.title')}
+        description={t('attributes.page.description')}
       />
 
       {error ? (
@@ -183,7 +185,7 @@ export function AttributesManager(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Create attribute</CardTitle>
+          <CardTitle>{t('attributes.create.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <CreateAttributeForm onSubmit={handleCreate} />
@@ -193,21 +195,21 @@ export function AttributesManager(): ReactNode {
       <Card>
         <CardContent className="pt-6">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('attributes.loading')}</p>
           ) : attrs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No attributes yet.</p>
+            <p className="text-sm text-muted-foreground">{t('attributes.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Key</TableHead>
-                  <TableHead>Label</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Enum values</TableHead>
-                  <TableHead>Searchable</TableHead>
-                  <TableHead>Filterable</TableHead>
-                  <TableHead>Variant axis</TableHead>
-                  <TableHead>Comparable</TableHead>
+                  <TableHead>{t('attributes.column.key')}</TableHead>
+                  <TableHead>{t('attributes.column.label')}</TableHead>
+                  <TableHead>{t('attributes.column.type')}</TableHead>
+                  <TableHead>{t('attributes.column.enumValues')}</TableHead>
+                  <TableHead>{t('attributes.column.searchable')}</TableHead>
+                  <TableHead>{t('attributes.column.filterable')}</TableHead>
+                  <TableHead>{t('attributes.column.variantAxis')}</TableHead>
+                  <TableHead>{t('attributes.column.comparable')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -282,6 +284,7 @@ function CreateAttributeForm({
     isComparable: boolean;
   }) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('catalog');
   const [key, setKey] = useState('');
   const [labelEn, setLabelEn] = useState('');
   const [labelPl, setLabelPl] = useState('');
@@ -325,7 +328,7 @@ function CreateAttributeForm({
     >
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="akey">Key (snake_case)</Label>
+          <Label htmlFor="akey">{t('attributes.field.key')}</Label>
           <Input
             id="akey"
             value={key}
@@ -336,7 +339,7 @@ function CreateAttributeForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="atype">Type</Label>
+          <Label htmlFor="atype">{t('attributes.field.type')}</Label>
           <Select
             id="atype"
             value={valueType}
@@ -350,28 +353,28 @@ function CreateAttributeForm({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="alen">Label [en-US]</Label>
+          <Label htmlFor="alen">{t('attributes.field.labelEn')}</Label>
           <Input id="alen" value={labelEn} onChange={(e): void => setLabelEn(e.target.value)} />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="alpl">Label [pl-PL]</Label>
+          <Label htmlFor="alpl">{t('attributes.field.labelPl')}</Label>
           <Input id="alpl" value={labelPl} onChange={(e): void => setLabelPl(e.target.value)} />
         </div>
       </div>
       {valueType === 'enum' || valueType === 'multiselect' ? (
         <div className="space-y-2">
-          <Label htmlFor="aenum">Enum values (comma-separated)</Label>
+          <Label htmlFor="aenum">{t('attributes.field.enumValues')}</Label>
           <Input
             id="aenum"
             value={enumValues}
             onChange={(e): void => setEnumValues(e.target.value)}
-            placeholder="red, green, blue"
+            placeholder={t('attributes.field.enumValuesPlaceholder')}
             required
           />
           <p className="text-xs text-muted-foreground">
             {valueType === 'multiselect'
-              ? 'Customers can pick multiple values for each Product.'
-              : 'Customers can pick exactly one value for each Product.'}
+              ? t('attributes.field.enumValues.help.multiselect')
+              : t('attributes.field.enumValues.help.enum')}
           </p>
         </div>
       ) : null}
@@ -382,7 +385,7 @@ function CreateAttributeForm({
               checked={displayAsSlider}
               onChange={(e): void => setDisplayAsSlider(e.target.checked)}
             />
-            Render filter as a range slider (storefront UI hint)
+            {t('attributes.flag.displayAsSlider')}
           </label>
         </div>
       ) : null}
@@ -392,31 +395,31 @@ function CreateAttributeForm({
             checked={isSearchable}
             onChange={(e): void => setIsSearchable(e.target.checked)}
           />
-          Searchable (indexed by Meilisearch)
+          {t('attributes.flag.searchable')}
         </label>
         <label className="flex items-center gap-2 text-sm">
           <Checkbox
             checked={isFilterable}
             onChange={(e): void => setIsFilterable(e.target.checked)}
           />
-          Filterable (shown as a facet on the storefront)
+          {t('attributes.flag.filterable')}
         </label>
         <label className="flex items-center gap-2 text-sm">
           <Checkbox
             checked={isVariantAxis}
             onChange={(e): void => setIsVariantAxis(e.target.checked)}
           />
-          Variant axis (configurable products discriminate by this attribute)
+          {t('attributes.flag.variantAxis')}
         </label>
         <label className="flex items-center gap-2 text-sm">
           <Checkbox
             checked={isComparable}
             onChange={(e): void => setIsComparable(e.target.checked)}
           />
-          Comparable (shown as a row on the Compare page)
+          {t('attributes.flag.comparable')}
         </label>
       </div>
-      <Button type="submit">Create attribute</Button>
+      <Button type="submit">{t('attributes.action.create')}</Button>
     </form>
   );
 }

@@ -17,6 +17,7 @@ import {
   Warehouse as WarehouseIcon,
 } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { useTranslation } from '@/i18n/useTranslation';
 import { AssetPicker } from '@/modules/assets_library/components/AssetPicker';
 import type { AssetSummary, AssetDetail } from '@/modules/assets_library/api/assets-library-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -79,6 +80,7 @@ interface AdminCategory {
 }
 
 export function ProductEditor(): ReactNode {
+  const t = useTranslation('catalog');
   const params = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isNew = params.id === 'new';
@@ -236,7 +238,7 @@ export function ProductEditor(): ReactNode {
   if (loading)
     return (
       <div className="b2b-page b2b-page--wide">
-        <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>Loading…</div>
+        <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>{t('productEditor.loading')}</div>
       </div>
     );
 
@@ -350,10 +352,10 @@ export function ProductEditor(): ReactNode {
             <form id="product-details-form" onSubmit={handleSave}>
               <div className="b2b-col" style={{ gap: 18 }}>
                 <div>
-                  <div className="b2b-label">Identity</div>
+                  <div className="b2b-label">{t('productEditor.section.identity')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                     <div>
-                      <Label htmlFor="sku">SKU (immutable after creation)</Label>
+                      <Label htmlFor="sku">{t('productEditor.field.sku')}</Label>
                       <Input
                         id="sku"
                         value={sku}
@@ -363,7 +365,7 @@ export function ProductEditor(): ReactNode {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="ptype">Type</Label>
+                      <Label htmlFor="ptype">{t('productEditor.field.type')}</Label>
                       <Select
                         id="ptype"
                         value={type}
@@ -379,15 +381,15 @@ export function ProductEditor(): ReactNode {
                         }
                         disabled={!isNew}
                       >
-                        {PRODUCT_TYPES.map((t) => (
-                          <option key={t} value={t}>
-                            {t}
+                        {PRODUCT_TYPES.map((pt) => (
+                          <option key={pt} value={pt}>
+                            {pt}
                           </option>
                         ))}
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor="pvis">Visibility</Label>
+                      <Label htmlFor="pvis">{t('productEditor.field.visibility')}</Label>
                       <Select
                         id="pvis"
                         value={visibility}
@@ -403,26 +405,26 @@ export function ProductEditor(): ReactNode {
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor="pattrset">Attribute Set</Label>
+                      <Label htmlFor="pattrset">{t('productEditor.field.attributeSet')}</Label>
                       <Select
                         id="pattrset"
                         value={attributeSetId}
                         onChange={(e): void => setAttributeSetId(e.target.value)}
                       >
                         {attributeSets.length === 0 ? (
-                          <option value="">— loading —</option>
+                          <option value="">{t('productEditor.attributeSet.loading')}</option>
                         ) : (
                           attributeSets.map((s) => (
                             <option key={s.id} value={s.id}>
                               {s.code}
-                              {s.isSystem ? ' (system)' : ''}
+                              {s.isSystem ? t('productEditor.attributeSet.systemSuffix') : ''}
                             </option>
                           ))
                         )}
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor="pstatus">Status</Label>
+                      <Label htmlFor="pstatus">{t('productEditor.field.status')}</Label>
                       <Select id="pstatus" value={status} disabled>
                         {STATUSES.map((s) => (
                           <option key={s} value={s}>
@@ -430,12 +432,10 @@ export function ProductEditor(): ReactNode {
                           </option>
                         ))}
                       </Select>
-                      <p className="b2b-help">
-                        Use Archive (top right) to deactivate; lifecycle is managed elsewhere.
-                      </p>
+                      <p className="b2b-help">{t('productEditor.field.status.help')}</p>
                     </div>
                     <div>
-                      <Label htmlFor="dp">Default unit price</Label>
+                      <Label htmlFor="dp">{t('productEditor.field.defaultPrice')}</Label>
                       <Input
                         id="dp"
                         type="number"
@@ -444,9 +444,7 @@ export function ProductEditor(): ReactNode {
                         value={defaultPrice}
                         onChange={(e): void => setDefaultPrice(e.target.value)}
                       />
-                      <p className="b2b-help">
-                        Price-list overrides take precedence at checkout.
-                      </p>
+                      <p className="b2b-help">{t('productEditor.field.defaultPrice.help')}</p>
                     </div>
                   </div>
                 </div>
@@ -454,15 +452,15 @@ export function ProductEditor(): ReactNode {
                 <hr className="b2b-hr" />
 
                 <div>
-                  <div className="b2b-label">Localized content</div>
+                  <div className="b2b-label">{t('productEditor.section.localizedContent')}</div>
                   <p className="b2b-help" style={{ marginTop: 0, marginBottom: 12 }}>
-                    Edit per language. Untranslated fields fall back to the default locale.
+                    {t('productEditor.section.localizedContent.help')}
                   </p>
                   <div className="b2b-col" style={{ gap: 18 }}>
                     {LOCALES.map((l) => (
                       <div key={l} className="b2b-col" style={{ gap: 8 }}>
                         <div>
-                          <Label htmlFor={`name-${l}`}>Name [{l}]</Label>
+                          <Label htmlFor={`name-${l}`}>{t('productEditor.field.localizedName', { locale: l })}</Label>
                           <Input
                             id={`name-${l}`}
                             value={name[l]}
@@ -472,7 +470,7 @@ export function ProductEditor(): ReactNode {
                           />
                         </div>
                         <div>
-                          <Label htmlFor={`desc-${l}`}>Description [{l}]</Label>
+                          <Label htmlFor={`desc-${l}`}>{t('productEditor.field.localizedDescription', { locale: l })}</Label>
                           <textarea
                             id={`desc-${l}`}
                             rows={3}
@@ -491,7 +489,7 @@ export function ProductEditor(): ReactNode {
                 <hr className="b2b-hr" />
 
                 <div>
-                  <div className="b2b-label">Categories</div>
+                  <div className="b2b-label">{t('productEditor.section.categories')}</div>
                   <Select
                     multiple
                     value={categoryIds}
@@ -508,7 +506,7 @@ export function ProductEditor(): ReactNode {
                       </option>
                     ))}
                   </Select>
-                  <p className="b2b-help">Hold Ctrl / ⌘ to multi-select.</p>
+                  <p className="b2b-help">{t('productEditor.section.categories.help')}</p>
                 </div>
               </div>
             </form>
@@ -560,15 +558,15 @@ function pickName(name: Record<string, string>): string {
 }
 
 function SeoStub({ name }: { name: Record<string, string> }): ReactNode {
+  const t = useTranslation('catalog');
   return (
     <div className="b2b-col" style={{ gap: 12 }}>
-      <div className="b2b-label">Per-locale SEO</div>
+      <div className="b2b-label">{t('productEditor.seo.title')}</div>
       <div className="b2b-help" style={{ marginTop: 0 }}>
-        Per-page meta overrides live in the SEO module — this panel will surface them here in a
-        future iteration.
+        {t('productEditor.seo.description')}
       </div>
       <div>
-        <Label htmlFor="seo-title">Page title (preview)</Label>
+        <Label htmlFor="seo-title">{t('productEditor.seo.pageTitlePreview')}</Label>
         <Input id="seo-title" defaultValue={pickName(name)} />
       </div>
     </div>
@@ -593,6 +591,7 @@ interface AdminVariant {
 }
 
 function VariantsSection({ productId }: { productId: string }): ReactNode {
+  const t = useTranslation('catalog');
   const [variants, setVariants] = useState<AdminVariant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -611,11 +610,11 @@ function VariantsSection({ productId }: { productId: string }): ReactNode {
       );
       setVariants(res.data.variants ?? []);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Load failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.variants.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [productId]);
+  }, [productId, t]);
 
   useEffect(() => {
     void refresh();
@@ -651,35 +650,35 @@ function VariantsSection({ productId }: { productId: string }): ReactNode {
           `/api/v1/admin/catalog/products/${productId}/variants`,
           payload,
         );
-        setInfo(`Variant "${input.sku}" created.`);
+        setInfo(t('productEditor.variants.success.create', { sku: input.sku }));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Create failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.variants.error.create'));
       }
     },
-    [productId, refresh],
+    [productId, refresh, t],
   );
 
   const handleDelete = useCallback(
     async (variantId: string, sku: string): Promise<void> => {
-      if (!confirm(`Delete variant "${sku}"?`)) return;
+      if (!confirm(t('productEditor.variants.deleteConfirm', { sku }))) return;
       try {
         await apiClient.delete<void>(
           `/api/v1/admin/catalog/products/${productId}/variants/${variantId}`,
         );
-        setInfo(`Variant "${sku}" deleted.`);
+        setInfo(t('productEditor.variants.success.delete', { sku }));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.variants.error.delete'));
       }
     },
-    [productId, refresh],
+    [productId, refresh, t],
   );
 
   return (
     <Card className="mt-4">
       <CardHeader>
-        <CardTitle>Variants</CardTitle>
+        <CardTitle>{t('productEditor.variants.title')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? (
@@ -694,20 +693,18 @@ function VariantsSection({ productId }: { productId: string }): ReactNode {
         ) : null}
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">{t('productEditor.loading')}</p>
         ) : variants.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No variants yet. A configurable Product MUST have at least one Variant before it can be activated.
-          </p>
+          <p className="text-sm text-muted-foreground">{t('productEditor.variants.empty')}</p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>SKU</TableHead>
-                <TableHead>Attributes</TableHead>
-                <TableHead>Price override</TableHead>
-                <TableHead>Stock</TableHead>
-                <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+                <TableHead>{t('productEditor.variants.column.sku')}</TableHead>
+                <TableHead>{t('productEditor.variants.column.attributes')}</TableHead>
+                <TableHead>{t('productEditor.variants.column.priceOverride')}</TableHead>
+                <TableHead>{t('productEditor.variants.column.stock')}</TableHead>
+                <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.variants.column.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -728,7 +725,7 @@ function VariantsSection({ productId }: { productId: string }): ReactNode {
                       size="sm"
                       onClick={() => void handleDelete(v.id, v.sku)}
                     >
-                      Delete
+                      {t('productEditor.variants.action.delete')}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -753,6 +750,7 @@ function CreateVariantInline({
     stockLevel: string;
   }) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('catalog');
   const [sku, setSku] = useState('');
   const [attrs, setAttrs] = useState('');
   const [priceOverride, setPriceOverride] = useState('');
@@ -762,23 +760,23 @@ function CreateVariantInline({
     <div
       className="grid gap-3 md:grid-cols-5 border-t pt-4"
       role="group"
-      aria-label="Create variant"
+      aria-label={t('productEditor.variants.createTitle')}
     >
       <div className="space-y-1">
-        <Label htmlFor="vsku">SKU</Label>
+        <Label htmlFor="vsku">{t('productEditor.variants.field.sku')}</Label>
         <Input id="vsku" value={sku} onChange={(e): void => setSku(e.target.value)} required />
       </div>
       <div className="space-y-1 md:col-span-2">
-        <Label htmlFor="vattrs">Attributes</Label>
+        <Label htmlFor="vattrs">{t('productEditor.variants.field.attributes')}</Label>
         <Input
           id="vattrs"
           value={attrs}
           onChange={(e): void => setAttrs(e.target.value)}
-          placeholder="color=red, size=M"
+          placeholder={t('productEditor.variants.field.attributesPlaceholder')}
         />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="vprice">Price override</Label>
+        <Label htmlFor="vprice">{t('productEditor.variants.field.priceOverride')}</Label>
         <Input
           id="vprice"
           type="number"
@@ -789,7 +787,7 @@ function CreateVariantInline({
         />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="vstock">Stock</Label>
+        <Label htmlFor="vstock">{t('productEditor.variants.field.stock')}</Label>
         <Input
           id="vstock"
           type="number"
@@ -810,7 +808,7 @@ function CreateVariantInline({
             });
           }}
         >
-          + Add variant
+          {t('productEditor.variants.action.add')}
         </Button>
       </div>
     </div>
@@ -837,6 +835,7 @@ interface AdminGalleryItem {
 }
 
 function GallerySection({ productId }: { productId: string }): ReactNode {
+  const t = useTranslation('catalog');
   const [items, setItems] = useState<AdminGalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -871,11 +870,11 @@ function GallerySection({ productId }: { productId: string }): ReactNode {
         })),
       );
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Load failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.gallery.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [productId]);
+  }, [productId, t]);
 
   useEffect(() => {
     void refresh();
@@ -891,13 +890,13 @@ function GallerySection({ productId }: { productId: string }): ReactNode {
           assetId: input.assetId,
           labels: input.labels,
         });
-        setInfo('Gallery item added.');
+        setInfo(t('productEditor.gallery.success.add'));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Add failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.gallery.error.add'));
       }
     },
-    [productId, refresh],
+    [productId, refresh, t],
   );
 
   const handleUpdateLabels = useCallback(
@@ -907,33 +906,33 @@ function GallerySection({ productId }: { productId: string }): ReactNode {
           replace ? '?replace=true' : ''
         }`;
         await apiClient.patch(url, { labels });
-        setInfo('Labels updated.');
+        setInfo(t('productEditor.gallery.success.update'));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Update failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.gallery.error.update'));
       }
     },
-    [productId, refresh],
+    [productId, refresh, t],
   );
 
   const handleDelete = useCallback(
     async (itemId: string): Promise<void> => {
-      if (!confirm('Remove this gallery item?')) return;
+      if (!confirm(t('productEditor.gallery.removeConfirm'))) return;
       try {
         await apiClient.delete(`/api/v1/admin/catalog/products/${productId}/gallery/${itemId}`);
-        setInfo('Gallery item removed.');
+        setInfo(t('productEditor.gallery.success.remove'));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.gallery.error.delete'));
       }
     },
-    [productId, refresh],
+    [productId, refresh, t],
   );
 
   return (
     <Card className="mt-4">
       <CardHeader>
-        <CardTitle>Gallery</CardTitle>
+        <CardTitle>{t('productEditor.gallery.title')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? (
@@ -948,20 +947,18 @@ function GallerySection({ productId }: { productId: string }): ReactNode {
         ) : null}
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">{t('productEditor.loading')}</p>
         ) : items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No gallery items yet. Pick an asset from the Library or upload a new one below.
-          </p>
+          <p className="text-sm text-muted-foreground">{t('productEditor.gallery.empty')}</p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Preview</TableHead>
-                <TableHead>Labels</TableHead>
-                <TableHead>Position</TableHead>
-                <TableHead>Asset id</TableHead>
-                <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+                <TableHead>{t('productEditor.gallery.column.preview')}</TableHead>
+                <TableHead>{t('productEditor.gallery.column.labels')}</TableHead>
+                <TableHead>{t('productEditor.gallery.column.position')}</TableHead>
+                <TableHead>{t('productEditor.gallery.column.assetId')}</TableHead>
+                <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.gallery.column.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -992,6 +989,7 @@ function GalleryRow({
   onUpdate: (id: string, labels: GalleryLabel[], replace: boolean) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('catalog');
   const [labels, setLabels] = useState<GalleryLabel[]>(item.labels);
   const [replace, setReplace] = useState(false);
 
@@ -1033,7 +1031,7 @@ function GalleryRow({
             checked={replace}
             onChange={() => setReplace((v) => !v)}
           />
-          Replace conflicts
+          {t('productEditor.gallery.replaceConflicts')}
         </label>
       </TableCell>
       <TableCell>{item.position}</TableCell>
@@ -1044,7 +1042,7 @@ function GalleryRow({
           size="sm"
           onClick={() => void onUpdate(item.id, labels, replace)}
         >
-          Save
+          {t('productEditor.gallery.action.save')}
         </Button>
         <Button
           type="button"
@@ -1052,7 +1050,7 @@ function GalleryRow({
           variant="destructive"
           onClick={() => void onDelete(item.id)}
         >
-          Remove
+          {t('productEditor.gallery.action.remove')}
         </Button>
       </TableCell>
     </TableRow>
@@ -1064,6 +1062,7 @@ function CreateGalleryItemInline({
 }: {
   onCreate: (input: { assetId: string; labels: GalleryLabel[]; replace: boolean }) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('catalog');
   const [assetId, setAssetId] = useState('');
   const [labels, setLabels] = useState<GalleryLabel[]>([]);
   const [replace, setReplace] = useState(false);
@@ -1083,7 +1082,7 @@ function CreateGalleryItemInline({
   };
 
   return (
-    <div className="space-y-3 border-t pt-4" role="group" aria-label="Add gallery item">
+    <div className="space-y-3 border-t pt-4" role="group" aria-label={t('productEditor.gallery.addTitle')}>
       {pickerOpen ? (
         <AssetPicker
           acceptMimePrefix="image/"
@@ -1094,21 +1093,21 @@ function CreateGalleryItemInline({
       ) : null}
       <div className="grid gap-3 md:grid-cols-4">
       <div className="space-y-1 md:col-span-2">
-        <Label htmlFor="gasset">Asset</Label>
+        <Label htmlFor="gasset">{t('productEditor.gallery.field.asset')}</Label>
         <div className="flex items-center gap-2">
           <Input
             id="gasset"
             value={pickedFilename ?? assetId}
             readOnly
-            placeholder="No asset selected"
+            placeholder={t('productEditor.gallery.field.noAsset')}
           />
           <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
-            Pick / Upload
+            {t('productEditor.gallery.action.pickOrUpload')}
           </Button>
         </div>
       </div>
       <div className="space-y-1">
-        <Label>Labels</Label>
+        <Label>{t('productEditor.gallery.column.labels')}</Label>
         <div className="flex flex-wrap gap-2 text-xs">
           {GALLERY_LABELS.map((label) => (
             <label key={label} className="flex items-center gap-1">
@@ -1127,7 +1126,7 @@ function CreateGalleryItemInline({
             checked={replace}
             onChange={() => setReplace((v) => !v)}
           />
-          Replace conflicts
+          {t('productEditor.gallery.replaceConflicts')}
         </label>
       </div>
       <div>
@@ -1143,7 +1142,7 @@ function CreateGalleryItemInline({
             });
           }}
         >
-          + Add to gallery
+          {t('productEditor.gallery.action.add')}
         </Button>
       </div>
       </div>
@@ -1177,6 +1176,7 @@ interface AdminAttachment {
 }
 
 function AttachmentsSection({ productId }: { productId: string }): ReactNode {
+  const t = useTranslation('catalog');
   const [attachments, setAttachments] = useState<AdminAttachment[]>([]);
   const [types, setTypes] = useState<AdminAttachmentType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1231,11 +1231,11 @@ function AttachmentsSection({ productId }: { productId: string }): ReactNode {
       );
       setTypes(typesRes.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Load failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.attachments.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [productId]);
+  }, [productId, t]);
 
   useEffect(() => {
     void refresh();
@@ -1255,35 +1255,35 @@ function AttachmentsSection({ productId }: { productId: string }): ReactNode {
           name: input.name,
           ...(input.description ? { description: input.description } : {}),
         });
-        setInfo('Attachment added.');
+        setInfo(t('productEditor.attachments.success.add'));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Add failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.attachments.error.add'));
       }
     },
-    [productId, refresh],
+    [productId, refresh, t],
   );
 
   const handleDelete = useCallback(
     async (attachmentId: string, name: string): Promise<void> => {
-      if (!confirm(`Delete attachment "${name}"?`)) return;
+      if (!confirm(t('productEditor.attachments.deleteConfirm', { name }))) return;
       try {
         await apiClient.delete(
           `/api/v1/admin/catalog/products/${productId}/attachments/${attachmentId}`,
         );
-        setInfo(`Attachment "${name}" deleted.`);
+        setInfo(t('productEditor.attachments.success.delete', { name }));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.attachments.error.delete'));
       }
     },
-    [productId, refresh],
+    [productId, refresh, t],
   );
 
   return (
     <Card className="mt-4">
       <CardHeader>
-        <CardTitle>Attachments</CardTitle>
+        <CardTitle>{t('productEditor.attachments.title')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? (
@@ -1298,20 +1298,18 @@ function AttachmentsSection({ productId }: { productId: string }): ReactNode {
         ) : null}
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">{t('productEditor.loading')}</p>
         ) : attachments.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No attachments yet. Pick a PDF / certificate / other asset from the Library or upload one below.
-          </p>
+          <p className="text-sm text-muted-foreground">{t('productEditor.attachments.empty')}</p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Type</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>File</TableHead>
-                <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+                <TableHead>{t('productEditor.attachments.column.type')}</TableHead>
+                <TableHead>{t('productEditor.attachments.column.name')}</TableHead>
+                <TableHead>{t('productEditor.attachments.column.description')}</TableHead>
+                <TableHead>{t('productEditor.attachments.column.file')}</TableHead>
+                <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.attachments.column.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1343,7 +1341,7 @@ function AttachmentsSection({ productId }: { productId: string }): ReactNode {
                       variant="destructive"
                       onClick={() => void handleDelete(att.id, att.name)}
                     >
-                      Delete
+                      {t('productEditor.attachments.action.delete')}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -1376,9 +1374,10 @@ function CreateAttachmentInline({
   const [description, setDescription] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickedFilename, setPickedFilename] = useState<string | null>(null);
+  const t = useTranslation('catalog');
 
   return (
-    <div className="space-y-3 border-t pt-4" role="group" aria-label="Add attachment">
+    <div className="space-y-3 border-t pt-4" role="group" aria-label={t('productEditor.attachments.addTitle')}>
       {pickerOpen ? (
         <AssetPicker
           allowUpload
@@ -1392,50 +1391,50 @@ function CreateAttachmentInline({
       ) : null}
       <div className="grid gap-3 md:grid-cols-4">
       <div className="space-y-1">
-        <Label htmlFor="aasset">Asset</Label>
+        <Label htmlFor="aasset">{t('productEditor.attachments.field.asset')}</Label>
         <div className="flex items-center gap-2">
           <Input
             id="aasset"
             value={pickedFilename ?? assetId}
             readOnly
-            placeholder="No asset selected"
+            placeholder={t('productEditor.attachments.field.noAsset')}
           />
           <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
-            Pick / Upload
+            {t('productEditor.attachments.action.pickOrUpload')}
           </Button>
         </div>
       </div>
       <div className="space-y-1">
-        <Label htmlFor="atype">Type</Label>
+        <Label htmlFor="atype">{t('productEditor.attachments.field.type')}</Label>
         <Select
           id="atype"
           value={attachmentTypeId}
           onChange={(e): void => setAttachmentTypeId(e.target.value)}
         >
           <option value="">—</option>
-          {types.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name['en-US'] ?? t.code}
+          {types.map((typ) => (
+            <option key={typ.id} value={typ.id}>
+              {typ.name['en-US'] ?? typ.code}
             </option>
           ))}
         </Select>
       </div>
       <div className="space-y-1">
-        <Label htmlFor="aname">Name</Label>
+        <Label htmlFor="aname">{t('productEditor.attachments.field.name')}</Label>
         <Input
           id="aname"
           value={name}
           onChange={(e): void => setName(e.target.value)}
-          placeholder="CE Marking 2024"
+          placeholder={t('productEditor.attachments.field.namePlaceholder')}
         />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="adesc">Description</Label>
+        <Label htmlFor="adesc">{t('productEditor.attachments.field.description')}</Label>
         <Input
           id="adesc"
           value={description}
           onChange={(e): void => setDescription(e.target.value)}
-          placeholder="(optional)"
+          placeholder={t('productEditor.attachments.field.descriptionPlaceholder')}
         />
       </div>
       <div className="md:col-span-4">
@@ -1452,7 +1451,7 @@ function CreateAttachmentInline({
             });
           }}
         >
-          + Add attachment
+          {t('productEditor.attachments.action.add')}
         </Button>
       </div>
       </div>
@@ -1497,6 +1496,7 @@ function pickProductName(
 const TARGETS_BATCH_PAGE_SIZE = 200;
 
 function ProductLinksSection({ productId }: { productId: string }): ReactNode {
+  const t = useTranslation('catalog');
   const [links, setLinks] = useState<AdminProductLink[]>([]);
   const [targetsById, setTargetsById] = useState<Map<string, AdminProductSummary>>(
     () => new Map(),
@@ -1541,11 +1541,11 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
       }
       setTargetsById(nextById);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Load failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.links.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [productId]);
+  }, [productId, t]);
 
   useEffect(() => {
     void refresh();
@@ -1557,27 +1557,27 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
         await apiClient.post(`/api/v1/admin/catalog/products/${productId}/links`, {
           links: [{ targetProductId: input.targetProductId, kind: input.kind }],
         });
-        setInfo(`Link added (${input.kind}).`);
+        setInfo(t('productEditor.links.success.add', { kind: input.kind }));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Add failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.links.error.add'));
       }
     },
-    [productId, refresh],
+    [productId, refresh, t],
   );
 
   const handleDelete = useCallback(
     async (linkId: string): Promise<void> => {
-      if (!confirm('Remove this link?')) return;
+      if (!confirm(t('productEditor.links.removeConfirm'))) return;
       try {
         await apiClient.delete(`/api/v1/admin/catalog/products/${productId}/links/${linkId}`);
-        setInfo('Link removed.');
+        setInfo(t('productEditor.links.success.remove'));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.links.error.delete'));
       }
     },
-    [productId, refresh],
+    [productId, refresh, t],
   );
 
   const byKind = useMemo(() => {
@@ -1596,7 +1596,7 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
   return (
     <Card className="mt-4">
       <CardHeader>
-        <CardTitle>Product links</CardTitle>
+        <CardTitle>{t('productEditor.links.title')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? (
@@ -1611,24 +1611,24 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
         ) : null}
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">{t('productEditor.loading')}</p>
         ) : (
           <div className="space-y-6">
             {LINK_KINDS.map((kind) => (
               <div key={kind} className="space-y-2">
                 <h3 className="text-sm font-medium uppercase tracking-wide">
-                  {kindLabel(kind)} ({byKind[kind].length})
+                  {t(`productEditor.links.kind.${kind}`)} ({byKind[kind].length})
                 </h3>
                 {byKind[kind].length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No links yet.</p>
+                  <p className="text-xs text-muted-foreground">{t('productEditor.links.empty')}</p>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Target product</TableHead>
-                        <TableHead>SKU</TableHead>
-                        <TableHead>Position</TableHead>
-                        <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+                        <TableHead>{t('productEditor.links.column.target')}</TableHead>
+                        <TableHead>{t('productEditor.links.column.sku')}</TableHead>
+                        <TableHead>{t('productEditor.links.column.position')}</TableHead>
+                        <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.links.column.actions')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1651,12 +1651,12 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
                                 </span>
                                 {isMissing ? (
                                   <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
-                                    missing
+                                    {t('productEditor.links.badge.missing')}
                                   </span>
                                 ) : null}
                                 {isArchived ? (
                                   <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
-                                    archived
+                                    {t('productEditor.links.badge.archived')}
                                   </span>
                                 ) : null}
                               </div>
@@ -1672,7 +1672,7 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
                                 variant="destructive"
                                 onClick={() => void handleDelete(link.id)}
                               >
-                                Remove
+                                {t('productEditor.links.action.remove')}
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -1692,17 +1692,6 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
   );
 }
 
-function kindLabel(kind: LinkKind): string {
-  switch (kind) {
-    case 'related':
-      return 'Related';
-    case 'up_sell':
-      return 'Up-sell';
-    case 'cross_sell':
-      return 'Cross-sell';
-  }
-}
-
 function CreateProductLinkInline({
   onCreate,
   sourceProductId,
@@ -1710,6 +1699,7 @@ function CreateProductLinkInline({
   onCreate: (input: { targetProductId: string; kind: LinkKind }) => Promise<void>;
   sourceProductId: string;
 }): ReactNode {
+  const t = useTranslation('catalog');
   const [targetProductId, setTargetProductId] = useState<string | null>(null);
   const [kind, setKind] = useState<LinkKind>('related');
 
@@ -1717,26 +1707,26 @@ function CreateProductLinkInline({
     <div
       className="grid gap-3 md:grid-cols-3 border-t pt-4"
       role="group"
-      aria-label="Add product link"
+      aria-label={t('productEditor.links.addTitle')}
     >
       <div className="space-y-1 md:col-span-2">
-        <Label htmlFor="ltarget">Target product</Label>
+        <Label htmlFor="ltarget">{t('productEditor.links.column.target')}</Label>
         <ProductPicker
           id="ltarget"
           mode="select"
           value={targetProductId}
           onChange={setTargetProductId}
           excludeIds={[sourceProductId]}
-          placeholder="Search by name, SKU, or slug…"
-          ariaLabel="Target product"
+          placeholder={t('productEditor.links.field.targetPlaceholder')}
+          ariaLabel={t('productEditor.links.column.target')}
         />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="lkind">Kind</Label>
+        <Label htmlFor="lkind">{t('productEditor.links.field.kind')}</Label>
         <Select id="lkind" value={kind} onChange={(e): void => setKind(e.target.value as LinkKind)}>
           {LINK_KINDS.map((k) => (
             <option key={k} value={k}>
-              {kindLabel(k)}
+              {t(`productEditor.links.kind.${k}`)}
             </option>
           ))}
         </Select>
@@ -1752,7 +1742,7 @@ function CreateProductLinkInline({
             });
           }}
         >
-          + Add link
+          {t('productEditor.links.action.add')}
         </Button>
       </div>
     </div>
@@ -1775,6 +1765,7 @@ interface AdminGroupedItem {
 }
 
 function GroupedItemsSection({ productId }: { productId: string }): ReactNode {
+  const t = useTranslation('catalog');
   const [items, setItems] = useState<AdminGroupedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1789,11 +1780,11 @@ function GroupedItemsSection({ productId }: { productId: string }): ReactNode {
       );
       setItems(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Load failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.grouped.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [productId]);
+  }, [productId, t]);
 
   useEffect(() => {
     void refresh();
@@ -1803,7 +1794,7 @@ function GroupedItemsSection({ productId }: { productId: string }): ReactNode {
     async (input: { childProductId: string; quantity: string }): Promise<void> => {
       const qty = Number(input.quantity);
       if (!Number.isFinite(qty) || qty <= 0) {
-        setError('Quantity must be a positive integer.');
+        setError(t('productEditor.grouped.error.invalidQuantity'));
         return;
       }
       try {
@@ -1811,35 +1802,35 @@ function GroupedItemsSection({ productId }: { productId: string }): ReactNode {
           `/api/v1/admin/catalog/products/${productId}/grouped-items`,
           { childProductId: input.childProductId, quantity: qty },
         );
-        setInfo('Child added.');
+        setInfo(t('productEditor.grouped.success.add'));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Add failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.grouped.error.add'));
       }
     },
-    [productId, refresh],
+    [productId, refresh, t],
   );
 
   const handleDelete = useCallback(
     async (itemId: string): Promise<void> => {
-      if (!confirm('Remove this child from the group?')) return;
+      if (!confirm(t('productEditor.grouped.removeConfirm'))) return;
       try {
         await apiClient.delete(
           `/api/v1/admin/catalog/products/${productId}/grouped-items/${itemId}`,
         );
-        setInfo('Child removed.');
+        setInfo(t('productEditor.grouped.success.remove'));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.grouped.error.delete'));
       }
     },
-    [productId, refresh],
+    [productId, refresh, t],
   );
 
   return (
     <Card className="mt-4">
       <CardHeader>
-        <CardTitle>Grouped children</CardTitle>
+        <CardTitle>{t('productEditor.grouped.title')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? (
@@ -1854,19 +1845,17 @@ function GroupedItemsSection({ productId }: { productId: string }): ReactNode {
         ) : null}
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">{t('productEditor.loading')}</p>
         ) : items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No children yet. Add one by pasting a non-composite product id.
-          </p>
+          <p className="text-sm text-muted-foreground">{t('productEditor.grouped.empty')}</p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Child product id</TableHead>
-                <TableHead>Quantity</TableHead>
-                <TableHead>Position</TableHead>
-                <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+                <TableHead>{t('productEditor.grouped.column.child')}</TableHead>
+                <TableHead>{t('productEditor.grouped.column.quantity')}</TableHead>
+                <TableHead>{t('productEditor.grouped.column.position')}</TableHead>
+                <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.grouped.column.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1882,7 +1871,7 @@ function GroupedItemsSection({ productId }: { productId: string }): ReactNode {
                       variant="destructive"
                       onClick={() => void handleDelete(item.id)}
                     >
-                      Remove
+                      {t('productEditor.grouped.action.remove')}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -1902,6 +1891,7 @@ function CreateGroupedItemInline({
 }: {
   onCreate: (input: { childProductId: string; quantity: string }) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('catalog');
   const [childProductId, setChildProductId] = useState('');
   const [quantity, setQuantity] = useState('1');
 
@@ -1909,19 +1899,19 @@ function CreateGroupedItemInline({
     <div
       className="grid gap-3 md:grid-cols-3 border-t pt-4"
       role="group"
-      aria-label="Add grouped child"
+      aria-label={t('productEditor.grouped.addTitle')}
     >
       <div className="space-y-1 md:col-span-2">
-        <Label htmlFor="gchild">Child product id</Label>
+        <Label htmlFor="gchild">{t('productEditor.grouped.column.child')}</Label>
         <Input
           id="gchild"
           value={childProductId}
           onChange={(e): void => setChildProductId(e.target.value)}
-          placeholder="UUID of a non-grouped, non-bundle product"
+          placeholder={t('productEditor.grouped.field.childPlaceholder')}
         />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="gquantity">Quantity</Label>
+        <Label htmlFor="gquantity">{t('productEditor.grouped.column.quantity')}</Label>
         <Input
           id="gquantity"
           type="number"
@@ -1941,7 +1931,7 @@ function CreateGroupedItemInline({
             });
           }}
         >
-          + Add child
+          {t('productEditor.grouped.action.add')}
         </Button>
       </div>
     </div>
@@ -1972,6 +1962,7 @@ interface AdminBundleSlot {
 }
 
 function BundleSlotsSection({ productId }: { productId: string }): ReactNode {
+  const t = useTranslation('catalog');
   const [slots, setSlots] = useState<AdminBundleSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1986,11 +1977,11 @@ function BundleSlotsSection({ productId }: { productId: string }): ReactNode {
       );
       setSlots(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Load failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.bundle.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [productId]);
+  }, [productId, t]);
 
   useEffect(() => {
     void refresh();
@@ -2001,7 +1992,7 @@ function BundleSlotsSection({ productId }: { productId: string }): ReactNode {
       const min = Number(input.minQuantity);
       const max = Number(input.maxQuantity);
       if (!Number.isFinite(max) || max <= 0) {
-        setError('Max quantity must be a positive integer.');
+        setError(t('productEditor.bundle.error.invalidMax'));
         return;
       }
       try {
@@ -2013,29 +2004,29 @@ function BundleSlotsSection({ productId }: { productId: string }): ReactNode {
             maxQuantity: max,
           },
         );
-        setInfo(`Slot "${input.name}" added.`);
+        setInfo(t('productEditor.bundle.success.addSlot', { name: input.name }));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Add slot failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.bundle.error.addSlot'));
       }
     },
-    [productId, refresh],
+    [productId, refresh, t],
   );
 
   const handleDeleteSlot = useCallback(
     async (slotId: string): Promise<void> => {
-      if (!confirm('Remove this slot (and its options)?')) return;
+      if (!confirm(t('productEditor.bundle.removeSlotConfirm'))) return;
       try {
         await apiClient.delete(
           `/api/v1/admin/catalog/products/${productId}/bundle-slots/${slotId}`,
         );
-        setInfo('Slot removed.');
+        setInfo(t('productEditor.bundle.success.removeSlot'));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.bundle.error.deleteSlot'));
       }
     },
-    [productId, refresh],
+    [productId, refresh, t],
   );
 
   const handleAddOption = useCallback(
@@ -2046,35 +2037,35 @@ function BundleSlotsSection({ productId }: { productId: string }): ReactNode {
           `/api/v1/admin/catalog/products/${productId}/bundle-slots/${slotId}/options`,
           { optionProductId },
         );
-        setInfo('Option added.');
+        setInfo(t('productEditor.bundle.success.addOption'));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Add option failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.bundle.error.addOption'));
       }
     },
-    [productId, refresh],
+    [productId, refresh, t],
   );
 
   const handleRemoveOption = useCallback(
     async (slotId: string, optionId: string): Promise<void> => {
-      if (!confirm('Remove this option?')) return;
+      if (!confirm(t('productEditor.bundle.removeOptionConfirm'))) return;
       try {
         await apiClient.delete(
           `/api/v1/admin/catalog/products/${productId}/bundle-slots/${slotId}/options/${optionId}`,
         );
-        setInfo('Option removed.');
+        setInfo(t('productEditor.bundle.success.removeOption'));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.bundle.error.deleteOption'));
       }
     },
-    [productId, refresh],
+    [productId, refresh, t],
   );
 
   return (
     <Card className="mt-4">
       <CardHeader>
-        <CardTitle>Bundle slots</CardTitle>
+        <CardTitle>{t('productEditor.bundle.title')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? (
@@ -2089,11 +2080,9 @@ function BundleSlotsSection({ productId }: { productId: string }): ReactNode {
         ) : null}
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">{t('productEditor.loading')}</p>
         ) : slots.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No slots yet. Each slot lets buyers choose between option products.
-          </p>
+          <p className="text-sm text-muted-foreground">{t('productEditor.bundle.empty')}</p>
         ) : (
           <div className="space-y-4">
             {slots.map((slot) => (
@@ -2125,6 +2114,7 @@ function BundleSlotCard({
   onRemoveOption: (slotId: string, optionId: string) => Promise<void>;
   onDeleteSlot: (slotId: string) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('catalog');
   const [optionId, setOptionId] = useState('');
 
   return (
@@ -2133,7 +2123,11 @@ function BundleSlotCard({
         <h3 className="font-medium">
           {slot.name['en-US'] ?? Object.values(slot.name)[0] ?? '—'}{' '}
           <span className="text-xs text-muted-foreground">
-            (min {slot.minQuantity} / max {slot.maxQuantity}, position {slot.position})
+            {t('productEditor.bundle.slotMeta', {
+              min: slot.minQuantity,
+              max: slot.maxQuantity,
+              position: slot.position,
+            })}
           </span>
         </h3>
         <Button
@@ -2142,20 +2136,20 @@ function BundleSlotCard({
           variant="destructive"
           onClick={() => void onDeleteSlot(slot.id)}
         >
-          Delete slot
+          {t('productEditor.bundle.action.deleteSlot')}
         </Button>
       </div>
       <div className="mt-2">
         {slot.options.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No options yet.</p>
+          <p className="text-xs text-muted-foreground">{t('productEditor.bundle.optionsEmpty')}</p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Option product id</TableHead>
-                <TableHead>Default quantity</TableHead>
-                <TableHead>Position</TableHead>
-                <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+                <TableHead>{t('productEditor.bundle.column.optionProductId')}</TableHead>
+                <TableHead>{t('productEditor.bundle.column.defaultQuantity')}</TableHead>
+                <TableHead>{t('productEditor.bundle.column.position')}</TableHead>
+                <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.bundle.column.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -2171,7 +2165,7 @@ function BundleSlotCard({
                       variant="destructive"
                       onClick={() => void onRemoveOption(slot.id, opt.id)}
                     >
-                      Remove
+                      {t('productEditor.bundle.action.removeOption')}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -2182,12 +2176,12 @@ function BundleSlotCard({
       </div>
       <div className="mt-3 flex items-end gap-2">
         <div className="flex-1 space-y-1">
-          <Label htmlFor={`opt-${slot.id}`}>Option product id</Label>
+          <Label htmlFor={`opt-${slot.id}`}>{t('productEditor.bundle.column.optionProductId')}</Label>
           <Input
             id={`opt-${slot.id}`}
             value={optionId}
             onChange={(e): void => setOptionId(e.target.value)}
-            placeholder="UUID of a non-composite product"
+            placeholder={t('productEditor.bundle.field.optionPlaceholder')}
           />
         </div>
         <Button
@@ -2198,7 +2192,7 @@ function BundleSlotCard({
             });
           }}
         >
-          + Add option
+          {t('productEditor.bundle.action.addOption')}
         </Button>
       </div>
     </div>
@@ -2210,6 +2204,7 @@ function CreateBundleSlotInline({
 }: {
   onCreate: (input: { name: string; minQuantity: string; maxQuantity: string }) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('catalog');
   const [name, setName] = useState('');
   const [minQuantity, setMinQuantity] = useState('0');
   const [maxQuantity, setMaxQuantity] = useState('1');
@@ -2218,19 +2213,19 @@ function CreateBundleSlotInline({
     <div
       className="grid gap-3 md:grid-cols-4 border-t pt-4"
       role="group"
-      aria-label="Add bundle slot"
+      aria-label={t('productEditor.bundle.addTitle')}
     >
       <div className="space-y-1 md:col-span-2">
-        <Label htmlFor="bsname">Slot name (en-US)</Label>
+        <Label htmlFor="bsname">{t('productEditor.bundle.field.slotName')}</Label>
         <Input
           id="bsname"
           value={name}
           onChange={(e): void => setName(e.target.value)}
-          placeholder="Color"
+          placeholder={t('productEditor.bundle.field.slotNamePlaceholder')}
         />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="bsmin">Min</Label>
+        <Label htmlFor="bsmin">{t('productEditor.bundle.field.min')}</Label>
         <Input
           id="bsmin"
           type="number"
@@ -2240,7 +2235,7 @@ function CreateBundleSlotInline({
         />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="bsmax">Max</Label>
+        <Label htmlFor="bsmax">{t('productEditor.bundle.field.max')}</Label>
         <Input
           id="bsmax"
           type="number"
@@ -2261,7 +2256,7 @@ function CreateBundleSlotInline({
             });
           }}
         >
-          + Add slot
+          {t('productEditor.bundle.action.add')}
         </Button>
       </div>
     </div>

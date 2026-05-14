@@ -53,6 +53,7 @@ function serialize(e: AuditLogEntry) {
     impersonatedCustomerAccountId: e.impersonatedCustomerAccountId ?? null,
     actedAt: e.actedAt.toISOString(),
     action: e.action,
+    actionModuleId: moduleIdForAuditAction(e.action),
     objectType: e.objectType,
     objectId: e.objectId,
     stateBefore: e.stateBefore ?? null,
@@ -61,4 +62,25 @@ function serialize(e: AuditLogEntry) {
     userAgent: e.userAgent ?? null,
     requestId: e.requestId ?? null,
   };
+}
+
+function moduleIdForAuditAction(action: string): string {
+  if (action.startsWith('setting.')) return 'settings';
+  if (action.startsWith('setting_group.')) return 'settings';
+  if (action.startsWith('module.')) return 'core';
+  if (action.startsWith('product.')) return 'catalog';
+  if (action.startsWith('attribute_set.')) return 'catalog';
+  if (action.startsWith('gallery.')) return 'catalog';
+  if (action.startsWith('attachment.')) return 'catalog';
+  if (action.startsWith('attachment_type.')) return 'catalog';
+  if (action.startsWith('product_link.')) return 'catalog';
+  if (action.startsWith('grouped_item.')) return 'catalog';
+  if (action.startsWith('bundle_slot.')) return 'catalog';
+  if (action.startsWith('bundle_slot_option.')) return 'catalog';
+  if (action.startsWith('sales_channel.')) return 'sales_channels';
+  if (action.startsWith('api_key.')) return 'core';
+  if (action.startsWith('impersonation.')) return 'core';
+  if (action.startsWith('order.')) return 'core';
+  if (action.startsWith('organization.')) return 'core';
+  return 'core';
 }

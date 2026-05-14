@@ -13,6 +13,7 @@ import {
 } from '../components/ChannelIdentityForm';
 import { DefaultChannelBadge } from '../components/DefaultChannelBadge';
 import { ChannelMembershipPanel } from '../../warehouses/ChannelMembershipPanel';
+import { useTranslation } from '@/i18n/useTranslation';
 
 /**
  * SalesChannelEditPage — feature 005 / T042.
@@ -31,6 +32,7 @@ import { ChannelMembershipPanel } from '../../warehouses/ChannelMembershipPanel'
  * standalone.
  */
 export function SalesChannelEditPage(): ReactNode {
+  const t = useTranslation('sales_channels');
   const { code: routeCode } = useParams<{ code: string }>();
   const navigate = useNavigate();
   const isCreate = routeCode === 'new' || routeCode === undefined;
@@ -176,7 +178,7 @@ export function SalesChannelEditPage(): ReactNode {
   }, [channel, navigate]);
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Loading channel…</p>;
+    return <p className="text-sm text-muted-foreground">{t('edit.loading')}</p>;
   }
 
   if (!isCreate && !channel) {

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { useTranslation } from '@/i18n/useTranslation';
 
 /**
  * DefaultChannelBadge — feature 005 / T039.
@@ -14,10 +15,11 @@ export function DefaultChannelBadge({
 }: {
   systemDefault: boolean;
 }): ReactNode {
+  const t = useTranslation('sales_channels');
   if (!systemDefault) return null;
   return (
     <Badge variant="secondary" className="ml-2 text-[10px] uppercase tracking-wider">
-      System default
+      {t('badge.systemDefault')}
     </Badge>
   );
 }

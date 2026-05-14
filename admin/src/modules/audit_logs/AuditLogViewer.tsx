@@ -7,6 +7,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
+import { useTranslation } from '@/i18n/useTranslation';
+import { useTranslationContext } from '@/i18n/TranslationProvider';
 import {
   Table,
   TableBody,
@@ -29,6 +31,7 @@ interface AuditLogRow {
   impersonatedCustomerAccountId: string | null;
   actedAt: string;
   action: string;
+  actionModuleId?: string;
   objectType: string;
   objectId: string;
   stateBefore: Record<string, unknown> | null;
@@ -39,6 +42,8 @@ interface AuditLogRow {
 }
 
 export function AuditLogViewer(): ReactNode {
+  const t = useTranslation('core');
+  const { t: translate } = useTranslationContext();
   const [rows, setRows] = useState<AuditLogRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +68,7 @@ export function AuditLogViewer(): ReactNode {
       const res = await apiClient.get<{ data: AuditLogRow[] }>(path);
       setRows(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load audit log.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('auditLog.error.load'));
     } finally {
       setLoading(false);
     }
@@ -76,8 +81,8 @@ export function AuditLogViewer(): ReactNode {
   return (
     <>
       <PageHeader
-        title="Audit log"
-        description="Append-only log of sensitive operations. Read-only."
+        title={t('auditLog.page.title')}
+        description={t('auditLog.page.description')}
       />
 
       {error ? (
@@ -97,7 +102,7 @@ export function AuditLogViewer(): ReactNode {
           >
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
-                <Label htmlFor="f-action">Action</Label>
+                <Label htmlFor="f-action">{t('auditLog.filter.action')}</Label>
                 <Input
                   id="f-action"
                   placeholder="product.update"
@@ -106,7 +111,7 @@ export function AuditLogViewer(): ReactNode {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="f-otype">Object type</Label>
+                <Label htmlFor="f-otype">{t('auditLog.filter.objectType')}</Label>
                 <Input
                   id="f-otype"
                   placeholder="product"
@@ -115,7 +120,7 @@ export function AuditLogViewer(): ReactNode {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="f-oid">Object id</Label>
+                <Label htmlFor="f-oid">{t('auditLog.filter.objectId')}</Label>
                 <Input
                   id="f-oid"
                   placeholder="UUID"
@@ -124,7 +129,7 @@ export function AuditLogViewer(): ReactNode {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="f-actor">Actor (admin user id)</Label>
+                <Label htmlFor="f-actor">{t('auditLog.filter.actor')}</Label>
                 <Input
                   id="f-actor"
                   placeholder="UUID"
@@ -133,7 +138,7 @@ export function AuditLogViewer(): ReactNode {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="f-customer">Impersonated customer id</Label>
+                <Label htmlFor="f-customer">{t('auditLog.filter.impersonatedCustomer')}</Label>
                 <Input
                   id="f-customer"
                   placeholder="UUID"
@@ -143,7 +148,7 @@ export function AuditLogViewer(): ReactNode {
               </div>
             </div>
             <div className="flex gap-2">
-              <Button type="submit">Apply filters</Button>
+              <Button type="submit">{t('auditLog.filter.apply')}</Button>
               <Button
                 type="button"
                 variant="outline"
@@ -155,7 +160,7 @@ export function AuditLogViewer(): ReactNode {
                   setImpersonated('');
                 }}
               >
-                Clear
+                {t('auditLog.filter.clear')}
               </Button>
             </div>
           </form>
@@ -165,17 +170,17 @@ export function AuditLogViewer(): ReactNode {
       <Card>
         <CardContent className="pt-6">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No entries match the current filter.</p>
+            <p className="text-sm text-muted-foreground">{t('auditLog.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>When</TableHead>
-                  <TableHead>Actor</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead>Object</TableHead>
+                  <TableHead>{t('auditLog.column.when')}</TableHead>
+                  <TableHead>{t('auditLog.column.actor')}</TableHead>
+                  <TableHead>{t('auditLog.column.action')}</TableHead>
+                  <TableHead>{t('auditLog.column.object')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -185,9 +190,9 @@ export function AuditLogViewer(): ReactNode {
                     <TableRow>
                       <TableCell>{formatDateTime(r.actedAt)}</TableCell>
                       <TableCell>
-                        {r.actorAdminUserId ? r.actorAdminUserId.slice(0, 8) : 'system'}
+                        {r.actorAdminUserId ? r.actorAdminUserId.slice(0, 8) : t('auditLog.actor.system')}
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{r.action}</TableCell>
+                      <TableCell>{translateAuditAction(translate, r)}</TableCell>
                       <TableCell>
                         {r.objectType}
                         <br />
@@ -201,7 +206,7 @@ export function AuditLogViewer(): ReactNode {
                           size="sm"
                           onClick={(): void => setExpandedId(expandedId === r.id ? null : r.id)}
                         >
-                          {expandedId === r.id ? 'Hide' : 'Detail'}
+                          {expandedId === r.id ? t('auditLog.action.hide') : t('auditLog.action.detail')}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -210,26 +215,26 @@ export function AuditLogViewer(): ReactNode {
                         <TableCell colSpan={5}>
                           <div className="grid gap-4 md:grid-cols-2">
                             <div>
-                              <strong>Before</strong>
+                              <strong>{t('auditLog.detail.before')}</strong>
                               <pre className="mt-1 max-h-80 overflow-auto rounded-md bg-muted p-3 text-xs">
                                 {JSON.stringify(r.stateBefore ?? null, null, 2)}
                               </pre>
                             </div>
                             <div>
-                              <strong>After</strong>
+                              <strong>{t('auditLog.detail.after')}</strong>
                               <pre className="mt-1 max-h-80 overflow-auto rounded-md bg-muted p-3 text-xs">
                                 {JSON.stringify(r.stateAfter ?? null, null, 2)}
                               </pre>
                             </div>
                           </div>
                           <div className="mt-2 text-xs text-muted-foreground">
-                            IP {r.ipAddress ?? '—'} · UA{' '}
-                            {r.userAgent ? r.userAgent.slice(0, 60) : '—'} · req{' '}
+                            {t('auditLog.detail.ip')} {r.ipAddress ?? '—'} · {t('auditLog.detail.userAgent')}{' '}
+                            {r.userAgent ? r.userAgent.slice(0, 60) : '—'} · {t('auditLog.detail.request')}{' '}
                             {r.requestId ?? '—'}
                             {r.impersonatedCustomerAccountId ? (
                               <>
                                 {' '}
-                                · impersonated customer{' '}
+                                · {t('auditLog.detail.impersonatedCustomer')}{' '}
                                 {r.impersonatedCustomerAccountId.slice(0, 8)}
                               </>
                             ) : null}
@@ -246,4 +251,18 @@ export function AuditLogViewer(): ReactNode {
       </Card>
     </>
   );
+}
+
+function translateAuditAction(
+  translate: (
+    scope: string,
+    key: string,
+    params?: Record<string, string | number>,
+  ) => string,
+  row: Pick<AuditLogRow, 'action' | 'actionModuleId'>,
+): string {
+  const moduleId = row.actionModuleId ?? 'core';
+  const key = `auditLog.${row.action}`;
+  const label = translate(moduleId, key);
+  return label === `${moduleId}.${key}` ? row.action : label;
 }

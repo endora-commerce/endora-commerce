@@ -5,6 +5,7 @@
 import { useRef, useState, type ChangeEvent, type DragEvent, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useTranslation } from '@/i18n/useTranslation';
 import {
   assetsLibraryClient,
   type AssetDetail,
@@ -26,8 +27,9 @@ export function AssetUploader({
   acceptPrefix,
   defaults,
   onUploaded,
-  triggerLabel = 'Upload file',
+  triggerLabel,
 }: AssetUploaderProps): ReactNode {
+  const t = useTranslation('assets_library');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragHover, setDragHover] = useState(false);
@@ -36,7 +38,10 @@ export function AssetUploader({
   const handleFile = async (file: File): Promise<void> => {
     setError(null);
     if (acceptPrefix && !file.type.startsWith(acceptPrefix)) {
-      setError(`Expected a ${acceptPrefix.replace('/', '')} file; got "${file.type || file.name}".`);
+      setError(t('uploader.error.wrongType', {
+        expected: acceptPrefix.replace('/', ''),
+        actual: file.type || file.name,
+      }));
       return;
     }
     setBusy(true);
@@ -81,7 +86,7 @@ export function AssetUploader({
         className={`rounded-md border-2 border-dashed p-4 text-center text-sm ${
           dragHover ? 'border-primary bg-primary/5' : 'border-muted-foreground/30'
         }`}
-        aria-label="Drop a file here or click to upload"
+        aria-label={t('uploader.dropAria')}
       >
         <input
           ref={fileInput}
@@ -92,8 +97,8 @@ export function AssetUploader({
         />
         <p className="text-muted-foreground">
           {busy
-            ? 'Uploading…'
-            : 'Drop a file here, or click to choose one'}
+            ? t('uploader.uploading')
+            : t('uploader.dropCopy')}
         </p>
         <Button
           type="button"
@@ -103,7 +108,7 @@ export function AssetUploader({
           disabled={busy}
           onClick={() => fileInput.current?.click()}
         >
-          {busy ? 'Uploading…' : triggerLabel}
+          {busy ? t('uploader.uploading') : (triggerLabel ?? t('uploader.trigger'))}
         </Button>
       </div>
       {error ? (

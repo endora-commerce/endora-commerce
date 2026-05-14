@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { salesChannelsClient } from '../api/sales-channels-client';
 import { DefaultChannelBadge } from './DefaultChannelBadge';
+import { useTranslation } from '@/i18n/useTranslation';
 
 /**
  * EntityChannelMembership — feature 005 / T065.
@@ -45,6 +46,7 @@ export function EntityChannelMembership({
   entityId,
   onChanged,
 }: EntityChannelMembershipProps): ReactNode {
+  const t = useTranslation('sales_channels');
   const [channels, setChannels] = useState<SalesChannelSummary[]>([]);
   const [allChannels, setAllChannels] = useState<SalesChannelSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -148,7 +150,7 @@ export function EntityChannelMembership({
   return (
     <Card className="mt-4">
       <CardHeader>
-        <CardTitle className="text-base">Sales channels</CardTitle>
+        <CardTitle className="text-base">{t('membership.title')}</CardTitle>
       </CardHeader>
       <CardContent>
         {error && (
@@ -157,13 +159,12 @@ export function EntityChannelMembership({
           </Alert>
         )}
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading memberships…</p>
+          <p className="text-sm text-muted-foreground">{t('membership.loading')}</p>
         ) : (
           <>
             {channels.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                This {entityType} is not in any channel. Add at least one to make it
-                visible to a storefront.
+                {t('membership.empty', { entityType })}
               </p>
             ) : (
               <ul className="grid gap-2">
@@ -177,7 +178,7 @@ export function EntityChannelMembership({
                       <DefaultChannelBadge systemDefault={c.systemDefault} />
                       {!c.active && (
                         <Badge variant="outline" className="text-[10px]">
-                          Inactive
+                          {t('status.inactive')}
                         </Badge>
                       )}
                       <span className="text-xs text-muted-foreground">
@@ -190,7 +191,7 @@ export function EntityChannelMembership({
                       disabled={busy}
                       onClick={() => void handleRemove(c.code)}
                     >
-                      Remove
+                      {t('membership.action.remove')}
                     </Button>
                   </li>
                 ))}
@@ -203,16 +204,16 @@ export function EntityChannelMembership({
                   onChange={(e) => setPickerCode(e.target.value)}
                   disabled={busy}
                 >
-                  <option value="">Add to channel…</option>
+                  <option value="">{t('membership.action.pickChannel')}</option>
                   {candidates.map((c) => (
                     <option key={c.id} value={c.code}>
                       {c.code}
-                      {c.systemDefault ? ' (default)' : ''}
+                      {c.systemDefault ? t('membership.defaultSuffix') : ''}
                     </option>
                   ))}
                 </Select>
                 <Button onClick={() => void handleAdd()} disabled={busy || !pickerCode}>
-                  Add
+                  {t('membership.action.add')}
                 </Button>
               </div>
             )}

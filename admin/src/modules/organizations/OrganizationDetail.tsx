@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 import { EntityChannelMembership } from '../sales_channels/components/EntityChannelMembership';
 import { DisplayModeOverrideRow } from '../price_lists/DisplayModeOverrideRow';
 
@@ -50,6 +51,7 @@ const VAT_STATUSES = ['vat_payer', 'vat_exempt', 'reverse_charge'] as const;
 const ROLES = ['organization_admin', 'regular_user'] as const;
 
 export function OrganizationDetail(): ReactNode {
+  const t = useTranslation('core');
   const { id = '' } = useParams<{ id: string }>();
   const [org, setOrg] = useState<OrgDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,12 +81,12 @@ export function OrganizationDetail(): ReactNode {
       if (err instanceof ApiError && err.envelope.error.code === 'NOT_FOUND') {
         setOrg(null);
       } else {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.load'));
       }
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     void refresh();
@@ -111,19 +113,19 @@ export function OrganizationDetail(): ReactNode {
           ...patch,
           expectedUpdatedAt: patch.expectedUpdatedAt ?? org.updatedAt,
         });
-        setInfo('Saved.');
+        setInfo(t('organizations.detail.info.saved'));
         await refresh();
       } catch (err) {
         if (err instanceof ApiError && err.envelope.error.code === 'VERSION_CONFLICT') {
-          setError('Organization was modified elsewhere. Refreshing…');
+          setError(t('organizations.detail.error.versionConflictOrg'));
           await refresh();
           setError(null);
         } else {
-          setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
+          setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.save'));
         }
       }
     },
-    [id, org, refresh],
+    [id, org, refresh, t],
   );
 
   const inviteMember = useCallback(async (): Promise<void> => {
@@ -134,13 +136,13 @@ export function OrganizationDetail(): ReactNode {
         email: inviteEmail.trim(),
         role: inviteRole,
       });
-      setInfo('Invitation sent.');
+      setInfo(t('organizations.detail.info.invited'));
       setInviteEmail('');
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Invite failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.invite'));
     }
-  }, [id, inviteEmail, inviteRole, refresh]);
+  }, [id, inviteEmail, inviteRole, refresh, t]);
 
   const directAdd = useCallback(async (): Promise<void> => {
     setError(null);
@@ -152,16 +154,16 @@ export function OrganizationDetail(): ReactNode {
         password: directPassword,
         role: directRole,
       });
-      setInfo('Member created.');
+      setInfo(t('organizations.detail.info.memberCreated'));
       setDirectEmail('');
       setDirectFirst('');
       setDirectLast('');
       setDirectPassword('');
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Create failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.create'));
     }
-  }, [id, directEmail, directFirst, directLast, directPassword, directRole, refresh]);
+  }, [id, directEmail, directFirst, directLast, directPassword, directRole, refresh, t]);
 
   const changeMemberRole = useCallback(
     async (memberId: string, role: string, expectedUpdatedAt?: string): Promise<void> => {
@@ -171,19 +173,19 @@ export function OrganizationDetail(): ReactNode {
           role,
           ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
         });
-        setInfo('Member updated.');
+        setInfo(t('organizations.detail.info.memberUpdated'));
         await refresh();
       } catch (err) {
         if (err instanceof ApiError && err.envelope.error.code === 'VERSION_CONFLICT') {
-          setError('Member was modified concurrently. Refreshing…');
+          setError(t('organizations.detail.error.versionConflictMember'));
           await refresh();
           setError(null);
         } else {
-          setError(err instanceof ApiError ? err.envelope.error.message : 'Role update failed.');
+          setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.roleUpdate'));
         }
       }
     },
-    [id, refresh],
+    [id, refresh, t],
   );
 
   const saveMemberProfile = useCallback(async (): Promise<void> => {
@@ -196,39 +198,39 @@ export function OrganizationDetail(): ReactNode {
         email: editEmail.trim(),
         expectedUpdatedAt: editMember.updatedAt,
       });
-      setInfo('Member profile saved.');
+      setInfo(t('organizations.detail.info.profileSaved'));
       setEditMember(null);
       await refresh();
     } catch (err) {
       if (err instanceof ApiError && err.envelope.error.code === 'VERSION_CONFLICT') {
-        setError('Member was modified concurrently. Refreshing…');
+        setError(t('organizations.detail.error.versionConflictMember'));
         await refresh();
         setError(null);
       } else {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.save'));
       }
     }
-  }, [editMember, editFirst, editLast, editEmail, id, refresh]);
+  }, [editMember, editFirst, editLast, editEmail, id, refresh, t]);
 
   const removeMember = useCallback(
     async (memberId: string): Promise<void> => {
       setError(null);
       try {
         await apiClient.delete(`/api/v1/admin/organizations/${id}/members/${memberId}`);
-        setInfo('Member removed.');
+        setInfo(t('organizations.detail.info.memberRemoved'));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Remove failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.remove'));
       }
     },
-    [id, refresh],
+    [id, refresh, t],
   );
 
-  if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  if (loading) return <p className="text-sm text-muted-foreground">{t('organizations.loading')}</p>;
   if (!org)
     return (
       <Alert variant="warning">
-        <AlertDescription>Organization not found.</AlertDescription>
+        <AlertDescription>{t('organizations.detail.notFound')}</AlertDescription>
       </Alert>
     );
 
@@ -240,11 +242,11 @@ export function OrganizationDetail(): ReactNode {
         title={org.name}
         description={
           <span>
-            Tax ID <code className="font-mono text-xs">{org.taxId}</code>
+            {t('organizations.detail.taxIdLabel')} <code className="font-mono text-xs">{org.taxId}</code>
             {org.updatedAt ? (
               <>
                 {' '}
-                · Updated{' '}
+                · {t('organizations.detail.updatedLabel')}{' '}
                 <time dateTime={org.updatedAt}>{formatDateTime(org.updatedAt)}</time>
               </>
             ) : null}
@@ -254,7 +256,7 @@ export function OrganizationDetail(): ReactNode {
           <Button asChild variant="outline">
             <Link to="/organizations">
               <ArrowLeft />
-              Back
+              {t('organizations.detail.back')}
             </Link>
           </Button>
         }
@@ -273,11 +275,11 @@ export function OrganizationDetail(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Status</CardTitle>
+          <CardTitle>{t('organizations.detail.statusCard')}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="ostatus">Account status</Label>
+            <Label htmlFor="ostatus">{t('organizations.detail.accountStatus')}</Label>
             <Select
               id="ostatus"
               value={org.status}
@@ -296,7 +298,7 @@ export function OrganizationDetail(): ReactNode {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="vstatus">VAT status</Label>
+            <Label htmlFor="vstatus">{t('organizations.detail.vatStatus')}</Label>
             <Select
               id="vstatus"
               value={org.vatStatus}
@@ -319,7 +321,7 @@ export function OrganizationDetail(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Registered address</CardTitle>
+          <CardTitle>{t('organizations.detail.registeredAddress')}</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm">
@@ -334,22 +336,22 @@ export function OrganizationDetail(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Invite member</CardTitle>
+          <CardTitle>{t('organizations.detail.inviteCard')}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
           <div className="space-y-2">
-            <Label htmlFor="invite-email">Email</Label>
+            <Label htmlFor="invite-email">{t('organizations.detail.email')}</Label>
             <Input
               id="invite-email"
               type="email"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder="colleague@company.com"
+              placeholder={t('organizations.detail.emailPlaceholder')}
               className="w-64"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="invite-role">Role</Label>
+            <Label htmlFor="invite-role">{t('organizations.detail.role')}</Label>
             <Select
               id="invite-role"
               value={inviteRole}
@@ -363,18 +365,18 @@ export function OrganizationDetail(): ReactNode {
             </Select>
           </div>
           <Button type="button" onClick={() => void inviteMember()}>
-            Send invite
+            {t('organizations.detail.sendInvite')}
           </Button>
         </CardContent>
       </Card>
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Direct add member</CardTitle>
+          <CardTitle>{t('organizations.detail.directAddCard')}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="d-email">Email</Label>
+            <Label htmlFor="d-email">{t('organizations.detail.email')}</Label>
             <Input
               id="d-email"
               type="email"
@@ -383,7 +385,7 @@ export function OrganizationDetail(): ReactNode {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="d-pw">Temporary password (≥12)</Label>
+            <Label htmlFor="d-pw">{t('organizations.detail.tempPassword')}</Label>
             <Input
               id="d-pw"
               type="password"
@@ -393,15 +395,15 @@ export function OrganizationDetail(): ReactNode {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="d-fn">First name</Label>
+            <Label htmlFor="d-fn">{t('organizations.detail.firstName')}</Label>
             <Input id="d-fn" value={directFirst} onChange={(e) => setDirectFirst(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="d-ln">Last name</Label>
+            <Label htmlFor="d-ln">{t('organizations.detail.lastName')}</Label>
             <Input id="d-ln" value={directLast} onChange={(e) => setDirectLast(e.target.value)} />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="d-role">Role</Label>
+            <Label htmlFor="d-role">{t('organizations.detail.role')}</Label>
             <Select
               id="d-role"
               value={directRole}
@@ -416,7 +418,7 @@ export function OrganizationDetail(): ReactNode {
           </div>
           <div className="md:col-span-2">
             <Button type="button" onClick={() => void directAdd()}>
-              Create member
+              {t('organizations.detail.createMember')}
             </Button>
           </div>
         </CardContent>
@@ -424,15 +426,15 @@ export function OrganizationDetail(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Members</CardTitle>
+          <CardTitle>{t('organizations.detail.membersCard')}</CardTitle>
         </CardHeader>
         <CardContent>
           {editMember ? (
             <div className="mb-6 rounded-lg border border-border p-4">
-              <h3 className="mb-3 text-sm font-medium">Edit member</h3>
+              <h3 className="mb-3 text-sm font-medium">{t('organizations.detail.editMember')}</h3>
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-email">Email</Label>
+                  <Label htmlFor="edit-email">{t('organizations.detail.email')}</Label>
                   <Input
                     id="edit-email"
                     type="email"
@@ -442,7 +444,7 @@ export function OrganizationDetail(): ReactNode {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-fn">First name</Label>
+                  <Label htmlFor="edit-fn">{t('organizations.detail.firstName')}</Label>
                   <Input
                     id="edit-fn"
                     value={editFirst}
@@ -450,7 +452,7 @@ export function OrganizationDetail(): ReactNode {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-ln">Last name</Label>
+                  <Label htmlFor="edit-ln">{t('organizations.detail.lastName')}</Label>
                   <Input
                     id="edit-ln"
                     value={editLast}
@@ -460,27 +462,27 @@ export function OrganizationDetail(): ReactNode {
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button type="button" onClick={() => void saveMemberProfile()}>
-                  Save
+                  {t('organizations.detail.save')}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => setEditMember(null)}>
-                  Cancel
+                  {t('organizations.detail.cancel')}
                 </Button>
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
-                Changing email clears verified status until the user verifies again.
+                {t('organizations.detail.changeEmailHint')}
               </p>
             </div>
           ) : null}
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Email</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Verified</TableHead>
-                <TableHead>Last login</TableHead>
-                <TableHead>2FA</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>{t('organizations.detail.email')}</TableHead>
+                <TableHead>{t('organizations.detail.nameCol')}</TableHead>
+                <TableHead>{t('organizations.detail.role')}</TableHead>
+                <TableHead>{t('organizations.detail.verified')}</TableHead>
+                <TableHead>{t('organizations.detail.lastLogin')}</TableHead>
+                <TableHead>{t('organizations.detail.twoFactor')}</TableHead>
+                <TableHead className="text-right">{t('organizations.detail.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -492,7 +494,7 @@ export function OrganizationDetail(): ReactNode {
                   </TableCell>
                   <TableCell>
                     <Select
-                      aria-label={`Role for ${m.email}`}
+                      aria-label={t('organizations.detail.roleForLabel', { email: m.email })}
                       value={m.role}
                       onChange={(e): void =>
                         void changeMemberRole(
@@ -516,7 +518,7 @@ export function OrganizationDetail(): ReactNode {
                   <TableCell>
                     {m.lastLoginAt ? formatDateTime(m.lastLoginAt) : '—'}
                   </TableCell>
-                  <TableCell>{m.twoFactorEnabled ? 'on' : '—'}</TableCell>
+                  <TableCell>{m.twoFactorEnabled ? t('organizations.detail.twoFactorOn') : '—'}</TableCell>
                   <TableCell className="text-right space-x-2">
                     <Button
                       type="button"
@@ -524,7 +526,7 @@ export function OrganizationDetail(): ReactNode {
                       size="sm"
                       onClick={() => setEditMember(m)}
                     >
-                      Edit
+                      {t('organizations.detail.edit')}
                     </Button>
                     <Button
                       type="button"
@@ -535,7 +537,7 @@ export function OrganizationDetail(): ReactNode {
                       }
                       onClick={() => void removeMember(m.id)}
                     >
-                      Remove
+                      {t('organizations.detail.remove')}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -550,14 +552,14 @@ export function OrganizationDetail(): ReactNode {
       {id ? (
         <Card>
           <CardHeader>
-            <CardTitle>Pricing</CardTitle>
+            <CardTitle>{t('organizations.detail.pricingCard')}</CardTitle>
           </CardHeader>
           <CardContent>
             <DisplayModeOverrideRow
               scope="organization"
               targetId={id}
-              label="Price display mode for this organization"
-              inheritHint="Inherits from the platform-wide pricing setting (Settings → Pricing)."
+              label={t('organizations.detail.pricingLabel')}
+              inheritHint={t('organizations.detail.pricingHint')}
             />
           </CardContent>
         </Card>
