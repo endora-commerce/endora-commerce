@@ -17,6 +17,7 @@ import {
   type RequireAdminFactory,
 } from './routes.admin.js';
 import { ModuleRegistration } from './entities/module-registration.entity.js';
+import { findInactiveModules } from './registered-manifests.js';
 
 export interface LifecycleModuleDeps {
   orm: MikroORM;
@@ -76,6 +77,17 @@ export function lifecycleModule(deps: LifecycleModuleDeps): LifecycleModule {
   // Plugin warms the registry cache on first registration and registers
   // the read-only admin endpoint (US4 / contracts/admin-http.md E-1).
   const plugin: ModulePlugin = async (app) => {
+    // Surface modules whose code is on disk but that have no manifest
+    // (or no registry entry). They participate in no lifecycle feature
+    // — no i18n bundles, no admin actions, no settings registration —
+    // and are effectively inactive until a manifest is added.
+    for (const inactive of findInactiveModules()) {
+      app.log.warn(
+        { module: inactive.id, reason: inactive.reason },
+        '[lifecycle] module is inactive — add a manifest.ts and register it in registered-manifests.ts',
+      );
+    }
+
     // First-boot reconciler: existing modules that don't yet have a row
     // in `module_registrations` get one with state='installed' so the
     // request-time enabled-check returns true. Without this every
