@@ -145,10 +145,14 @@ Workflow for any developer adding a new string to the Admin UI:
    pnpm --filter backend run i18n:coverage --modules <moduleId> --strict
    ```
    Exit code 0 = clean. Any non-zero exit lists the keys to fix.
-8. **CI gate**: the `i18n:coverage --strict` and `i18n:hardcoded --strict`
-   checks run per-module as each module reaches parity. A PR that drops a
-   Polish entry, or that ships a hard-coded JSX string in a module that's
-   already at parity, fails CI before merge.
+8. **CI gate**: every PR that adds a user-visible string **MUST** add both
+   English and Polish entries in the owning bundle. CI runs
+   `pnpm --filter backend run i18n:coverage -- --strict` for bundle parity and
+   `pnpm --filter backend run i18n:hardcoded -- ../admin/src --strict` for JSX
+   literals. The coverage diagnostic enforces bundle-side completeness; the
+   hardcoded-string lint enforces the Admin UI source side. A PR that drops a
+   Polish entry or ships a hard-coded user-visible JSX string fails before
+   merge.
 
 ## Polish quality bar
 

@@ -172,7 +172,7 @@ export function IntegrationsPage(): ReactNode {
                   <TableRow key={i.id}>
                     <TableCell className="font-medium">{i.name}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{i.kind}</Badge>
+                      <Badge variant="outline">{t(`integrations.kind.${i.kind}`)}</Badge>
                     </TableCell>
                     <TableCell>{i.vendor}</TableCell>
                     <TableCell>
@@ -217,9 +217,10 @@ export function IntegrationsPage(): ReactNode {
 }
 
 function IntegrationStatusBadge({ status }: { status: ExternalIntegration['status'] }): ReactNode {
+  const t = useTranslation('core');
   const variant =
     status === 'active' ? 'success' : status === 'error' ? 'destructive' : 'warning';
-  return <Badge variant={variant}>{status}</Badge>;
+  return <Badge variant={variant}>{t(`integrations.status.${status}`)}</Badge>;
 }
 
 function CreateIntegrationForm(props: {

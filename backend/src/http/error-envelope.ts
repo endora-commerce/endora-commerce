@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { ERROR_CODES, type ErrorCode, type ErrorEnvelope } from '@b2b/contracts';
+import { ADMIN_LANGUAGE_FALLBACK, ERROR_CODES, type ErrorCode, type ErrorEnvelope, type SupportedAdminLanguage } from '@b2b/contracts';
 import { ZodError, type core as zodCore } from 'zod';
 import { hasZodFastifySchemaValidationErrors } from '@fastify/type-provider-zod';
+import { ERROR_TRANSLATION_KEYS } from '../modules/_i18n/services/error-translation.js';
 
 /**
  * Fastify plugin that converts every error — Zod validation failures, MikroORM unique-constraint
@@ -30,7 +31,39 @@ export class HttpError extends Error {
   }
 }
 
-export function registerErrorEnvelope(app: FastifyInstance): void {
+export interface ErrorEnvelopeOptions {
+  translateErrorMessage?: (args: {
+    moduleId: string;
+    key: string;
+    language: SupportedAdminLanguage;
+    originalMessage: string;
+    request: FastifyRequest;
+  }) => Promise<string>;
+  resolvePreferredLanguage?: (request: FastifyRequest) => Promise<SupportedAdminLanguage | null | undefined>;
+}
+
+export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelopeOptions = {}): void {
+  app.addHook('preSerialization', async (request, _reply, payload) => {
+    if (!options.translateErrorMessage || !isErrorEnvelope(payload)) return payload;
+    const target = ERROR_TRANSLATION_KEYS[payload.error.code];
+    if (!target) return payload;
+    const language = (await options.resolvePreferredLanguage?.(request)) ?? ADMIN_LANGUAGE_FALLBACK;
+    const translated = await options.translateErrorMessage({
+      moduleId: target.moduleId,
+      key: target.key,
+      language,
+      originalMessage: payload.error.message,
+      request,
+    });
+    return {
+      ...payload,
+      error: {
+        ...payload.error,
+        message: translated,
+      },
+    };
+  });
+
   app.setErrorHandler((error, request: FastifyRequest, reply: FastifyReply) => {
     const requestId = request.id;
 
@@ -118,4 +151,12 @@ export function registerErrorEnvelope(app: FastifyInstance): void {
     };
     reply.status(404).send(envelope);
   });
+}
+
+function isErrorEnvelope(payload: unknown): payload is ErrorEnvelope {
+  if (!payload || typeof payload !== 'object') return false;
+  const error = (payload as { error?: unknown }).error;
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { code?: unknown; message?: unknown };
+  return typeof candidate.code === 'string' && typeof candidate.message === 'string';
 }

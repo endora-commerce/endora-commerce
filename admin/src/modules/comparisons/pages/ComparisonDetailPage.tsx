@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 import { getComparisonDetail } from '../api';
 
 /**
@@ -26,6 +27,7 @@ import { getComparisonDetail } from '../api';
  * what the customer reported). No mutation controls.
  */
 export function ComparisonDetailPage(): ReactNode {
+  const t = useTranslation('comparisons');
   const { id } = useParams<{ id: string }>();
   const [detail, setDetail] = useState<ComparisonAdminDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export function ComparisonDetailPage(): ReactNode {
         if (!cancelled) setDetail(res.data);
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+          setError(err instanceof ApiError ? err.envelope.error.message : t('error.load'));
         }
       }
     })();
@@ -51,13 +53,13 @@ export function ComparisonDetailPage(): ReactNode {
   if (error) {
     return (
       <>
-        <PageHeader title="Comparison" />
+        <PageHeader title={t('detail.page.title')} />
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
         <div className="mt-4">
           <Button asChild variant="outline">
-            <Link to="/comparisons">Back to list</Link>
+            <Link to="/comparisons">{t('detail.backToList')}</Link>
           </Button>
         </div>
       </>
@@ -66,8 +68,8 @@ export function ComparisonDetailPage(): ReactNode {
   if (!detail) {
     return (
       <>
-        <PageHeader title="Comparison" />
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <PageHeader title={t('detail.page.title')} />
+        <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
       </>
     );
   }
@@ -75,31 +77,32 @@ export function ComparisonDetailPage(): ReactNode {
   return (
     <>
       <PageHeader
-        title="Comparison detail"
-        description="Read-only view — what the customer is currently seeing."
+        title={t('detail.page.title')}
+        description={t('detail.page.description')}
       />
 
       <Card className="mb-4">
         <CardContent className="pt-6 space-y-2">
           <div>
-            <strong>Owner:</strong>{' '}
+            <strong>{t('detail.owner')}:</strong>{' '}
             {detail.owner.kind === 'customer'
-              ? detail.owner.email ?? '(no email)'
-              : `Anonymous (${detail.owner.anonymousToken ?? '—'})`}
+              ? detail.owner.email ?? t('owner.noEmail')
+              : t('owner.anonymousWithToken', { token: detail.owner.anonymousToken ?? '—' })}
           </div>
           <div>
-            <strong>Sales channel:</strong>{' '}
+            <strong>{t('detail.salesChannel')}:</strong>{' '}
             <code className="font-mono text-xs">{detail.salesChannel.code}</code>
           </div>
           <div>
-            <strong>Display mode:</strong> <Badge variant="default">{detail.displayMode}</Badge>
+            <strong>{t('detail.displayMode')}:</strong>{' '}
+            <Badge variant="default">{t(`displayMode.${detail.displayMode}`)}</Badge>
           </div>
           <div>
-            <strong>Share token:</strong>{' '}
+            <strong>{t('detail.shareToken')}:</strong>{' '}
             <code className="font-mono text-xs">{detail.shareToken}</code>
           </div>
           <div className="text-muted-foreground">
-            Created {new Date(detail.createdAt).toLocaleString()} · updated{' '}
+            {t('detail.created')} {new Date(detail.createdAt).toLocaleString()} · {t('detail.updated')}{' '}
             {new Date(detail.updatedAt).toLocaleString()}
           </div>
         </CardContent>
@@ -110,7 +113,7 @@ export function ComparisonDetailPage(): ReactNode {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Attribute</TableHead>
+                <TableHead>{t('detail.attribute')}</TableHead>
                 {detail.products.map((p) => (
                   <TableHead key={p.id}>
                     <div>{localised(p.name)}</div>
@@ -125,7 +128,7 @@ export function ComparisonDetailPage(): ReactNode {
               {detail.comparableAttributes.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={detail.products.length + 1} className="text-muted-foreground">
-                    No comparable attributes defined for this catalog.
+                    {t('detail.noComparableAttributes')}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -153,7 +156,7 @@ export function ComparisonDetailPage(): ReactNode {
 
       <div className="mt-4">
         <Button asChild variant="outline">
-          <Link to="/comparisons">Back to list</Link>
+            <Link to="/comparisons">{t('detail.backToList')}</Link>
         </Button>
       </div>
     </>

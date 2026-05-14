@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 import { listComparisons } from '../api';
 
 /**
@@ -29,6 +30,7 @@ import { listComparisons } from '../api';
  * range. Cursor pagination. Click a row to open the detail page.
  */
 export function ComparisonsListPage(): ReactNode {
+  const t = useTranslation('comparisons');
   const [rows, setRows] = useState<ComparisonAdminListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +59,7 @@ export function ComparisonsListPage(): ReactNode {
         }
         setNextCursor(res.meta.nextCursor);
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('error.load'));
       } finally {
         setLoading(false);
       }
@@ -72,8 +74,8 @@ export function ComparisonsListPage(): ReactNode {
   return (
     <>
       <PageHeader
-        title="Comparisons"
-        description="Read-only audit of every comparison generated on the storefront."
+        title={t('list.page.title')}
+        description={t('list.page.description')}
       />
 
       {error ? (
@@ -86,16 +88,16 @@ export function ComparisonsListPage(): ReactNode {
         <CardContent className="pt-6">
           <div className="grid gap-4 md:grid-cols-4">
             <div className="space-y-2">
-              <Label htmlFor="sales-channel-id">Sales channel id</Label>
+              <Label htmlFor="sales-channel-id">{t('list.filter.salesChannelId')}</Label>
               <Input
                 id="sales-channel-id"
                 value={salesChannelId}
                 onChange={(e): void => setSalesChannelId(e.target.value)}
-                placeholder="uuid (optional)"
+                placeholder={t('list.filter.uuidOptional')}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="owner-type">Owner</Label>
+              <Label htmlFor="owner-type">{t('list.filter.owner')}</Label>
               <Select
                 id="owner-type"
                 value={ownerType}
@@ -103,13 +105,13 @@ export function ComparisonsListPage(): ReactNode {
                   setOwnerType(e.target.value as '' | 'customer' | 'anonymous')
                 }
               >
-                <option value="">Any</option>
-                <option value="customer">Customer</option>
-                <option value="anonymous">Anonymous</option>
+                <option value="">{t('owner.any')}</option>
+                <option value="customer">{t('owner.customer')}</option>
+                <option value="anonymous">{t('owner.anonymous')}</option>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="created-after">Created after</Label>
+              <Label htmlFor="created-after">{t('list.filter.createdAfter')}</Label>
               <Input
                 id="created-after"
                 type="datetime-local"
@@ -118,7 +120,7 @@ export function ComparisonsListPage(): ReactNode {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="created-before">Created before</Label>
+              <Label htmlFor="created-before">{t('list.filter.createdBefore')}</Label>
               <Input
                 id="created-before"
                 type="datetime-local"
@@ -133,20 +135,20 @@ export function ComparisonsListPage(): ReactNode {
       <Card>
         <CardContent className="pt-6">
           {loading && rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No comparisons match the filters.</p>
+            <p className="text-sm text-muted-foreground">{t('list.empty')}</p>
           ) : (
             <>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Owner</TableHead>
-                    <TableHead>Sales channel</TableHead>
-                    <TableHead>Mode</TableHead>
-                    <TableHead>Products</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead className="text-right">Open</TableHead>
+                    <TableHead>{t('list.column.owner')}</TableHead>
+                    <TableHead>{t('list.column.salesChannel')}</TableHead>
+                    <TableHead>{t('list.column.mode')}</TableHead>
+                    <TableHead>{t('list.column.products')}</TableHead>
+                    <TableHead>{t('list.column.created')}</TableHead>
+                    <TableHead className="text-right">{t('list.column.open')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -154,16 +156,16 @@ export function ComparisonsListPage(): ReactNode {
                     <TableRow key={c.id}>
                       <TableCell>
                         {c.owner.kind === 'customer' ? (
-                          <span>{c.owner.email ?? '(no email on file)'}</span>
+                          <span>{c.owner.email ?? t('owner.noEmailOnFile')}</span>
                         ) : (
-                          <Badge variant="secondary">Anonymous</Badge>
+                          <Badge variant="secondary">{t('owner.anonymous')}</Badge>
                         )}
                       </TableCell>
                       <TableCell>
                         <code className="font-mono text-xs">{c.salesChannel.code}</code>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="default">{c.displayMode}</Badge>
+                        <Badge variant="default">{t(`displayMode.${c.displayMode}`)}</Badge>
                       </TableCell>
                       <TableCell>{c.productCount}</TableCell>
                       <TableCell className="text-muted-foreground">
@@ -189,7 +191,7 @@ export function ComparisonsListPage(): ReactNode {
                       void refresh(nextCursor);
                     }}
                   >
-                    {loading ? 'Loading…' : 'Load more'}
+                    {loading ? t('common.loading') : t('list.loadMore')}
                   </Button>
                 </div>
               ) : null}

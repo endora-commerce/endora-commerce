@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useTranslation } from '@/i18n/useTranslation';
 import { blogClient } from '../api/blog-client';
 
 function pickName(name: Record<string, string> | undefined | null, fallback: string): string {
@@ -25,6 +26,7 @@ export function RelatedPostsPicker({
   selfId,
   onChange,
 }: RelatedPostsPickerProps): ReactNode {
+  const t = useTranslation('blog');
   const [allPosts, setAllPosts] = useState<BlogPostSummary[]>([]);
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
@@ -97,9 +99,9 @@ export function RelatedPostsPicker({
       ) : null}
 
       <div>
-        <Label>Related posts ({value.length})</Label>
+        <Label>{t('relatedPosts.title', { count: value.length })}</Label>
         {value.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No related posts.</p>
+          <p className="text-sm text-muted-foreground">{t('relatedPosts.empty')}</p>
         ) : (
           <div className="mt-2 flex flex-col gap-2">
             {value.map((id, idx) => {
@@ -110,7 +112,7 @@ export function RelatedPostsPicker({
                   className="flex items-center gap-2 rounded border px-2 py-1 text-sm"
                 >
                   <span className="flex-1 font-medium">
-                    {post ? pickName(post.name, post.slug) : '(loading…)'}
+                    {post ? pickName(post.name, post.slug) : t('common.loadingInline')}
                   </span>
                   <Badge variant="outline" className="font-mono text-[10px]">
                     {post?.slug ?? id.slice(0, 8)}
@@ -122,7 +124,7 @@ export function RelatedPostsPicker({
                     className="h-7 w-7 p-0"
                     disabled={idx === 0}
                     onClick={() => move(id, 'up')}
-                    aria-label="Move related post up"
+                    aria-label={t('relatedPosts.moveUp')}
                   >
                     ↑
                   </Button>
@@ -133,7 +135,7 @@ export function RelatedPostsPicker({
                     className="h-7 w-7 p-0"
                     disabled={idx === value.length - 1}
                     onClick={() => move(id, 'down')}
-                    aria-label="Move related post down"
+                    aria-label={t('relatedPosts.moveDown')}
                   >
                     ↓
                   </Button>
@@ -154,7 +156,7 @@ export function RelatedPostsPicker({
       </div>
 
       <div>
-        <Label htmlFor="related-posts-q">Add post</Label>
+        <Label htmlFor="related-posts-q">{t('relatedPosts.add')}</Label>
         <div className="flex gap-2">
           <Input
             id="related-posts-q"
@@ -163,19 +165,17 @@ export function RelatedPostsPicker({
             onKeyDown={(event) => {
               if (event.key === 'Enter') void reload(q);
             }}
-            placeholder="Search name or slug…"
+            placeholder={t('relatedPosts.searchPlaceholder')}
           />
           <Button type="button" variant="outline" onClick={() => void reload(q)}>
-            Search
+            {t('common.search')}
           </Button>
         </div>
         {loading ? (
-          <p className="mt-2 text-sm text-muted-foreground">Loading posts…</p>
+          <p className="mt-2 text-sm text-muted-foreground">{t('relatedPosts.loading')}</p>
         ) : candidates.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">
-            {q
-              ? 'No matching posts.'
-              : 'No more candidates (all visible posts are either this one or already attached).'}
+            {q ? t('relatedPosts.noMatches') : t('relatedPosts.noCandidates')}
           </p>
         ) : (
           <div className="mt-2 flex flex-col gap-1">
@@ -191,7 +191,7 @@ export function RelatedPostsPicker({
                 <span className="mr-2 font-mono text-[10px]">{post.slug}</span>
                 <span className="text-left">{pickName(post.name, post.slug)}</span>
                 <Badge variant="outline" className="ml-auto text-[10px]">
-                  {post.status}
+                  {t(`status.${post.status}`)}
                 </Badge>
               </Button>
             ))}

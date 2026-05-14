@@ -4,6 +4,8 @@ import { AppShell } from './components/AppShell.js';
 import { LoginPage } from './components/LoginPage.js';
 import { useAuth } from './lib/auth.js';
 import { TranslationProvider } from './i18n/TranslationProvider.js';
+import { useTranslation } from './i18n/useTranslation.js';
+import { appBootstrapCopy } from './i18n/preauth-login-copy.js';
 import { AdminActionsProvider } from './lib/admin-actions/AdminActionsProvider.js';
 import { AppLanguageContext } from './i18n/app-language-context.js';
 import type { SupportedAdminLanguage } from './i18n/types.js';
@@ -69,6 +71,15 @@ import { ComparisonsListPage } from './modules/comparisons/pages/ComparisonsList
 import { ComparisonDetailPage } from './modules/comparisons/pages/ComparisonDetailPage.js';
 import { ProfilePage } from './modules/profile/ProfilePage.js';
 
+function NotFoundPage(): ReactNode {
+  const t = useTranslation('core');
+  return (
+    <div className="rounded-md border border-amber-500/40 bg-amber-50 p-4 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+      {t('app.notFound')}
+    </div>
+  );
+}
+
 export function App(): ReactNode {
   const { status, me } = useAuth();
   // Feature 019 — admin-side language state. Seeded from the session
@@ -97,7 +108,7 @@ export function App(): ReactNode {
   if (status === 'loading') {
     return (
       <div className="grid min-h-screen place-items-center bg-muted/40">
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <p className="text-sm text-muted-foreground">{appBootstrapCopy.loading}</p>
       </div>
     );
   }
@@ -180,11 +191,7 @@ export function App(): ReactNode {
         <Route path="/profile" element={<ProfilePage />} />
         <Route
           path="*"
-          element={
-            <div className="rounded-md border border-amber-500/40 bg-amber-50 p-4 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
-              Page not found. Pick a module from the sidebar.
-            </div>
-          }
+          element={<NotFoundPage />}
         />
           </Route>
         </Routes>

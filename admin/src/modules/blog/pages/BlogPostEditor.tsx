@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
+import { useTranslation } from '@/i18n/useTranslation';
 import { ContentLanguageTabs } from '../../cms/components/ContentLanguageTabs';
 import { PageBuilderEditor } from '../../cms/components/PageBuilderEditor';
 import { ScopePicker, type CmsScopeValue } from '../../cms/components/ScopePicker';
@@ -50,6 +51,7 @@ function pickValue(map: Record<string, string> | null | undefined, lang: string)
 }
 
 export function BlogPostEditor(): ReactNode {
+  const t = useTranslation('blog');
   const { id } = useParams();
   const isNew = !id || id === 'new';
   const navigate = useNavigate();
@@ -173,7 +175,7 @@ export function BlogPostEditor(): ReactNode {
         version: post.version,
       });
       setPost(updated);
-      setInfo('Saved.');
+      setInfo(t('messages.saved'));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -199,7 +201,7 @@ export function BlogPostEditor(): ReactNode {
         version: post.version,
       });
       setPost(updated);
-      setInfo('Content saved.');
+      setInfo(t('messages.contentSaved'));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -216,7 +218,7 @@ export function BlogPostEditor(): ReactNode {
       try {
         const updated = await blogClient.setPostTags(post.id, tagIds, post.version);
         setPost(updated);
-        setInfo(`Tags updated (${tagIds.length} attached).`);
+        setInfo(t('messages.tagsUpdated', { count: tagIds.length }));
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -239,7 +241,7 @@ export function BlogPostEditor(): ReactNode {
           post.version,
         );
         setPost(updated);
-        setInfo(`Related posts updated (${relatedPostIds.length} attached).`);
+        setInfo(t('messages.relatedPostsUpdated', { count: relatedPostIds.length }));
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -262,7 +264,7 @@ export function BlogPostEditor(): ReactNode {
           post.version,
         );
         setPost(updated);
-        setInfo(`Related products updated (${productIds.length} attached).`);
+        setInfo(t('messages.relatedProductsUpdated', { count: productIds.length }));
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -286,7 +288,7 @@ export function BlogPostEditor(): ReactNode {
               ? await blogClient.unpublishPost(post.id, post.version)
               : await blogClient.archivePost(post.id, post.version);
         setPost(updated);
-        setInfo(`Status: ${updated.status}.`);
+        setInfo(t('messages.statusUpdated', { status: t(`status.${updated.status}`) }));
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -299,15 +301,15 @@ export function BlogPostEditor(): ReactNode {
   return (
     <div className="space-y-4">
       <PageHeader
-        title={isNew ? 'New blog post' : 'Edit blog post'}
+        title={isNew ? t('postEditor.title.new') : t('postEditor.title.edit')}
         description={
           isNew
-            ? 'Create the post shell. Page Builder content + lifecycle controls open after the first save.'
-            : 'Author content per language; publish, unpublish, or archive when ready.'
+            ? t('postEditor.description.new')
+            : t('postEditor.description.edit')
         }
         actions={
           <Button asChild variant="outline">
-            <Link to="/blog/posts">Back to list</Link>
+            <Link to="/blog/posts">{t('postEditor.backToList')}</Link>
           </Button>
         }
       />
@@ -327,7 +329,7 @@ export function BlogPostEditor(): ReactNode {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2">
             <CardTitle className="text-base">
-              <span className="mr-2">Lifecycle</span>
+              <span className="mr-2">{t('sections.lifecycle')}</span>
               <PostStatusBadge status={post.status} active={post.active} />
             </CardTitle>
             <div className="flex gap-2">
@@ -337,7 +339,7 @@ export function BlogPostEditor(): ReactNode {
                 disabled={saving || post.status === 'published'}
                 onClick={() => void onLifecycle('publish')}
               >
-                Publish
+                {t('common.publish')}
               </Button>
               <Button
                 type="button"
@@ -346,7 +348,7 @@ export function BlogPostEditor(): ReactNode {
                 disabled={saving || post.status !== 'published'}
                 onClick={() => void onLifecycle('unpublish')}
               >
-                Unpublish
+                {t('common.unpublish')}
               </Button>
               <Button
                 type="button"
@@ -355,15 +357,15 @@ export function BlogPostEditor(): ReactNode {
                 disabled={saving || post.status === 'archived'}
                 onClick={() => void onLifecycle('archive')}
               >
-                Archive
+                {t('common.archive')}
               </Button>
             </div>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">
             {post.publishedAt ? (
-              <>Published at: {new Date(post.publishedAt).toLocaleString()}</>
+              <>{t('postEditor.publishedAt', { date: new Date(post.publishedAt).toLocaleString() })}</>
             ) : (
-              <>Not yet published.</>
+              <>{t('postEditor.notPublished')}</>
             )}
           </CardContent>
         </Card>
@@ -373,7 +375,7 @@ export function BlogPostEditor(): ReactNode {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Metadata</CardTitle>
+          <CardTitle className="text-base">{t('sections.metadata')}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
           <ContentLanguageTabs
@@ -384,16 +386,16 @@ export function BlogPostEditor(): ReactNode {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="post-name">Name (per language)</Label>
+              <Label htmlFor="post-name">{t('fields.namePerLanguage')}</Label>
               <Input
                 id="post-name"
                 value={form.name}
                 onChange={(event) => setForm((f) => ({ ...f, name: event.target.value }))}
-                placeholder="Best cordless trimmers in 2026"
+                placeholder={t('postEditor.namePlaceholder')}
               />
             </div>
             <div>
-              <Label htmlFor="post-slug">Slug</Label>
+              <Label htmlFor="post-slug">{t('fields.slug')}</Label>
               <Input
                 id="post-slug"
                 value={form.slug}
@@ -408,7 +410,7 @@ export function BlogPostEditor(): ReactNode {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="post-meta-title">Meta title (per language)</Label>
+              <Label htmlFor="post-meta-title">{t('fields.metaTitlePerLanguage')}</Label>
               <Input
                 id="post-meta-title"
                 value={form.metaTitle}
@@ -418,7 +420,7 @@ export function BlogPostEditor(): ReactNode {
               />
             </div>
             <div>
-              <Label htmlFor="post-meta-description">Meta description (per language)</Label>
+              <Label htmlFor="post-meta-description">{t('fields.metaDescriptionPerLanguage')}</Label>
               <Input
                 id="post-meta-description"
                 value={form.metaDescription}
@@ -430,7 +432,7 @@ export function BlogPostEditor(): ReactNode {
           </div>
 
           <div>
-            <Label htmlFor="post-meta-keywords">Meta keywords (per language)</Label>
+            <Label htmlFor="post-meta-keywords">{t('fields.metaKeywordsPerLanguage')}</Label>
             <Input
               id="post-meta-keywords"
               value={form.metaKeywords}
@@ -447,13 +449,13 @@ export function BlogPostEditor(): ReactNode {
               checked={form.active}
               onChange={(event) => setForm((f) => ({ ...f, active: event.target.checked }))}
             />
-            <Label htmlFor="post-active">Active (storefront-visible when published)</Label>
+            <Label htmlFor="post-active">{t('fields.activeWhenPublished')}</Label>
           </div>
 
           <div className="flex justify-end gap-2">
             {isNew ? (
               <Button type="button" disabled={!canSave || saving} onClick={() => void onCreate()}>
-                {saving ? 'Saving…' : 'Create'}
+                {saving ? t('common.saving') : t('common.create')}
               </Button>
             ) : (
               <Button
@@ -461,7 +463,7 @@ export function BlogPostEditor(): ReactNode {
                 disabled={!canSave || saving}
                 onClick={() => void onSaveMetadata()}
               >
-                {saving ? 'Saving…' : 'Save metadata'}
+                {saving ? t('common.saving') : t('common.saveMetadata')}
               </Button>
             )}
           </div>
@@ -471,7 +473,7 @@ export function BlogPostEditor(): ReactNode {
       {!isNew && post ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Tags</CardTitle>
+            <CardTitle className="text-base">{t('sections.tags')}</CardTitle>
           </CardHeader>
           <CardContent>
             <TagPicker
@@ -485,7 +487,7 @@ export function BlogPostEditor(): ReactNode {
       {!isNew && post ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Related posts</CardTitle>
+            <CardTitle className="text-base">{t('sections.relatedPosts')}</CardTitle>
           </CardHeader>
           <CardContent>
             <RelatedPostsPicker
@@ -500,7 +502,7 @@ export function BlogPostEditor(): ReactNode {
       {!isNew && post ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Related products</CardTitle>
+            <CardTitle className="text-base">{t('sections.relatedProducts')}</CardTitle>
           </CardHeader>
           <CardContent>
             <RelatedProductsPicker
@@ -514,9 +516,11 @@ export function BlogPostEditor(): ReactNode {
       {!isNew && post && activeLanguage && draftData !== null ? (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2">
-            <CardTitle className="text-base">Content — {activeLanguage}</CardTitle>
+            <CardTitle className="text-base">
+              {t('postEditor.contentTitle', { language: activeLanguage })}
+            </CardTitle>
             <Button type="button" size="sm" disabled={saving} onClick={() => void onSaveContent()}>
-              {saving ? 'Saving…' : 'Save content'}
+              {saving ? t('common.saving') : t('common.saveContent')}
             </Button>
           </CardHeader>
           <CardContent>

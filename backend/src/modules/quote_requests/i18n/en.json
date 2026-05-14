@@ -1,4 +1,13 @@
 {
   "actions.openInbox.label": "Open RFQ inbox",
-  "actions.openInbox.description": "Review pending quote requests"
+  "actions.openInbox.description": "Review pending quote requests",
+  "errors.RFQ_NOT_DRAFT": "Rfq Not Draft.",
+  "errors.RFQ_EMPTY": "Rfq Empty.",
+  "errors.RFQ_NOT_QUOTED": "Rfq Not Quoted.",
+  "errors.RFQ_NOT_ACCEPTED": "Rfq Not Accepted.",
+  "errors.RFQ_NOT_NEW": "Rfq Not New.",
+  "errors.RFQ_ALREADY_CLAIMED": "Rfq Already Claimed.",
+  "errors.RFQ_EXPIRED": "Rfq Expired.",
+  "errors.QUOTE_INCOMPLETE": "Quote Incomplete.",
+  "errors.QUOTE_VALIDITY_ENDED": "Quote Validity Ended."
 }

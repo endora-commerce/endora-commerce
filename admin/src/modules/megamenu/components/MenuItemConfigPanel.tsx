@@ -4,6 +4,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { useTranslation } from '@/i18n/useTranslation';
 
 export type IndexedItem = MegamenuItem & { id: string; parentId: string | null };
 
@@ -25,6 +26,7 @@ export function MenuItemConfigPanel({
   languages,
   onChange,
 }: MenuItemConfigPanelProps): ReactNode {
+  const t = useTranslation('megamenu');
   const [error, setError] = useState<string | null>(null);
 
   const setLabel = (lang: string, value: string): void => {
@@ -53,7 +55,7 @@ export function MenuItemConfigPanel({
   if (!item) {
     return (
       <p className="px-2 py-6 text-sm text-muted-foreground">
-        Select a menu item from the tree (or add one) to edit its fields.
+        {t('itemConfig.empty')}
       </p>
     );
   }
@@ -67,22 +69,22 @@ export function MenuItemConfigPanel({
       ) : null}
 
       <div className="space-y-1">
-        <Label>Kind</Label>
+        <Label>{t('fields.kind')}</Label>
         <Select value={item.kind} onChange={(event) => setKind(event.target.value as MegamenuItemKind)}>
-          <option value="category-link">Category link</option>
-          <option value="cms-page-link">CMS page link</option>
-          <option value="external-link">External link</option>
-          <option value="button">Button</option>
-          <option value="asset">Asset</option>
-          <option value="cms-block-embed">CMS block embed</option>
+          <option value="category-link">{t('itemKind.categoryLink')}</option>
+          <option value="cms-page-link">{t('itemKind.cmsPageLink')}</option>
+          <option value="external-link">{t('itemKind.externalLink')}</option>
+          <option value="button">{t('itemKind.button')}</option>
+          <option value="asset">{t('itemKind.asset')}</option>
+          <option value="cms-block-embed">{t('itemKind.cmsBlockEmbed')}</option>
         </Select>
       </div>
 
       <div className="space-y-2">
-        <Label>Labels (per language)</Label>
+        <Label>{t('fields.labelsPerLanguage')}</Label>
         {languages.length === 0 ? (
           <p className="text-xs text-muted-foreground">
-            Add a binding first — the tree's labels are scoped to the languages of the megamenu's bindings.
+            {t('itemConfig.addBindingFirst')}
           </p>
         ) : null}
         {languages.map((lang) => (
@@ -92,7 +94,7 @@ export function MenuItemConfigPanel({
               className="col-span-10"
               value={item.labels[lang] ?? ''}
               onChange={(event) => setLabel(lang, event.target.value)}
-              placeholder={`Label in ${lang}`}
+              placeholder={t('itemConfig.labelPlaceholder', { language: lang })}
             />
           </div>
         ))}
@@ -110,17 +112,18 @@ function KindSpecificFields({
   item: IndexedItem;
   setTarget: (next: Partial<MegamenuItem['target']>) => void;
 }): ReactNode {
+  const t = useTranslation('megamenu');
   const target = item.target as Record<string, unknown>;
 
   switch (item.kind) {
     case 'category-link':
       return (
         <div className="space-y-1">
-          <Label>Category id</Label>
+          <Label>{t('fields.categoryId')}</Label>
           <Input
             value={typeof target.categoryId === 'string' ? target.categoryId : ''}
             onChange={(event) => setTarget({ categoryId: event.target.value } as never)}
-            placeholder="Category UUID"
+            placeholder={t('placeholders.categoryUuid')}
           />
         </div>
       );
@@ -128,11 +131,11 @@ function KindSpecificFields({
     case 'cms-page-link':
       return (
         <div className="space-y-1">
-          <Label>CMS page id</Label>
+          <Label>{t('fields.cmsPageId')}</Label>
           <Input
             value={typeof target.pageId === 'string' ? target.pageId : ''}
             onChange={(event) => setTarget({ pageId: event.target.value } as never)}
-            placeholder="CMS page UUID"
+            placeholder={t('placeholders.cmsPageUuid')}
           />
         </div>
       );
@@ -140,11 +143,11 @@ function KindSpecificFields({
     case 'external-link':
       return (
         <div className="space-y-1">
-          <Label>URL</Label>
+          <Label>{t('fields.url')}</Label>
           <Input
             value={typeof target.url === 'string' ? target.url : ''}
             onChange={(event) => setTarget({ url: event.target.value } as never)}
-            placeholder="https://example.com / tel:+48… / mailto:…"
+            placeholder={t('placeholders.externalUrl')}
           />
         </div>
       );
@@ -153,7 +156,7 @@ function KindSpecificFields({
       return (
         <>
           <div className="space-y-1">
-            <Label>Link target</Label>
+            <Label>{t('fields.linkTarget')}</Label>
             <Input
               value={typeof target.url === 'string' ? target.url : ''}
               onChange={(event) => setTarget({ url: event.target.value } as never)}
@@ -161,14 +164,14 @@ function KindSpecificFields({
             />
           </div>
           <div className="space-y-1">
-            <Label>Variant</Label>
+            <Label>{t('fields.variant')}</Label>
             <Select
               value={typeof target.variant === 'string' ? target.variant : 'primary'}
               onChange={(event) => setTarget({ variant: event.target.value } as never)}
             >
-              <option value="primary">Primary</option>
-              <option value="secondary">Secondary</option>
-              <option value="ghost">Ghost</option>
+              <option value="primary">{t('variant.primary')}</option>
+              <option value="secondary">{t('variant.secondary')}</option>
+              <option value="ghost">{t('variant.ghost')}</option>
             </Select>
           </div>
         </>
@@ -178,21 +181,21 @@ function KindSpecificFields({
       return (
         <>
           <div className="space-y-1">
-            <Label>Asset id</Label>
+            <Label>{t('fields.assetId')}</Label>
             <Input
               value={typeof target.assetId === 'string' ? target.assetId : ''}
               onChange={(event) => setTarget({ assetId: event.target.value } as never)}
-              placeholder="Library asset UUID"
+              placeholder={t('placeholders.assetUuid')}
             />
           </div>
           <div className="space-y-1">
-            <Label>Kind</Label>
+            <Label>{t('fields.kind')}</Label>
             <Select
               value={typeof target.kind === 'string' ? target.kind : 'image'}
               onChange={(event) => setTarget({ kind: event.target.value } as never)}
             >
-              <option value="image">Image</option>
-              <option value="video">Video</option>
+              <option value="image">{t('assetKind.image')}</option>
+              <option value="video">{t('assetKind.video')}</option>
             </Select>
           </div>
         </>
@@ -202,21 +205,21 @@ function KindSpecificFields({
       return (
         <>
           <div className="space-y-1">
-            <Label>CMS block id</Label>
+            <Label>{t('fields.cmsBlockId')}</Label>
             <Input
               value={typeof target.blockId === 'string' ? target.blockId : ''}
               onChange={(event) => setTarget({ blockId: event.target.value } as never)}
-              placeholder="CMS block UUID"
+              placeholder={t('placeholders.cmsBlockUuid')}
             />
           </div>
           <div className="space-y-1">
-            <Label>Embed side</Label>
+            <Label>{t('fields.embedSide')}</Label>
             <Select
               value={typeof target.embedSide === 'string' ? target.embedSide : 'right'}
               onChange={(event) => setTarget({ embedSide: event.target.value } as never)}
             >
-              <option value="left">Left</option>
-              <option value="right">Right</option>
+              <option value="left">{t('side.left')}</option>
+              <option value="right">{t('side.right')}</option>
             </Select>
           </div>
         </>

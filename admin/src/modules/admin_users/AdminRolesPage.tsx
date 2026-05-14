@@ -162,7 +162,7 @@ export function AdminRolesPage(): ReactNode {
                           : 'hover:bg-accent hover:text-accent-foreground',
                       )}
                     >
-                      <span className="font-medium">{r.name}</span>
+                      <span className="font-medium">{translateRoleName(t, r)}</span>
                       <span
                         className={cn(
                           'text-xs',
@@ -328,7 +328,7 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
                         }}
                       />
                       <code className="font-mono text-xs">{p.code}</code>
-                      <span className="text-muted-foreground">— {p.label}</span>
+                      <span className="text-muted-foreground">— {translatePermissionLabel(t, p)}</span>
                     </label>
                   ))}
                 </div>
@@ -348,4 +348,22 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
       </CardContent>
     </Card>
   );
+}
+
+function translateRoleName(
+  t: (key: string, params?: Record<string, string | number>) => string,
+  role: Pick<AdminRole, 'code' | 'name'>,
+): string {
+  const key = `adminRoles.seeded.${role.code}`;
+  const label = t(key);
+  return label === `core.${key}` ? role.name : label;
+}
+
+function translatePermissionLabel(
+  t: (key: string, params?: Record<string, string | number>) => string,
+  permission: PermissionRow,
+): string {
+  const key = `adminRoles.permission.${permission.code}`;
+  const label = t(key);
+  return label === `core.${key}` ? permission.label : label;
 }

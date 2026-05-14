@@ -1,0 +1,115 @@
+import { ERROR_CODES, type ErrorCode } from '@b2b/contracts';
+
+export interface ErrorTranslationTarget {
+  moduleId: string;
+  key: `errors.${ErrorCode}`;
+}
+
+const GENERIC_ERROR_CODES = new Set<ErrorCode>([
+  ERROR_CODES.VERSION_CONFLICT,
+  ERROR_CODES.VALIDATION_FAILED,
+  ERROR_CODES.INTERNAL,
+  ERROR_CODES.NOT_FOUND,
+  ERROR_CODES.UNAUTHORIZED,
+  ERROR_CODES.FORBIDDEN,
+  ERROR_CODES.RATE_LIMITED,
+]);
+
+const CATALOG_MISC_ERROR_CODES = new Set<ErrorCode>([
+  ERROR_CODES.FILTER_NOT_ALLOWED,
+  ERROR_CODES.FIELD_IMMUTABLE,
+  ERROR_CODES.ASSET_KIND_NOT_SUPPORTED,
+  ERROR_CODES.NESTED_COMPOSITE_NOT_ALLOWED,
+  ERROR_CODES.INVALID_QUANTITY_RANGE,
+  ERROR_CODES.OPTION_ALREADY_EXISTS,
+  ERROR_CODES.MIN_NOT_MET,
+  ERROR_CODES.MAX_EXCEEDED,
+  ERROR_CODES.UNKNOWN_OPTION,
+]);
+
+const SEARCH_MISC_ERROR_CODES = new Set<ErrorCode>([
+  ERROR_CODES.LIMIT_OUT_OF_RANGE,
+  ERROR_CODES.RESULT_COUNT_INVALID,
+  ERROR_CODES.LLM_CONFIG_INCOMPLETE,
+]);
+
+const SALES_CHANNEL_MISC_ERROR_CODES = new Set<ErrorCode>([
+  ERROR_CODES.INACTIVE_SALES_CHANNEL,
+  ERROR_CODES.MISSING_SALES_CHANNEL_CONTEXT,
+  ERROR_CODES.DUPLICATE_SALES_CHANNEL_CODE,
+  ERROR_CODES.CANNOT_MODIFY_SYSTEM_DEFAULT,
+  ERROR_CODES.ENTITY_WOULD_HAVE_ZERO_CHANNELS,
+  ERROR_CODES.STALE_SALES_CHANNEL_WRITE,
+]);
+
+const INVENTORY_MISC_ERROR_CODES = new Set<ErrorCode>([
+  ERROR_CODES.PRODUCT_UNMANAGED_STOCK,
+  ERROR_CODES.AVAILABILITY_NOTIFICATION_NOT_FOUND,
+  ERROR_CODES.PRODUCT_IN_STOCK,
+]);
+
+export const ERROR_TRANSLATION_KEYS = Object.fromEntries(
+  Object.values(ERROR_CODES).map((code) => [
+    code,
+    {
+      moduleId: moduleIdForErrorCode(code),
+      key: `errors.${code}`,
+    },
+  ]),
+) as Record<ErrorCode, ErrorTranslationTarget>;
+
+function moduleIdForErrorCode(code: ErrorCode): string {
+  if (code.startsWith('SETTING_')) return 'settings';
+  if (GENERIC_ERROR_CODES.has(code)) {
+    return 'core';
+  }
+  if (
+    code.startsWith('PRODUCT_') ||
+    code.startsWith('SKU_') ||
+    code.startsWith('VARIANT_') ||
+    code.startsWith('ATTRIBUTE_') ||
+    code.startsWith('GALLERY_') ||
+    code.startsWith('ATTACHMENT_') ||
+    code.startsWith('SELF_LINK_') ||
+    code.startsWith('LINK_') ||
+    code.startsWith('TARGET_PRODUCT_') ||
+    code.startsWith('BUNDLE_') ||
+    code.startsWith('GROUPED_') ||
+    CATALOG_MISC_ERROR_CODES.has(code)
+  ) {
+    return 'catalog';
+  }
+  if (code.startsWith('RFQ_') || code.startsWith('QUOTE_')) return 'quote_requests';
+  if (
+    code.startsWith('QUERY_') ||
+    code.startsWith('SEARCH_') ||
+    code.startsWith('PHRASE_') ||
+    SEARCH_MISC_ERROR_CODES.has(code)
+  ) {
+    return 'search';
+  }
+  if (
+    code.startsWith('UNKNOWN_') ||
+    code.startsWith('SALES_CHANNEL_') ||
+    SALES_CHANNEL_MISC_ERROR_CODES.has(code)
+  ) {
+    return 'sales_channels';
+  }
+  if (code.startsWith('COMPARISON_') || code === ERROR_CODES.PDF_GENERATION_FAILED) return 'comparisons';
+  if (
+    code.startsWith('WAREHOUSE_') ||
+    code.startsWith('CHANNEL_') ||
+    code.startsWith('STOCK_') ||
+    code.startsWith('THRESHOLDS_') ||
+    INVENTORY_MISC_ERROR_CODES.has(code)
+  ) {
+    return 'inventory';
+  }
+  if (code.startsWith('ASSET_')) return 'assets_library';
+  if (code.startsWith('CMS_')) return 'cms';
+  if (code.startsWith('MEGAMENU_')) return 'megamenu';
+  if (code.startsWith('BLOG_')) return 'blog';
+  if (code.startsWith('DICTIONARY_')) return 'dictionaries';
+  if (code.startsWith('MODULE_')) return 'core';
+  return 'core';
+}

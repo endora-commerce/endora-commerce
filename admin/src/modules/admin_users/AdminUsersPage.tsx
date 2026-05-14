@@ -194,12 +194,12 @@ export function AdminUsersPage(): ReactNode {
                         <option value="">{t('adminUsers.unassigned')}</option>
                         {roles.map((r) => (
                           <option key={r.id} value={r.id}>
-                            {r.name}
+                            {translateRoleName(t, r)}
                           </option>
                         ))}
                       </Select>
                     </TableCell>
-                    <TableCell>{u.status}</TableCell>
+                    <TableCell>{t(`adminUsers.status.${u.status}`)}</TableCell>
                     <TableCell>{u.twoFactorEnabled ? t('adminUsers.twoFactorOn') : '—'}</TableCell>
                     <TableCell>{formatDateTime(u.lastLoginAt)}</TableCell>
                     <TableCell>
@@ -322,7 +322,7 @@ function CreateUserForm({
             <option value="">{t('adminUsers.assignLater')}</option>
             {roles.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.name}
+                {translateRoleName(t, r)}
               </option>
             ))}
           </Select>
@@ -331,4 +331,13 @@ function CreateUserForm({
       <Button type="submit">{t('adminUsers.create.title')}</Button>
     </form>
   );
+}
+
+function translateRoleName(
+  t: (key: string, params?: Record<string, string | number>) => string,
+  role: AdminRole,
+): string {
+  const key = `adminRoles.seeded.${role.code}`;
+  const label = t(key);
+  return label === `core.${key}` ? role.name : label;
 }

@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 import { apiClient } from '@/lib/api-client';
 import { megamenuClient } from '../api/megamenu-client';
 
@@ -31,6 +32,7 @@ interface SalesChannelsResponse {
 }
 
 export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProps): ReactNode {
+  const t = useTranslation('megamenu');
   const [channels, setChannels] = useState<SalesChannelSummary[]>([]);
   const [pickedChannelId, setPickedChannelId] = useState('');
   const [pickedLanguage, setPickedLanguage] = useState('');
@@ -112,7 +114,7 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
         // would be nicer; an alert keeps the surface light.
         // eslint-disable-next-line no-alert
         window.alert(
-          `Activated. Previously active megamenu in this scope: "${result.previouslyActive.name}" (deactivated automatically).`,
+          t('bindings.activatedWithPrevious', { name: result.previouslyActive.name }),
         );
       }
       onChanged();
@@ -156,7 +158,7 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
           }}
           disabled={busy}
         >
-          <option value="">Sales channel…</option>
+          <option value="">{t('bindings.salesChannelPlaceholder')}</option>
           {channels.map((channel) => (
             <option key={channel.id} value={channel.id}>
               {channel.code}
@@ -169,7 +171,7 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
           onChange={(event) => setPickedLanguage(event.target.value)}
           disabled={busy || !pickedChannelId}
         >
-          <option value="">Language…</option>
+          <option value="">{t('bindings.languagePlaceholder')}</option>
           {availableLanguages.map((lang: string) => (
             <option key={lang} value={lang}>
               {lang}
@@ -182,20 +184,20 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
           onClick={() => void addBinding()}
           disabled={busy || !pickedChannelId || !pickedLanguage}
         >
-          Add binding
+          {t('bindings.add')}
         </Button>
       </div>
 
       {bindings.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No bindings yet — add one to publish this megamenu to a storefront scope.</p>
+        <p className="text-sm text-muted-foreground">{t('bindings.empty')}</p>
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Channel</TableHead>
-              <TableHead>Language</TableHead>
-              <TableHead>Active</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>{t('columns.channel')}</TableHead>
+              <TableHead>{t('columns.language')}</TableHead>
+              <TableHead>{t('columns.active')}</TableHead>
+              <TableHead className="text-right">{t('columns.actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -208,11 +210,11 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
                   <TableCell>
                     {binding.active ? (
                       <Badge>
-                        <CheckCircle2 className="mr-1 h-3 w-3" /> active
+                        <CheckCircle2 className="mr-1 h-3 w-3" /> {t('state.active')}
                       </Badge>
                     ) : (
                       <Badge variant="outline">
-                        <Circle className="mr-1 h-3 w-3" /> staged
+                        <Circle className="mr-1 h-3 w-3" /> {t('state.staged')}
                       </Badge>
                     )}
                   </TableCell>
@@ -224,11 +226,11 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
                         onClick={() => void deactivate(binding)}
                         disabled={busy}
                       >
-                        Deactivate
+                        {t('bindings.deactivate')}
                       </Button>
                     ) : (
                       <Button size="sm" onClick={() => void activate(binding)} disabled={busy}>
-                        Activate
+                        {t('bindings.activate')}
                       </Button>
                     )}
                     <Button

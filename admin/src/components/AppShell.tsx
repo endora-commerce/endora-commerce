@@ -632,7 +632,7 @@ export function AppShell(): ReactNode {
                 onClick={(): void => setPaletteOpen(true)}
                 onFocus={(): void => setPaletteOpen(true)}
               />
-              <span className="b2b-sidebar__search-kbd">⌘K</span>
+              <span className="b2b-sidebar__search-kbd">{t('appShell.search.shortcutSymbol')}</span>
             </>
           )}
         </div>

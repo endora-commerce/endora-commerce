@@ -115,6 +115,8 @@ export interface BackendServerHandle {
   blog: ReturnType<typeof blogModule>['handle'];
   /** Feature 017 — Dictionary module handle (cache + future validator). */
   dictionaries: ReturnType<typeof dictionariesModule>['handle'];
+  /** Feature 021 — error-envelope i18n bridge. */
+  adminI18n: ReturnType<typeof adminI18nModule>['handle'];
 }
 
 const SEEDED_TABLES = [
@@ -760,6 +762,21 @@ export async function setupBackendServer(
     },
     disableRateLimit: true,
     modules,
+    errorEnvelope: {
+      resolvePreferredLanguage: async (request) => {
+        if (request.testActor?.kind !== 'admin') return null;
+        const adminUser = await em().findOne(AdminUser, { id: request.testActor.adminUserId });
+        return adminUser?.preferredLanguage === 'pl' ? 'pl' : 'en';
+      },
+      translateErrorMessage: async ({ moduleId, key, language, originalMessage }) => {
+        const translated = await adminI18n.handle.i18nService.translate(
+          moduleId,
+          key,
+          language,
+        );
+        return translated === `${moduleId}.${key}` ? originalMessage : translated;
+      },
+    },
   });
   await app.ready();
 
@@ -781,6 +798,7 @@ export async function setupBackendServer(
     megamenu: megamenu.handle,
     blog: blog.handle,
     dictionaries: dictionaries.handle,
+    adminI18n: adminI18n.handle,
   };
 }
 

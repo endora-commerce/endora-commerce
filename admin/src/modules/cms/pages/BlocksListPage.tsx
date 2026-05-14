@@ -14,9 +14,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 import { cmsClient } from '../api/cms-client';
 
 export function BlocksListPage(): ReactNode {
+  const t = useTranslation('cms');
   const [rows, setRows] = useState<CmsBlockSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,11 +43,11 @@ export function BlocksListPage(): ReactNode {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="CMS Blocks"
-        description="Reusable Page Builder fragments embedded in pages or attached to hooks."
+        title={t('blocksList.title')}
+        description={t('blocksList.description')}
         actions={
           <Button asChild>
-            <Link to="/cms/blocks/new">New block</Link>
+            <Link to="/cms/blocks/new">{t('blocksList.new')}</Link>
           </Button>
         }
       />
@@ -56,22 +58,22 @@ export function BlocksListPage(): ReactNode {
       ) : null}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Blocks</CardTitle>
+          <CardTitle className="text-base">{t('blocksList.cardTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading CMS blocks…</p>
+            <p className="text-sm text-muted-foreground">{t('blocksList.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No blocks found.</p>
+            <p className="text-sm text-muted-foreground">{t('blocksList.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Code</TableHead>
-                  <TableHead>State</TableHead>
-                  <TableHead>Languages</TableHead>
-                  <TableHead className="text-right">Version</TableHead>
+                  <TableHead>{t('columns.name')}</TableHead>
+                  <TableHead>{t('columns.code')}</TableHead>
+                  <TableHead>{t('columns.state')}</TableHead>
+                  <TableHead>{t('columns.languages')}</TableHead>
+                  <TableHead className="text-right">{t('columns.version')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -88,7 +90,7 @@ export function BlocksListPage(): ReactNode {
                     <TableCell className="font-mono text-xs">{block.code}</TableCell>
                     <TableCell>
                       <Badge variant={block.active ? 'default' : 'outline'}>
-                        {block.active ? 'active' : 'inactive'}
+                        {block.active ? t('state.active') : t('state.inactive')}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">

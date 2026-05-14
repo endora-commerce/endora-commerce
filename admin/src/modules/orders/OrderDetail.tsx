@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
+import { useTranslation } from '@/i18n/useTranslation';
 import {
   Table,
   TableBody,
@@ -60,6 +61,7 @@ const ORDER_STATUSES = [
 const PAYMENT_STATUSES = ['awaiting_payment', 'paid', 'deferred', 'refunded'] as const;
 
 export function OrderDetail(): ReactNode {
+  const t = useTranslation('core');
   const { id = '' } = useParams<{ id: string }>();
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,10 +93,10 @@ export function OrderDetail(): ReactNode {
     async (to: string): Promise<void> => {
       try {
         await apiClient.post<{ data: OrderDetail }>(`/api/v1/admin/orders/${id}/status`, { to });
-        setInfo(`Order moved to ${to}.`);
+        setInfo(t('orderDetail.messages.orderMoved', { status: t(`orderDetail.orderStatus.${to}`) }));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Status change failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.errors.statusChange'));
       }
     },
     [id, refresh],
@@ -107,30 +109,30 @@ export function OrderDetail(): ReactNode {
           `/api/v1/admin/orders/${id}/payment-status`,
           { to },
         );
-        setInfo(`Payment moved to ${to}.`);
+        setInfo(t('orderDetail.messages.paymentMoved', { status: t(`orderDetail.paymentStatus.${to}`) }));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Payment change failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.errors.paymentChange'));
       }
     },
     [id, refresh],
   );
 
-  if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  if (loading) return <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>;
   if (!order)
     return (
       <Alert variant="warning">
-        <AlertDescription>Order not found.</AlertDescription>
+        <AlertDescription>{t('orderDetail.notFound')}</AlertDescription>
       </Alert>
     );
 
   return (
     <>
       <PageHeader
-        title={`Order ${order.id.slice(0, 8)}`}
+        title={t('orderDetail.title', { id: order.id.slice(0, 8) })}
         description={
           <span>
-            placed {formatDateTime(order.placedAt)} · org{' '}
+            {t('orderDetail.placedAt', { date: formatDateTime(order.placedAt) })}{' '}
             <code className="font-mono text-xs">{order.organizationId.slice(0, 8)}</code>
           </span>
         }
@@ -139,7 +141,7 @@ export function OrderDetail(): ReactNode {
             <Button asChild variant="outline">
               <Link to="/orders">
                 <ArrowLeft />
-                Back
+                {t('common.action.back')}
               </Link>
             </Button>
             <Button asChild variant="outline">
@@ -149,7 +151,7 @@ export function OrderDetail(): ReactNode {
                 rel="noreferrer"
               >
                 <FileDown />
-                Invoice PDF
+                {t('orderDetail.invoicePdf')}
               </a>
             </Button>
           </>
@@ -169,12 +171,12 @@ export function OrderDetail(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Status</CardTitle>
+          <CardTitle>{t('orderDetail.sections.status')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="ostat">Order status</Label>
+              <Label htmlFor="ostat">{t('orderDetail.fields.orderStatus')}</Label>
               <Select
                 id="ostat"
                 value={order.status}
@@ -182,13 +184,13 @@ export function OrderDetail(): ReactNode {
               >
                 {ORDER_STATUSES.map((s) => (
                   <option key={s} value={s}>
-                    {s}
+                    {t(`orderDetail.orderStatus.${s}`)}
                   </option>
                 ))}
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="pstat">Payment status</Label>
+              <Label htmlFor="pstat">{t('orderDetail.fields.paymentStatus')}</Label>
               <Select
                 id="pstat"
                 value={order.paymentStatus}
@@ -196,7 +198,7 @@ export function OrderDetail(): ReactNode {
               >
                 {PAYMENT_STATUSES.map((s) => (
                   <option key={s} value={s}>
-                    {s}
+                    {t(`orderDetail.paymentStatus.${s}`)}
                   </option>
                 ))}
               </Select>
@@ -207,17 +209,17 @@ export function OrderDetail(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Items</CardTitle>
+          <CardTitle>{t('orderDetail.sections.items')}</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead>Qty</TableHead>
-                <TableHead>Unit</TableHead>
-                <TableHead>Tax</TableHead>
-                <TableHead>Line</TableHead>
+                <TableHead>{t('orderDetail.columns.product')}</TableHead>
+                <TableHead>{t('orderDetail.columns.qty')}</TableHead>
+                <TableHead>{t('orderDetail.columns.unit')}</TableHead>
+                <TableHead>{t('orderDetail.columns.tax')}</TableHead>
+                <TableHead>{t('orderDetail.columns.line')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -238,7 +240,7 @@ export function OrderDetail(): ReactNode {
             <tfoot className="border-t [&_td]:p-2 [&_th]:p-2">
               <tr>
                 <th colSpan={4} className="text-right font-medium text-muted-foreground">
-                  Subtotal
+                  {t('orderDetail.totals.subtotal')}
                 </th>
                 <td className="tabular-nums">
                   {order.subtotal.toFixed(2)} {order.currency}
@@ -246,7 +248,7 @@ export function OrderDetail(): ReactNode {
               </tr>
               <tr>
                 <th colSpan={4} className="text-right font-medium text-muted-foreground">
-                  Tax
+                  {t('orderDetail.totals.tax')}
                 </th>
                 <td className="tabular-nums">
                   {order.taxTotal.toFixed(2)} {order.currency}
@@ -254,7 +256,7 @@ export function OrderDetail(): ReactNode {
               </tr>
               <tr>
                 <th colSpan={4} className="text-right font-medium text-muted-foreground">
-                  Delivery
+                  {t('orderDetail.totals.delivery')}
                 </th>
                 <td className="tabular-nums">
                   {order.deliveryTotal.toFixed(2)} {order.currency}
@@ -262,7 +264,7 @@ export function OrderDetail(): ReactNode {
               </tr>
               <tr>
                 <th colSpan={4} className="text-right font-semibold">
-                  Total
+                  {t('orderDetail.totals.total')}
                 </th>
                 <td className="tabular-nums font-semibold">
                   {order.total.toFixed(2)} {order.currency}
@@ -276,7 +278,7 @@ export function OrderDetail(): ReactNode {
       <div className="mb-4 grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Delivery</CardTitle>
+            <CardTitle>{t('orderDetail.sections.delivery')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <p>
@@ -287,13 +289,13 @@ export function OrderDetail(): ReactNode {
               {order.deliveryAddress.country}
             </p>
             <p className="text-muted-foreground">
-              via <strong>{order.deliveryMethod.code}</strong>
+              {t('orderDetail.deliveryVia')} <strong>{order.deliveryMethod.code}</strong>
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Billing</CardTitle>
+            <CardTitle>{t('orderDetail.sections.billing')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <p>
@@ -304,7 +306,7 @@ export function OrderDetail(): ReactNode {
               {order.billingAddress.country}
             </p>
             <p className="text-muted-foreground">
-              paid by <strong>{order.paymentMethod.code}</strong> ({order.paymentMethod.kind})
+              {t('orderDetail.paidBy')} <strong>{order.paymentMethod.code}</strong> ({order.paymentMethod.kind})
             </p>
           </CardContent>
         </Card>
@@ -313,7 +315,7 @@ export function OrderDetail(): ReactNode {
       {order.customerNote ? (
         <Card>
           <CardHeader>
-            <CardTitle>Note from buyer</CardTitle>
+            <CardTitle>{t('orderDetail.sections.buyerNote')}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm">{order.customerNote}</p>

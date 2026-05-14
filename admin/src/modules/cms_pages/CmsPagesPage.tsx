@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
+import { useTranslation } from '@/i18n/useTranslation';
 import {
   Table,
   TableBody,
@@ -30,6 +31,7 @@ interface SingleEnvelope {
 const LOCALE_OPTIONS = ['en-US', 'pl-PL'];
 
 export function CmsPagesPage(): ReactNode {
+  const t = useTranslation('core');
   const [rows, setRows] = useState<CmsPage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,10 +63,10 @@ export function CmsPagesPage(): ReactNode {
     }): Promise<void> => {
       try {
         await apiClient.post<SingleEnvelope>('/api/v1/admin/cms/pages', input);
-        setInfo('Page created as draft. Publish to expose it on the storefront.');
+      setInfo(t('legacyCmsPages.messages.created'));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Create failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('legacyCmsPages.errors.create'));
       }
     },
     [refresh],
@@ -77,10 +79,10 @@ export function CmsPagesPage(): ReactNode {
     ): Promise<void> => {
       try {
         await apiClient.patch<SingleEnvelope>(`/api/v1/admin/cms/pages/${id}`, patch);
-        setInfo('Saved.');
+        setInfo(t('common.toast.saved'));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('legacyCmsPages.errors.save'));
       }
     },
     [refresh],
@@ -90,10 +92,10 @@ export function CmsPagesPage(): ReactNode {
     async (id: string, verb: 'publish' | 'unpublish' | 'archive'): Promise<void> => {
       try {
         await apiClient.post<SingleEnvelope>(`/api/v1/admin/cms/pages/${id}/${verb}`);
-        setInfo(`Page ${verb}ed.`);
+        setInfo(t(`legacyCmsPages.messages.${verb}`));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : `${verb} failed.`);
+        setError(err instanceof ApiError ? err.envelope.error.message : t(`legacyCmsPages.errors.${verb}`));
       }
     },
     [refresh],
@@ -101,14 +103,14 @@ export function CmsPagesPage(): ReactNode {
 
   const remove = useCallback(
     async (id: string): Promise<void> => {
-      if (!confirm('Delete this page? This is permanent.')) return;
+      if (!confirm(t('legacyCmsPages.deleteConfirm'))) return;
       try {
         await apiClient.delete<void>(`/api/v1/admin/cms/pages/${id}`);
-        setInfo('Page deleted.');
+        setInfo(t('legacyCmsPages.messages.deleted'));
         if (editing?.id === id) setEditing(null);
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('legacyCmsPages.errors.delete'));
       }
     },
     [refresh, editing],
@@ -117,8 +119,8 @@ export function CmsPagesPage(): ReactNode {
   return (
     <>
       <PageHeader
-        title="CMS pages"
-        description="Editorial copy served at the configured path. Title and body are multilingual."
+        title={t('legacyCmsPages.title')}
+        description={t('legacyCmsPages.description')}
       />
 
       {error ? (
@@ -134,7 +136,7 @@ export function CmsPagesPage(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Create page</CardTitle>
+          <CardTitle>{t('legacyCmsPages.createTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           <CreatePageForm onSubmit={create} />
@@ -143,21 +145,21 @@ export function CmsPagesPage(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Pages</CardTitle>
+          <CardTitle>{t('legacyCmsPages.pagesTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No CMS pages yet.</p>
+            <p className="text-sm text-muted-foreground">{t('legacyCmsPages.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Path</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Published</TableHead>
-                  <TableHead>Updated</TableHead>
+                  <TableHead>{t('legacyCmsPages.columns.path')}</TableHead>
+                  <TableHead>{t('legacyCmsPages.columns.status')}</TableHead>
+                  <TableHead>{t('legacyCmsPages.columns.published')}</TableHead>
+                  <TableHead>{t('legacyCmsPages.columns.updated')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -177,7 +179,7 @@ export function CmsPagesPage(): ReactNode {
                           size="sm"
                           onClick={(): void => setEditing(editing?.id === row.id ? null : row)}
                         >
-                          {editing?.id === row.id ? 'Close' : 'Edit'}
+                          {editing?.id === row.id ? t('common.action.close') : t('common.action.edit')}
                         </Button>
                         {row.status === 'published' ? (
                           <Button
@@ -187,7 +189,7 @@ export function CmsPagesPage(): ReactNode {
                               void action(row.id, 'unpublish');
                             }}
                           >
-                            Unpublish
+                            {t('legacyCmsPages.actions.unpublish')}
                           </Button>
                         ) : (
                           <Button
@@ -196,7 +198,7 @@ export function CmsPagesPage(): ReactNode {
                               void action(row.id, 'publish');
                             }}
                           >
-                            Publish
+                            {t('legacyCmsPages.actions.publish')}
                           </Button>
                         )}
                         {row.status !== 'archived' ? (
@@ -207,7 +209,7 @@ export function CmsPagesPage(): ReactNode {
                               void action(row.id, 'archive');
                             }}
                           >
-                            Archive
+                            {t('legacyCmsPages.actions.archive')}
                           </Button>
                         ) : null}
                         <Button
@@ -218,7 +220,7 @@ export function CmsPagesPage(): ReactNode {
                           }}
                         >
                           <Trash2 />
-                          Delete
+                          {t('common.action.delete')}
                         </Button>
                       </div>
                     </TableCell>
@@ -236,9 +238,10 @@ export function CmsPagesPage(): ReactNode {
 }
 
 function StatusBadge({ status }: { status: CmsPage['status'] }): ReactNode {
+  const t = useTranslation('core');
   const variant =
     status === 'published' ? 'success' : status === 'archived' ? 'destructive' : 'warning';
-  return <Badge variant={variant}>{status}</Badge>;
+  return <Badge variant={variant}>{t(`legacyCmsPages.status.${status}`)}</Badge>;
 }
 
 function CreatePageForm(props: {
@@ -248,6 +251,7 @@ function CreatePageForm(props: {
     body: Record<string, string>;
   }) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('core');
   const [path, setPath] = useState('');
   const [titleEn, setTitleEn] = useState('');
   const [bodyEn, setBodyEn] = useState('');
@@ -279,20 +283,20 @@ function CreatePageForm(props: {
       }}
     >
       <div className="space-y-2">
-        <Label>Path</Label>
+        <Label>{t('legacyCmsPages.fields.path')}</Label>
         <Input
           value={path}
           onChange={(e): void => setPath(e.target.value)}
-          placeholder="about-us or policies/privacy"
+          placeholder={t('legacyCmsPages.placeholders.path')}
         />
-        <p className="text-xs text-muted-foreground">kebab-case; / for nested paths.</p>
+        <p className="text-xs text-muted-foreground">{t('legacyCmsPages.pathHelp')}</p>
       </div>
       <div className="space-y-2">
-        <Label>Title (en-US)</Label>
+        <Label>{t('legacyCmsPages.fields.titleEn')}</Label>
         <Input value={titleEn} onChange={(e): void => setTitleEn(e.target.value)} />
       </div>
       <div className="space-y-2">
-        <Label>Body (en-US)</Label>
+        <Label>{t('legacyCmsPages.fields.bodyEn')}</Label>
         <Textarea
           rows={6}
           value={bodyEn}
@@ -300,7 +304,7 @@ function CreatePageForm(props: {
         />
       </div>
       <Button type="submit" disabled={busy || !path.trim() || !titleEn.trim()}>
-        {busy ? 'Creating…' : 'Create page'}
+        {busy ? t('legacyCmsPages.actions.creating') : t('legacyCmsPages.actions.create')}
       </Button>
     </form>
   );
@@ -313,6 +317,7 @@ function EditorCard(props: {
     patch: { title: Record<string, string>; body: Record<string, string> },
   ) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('core');
   const initialLocales = useMemo(
     () =>
       Array.from(
@@ -341,7 +346,7 @@ function EditorCard(props: {
     <Card>
       <CardHeader>
         <CardTitle>
-          Edit <code className="font-mono">/{props.page.path}</code>
+          {t('legacyCmsPages.editTitle')} <code className="font-mono">/{props.page.path}</code>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -349,14 +354,14 @@ function EditorCard(props: {
           <div key={locale} className="space-y-3 rounded-md border p-4">
             <h3 className="text-sm font-semibold">{locale}</h3>
             <div className="space-y-2">
-              <Label>Title</Label>
+              <Label>{t('legacyCmsPages.fields.title')}</Label>
               <Input
                 value={title[locale] ?? ''}
                 onChange={(e): void => setTitle((t) => ({ ...t, [locale]: e.target.value }))}
               />
             </div>
             <div className="space-y-2">
-              <Label>Body</Label>
+              <Label>{t('legacyCmsPages.fields.body')}</Label>
               <Textarea
                 rows={6}
                 value={body[locale] ?? ''}
@@ -371,7 +376,7 @@ function EditorCard(props: {
             void onSave();
           }}
         >
-          {busy ? 'Saving…' : 'Save'}
+          {busy ? t('legacyCmsPages.actions.saving') : t('common.action.save')}
         </Button>
       </CardContent>
     </Card>

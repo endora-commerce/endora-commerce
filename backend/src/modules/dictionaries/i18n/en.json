@@ -76,5 +76,13 @@
   "languages.editor.editTitle": "Edit {code}",
   "languages.editor.title": "Language editor",
   "languages.editor.selectHint": "Select a language or create a new one.",
-  "languages.editor.associatedCountries": "Associated countries"
+  "languages.editor.associatedCountries": "Associated countries",
+  "errors.DICTIONARY_ENTRY_NOT_FOUND": "Dictionary Entry Not Found.",
+  "errors.DICTIONARY_ENTRY_INACTIVE": "Dictionary Entry Inactive.",
+  "errors.DICTIONARY_ENTRY_HAS_DEPENDENTS": "Dictionary Entry Has Dependents.",
+  "errors.DICTIONARY_LAST_ACTIVE_ENTRY": "Dictionary Last Active Entry.",
+  "errors.DICTIONARY_DEFAULT_CANNOT_BE_DEACTIVATED": "Dictionary Default Cannot Be Deactivated.",
+  "errors.DICTIONARY_FALLBACK_CYCLE": "Dictionary Fallback Cycle.",
+  "errors.DICTIONARY_CODE_IMMUTABLE": "Dictionary Code Immutable.",
+  "errors.DICTIONARY_TRANSLATION_LANGUAGE_INACTIVE": "Dictionary Translation Language Inactive."
 }

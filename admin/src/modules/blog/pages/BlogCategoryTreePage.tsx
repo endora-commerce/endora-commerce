@@ -5,6 +5,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
+import { useTranslation } from '@/i18n/useTranslation';
 import { blogClient } from '../api/blog-client';
 import { CategoryTreeNode } from '../components/CategoryTreeNode';
 
@@ -30,6 +31,7 @@ function flatten(tree: TreeNode[]): FlatNode[] {
 }
 
 export function BlogCategoryTreePage(): ReactNode {
+  const t = useTranslation('blog');
   const navigate = useNavigate();
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,7 +91,7 @@ export function BlogCategoryTreePage(): ReactNode {
 
   const onDelete = useCallback(
     async (node: TreeNode) => {
-      if (!window.confirm(`Delete category "${node.slug}"?`)) return;
+      if (!window.confirm(t('categoryTree.deleteConfirm', { slug: node.slug }))) return;
       setWorking(true);
       setError(null);
       try {
@@ -116,11 +118,11 @@ export function BlogCategoryTreePage(): ReactNode {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Blog categories"
-        description="Tree-structured taxonomy. The seeded Default category is system-protected."
+        title={t('categoryTree.title')}
+        description={t('categoryTree.description')}
         actions={
           <Button asChild>
-            <a href="/blog/categories/new">New category</a>
+            <a href="/blog/categories/new">{t('categoryTree.newCategory')}</a>
           </Button>
         }
       />
@@ -133,13 +135,13 @@ export function BlogCategoryTreePage(): ReactNode {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Tree</CardTitle>
+          <CardTitle className="text-base">{t('categoryTree.cardTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
           ) : flat.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No categories yet.</p>
+            <p className="text-sm text-muted-foreground">{t('categoryTree.empty')}</p>
           ) : (
             <div className="rounded border">
               {flat.map((entry) => {

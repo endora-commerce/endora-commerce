@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useTranslation } from '@/i18n/useTranslation';
 import { blogClient } from '../api/blog-client';
 
 function pickName(name: Record<string, string> | undefined | null, fallback: string): string {
@@ -19,6 +20,7 @@ interface TagPickerProps {
 }
 
 export function TagPicker({ value, onChange }: TagPickerProps): ReactNode {
+  const t = useTranslation('blog');
   const [allTags, setAllTags] = useState<BlogTagDetail[]>([]);
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
@@ -84,9 +86,9 @@ export function TagPicker({ value, onChange }: TagPickerProps): ReactNode {
       ) : null}
 
       <div>
-        <Label>Attached tags ({value.length})</Label>
+        <Label>{t('tagPicker.title', { count: value.length })}</Label>
         {value.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No tags attached yet.</p>
+          <p className="text-sm text-muted-foreground">{t('tagPicker.empty')}</p>
         ) : (
           <div className="mt-2 flex flex-wrap gap-2">
             {value.map((id, idx) => {
@@ -99,7 +101,7 @@ export function TagPicker({ value, onChange }: TagPickerProps): ReactNode {
                   <Badge variant="outline" className="font-mono text-[10px]">
                     {tag?.code ?? id}
                   </Badge>
-                  <span>{tag ? pickName(tag.name, tag.code) : '(unknown)'}</span>
+                  <span>{tag ? pickName(tag.name, tag.code) : t('common.unknown')}</span>
                   <Button
                     type="button"
                     variant="outline"
@@ -107,7 +109,7 @@ export function TagPicker({ value, onChange }: TagPickerProps): ReactNode {
                     className="ml-1 h-6 w-6 p-0"
                     disabled={idx === 0}
                     onClick={() => move(id, 'up')}
-                    aria-label="Move tag up"
+                    aria-label={t('tagPicker.moveUp')}
                   >
                     ↑
                   </Button>
@@ -118,7 +120,7 @@ export function TagPicker({ value, onChange }: TagPickerProps): ReactNode {
                     className="h-6 w-6 p-0"
                     disabled={idx === value.length - 1}
                     onClick={() => move(id, 'down')}
-                    aria-label="Move tag down"
+                    aria-label={t('tagPicker.moveDown')}
                   >
                     ↓
                   </Button>
@@ -139,20 +141,18 @@ export function TagPicker({ value, onChange }: TagPickerProps): ReactNode {
       </div>
 
       <div>
-        <Label htmlFor="tag-picker-search">Add tag</Label>
+        <Label htmlFor="tag-picker-search">{t('tagPicker.add')}</Label>
         <Input
           id="tag-picker-search"
           value={q}
           onChange={(event) => setQ(event.target.value)}
-          placeholder="Search name or code…"
+          placeholder={t('tagPicker.searchPlaceholder')}
         />
         {loading ? (
-          <p className="mt-2 text-sm text-muted-foreground">Loading tags…</p>
+          <p className="mt-2 text-sm text-muted-foreground">{t('tagPicker.loading')}</p>
         ) : candidates.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">
-            {q
-              ? 'No matching tags. Create one on the Tags page.'
-              : 'All available tags are already attached.'}
+            {q ? t('tagPicker.noMatches') : t('tagPicker.noCandidates')}
           </p>
         ) : (
           <div className="mt-2 flex flex-wrap gap-2">

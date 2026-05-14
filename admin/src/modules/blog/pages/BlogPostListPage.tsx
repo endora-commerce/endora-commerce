@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
+import { useTranslation } from '@/i18n/useTranslation';
 import {
   Table,
   TableBody,
@@ -31,6 +32,7 @@ function pickPrimaryName(
 }
 
 export function BlogPostListPage(): ReactNode {
+  const t = useTranslation('blog');
   const [rows, setRows] = useState<BlogPostSummary[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -67,11 +69,11 @@ export function BlogPostListPage(): ReactNode {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Blog posts"
-        description="Author and publish editorial content with the same Page Builder used for CMS pages."
+        title={t('postList.title')}
+        description={t('postList.description')}
         actions={
           <Button asChild>
-            <Link to="/blog/posts/new">New post</Link>
+            <Link to="/blog/posts/new">{t('postList.newPost')}</Link>
           </Button>
         }
       />
@@ -85,9 +87,9 @@ export function BlogPostListPage(): ReactNode {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
           <CardTitle className="text-base">
-            Posts
+            {t('postList.cardTitle')}
             <span className="ml-2 text-xs font-normal text-muted-foreground">
-              ({totalItems} total)
+              {t('postList.total', { total: totalItems })}
             </span>
           </CardTitle>
           <div className="flex items-center gap-2">
@@ -100,7 +102,7 @@ export function BlogPostListPage(): ReactNode {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') void load();
               }}
-              placeholder="Search name or slug…"
+              placeholder={t('postList.searchPlaceholder')}
               className="w-64"
             />
             <Select
@@ -111,31 +113,31 @@ export function BlogPostListPage(): ReactNode {
               }}
               className="w-40"
             >
-              <option value="">All statuses</option>
-              <option value="draft">draft</option>
-              <option value="published">published</option>
-              <option value="archived">archived</option>
+              <option value="">{t('postList.allStatuses')}</option>
+              <option value="draft">{t('status.draft')}</option>
+              <option value="published">{t('status.published')}</option>
+              <option value="archived">{t('status.archived')}</option>
             </Select>
             <Button type="button" variant="outline" size="sm" onClick={() => void load()}>
-              Search
+              {t('common.search')}
             </Button>
           </div>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading blog posts…</p>
+            <p className="text-sm text-muted-foreground">{t('postList.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No posts found.</p>
+            <p className="text-sm text-muted-foreground">{t('postList.empty')}</p>
           ) : (
             <>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Slug</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Languages</TableHead>
-                    <TableHead className="text-right">Version</TableHead>
+                    <TableHead>{t('columns.name')}</TableHead>
+                    <TableHead>{t('columns.slug')}</TableHead>
+                    <TableHead>{t('columns.status')}</TableHead>
+                    <TableHead>{t('columns.languages')}</TableHead>
+                    <TableHead className="text-right">{t('columns.version')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -167,7 +169,7 @@ export function BlogPostListPage(): ReactNode {
               {totalPages > 1 ? (
                 <div className="mt-4 flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">
-                    Page {page} / {totalPages}
+                    {t('pagination.page', { page, totalPages })}
                   </span>
                   <div className="flex gap-2">
                     <Button
@@ -177,7 +179,7 @@ export function BlogPostListPage(): ReactNode {
                       disabled={page === 1}
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
                     >
-                      Previous
+                      {t('pagination.previous')}
                     </Button>
                     <Button
                       type="button"
@@ -186,7 +188,7 @@ export function BlogPostListPage(): ReactNode {
                       disabled={page >= totalPages}
                       onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                     >
-                      Next
+                      {t('pagination.next')}
                     </Button>
                   </div>
                 </div>

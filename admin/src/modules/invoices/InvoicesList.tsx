@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
+import { useTranslation } from '@/i18n/useTranslation';
 import {
   Table,
   TableBody,
@@ -40,6 +41,7 @@ const STATUS_VARIANT: Record<AdminInvoice['status'], 'default' | 'secondary' | '
 };
 
 export function InvoicesList(): ReactNode {
+  const t = useTranslation('core');
   const [rows, setRows] = useState<AdminInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,8 +73,8 @@ export function InvoicesList(): ReactNode {
   return (
     <>
       <PageHeader
-        title="Invoices"
-        description="Read-only. Generation is driven by order events; PDF re-download is per-order."
+        title={t('invoices.title')}
+        description={t('invoices.description')}
       />
 
       {error ? (
@@ -84,16 +86,16 @@ export function InvoicesList(): ReactNode {
       <Card className="mb-4">
         <CardContent className="pt-6">
           <div className="space-y-2 md:max-w-xs">
-            <Label htmlFor="istatus">Status</Label>
+            <Label htmlFor="istatus">{t('invoices.fields.status')}</Label>
             <Select
               id="istatus"
               value={status}
               onChange={(e): void => setStatus(e.target.value as typeof status)}
             >
-              <option value="">All</option>
+              <option value="">{t('invoices.status.all')}</option>
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {t(`invoices.status.${s}`)}
                 </option>
               ))}
             </Select>
@@ -104,19 +106,19 @@ export function InvoicesList(): ReactNode {
       <Card>
         <CardContent className="pt-6">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No invoices match the current filter.</p>
+            <p className="text-sm text-muted-foreground">{t('invoices.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Number</TableHead>
-                  <TableHead>Kind</TableHead>
-                  <TableHead>Issued</TableHead>
-                  <TableHead>Order</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>{t('invoices.columns.number')}</TableHead>
+                  <TableHead>{t('invoices.columns.kind')}</TableHead>
+                  <TableHead>{t('invoices.columns.issued')}</TableHead>
+                  <TableHead>{t('invoices.columns.order')}</TableHead>
+                  <TableHead>{t('invoices.columns.total')}</TableHead>
+                  <TableHead>{t('invoices.columns.status')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -124,7 +126,7 @@ export function InvoicesList(): ReactNode {
                 {rows.map((i) => (
                   <TableRow key={i.id}>
                     <TableCell className="font-medium">{i.number}</TableCell>
-                    <TableCell>{i.kind}</TableCell>
+                    <TableCell>{t(`invoices.kind.${i.kind}`)}</TableCell>
                     <TableCell>{formatDateTime(i.issuedAt)}</TableCell>
                     <TableCell>
                       <Link
@@ -138,7 +140,7 @@ export function InvoicesList(): ReactNode {
                       {i.total.toFixed(2)} {i.currency}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={STATUS_VARIANT[i.status]}>{i.status}</Badge>
+                      <Badge variant={STATUS_VARIANT[i.status]}>{t(`invoices.status.${i.status}`)}</Badge>
                     </TableCell>
                     <TableCell>
                       {i.pdfReady ? (
@@ -153,7 +155,7 @@ export function InvoicesList(): ReactNode {
                           </a>
                         </Button>
                       ) : (
-                        <span className="text-xs text-muted-foreground">not ready</span>
+                        <span className="text-xs text-muted-foreground">{t('invoices.pdfNotReady')}</span>
                       )}
                     </TableCell>
                   </TableRow>

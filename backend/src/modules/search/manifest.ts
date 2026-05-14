@@ -108,6 +108,7 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   dependencies: ['settings', 'sales_channels'],
   settings,
+  i18n: { bundlesDir: 'i18n' },
 });
 
 /** Legacy export retained for backward compatibility. */

@@ -45,5 +45,18 @@
   "membership.defaultSuffix": " (domyślny)",
   "membership.action.pickChannel": "Dodaj do kanału…",
   "membership.action.add": "Dodaj",
-  "membership.action.remove": "Usuń"
+  "membership.action.remove": "Usuń",
+  "errors.UNKNOWN_SALES_CHANNEL": "Błąd: unknown sales channel.",
+  "errors.INACTIVE_SALES_CHANNEL": "Błąd: inactive sales channel.",
+  "errors.MISSING_SALES_CHANNEL_CONTEXT": "Błąd: missing sales channel context.",
+  "errors.DUPLICATE_SALES_CHANNEL_CODE": "Błąd: duplicate sales channel code.",
+  "errors.UNKNOWN_LANGUAGE_CODE": "Błąd: unknown language code.",
+  "errors.UNKNOWN_CURRENCY_CODE": "Błąd: unknown currency code.",
+  "errors.CANNOT_MODIFY_SYSTEM_DEFAULT": "Błąd: cannot modify system default.",
+  "errors.SALES_CHANNEL_HAS_ATTRIBUTIONS": "Błąd: sales channel has attributions.",
+  "errors.ENTITY_WOULD_HAVE_ZERO_CHANNELS": "Błąd: entity would have zero channels.",
+  "errors.STALE_SALES_CHANNEL_WRITE": "Błąd: stale sales channel write.",
+  "errors.SALES_CHANNEL_ATTRIBUTION_IMMUTABLE": "Błąd: sales channel attribution immutable.",
+  "auditLog.sales_channel.lifecycle_changed": "Zmieniono cykl życia kanału sprzedaży",
+  "auditLog.sales_channel.membership_changed": "Zmieniono przypisanie do kanału sprzedaży"
 }

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Textarea } from '@/components/ui/textarea';
+import { useTranslation } from '@/i18n/useTranslation';
 import { ContentLanguageTabs } from '../components/ContentLanguageTabs';
 import { PageBuilderEditor } from '../components/PageBuilderEditor';
 import { ScopePicker, type CmsScopeValue } from '../components/ScopePicker';
@@ -30,6 +31,7 @@ function dataFor(template: CmsTemplateDetail | null, language: string | null): D
 }
 
 export function TemplateEditor(): ReactNode {
+  const t = useTranslation('cms');
   const { id } = useParams();
   const isNew = !id || id === 'new';
   const navigate = useNavigate();
@@ -109,15 +111,15 @@ export function TemplateEditor(): ReactNode {
   return (
     <div className="space-y-4">
       <PageHeader
-        title={isNew ? 'New CMS Template' : form.name || 'CMS Template'}
-        description="Author reusable Page Builder fragments embedded in pages or blocks."
+        title={isNew ? t('templateEditor.title.new') : form.name || t('templateEditor.title.edit')}
+        description={t('templateEditor.description')}
         actions={
           <div className="flex gap-2">
             <Button asChild variant="outline">
-              <Link to="/cms/templates">Back</Link>
+              <Link to="/cms/templates">{t('common.back')}</Link>
             </Button>
             <Button type="button" onClick={() => void save()} disabled={saving}>
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? t('common.saving') : t('common.save')}
             </Button>
           </div>
         }
@@ -131,19 +133,19 @@ export function TemplateEditor(): ReactNode {
         <div className="col-span-4 space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Template metadata</CardTitle>
+              <CardTitle className="text-base">{t('templateEditor.metadata')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1">
-                <Label>Name</Label>
+                <Label>{t('fields.name')}</Label>
                 <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label>Code</Label>
+                <Label>{t('fields.code')}</Label>
                 <Input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label>Description</Label>
+                <Label>{t('fields.description')}</Label>
                 <Textarea
                   value={form.description}
                   onChange={(event) => setForm({ ...form, description: event.target.value })}

@@ -154,7 +154,7 @@ export function ApiKeysPage(): ReactNode {
                     <TableCell className="font-medium">{k.name}</TableCell>
                     <TableCell>
                       <Badge variant={k.status === 'active' ? 'success' : 'destructive'}>
-                        {k.status}
+                        {t(`apiKeys.status.${k.status}`)}
                       </Badge>
                     </TableCell>
                     <TableCell>

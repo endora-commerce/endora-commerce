@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
+import { useTranslation } from '@/i18n/useTranslation';
 import {
   Table,
   TableBody,
@@ -18,6 +19,7 @@ import {
 import { megamenuClient } from '../api/megamenu-client';
 
 export function MegamenuListPage(): ReactNode {
+  const t = useTranslation('megamenu');
   const navigate = useNavigate();
   const [rows, setRows] = useState<MegamenuSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,18 +61,18 @@ export function MegamenuListPage(): ReactNode {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Megamenu"
-        description="Storefront navigation configurations. One active megamenu per (sales channel × language) at a time."
+        title={t('list.title')}
+        description={t('list.description')}
         actions={
           <div className="flex items-center gap-2">
             <Input
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="New megamenu name"
+              placeholder={t('list.newNamePlaceholder')}
               className="w-72"
             />
             <Button onClick={() => void create()} disabled={creating || !name.trim()}>
-              Create
+              {t('common.create')}
             </Button>
           </div>
         }
@@ -82,21 +84,21 @@ export function MegamenuListPage(): ReactNode {
       ) : null}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Configurations</CardTitle>
+          <CardTitle className="text-base">{t('list.cardTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No megamenus yet.</p>
+            <p className="text-sm text-muted-foreground">{t('list.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Bindings</TableHead>
-                  <TableHead>Active</TableHead>
-                  <TableHead className="text-right">Version</TableHead>
+                  <TableHead>{t('columns.name')}</TableHead>
+                  <TableHead>{t('columns.bindings')}</TableHead>
+                  <TableHead>{t('columns.active')}</TableHead>
+                  <TableHead className="text-right">{t('columns.version')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -112,9 +114,9 @@ export function MegamenuListPage(): ReactNode {
                     </TableCell>
                     <TableCell>
                       {row.activeIn > 0 ? (
-                        <Badge>{row.activeIn} scope{row.activeIn === 1 ? '' : 's'}</Badge>
+                        <Badge>{t('list.activeScopes', { count: row.activeIn })}</Badge>
                       ) : (
-                        <Badge variant="outline">staged</Badge>
+                        <Badge variant="outline">{t('state.staged')}</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-right text-xs text-muted-foreground">v{row.version}</TableCell>

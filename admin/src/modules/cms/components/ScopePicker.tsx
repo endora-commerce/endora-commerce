@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { useTranslation } from '@/i18n/useTranslation';
 import { salesChannelsClient } from '@/modules/sales_channels/api/sales-channels-client';
 
 export interface CmsScopeValue {
@@ -19,6 +20,7 @@ export function ScopePicker({
   value: CmsScopeValue;
   onChange: (value: CmsScopeValue) => void;
 }): ReactNode {
+  const t = useTranslation('cms');
   const [channels, setChannels] = useState<SalesChannelSummary[]>([]);
   const [details, setDetails] = useState<Record<string, SalesChannelDetail>>({});
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +107,7 @@ export function ScopePicker({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Scope</CardTitle>
+        <CardTitle className="text-base">{t('scope.title')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? (
@@ -130,7 +132,7 @@ export function ScopePicker({
         </div>
 
         <div className="space-y-2">
-          <Label>Languages</Label>
+          <Label>{t('fields.languages')}</Label>
           <div className="flex flex-wrap gap-2">
             {allowedLanguages.map((language) => (
               <label key={language} className="flex items-center gap-2 rounded border px-3 py-2 text-sm">
@@ -142,7 +144,7 @@ export function ScopePicker({
               </label>
             ))}
             {allowedLanguages.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Select at least one channel.</p>
+              <p className="text-sm text-muted-foreground">{t('scope.selectChannel')}</p>
             ) : null}
           </div>
         </div>

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
+import { useTranslation } from '@/i18n/useTranslation';
 import {
   Table,
   TableBody,
@@ -28,6 +29,7 @@ interface AdminDeliveryMethod {
 }
 
 export function DeliveryMethodsPage(): ReactNode {
+  const t = useTranslation('core');
   const [rows, setRows] = useState<AdminDeliveryMethod[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,10 +77,10 @@ export function DeliveryMethodsPage(): ReactNode {
             status: input.status,
           },
         );
-        setInfo(`Saved ${input.code}.`);
+        setInfo(t('legacyMethods.messages.saved', { code: input.code }));
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('legacyMethods.errors.save'));
       }
     },
     [refresh],
@@ -86,12 +88,12 @@ export function DeliveryMethodsPage(): ReactNode {
 
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
-      if (!confirm('Delete this delivery method?')) return;
+      if (!confirm(t('legacyMethods.delivery.deleteConfirm'))) return;
       try {
         await apiClient.delete<void>(`/api/v1/admin/delivery-methods/${id}`);
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('legacyMethods.errors.delete'));
       }
     },
     [refresh],
@@ -100,8 +102,8 @@ export function DeliveryMethodsPage(): ReactNode {
   return (
     <>
       <PageHeader
-        title="Delivery methods"
-        description="Cost is captured per-order at placement; later edits don't rewrite history."
+        title={t('legacyMethods.delivery.title')}
+        description={t('legacyMethods.delivery.description')}
       />
 
       {error ? (
@@ -117,7 +119,7 @@ export function DeliveryMethodsPage(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>New / update method</CardTitle>
+          <CardTitle>{t('legacyMethods.formTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           <UpsertForm onSubmit={handleUpsert} />
@@ -127,17 +129,17 @@ export function DeliveryMethodsPage(): ReactNode {
       <Card>
         <CardContent className="pt-6">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No delivery methods yet.</p>
+            <p className="text-sm text-muted-foreground">{t('legacyMethods.delivery.empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Cost</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>{t('legacyMethods.columns.code')}</TableHead>
+                  <TableHead>{t('legacyMethods.columns.name')}</TableHead>
+                  <TableHead>{t('legacyMethods.columns.cost')}</TableHead>
+                  <TableHead>{t('legacyMethods.columns.status')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -153,7 +155,7 @@ export function DeliveryMethodsPage(): ReactNode {
                     </TableCell>
                     <TableCell>
                       <Badge variant={r.status === 'active' ? 'success' : 'secondary'}>
-                        {r.status}
+                        {t(`legacyMethods.status.${r.status}`)}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -164,7 +166,7 @@ export function DeliveryMethodsPage(): ReactNode {
                         onClick={(): void => void handleDelete(r.id)}
                       >
                         <Trash2 />
-                        Delete
+                        {t('common.action.delete')}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -190,6 +192,7 @@ function UpsertForm({
     status: 'active' | 'inactive';
   }) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('core');
   const [code, setCode] = useState('');
   const [nameEn, setNameEn] = useState('');
   const [namePl, setNamePl] = useState('');
@@ -206,7 +209,7 @@ function UpsertForm({
     >
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="dcode">Code</Label>
+          <Label htmlFor="dcode">{t('legacyMethods.fields.code')}</Label>
           <Input
             id="dcode"
             value={code}
@@ -215,15 +218,15 @@ function UpsertForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="dnameen">Name [en-US]</Label>
+          <Label htmlFor="dnameen">{t('legacyMethods.fields.nameEn')}</Label>
           <Input id="dnameen" value={nameEn} onChange={(e): void => setNameEn(e.target.value)} />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="dnamepl">Name [pl-PL]</Label>
+          <Label htmlFor="dnamepl">{t('legacyMethods.fields.namePl')}</Label>
           <Input id="dnamepl" value={namePl} onChange={(e): void => setNamePl(e.target.value)} />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="dcost">Cost</Label>
+          <Label htmlFor="dcost">{t('legacyMethods.fields.cost')}</Label>
           <Input
             id="dcost"
             type="number"
@@ -234,7 +237,7 @@ function UpsertForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="dcur">Currency</Label>
+          <Label htmlFor="dcur">{t('legacyMethods.fields.currency')}</Label>
           <CurrencyPicker
             id="dcur"
             value={currency}
@@ -243,18 +246,18 @@ function UpsertForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="dstatus">Status</Label>
+          <Label htmlFor="dstatus">{t('legacyMethods.fields.status')}</Label>
           <Select
             id="dstatus"
             value={status}
             onChange={(e): void => setStatus(e.target.value as 'active' | 'inactive')}
           >
-            <option value="active">active</option>
-            <option value="inactive">inactive</option>
+            <option value="active">{t('legacyMethods.status.active')}</option>
+            <option value="inactive">{t('legacyMethods.status.inactive')}</option>
           </Select>
         </div>
       </div>
-      <Button type="submit">Save</Button>
+      <Button type="submit">{t('common.action.save')}</Button>
     </form>
   );
 }

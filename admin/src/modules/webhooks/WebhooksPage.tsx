@@ -213,7 +213,7 @@ export function WebhooksPage(): ReactNode {
                     </TableCell>
                     <TableCell>
                       <Badge variant={w.status === 'active' ? 'success' : 'warning'}>
-                        {w.status}
+                        {t(`webhooks.status.${w.status}`)}
                       </Badge>
                     </TableCell>
                     <TableCell>

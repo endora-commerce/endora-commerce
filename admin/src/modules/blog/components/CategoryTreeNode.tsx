@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type { BlogCategoryTreeNode as TreeNode } from '@b2b/contracts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useTranslation } from '@/i18n/useTranslation';
 
 function pickName(name: Record<string, string> | undefined | null, fallback: string): string {
   if (!name) return fallback;
@@ -30,6 +31,8 @@ export function CategoryTreeNode({
   onAddChild,
   onDelete,
 }: NodeRowProps): ReactNode {
+  const t = useTranslation('blog');
+
   return (
     <div
       className="flex items-center gap-2 border-b py-2"
@@ -48,12 +51,12 @@ export function CategoryTreeNode({
       </Badge>
       {!node.enabled ? (
         <Badge variant="outline" className="text-[10px]">
-          disabled
+          {t('state.disabled')}
         </Badge>
       ) : null}
       {node.isSystem ? (
         <Badge variant="secondary" className="text-[10px]">
-          system
+          {t('state.system')}
         </Badge>
       ) : null}
       <span className="ml-auto flex gap-1">
@@ -63,7 +66,7 @@ export function CategoryTreeNode({
           size="sm"
           disabled={!canMoveUp}
           onClick={() => onMoveUp(node)}
-          aria-label="Move up"
+          aria-label={t('common.moveUp')}
         >
           ↑
         </Button>
@@ -73,7 +76,7 @@ export function CategoryTreeNode({
           size="sm"
           disabled={!canMoveDown}
           onClick={() => onMoveDown(node)}
-          aria-label="Move down"
+          aria-label={t('common.moveDown')}
         >
           ↓
         </Button>
@@ -83,7 +86,7 @@ export function CategoryTreeNode({
           size="sm"
           onClick={() => onAddChild(node.id)}
         >
-          + Child
+          {t('categoryTree.addChild')}
         </Button>
         <Button
           type="button"
@@ -92,7 +95,7 @@ export function CategoryTreeNode({
           disabled={node.isSystem}
           onClick={() => onDelete(node)}
         >
-          Delete
+          {t('common.delete')}
         </Button>
       </span>
     </div>

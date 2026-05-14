@@ -152,7 +152,7 @@ export function SettingRowEditor({
         </Button>
       </div>
 
-      <div>{renderInput(setting.valueType, draft.text, setText)}</div>
+      <div>{renderInput(setting.valueType, draft.text, setText, t)}</div>
 
       <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
         <span>
@@ -187,6 +187,7 @@ function renderInput(
   valueType: SettingDto['valueType'],
   value: string,
   setValue: (v: string) => void,
+  t: (key: string, params?: Record<string, string | number>) => string,
 ): ReactNode {
   if (valueType === 'boolean') {
     return (
@@ -206,7 +207,7 @@ function renderInput(
         className="min-h-[96px] w-full rounded-md border bg-background px-3 py-2 font-mono text-sm"
         value={value}
         onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setValue(e.target.value)}
-        placeholder='{"key": "value"}'
+        placeholder={t('editor.placeholder.json')}
       />
     );
   }
@@ -215,7 +216,7 @@ function renderInput(
       <Input
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="comma,separated,values"
+        placeholder={t('editor.placeholder.stringList')}
       />
     );
   }

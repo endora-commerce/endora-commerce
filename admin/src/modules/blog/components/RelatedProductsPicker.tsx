@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useTranslation } from '@/i18n/useTranslation';
 
 interface AdminProduct {
   id: string;
@@ -29,6 +30,7 @@ export function RelatedProductsPicker({
   value,
   onChange,
 }: RelatedProductsPickerProps): ReactNode {
+  const t = useTranslation('blog');
   const [allProducts, setAllProducts] = useState<AdminProduct[]>([]);
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
@@ -94,9 +96,9 @@ export function RelatedProductsPicker({
       ) : null}
 
       <div>
-        <Label>Related products ({value.length})</Label>
+        <Label>{t('relatedProducts.title', { count: value.length })}</Label>
         {value.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No related products.</p>
+          <p className="text-sm text-muted-foreground">{t('relatedProducts.empty')}</p>
         ) : (
           <div className="mt-2 flex flex-col gap-2">
             {value.map((id, idx) => {
@@ -110,19 +112,19 @@ export function RelatedProductsPicker({
                   }`}
                 >
                   <span className="flex-1 font-medium">
-                    {product ? pickName(product.name, product.slug) : '(unknown product)'}
+                    {product ? pickName(product.name, product.slug) : t('relatedProducts.unknown')}
                   </span>
                   <Badge variant="outline" className="font-mono text-[10px]">
                     {product?.sku ?? id.slice(0, 8)}
                   </Badge>
                   {archived ? (
                     <Badge variant="outline" className="text-[10px]">
-                      archived
+                      {t('status.archived')}
                     </Badge>
                   ) : null}
                   {!product ? (
                     <Badge variant="outline" className="text-[10px]">
-                      missing
+                      {t('state.missing')}
                     </Badge>
                   ) : null}
                   <Button
@@ -132,7 +134,7 @@ export function RelatedProductsPicker({
                     className="h-7 w-7 p-0"
                     disabled={idx === 0}
                     onClick={() => move(id, 'up')}
-                    aria-label="Move related product up"
+                    aria-label={t('relatedProducts.moveUp')}
                   >
                     ↑
                   </Button>
@@ -143,7 +145,7 @@ export function RelatedProductsPicker({
                     className="h-7 w-7 p-0"
                     disabled={idx === value.length - 1}
                     onClick={() => move(id, 'down')}
-                    aria-label="Move related product down"
+                    aria-label={t('relatedProducts.moveDown')}
                   >
                     ↓
                   </Button>
@@ -164,20 +166,18 @@ export function RelatedProductsPicker({
       </div>
 
       <div>
-        <Label htmlFor="related-products-q">Add product</Label>
+        <Label htmlFor="related-products-q">{t('relatedProducts.add')}</Label>
         <Input
           id="related-products-q"
           value={q}
           onChange={(event) => setQ(event.target.value)}
-          placeholder="Search name, slug, or SKU…"
+          placeholder={t('relatedProducts.searchPlaceholder')}
         />
         {loading ? (
-          <p className="mt-2 text-sm text-muted-foreground">Loading catalog products…</p>
+          <p className="mt-2 text-sm text-muted-foreground">{t('relatedProducts.loading')}</p>
         ) : candidates.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">
-            {q
-              ? 'No matching products in the catalog.'
-              : 'All catalog products are already attached.'}
+            {q ? t('relatedProducts.noMatches') : t('relatedProducts.noCandidates')}
           </p>
         ) : (
           <div className="mt-2 flex flex-col gap-1">
@@ -193,7 +193,7 @@ export function RelatedProductsPicker({
                 <span className="mr-2 font-mono text-[10px]">{product.sku}</span>
                 <span className="text-left">{pickName(product.name, product.slug)}</span>
                 <Badge variant="outline" className="ml-auto text-[10px]">
-                  {product.status}
+                  {t(`productStatus.${product.status}`)}
                 </Badge>
               </Button>
             ))}

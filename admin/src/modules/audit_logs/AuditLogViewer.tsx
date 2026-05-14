@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useTranslationContext } from '@/i18n/TranslationProvider';
 import {
   Table,
   TableBody,
@@ -30,6 +31,7 @@ interface AuditLogRow {
   impersonatedCustomerAccountId: string | null;
   actedAt: string;
   action: string;
+  actionModuleId?: string;
   objectType: string;
   objectId: string;
   stateBefore: Record<string, unknown> | null;
@@ -41,6 +43,7 @@ interface AuditLogRow {
 
 export function AuditLogViewer(): ReactNode {
   const t = useTranslation('core');
+  const { t: translate } = useTranslationContext();
   const [rows, setRows] = useState<AuditLogRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -189,7 +192,7 @@ export function AuditLogViewer(): ReactNode {
                       <TableCell>
                         {r.actorAdminUserId ? r.actorAdminUserId.slice(0, 8) : t('auditLog.actor.system')}
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{r.action}</TableCell>
+                      <TableCell>{translateAuditAction(translate, r)}</TableCell>
                       <TableCell>
                         {r.objectType}
                         <br />
@@ -248,4 +251,18 @@ export function AuditLogViewer(): ReactNode {
       </Card>
     </>
   );
+}
+
+function translateAuditAction(
+  translate: (
+    scope: string,
+    key: string,
+    params?: Record<string, string | number>,
+  ) => string,
+  row: Pick<AuditLogRow, 'action' | 'actionModuleId'>,
+): string {
+  const moduleId = row.actionModuleId ?? 'core';
+  const key = `auditLog.${row.action}`;
+  const label = translate(moduleId, key);
+  return label === `${moduleId}.${key}` ? row.action : label;
 }

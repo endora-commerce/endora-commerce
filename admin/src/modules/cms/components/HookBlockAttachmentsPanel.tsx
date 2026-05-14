@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 import { cmsClient } from '../api/cms-client';
 
 type HookAttachment = CmsHookDetail['attachments'][number];
@@ -41,6 +42,7 @@ export function HookBlockAttachmentsPanel({
   hook,
   onChanged,
 }: HookBlockAttachmentsPanelProps): ReactNode {
+  const t = useTranslation('cms');
   const [attachments, setAttachments] = useState<HookAttachment[]>([]);
   const [blocks, setBlocks] = useState<CmsBlockSummary[]>([]);
   const [selectedBlockId, setSelectedBlockId] = useState('');
@@ -156,10 +158,10 @@ export function HookBlockAttachmentsPanel({
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Attachments</CardTitle>
+          <CardTitle className="text-base">{t('hookAttachments.title')}</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">Select a Hook.</p>
+          <p className="text-sm text-muted-foreground">{t('hookAttachments.selectHook')}</p>
         </CardContent>
       </Card>
     );
@@ -175,7 +177,7 @@ export function HookBlockAttachmentsPanel({
           type="button"
           size="icon"
           variant="outline"
-          title="Refresh attachments"
+          title={t('hookAttachments.refresh')}
           onClick={() => void load()}
           disabled={loading || saving}
         >
@@ -195,7 +197,9 @@ export function HookBlockAttachmentsPanel({
             onChange={(event) => setSelectedBlockId(event.target.value)}
             disabled={saving || attachableBlocks.length === 0}
           >
-            {attachableBlocks.length === 0 ? <option value="">No available blocks</option> : null}
+            {attachableBlocks.length === 0 ? (
+              <option value="">{t('hookAttachments.noAvailableBlocks')}</option>
+            ) : null}
             {attachableBlocks.map((block) => (
               <option key={block.id} value={block.id}>
                 {block.name} ({block.code})
@@ -211,28 +215,28 @@ export function HookBlockAttachmentsPanel({
           />
           <Button
             type="button"
-            title="Add block"
+            title={t('hookAttachments.addBlock')}
             onClick={() => void addAttachment()}
             disabled={saving || !selectedBlockId}
           >
             <Plus className="mr-2 h-4 w-4" />
-            Add
+            {t('common.add')}
           </Button>
         </div>
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading attachments…</p>
+          <p className="text-sm text-muted-foreground">{t('hookAttachments.loading')}</p>
         ) : attachments.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No blocks attached.</p>
+          <p className="text-sm text-muted-foreground">{t('hookAttachments.empty')}</p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10" />
-                <TableHead>Block</TableHead>
-                <TableHead>Code</TableHead>
-                <TableHead className="w-24 text-right">Position</TableHead>
-                <TableHead className="w-32 text-right">Order</TableHead>
+                <TableHead>{t('columns.block')}</TableHead>
+                <TableHead>{t('columns.code')}</TableHead>
+                <TableHead className="w-24 text-right">{t('columns.position')}</TableHead>
+                <TableHead className="w-32 text-right">{t('columns.order')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -268,7 +272,7 @@ export function HookBlockAttachmentsPanel({
                         type="button"
                         size="icon"
                         variant="ghost"
-                        title="Move up"
+                        title={t('hookAttachments.moveUp')}
                         disabled={saving || index === 0}
                         onClick={() => void persistOrder(move(attachments, index, index - 1))}
                       >
@@ -278,7 +282,7 @@ export function HookBlockAttachmentsPanel({
                         type="button"
                         size="icon"
                         variant="ghost"
-                        title="Move down"
+                        title={t('hookAttachments.moveDown')}
                         disabled={saving || index === attachments.length - 1}
                         onClick={() => void persistOrder(move(attachments, index, index + 1))}
                       >
@@ -288,7 +292,7 @@ export function HookBlockAttachmentsPanel({
                         type="button"
                         size="icon"
                         variant="ghost"
-                        title="Remove"
+                        title={t('common.remove')}
                         disabled={saving}
                         onClick={() => void removeAttachment(attachment.blockId)}
                       >
