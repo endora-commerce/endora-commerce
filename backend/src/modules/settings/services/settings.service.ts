@@ -102,7 +102,7 @@ export class SettingsService {
       { setting, salesChannel: { id: salesChannelId } as Partial<SalesChannel> },
     );
 
-    const resolved = value ? value.value : setting.defaultValue;
+    const resolved = resolveEffectiveValue(setting, value);
     if (this.cache) await this.cache.set(code, salesChannelId, resolved);
     return this.validate(code, resolved, schema);
   }
@@ -171,7 +171,7 @@ export class SettingsService {
       SettingValue,
       { setting, salesChannel: { id: salesChannelId } as Partial<SalesChannel> },
     );
-    const resolved = value ? value.value : setting.defaultValue;
+    const resolved = resolveEffectiveValue(setting, value);
     if (this.cache) await this.cache.set(code, salesChannelId, resolved);
     return resolved;
   }
@@ -181,4 +181,21 @@ export class SettingsService {
     if (!r.success) throw new SettingValueShapeMismatch(code, r.error.issues);
     return r.data;
   }
+}
+
+/**
+ * Three-tier resolution: per-channel SettingValue row → setting.globalValue
+ * (when non-null) → manifest defaultValue. A NULL `globalValue` means the
+ * admin has not set a platform-wide override; the manifest default applies.
+ * Per-channel rows always win over `globalValue`.
+ */
+function resolveEffectiveValue(
+  setting: Setting,
+  perChannel: SettingValue | null,
+): unknown {
+  if (perChannel) return perChannel.value;
+  if (setting.globalValue !== null && setting.globalValue !== undefined) {
+    return setting.globalValue;
+  }
+  return setting.defaultValue;
 }

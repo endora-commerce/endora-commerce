@@ -54,19 +54,21 @@ describe('admin set value (T030)', () => {
   });
 
   beforeEach(async () => {
-    // Clean any setting_values left by prior tests so each case starts blank.
+    // Clean any setting_values + global override left by prior tests so each
+    // case starts blank.
     const em = h.em();
     const settings = await em.find(Setting, { ownerModule: 'us2_test_setval' });
     for (const s of settings) {
       const values = await em.find(SettingValue, { setting: s });
       for (const v of values) em.remove(v);
+      s.globalValue = null;
     }
     await em.flush();
   });
 
   const adminCookie = { b2b_session: 'stub-admin-session' };
 
-  it("scope='all' fans out to every sales channel and audits per channel", async () => {
+  it("scope='all' writes the global override (no per-channel rows) and audits once", async () => {
     const r = await h.app.inject({
       method: 'PUT',
       url: '/api/v1/admin/settings/us2_setval.url/value',
@@ -76,19 +78,28 @@ describe('admin set value (T030)', () => {
     expect(r.statusCode).toBe(200);
 
     const em = h.em();
-    const allChannels = await em.count(SalesChannel, {});
-    const values = await em.find(SettingValue, { setting: { code: 'us2_setval.url' } });
-    expect(values).toHaveLength(allChannels);
-    expect(values.every((v) => v.value === 'https://new.example')).toBe(true);
+    const setting = await em.findOneOrFail(Setting, { code: 'us2_setval.url' });
+    expect(setting.globalValue).toBe('https://new.example');
+
+    // No per-channel rows are created — channels inherit the global override.
+    const values = await em.find(SettingValue, { setting });
+    expect(values).toHaveLength(0);
 
     const audits = await em.find(AuditLogEntry, {
-      action: 'setting.value_set',
+      action: 'setting.global_value_set',
       objectType: 'setting',
     });
     const audited = audits.filter(
       (a) => (a.stateAfter as { settingCode?: string } | undefined)?.settingCode === 'us2_setval.url',
     );
-    expect(audited.length).toBe(allChannels);
+    expect(audited.length).toBe(1);
+    expect((audited[0]!.stateAfter as { value?: unknown } | undefined)?.value).toBe(
+      'https://new.example',
+    );
+
+    // SalesChannel count assertion preserved as a smoke check on the fixture.
+    const allChannels = await em.count(SalesChannel, {});
+    expect(allChannels).toBeGreaterThan(0);
   });
 
   it("scope='subset' targets only the listed channels", async () => {

@@ -17,7 +17,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
 import { settingsClient } from '../api/settings-client';
 import { salesChannelsClient } from '@/modules/sales_channels/api/sales-channels-client';
 import { useTranslation } from '@/i18n/useTranslation';
@@ -32,14 +34,15 @@ import {
 } from '../components/SettingRowEditor';
 
 /**
- * Settings page — feature 004 / US2, redesigned for batch editing.
+ * Settings page — feature 004 / US2.
  *
- * Every setting renders inline within its group card and is always editable;
- * changes accumulate in `drafts` and are flushed in one "Save N changes"
- * sequence via the page-level sticky action bar that appears as soon as any
- * draft is dirty. Per-setting "Apply to" scope (all-in-scope / subset) is
- * still honoured and each write carries its own optimistic-version check,
- * so conflicts are reported per setting.
+ * The page is driven by a single "Editing for" channel context picked at the
+ * top: `null` = All channels (default), otherwise a specific sales-channel
+ * code. Every row's value input reflects the value for that context (the
+ * channel's override, or the default when none exists). Save sends the
+ * batch as either `scope: 'all'` or `scope: 'subset', salesChannelCodes: […]`
+ * depending on the picker. Edits accumulate in `drafts` and a sticky bottom
+ * bar flushes them all at once.
  */
 export function SettingsPage(): ReactNode {
   const t = useTranslation('settings');
@@ -55,44 +58,79 @@ export function SettingsPage(): ReactNode {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, SettingDraft>>({});
+  const [channelContext, setChannelContext] = useState<string | null>(null);
 
-  const refresh = useCallback(async (): Promise<void> => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [list, channels] = await Promise.all([
-        settingsClient.list(),
-        salesChannelsClient
-          .list({ activeOnly: false, pageSize: 200 })
-          .catch(() => ({ items: [] as SalesChannelSummary[] })),
-      ]);
-      setGroups(list.groups);
-      setAllChannels(channels.items);
-      // Re-baseline drafts for settings that the user has NOT touched, so
-      // server-side changes flow through; preserve any active dirty drafts.
-      setDrafts((prev) => mergeDrafts(prev, list.groups));
-    } catch (err) {
-      setError(
-        err instanceof ApiError ? err.envelope.error.message : 'Failed to load settings.',
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const refresh = useCallback(
+    async (contextOverride?: string | null): Promise<void> => {
+      const contextForRefresh =
+        contextOverride === undefined ? channelContext : contextOverride;
+      setLoading(true);
+      setError(null);
+      try {
+        const list = await settingsClient.list();
+        setGroups(list.groups);
+        setDrafts((prev) => mergeDrafts(prev, list.groups, contextForRefresh));
+        // Fetch sales channels separately so a permission/connectivity issue
+        // here surfaces in the UI instead of silently emptying the dropdown.
+        try {
+          const channels = await salesChannelsClient.list({
+            activeOnly: false,
+            pageSize: 100,
+          });
+          setAllChannels(channels.items);
+        } catch (err) {
+          setAllChannels([]);
+          setError(
+            err instanceof ApiError
+              ? `Failed to load sales channels: ${err.envelope.error.message}`
+              : 'Failed to load sales channels.',
+          );
+        }
+      } catch (err) {
+        setError(
+          err instanceof ApiError ? err.envelope.error.message : 'Failed to load settings.',
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [channelContext],
+  );
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
-
-  const allChannelCodes = useMemo(
-    () => mergeChannelCodes(groups, allChannels),
-    [groups, allChannels],
-  );
+    // We intentionally only refresh on mount; switchChannelContext drives
+    // subsequent refreshes when the context changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filteredGroups = useMemo(
-    () => filterGroupsBySearch(groups, search),
-    [groups, search],
+    () => filterGroupsForContext(groups, search, channelContext),
+    [groups, search, channelContext],
   );
+
+  const channelOptions = useMemo<ChannelOption[]>(() => {
+    const byCode = new Map<string, ChannelOption>();
+    for (const c of allChannels) {
+      byCode.set(c.code, { code: c.code, label: channelLabel(c) });
+    }
+    for (const g of groups) {
+      for (const c of g.salesChannelCodes) {
+        if (!byCode.has(c)) byCode.set(c, { code: c, label: c });
+      }
+      for (const s of g.settings) {
+        for (const c of s.salesChannelCodes) {
+          if (!byCode.has(c)) byCode.set(c, { code: c, label: c });
+        }
+        for (const v of s.valuesByChannel) {
+          if (!byCode.has(v.salesChannelCode)) {
+            byCode.set(v.salesChannelCode, { code: v.salesChannelCode, label: v.salesChannelCode });
+          }
+        }
+      }
+    }
+    return Array.from(byCode.values()).sort((a, b) => a.code.localeCompare(b.code));
+  }, [allChannels, groups]);
 
   const allCollapsed = useMemo(
     () => filteredGroups.length > 0 && filteredGroups.every((g) => collapsed[g.code]),
@@ -165,13 +203,34 @@ export function SettingsPage(): ReactNode {
       const out: Record<string, SettingDraft> = {};
       for (const g of groups) {
         for (const s of g.settings) {
-          out[s.code] = baselineDraft(s);
+          out[s.code] = baselineDraft(s, channelContext);
         }
       }
       return out;
     });
     setConflicts({});
-  }, [groups]);
+  }, [groups, channelContext]);
+
+  const switchChannelContext = useCallback(
+    (next: string | null): void => {
+      if (next === channelContext) return;
+      if (totalDirtyCount > 0) {
+        const ok = window.confirm(t('context.discardOnSwitch'));
+        if (!ok) return;
+      }
+      setChannelContext(next);
+      setConflicts({});
+      // Re-baseline every draft for the new context.
+      setDrafts(() => {
+        const out: Record<string, SettingDraft> = {};
+        for (const g of groups) {
+          for (const s of g.settings) out[s.code] = baselineDraft(s, next);
+        }
+        return out;
+      });
+    },
+    [channelContext, groups, t, totalDirtyCount],
+  );
 
   const findSetting = useCallback(
     (code: string): SettingDto | undefined => {
@@ -194,14 +253,10 @@ export function SettingsPage(): ReactNode {
     for (const s of allDirtySettings) {
       const draft = drafts[s.code];
       if (!draft) continue;
-      if (draft.scope === 'subset' && draft.subsetCodes.length === 0) {
-        newConflicts[s.code] = t('editor.applyTo.subsetEmpty');
-        continue;
-      }
       try {
         const value = parseValue(s.valueType, draft.text);
         const expectedVersion = computeVersion(s);
-        if (draft.scope === 'all') {
+        if (channelContext === null) {
           await settingsClient.setValue(s.code, {
             scope: 'all',
             value,
@@ -210,7 +265,7 @@ export function SettingsPage(): ReactNode {
         } else {
           await settingsClient.setValue(s.code, {
             scope: 'subset',
-            salesChannelCodes: draft.subsetCodes,
+            salesChannelCodes: [channelContext],
             value,
             expectedVersion,
           });
@@ -226,11 +281,6 @@ export function SettingsPage(): ReactNode {
       }
     }
 
-    // Drop drafts that were just saved so the upcoming refresh rebuilds them
-    // from the fresh server state (scope back to 'all', subset cleared). Without
-    // this, scope/subset-only edits would leave the row stuck in its dirty
-    // state after a successful write — the value lands on the server but the
-    // sticky bar would still show "Save 1 change(s)".
     if (savedCodes.size > 0) {
       setDrafts((prev) => {
         const out = { ...prev };
@@ -245,17 +295,24 @@ export function SettingsPage(): ReactNode {
     }
     await refresh();
     setSaving(false);
-  }, [allDirtySettings, drafts, refresh, t]);
+  }, [allDirtySettings, channelContext, drafts, refresh, t]);
 
   const resetSetting = useCallback(
     async (code: string): Promise<void> => {
       const setting = findSetting(code);
       if (!setting) return;
-      if (!confirm(`Reset all per-channel values for "${code}"?`)) return;
+      const isChannelMode = channelContext !== null;
+      const confirmMsg = isChannelMode
+        ? `Reset "${code}" override for channel "${channelContext}"?`
+        : `Reset all per-channel values for "${code}"?`;
+      if (!confirm(confirmMsg)) return;
       setResettingCode(code);
       setError(null);
       try {
-        await settingsClient.resetValues(code);
+        await settingsClient.resetValues(
+          code,
+          isChannelMode ? [channelContext!] : undefined,
+        );
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : 'Reset failed.');
@@ -263,7 +320,7 @@ export function SettingsPage(): ReactNode {
         setResettingCode(null);
       }
     },
-    [findSetting, refresh],
+    [channelContext, findSetting, refresh],
   );
 
   return (
@@ -282,6 +339,28 @@ export function SettingsPage(): ReactNode {
           <AlertDescription>{info}</AlertDescription>
         </Alert>
       )}
+
+      <Card className="mb-4">
+        <CardContent className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:gap-4">
+          <Label htmlFor="settings-channel-context" className="shrink-0 text-sm font-medium">
+            {t('context.label')}:
+          </Label>
+          <Select
+            id="settings-channel-context"
+            className="sm:max-w-sm"
+            value={channelContext ?? ''}
+            onChange={(e) => switchChannelContext(e.target.value === '' ? null : e.target.value)}
+          >
+            <option value="">{t('context.allChannels')}</option>
+            {channelOptions.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.label}
+              </option>
+            ))}
+          </Select>
+        </CardContent>
+      </Card>
+
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-sm">
           <Search
@@ -302,14 +381,16 @@ export function SettingsPage(): ReactNode {
           </Button>
         )}
       </div>
-      <div
-        className={cn('space-y-4', totalDirtyCount > 0 && 'pb-24')}
-      >
+
+      <div className={cn('space-y-4', totalDirtyCount > 0 && 'pb-24')}>
         {loading && (
           <p className="text-sm text-muted-foreground">Loading settings…</p>
         )}
         {!loading && filteredGroups.length === 0 && search && (
           <p className="text-sm text-muted-foreground">{t('search.noResults')}</p>
+        )}
+        {!loading && filteredGroups.length === 0 && !search && channelContext !== null && (
+          <p className="text-sm text-muted-foreground">{t('context.empty')}</p>
         )}
         {!loading &&
           filteredGroups.map((group) => {
@@ -356,7 +437,7 @@ export function SettingsPage(): ReactNode {
                     ) : (
                       <div className="space-y-3">
                         {group.settings.map((s) => {
-                          const draft = drafts[s.code] ?? baselineDraft(s);
+                          const draft = drafts[s.code] ?? baselineDraft(s, channelContext);
                           const conflict = conflicts[s.code];
                           return (
                             <div key={s.code} className="space-y-2">
@@ -376,7 +457,7 @@ export function SettingsPage(): ReactNode {
                               <SettingRowEditor
                                 setting={s}
                                 draft={draft}
-                                availableChannelCodes={allChannelCodes}
+                                channelContext={channelContext}
                                 isCopied={copiedCode === s.code}
                                 resetting={resettingCode === s.code}
                                 onChange={(patch) => patchDraft(s.code, patch)}
@@ -394,6 +475,7 @@ export function SettingsPage(): ReactNode {
             );
           })}
       </div>
+
       {totalDirtyCount > 0 && (
         <div
           role="region"
@@ -401,7 +483,9 @@ export function SettingsPage(): ReactNode {
           className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-end gap-3 border-t bg-background/95 px-4 py-3 shadow-lg backdrop-blur sm:px-6 lg:px-8"
         >
           <span className="mr-auto text-sm text-muted-foreground">
-            {t('actions.saveChanges', { count: totalDirtyCount })}
+            {channelContext !== null
+              ? `${t('context.channelOverride', { code: channelContext })} · ${t('actions.saveChanges', { count: totalDirtyCount })}`
+              : t('actions.saveChanges', { count: totalDirtyCount })}
           </span>
           <Button
             variant="outline"
@@ -426,30 +510,30 @@ export function SettingsPage(): ReactNode {
   );
 }
 
-function baselineDraft(setting: SettingDto): SettingDraft {
-  const text = deriveDisplayValue(setting);
-  return {
-    text,
-    initialText: text,
-    scope: 'all',
-    subsetCodes: [],
-  };
+function baselineDraft(
+  setting: SettingDto,
+  channelContext: string | null,
+): SettingDraft {
+  const text = deriveDisplayValue(setting, channelContext);
+  return { text, initialText: text };
 }
 
 /**
- * After a refresh, re-baseline drafts that the user has NOT modified so the
- * UI reflects newly persisted values; preserve any dirty drafts (and their
- * scope choice) so unsaved edits aren't blown away by a peer's write.
+ * Re-baseline drafts against the current channel context after a refresh.
+ * Dirty drafts keep their `text` so unsaved edits aren't blown away; their
+ * `initialText` is rebound to whatever the server now reports for the active
+ * context.
  */
 function mergeDrafts(
   prev: Record<string, SettingDraft>,
   groups: SettingGroupDto[],
+  channelContext: string | null,
 ): Record<string, SettingDraft> {
   const out: Record<string, SettingDraft> = {};
   for (const g of groups) {
     for (const s of g.settings) {
       const existing = prev[s.code];
-      const base = baselineDraft(s);
+      const base = baselineDraft(s, channelContext);
       if (existing && isDraftDirty(existing)) {
         out[s.code] = {
           ...existing,
@@ -463,32 +547,34 @@ function mergeDrafts(
   return out;
 }
 
-function mergeChannelCodes(
-  groups: SettingGroupDto[],
-  allChannels: SalesChannelSummary[],
-): string[] {
-  const codes = new Set<string>();
-  for (const c of allChannels) codes.add(c.code);
-  for (const g of groups) {
-    for (const s of g.settings) {
-      for (const v of s.valuesByChannel) codes.add(v.salesChannelCode);
-      for (const c of s.salesChannelCodes) codes.add(c);
-    }
-    for (const c of g.salesChannelCodes) codes.add(c);
-  }
-  return Array.from(codes).sort();
-}
-
-function filterGroupsBySearch(
+function filterGroupsForContext(
   groups: SettingGroupDto[],
   search: string,
+  channelContext: string | null,
 ): SettingGroupDto[] {
   const q = search.trim().toLowerCase();
-  if (!q) return groups;
   const out: SettingGroupDto[] = [];
   for (const g of groups) {
-    const matches = g.settings.filter((s) => settingMatches(s, q));
-    if (matches.length > 0) out.push({ ...g, settings: matches });
+    if (
+      channelContext !== null &&
+      g.salesChannelCodes.length > 0 &&
+      !g.salesChannelCodes.includes(channelContext)
+    ) {
+      continue;
+    }
+    const filtered = g.settings.filter((s) => {
+      if (
+        channelContext !== null &&
+        s.salesChannelCodes.length > 0 &&
+        !s.salesChannelCodes.includes(channelContext)
+      ) {
+        return false;
+      }
+      if (q && !settingMatches(s, q)) return false;
+      return true;
+    });
+    if (filtered.length === 0 && (q || channelContext !== null)) continue;
+    out.push({ ...g, settings: filtered });
   }
   return out;
 }
@@ -498,4 +584,14 @@ function settingMatches(s: SettingDto, q: string): boolean {
   if (s.code.toLowerCase().includes(q)) return true;
   if (s.description && s.description.toLowerCase().includes(q)) return true;
   return false;
+}
+
+interface ChannelOption {
+  code: string;
+  label: string;
+}
+
+function channelLabel(channel: SalesChannelSummary): string {
+  const name = channel.name['en-US'] ?? Object.values(channel.name)[0] ?? channel.code;
+  return `${name} (${channel.code})`;
 }

@@ -43,6 +43,7 @@ import { Migration038DictionaryInit } from './migrations/038_dictionary_init.js'
 import { Migration039ModuleLifecycleInit } from './migrations/039_module_lifecycle_init.js';
 import { Migration040AdminI18nInit } from './migrations/040_admin_i18n_init.js';
 import { Migration041AdminActionsInit } from './migrations/041_admin_actions_init.js';
+import { Migration042SettingsGlobalValue } from './migrations/042_settings_global_value.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -186,6 +187,10 @@ export default defineConfig({
       {
         name: 'Migration041AdminActionsInit',
         class: Migration041AdminActionsInit,
+      },
+      {
+        name: 'Migration042SettingsGlobalValue',
+        class: Migration042SettingsGlobalValue,
       },
     ],
     transactional: true,

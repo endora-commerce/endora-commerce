@@ -184,19 +184,27 @@ export class SettingsAdminService {
     );
     this.assertVersion(this.computeSettingVersion(setting, existingValues), expectedVersion);
 
-    // Determine the target sales channels.
-    const allChannels = await em.find(SalesChannel, {});
-    const inScopeChannels =
-      setting.salesChannels.length === 0
-        ? allChannels
-        : setting.salesChannels.getItems();
-    let targetChannels: SalesChannel[];
+    const affectedChannelIds: string[] = [];
+    let globalValueUpdated = false;
+
     if (target.scope === 'all') {
-      targetChannels = inScopeChannels;
+      // Platform-wide global override: writes setting.globalValue only. Channels
+      // that already carry their own per-channel `SettingValue` row keep it
+      // (their override wins over global). Channels without an explicit
+      // override now inherit this new global value via the resolver.
+      setting.globalValue = parsed.data;
+      globalValueUpdated = true;
     } else {
+      // Per-channel overrides. Validate the requested codes are real channels
+      // and within the setting's scope.
+      const allChannels = await em.find(SalesChannel, {});
+      const inScopeChannels =
+        setting.salesChannels.length === 0
+          ? allChannels
+          : setting.salesChannels.getItems();
       const codeToChannel = new Map(allChannels.map((c) => [c.code, c]));
       const inScopeIds = new Set(inScopeChannels.map((c) => c.id));
-      targetChannels = [];
+      const targetChannels: SalesChannel[] = [];
       for (const c of target.channelCodes) {
         const channel = codeToChannel.get(c);
         if (!channel) {
@@ -215,31 +223,31 @@ export class SettingsAdminService {
         }
         targetChannels.push(channel);
       }
-    }
 
-    if (targetChannels.length === 0) {
-      throw new HttpError(
-        400,
-        ERROR_CODES.SETTING_EMPTY_SUBSET,
-        'No applicable sales channels — setting cannot be left bound to zero channels.',
-      );
-    }
-
-    const valuesByChannelId = new Map(existingValues.map((v) => [v.salesChannel.id, v]));
-    const affectedChannelIds: string[] = [];
-    for (const channel of targetChannels) {
-      const existing = valuesByChannelId.get(channel.id);
-      if (existing) {
-        existing.value = parsed.data;
-      } else {
-        em.create(SettingValue, {
-          setting,
-          salesChannel: channel,
-          value: parsed.data,
-        });
+      if (targetChannels.length === 0) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.SETTING_EMPTY_SUBSET,
+          'No applicable sales channels — setting cannot be left bound to zero channels.',
+        );
       }
-      affectedChannelIds.push(channel.id);
+
+      const valuesByChannelId = new Map(existingValues.map((v) => [v.salesChannel.id, v]));
+      for (const channel of targetChannels) {
+        const existing = valuesByChannelId.get(channel.id);
+        if (existing) {
+          existing.value = parsed.data;
+        } else {
+          em.create(SettingValue, {
+            setting,
+            salesChannel: channel,
+            value: parsed.data,
+          });
+        }
+        affectedChannelIds.push(channel.id);
+      }
     }
+
     await em.flush();
 
     // Refresh values for an accurate post-save version.
@@ -252,6 +260,20 @@ export class SettingsAdminService {
 
     // Audit + event after commit.
     if (this.auditLogService) {
+      if (globalValueUpdated) {
+        await this.auditLogService.record({
+          actorAdminUserId: actor.actorAdminUserId,
+          action: 'setting.global_value_set',
+          objectType: 'setting',
+          objectId: setting.id,
+          stateAfter: {
+            settingCode: setting.code,
+            value: parsed.data,
+            valueType: setting.valueType,
+          },
+          ...(actor.requestId !== undefined ? { requestId: actor.requestId } : {}),
+        });
+      }
       for (const channelId of affectedChannelIds) {
         await this.auditLogService.record({
           actorAdminUserId: actor.actorAdminUserId,
@@ -273,6 +295,7 @@ export class SettingsAdminService {
       occurredAt: new Date().toISOString(),
       settingCode: setting.code,
       salesChannelIds: affectedChannelIds,
+      globalValueUpdated,
       valueType: setting.valueType,
     } as never);
 
@@ -283,7 +306,12 @@ export class SettingsAdminService {
     code: string,
     channelCodes: string[] | undefined,
     actor: AdminAuditContext,
-  ): Promise<{ setting: Setting; resetChannelIds: string[]; newVersion: string }> {
+  ): Promise<{
+    setting: Setting;
+    resetChannelIds: string[];
+    globalValueCleared: boolean;
+    newVersion: string;
+  }> {
     const em = this.emFactory();
     const setting = await em.findOne(Setting, { code });
     if (!setting) {
@@ -294,23 +322,40 @@ export class SettingsAdminService {
       );
     }
 
-    const filter: Record<string, unknown> = { setting };
+    let resetChannelIds: string[] = [];
+    let globalValueCleared = false;
+
     if (channelCodes && channelCodes.length > 0) {
+      // Channel-scoped reset: delete only the specified channels' override rows.
+      // The global override (if any) is left intact; affected channels now
+      // inherit it (or fall through to the manifest default).
       const channels = await em.find(SalesChannel, { code: { $in: channelCodes } });
       const ids = channels.map((c) => c.id);
       if (ids.length === 0) {
         return {
           setting,
           resetChannelIds: [],
+          globalValueCleared: false,
           newVersion: this.computeSettingVersion(setting, []),
         };
       }
-      filter['salesChannel'] = { $in: ids };
+      const values = await em.find(
+        SettingValue,
+        { setting, salesChannel: { $in: ids } as Partial<SalesChannel> },
+        { populate: ['salesChannel'] },
+      );
+      resetChannelIds = values.map((v) => v.salesChannel.id);
+      for (const v of values) em.remove(v);
+    } else {
+      // Platform-wide reset: clear the global override only. Per-channel
+      // override rows are intentionally left untouched (per the agreed
+      // semantics; admins can still reset individual channels separately).
+      if (setting.globalValue !== null && setting.globalValue !== undefined) {
+        setting.globalValue = null;
+        globalValueCleared = true;
+      }
     }
 
-    const values = await em.find(SettingValue, filter, { populate: ['salesChannel'] });
-    const resetChannelIds = values.map((v) => v.salesChannel.id);
-    for (const v of values) em.remove(v);
     await em.flush();
 
     const remaining = await em.find(
@@ -331,18 +376,29 @@ export class SettingsAdminService {
           ...(actor.requestId !== undefined ? { requestId: actor.requestId } : {}),
         });
       }
+      if (globalValueCleared) {
+        await this.auditLogService.record({
+          actorAdminUserId: actor.actorAdminUserId,
+          action: 'setting.global_value_reset',
+          objectType: 'setting',
+          objectId: setting.id,
+          stateAfter: { settingCode: setting.code },
+          ...(actor.requestId !== undefined ? { requestId: actor.requestId } : {}),
+        });
+      }
     }
-    if (resetChannelIds.length > 0) {
+    if (resetChannelIds.length > 0 || globalValueCleared) {
       this.eventBus.emit('settings.value_changed', {
         eventId: `settings.value_reset:${setting.id}:${Date.now()}`,
         occurredAt: new Date().toISOString(),
         settingCode: setting.code,
         salesChannelIds: resetChannelIds,
+        globalValueUpdated: globalValueCleared,
         valueType: setting.valueType,
       } as never);
     }
 
-    return { setting, resetChannelIds, newVersion };
+    return { setting, resetChannelIds, globalValueCleared, newVersion };
   }
 
   // ------------------------------------------------------------------------

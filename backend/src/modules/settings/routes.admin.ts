@@ -73,6 +73,7 @@ export async function registerSettingsAdminRoutes(
       ownerModule: setting.ownerModule,
       salesChannelCodes: setting.salesChannels.getItems().map((c) => c.code),
       defaultValue: setting.defaultValue,
+      globalValue: setting.globalValue ?? null,
       valuesByChannel: values.map((v) => ({
         salesChannelId: v.salesChannel.id,
         salesChannelCode: v.salesChannel.code,

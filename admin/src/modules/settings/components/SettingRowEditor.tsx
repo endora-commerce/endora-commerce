@@ -7,7 +7,6 @@ import { Check, Copy, RotateCcw } from 'lucide-react';
 import type { SettingDto } from '@b2b/contracts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
@@ -17,17 +16,18 @@ export interface SettingDraft {
   text: string;
   /** Baseline; the draft is "dirty" when `text !== initialText`. */
   initialText: string;
-  /** Where the value will be written when the batch is saved. */
-  scope: 'all' | 'subset';
-  /** Sales-channel codes selected when `scope === 'subset'`. */
-  subsetCodes: string[];
 }
 
 interface Props {
   setting: SettingDto;
   draft: SettingDraft;
-  /** Union of every channel code visible in the platform. */
-  availableChannelCodes: string[];
+  /**
+   * The channel context the row is being edited under. `null` means
+   * the page is in "All channels" mode; otherwise the picked sales-
+   * channel code. The row uses this to label per-channel state and to
+   * decide whether a row is bound to the default or an explicit override.
+   */
+  channelContext: string | null;
   isCopied: boolean;
   resetting: boolean;
   onChange: (patch: Partial<SettingDraft>) => void;
@@ -36,13 +36,14 @@ interface Props {
 }
 
 /**
- * Inline editor for one setting — always in edit mode. Rendered one-per-row
- * inside a group card; the parent tracks dirty state and batches the writes.
+ * Inline editor for one setting — always in edit mode. The Apply-to scope
+ * lives at the page level (a single global channel context); the row only
+ * carries the value the user is typing.
  */
 export function SettingRowEditor({
   setting,
   draft,
-  availableChannelCodes,
+  channelContext,
   isCopied,
   resetting,
   onChange,
@@ -50,25 +51,15 @@ export function SettingRowEditor({
   onReset,
 }: Props): ReactNode {
   const t = useTranslation('settings');
-  const inScopeCodes = setting.salesChannelCodes.length > 0
-    ? setting.salesChannelCodes
-    : availableChannelCodes;
   const isDirty = isDraftDirty(draft);
   const overrideCount = setting.valuesByChannel.length;
+  const source = effectiveSource(setting, channelContext);
+  const hasGlobalOverride =
+    setting.globalValue !== null && setting.globalValue !== undefined;
 
   const setText = useCallback(
     (next: string) => onChange({ text: next }),
     [onChange],
-  );
-
-  const toggleCode = useCallback(
-    (code: string) => {
-      const next = draft.subsetCodes.includes(code)
-        ? draft.subsetCodes.filter((c) => c !== code)
-        : [...draft.subsetCodes, code];
-      onChange({ subsetCodes: next });
-    },
-    [draft.subsetCodes, onChange],
   );
 
   return (
@@ -80,7 +71,7 @@ export function SettingRowEditor({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-medium">{setting.name}</span>
             <button
               type="button"
@@ -105,6 +96,31 @@ export function SettingRowEditor({
             <Badge variant="outline" className="font-mono text-[10px] text-muted-foreground">
               {setting.valueType}
             </Badge>
+            {channelContext === null && hasGlobalOverride && (
+              <Badge variant="secondary" className="text-[10px]">
+                {t('context.globalOverrideSet')}
+              </Badge>
+            )}
+            {channelContext === null && !hasGlobalOverride && (
+              <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                {t('context.usingDefault')}
+              </Badge>
+            )}
+            {channelContext !== null && source === 'channel-override' && (
+              <Badge variant="secondary" className="text-[10px]">
+                {t('context.channelOverridePresent')}
+              </Badge>
+            )}
+            {channelContext !== null && source === 'global' && (
+              <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                {t('context.inheritsGlobal')}
+              </Badge>
+            )}
+            {channelContext !== null && source === 'default' && (
+              <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                {t('context.usingDefault')}
+              </Badge>
+            )}
             {isDirty && (
               <Badge
                 variant="secondary"
@@ -123,7 +139,11 @@ export function SettingRowEditor({
           variant="ghost"
           size="sm"
           onClick={onReset}
-          disabled={resetting || overrideCount === 0}
+          disabled={
+            resetting ||
+            (channelContext === null && !hasGlobalOverride) ||
+            (channelContext !== null && source !== 'channel-override')
+          }
           title={t('actions.resetToDefault')}
           className="shrink-0"
         >
@@ -134,54 +154,20 @@ export function SettingRowEditor({
 
       <div>{renderInput(setting.valueType, draft.text, setText)}</div>
 
-      <div className="space-y-1 text-xs">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
-          <span className="font-medium text-foreground">{t('editor.applyTo.label')}:</span>
-          <label className="flex items-center gap-1">
-            <input
-              type="radio"
-              name={`scope-${setting.code}`}
-              checked={draft.scope === 'all'}
-              onChange={() => onChange({ scope: 'all' })}
-            />
-            {t('editor.applyTo.allInScope', { count: inScopeCodes.length })}
-          </label>
-          <label className="flex items-center gap-1">
-            <input
-              type="radio"
-              name={`scope-${setting.code}`}
-              checked={draft.scope === 'subset'}
-              onChange={() => onChange({ scope: 'subset' })}
-            />
-            {t('editor.applyTo.subset')}
-          </label>
-        </div>
-        {draft.scope === 'subset' && (
-          <div className="flex flex-wrap gap-2 pl-1">
-            {inScopeCodes.length === 0 && (
-              <span className="text-muted-foreground">{t('editor.applyTo.subsetEmpty')}</span>
-            )}
-            {inScopeCodes.map((code) => (
-              <label
-                key={code}
-                className="flex items-center gap-1 rounded border bg-background px-2 py-0.5 text-xs"
-              >
-                <Checkbox
-                  checked={draft.subsetCodes.includes(code)}
-                  onChange={() => toggleCode(code)}
-                />
-                <span className="font-mono">{code}</span>
-              </label>
-            ))}
-          </div>
+      <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
+        <span>
+          {t('editor.defaultPrefix')} <code className="font-mono">{formatPreview(setting.defaultValue)}</code>
+        </span>
+        {hasGlobalOverride && (
+          <>
+            <span>·</span>
+            <span>
+              {t('editor.globalPrefix')} <code className="font-mono">{formatPreview(setting.globalValue)}</code>
+            </span>
+          </>
         )}
-        <div className="flex flex-wrap items-center gap-x-3 text-muted-foreground">
-          <span>
-            {t('editor.defaultPrefix')} <code className="font-mono">{formatPreview(setting.defaultValue)}</code>
-          </span>
-          <span>·</span>
-          <span>{t('editor.perChannelOverrides', { count: overrideCount })}</span>
-        </div>
+        <span>·</span>
+        <span>{t('editor.perChannelOverrides', { count: overrideCount })}</span>
       </div>
     </div>
   );
@@ -242,11 +228,58 @@ function renderInput(
   );
 }
 
-export function deriveDisplayValue(setting: SettingDto): string {
-  const v = setting.valuesByChannel[0]?.value ?? setting.defaultValue;
+/**
+ * Pick the value displayed in the input for the chosen channel context.
+ *
+ * Resolution chain mirrors the backend:
+ *   per-channel override → setting.globalValue → setting.defaultValue
+ *
+ * "All channels" mode (`channelContext === null`) edits the global tier
+ * directly: it shows `globalValue` when the admin has set one, otherwise
+ * the manifest default. A specific channel falls back through the chain.
+ */
+export function deriveDisplayValue(
+  setting: SettingDto,
+  channelContext: string | null,
+): string {
+  const v = resolveEffective(setting, channelContext);
   if (v === null || v === undefined) return '';
   if (typeof v === 'string') return v;
   return JSON.stringify(v);
+}
+
+function resolveEffective(
+  setting: SettingDto,
+  channelContext: string | null,
+): unknown {
+  if (channelContext !== null) {
+    const override = setting.valuesByChannel.find(
+      (entry) => entry.salesChannelCode === channelContext,
+    );
+    if (override) return override.value;
+  }
+  if (setting.globalValue !== null && setting.globalValue !== undefined) {
+    return setting.globalValue;
+  }
+  return setting.defaultValue;
+}
+
+export type EffectiveSource = 'channel-override' | 'global' | 'default';
+
+export function effectiveSource(
+  setting: SettingDto,
+  channelContext: string | null,
+): EffectiveSource {
+  if (channelContext !== null) {
+    const has = setting.valuesByChannel.some(
+      (entry) => entry.salesChannelCode === channelContext,
+    );
+    if (has) return 'channel-override';
+  }
+  if (setting.globalValue !== null && setting.globalValue !== undefined) {
+    return 'global';
+  }
+  return 'default';
 }
 
 export function parseValue(
@@ -278,15 +311,6 @@ export function computeVersion(setting: SettingDto): string {
   return setting.version;
 }
 
-/**
- * A draft is dirty when the user has touched it: the input text differs from
- * the persisted baseline, the scope was switched away from "all", or any
- * channel was picked in the subset selector. Switching back to the pristine
- * state (text equal to baseline, scope === 'all', no codes) clears the flag.
- */
 export function isDraftDirty(draft: SettingDraft): boolean {
-  if (draft.text !== draft.initialText) return true;
-  if (draft.scope !== 'all') return true;
-  if (draft.subsetCodes.length > 0) return true;
-  return false;
+  return draft.text !== draft.initialText;
 }
