@@ -53,7 +53,7 @@ export function SettingRowEditor({
   const inScopeCodes = setting.salesChannelCodes.length > 0
     ? setting.salesChannelCodes
     : availableChannelCodes;
-  const isDirty = draft.text !== draft.initialText;
+  const isDirty = isDraftDirty(draft);
   const overrideCount = setting.valuesByChannel.length;
 
   const setText = useCallback(
@@ -276,4 +276,17 @@ export function parseValue(
 
 export function computeVersion(setting: SettingDto): string {
   return setting.version;
+}
+
+/**
+ * A draft is dirty when the user has touched it: the input text differs from
+ * the persisted baseline, the scope was switched away from "all", or any
+ * channel was picked in the subset selector. Switching back to the pristine
+ * state (text equal to baseline, scope === 'all', no codes) clears the flag.
+ */
+export function isDraftDirty(draft: SettingDraft): boolean {
+  if (draft.text !== draft.initialText) return true;
+  if (draft.scope !== 'all') return true;
+  if (draft.subsetCodes.length > 0) return true;
+  return false;
 }

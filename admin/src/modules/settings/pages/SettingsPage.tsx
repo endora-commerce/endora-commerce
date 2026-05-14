@@ -12,6 +12,7 @@ import type {
   SettingGroupDto,
 } from '@b2b/contracts';
 import { ApiError } from '@/lib/api-client';
+import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,6 +26,7 @@ import {
   SettingRowEditor,
   computeVersion,
   deriveDisplayValue,
+  isDraftDirty,
   parseValue,
   type SettingDraft,
 } from '../components/SettingRowEditor';
@@ -34,9 +36,10 @@ import {
  *
  * Every setting renders inline within its group card and is always editable;
  * changes accumulate in `drafts` and are flushed in one "Save N changes"
- * sequence per group. Per-setting "Apply to" scope (all-in-scope / subset)
- * is still honoured and each write carries its own optimistic-version
- * check, so conflicts are reported per setting.
+ * sequence via the page-level sticky action bar that appears as soon as any
+ * draft is dirty. Per-setting "Apply to" scope (all-in-scope / subset) is
+ * still honoured and each write carries its own optimistic-version check,
+ * so conflicts are reported per setting.
  */
 export function SettingsPage(): ReactNode {
   const t = useTranslation('settings');
@@ -46,7 +49,7 @@ export function SettingsPage(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<Record<string, string>>({});
-  const [savingGroup, setSavingGroup] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [resettingCode, setResettingCode] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -137,30 +140,38 @@ export function SettingsPage(): ReactNode {
       let n = 0;
       for (const s of group.settings) {
         const d = drafts[s.code];
-        if (d && d.text !== d.initialText) n += 1;
+        if (d && isDraftDirty(d)) n += 1;
       }
       return n;
     },
     [drafts],
   );
 
-  const discardGroup = useCallback(
-    (group: SettingGroupDto): void => {
-      setDrafts((prev) => {
-        const out = { ...prev };
-        for (const s of group.settings) {
+  const allDirtySettings = useMemo<SettingDto[]>(() => {
+    const out: SettingDto[] = [];
+    for (const g of groups) {
+      for (const s of g.settings) {
+        const d = drafts[s.code];
+        if (d && isDraftDirty(d)) out.push(s);
+      }
+    }
+    return out;
+  }, [drafts, groups]);
+
+  const totalDirtyCount = allDirtySettings.length;
+
+  const discardAll = useCallback((): void => {
+    setDrafts(() => {
+      const out: Record<string, SettingDraft> = {};
+      for (const g of groups) {
+        for (const s of g.settings) {
           out[s.code] = baselineDraft(s);
         }
-        return out;
-      });
-      setConflicts((prev) => {
-        const out = { ...prev };
-        for (const s of group.settings) delete out[s.code];
-        return out;
-      });
-    },
-    [],
-  );
+      }
+      return out;
+    });
+    setConflicts({});
+  }, [groups]);
 
   const findSetting = useCallback(
     (code: string): SettingDto | undefined => {
@@ -172,64 +183,69 @@ export function SettingsPage(): ReactNode {
     [groups],
   );
 
-  const saveGroup = useCallback(
-    async (group: SettingGroupDto): Promise<void> => {
-      const dirtySettings = group.settings.filter((s) => {
-        const d = drafts[s.code];
-        return d && d.text !== d.initialText;
+  const saveAll = useCallback(async (): Promise<void> => {
+    if (allDirtySettings.length === 0) return;
+    setSaving(true);
+    setError(null);
+    setInfo(null);
+    const newConflicts: Record<string, string> = {};
+    const savedCodes = new Set<string>();
+
+    for (const s of allDirtySettings) {
+      const draft = drafts[s.code];
+      if (!draft) continue;
+      if (draft.scope === 'subset' && draft.subsetCodes.length === 0) {
+        newConflicts[s.code] = t('editor.applyTo.subsetEmpty');
+        continue;
+      }
+      try {
+        const value = parseValue(s.valueType, draft.text);
+        const expectedVersion = computeVersion(s);
+        if (draft.scope === 'all') {
+          await settingsClient.setValue(s.code, {
+            scope: 'all',
+            value,
+            expectedVersion,
+          });
+        } else {
+          await settingsClient.setValue(s.code, {
+            scope: 'subset',
+            salesChannelCodes: draft.subsetCodes,
+            value,
+            expectedVersion,
+          });
+        }
+        savedCodes.add(s.code);
+      } catch (err) {
+        if (err instanceof ApiError && err.envelope.error.code === 'VERSION_CONFLICT') {
+          newConflicts[s.code] = err.envelope.error.message;
+        } else {
+          newConflicts[s.code] =
+            err instanceof ApiError ? err.envelope.error.message : 'Save failed.';
+        }
+      }
+    }
+
+    // Drop drafts that were just saved so the upcoming refresh rebuilds them
+    // from the fresh server state (scope back to 'all', subset cleared). Without
+    // this, scope/subset-only edits would leave the row stuck in its dirty
+    // state after a successful write — the value lands on the server but the
+    // sticky bar would still show "Save 1 change(s)".
+    if (savedCodes.size > 0) {
+      setDrafts((prev) => {
+        const out = { ...prev };
+        for (const code of savedCodes) delete out[code];
+        return out;
       });
-      if (dirtySettings.length === 0) return;
+    }
 
-      setSavingGroup(group.code);
-      setError(null);
-      setInfo(null);
-      const newConflicts: Record<string, string> = {};
-      let saved = 0;
-
-      for (const s of dirtySettings) {
-        const draft = drafts[s.code];
-        if (!draft) continue;
-        if (draft.scope === 'subset' && draft.subsetCodes.length === 0) {
-          newConflicts[s.code] = t('editor.applyTo.subsetEmpty');
-          continue;
-        }
-        try {
-          const value = parseValue(s.valueType, draft.text);
-          const expectedVersion = computeVersion(s);
-          if (draft.scope === 'all') {
-            await settingsClient.setValue(s.code, {
-              scope: 'all',
-              value,
-              expectedVersion,
-            });
-          } else {
-            await settingsClient.setValue(s.code, {
-              scope: 'subset',
-              salesChannelCodes: draft.subsetCodes,
-              value,
-              expectedVersion,
-            });
-          }
-          saved += 1;
-        } catch (err) {
-          if (err instanceof ApiError && err.envelope.error.code === 'VERSION_CONFLICT') {
-            newConflicts[s.code] = err.envelope.error.message;
-          } else {
-            newConflicts[s.code] =
-              err instanceof ApiError ? err.envelope.error.message : 'Save failed.';
-          }
-        }
-      }
-
-      setConflicts((prev) => ({ ...prev, ...newConflicts }));
-      if (saved > 0) {
-        setInfo(t('editor.savedNotice', { count: saved }));
-      }
-      await refresh();
-      setSavingGroup(null);
-    },
-    [drafts, refresh, t],
-  );
+    setConflicts((prev) => ({ ...prev, ...newConflicts }));
+    if (savedCodes.size > 0) {
+      setInfo(t('editor.savedNotice', { count: savedCodes.size }));
+    }
+    await refresh();
+    setSaving(false);
+  }, [allDirtySettings, drafts, refresh, t]);
 
   const resetSetting = useCallback(
     async (code: string): Promise<void> => {
@@ -286,7 +302,9 @@ export function SettingsPage(): ReactNode {
           </Button>
         )}
       </div>
-      <div className="space-y-4">
+      <div
+        className={cn('space-y-4', totalDirtyCount > 0 && 'pb-24')}
+      >
         {loading && (
           <p className="text-sm text-muted-foreground">Loading settings…</p>
         )}
@@ -297,61 +315,37 @@ export function SettingsPage(): ReactNode {
           filteredGroups.map((group) => {
             const isCollapsed = !!collapsed[group.code];
             const dirtyCount = dirtyCountFor(group);
-            const isSaving = savingGroup === group.code;
             return (
               <Card key={group.code}>
                 <CardHeader>
-                  <div className="flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => toggleGroup(group.code)}
-                      className="flex flex-1 items-center gap-2 text-left"
-                      aria-expanded={!isCollapsed}
-                    >
-                      {isCollapsed ? (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      )}
-                      <CardTitle className="flex items-center gap-2">
-                        {group.name}
-                        {group.isSystemProtected && (
-                          <span className="rounded bg-muted px-2 py-0.5 text-xs">
-                            system
-                          </span>
-                        )}
-                        <span className="text-xs font-normal text-muted-foreground">
-                          ({group.settings.length})
-                        </span>
-                        {dirtyCount > 0 && (
-                          <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-900">
-                            {t('actions.saveChanges', { count: dirtyCount })}
-                          </span>
-                        )}
-                      </CardTitle>
-                    </button>
-                    {dirtyCount > 0 && !isCollapsed && (
-                      <div className="flex shrink-0 gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => discardGroup(group)}
-                          disabled={isSaving}
-                        >
-                          {t('actions.discard')}
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => void saveGroup(group)}
-                          disabled={isSaving}
-                        >
-                          {isSaving
-                            ? t('actions.saveAll') + '…'
-                            : t('actions.saveChanges', { count: dirtyCount })}
-                        </Button>
-                      </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.code)}
+                    className="flex w-full items-center gap-2 text-left"
+                    aria-expanded={!isCollapsed}
+                  >
+                    {isCollapsed ? (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
                     )}
-                  </div>
+                    <CardTitle className="flex items-center gap-2">
+                      {group.name}
+                      {group.isSystemProtected && (
+                        <span className="rounded bg-muted px-2 py-0.5 text-xs">
+                          system
+                        </span>
+                      )}
+                      <span className="text-xs font-normal text-muted-foreground">
+                        ({group.settings.length})
+                      </span>
+                      {dirtyCount > 0 && (
+                        <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-900">
+                          {t('actions.saveChanges', { count: dirtyCount })}
+                        </span>
+                      )}
+                    </CardTitle>
+                  </button>
                 </CardHeader>
                 {!isCollapsed && (
                   <CardContent>
@@ -392,27 +386,6 @@ export function SettingsPage(): ReactNode {
                             </div>
                           );
                         })}
-                        {dirtyCount > 0 && (
-                          <div className="flex justify-end gap-2 border-t pt-3">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => discardGroup(group)}
-                              disabled={isSaving}
-                            >
-                              {t('actions.discard')}
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => void saveGroup(group)}
-                              disabled={isSaving}
-                            >
-                              {isSaving
-                                ? t('actions.saveAll') + '…'
-                                : t('actions.saveChanges', { count: dirtyCount })}
-                            </Button>
-                          </div>
-                        )}
                       </div>
                     )}
                   </CardContent>
@@ -421,6 +394,34 @@ export function SettingsPage(): ReactNode {
             );
           })}
       </div>
+      {totalDirtyCount > 0 && (
+        <div
+          role="region"
+          aria-label={t('actions.saveChanges', { count: totalDirtyCount })}
+          className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-end gap-3 border-t bg-background/95 px-4 py-3 shadow-lg backdrop-blur sm:px-6 lg:px-8"
+        >
+          <span className="mr-auto text-sm text-muted-foreground">
+            {t('actions.saveChanges', { count: totalDirtyCount })}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={discardAll}
+            disabled={saving}
+          >
+            {t('actions.discard')}
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => void saveAll()}
+            disabled={saving}
+          >
+            {saving
+              ? t('actions.saveAll') + '…'
+              : t('actions.saveChanges', { count: totalDirtyCount })}
+          </Button>
+        </div>
+      )}
     </>
   );
 }
@@ -449,7 +450,7 @@ function mergeDrafts(
     for (const s of g.settings) {
       const existing = prev[s.code];
       const base = baselineDraft(s);
-      if (existing && existing.text !== existing.initialText) {
+      if (existing && isDraftDirty(existing)) {
         out[s.code] = {
           ...existing,
           initialText: base.initialText,
