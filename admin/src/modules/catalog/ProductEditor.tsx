@@ -37,6 +37,7 @@ import {
 import { EntityChannelMembership } from '../sales_channels/components/EntityChannelMembership';
 import { ProductInventoryTab } from './ProductInventoryTab';
 import { LinkedPriceListsPanel } from '../price_lists/LinkedPriceListsPanel';
+import { ProductPicker } from './components/ProductPicker';
 
 const LOCALES = ['en-US', 'pl-PL'] as const;
 type Locale = (typeof LOCALES)[number];
@@ -1608,7 +1609,7 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
           </div>
         )}
 
-        <CreateProductLinkInline onCreate={handleCreate} />
+        <CreateProductLinkInline onCreate={handleCreate} sourceProductId={productId} />
       </CardContent>
     </Card>
   );
@@ -1627,10 +1628,12 @@ function kindLabel(kind: LinkKind): string {
 
 function CreateProductLinkInline({
   onCreate,
+  sourceProductId,
 }: {
   onCreate: (input: { targetProductId: string; kind: LinkKind }) => Promise<void>;
+  sourceProductId: string;
 }): ReactNode {
-  const [targetProductId, setTargetProductId] = useState('');
+  const [targetProductId, setTargetProductId] = useState<string | null>(null);
   const [kind, setKind] = useState<LinkKind>('related');
 
   return (
@@ -1640,12 +1643,15 @@ function CreateProductLinkInline({
       aria-label="Add product link"
     >
       <div className="space-y-1 md:col-span-2">
-        <Label htmlFor="ltarget">Target product id</Label>
-        <Input
+        <Label htmlFor="ltarget">Target product</Label>
+        <ProductPicker
           id="ltarget"
+          mode="select"
           value={targetProductId}
-          onChange={(e): void => setTargetProductId(e.target.value)}
-          placeholder="UUID of the product to link to"
+          onChange={setTargetProductId}
+          excludeIds={[sourceProductId]}
+          placeholder="Search by name, SKU, or slug…"
+          ariaLabel="Target product"
         />
       </div>
       <div className="space-y-1">
@@ -1661,10 +1667,11 @@ function CreateProductLinkInline({
       <div className="md:col-span-3">
         <Button
           type="button"
+          disabled={targetProductId === null}
           onClick={() => {
-            if (!targetProductId) return;
+            if (targetProductId === null) return;
             void onCreate({ targetProductId, kind }).then(() => {
-              setTargetProductId('');
+              setTargetProductId(null);
             });
           }}
         >
