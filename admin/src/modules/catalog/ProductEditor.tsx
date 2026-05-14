@@ -38,6 +38,7 @@ import {
 import { EntityChannelMembership } from '../sales_channels/components/EntityChannelMembership';
 import { ProductInventoryTab } from './ProductInventoryTab';
 import { LinkedPriceListsPanel } from '../price_lists/LinkedPriceListsPanel';
+import { ProductPicker } from './components/ProductPicker';
 
 const LOCALES = ['en-US', 'pl-PL'] as const;
 type Locale = (typeof LOCALES)[number];
@@ -1476,9 +1477,30 @@ interface AdminProductLink {
   position: number;
 }
 
+interface AdminProductSummary {
+  id: string;
+  sku: string;
+  slug: string;
+  status: 'draft' | 'active' | 'archived';
+  name: Record<string, string>;
+}
+
+function pickProductName(
+  name: Record<string, string> | undefined | null,
+  fallback: string,
+): string {
+  if (!name) return fallback;
+  return name['en-US'] ?? Object.values(name)[0] ?? fallback;
+}
+
+const TARGETS_BATCH_PAGE_SIZE = 200;
+
 function ProductLinksSection({ productId }: { productId: string }): ReactNode {
   const t = useTranslation('catalog');
   const [links, setLinks] = useState<AdminProductLink[]>([]);
+  const [targetsById, setTargetsById] = useState<Map<string, AdminProductSummary>>(
+    () => new Map(),
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -1491,6 +1513,33 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
         `/api/v1/admin/catalog/products/${productId}/links`,
       );
       setLinks(res.data);
+
+      // Fetch target product details across all three kinds in one shot.
+      // Paginates with TARGETS_BATCH_PAGE_SIZE so a product with hundreds
+      // of links streams across multiple requests without ballooning the
+      // body. In practice a single page is enough.
+      const uniqueTargetIds = Array.from(new Set(res.data.map((l) => l.targetProductId)));
+      const nextById = new Map<string, AdminProductSummary>();
+      if (uniqueTargetIds.length > 0) {
+        let page = 0;
+        // Bounded loop guards against an unexpected backend response that
+        // never sets `hasMore: false`.
+        for (;;) {
+          const batch = await apiClient.post<{
+            data: AdminProductSummary[];
+            pagination: { hasMore: boolean };
+          }>('/api/v1/admin/catalog/products/batch-by-id', {
+            ids: uniqueTargetIds,
+            page,
+            pageSize: TARGETS_BATCH_PAGE_SIZE,
+          });
+          for (const p of batch.data) nextById.set(p.id, p);
+          if (!batch.pagination.hasMore) break;
+          page += 1;
+          if (page > 50) break;
+        }
+      }
+      setTargetsById(nextById);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.links.error.load'));
     } finally {
@@ -1577,29 +1626,58 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
                     <TableHeader>
                       <TableRow>
                         <TableHead>{t('productEditor.links.column.target')}</TableHead>
+                        <TableHead>{t('productEditor.links.column.sku')}</TableHead>
                         <TableHead>{t('productEditor.links.column.position')}</TableHead>
                         <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.links.column.actions')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {byKind[kind].map((link) => (
-                        <TableRow key={link.id}>
-                          <TableCell className="font-mono text-xs">
-                            {link.targetProductId}
-                          </TableCell>
-                          <TableCell>{link.position}</TableCell>
-                          <TableCell>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => void handleDelete(link.id)}
-                            >
-                              {t('productEditor.links.action.remove')}
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {byKind[kind].map((link) => {
+                        const target = targetsById.get(link.targetProductId);
+                        const isMissing = !target;
+                        const isArchived = target?.status === 'archived';
+                        return (
+                          <TableRow key={link.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={
+                                    isMissing || isArchived ? 'text-muted-foreground' : ''
+                                  }
+                                >
+                                  {target
+                                    ? pickProductName(target.name, target.slug)
+                                    : `${link.targetProductId.slice(0, 8)}…`}
+                                </span>
+                                {isMissing ? (
+                                  <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                                    {t('productEditor.links.badge.missing')}
+                                  </span>
+                                ) : null}
+                                {isArchived ? (
+                                  <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                                    {t('productEditor.links.badge.archived')}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {target?.sku ?? '—'}
+                            </TableCell>
+                            <TableCell>{link.position}</TableCell>
+                            <TableCell>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => void handleDelete(link.id)}
+                              >
+                                {t('productEditor.links.action.remove')}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 )}
@@ -1608,7 +1686,7 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
           </div>
         )}
 
-        <CreateProductLinkInline onCreate={handleCreate} />
+        <CreateProductLinkInline onCreate={handleCreate} sourceProductId={productId} />
       </CardContent>
     </Card>
   );
@@ -1616,11 +1694,13 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
 
 function CreateProductLinkInline({
   onCreate,
+  sourceProductId,
 }: {
   onCreate: (input: { targetProductId: string; kind: LinkKind }) => Promise<void>;
+  sourceProductId: string;
 }): ReactNode {
   const t = useTranslation('catalog');
-  const [targetProductId, setTargetProductId] = useState('');
+  const [targetProductId, setTargetProductId] = useState<string | null>(null);
   const [kind, setKind] = useState<LinkKind>('related');
 
   return (
@@ -1631,11 +1711,14 @@ function CreateProductLinkInline({
     >
       <div className="space-y-1 md:col-span-2">
         <Label htmlFor="ltarget">{t('productEditor.links.column.target')}</Label>
-        <Input
+        <ProductPicker
           id="ltarget"
+          mode="select"
           value={targetProductId}
-          onChange={(e): void => setTargetProductId(e.target.value)}
+          onChange={setTargetProductId}
+          excludeIds={[sourceProductId]}
           placeholder={t('productEditor.links.field.targetPlaceholder')}
+          ariaLabel={t('productEditor.links.column.target')}
         />
       </div>
       <div className="space-y-1">
@@ -1651,10 +1734,11 @@ function CreateProductLinkInline({
       <div className="md:col-span-3">
         <Button
           type="button"
+          disabled={targetProductId === null}
           onClick={() => {
-            if (!targetProductId) return;
+            if (targetProductId === null) return;
             void onCreate({ targetProductId, kind }).then(() => {
-              setTargetProductId('');
+              setTargetProductId(null);
             });
           }}
         >

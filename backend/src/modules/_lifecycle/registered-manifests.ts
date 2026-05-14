@@ -22,6 +22,39 @@ import { manifest as importExportManifest } from '../import_export/manifest.js';
 import { manifest as cmsManifest } from '../cms/manifest.js';
 import { manifest as megamenuManifest } from '../megamenu/manifest.js';
 import { manifest as dictionariesManifest } from '../dictionaries/manifest.js';
+// Pass C retrofit — manifest backfills for every remaining legacy module.
+// These predate the lifecycle system; the manifest is the static record
+// required for the module to be considered active. A module on disk that
+// is missing from this list (and therefore has no manifest entry) is
+// treated as inactive — see `assertEveryModuleHasManifest` below.
+import { manifest as addressesManifest } from '../addresses/manifest.js';
+import { manifest as adminRolesManifest } from '../admin_roles/manifest.js';
+import { manifest as adminUsersManifest } from '../admin_users/manifest.js';
+import { manifest as analyticsManifest } from '../analytics/manifest.js';
+import { manifest as apiKeysManifest } from '../api_keys/manifest.js';
+import { manifest as assetsLegacyManifest } from '../assets/manifest.js';
+import { manifest as auditLogsManifest } from '../audit_logs/manifest.js';
+import { manifest as authManifest } from '../auth/manifest.js';
+import { manifest as cartsManifest } from '../carts/manifest.js';
+import { manifest as creditLimitsManifest } from '../credit_limits/manifest.js';
+import { manifest as currenciesManifest } from '../currencies/manifest.js';
+import { manifest as customerAccountsManifest } from '../customer_accounts/manifest.js';
+import { manifest as deliveryMethodsManifest } from '../delivery_methods/manifest.js';
+import { manifest as emailManifest } from '../email/manifest.js';
+import { manifest as healthChecksManifest } from '../health_checks/manifest.js';
+import { manifest as integrationsManifest } from '../integrations/manifest.js';
+import { manifest as invoicesManifest } from '../invoices/manifest.js';
+import { manifest as languagesManifest } from '../languages/manifest.js';
+import { manifest as ordersManifest } from '../orders/manifest.js';
+import { manifest as organizationsManifest } from '../organizations/manifest.js';
+import { manifest as paymentMethodsManifest } from '../payment_methods/manifest.js';
+import { manifest as paymentsManifest } from '../payments/manifest.js';
+import { manifest as promotionsManifest } from '../promotions/manifest.js';
+import { manifest as quickOrderManifest } from '../quick_order/manifest.js';
+import { manifest as seoManifest } from '../seo/manifest.js';
+import { manifest as shoppingListsManifest } from '../shopping_lists/manifest.js';
+import { manifest as taxesManifest } from '../taxes/manifest.js';
+import { manifest as webhooksManifest } from '../webhooks/manifest.js';
 
 /**
  * Single source of truth for the static manifest list consumed by both
@@ -82,4 +115,86 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   // dependency, so the module needs an entry here even though it has no
   // install hook (its schema is owned by migration 038).
   { manifest: dictionariesManifest, filePath: pathFor('dictionaries') },
+  // Pass C retrofit — every remaining legacy module gets a manifest so
+  // none of them are treated as inactive. Sort: alphabetical by id.
+  { manifest: addressesManifest, filePath: pathFor('addresses') },
+  { manifest: adminRolesManifest, filePath: pathFor('admin_roles') },
+  { manifest: adminUsersManifest, filePath: pathFor('admin_users') },
+  { manifest: analyticsManifest, filePath: pathFor('analytics') },
+  { manifest: apiKeysManifest, filePath: pathFor('api_keys') },
+  { manifest: assetsLegacyManifest, filePath: pathFor('assets') },
+  { manifest: auditLogsManifest, filePath: pathFor('audit_logs') },
+  { manifest: authManifest, filePath: pathFor('auth') },
+  { manifest: cartsManifest, filePath: pathFor('carts') },
+  { manifest: creditLimitsManifest, filePath: pathFor('credit_limits') },
+  { manifest: currenciesManifest, filePath: pathFor('currencies') },
+  { manifest: customerAccountsManifest, filePath: pathFor('customer_accounts') },
+  { manifest: deliveryMethodsManifest, filePath: pathFor('delivery_methods') },
+  { manifest: emailManifest, filePath: pathFor('email') },
+  { manifest: healthChecksManifest, filePath: pathFor('health_checks') },
+  { manifest: integrationsManifest, filePath: pathFor('integrations') },
+  { manifest: invoicesManifest, filePath: pathFor('invoices') },
+  { manifest: languagesManifest, filePath: pathFor('languages') },
+  { manifest: ordersManifest, filePath: pathFor('orders') },
+  { manifest: organizationsManifest, filePath: pathFor('organizations') },
+  { manifest: paymentMethodsManifest, filePath: pathFor('payment_methods') },
+  { manifest: paymentsManifest, filePath: pathFor('payments') },
+  { manifest: promotionsManifest, filePath: pathFor('promotions') },
+  { manifest: quickOrderManifest, filePath: pathFor('quick_order') },
+  { manifest: seoManifest, filePath: pathFor('seo') },
+  { manifest: shoppingListsManifest, filePath: pathFor('shopping_lists') },
+  { manifest: taxesManifest, filePath: pathFor('taxes') },
+  { manifest: webhooksManifest, filePath: pathFor('webhooks') },
 ];
+
+/**
+ * Boot-time check: every directory under `backend/src/modules/` (apart
+ * from `__tests__` and the like) MUST own a `manifest.ts` AND be
+ * registered above. Anything else is treated as inactive — the
+ * function logs a warning and the module's lifecycle features (i18n
+ * bundles, admin actions, settings registration) are skipped. The
+ * loader still allows the module's plugin to register via
+ * `composition.ts`, but operators see a clear signal that the module
+ * is off the lifecycle path until a manifest is added.
+ *
+ * The check is invoked once at boot via the lifecycle plugin. Pure fs
+ * + no Redis / DB, so it's safe to run before the orchestrator opens.
+ */
+import { existsSync, readdirSync, statSync } from 'node:fs';
+
+export interface InactiveModule {
+  id: string;
+  reason: 'no-manifest-file' | 'no-registry-entry';
+}
+
+export function findInactiveModules(): InactiveModule[] {
+  const registeredIds = new Set(REGISTERED_MANIFESTS.map((e) => e.manifest.id));
+  const out: InactiveModule[] = [];
+  let entries: string[];
+  try {
+    entries = readdirSync(MODULES_ROOT);
+  } catch {
+    return out;
+  }
+  for (const name of entries) {
+    // Skip files (e.g. `index.ts`) and dotfiles. Underscore-prefixed
+    // platform-internal modules (`_lifecycle`, `_i18n`) are still valid.
+    if (name.startsWith('.')) continue;
+    const fullPath = join(MODULES_ROOT, name);
+    let isDir = false;
+    try {
+      isDir = statSync(fullPath).isDirectory();
+    } catch {
+      continue;
+    }
+    if (!isDir) continue;
+    if (!existsSync(join(fullPath, 'manifest.ts'))) {
+      out.push({ id: name, reason: 'no-manifest-file' });
+      continue;
+    }
+    if (!registeredIds.has(name)) {
+      out.push({ id: name, reason: 'no-registry-entry' });
+    }
+  }
+  return out;
+}

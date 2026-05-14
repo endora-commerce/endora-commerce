@@ -482,6 +482,17 @@ export const updateProductRequestSchema = baseProductRequestObject
   .omit({ type: true });
 export type UpdateProductRequest = z.infer<typeof updateProductRequestSchema>;
 
+// Admin batch-by-id lookup. The body carries the id set (deduped server-
+// side) plus optional pagination so callers can stream large lookups
+// across multiple requests. Hard cap of 500 ids per call mirrors the
+// service-layer `pageSize` ceiling and keeps a single request bounded.
+export const batchByIdProductsRequestSchema = z.object({
+  ids: z.array(z.string().uuid()).max(500),
+  page: z.number().int().min(0).optional(),
+  pageSize: z.number().int().min(1).max(500).optional(),
+});
+export type BatchByIdProductsRequest = z.infer<typeof batchByIdProductsRequestSchema>;
+
 export const createVariantRequestSchema = z.object({
   sku: z.string().min(1).max(64),
   variantAttributeValues: z.record(z.string(), z.unknown()),

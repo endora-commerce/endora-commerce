@@ -18,6 +18,11 @@ import { StorefrontApiError } from '../../../../lib/api/client';
  * also gate the page in the layout to fail closed.
  */
 
+const ROLE_LABELS: Record<'organization_admin' | 'regular_user', string> = {
+  organization_admin: 'Organization Admin',
+  regular_user: 'Regular User',
+};
+
 export default async function MembersPage({
   searchParams,
 }: {
@@ -67,13 +72,13 @@ export default async function MembersPage({
                 {m.firstName} {m.lastName}
               </td>
               <td>{m.email}</td>
-              <td>{m.role}</td>
+              <td>{ROLE_LABELS[m.role]}</td>
               <td>
                 <form action={changeRoleAction} style={{ display: 'inline-flex', gap: '0.25rem' }}>
                   <input type="hidden" name="memberId" value={m.id} />
                   <select name="role" defaultValue={m.role}>
-                    <option value="organization_admin">organization_admin</option>
-                    <option value="regular_user">regular_user</option>
+                    <option value="organization_admin">{ROLE_LABELS.organization_admin}</option>
+                    <option value="regular_user">{ROLE_LABELS.regular_user}</option>
                   </select>
                   <button type="submit">Save</button>
                 </form>{' '}
@@ -106,7 +111,7 @@ export default async function MembersPage({
               {pendingInvitations.map((inv) => (
                 <tr key={inv.id}>
                   <td>{inv.email}</td>
-                  <td>{inv.role}</td>
+                  <td>{ROLE_LABELS[inv.role]}</td>
                   <td>{new Date(inv.createdAt).toLocaleDateString()}</td>
                   <td>{new Date(inv.expiresAt).toLocaleDateString()}</td>
                   <td>
@@ -132,8 +137,8 @@ export default async function MembersPage({
           <div className="b2b-auth__field">
             <label htmlFor="invite-role">Role</label>
             <select id="invite-role" name="role" defaultValue="regular_user">
-              <option value="regular_user">regular_user</option>
-              <option value="organization_admin">organization_admin</option>
+              <option value="regular_user">{ROLE_LABELS.regular_user}</option>
+              <option value="organization_admin">{ROLE_LABELS.organization_admin}</option>
             </select>
           </div>
         </div>
