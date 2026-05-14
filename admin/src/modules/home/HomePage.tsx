@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth';
+import { useTranslation } from '@/i18n/useTranslation';
 
 /**
  * Dashboard / home page (feature 008).
@@ -29,14 +30,15 @@ interface Kpi {
 }
 
 export function HomePage(): ReactNode {
+  const t = useTranslation('core');
   const { me } = useAuth();
   const navigate = useNavigate();
-  const firstName = me?.adminUser.firstName?.trim() || 'there';
+  const firstName = me?.adminUser.firstName?.trim() || t('home.defaultName');
   const [kpis, setKpis] = useState<Kpi[]>([
-    { label: 'Active products', value: '—' },
-    { label: 'Pending quotes', value: '—', tone: 'warn' },
-    { label: 'Open orders', value: '—' },
-    { label: 'Out of stock', value: '—', tone: 'danger' },
+    { label: t('home.kpi.activeProducts'), value: '—' },
+    { label: t('home.kpi.pendingQuotes'), value: '—', tone: 'warn' },
+    { label: t('home.kpi.openOrders'), value: '—' },
+    { label: t('home.kpi.outOfStock'), value: '—', tone: 'danger' },
   ]);
   const [stockAlerts, setStockAlerts] = useState<
     Array<{ productId: string; sku: string; name: string; qty: number; threshold: number }>
@@ -46,10 +48,10 @@ export function HomePage(): ReactNode {
     let cancelled = false;
     void (async () => {
       const next: Kpi[] = [
-        { label: 'Active products', value: '—' },
-        { label: 'Pending quotes', value: '—', tone: 'warn' },
-        { label: 'Open orders', value: '—' },
-        { label: 'Out of stock', value: '—', tone: 'danger' },
+        { label: t('home.kpi.activeProducts'), value: '—' },
+        { label: t('home.kpi.pendingQuotes'), value: '—', tone: 'warn' },
+        { label: t('home.kpi.openOrders'), value: '—' },
+        { label: t('home.kpi.outOfStock'), value: '—', tone: 'danger' },
       ];
       // Best-effort KPI fetches. Each one is independent — if any
       // endpoint isn't wired or returns 4xx/5xx, we leave a "—".
@@ -60,21 +62,21 @@ export function HomePage(): ReactNode {
         fetchKpi('/api/v1/admin/catalog/products?pageSize=1', (data: unknown) => {
           const counts = (data as { counts?: { active?: number } }).counts;
           if (counts?.active !== undefined) {
-            next[0] = { label: 'Active products', value: String(counts.active) };
+            next[0] = { label: t('home.kpi.activeProducts'), value: String(counts.active) };
           }
         }),
         fetchKpi('/api/v1/admin/quote-requests?status=submitted', (data: unknown) => {
           const arr = (data as { data?: unknown[] }).data ?? [];
-          next[1] = { label: 'Pending quotes', value: String(arr.length), tone: 'warn' };
+          next[1] = { label: t('home.kpi.pendingQuotes'), value: String(arr.length), tone: 'warn' };
         }),
         fetchKpi('/api/v1/admin/orders?status=new', (data: unknown) => {
           const arr = (data as { data?: unknown[] }).data ?? [];
-          next[2] = { label: 'Open orders', value: String(arr.length) };
+          next[2] = { label: t('home.kpi.openOrders'), value: String(arr.length) };
         }),
         fetchKpi('/api/v1/admin/inventory', (data: unknown) => {
           const k = (data as { data?: { outOfStockCount?: number } }).data;
           if (k?.outOfStockCount !== undefined) {
-            next[3] = { label: 'Out of stock', value: String(k.outOfStockCount), tone: 'danger' };
+            next[3] = { label: t('home.kpi.outOfStock'), value: String(k.outOfStockCount), tone: 'danger' };
           }
         }),
         fetchKpi('/api/v1/admin/inventory/low-stock', (data: unknown) => {
@@ -105,6 +107,7 @@ export function HomePage(): ReactNode {
     return (): void => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -112,9 +115,9 @@ export function HomePage(): ReactNode {
       <div className="b2b-page-head">
         <div className="b2b-grow">
           <div className="b2b-page-head__title">
-            Welcome back, <span style={{ color: 'var(--fg-muted)', fontWeight: 500 }}>{firstName}</span>
+            {t('home.welcomeBack')}, <span style={{ color: 'var(--fg-muted)', fontWeight: 500 }}>{firstName}</span>
           </div>
-          <div className="b2b-page-head__sub">Here&apos;s what&apos;s happening across your B2B catalog today</div>
+          <div className="b2b-page-head__sub">{t('home.subtitle')}</div>
         </div>
       </div>
 
@@ -131,13 +134,13 @@ export function HomePage(): ReactNode {
         <div className="b2b-card">
           <div className="b2b-card__head">
             <div>
-              <div className="b2b-card__title">Recent activity</div>
-              <div className="b2b-card__sub">Across catalog, pricing, and inventory</div>
+              <div className="b2b-card__title">{t('home.recentActivity.title')}</div>
+              <div className="b2b-card__sub">{t('home.recentActivity.subtitle')}</div>
             </div>
           </div>
           <div className="b2b-card__body b2b-card__body--flush">
             <div className="b2b-minilist" style={{ padding: 4 }}>
-              {ACTIVITY.map((event, idx) => {
+              {buildActivity(t).map((event, idx) => {
                 const Icon = event.icon;
                 return (
                   <div key={idx} className="b2b-minirow">
@@ -168,7 +171,7 @@ export function HomePage(): ReactNode {
           {/* Quick actions */}
           <div className="b2b-card">
             <div className="b2b-card__head">
-              <div className="b2b-card__title">Quick actions</div>
+              <div className="b2b-card__title">{t('home.quickActions.title')}</div>
             </div>
             <div className="b2b-card__body">
               <div className="b2b-col" style={{ gap: 8 }}>
@@ -178,7 +181,7 @@ export function HomePage(): ReactNode {
                   style={{ justifyContent: 'flex-start' }}
                   onClick={(): void => { navigate('/catalog/products/new'); }}
                 >
-                  <Plus size={14} /> New product
+                  <Plus size={14} /> {t('home.quickActions.newProduct')}
                 </button>
                 <button
                   type="button"
@@ -186,7 +189,7 @@ export function HomePage(): ReactNode {
                   style={{ justifyContent: 'flex-start' }}
                   onClick={(): void => { navigate('/price-lists'); }}
                 >
-                  <CircleDollarSign size={14} /> Edit pricing
+                  <CircleDollarSign size={14} /> {t('home.quickActions.editPricing')}
                 </button>
                 <button
                   type="button"
@@ -194,7 +197,7 @@ export function HomePage(): ReactNode {
                   style={{ justifyContent: 'flex-start' }}
                   onClick={(): void => { navigate('/import-export'); }}
                 >
-                  <Upload size={14} /> Import inventory
+                  <Upload size={14} /> {t('home.quickActions.importInventory')}
                 </button>
                 <button
                   type="button"
@@ -202,7 +205,7 @@ export function HomePage(): ReactNode {
                   style={{ justifyContent: 'flex-start' }}
                   onClick={(): void => { navigate('/quote-requests'); }}
                 >
-                  <FileText size={14} /> Convert quote to order
+                  <FileText size={14} /> {t('home.quickActions.convertQuote')}
                 </button>
               </div>
             </div>
@@ -212,17 +215,17 @@ export function HomePage(): ReactNode {
           <div className="b2b-card">
             <div className="b2b-card__head">
               <div>
-                <div className="b2b-card__title">Stock alerts</div>
-                <div className="b2b-card__sub">At or below low-stock threshold</div>
+                <div className="b2b-card__title">{t('home.stockAlerts.title')}</div>
+                <div className="b2b-card__sub">{t('home.stockAlerts.subtitle')}</div>
               </div>
               <Link to="/inventory/low-stock" className="b2b-btn b2b-btn--ghost b2b-btn--sm">
-                See all
+                {t('home.stockAlerts.seeAll')}
               </Link>
             </div>
             <div className="b2b-card__body b2b-card__body--flush">
               {stockAlerts.length === 0 ? (
                 <div className="b2b-help" style={{ padding: 16 }}>
-                  No products are currently low on stock.
+                  {t('home.stockAlerts.empty')}
                 </div>
               ) : (
                 <div className="b2b-minilist" style={{ padding: 4 }}>
@@ -248,7 +251,7 @@ export function HomePage(): ReactNode {
                       <span
                         className={alert.qty === 0 ? 'b2b-badge b2b-badge--danger' : 'b2b-badge b2b-badge--warn'}
                       >
-                        {alert.qty === 0 ? 'Out' : `${alert.qty} left`}
+                        {alert.qty === 0 ? t('home.stockAlerts.out') : t('home.stockAlerts.left', { qty: alert.qty })}
                       </span>
                     </Link>
                   ))}
@@ -295,75 +298,85 @@ async function fetchKpi(path: string, set: (data: unknown) => void): Promise<voi
  * "recent admin events" endpoint we'll point this at it; until then
  * the home page renders representative activity that matches the
  * design's intent. */
-const ACTIVITY: Array<{ icon: typeof Edit; text: ReactNode; when: string }> = [
+function buildActivity(t: (key: string, params?: Record<string, string | number>) => string): Array<{ icon: typeof Edit; text: ReactNode; when: string }> {
+  const annaK = 'Anna K.';
+  const tomaszW = 'Tomasz W.';
+  const tier1 = 'Tier 1 distributors';
+  const acmeIndustrial = 'Acme Industrial';
+  const acme2026 = 'Acme — 2026';
+  const bauhaus = 'Bauhaus Polska';
+  const wurth = 'Würth Polska';
+  const creditAmount = '+ 50 000 PLN';
+  return [
   {
     icon: Edit,
     text: (
       <>
-        <b>Anna K.</b> updated price list{' '}
+        <b>{annaK}</b> {t('home.activity.updatedPriceList')}{' '}
         <Link to="/price-lists" style={{ color: 'var(--primary-color)' }}>
-          Tier 1 distributors
+          {tier1}
         </Link>
       </>
     ),
-    when: '2m ago',
+    when: t('home.activity.minutesAgo', { count: 2 }),
   },
   {
     icon: Plus,
     text: (
       <>
-        <b>Tomasz W.</b> created product <span className="b2b-mono">CABLE-LIY-1.5-50</span>
+        <b>{tomaszW}</b> {t('home.activity.createdProduct')} <span className="b2b-mono">CABLE-LIY-1.5-50</span>
       </>
     ),
-    when: '38m ago',
+    when: t('home.activity.minutesAgo', { count: 38 }),
   },
   {
     icon: Archive,
     text: (
       <>
-        <b>System</b> auto-archived 12 SKUs with zero movement (180d)
+        <b>{t('home.activity.systemActor')}</b> {t('home.activity.autoArchived')}
       </>
     ),
-    when: '2h ago',
+    when: t('home.activity.hoursAgo', { count: 2 }),
   },
   {
     icon: ClipboardCheck,
     text: (
       <>
-        <b>Acme Industrial</b> placed order <span className="b2b-mono">SO-184221</span>
+        <b>{acmeIndustrial}</b> {t('home.activity.placedOrder')} <span className="b2b-mono">SO-184221</span>
       </>
     ),
-    when: '4h ago',
+    when: t('home.activity.hoursAgo', { count: 4 }),
   },
   {
     icon: CircleDollarSign,
     text: (
       <>
-        <b>Anna K.</b> imported 2&nbsp;480 price rules into{' '}
+        <b>{annaK}</b> {t('home.activity.importedRules')}{' '}
         <Link to="/price-lists" style={{ color: 'var(--primary-color)' }}>
-          Acme — 2026
+          {acme2026}
         </Link>
       </>
     ),
-    when: '6h ago',
+    when: t('home.activity.hoursAgo', { count: 6 }),
   },
   {
     icon: FileText,
     text: (
       <>
-        <b>Bauhaus Polska</b> requested a quote · 8 line items
+        <b>{bauhaus}</b> {t('home.activity.requestedQuote')}
       </>
     ),
-    when: 'yesterday',
+    when: t('home.activity.yesterday'),
   },
   {
     icon: CreditCard,
     text: (
       <>
-        <b>Finance</b> raised credit limit for <b>Würth Polska</b> by <span className="b2b-mono">+ 50 000 PLN</span>
+        <b>{t('home.activity.financeActor')}</b> {t('home.activity.raisedCredit')} <b>{wurth}</b> {t('home.activity.byAmount')} <span className="b2b-mono">{creditAmount}</span>
       </>
     ),
-    when: '2 days ago',
+    when: t('home.activity.daysAgo', { count: 2 }),
   },
-];
+  ];
+}
 
