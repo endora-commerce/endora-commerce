@@ -3,6 +3,7 @@ import { Bell, Search } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { useTranslation } from '@/i18n/useTranslation';
 
 interface NotificationRow {
   id: string;
@@ -30,6 +31,7 @@ interface ListResponse {
  * status + product, search by SKU or email, and cancel a queued row.
  */
 export function AvailabilityNotificationsPage(): ReactNode {
+  const t = useTranslation('core');
   const [rows, setRows] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,29 +52,29 @@ export function AvailabilityNotificationsPage(): ReactNode {
       );
       setRows(res.items);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('inventory.availability.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, t]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   const filtered = useMemo(() => {
-    const t = query.trim().toLowerCase();
-    if (!t) return rows;
+    const q = query.trim().toLowerCase();
+    if (!q) return rows;
     return rows.filter(
       (r) =>
-        r.productSku.toLowerCase().includes(t) ||
-        r.productName.toLowerCase().includes(t) ||
-        r.email.toLowerCase().includes(t),
+        r.productSku.toLowerCase().includes(q) ||
+        r.productName.toLowerCase().includes(q) ||
+        r.email.toLowerCase().includes(q),
     );
   }, [rows, query]);
 
   const handleCancel = async (id: string): Promise<void> => {
-    if (!window.confirm('Cancel this subscription? The customer will no longer receive a back-in-stock email.')) {
+    if (!window.confirm(t('inventory.availability.confirmCancel'))) {
       return;
     }
     setBusyId(id);
@@ -83,10 +85,10 @@ export function AvailabilityNotificationsPage(): ReactNode {
         `/api/v1/admin/inventory/availability-notifications/${id}`,
         { status: 'cancelled' },
       );
-      setInfo('Subscription cancelled.');
+      setInfo(t('inventory.availability.info.cancelled'));
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Cancel failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('inventory.availability.error.cancel'));
     } finally {
       setBusyId(null);
     }
@@ -96,9 +98,9 @@ export function AvailabilityNotificationsPage(): ReactNode {
     <div className="b2b-page b2b-page--wide">
       <div className="b2b-page-head">
         <div className="b2b-grow">
-          <div className="b2b-page-head__title">Notify-when-available</div>
+          <div className="b2b-page-head__title">{t('inventory.availability.title')}</div>
           <div className="b2b-page-head__sub">
-            Customer subscriptions for back-in-stock alerts. Restock fan-out fires automatically when cumulative on-hand crosses 0 → &gt; 0.
+            {t('inventory.availability.description')}
           </div>
         </div>
       </div>
@@ -139,7 +141,7 @@ export function AvailabilityNotificationsPage(): ReactNode {
               <Search size={16} className="lead" />
               <input
                 className="b2b-field b2b-field--addon"
-                placeholder="Search SKU, product, or email…"
+                placeholder={t('inventory.availability.searchPlaceholder')}
                 value={query}
                 onChange={(e): void => setQuery(e.target.value)}
               />
@@ -152,29 +154,29 @@ export function AvailabilityNotificationsPage(): ReactNode {
               className={cn('b2b-filterchip', statusFilter === s && 'is-on')}
               onClick={(): void => setStatusFilter(s)}
             >
-              <span style={{ textTransform: 'capitalize' }}>{s}</span>
+              <span style={{ textTransform: 'capitalize' }}>{t(`inventory.availability.status.${s}`)}</span>
             </button>
           ))}
         </div>
 
         <div className="b2b-card__body b2b-card__body--flush">
           {loading ? (
-            <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>Loading…</div>
+            <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>{t('inventory.loading')}</div>
           ) : filtered.length === 0 ? (
             <div className="b2b-empty">
               <div className="b2b-empty__icon"><Bell size={20} /></div>
-              <div className="b2b-empty__title">No subscriptions match the current filters</div>
+              <div className="b2b-empty__title">{t('inventory.availability.empty')}</div>
             </div>
           ) : (
             <table className="b2b-tbl">
               <thead>
                 <tr>
-                  <th>Product</th>
-                  <th>SKU</th>
-                  <th>Email</th>
-                  <th>Status</th>
-                  <th>Queued</th>
-                  <th>Notified</th>
+                  <th>{t('inventory.column.product')}</th>
+                  <th>{t('inventory.column.sku')}</th>
+                  <th>{t('inventory.availability.column.email')}</th>
+                  <th>{t('inventory.availability.column.status')}</th>
+                  <th>{t('inventory.availability.column.queued')}</th>
+                  <th>{t('inventory.availability.column.notified')}</th>
                   <th />
                 </tr>
               </thead>
@@ -218,7 +220,7 @@ export function AvailabilityNotificationsPage(): ReactNode {
                           disabled={busyId === r.id}
                           onClick={(): void => { void handleCancel(r.id); }}
                         >
-                          Cancel
+                          {t('inventory.availability.cancel')}
                         </button>
                       ) : null}
                     </td>

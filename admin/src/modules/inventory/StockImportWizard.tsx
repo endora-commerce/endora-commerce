@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Upload } from 'lucide-react';
 import type { Warehouse } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { useTranslation } from '@/i18n/useTranslation';
 import { warehousesClient } from '../warehouses/api/warehouses-client';
 
 interface ImportError {
@@ -31,6 +32,7 @@ interface ImportResponse {
  * commits with a second click.
  */
 export function StockImportWizard(): ReactNode {
+  const t = useTranslation('core');
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [warehouseId, setWarehouseId] = useState<string>('');
   const [csv, setCsv] = useState<string>('');
@@ -46,9 +48,9 @@ export function StockImportWizard(): ReactNode {
       setWarehouses(res.items);
       if (res.items.length > 0 && !warehouseId) setWarehouseId(res.items[0]!.id);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load warehouses.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('inventory.import.error.loadWarehouses'));
     }
-  }, [warehouseId]);
+  }, [warehouseId, t]);
 
   useEffect(() => {
     void refresh();
@@ -83,7 +85,7 @@ export function StockImportWizard(): ReactNode {
         setPreview(null);
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Import failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('inventory.import.error.import'));
     } finally {
       setBusy(false);
     }
@@ -96,11 +98,11 @@ export function StockImportWizard(): ReactNode {
       <div className="b2b-page-head">
         <div className="b2b-grow">
           <Link to="/inventory" className="b2b-btn b2b-btn--ghost b2b-btn--sm" style={{ marginBottom: 8, display: 'inline-flex' }}>
-            <ArrowLeft size={13} /> Back to Inventory
+            <ArrowLeft size={13} /> {t('inventory.import.back')}
           </Link>
-          <div className="b2b-page-head__title">Import stock</div>
+          <div className="b2b-page-head__title">{t('inventory.import.title')}</div>
           <div className="b2b-page-head__sub">
-            CSV with header <code className="b2b-mono">sku,onHand</code>. Preview first, then commit.
+            {t('inventory.import.subPrefix')} <code className="b2b-mono">sku,onHand</code>{t('inventory.import.subSuffix')}
           </div>
         </div>
       </div>
@@ -121,7 +123,7 @@ export function StockImportWizard(): ReactNode {
       ) : null}
 
       <div className="b2b-card" style={{ marginBottom: 16 }}>
-        <div className="b2b-card__head"><h2>1 · Pick a warehouse</h2></div>
+        <div className="b2b-card__head"><h2>{t('inventory.import.step1')}</h2></div>
         <div className="b2b-card__body">
           <select
             className="b2b-field"
@@ -136,16 +138,16 @@ export function StockImportWizard(): ReactNode {
       </div>
 
       <div className="b2b-card" style={{ marginBottom: 16 }}>
-        <div className="b2b-card__head"><h2>2 · Provide the file</h2></div>
+        <div className="b2b-card__head"><h2>{t('inventory.import.step2')}</h2></div>
         <div className="b2b-card__body">
           <input type="file" accept=".csv,text/csv" onChange={handleFile} />
           {filename ? (
             <div className="b2b-help" style={{ marginTop: 8 }}>
-              Loaded <code className="b2b-mono">{filename}</code> ({csv.split(/\r?\n/).length} lines).
+              {t('inventory.import.loadedPrefix')} <code className="b2b-mono">{filename}</code> {t('inventory.import.loadedSuffix', { count: csv.split(/\r?\n/).length })}
             </div>
           ) : (
             <div className="b2b-help" style={{ marginTop: 8 }}>
-              Or paste CSV directly:
+              {t('inventory.import.pasteDirectly')}
               <textarea
                 className="b2b-field"
                 rows={6}
@@ -160,7 +162,7 @@ export function StockImportWizard(): ReactNode {
       </div>
 
       <div className="b2b-card" style={{ marginBottom: 16 }}>
-        <div className="b2b-card__head"><h2>3 · Preview + commit</h2></div>
+        <div className="b2b-card__head"><h2>{t('inventory.import.step3')}</h2></div>
         <div className="b2b-card__body">
           <div className="b2b-row" style={{ gap: 8 }}>
             <button
@@ -169,7 +171,7 @@ export function StockImportWizard(): ReactNode {
               onClick={(): void => { void send(true); }}
               disabled={busy || !csv || !warehouseId}
             >
-              <Upload size={13} /> Preview (dry run)
+              <Upload size={13} /> {t('inventory.import.previewDryRun')}
             </button>
             <button
               type="button"
@@ -177,15 +179,15 @@ export function StockImportWizard(): ReactNode {
               onClick={(): void => { void send(false); }}
               disabled={busy || !csv || !warehouseId || !preview}
             >
-              {busy ? 'Working…' : 'Commit'}
+              {busy ? t('inventory.import.working') : t('inventory.import.commit')}
             </button>
           </div>
 
           {preview ? (
-            <ResultBlock title="Dry-run summary" result={preview} tone="warn" />
+            <ResultBlock title={t('inventory.import.dryRunSummary')} result={preview} tone="warn" />
           ) : null}
           {committed ? (
-            <ResultBlock title="Committed" result={committed} tone="success" />
+            <ResultBlock title={t('inventory.import.committed')} result={committed} tone="success" />
           ) : null}
         </div>
       </div>
@@ -202,6 +204,7 @@ function ResultBlock({
   result: ImportResult;
   tone: 'warn' | 'success';
 }): ReactNode {
+  const t = useTranslation('core');
   return (
     <div
       className="b2b-card"
@@ -214,29 +217,29 @@ function ResultBlock({
       <div style={{ fontSize: 13, fontWeight: 600 }}>{title}</div>
       <div className="b2b-row" style={{ gap: 16, marginTop: 8 }}>
         <div>
-          <div className="b2b-muted" style={{ fontSize: 11 }}>Rows read</div>
+          <div className="b2b-muted" style={{ fontSize: 11 }}>{t('inventory.import.rowsRead')}</div>
           <div style={{ fontSize: 18, fontWeight: 600 }}>{result.rowsRead}</div>
         </div>
         <div>
-          <div className="b2b-muted" style={{ fontSize: 11 }}>Applied</div>
+          <div className="b2b-muted" style={{ fontSize: 11 }}>{t('inventory.import.applied')}</div>
           <div style={{ fontSize: 18, fontWeight: 600 }}>{result.rowsApplied}</div>
         </div>
         <div>
-          <div className="b2b-muted" style={{ fontSize: 11 }}>Skipped</div>
+          <div className="b2b-muted" style={{ fontSize: 11 }}>{t('inventory.import.skipped')}</div>
           <div style={{ fontSize: 18, fontWeight: 600 }}>{result.rowsSkipped}</div>
         </div>
       </div>
       {result.errors.length > 0 ? (
         <div style={{ marginTop: 12 }}>
           <div className="b2b-muted" style={{ fontSize: 11 }}>
-            Errors ({result.errors.length}):
+            {t('inventory.import.errorsCount', { count: result.errors.length })}
           </div>
           <table className="b2b-tbl" style={{ marginTop: 4, fontSize: 12 }}>
             <thead>
               <tr>
-                <th style={{ width: 60 }}>Row</th>
-                <th>SKU</th>
-                <th>Reason</th>
+                <th style={{ width: 60 }}>{t('inventory.import.errors.row')}</th>
+                <th>{t('inventory.import.errors.sku')}</th>
+                <th>{t('inventory.import.errors.reason')}</th>
               </tr>
             </thead>
             <tbody>
@@ -253,7 +256,7 @@ function ResultBlock({
           </table>
           {result.errors.length > 50 ? (
             <div className="b2b-help">
-              Showing first 50 errors of {result.errors.length}.
+              {t('inventory.import.errorsTruncated', { total: result.errors.length })}
             </div>
           ) : null}
         </div>

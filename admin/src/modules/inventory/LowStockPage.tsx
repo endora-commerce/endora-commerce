@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { useTranslation } from '@/i18n/useTranslation';
 
 interface LowStockRow {
   productId: string;
@@ -23,6 +24,7 @@ interface LowStockResponse {
  * Alerts panel surfaces but with no row cap.
  */
 export function LowStockPage(): ReactNode {
+  const t = useTranslation('core');
   const [rows, setRows] = useState<LowStockRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,11 +36,11 @@ export function LowStockPage(): ReactNode {
       const res = await apiClient.get<LowStockResponse>('/api/v1/admin/inventory/low-stock');
       setRows(res.items);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('inventory.lowStock.error.load'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void refresh();
@@ -48,9 +50,9 @@ export function LowStockPage(): ReactNode {
     <div className="b2b-page b2b-page--wide">
       <div className="b2b-page-head">
         <div className="b2b-grow">
-          <div className="b2b-page-head__title">Low stock</div>
+          <div className="b2b-page-head__title">{t('inventory.lowStock.title')}</div>
           <div className="b2b-page-head__sub">
-            Products with cumulative on-hand at or below their threshold. Configure thresholds per product or globally under Inventory settings.
+            {t('inventory.lowStock.description')}
           </div>
         </div>
       </div>
@@ -73,23 +75,23 @@ export function LowStockPage(): ReactNode {
       <div className="b2b-card">
         <div className="b2b-card__body b2b-card__body--flush">
           {loading ? (
-            <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>Loading…</div>
+            <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>{t('inventory.loading')}</div>
           ) : rows.length === 0 ? (
             <div className="b2b-empty">
               <div className="b2b-empty__icon"><AlertTriangle size={20} /></div>
-              <div className="b2b-empty__title">No products are currently low on stock</div>
+              <div className="b2b-empty__title">{t('inventory.lowStock.empty')}</div>
               <div className="b2b-empty__sub">
-                Set <code className="b2b-mono">lowStockThreshold</code> on a product (Inventory tab) to surface it here when stock crosses the line.
+                {t('inventory.lowStock.emptyHintPrefix')} <code className="b2b-mono">lowStockThreshold</code> {t('inventory.lowStock.emptyHintSuffix')}
               </div>
             </div>
           ) : (
             <table className="b2b-tbl">
               <thead>
                 <tr>
-                  <th>Product</th>
-                  <th>SKU</th>
-                  <th className="num">Cumulative on hand</th>
-                  <th className="num">Threshold</th>
+                  <th>{t('inventory.column.product')}</th>
+                  <th>{t('inventory.column.sku')}</th>
+                  <th className="num">{t('inventory.column.cumulativeOnHand')}</th>
+                  <th className="num">{t('inventory.column.threshold')}</th>
                   <th />
                 </tr>
               </thead>
@@ -111,7 +113,7 @@ export function LowStockPage(): ReactNode {
                         to={`/catalog/products/${r.productId}`}
                         className="b2b-btn b2b-btn--ghost b2b-btn--sm"
                       >
-                        Edit stock
+                        {t('inventory.action.editStock')}
                       </Link>
                     </td>
                   </tr>

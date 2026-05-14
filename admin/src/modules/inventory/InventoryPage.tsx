@@ -14,6 +14,7 @@ import { ApiError, apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { PaginationFooter } from '@/components/PaginationFooter';
 import { usePageSizePreference } from '@/lib/use-page-size-preference';
+import { useTranslation } from '@/i18n/useTranslation';
 
 interface RosterResponse {
   items: StockLevelRow[];
@@ -35,6 +36,7 @@ interface KpiResponse {
  * wizard ships in US7.
  */
 export function InventoryPage(): ReactNode {
+  const t = useTranslation('core');
   const [kpis, setKpis] = useState<InventoryLandingKpis | null>(null);
   const [rows, setRows] = useState<StockLevelRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -74,11 +76,11 @@ export function InventoryPage(): ReactNode {
       setRows(rosterRes.items);
       setTotal(rosterRes.total);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('inventory.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedQuery, statusFilter]);
+  }, [page, pageSize, debouncedQuery, statusFilter, t]);
 
   useEffect(() => {
     void refresh();
@@ -97,10 +99,10 @@ export function InventoryPage(): ReactNode {
     <div className="b2b-page b2b-page--wide">
       <div className="b2b-page-head">
         <div className="b2b-grow">
-          <div className="b2b-page-head__title">Inventory</div>
+          <div className="b2b-page-head__title">{t('inventory.page.title')}</div>
           <div className="b2b-page-head__sub">
-            Stock per product per warehouse · KPIs are computed live from{' '}
-            <code className="b2b-mono">stock_levels</code>.
+            {t('inventory.page.subPrefix')}{' '}
+            <code className="b2b-mono">stock_levels</code>{t('inventory.page.subSuffix')}
           </div>
         </div>
         <div className="b2b-page-head__actions">
@@ -109,7 +111,7 @@ export function InventoryPage(): ReactNode {
             className="b2b-btn b2b-btn--default b2b-btn--sm"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
-            <Upload size={13} /> Import stock
+            <Upload size={13} /> {t('inventory.action.import')}
           </Link>
         </div>
       </div>
@@ -130,23 +132,23 @@ export function InventoryPage(): ReactNode {
       ) : null}
 
       <div className="b2b-row" style={{ gap: 16, marginBottom: 16 }}>
-        <Stat label="Products tracked" value={(kpis?.totalProductsTracked ?? 0).toLocaleString()} />
-        <Stat label="Total on hand" value={(kpis?.totalOnHand ?? 0).toLocaleString()} />
-        <Stat label="Out of stock" value={String(kpis?.outOfStockCount ?? 0)} tone="danger" />
-        <Stat label="Low stock" value={String(kpis?.lowStockCount ?? 0)} tone="warn" />
+        <Stat label={t('inventory.stat.tracked')} value={(kpis?.totalProductsTracked ?? 0).toLocaleString()} />
+        <Stat label={t('inventory.stat.totalOnHand')} value={(kpis?.totalOnHand ?? 0).toLocaleString()} />
+        <Stat label={t('inventory.stat.outOfStock')} value={String(kpis?.outOfStockCount ?? 0)} tone="danger" />
+        <Stat label={t('inventory.stat.lowStock')} value={String(kpis?.lowStockCount ?? 0)} tone="warn" />
       </div>
 
       {kpis && kpis.perWarehouseTotals.length > 0 ? (
         <div className="b2b-card" style={{ marginBottom: 16 }}>
-          <div className="b2b-card__head"><h2>Per-warehouse totals</h2></div>
+          <div className="b2b-card__head"><h2>{t('inventory.perWarehouseTotals')}</h2></div>
           <div className="b2b-card__body">
             <div className="b2b-row" style={{ gap: 24, flexWrap: 'wrap' }}>
-              {kpis.perWarehouseTotals.map((t) => (
-                <div key={t.warehouseId}>
+              {kpis.perWarehouseTotals.map((row) => (
+                <div key={row.warehouseId}>
                   <div className="b2b-muted" style={{ fontSize: 11, textTransform: 'uppercase' }}>
-                    {t.warehouseCode}
+                    {row.warehouseCode}
                   </div>
-                  <div style={{ fontSize: 20, fontWeight: 600 }}>{t.onHand.toLocaleString()}</div>
+                  <div style={{ fontSize: 20, fontWeight: 600 }}>{row.onHand.toLocaleString()}</div>
                 </div>
               ))}
             </div>
@@ -161,7 +163,7 @@ export function InventoryPage(): ReactNode {
               <Search size={16} className="lead" />
               <input
                 className="b2b-field b2b-field--addon"
-                placeholder="Search SKU, product name, or ID…"
+                placeholder={t('inventory.search.placeholder')}
                 value={query}
                 onChange={(e): void => setQuery(e.target.value)}
               />
@@ -170,34 +172,34 @@ export function InventoryPage(): ReactNode {
           <Chip
             icon={<AlertCircle size={12} />}
             active={statusFilter === 'low'}
-            label="Low stock"
+            label={t('inventory.stat.lowStock')}
             onClick={(): void => setStatusFilter((s) => (s === 'low' ? 'all' : 'low'))}
           />
           <Chip
             icon={<AlertCircle size={12} />}
             active={statusFilter === 'out'}
-            label="Out of stock"
+            label={t('inventory.stat.outOfStock')}
             onClick={(): void => setStatusFilter((s) => (s === 'out' ? 'all' : 'out'))}
           />
         </div>
 
         <div className="b2b-card__body b2b-card__body--flush">
           {loading ? (
-            <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>Loading…</div>
+            <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>{t('inventory.loading')}</div>
           ) : filtered.length === 0 ? (
             <div className="b2b-empty">
               <div className="b2b-empty__icon"><Search size={20} /></div>
-              <div className="b2b-empty__title">No stock rows match the current filters</div>
+              <div className="b2b-empty__title">{t('inventory.empty')}</div>
             </div>
           ) : (
             <table className="b2b-tbl">
               <thead>
                 <tr>
-                  <th>Product</th>
-                  <th>SKU</th>
-                  <th className="num">Cumulative on hand</th>
-                  <th>Per warehouse</th>
-                  <th>Display band</th>
+                  <th>{t('inventory.column.product')}</th>
+                  <th>{t('inventory.column.sku')}</th>
+                  <th className="num">{t('inventory.column.cumulativeOnHand')}</th>
+                  <th>{t('inventory.column.perWarehouse')}</th>
+                  <th>{t('inventory.column.displayBand')}</th>
                   <th />
                 </tr>
               </thead>
@@ -245,7 +247,7 @@ export function InventoryPage(): ReactNode {
                         to={`/catalog/products/${r.productId}`}
                         className="b2b-btn b2b-btn--ghost b2b-btn--sm"
                       >
-                        Edit stock
+                        {t('inventory.action.editStock')}
                       </Link>
                     </td>
                   </tr>
