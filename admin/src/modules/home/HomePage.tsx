@@ -24,22 +24,24 @@ import { useTranslation } from '@/i18n/useTranslation';
  */
 
 interface Kpi {
-  label: string;
+  labelKey: string;
   value: string;
   tone?: 'default' | 'warn' | 'danger';
 }
+
+const INITIAL_KPIS: Kpi[] = [
+  { labelKey: 'home.kpi.activeProducts', value: '—' },
+  { labelKey: 'home.kpi.pendingQuotes', value: '—', tone: 'warn' },
+  { labelKey: 'home.kpi.openOrders', value: '—' },
+  { labelKey: 'home.kpi.outOfStock', value: '—', tone: 'danger' },
+];
 
 export function HomePage(): ReactNode {
   const t = useTranslation('core');
   const { me } = useAuth();
   const navigate = useNavigate();
   const firstName = me?.adminUser.firstName?.trim() || t('home.defaultName');
-  const [kpis, setKpis] = useState<Kpi[]>([
-    { label: t('home.kpi.activeProducts'), value: '—' },
-    { label: t('home.kpi.pendingQuotes'), value: '—', tone: 'warn' },
-    { label: t('home.kpi.openOrders'), value: '—' },
-    { label: t('home.kpi.outOfStock'), value: '—', tone: 'danger' },
-  ]);
+  const [kpis, setKpis] = useState<Kpi[]>(INITIAL_KPIS);
   const [stockAlerts, setStockAlerts] = useState<
     Array<{ productId: string; sku: string; name: string; qty: number; threshold: number }>
   >([]);
@@ -47,12 +49,7 @@ export function HomePage(): ReactNode {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const next: Kpi[] = [
-        { label: t('home.kpi.activeProducts'), value: '—' },
-        { label: t('home.kpi.pendingQuotes'), value: '—', tone: 'warn' },
-        { label: t('home.kpi.openOrders'), value: '—' },
-        { label: t('home.kpi.outOfStock'), value: '—', tone: 'danger' },
-      ];
+      const next: Kpi[] = INITIAL_KPIS.map((k) => ({ ...k }));
       // Best-effort KPI fetches. Each one is independent — if any
       // endpoint isn't wired or returns 4xx/5xx, we leave a "—".
       await Promise.all([
@@ -62,21 +59,21 @@ export function HomePage(): ReactNode {
         fetchKpi('/api/v1/admin/catalog/products?pageSize=1', (data: unknown) => {
           const counts = (data as { counts?: { active?: number } }).counts;
           if (counts?.active !== undefined) {
-            next[0] = { label: t('home.kpi.activeProducts'), value: String(counts.active) };
+            next[0] = { labelKey: 'home.kpi.activeProducts', value: String(counts.active) };
           }
         }),
         fetchKpi('/api/v1/admin/quote-requests?status=submitted', (data: unknown) => {
           const arr = (data as { data?: unknown[] }).data ?? [];
-          next[1] = { label: t('home.kpi.pendingQuotes'), value: String(arr.length), tone: 'warn' };
+          next[1] = { labelKey: 'home.kpi.pendingQuotes', value: String(arr.length), tone: 'warn' };
         }),
         fetchKpi('/api/v1/admin/orders?status=new', (data: unknown) => {
           const arr = (data as { data?: unknown[] }).data ?? [];
-          next[2] = { label: t('home.kpi.openOrders'), value: String(arr.length) };
+          next[2] = { labelKey: 'home.kpi.openOrders', value: String(arr.length) };
         }),
         fetchKpi('/api/v1/admin/inventory', (data: unknown) => {
           const k = (data as { data?: { outOfStockCount?: number } }).data;
           if (k?.outOfStockCount !== undefined) {
-            next[3] = { label: t('home.kpi.outOfStock'), value: String(k.outOfStockCount), tone: 'danger' };
+            next[3] = { labelKey: 'home.kpi.outOfStock', value: String(k.outOfStockCount), tone: 'danger' };
           }
         }),
         fetchKpi('/api/v1/admin/inventory/low-stock', (data: unknown) => {
@@ -124,7 +121,12 @@ export function HomePage(): ReactNode {
       {/* KPI tiles */}
       <div className="b2b-row" style={{ gap: 16, marginBottom: 20 }}>
         {kpis.map((k) => (
-          <Stat key={k.label} {...k} />
+          <Stat
+            key={k.labelKey}
+            label={t(k.labelKey)}
+            value={k.value}
+            {...(k.tone !== undefined ? { tone: k.tone } : {})}
+          />
         ))}
       </div>
 
@@ -265,7 +267,15 @@ export function HomePage(): ReactNode {
   );
 }
 
-function Stat({ label, value, tone }: Kpi): ReactNode {
+function Stat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: 'default' | 'warn' | 'danger';
+}): ReactNode {
   const color =
     tone === 'danger' ? 'var(--danger)' : tone === 'warn' ? 'var(--warn)' : 'var(--fg)';
   return (
