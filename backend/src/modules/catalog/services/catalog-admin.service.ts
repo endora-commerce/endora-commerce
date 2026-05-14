@@ -589,6 +589,37 @@ export class CatalogAdminService {
     return product;
   }
 
+  /**
+   * Batch-by-id read. Returns matching products for the given id set,
+   * deduped server-side. Includes archived rows so callers can resolve
+   * names for already-attached references (e.g. ProductEditor's link
+   * tables) regardless of current status. Paginated for callers that
+   * stream large id sets across multiple requests.
+   */
+  async listProductsByIds(input: {
+    ids: string[];
+    page?: number;
+    pageSize?: number;
+  }): Promise<{ items: Product[]; page: number; pageSize: number; total: number }> {
+    const em = this.emFactory();
+    const page = Math.max(0, input.page ?? 0);
+    const pageSize = Math.min(Math.max(1, input.pageSize ?? 50), 500);
+    const uniqueIds = Array.from(new Set(input.ids));
+    if (uniqueIds.length === 0) {
+      return { items: [], page, pageSize, total: 0 };
+    }
+    const [items, total] = await em.findAndCount(
+      Product,
+      { id: { $in: uniqueIds } },
+      {
+        orderBy: { createdAt: 'desc' },
+        offset: page * pageSize,
+        limit: pageSize,
+      },
+    );
+    return { items, page, pageSize, total };
+  }
+
   async listAttributes(): Promise<ProductAttribute[]> {
     const em = this.emFactory();
     return em.find(ProductAttribute, {}, { orderBy: { key: 'asc' } });
