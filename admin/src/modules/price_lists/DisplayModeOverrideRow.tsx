@@ -2,16 +2,9 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Eye } from 'lucide-react';
 import type { DisplayMode } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { useTranslation } from '@/i18n/useTranslation';
 
 type Scope = 'organization' | 'category' | 'product';
-
-const MODE_LABEL: Record<DisplayMode | 'inherit', string> = {
-  inherit: 'Inherit (use parent in chain)',
-  gross_only: 'Gross only',
-  net_only: 'Net only',
-  both: 'Both columns',
-  none: 'None — quote only',
-};
 
 /**
  * Reusable per-entity display-mode override row (US7 / T089 + T090).
@@ -36,7 +29,15 @@ export function DisplayModeOverrideRow(props: {
   /** Hide the icon when embedding inside an existing labelled row. */
   withoutIcon?: boolean;
 }): ReactNode {
+  const t = useTranslation('core');
   const { scope, targetId, label, inheritHint, withoutIcon } = props;
+  const MODE_LABEL: Record<DisplayMode | 'inherit', string> = {
+    inherit: t('priceLists.displayMode.inherit'),
+    gross_only: t('priceLists.displayMode.grossOnly'),
+    net_only: t('priceLists.displayMode.netOnly'),
+    both: t('priceLists.displayMode.both'),
+    none: t('priceLists.displayMode.none'),
+  };
   const [mode, setMode] = useState<DisplayMode | 'inherit'>('inherit');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -95,9 +96,9 @@ export function DisplayModeOverrideRow(props: {
         htmlFor={`dm-${scope}-${targetId}`}
       >
         {!withoutIcon ? <Eye size={12} /> : null}
-        {label ?? 'Price display mode override'}
+        {label ?? t('priceLists.displayMode.rowLabel')}
         {saved ? (
-          <span style={{ color: 'var(--success-soft-fg)', fontSize: 11 }}>· saved</span>
+          <span style={{ color: 'var(--success-soft-fg)', fontSize: 11 }}>{t('priceLists.displayMode.savedSuffix')}</span>
         ) : null}
       </label>
       <select

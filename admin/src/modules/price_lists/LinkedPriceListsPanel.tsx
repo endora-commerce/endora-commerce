@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, CircleDollarSign, Star } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { useTranslation } from '@/i18n/useTranslation';
 import { DisplayModeOverrideRow } from './DisplayModeOverrideRow';
 
 type PriceListType = 'base' | 'sale';
@@ -26,12 +27,6 @@ const STATUS_BADGE: Record<PriceListStatus, string> = {
   expired: 'b2b-badge b2b-badge--muted',
 };
 
-const STATUS_LABEL: Record<PriceListStatus, string> = {
-  draft: 'Draft',
-  active: 'Active',
-  scheduled: 'Scheduled',
-  expired: 'Expired',
-};
 
 /**
  * LinkedPriceListsPanel (US8 / T096) — Pricing tab on the admin
@@ -48,6 +43,7 @@ const STATUS_LABEL: Record<PriceListStatus, string> = {
  * within the React Router tree.
  */
 export function LinkedPriceListsPanel({ productId }: { productId: string }): ReactNode {
+  const t = useTranslation('core');
   const [rows, setRows] = useState<LinkedPriceListRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +61,7 @@ export function LinkedPriceListsPanel({ productId }: { productId: string }): Rea
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+          setError(err instanceof ApiError ? err.envelope.error.message : t('priceLists.linked.error.load'));
         }
       })
       .finally(() => {
@@ -74,10 +70,10 @@ export function LinkedPriceListsPanel({ productId }: { productId: string }): Rea
     return (): void => {
       cancelled = true;
     };
-  }, [productId]);
+  }, [productId, t]);
 
   if (loading) {
-    return <div style={{ padding: 16, color: 'var(--fg-muted)', fontSize: 13 }}>Loading…</div>;
+    return <div style={{ padding: 16, color: 'var(--fg-muted)', fontSize: 13 }}>{t('priceLists.linked.loading')}</div>;
   }
 
   if (error) {
@@ -111,12 +107,10 @@ export function LinkedPriceListsPanel({ productId }: { productId: string }): Rea
           <CircleDollarSign size={18} style={{ color: 'var(--info-soft-fg)', marginTop: 2 }} />
           <div className="b2b-grow">
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--info-soft-fg)' }}>
-              Not yet on any price list.
+              {t('priceLists.linked.emptyTitle')}
             </div>
             <div style={{ fontSize: 12, color: 'var(--info-soft-fg)', marginTop: 4 }}>
-              Add this product to a price list to start setting per-currency brackets.
-              The Default list seeded by migration 031 should always include it once
-              prices have been migrated.
+              {t('priceLists.linked.emptyDescription')}
             </div>
           </div>
         </div>
@@ -130,8 +124,8 @@ export function LinkedPriceListsPanel({ productId }: { productId: string }): Rea
         <DisplayModeOverrideRow
           scope="product"
           targetId={productId}
-          label="Price display mode for this product"
-          inheritHint="Inherits from the deepest category override, then Organization, then the platform default."
+          label={t('priceLists.linked.displayModeLabel')}
+          inheritHint={t('priceLists.linked.displayModeHint')}
         />
       </div>
       <LinkedPriceListsList rows={rows} />
@@ -144,11 +138,17 @@ export function LinkedPriceListsPanel({ productId }: { productId: string }): Rea
  * tested via renderToString without booting the data-fetch effect.
  */
 export function LinkedPriceListsList({ rows }: { rows: LinkedPriceListRow[] }): ReactNode {
+  const t = useTranslation('core');
+  const STATUS_LABEL: Record<PriceListStatus, string> = {
+    draft: t('priceLists.status.draft'),
+    active: t('priceLists.status.active'),
+    scheduled: t('priceLists.status.scheduled'),
+    expired: t('priceLists.status.expired'),
+  };
   return (
     <>
       <div className="b2b-help">
-        Bracket prices live on the price-list editor — click a row to jump there with
-        this product pre-selected.
+        {t('priceLists.linked.helpText')}
       </div>
       <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
         {rows.map((r) => {
@@ -194,7 +194,7 @@ export function LinkedPriceListsList({ rows }: { rows: LinkedPriceListRow[] }): 
                     {r.list.name}
                   </Link>
                   <span className="b2b-badge b2b-badge--outline">
-                    {r.list.type === 'base' ? 'Base' : 'Sale'}
+                    {r.list.type === 'base' ? t('priceLists.type.base') : t('priceLists.type.sale')}
                   </span>
                   <span className={STATUS_BADGE[r.list.status]}>{STATUS_LABEL[r.list.status]}</span>
                   {looksDefault ? (
@@ -202,7 +202,7 @@ export function LinkedPriceListsList({ rows }: { rows: LinkedPriceListRow[] }): 
                       className="b2b-badge b2b-badge--success"
                       style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
                     >
-                      System
+                      {t('priceLists.linked.system')}
                     </span>
                   ) : null}
                 </div>
@@ -224,16 +224,16 @@ export function LinkedPriceListsList({ rows }: { rows: LinkedPriceListRow[] }): 
                   </div>
                 ) : (
                   <div className="b2b-help" style={{ marginTop: 4 }}>
-                    No bracket prices yet for this list.
+                    {t('priceLists.linked.noBracketsYet')}
                   </div>
                 )}
               </div>
               <Link
                 to={internalPath}
                 className="b2b-btn b2b-btn--default b2b-btn--sm"
-                title="Open price list editor"
+                title={t('priceLists.linked.openEditor')}
               >
-                Open <ArrowUpRight size={12} />
+                {t('priceLists.linked.open')} <ArrowUpRight size={12} />
               </Link>
             </li>
           );
