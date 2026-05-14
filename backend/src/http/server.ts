@@ -75,11 +75,13 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
 
   await app.register(helmet, { contentSecurityPolicy: false });
   // Allow the storefront (Next.js) and admin panel (Vite) to call the API
-  // cross-origin in dev. CORS_ORIGINS is a comma-separated allow-list; the
-  // default covers the local dev ports for both apps. `credentials: true`
+  // cross-origin in dev. CORS_ALLOWED_ORIGINS is a comma-separated allow-list;
+  // the default covers the local dev ports for both apps. `credentials: true`
   // pairs with the api-client's `credentials: 'include'` so b2b_session
   // cookies survive the round-trip.
-  const corsOrigins = (process.env['CORS_ORIGINS'] ?? 'http://localhost:3000,http://localhost:3002')
+  const corsOrigins = (
+    process.env['CORS_ALLOWED_ORIGINS'] ?? 'http://localhost:3000,http://localhost:3002'
+  )
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);

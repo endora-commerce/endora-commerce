@@ -19,9 +19,11 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port,
+      strictPort: true,
     },
     preview: {
       port,
+      strictPort: true,
     },
     build: {
       outDir: 'dist',
