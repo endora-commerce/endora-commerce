@@ -17,16 +17,11 @@ import type {
   RuleGroupNode,
 } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { useTranslation } from '@/i18n/useTranslation';
 
 const DEPTH_CAP = 5;
 
-const CRITERION_LABEL: Record<RuleCriterionType, string> = {
-  salesChannel: 'Sales channel',
-  customerGroup: 'Customer group',
-  organization: 'Organization',
-  category: 'Category',
-  currency: 'Currency',
-};
+const CRITERION_TYPES: RuleCriterionType[] = ['salesChannel', 'customerGroup', 'organization', 'category', 'currency'];
 
 interface PickerOption {
   value: string;
@@ -61,6 +56,7 @@ export function ApplicationRuleBuilder(props: {
   /** When true, every interactive control is disabled. */
   disabled?: boolean;
 }): ReactNode {
+  const t = useTranslation('core');
   const { value, onChange, disabled } = props;
   const [pickers, setPickers] = useState<Record<RuleCriterionType, PickerCache>>(() => ({
     salesChannel: { loading: false, options: [], error: null },
@@ -79,7 +75,7 @@ export function ApplicationRuleBuilder(props: {
       const options = await loadPicker(type);
       setPickers((prev) => ({ ...prev, [type]: { loading: false, options, error: null } }));
     } catch (err) {
-      const message = err instanceof ApiError ? err.envelope.error.message : 'Failed to load.';
+      const message = err instanceof ApiError ? err.envelope.error.message : t('priceLists.rule.error.load');
       setPickers((prev) => ({ ...prev, [type]: { ...prev[type], loading: false, error: message } }));
     }
   };
@@ -87,8 +83,7 @@ export function ApplicationRuleBuilder(props: {
   return (
     <div className="b2b-col" style={{ gap: 12 }}>
       <div className="b2b-help">
-        Build the rule that decides which customer/organization/channel sees this price
-        list. Empty rule (always-match) is allowed only on the seeded Default list.
+        {t('priceLists.rule.intro')}
       </div>
 
       <RuleNodeView
@@ -105,8 +100,8 @@ export function ApplicationRuleBuilder(props: {
         className="b2b-help"
         style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}
       >
-        <span>Depth limit: {DEPTH_CAP}.</span>
-        <span>Currencies are uppercased on save; unknown IDs are refused.</span>
+        <span>{t('priceLists.rule.depthLimit', { cap: DEPTH_CAP })}</span>
+        <span>{t('priceLists.rule.currencyHint')}</span>
       </div>
     </div>
   );
@@ -121,6 +116,7 @@ function RuleNodeView(props: {
   ensurePicker: (type: RuleCriterionType) => void | Promise<void>;
   onReplace: (next: ApplicationRule | null) => void;
 }): ReactNode {
+  const t = useTranslation('core');
   const { node, depth, disabled, pickers, ensurePicker, onReplace } = props;
 
   if (node.kind === 'all') {
@@ -135,8 +131,7 @@ function RuleNodeView(props: {
       >
         <div className="b2b-row" style={{ alignItems: 'center', gap: 8 }}>
           <div className="b2b-grow" style={{ fontSize: 13 }}>
-            <strong>Always match</strong> — the list applies to every customer / channel /
-            organization. Only valid on the seeded Default list.
+            <strong>{t('priceLists.rule.alwaysMatch')}</strong> {t('priceLists.rule.alwaysMatchHint')}
           </div>
           <button
             type="button"
@@ -146,7 +141,7 @@ function RuleNodeView(props: {
               onReplace({ kind: 'group', op: 'AND', children: [emptyCriterion()] })
             }
           >
-            <Plus size={12} /> Add criterion
+            <Plus size={12} /> {t('priceLists.rule.addCriterion')}
           </button>
         </div>
       </div>
@@ -186,6 +181,7 @@ function GroupView(props: {
   ensurePicker: (type: RuleCriterionType) => void | Promise<void>;
   onChange: (next: ApplicationRule | null) => void;
 }): ReactNode {
+  const t = useTranslation('core');
   const { node, depth, disabled, pickers, ensurePicker, onChange } = props;
   const [collapsed, setCollapsed] = useState(false);
 
@@ -269,8 +265,12 @@ function GroupView(props: {
           ))}
         </div>
         <div className="b2b-grow b2b-help">
-          {node.children.length} {node.children.length === 1 ? 'child' : 'children'} ·
-          depth {depth + 1} / {DEPTH_CAP}
+          {t('priceLists.rule.groupSummary', {
+            count: node.children.length,
+            label: node.children.length === 1 ? t('priceLists.rule.child') : t('priceLists.rule.children'),
+            depth: depth + 1,
+            cap: DEPTH_CAP,
+          })}
         </div>
         {depth > 0 ? (
           <button
@@ -278,7 +278,7 @@ function GroupView(props: {
             className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
             disabled={disabled}
             onClick={(): void => onChange(null)}
-            title="Remove this group"
+            title={t('priceLists.rule.removeGroup')}
             style={{ color: 'hsl(8 80% 50%)' }}
           >
             <Trash2 size={13} />
@@ -296,7 +296,7 @@ function GroupView(props: {
                   className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
                   disabled={disabled || idx === 0}
                   onClick={(): void => moveChild(idx, -1)}
-                  title="Move up"
+                  title={t('priceLists.rule.moveUp')}
                 >
                   <ArrowUp size={12} />
                 </button>
@@ -305,7 +305,7 @@ function GroupView(props: {
                   className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
                   disabled={disabled || idx === node.children.length - 1}
                   onClick={(): void => moveChild(idx, 1)}
-                  title="Move down"
+                  title={t('priceLists.rule.moveDown')}
                 >
                   <ArrowDown size={12} />
                 </button>
@@ -325,8 +325,7 @@ function GroupView(props: {
           ))}
           {node.children.length === 0 && childIsLastInTree ? (
             <div className="b2b-help">
-              Empty group — will collapse to "Always match" on save unless you add a
-              criterion or subgroup.
+              {t('priceLists.rule.emptyGroupHint')}
             </div>
           ) : null}
           <div className="b2b-row" style={{ gap: 6, marginTop: 4 }}>
@@ -336,16 +335,16 @@ function GroupView(props: {
               disabled={disabled}
               onClick={addCriterion}
             >
-              <Plus size={12} /> Add criterion
+              <Plus size={12} /> {t('priceLists.rule.addCriterion')}
             </button>
             <button
               type="button"
               className="b2b-btn b2b-btn--default b2b-btn--sm"
               disabled={disabled || subgroupBlocked}
-              title={subgroupBlocked ? `Depth ${DEPTH_CAP} cap reached` : undefined}
+              title={subgroupBlocked ? t('priceLists.rule.depthCapReached', { cap: DEPTH_CAP }) : undefined}
               onClick={addGroup}
             >
-              <Plus size={12} /> Add subgroup
+              <Plus size={12} /> {t('priceLists.rule.addSubgroup')}
             </button>
           </div>
         </div>
@@ -362,6 +361,14 @@ function CriterionView(props: {
   onChange: (next: RuleCriterionNode) => void;
   onDelete: () => void;
 }): ReactNode {
+  const t = useTranslation('core');
+  const CRITERION_LABEL: Record<RuleCriterionType, string> = {
+    salesChannel: t('priceLists.rule.criterion.salesChannel'),
+    customerGroup: t('priceLists.rule.criterion.customerGroup'),
+    organization: t('priceLists.rule.criterion.organization'),
+    category: t('priceLists.rule.criterion.category'),
+    currency: t('priceLists.rule.criterion.currency'),
+  };
   const { node, disabled, pickers, ensurePicker, onChange, onDelete } = props;
   const [open, setOpen] = useState(false);
 
@@ -398,9 +405,9 @@ function CriterionView(props: {
           disabled={disabled}
           onChange={(e): void => handleType(e.target.value as RuleCriterionType)}
         >
-          {(Object.keys(CRITERION_LABEL) as RuleCriterionType[]).map((t) => (
-            <option key={t} value={t}>
-              {CRITERION_LABEL[t]}
+          {CRITERION_TYPES.map((ct) => (
+            <option key={ct} value={ct}>
+              {CRITERION_LABEL[ct]}
             </option>
           ))}
         </select>
@@ -416,14 +423,14 @@ function CriterionView(props: {
           }}
         >
           {node.values.length === 0 ? (
-            <span className="b2b-help">Pick {CRITERION_LABEL[node.type].toLowerCase()}…</span>
+            <span className="b2b-help">{t('priceLists.rule.pickPlaceholder', { label: CRITERION_LABEL[node.type].toLowerCase() })}</span>
           ) : (
             <span style={{ fontSize: 12 }}>
               {node.values
                 .slice(0, 3)
                 .map((v) => labelMap.get(v) ?? v)
                 .join(', ')}
-              {node.values.length > 3 ? ` (+${node.values.length - 3} more)` : ''}
+              {node.values.length > 3 ? t('priceLists.rule.moreSuffix', { count: node.values.length - 3 }) : ''}
             </span>
           )}
         </button>
@@ -432,7 +439,7 @@ function CriterionView(props: {
           className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
           disabled={disabled}
           onClick={onDelete}
-          title="Remove this criterion"
+          title={t('priceLists.rule.removeCriterion')}
           style={{ color: 'hsl(8 80% 50%)' }}
         >
           <Trash2 size={13} />
@@ -459,6 +466,7 @@ function ValuePicker(props: {
   onClose: () => void;
   onChange: (next: string[]) => void;
 }): ReactNode {
+  const t = useTranslation('core');
   const { type, values, cache, onChange } = props;
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState<Set<string>>(new Set(values));
@@ -501,7 +509,7 @@ function ValuePicker(props: {
         <input
           autoFocus
           className="b2b-field b2b-field--addon"
-          placeholder="Search…"
+          placeholder={t('priceLists.rule.searchPlaceholder')}
           value={search}
           onChange={(e): void => setSearch(e.target.value)}
         />
@@ -511,9 +519,9 @@ function ValuePicker(props: {
           {cache.error}
         </div>
       ) : cache.loading ? (
-        <div className="b2b-help">Loading…</div>
+        <div className="b2b-help">{t('priceLists.rule.searchLoading')}</div>
       ) : filtered.length === 0 ? (
-        <div className="b2b-help">No options.</div>
+        <div className="b2b-help">{t('priceLists.rule.noOptions')}</div>
       ) : (
         <ul style={{ margin: 0, padding: 0, listStyle: 'none', maxHeight: 220, overflow: 'auto' }}>
           {filtered.slice(0, 200).map((opt) => {
@@ -543,7 +551,7 @@ function ValuePicker(props: {
         <div className="b2b-row" style={{ marginTop: 6, gap: 4 }}>
           <input
             className="b2b-field b2b-field--mono b2b-field--sm"
-            placeholder="Add code (e.g. PLN)"
+            placeholder={t('priceLists.rule.addCodePlaceholder')}
             value={customInput}
             onChange={(e): void => setCustomInput(e.target.value.toUpperCase())}
             maxLength={3}
@@ -561,7 +569,7 @@ function ValuePicker(props: {
               setCustomInput('');
             }}
           >
-            Add
+            {t('priceLists.rule.add')}
           </button>
         </div>
       ) : null}
@@ -571,14 +579,14 @@ function ValuePicker(props: {
           className="b2b-btn b2b-btn--ghost b2b-btn--sm"
           onClick={props.onClose}
         >
-          Cancel
+          {t('priceLists.rule.cancel')}
         </button>
         <button
           type="button"
           className="b2b-btn b2b-btn--primary b2b-btn--sm"
           onClick={apply}
         >
-          Apply ({draft.size})
+          {t('priceLists.rule.apply', { count: draft.size })}
         </button>
       </div>
     </div>

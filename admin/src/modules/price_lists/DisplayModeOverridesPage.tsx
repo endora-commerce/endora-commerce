@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { DisplayMode } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { useTranslation } from '@/i18n/useTranslation';
 
 type Scope = 'organization' | 'category' | 'product';
 
@@ -38,18 +39,6 @@ interface ProductRow {
   name: string;
 }
 
-const MODE_LABEL: Record<DisplayMode, string> = {
-  gross_only: 'Gross only',
-  net_only: 'Net only',
-  both: 'Both columns',
-  none: 'None — quote only',
-};
-
-const SCOPE_LABEL: Record<Scope, string> = {
-  organization: 'Organization',
-  category: 'Category',
-  product: 'Product',
-};
 
 /**
  * Display-mode overrides + pricing settings (US7 / T087 + T088).
@@ -68,6 +57,18 @@ const SCOPE_LABEL: Record<Scope, string> = {
  * `/api/v1/admin/pricing/display-mode-overrides`.
  */
 export function DisplayModeOverridesPage(): ReactNode {
+  const t = useTranslation('core');
+  const MODE_LABEL: Record<DisplayMode, string> = {
+    gross_only: t('priceLists.displayMode.grossOnly'),
+    net_only: t('priceLists.displayMode.netOnly'),
+    both: t('priceLists.displayMode.both'),
+    none: t('priceLists.displayMode.none'),
+  };
+  const SCOPE_LABEL: Record<Scope, string> = {
+    organization: t('priceLists.displayModes.scope.organization'),
+    category: t('priceLists.displayModes.scope.category'),
+    product: t('priceLists.displayModes.scope.product'),
+  };
   const [scope, setScope] = useState<Scope>('organization');
   const [overrides, setOverrides] = useState<DisplayModeOverrideRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,11 +89,11 @@ export function DisplayModeOverridesPage(): ReactNode {
       );
       setOverrides(res.data.items);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('priceLists.displayModes.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [scope]);
+  }, [scope, t]);
 
   useEffect(() => {
     void refresh();
@@ -155,10 +156,10 @@ export function DisplayModeOverridesPage(): ReactNode {
         `/api/v1/admin/pricing/display-mode-overrides/${scope}/${encodeURIComponent(targetId)}`,
         { mode },
       );
-      setInfo(mode === 'inherit' ? 'Override removed.' : 'Override saved.');
+      setInfo(mode === 'inherit' ? t('priceLists.displayModes.info.removed') : t('priceLists.displayModes.info.saved'));
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('priceLists.displayModes.error.save'));
     }
   };
 
@@ -167,13 +168,11 @@ export function DisplayModeOverridesPage(): ReactNode {
       <div className="b2b-page-head">
         <div className="b2b-grow">
           <Link to="/price-lists" className="b2b-page-head__back">
-            <ChevronLeft size={14} /> Price lists
+            <ChevronLeft size={14} /> {t('priceLists.page.title')}
           </Link>
-          <div className="b2b-page-head__title">Price display modes</div>
+          <div className="b2b-page-head__title">{t('priceLists.displayModes.title')}</div>
           <div className="b2b-page-head__sub">
-            Resolution chain: <strong>Settings → Organization → Category → Product</strong>;
-            the most specific override wins. <code>none</code> hides every price
-            element and routes purchase intent into Quote Requests.
+            {t('priceLists.displayModes.description')}
           </div>
         </div>
       </div>
@@ -217,7 +216,7 @@ export function DisplayModeOverridesPage(): ReactNode {
             <Search size={14} className="lead" />
             <input
               className="b2b-field b2b-field--addon"
-              placeholder={`Search ${SCOPE_LABEL[scope].toLowerCase()}…`}
+              placeholder={t('priceLists.displayModes.searchPlaceholder', { scope: SCOPE_LABEL[scope].toLowerCase() })}
               value={search}
               onChange={(e): void => setSearch(e.target.value)}
             />
@@ -227,23 +226,25 @@ export function DisplayModeOverridesPage(): ReactNode {
             className="b2b-btn b2b-btn--primary b2b-btn--sm"
             onClick={(): void => setPicker(true)}
           >
-            <Filter size={12} /> Add override
+            <Filter size={12} /> {t('priceLists.displayModes.addOverride')}
           </button>
         </div>
 
         <div className="b2b-card__body b2b-card__body--flush">
           {loading ? (
-            <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>Loading…</div>
+            <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>{t('priceLists.loading')}</div>
           ) : filtered.length === 0 ? (
             <div className="b2b-empty">
               <div className="b2b-empty__icon">
                 <Eye size={20} />
               </div>
               <div className="b2b-empty__title">
-                {search.trim() ? `No ${SCOPE_LABEL[scope].toLowerCase()} overrides match your search.` : `No ${SCOPE_LABEL[scope].toLowerCase()} overrides yet.`}
+                {search.trim()
+                  ? t('priceLists.displayModes.empty.filtered', { scope: SCOPE_LABEL[scope].toLowerCase() })
+                  : t('priceLists.displayModes.empty.none', { scope: SCOPE_LABEL[scope].toLowerCase() })}
               </div>
               <div className="b2b-empty__sub">
-                Without an override, this scope inherits its parent in the resolution chain.
+                {t('priceLists.displayModes.empty.subtitle')}
               </div>
             </div>
           ) : (
@@ -251,8 +252,8 @@ export function DisplayModeOverridesPage(): ReactNode {
               <thead>
                 <tr>
                   <th>{SCOPE_LABEL[scope]}</th>
-                  <th>Mode</th>
-                  <th>Updated</th>
+                  <th>{t('priceLists.displayModes.column.mode')}</th>
+                  <th>{t('priceLists.displayModes.column.updated')}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -294,7 +295,7 @@ export function DisplayModeOverridesPage(): ReactNode {
                           void handleUpsert(row.targetId, 'inherit');
                         }}
                       >
-                        <Trash2 size={12} /> Remove
+                        <Trash2 size={12} /> {t('priceLists.displayModes.remove')}
                       </button>
                     </td>
                   </tr>
@@ -330,6 +331,13 @@ function PricingSettingsCard({
   onError: (msg: string) => void;
   onInfo: (msg: string) => void;
 }): ReactNode {
+  const t = useTranslation('core');
+  const MODE_LABEL: Record<DisplayMode, string> = {
+    gross_only: t('priceLists.displayMode.grossOnly'),
+    net_only: t('priceLists.displayMode.netOnly'),
+    both: t('priceLists.displayMode.both'),
+    none: t('priceLists.displayMode.none'),
+  };
   const [defaultMode, setDefaultMode] = useState<DisplayMode>('gross_only');
   const [unauthMode, setUnauthMode] = useState<DisplayMode>('gross_only');
   const [loading, setLoading] = useState(true);
@@ -363,9 +371,9 @@ function PricingSettingsCard({
         scope: 'all',
         value,
       });
-      onInfo('Setting saved.');
+      onInfo(t('priceLists.displayModes.settings.info.saved'));
     } catch (err) {
-      onError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
+      onError(err instanceof ApiError ? err.envelope.error.message : t('priceLists.displayModes.error.save'));
     } finally {
       setSavingKey(null);
     }
@@ -378,16 +386,16 @@ function PricingSettingsCard({
         style={{ alignItems: 'center', gap: 8, marginBottom: 8 }}
       >
         <SettingsIcon size={14} />
-        <div style={{ fontSize: 13, fontWeight: 600 }}>Pricing settings</div>
-        <span className="b2b-help">— platform-wide defaults consumed by the resolver chain</span>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>{t('priceLists.displayModes.settings.title')}</div>
+        <span className="b2b-help">{t('priceLists.displayModes.settings.subtitle')}</span>
       </div>
       {loading ? (
-        <div className="b2b-help">Loading…</div>
+        <div className="b2b-help">{t('priceLists.loading')}</div>
       ) : (
         <div className="b2b-row" style={{ gap: 16, alignItems: 'flex-end' }}>
           <div className="b2b-grow">
             <label className="b2b-label" htmlFor="pl-default-display">
-              Default display mode (signed-in customers)
+              {t('priceLists.displayModes.settings.defaultLabel')}
             </label>
             <select
               id="pl-default-display"
@@ -409,7 +417,7 @@ function PricingSettingsCard({
           </div>
           <div className="b2b-grow">
             <label className="b2b-label" htmlFor="pl-unauth-display">
-              Unauthenticated display mode (anonymous visitors)
+              {t('priceLists.displayModes.settings.unauthLabel')}
             </label>
             <select
               id="pl-unauth-display"
@@ -444,6 +452,7 @@ function Banner({
   message: string;
   onDismiss: () => void;
 }): ReactNode {
+  const t = useTranslation('core');
   const palette =
     kind === 'error'
       ? { bg: 'var(--danger-soft)', fg: 'var(--danger-soft-fg)', border: 'hsl(8 80% 85%)' }
@@ -463,7 +472,7 @@ function Banner({
     >
       <div className="b2b-grow">{message}</div>
       <button type="button" className="b2b-btn b2b-btn--ghost b2b-btn--sm" onClick={onDismiss}>
-        Dismiss
+        {t('priceLists.dismiss')}
       </button>
     </div>
   );
@@ -478,6 +487,18 @@ function AddOverrideDialog(props: {
   onClose: () => void;
   onPick: (targetId: string, mode: DisplayMode) => void;
 }): ReactNode {
+  const t = useTranslation('core');
+  const MODE_LABEL: Record<DisplayMode, string> = {
+    gross_only: t('priceLists.displayMode.grossOnly'),
+    net_only: t('priceLists.displayMode.netOnly'),
+    both: t('priceLists.displayMode.both'),
+    none: t('priceLists.displayMode.none'),
+  };
+  const SCOPE_LABEL: Record<Scope, string> = {
+    organization: t('priceLists.displayModes.scope.organization'),
+    category: t('priceLists.displayModes.scope.category'),
+    product: t('priceLists.displayModes.scope.product'),
+  };
   const { scope, existing, orgs, cats, products, onClose, onPick } = props;
   const [search, setSearch] = useState('');
   const [picked, setPicked] = useState<string | null>(null);
@@ -507,10 +528,9 @@ function AddOverrideDialog(props: {
       <div className="b2b-scrim" onClick={onClose} />
       <aside className="b2b-drawer" role="dialog" aria-modal="true">
         <div className="b2b-drawer__head">
-          <div className="b2b-drawer__title">Add display-mode override</div>
+          <div className="b2b-drawer__title">{t('priceLists.displayModes.addDialog.title')}</div>
           <div className="b2b-card__sub">
-            Pick the {SCOPE_LABEL[scope].toLowerCase()} and the mode that should override
-            the inherited value.
+            {t('priceLists.displayModes.addDialog.subtitle', { scope: SCOPE_LABEL[scope].toLowerCase() })}
           </div>
         </div>
         <div className="b2b-drawer__body">
@@ -519,13 +539,13 @@ function AddOverrideDialog(props: {
             <input
               autoFocus
               className="b2b-field b2b-field--addon"
-              placeholder={`Search ${SCOPE_LABEL[scope].toLowerCase()}…`}
+              placeholder={t('priceLists.displayModes.searchPlaceholder', { scope: SCOPE_LABEL[scope].toLowerCase() })}
               value={search}
               onChange={(e): void => setSearch(e.target.value)}
             />
           </div>
           {candidates.length === 0 ? (
-            <div className="b2b-help">No more {SCOPE_LABEL[scope].toLowerCase()}s available.</div>
+            <div className="b2b-help">{t('priceLists.displayModes.addDialog.noMore', { scope: SCOPE_LABEL[scope].toLowerCase() })}</div>
           ) : (
             <ul style={{ margin: 0, padding: 0, listStyle: 'none', maxHeight: 320, overflow: 'auto' }}>
               {candidates.slice(0, 200).map((c) => (
@@ -548,7 +568,7 @@ function AddOverrideDialog(props: {
             </ul>
           )}
           <div style={{ marginTop: 14 }}>
-            <label className="b2b-label" htmlFor="ov-mode">Override mode</label>
+            <label className="b2b-label" htmlFor="ov-mode">{t('priceLists.displayModes.addDialog.modeLabel')}</label>
             <select
               id="ov-mode"
               className="b2b-field"
@@ -566,15 +586,14 @@ function AddOverrideDialog(props: {
                 className="b2b-help"
                 style={{ marginTop: 4, color: 'hsl(217 70% 30%)', display: 'flex', gap: 4, alignItems: 'center' }}
               >
-                <EyeOff size={12} /> Customers will not see a price; Add-to-cart is replaced
-                by Add-to-Quote.
+                <EyeOff size={12} /> {t('priceLists.displayModes.addDialog.noneHint')}
               </div>
             ) : null}
           </div>
         </div>
         <div className="b2b-drawer__foot">
           <button type="button" className="b2b-btn b2b-btn--ghost" onClick={onClose}>
-            Cancel
+            {t('priceLists.displayModes.addDialog.cancel')}
           </button>
           <button
             type="button"
@@ -584,7 +603,7 @@ function AddOverrideDialog(props: {
               if (picked) onPick(picked, mode);
             }}
           >
-            <Save size={13} /> Save override
+            <Save size={13} /> {t('priceLists.displayModes.addDialog.save')}
           </button>
         </div>
       </aside>
