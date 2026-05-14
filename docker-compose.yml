@@ -1,33 +1,45 @@
 # Local development infrastructure for the B2B platform.
-# Covers the services required by the constitution's mandated stack (Postgres, Redis, Meilisearch)
-# plus Mailhog for capturing transactional email in dev.
+# Covers the services required by the constitution's mandated stack
+# (Postgres, Redis, Meilisearch) plus Mailhog for capturing transactional
+# email in dev.
+#
+# Multi-instance support
+# ----------------------
+# All published host ports come from `.env` next to this file, so several
+# checkouts of the repo can run side-by-side on the same machine. Container
+# names and volumes are NOT pinned — Compose namespaces them by project name
+# (COMPOSE_PROJECT_NAME, default: parent directory name), which keeps each
+# checkout's data isolated.
+#
+# To bring up a second instance:
+#   1. `cp .env.example .env` in the second checkout
+#   2. change the *_PORT values (and optionally COMPOSE_PROJECT_NAME)
+#   3. `docker compose up -d`
 #
 # Production deployment is out of scope for this file — see README.md.
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: b2b-postgres
     environment:
-      POSTGRES_USER: b2b
-      POSTGRES_PASSWORD: b2b
-      POSTGRES_DB: b2b
+      POSTGRES_USER: ${POSTGRES_USER:-b2b}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-b2b}
+      POSTGRES_DB: ${POSTGRES_DB:-b2b}
     ports:
-      - '5432:5432'
+      - '${POSTGRES_PORT:-5432}:5432'
     volumes:
       - b2b-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U b2b -d b2b']
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-b2b} -d ${POSTGRES_DB:-b2b}']
       interval: 5s
       timeout: 5s
       retries: 10
 
   redis:
     image: redis:7-alpine
-    container_name: b2b-redis
     command: ['redis-server', '--appendonly', 'yes']
     ports:
-      - '6379:6379'
+      - '${REDIS_PORT:-6379}:6379'
     volumes:
       - b2b-redis-data:/data
     healthcheck:
@@ -38,13 +50,12 @@ services:
 
   meilisearch:
     image: getmeili/meilisearch:v1.11
-    container_name: b2b-meilisearch
     environment:
-      MEILI_MASTER_KEY: devMasterKeyChangeMe
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-devMasterKeyChangeMe}
       MEILI_ENV: development
       MEILI_NO_ANALYTICS: 'true'
     ports:
-      - '7700:7700'
+      - '${MEILISEARCH_PORT:-7700}:7700'
     volumes:
       - b2b-meilisearch-data:/meili_data
     healthcheck:
@@ -55,10 +66,9 @@ services:
 
   mailhog:
     image: mailhog/mailhog:latest
-    container_name: b2b-mailhog
     ports:
-      - '1025:1025' # SMTP
-      - '8025:8025' # Web UI
+      - '${MAILHOG_SMTP_PORT:-1025}:1025' # SMTP
+      - '${MAILHOG_UI_PORT:-8025}:8025'   # Web UI
     healthcheck:
       test: ['CMD-SHELL', 'wget --quiet --spider http://localhost:8025 || exit 1']
       interval: 10s

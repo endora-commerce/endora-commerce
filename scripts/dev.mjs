@@ -23,10 +23,40 @@
 import { spawn } from 'node:child_process';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
+import { resolve, join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const GRACE_MS = 5000;
+
+/**
+ * Minimal `.env` reader so each child sees its own PORT (and any other
+ * vars) BEFORE the watcher binary starts. Required because Next.js reads
+ * `process.env.PORT` to bind the dev server *before* it loads `.env*` —
+ * so a `PORT=…` line in `storefront/.env` is otherwise ignored. Backend
+ * (tsx --env-file-if-exists) and admin (vite loadEnv) already self-load,
+ * but pre-injecting is harmless there and keeps every service uniform.
+ */
+function loadDotenv(filePath) {
+  if (!existsSync(filePath)) return {};
+  const out = {};
+  for (const raw of readFileSync(filePath, 'utf8').split('\n')) {
+    const line = raw.replace(/^\s*export\s+/, '').trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq <= 0) continue;
+    const key = line.slice(0, eq).trim();
+    let val = line.slice(eq + 1).trim();
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1);
+    }
+    out[key] = val;
+  }
+  return out;
+}
 
 /**
  * Each service runs the dev binary directly (not via `pnpm run dev`)
@@ -64,6 +94,7 @@ const services = [
 const RESET = '\x1b[0m';
 
 function spawnService(svc) {
+  const childEnv = { ...process.env, ...loadDotenv(join(svc.cwd, '.env')) };
   const child = spawn(
     svc.cmd,
     svc.args,
@@ -71,7 +102,7 @@ function spawnService(svc) {
       cwd: svc.cwd,
       detached: true,            // service binary becomes its own group leader
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: process.env,
+      env: childEnv,
     },
   );
 

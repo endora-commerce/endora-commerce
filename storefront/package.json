@@ -7,7 +7,7 @@
     "node": ">=22.17.0"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "node --env-file-if-exists=.env ./node_modules/.bin/next dev",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
