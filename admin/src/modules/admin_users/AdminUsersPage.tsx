@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 
 interface AdminUser {
   id: string;
@@ -36,6 +37,7 @@ interface AdminRole {
 }
 
 export function AdminUsersPage(): ReactNode {
+  const t = useTranslation('core');
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [roles, setRoles] = useState<AdminRole[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,11 +57,11 @@ export function AdminUsersPage(): ReactNode {
       setUsers(u.data);
       setRoles(r.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('adminUsers.error.load'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void refresh();
@@ -83,10 +85,10 @@ export function AdminUsersPage(): ReactNode {
         });
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Create failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('adminUsers.error.create'));
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   const handleAssignRole = useCallback(
@@ -97,10 +99,10 @@ export function AdminUsersPage(): ReactNode {
         });
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Update failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('adminUsers.error.update'));
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   const handleToggleStatus = useCallback(
@@ -111,34 +113,34 @@ export function AdminUsersPage(): ReactNode {
         });
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Update failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('adminUsers.error.update'));
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   const handleRemove = useCallback(
     async (user: AdminUser): Promise<void> => {
-      if (!confirm(`Remove ${user.email}? They will no longer be able to sign in.`)) return;
+      if (!confirm(t('adminUsers.confirmRemove', { email: user.email }))) return;
       try {
         await apiClient.delete<void>(`/api/v1/admin/admin-users/${user.id}`);
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Remove failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('adminUsers.error.remove'));
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   return (
     <>
       <PageHeader
-        title="Users"
+        title={t('adminUsers.page.title')}
         description={
           <>
-            Supplier employees with admin access. Manage permission bundles in{' '}
+            {t('adminUsers.page.descriptionPrefix')}{' '}
             <Link to="/admin-roles" className="underline underline-offset-2">
-              Roles
+              {t('adminUsers.rolesLink')}
             </Link>
             .
           </>
@@ -153,7 +155,7 @@ export function AdminUsersPage(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Create user</CardTitle>
+          <CardTitle>{t('adminUsers.create.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <CreateUserForm roles={roles} onSubmit={handleCreate} />
@@ -163,17 +165,17 @@ export function AdminUsersPage(): ReactNode {
       <Card>
         <CardContent className="pt-6">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('adminUsers.loading')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>2FA</TableHead>
-                  <TableHead>Last login</TableHead>
+                  <TableHead>{t('adminUsers.column.email')}</TableHead>
+                  <TableHead>{t('adminUsers.column.name')}</TableHead>
+                  <TableHead>{t('adminUsers.column.role')}</TableHead>
+                  <TableHead>{t('adminUsers.column.status')}</TableHead>
+                  <TableHead>{t('adminUsers.column.twoFactor')}</TableHead>
+                  <TableHead>{t('adminUsers.column.lastLogin')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -189,7 +191,7 @@ export function AdminUsersPage(): ReactNode {
                         value={u.adminRoleId ?? ''}
                         onChange={(e): void => void handleAssignRole(u.id, e.target.value)}
                       >
-                        <option value="">— unassigned —</option>
+                        <option value="">{t('adminUsers.unassigned')}</option>
                         {roles.map((r) => (
                           <option key={r.id} value={r.id}>
                             {r.name}
@@ -198,7 +200,7 @@ export function AdminUsersPage(): ReactNode {
                       </Select>
                     </TableCell>
                     <TableCell>{u.status}</TableCell>
-                    <TableCell>{u.twoFactorEnabled ? 'on' : '—'}</TableCell>
+                    <TableCell>{u.twoFactorEnabled ? t('adminUsers.twoFactorOn') : '—'}</TableCell>
                     <TableCell>{formatDateTime(u.lastLoginAt)}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
@@ -207,7 +209,7 @@ export function AdminUsersPage(): ReactNode {
                           size="sm"
                           onClick={(): void => void handleToggleStatus(u)}
                         >
-                          {u.status === 'active' ? 'Deactivate' : 'Reactivate'}
+                          {u.status === 'active' ? t('adminUsers.deactivate') : t('adminUsers.reactivate')}
                         </Button>
                         <Button
                           variant="destructive"
@@ -215,7 +217,7 @@ export function AdminUsersPage(): ReactNode {
                           onClick={(): void => void handleRemove(u)}
                         >
                           <Trash2 />
-                          Remove
+                          {t('adminUsers.remove')}
                         </Button>
                       </div>
                     </TableCell>
@@ -243,6 +245,7 @@ function CreateUserForm({
     adminRoleId: string | null;
   }) => Promise<void>;
 }): ReactNode {
+  const t = useTranslation('core');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -271,7 +274,7 @@ function CreateUserForm({
     >
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="ne">Email</Label>
+          <Label htmlFor="ne">{t('adminUsers.column.email')}</Label>
           <Input
             id="ne"
             type="email"
@@ -281,7 +284,7 @@ function CreateUserForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="np">Password (min 12 chars)</Label>
+          <Label htmlFor="np">{t('adminUsers.field.password')}</Label>
           <Input
             id="np"
             type="password"
@@ -292,7 +295,7 @@ function CreateUserForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="nf">First name</Label>
+          <Label htmlFor="nf">{t('adminUsers.field.firstName')}</Label>
           <Input
             id="nf"
             value={firstName}
@@ -301,7 +304,7 @@ function CreateUserForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="nl">Last name</Label>
+          <Label htmlFor="nl">{t('adminUsers.field.lastName')}</Label>
           <Input
             id="nl"
             value={lastName}
@@ -310,13 +313,13 @@ function CreateUserForm({
           />
         </div>
         <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="nr">Role</Label>
+          <Label htmlFor="nr">{t('adminUsers.column.role')}</Label>
           <Select
             id="nr"
             value={adminRoleId}
             onChange={(e): void => setAdminRoleId(e.target.value)}
           >
-            <option value="">— assign later —</option>
+            <option value="">{t('adminUsers.assignLater')}</option>
             {roles.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
@@ -325,7 +328,7 @@ function CreateUserForm({
           </Select>
         </div>
       </div>
-      <Button type="submit">Create user</Button>
+      <Button type="submit">{t('adminUsers.create.title')}</Button>
     </form>
   );
 }
