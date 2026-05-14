@@ -98,12 +98,12 @@ export function Header(props: {
           <Link href="/catalog" className="industria-nav__btn">
             <MenuIcon /> Wszystkie kategorie
           </Link>
-          <Link href="/catalog?cat=lozyska" className="industria-nav__btn">Łożyska</Link>
-          <Link href="/catalog?cat=napedy" className="industria-nav__btn">Napędy</Link>
-          <Link href="/catalog?cat=automatyka" className="industria-nav__btn">Automatyka</Link>
-          <Link href="/catalog?cat=elektryka" className="industria-nav__btn">Elektryka</Link>
-          <Link href="/catalog?cat=pneumatyka" className="industria-nav__btn">Pneumatyka</Link>
-          <Link href="/catalog?cat=narzedzia" className="industria-nav__btn">Narzędzia</Link>
+          <Link href="/c/lozyska" className="industria-nav__btn">Łożyska</Link>
+          <Link href="/c/napedy" className="industria-nav__btn">Napędy</Link>
+          <Link href="/c/automatyka" className="industria-nav__btn">Automatyka</Link>
+          <Link href="/c/elektryka" className="industria-nav__btn">Elektryka</Link>
+          <Link href="/c/pneumatyka" className="industria-nav__btn">Pneumatyka</Link>
+          <Link href="/c/narzedzia" className="industria-nav__btn">Narzędzia</Link>
           <span style={{ flex: 1 }} />
           <Link href="/quote-requests" className="industria-nav__btn">RFQ</Link>
           <Link href="/quick-order" className="industria-nav__btn industria-nav__btn--primary">

@@ -36,7 +36,7 @@ export default async function HomePage(): Promise<ReactNode> {
         count: c.productCount,
       }))
     : FALLBACK_CATEGORIES.map((c) => ({
-        href: `/catalog?cat=${c.slug}`,
+        href: `/c/${c.slug}`,
         name: c.name,
         count: c.count,
       }));
