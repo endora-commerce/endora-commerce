@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 
 /**
  * Admin Quote Requests list (feature 008 / T042). Surfaces every RFQ
@@ -71,6 +72,7 @@ const STATUS_VARIANT: Record<
 };
 
 export function RfqList(): ReactNode {
+  const t = useTranslation('core');
   const [rows, setRows] = useState<AdminRfqRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -91,11 +93,11 @@ export function RfqList(): ReactNode {
       const res = await apiClient.get<AdminRfqListResponse>(path);
       setRows(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('rfq.list.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, scope, organizationId]);
+  }, [statusFilter, scope, organizationId, t]);
 
   useEffect(() => {
     void refresh();
@@ -103,7 +105,7 @@ export function RfqList(): ReactNode {
 
   return (
     <div className="b2b-page b2b-page--wide">
-      <PageHeader title="Quote Requests" description="Customer enquiries waiting on a response." />
+      <PageHeader title={t('rfq.list.title')} description={t('rfq.list.description')} />
 
       <Card>
         <CardContent className="b2b-stack" style={{ gap: 16 }}>
@@ -116,44 +118,44 @@ export function RfqList(): ReactNode {
             }}
           >
             <div>
-              <Label htmlFor="rfq-scope">Visibility</Label>
+              <Label htmlFor="rfq-scope">{t('rfq.list.field.visibility')}</Label>
               <Select
                 id="rfq-scope"
                 value={scope}
                 onChange={(e): void => setScope(e.target.value as AssignmentScope)}
               >
-                <option value="mine">My organizations</option>
-                <option value="unassigned">Unassigned organizations</option>
-                <option value="all">All (platform admin)</option>
+                <option value="mine">{t('rfq.list.scope.mine')}</option>
+                <option value="unassigned">{t('rfq.list.scope.unassigned')}</option>
+                <option value="all">{t('rfq.list.scope.all')}</option>
               </Select>
             </div>
             <div>
-              <Label htmlFor="rfq-status">Status</Label>
+              <Label htmlFor="rfq-status">{t('rfq.list.field.status')}</Label>
               <Select
                 id="rfq-status"
                 value={statusFilter}
                 onChange={(e): void => setStatusFilter(e.target.value as 'all' | RfqStatus)}
               >
-                <option value="all">All</option>
-                <option value="Pending">Pending</option>
-                <option value="Created from admin">Created from admin</option>
-                <option value="Approved">Approved</option>
-                <option value="Completed">Completed</option>
-                <option value="Canceled">Canceled</option>
-                <option value="Expired">Expired</option>
+                <option value="all">{t('rfq.list.statusFilter.all')}</option>
+                <option value="Pending">{t('rfq.list.statusFilter.pending')}</option>
+                <option value="Created from admin">{t('rfq.list.statusFilter.createdFromAdmin')}</option>
+                <option value="Approved">{t('rfq.list.statusFilter.approved')}</option>
+                <option value="Completed">{t('rfq.list.statusFilter.completed')}</option>
+                <option value="Canceled">{t('rfq.list.statusFilter.canceled')}</option>
+                <option value="Expired">{t('rfq.list.statusFilter.expired')}</option>
               </Select>
             </div>
             <div>
-              <Label htmlFor="rfq-org">Organization id (optional)</Label>
+              <Label htmlFor="rfq-org">{t('rfq.list.field.organizationId')}</Label>
               <Input
                 id="rfq-org"
                 value={organizationId}
                 onChange={(e): void => setOrganizationId(e.target.value)}
-                placeholder="UUID"
+                placeholder={t('rfq.list.field.uuid')}
               />
             </div>
             <Button variant="default" onClick={(): void => void refresh()} disabled={loading}>
-              Refresh
+              {t('rfq.list.refresh')}
             </Button>
           </div>
 
@@ -166,13 +168,13 @@ export function RfqList(): ReactNode {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>RFQ</TableHead>
-                <TableHead>Organization</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Lines</TableHead>
-                <TableHead>Total</TableHead>
-                <TableHead>Updated</TableHead>
+                <TableHead>{t('rfq.list.column.rfq')}</TableHead>
+                <TableHead>{t('rfq.list.column.organization')}</TableHead>
+                <TableHead>{t('rfq.list.column.customer')}</TableHead>
+                <TableHead>{t('rfq.list.column.status')}</TableHead>
+                <TableHead>{t('rfq.list.column.lines')}</TableHead>
+                <TableHead>{t('rfq.list.column.total')}</TableHead>
+                <TableHead>{t('rfq.list.column.updated')}</TableHead>
                 <TableHead style={{ width: 80 }}></TableHead>
               </TableRow>
             </TableHeader>
@@ -180,7 +182,7 @@ export function RfqList(): ReactNode {
               {rows.length === 0 && !loading ? (
                 <TableRow>
                   <TableCell colSpan={8} style={{ textAlign: 'center', color: 'var(--b2b-muted)' }}>
-                    No Quote Requests match the current filter.
+                    {t('rfq.list.empty')}
                   </TableCell>
                 </TableRow>
               ) : null}
@@ -195,7 +197,7 @@ export function RfqList(): ReactNode {
                     <Badge variant={STATUS_VARIANT[r.status] ?? 'default'}>{r.status}</Badge>
                     {r.awaitingCustomerRevisionAcceptance ? (
                       <Badge variant="warning" style={{ marginLeft: 4 }}>
-                        Awaiting customer
+                        {t('rfq.list.badge.awaitingCustomer')}
                       </Badge>
                     ) : null}
                   </TableCell>
@@ -207,7 +209,7 @@ export function RfqList(): ReactNode {
                   <TableCell>
                     <Button asChild variant="ghost" size="sm">
                       <Link to={`/quote-requests/${r.id}`}>
-                        Open <ArrowRight size={14} style={{ marginLeft: 4 }} />
+                        {t('rfq.list.open')} <ArrowRight size={14} style={{ marginLeft: 4 }} />
                       </Link>
                     </Button>
                   </TableCell>
