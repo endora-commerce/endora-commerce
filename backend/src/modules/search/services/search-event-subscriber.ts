@@ -46,6 +46,13 @@ interface CatalogEvents extends Record<string, EventBase> {
   'settings.value_changed': EventBase & {
     settingCode: string;
     salesChannelIds: string[];
+    /**
+     * Set when the platform-wide global override (settings.global_value)
+     * changed (feature 042). Channels without a per-channel override
+     * resolve from the global; this flag tells the reactor to re-evaluate
+     * every in-scope channel, not only the codes listed in `salesChannelIds`.
+     */
+    globalValueUpdated?: boolean;
     valueType: string;
   };
 }
@@ -124,9 +131,14 @@ export class SearchEventSubscriber {
           if (payload.settingCode !== SEARCH_SETTING_CODES.LLM_ENABLED) return;
           try {
             const em = emFactory();
-            const channels = await em.find(SalesChannel, {
-              id: { $in: payload.salesChannelIds },
-            });
+            // Feature 042: a global-override change touches every channel
+            // that doesn't carry its own per-channel value — re-evaluate
+            // the lot. Per-channel writes still target only the listed ids.
+            const channels = payload.globalValueUpdated
+              ? await em.find(SalesChannel, {})
+              : await em.find(SalesChannel, {
+                  id: { $in: payload.salesChannelIds },
+                });
             for (const channel of channels) {
               const enabled = await settingsService.get(
                 SEARCH_SETTING_CODES.LLM_ENABLED,

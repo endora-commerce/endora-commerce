@@ -31,15 +31,17 @@ describe('POST /api/v1/admin/search/llm/toggle (T022)', () => {
   });
 
   beforeEach(async () => {
-    // Reset every search.llm.* setting_value so each test starts from a
-    // known blank state. The Setting rows themselves are reconciled at
-    // boot and stay; only the per-channel values are mutable.
+    // Reset every search.llm.* per-channel value AND the global override so
+    // each test starts blank. With feature 042 the "all channels" path
+    // stores the value in `setting.global_value` rather than fanning out
+    // per-channel rows, so the beforeEach has to clear both tiers.
     const em = h.em();
     const codes = Object.values(SEARCH_SETTING_CODES);
     const settings = await em.find(Setting, { code: { $in: codes } });
     for (const s of settings) {
       const values = await em.find(SettingValue, { setting: s });
       for (const v of values) em.remove(v);
+      s.globalValue = null;
     }
     await em.flush();
   });
@@ -113,16 +115,20 @@ describe('POST /api/v1/admin/search/llm/toggle (T022)', () => {
     expect(body.code).toBe('search.llm.enabled');
     expect(body.enabled).toBe(true);
     expect(body.newVersion).toBeTruthy();
-    expect(body.appliedChannelIds.length).toBeGreaterThan(0);
+    // No salesChannelCodes parameter ⇒ writes the platform-wide global
+    // override (feature 042). `appliedChannelIds` lists per-channel rows
+    // touched; for an "all channels" write the new model touches zero
+    // rows and instead bumps `setting.global_value`.
+    expect(body.appliedChannelIds).toEqual([]);
 
-    // Toggle row(s) now exist with value=true.
+    // Toggle stored as global override; no per-channel rows are created.
     const em = h.em();
-    const toggle = await em.findOne(Setting, {
+    const toggle = await em.findOneOrFail(Setting, {
       code: SEARCH_SETTING_CODES.LLM_ENABLED,
     });
+    expect(toggle.globalValue).toBe(true);
     const values = await em.find(SettingValue, { setting: toggle });
-    expect(values.length).toBeGreaterThan(0);
-    expect(values.every((v) => v.value === true)).toBe(true);
+    expect(values).toHaveLength(0);
   });
 
   it('accepts disable even when no embedder.* fields are set', async () => {

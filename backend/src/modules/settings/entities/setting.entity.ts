@@ -32,7 +32,7 @@ export type SettingValueTypeDb = (typeof SETTING_VALUE_TYPES)[number];
  */
 @Entity({ tableName: 'settings' })
 export class Setting {
-  [OptionalProps]?: 'id' | 'createdAt' | 'updatedAt' | 'description';
+  [OptionalProps]?: 'id' | 'createdAt' | 'updatedAt' | 'description' | 'globalValue';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -60,6 +60,14 @@ export class Setting {
 
   @Property({ type: 'text', nullable: true })
   description?: string | null;
+
+  /**
+   * Platform-wide "global override" the admin has set. NULL means no global
+   * override — the resolver falls back to `defaultValue`. Per-channel
+   * `SettingValue` rows take precedence over this for their channel.
+   */
+  @Property({ type: 'json', nullable: true, fieldName: 'global_value' })
+  globalValue?: unknown | null;
 
   /**
    * Sales-channel scope. Empty collection ⇒ "applies to all sales channels"

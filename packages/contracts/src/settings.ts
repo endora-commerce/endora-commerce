@@ -115,8 +115,26 @@ export const SettingDtoSchema = z.object({
   valueType: SettingValueTypeSchema,
   ownerModule: z.string(),
   salesChannelCodes: z.array(z.string()),
+  /**
+   * Manifest-declared default value (immutable; surfaces in `defaultValue`).
+   */
   defaultValue: z.unknown(),
+  /**
+   * Platform-wide global override the admin has set, or `null` when the
+   * admin has not customised it. Resolver chain when reading a value:
+   *   per-channel SettingValue row → globalValue (when non-null) → defaultValue.
+   * "All channels" admin writes update this field only and leave per-channel
+   * rows untouched.
+   */
+  globalValue: z.unknown().nullable(),
   valuesByChannel: z.array(SettingValueByChannelSchema),
+  /**
+   * Server-computed effective version (= `max(setting.updatedAt,
+   * max(values.updatedAt))`). Echo back as `expectedVersion` on PUT
+   * /:code/value to detect concurrent edits — matches the ETag header
+   * returned by the detail endpoint.
+   */
+  version: z.iso.datetime(),
 });
 export type SettingDto = z.infer<typeof SettingDtoSchema>;
 
