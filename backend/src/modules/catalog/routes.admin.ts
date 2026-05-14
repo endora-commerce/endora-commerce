@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   assignAttributesRequestSchema,
+  batchByIdProductsRequestSchema,
   createAttributeRequestSchema,
   createAttributeSetRequestSchema,
   createCategoryRequestSchema,
@@ -285,6 +286,31 @@ export async function registerCatalogAdminRoutes(
     async (request) => {
       const product = await adminService.getProductById(request.params.id);
       return { data: serializeAdminProduct(product) };
+    },
+  );
+
+  app.post(
+    '/api/v1/admin/catalog/products/batch-by-id',
+    {
+      preHandler: requireAdmin('catalog:read'),
+      schema: { body: batchByIdProductsRequestSchema },
+    },
+    async (request) => {
+      const body = batchByIdProductsRequestSchema.parse(request.body);
+      const result = await adminService.listProductsByIds({
+        ids: body.ids,
+        ...(body.page !== undefined ? { page: body.page } : {}),
+        ...(body.pageSize !== undefined ? { pageSize: body.pageSize } : {}),
+      });
+      return {
+        data: result.items.map(serializeAdminProduct),
+        pagination: {
+          page: result.page,
+          pageSize: result.pageSize,
+          total: result.total,
+          hasMore: (result.page + 1) * result.pageSize < result.total,
+        },
+      };
     },
   );
 

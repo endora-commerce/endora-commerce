@@ -1478,8 +1478,29 @@ interface AdminProductLink {
   position: number;
 }
 
+interface AdminProductSummary {
+  id: string;
+  sku: string;
+  slug: string;
+  status: 'draft' | 'active' | 'archived';
+  name: Record<string, string>;
+}
+
+function pickProductName(
+  name: Record<string, string> | undefined | null,
+  fallback: string,
+): string {
+  if (!name) return fallback;
+  return name['en-US'] ?? Object.values(name)[0] ?? fallback;
+}
+
+const TARGETS_BATCH_PAGE_SIZE = 200;
+
 function ProductLinksSection({ productId }: { productId: string }): ReactNode {
   const [links, setLinks] = useState<AdminProductLink[]>([]);
+  const [targetsById, setTargetsById] = useState<Map<string, AdminProductSummary>>(
+    () => new Map(),
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -1492,6 +1513,33 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
         `/api/v1/admin/catalog/products/${productId}/links`,
       );
       setLinks(res.data);
+
+      // Fetch target product details across all three kinds in one shot.
+      // Paginates with TARGETS_BATCH_PAGE_SIZE so a product with hundreds
+      // of links streams across multiple requests without ballooning the
+      // body. In practice a single page is enough.
+      const uniqueTargetIds = Array.from(new Set(res.data.map((l) => l.targetProductId)));
+      const nextById = new Map<string, AdminProductSummary>();
+      if (uniqueTargetIds.length > 0) {
+        let page = 0;
+        // Bounded loop guards against an unexpected backend response that
+        // never sets `hasMore: false`.
+        for (;;) {
+          const batch = await apiClient.post<{
+            data: AdminProductSummary[];
+            pagination: { hasMore: boolean };
+          }>('/api/v1/admin/catalog/products/batch-by-id', {
+            ids: uniqueTargetIds,
+            page,
+            pageSize: TARGETS_BATCH_PAGE_SIZE,
+          });
+          for (const p of batch.data) nextById.set(p.id, p);
+          if (!batch.pagination.hasMore) break;
+          page += 1;
+          if (page > 50) break;
+        }
+      }
+      setTargetsById(nextById);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Load failed.');
     } finally {
@@ -1577,30 +1625,59 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Target product id</TableHead>
+                        <TableHead>Target product</TableHead>
+                        <TableHead>SKU</TableHead>
                         <TableHead>Position</TableHead>
                         <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {byKind[kind].map((link) => (
-                        <TableRow key={link.id}>
-                          <TableCell className="font-mono text-xs">
-                            {link.targetProductId}
-                          </TableCell>
-                          <TableCell>{link.position}</TableCell>
-                          <TableCell>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => void handleDelete(link.id)}
-                            >
-                              Remove
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {byKind[kind].map((link) => {
+                        const target = targetsById.get(link.targetProductId);
+                        const isMissing = !target;
+                        const isArchived = target?.status === 'archived';
+                        return (
+                          <TableRow key={link.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={
+                                    isMissing || isArchived ? 'text-muted-foreground' : ''
+                                  }
+                                >
+                                  {target
+                                    ? pickProductName(target.name, target.slug)
+                                    : `${link.targetProductId.slice(0, 8)}…`}
+                                </span>
+                                {isMissing ? (
+                                  <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                                    missing
+                                  </span>
+                                ) : null}
+                                {isArchived ? (
+                                  <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                                    archived
+                                  </span>
+                                ) : null}
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {target?.sku ?? '—'}
+                            </TableCell>
+                            <TableCell>{link.position}</TableCell>
+                            <TableCell>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => void handleDelete(link.id)}
+                              >
+                                Remove
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 )}
