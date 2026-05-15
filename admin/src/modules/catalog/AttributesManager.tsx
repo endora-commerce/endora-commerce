@@ -54,6 +54,8 @@ interface AdminAttribute {
   filterPosition: number;
   /** Feature 012 — gates inclusion in the storefront PDP "Parametry produktu" tab. */
   isVisibleOnProductPage: boolean;
+  /** Feature 022 — gates appearance in the Products Bulk Edit dialog. */
+  massEditable: boolean;
 }
 
 export function AttributesManager(): ReactNode {
@@ -94,6 +96,7 @@ export function AttributesManager(): ReactNode {
       isVariantAxis: boolean;
       displayAsSlider: boolean;
       isComparable: boolean;
+      massEditable: boolean;
     }): Promise<void> => {
       const label: Record<string, string> = {};
       if (input.labelEn) label['en-US'] = input.labelEn;
@@ -117,6 +120,7 @@ export function AttributesManager(): ReactNode {
           isFilterable: input.isFilterable,
           isVariantAxis: input.isVariantAxis,
           ...(input.isComparable ? { isComparable: true } : {}),
+          ...(input.massEditable ? { massEditable: true } : {}),
           // Honor displayAsSlider only on numeric types (matches the
           // backend service-side guard); the form keeps the box hidden
           // for non-numeric types so this branch rarely fires.
@@ -149,6 +153,7 @@ export function AttributesManager(): ReactNode {
         filterPosition?: number;
         isVisibleOnProductPage?: boolean;
         labelDefault?: string;
+        massEditable?: boolean;
       },
     ): Promise<void> => {
       try {
@@ -210,6 +215,7 @@ export function AttributesManager(): ReactNode {
                   <TableHead>{t('attributes.column.filterable')}</TableHead>
                   <TableHead>{t('attributes.column.variantAxis')}</TableHead>
                   <TableHead>{t('attributes.column.comparable')}</TableHead>
+                  <TableHead>{t('attributes.column.massEditable')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -257,6 +263,14 @@ export function AttributesManager(): ReactNode {
                         }
                       />
                     </TableCell>
+                    <TableCell>
+                      <Checkbox
+                        checked={a.massEditable}
+                        onChange={(e): void =>
+                          void handleToggle(a, { massEditable: e.target.checked })
+                        }
+                      />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -282,6 +296,7 @@ function CreateAttributeForm({
     isVariantAxis: boolean;
     displayAsSlider: boolean;
     isComparable: boolean;
+    massEditable: boolean;
   }) => Promise<void>;
 }): ReactNode {
   const t = useTranslation('catalog');
@@ -295,6 +310,7 @@ function CreateAttributeForm({
   const [isVariantAxis, setIsVariantAxis] = useState(false);
   const [displayAsSlider, setDisplayAsSlider] = useState(false);
   const [isComparable, setIsComparable] = useState(false);
+  const [massEditable, setMassEditable] = useState(false);
   const isNumeric = valueType === 'number' || valueType === 'price';
 
   return (
@@ -313,6 +329,7 @@ function CreateAttributeForm({
           isVariantAxis,
           displayAsSlider,
           isComparable,
+          massEditable,
         }).then(() => {
           setKey('');
           setLabelEn('');
@@ -323,6 +340,7 @@ function CreateAttributeForm({
           setIsVariantAxis(false);
           setDisplayAsSlider(false);
           setIsComparable(false);
+          setMassEditable(false);
         });
       }}
     >
@@ -417,6 +435,13 @@ function CreateAttributeForm({
             onChange={(e): void => setIsComparable(e.target.checked)}
           />
           {t('attributes.flag.comparable')}
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox
+            checked={massEditable}
+            onChange={(e): void => setMassEditable(e.target.checked)}
+          />
+          {t('attributes.flag.massEditable')}
         </label>
       </div>
       <Button type="submit">{t('attributes.action.create')}</Button>
