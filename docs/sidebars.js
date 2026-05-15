@@ -46,6 +46,7 @@ const sidebars = {
           label: 'Catalog',
           link: { type: 'doc', id: 'modules/catalog' },
           items: [
+            'modules/catalog/attributes',
             'modules/catalog/attribute-sets',
             'modules/catalog/gallery-and-labels',
             'modules/catalog/attachments',

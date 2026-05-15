@@ -91,7 +91,10 @@ foundation 001 originals; the other three are added in 002.
 
 Feature 012 (Attributes) added the operational surface the storefront
 needs to render rich product information and the search / promotions
-modules need to resolve customer queries.
+modules need to resolve customer queries. The dedicated
+[Attributes](./catalog/attributes.md) page covers the attribute
+authoring surface in full — this section only summarises what changed
+on the Catalog read paths.
 
 ### New attribute flags
 
