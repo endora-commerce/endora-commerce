@@ -13,6 +13,7 @@ import { ProductLinkService } from './services/product-link.service.js';
 import { GroupedService } from './services/grouped.service.js';
 import { BundleService } from './services/bundle.service.js';
 import { ProductEditorPreferencesService } from './services/product-editor-preferences.service.js';
+import { ProductOverridesService } from './services/product-overrides.service.js';
 import { ProductScopeContextService } from './services/product-scope-context.service.js';
 import { ProductValueResolverService } from './services/product-value-resolver.service.js';
 import { SearchQueryService } from '../search/services/search-query.service.js';
@@ -129,6 +130,9 @@ export function catalogModule(options: CatalogModuleOptions) {
             editorPreferencesService,
           )
         : undefined;
+    const overridesService = options.salesChannelMembership
+      ? new ProductOverridesService(options.emFactory, options.salesChannelMembership)
+      : undefined;
 
     await registerCatalogAdminRoutes(app, {
       adminService,
@@ -151,6 +155,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       ...(scopeContextService ? { productScopeContextService: scopeContextService } : {}),
       productEditorPreferencesService: editorPreferencesService,
       ...(valueResolverService ? { productValueResolverService: valueResolverService } : {}),
+      ...(overridesService ? { productOverridesService: overridesService } : {}),
     });
   };
 }

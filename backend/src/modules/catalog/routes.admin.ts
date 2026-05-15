@@ -40,6 +40,8 @@ import type { BundleService } from './services/bundle.service.js';
 import type { ProductScopeContextService } from './services/product-scope-context.service.js';
 import type { ProductEditorPreferencesService } from './services/product-editor-preferences.service.js';
 import type { ProductValueResolverService } from './services/product-value-resolver.service.js';
+import type { ProductOverridesService } from './services/product-overrides.service.js';
+import { productValueOverridesPatchRequestSchema } from '@b2b/contracts';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { ProductVariant } from './entities/product-variant.entity.js';
 import type { Product } from './entities/product.entity.js';
@@ -96,6 +98,13 @@ export interface CatalogAdminDeps {
    * when `channelId` / `languageCode` are passed.
    */
   productValueResolverService?: ProductValueResolverService;
+  /**
+   * Feature 022 — channel-aware override CRUD. Powers the
+   * `PATCH /admin/products/:id/value-overrides` endpoint. Optional so
+   * the read-only path (GET value-overrides) can ship without the
+   * write surface in dev/test setups that haven't wired it yet.
+   */
+  productOverridesService?: ProductOverridesService;
   /**
    * PreHandler gate — supplied by the composition root. Set to the real
    * `requireAdmin('catalog:write')` factory at server boot. Optional so tests
@@ -405,6 +414,37 @@ export async function registerCatalogAdminRoutes(
               channelId: o.channelId,
               languageCode: o.languageCode,
               value: o.value,
+            })),
+          },
+        };
+      },
+    );
+  }
+
+  if (deps.productOverridesService) {
+    const overridesSvc = deps.productOverridesService;
+    app.patch<{
+      Params: { id: string };
+    }>(
+      '/api/v1/admin/catalog/products/:id/value-overrides',
+      { preHandler: requireAdmin('catalog:write') },
+      async (request) => {
+        const body = productValueOverridesPatchRequestSchema.parse(request.body);
+        const result = await overridesSvc.applyBulk(request.params.id, {
+          upserts: body.upserts,
+          deletes: body.deletes,
+        });
+        return {
+          data: {
+            productId: result.productId,
+            applied: result.applied,
+            overrides: result.overrides.map((o) => ({
+              id: o.id,
+              attributeKey: o.attributeKey,
+              channelId: o.channelId,
+              languageCode: o.languageCode ?? null,
+              value: o.value,
+              updatedAt: o.updatedAt.toISOString(),
             })),
           },
         };
