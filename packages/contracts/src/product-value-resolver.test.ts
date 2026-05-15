@@ -27,7 +27,7 @@ const row = (
 ): OverrideRow => ({ attributeKey, channelId, languageCode, value: { v } });
 
 /**
- * Matrix from specs/022-product-scope-editor/contracts/resolver.contract.md §5.
+ * Matrix from specs/023-product-scope-editor/contracts/resolver.contract.md §5.
  * Every row exercises one combination of (attribute scope, ctx, baseline,
  * overrides) and asserts the resolver returns the expected (value, source).
  */

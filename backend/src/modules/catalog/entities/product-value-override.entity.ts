@@ -13,7 +13,7 @@ import { randomUUID } from 'crypto';
  * pure-function twin in `@b2b/contracts`) fuses baseline + overrides
  * into an effective value per (channel, language) context using the
  * fallback chain documented in
- * specs/022-product-scope-editor/data-model.md §3.2.
+ * specs/023-product-scope-editor/data-model.md §3.2.
  *
  * `attributeKey` is a string — for user-defined attributes it matches
  * `product_attributes.key`; for system attributes it is one of the

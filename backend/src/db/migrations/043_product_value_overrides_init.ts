@@ -30,7 +30,7 @@ import { Migration } from '@mikro-orm/migrations';
  *      product edit page so the switchers seed back to the editor's
  *      previous context on return.
  *
- * See specs/022-product-scope-editor/data-model.md §1.
+ * See specs/023-product-scope-editor/data-model.md §1.
  */
 export class Migration043ProductValueOverridesInit extends Migration {
   override async up(): Promise<void> {

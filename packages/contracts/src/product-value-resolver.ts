@@ -10,7 +10,7 @@
  * client-side so switcher toggles do not need a network round-trip.
  *
  * The matrix below MUST stay aligned with
- * specs/022-product-scope-editor/contracts/resolver.contract.md §5.
+ * specs/023-product-scope-editor/contracts/resolver.contract.md §5.
  */
 
 export type ResolverContext = {

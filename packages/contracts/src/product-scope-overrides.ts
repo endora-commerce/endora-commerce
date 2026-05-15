@@ -6,7 +6,7 @@ import { isoDateTimeSchema, uuidSchema } from './common.js';
  *
  * Endpoints live under `/admin/products/:id/...` and use these schemas as
  * the source of truth for request/response shapes. See
- * specs/022-product-scope-editor/contracts/.
+ * specs/023-product-scope-editor/contracts/.
  */
 
 // --- Primitives -------------------------------------------------------------
