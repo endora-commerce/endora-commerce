@@ -52,6 +52,7 @@ const sidebars = {
             'modules/catalog/attachments',
             'modules/catalog/product-links',
             'modules/catalog/composite-products',
+            'modules/catalog/per-channel-per-language-overrides',
           ],
         },
         {

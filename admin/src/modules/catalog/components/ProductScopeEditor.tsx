@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { useTranslation } from '@/i18n/useTranslation';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -82,6 +83,7 @@ interface Props {
 }
 
 export const ProductScopeEditor = ({ productId }: Props): ReactNode => {
+  const t = useTranslation('catalog');
   const [scope, setScope] = useState<ScopeContext | null>(null);
   const [overrides, setOverrides] = useState<Override[]>([]);
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
@@ -125,7 +127,11 @@ export const ProductScopeEditor = ({ productId }: Props): ReactNode => {
         setActiveLanguageCode(initialLanguage);
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load scope.');
+          setError(
+            err instanceof ApiError
+              ? err.envelope.error.message
+              : t('productEditor.scopeEditor.loadFailed'),
+          );
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -134,7 +140,7 @@ export const ProductScopeEditor = ({ productId }: Props): ReactNode => {
     return () => {
       cancelled = true;
     };
-  }, [productId]);
+  }, [productId, t]);
 
   // Re-fetch the resolved preview when the switchers change. We hit the
   // existing single-product GET with the context params — the backend
@@ -158,14 +164,18 @@ export const ProductScopeEditor = ({ productId }: Props): ReactNode => {
         if (!cancelled) setResolved(res.data.resolved ?? null);
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to resolve.');
+          setError(
+            err instanceof ApiError
+              ? err.envelope.error.message
+              : t('productEditor.scopeEditor.resolveFailed'),
+          );
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [scope, productId, activeChannelId, activeLanguageCode]);
+  }, [scope, productId, activeChannelId, activeLanguageCode, t]);
 
   // Persist the (channel, language) preference for next visit. Debounced
   // best-effort — failures are swallowed.
@@ -245,9 +255,11 @@ export const ProductScopeEditor = ({ productId }: Props): ReactNode => {
         setOverrides(res.data.overrides);
         const { upserted, deleted } = res.data.applied;
         const parts: string[] = [];
-        if (upserted > 0) parts.push(`${upserted} override${upserted === 1 ? '' : 's'} saved`);
-        if (deleted > 0) parts.push(`${deleted} override${deleted === 1 ? '' : 's'} reset`);
-        setInfo(parts.join(' • ') || 'No changes.');
+        if (upserted > 0)
+          parts.push(t('productEditor.scopeEditor.applied.upserted', { count: String(upserted) }));
+        if (deleted > 0)
+          parts.push(t('productEditor.scopeEditor.applied.deleted', { count: String(deleted) }));
+        setInfo(parts.join(' • ') || t('productEditor.scopeEditor.applied.none'));
         // Refresh the resolver preview so the new "source" badge reflects
         // the post-write state.
         const params = new URLSearchParams();
@@ -266,13 +278,13 @@ export const ProductScopeEditor = ({ productId }: Props): ReactNode => {
         if (err instanceof ApiError) {
           setError(`${err.envelope.error.code}: ${err.envelope.error.message}`);
         } else {
-          setError('Failed to save override.');
+          setError(t('productEditor.scopeEditor.saveFailed'));
         }
       } finally {
         setSaving(false);
       }
     },
-    [productId, activeChannelId, activeLanguageCode, scope],
+    [productId, activeChannelId, activeLanguageCode, scope, t],
   );
 
   const saveOverride = useCallback(
@@ -341,45 +353,55 @@ export const ProductScopeEditor = ({ productId }: Props): ReactNode => {
   const nameSource = resolved?.sources['name'] ?? 'absent';
   const descriptionSource = resolved?.sources['description'] ?? 'absent';
 
+  const channelHelpText =
+    activeChannelId === null
+      ? t('productEditor.scopeEditor.globalHelp')
+      : t('productEditor.scopeEditor.specificChannelHelp', {
+          channelCode: scope.channels.find((c) => c.id === activeChannelId)?.code ?? '',
+          languageCode: activeLanguageCode ?? '—',
+        });
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Scope: Sales Channel + Language</CardTitle>
+        <CardTitle>{t('productEditor.scopeEditor.title')}</CardTitle>
         <p className="b2b-help" style={{ marginTop: 4, marginBottom: 0 }}>
-          Preview how this product resolves per (channel, language) using the platform's resolver.
-          {overridesCount > 0 ? ` ${overridesCount} channel-aware override(s) in place.` : ''}
+          {t('productEditor.scopeEditor.help')}
+          {overridesCount > 0
+            ? ` ${t('productEditor.scopeEditor.overridesCount', { count: String(overridesCount) })}`
+            : ''}
         </p>
       </CardHeader>
       <CardContent>
         <div className="b2b-col" style={{ gap: 14 }}>
           {/* Sales Channel switcher */}
           <div>
-            <div className="b2b-label">Sales Channel</div>
+            <div className="b2b-label">{t('productEditor.scopeEditor.channelLabel')}</div>
             <div className="b2b-row" style={{ flexWrap: 'wrap', gap: 6 }}>
               <ScopeChip
                 active={activeChannelId === null}
-                label="Global / no channel"
+                label={t('productEditor.scopeEditor.channelGlobalOption')}
                 onClick={() => handleChannelChange(null)}
               />
               {scope.channels.map((c) => (
                 <ScopeChip
                   key={c.id}
                   active={activeChannelId === c.id}
-                  label={`${c.name} (${c.code})${c.isDefault ? ' • default' : ''}`}
+                  label={`${c.name} (${c.code})${c.isDefault ? ` • ${t('productEditor.scopeEditor.channelDefaultBadge')}` : ''}`}
                   onClick={() => handleChannelChange(c.id)}
                 />
               ))}
             </div>
             {scope.channels.length === 0 ? (
               <p className="b2b-help" style={{ marginTop: 6 }}>
-                Product has no assigned channels — only the global baseline is editable.
+                {t('productEditor.scopeEditor.channelEmpty')}
               </p>
             ) : null}
           </div>
 
           {/* Language switcher */}
           <div>
-            <div className="b2b-label">Language</div>
+            <div className="b2b-label">{t('productEditor.scopeEditor.languageLabel')}</div>
             <div className="b2b-row" style={{ flexWrap: 'wrap', gap: 6 }}>
               {availableLanguages.map((l) => (
                 <ScopeChip
@@ -390,17 +412,17 @@ export const ProductScopeEditor = ({ productId }: Props): ReactNode => {
                 />
               ))}
               {availableLanguages.length === 0 ? (
-                <span className="b2b-help">No languages available in this context.</span>
+                <span className="b2b-help">{t('productEditor.scopeEditor.languageEmpty')}</span>
               ) : null}
             </div>
           </div>
 
           {/* Resolved preview + override edit affordance */}
           <div>
-            <div className="b2b-label">Resolved preview</div>
+            <div className="b2b-label">{t('productEditor.scopeEditor.resolvedPreview')}</div>
             <div className="b2b-col" style={{ gap: 14 }}>
               <ScopedField
-                label="Name"
+                label={t('productEditor.scopeEditor.fieldName')}
                 resolved={(resolved?.name ?? null) as string | null}
                 source={nameSource}
                 override={findOverride('name')}
@@ -410,9 +432,10 @@ export const ProductScopeEditor = ({ productId }: Props): ReactNode => {
                 onSave={(v) => saveOverride('name', v)}
                 onReset={() => resetOverride('name')}
                 multiline={false}
+                t={t}
               />
               <ScopedField
-                label="Description"
+                label={t('productEditor.scopeEditor.fieldDescription')}
                 resolved={(resolved?.description ?? null) as string | null}
                 source={descriptionSource}
                 override={findOverride('description')}
@@ -422,21 +445,12 @@ export const ProductScopeEditor = ({ productId }: Props): ReactNode => {
                 onSave={(v) => saveOverride('description', v)}
                 onReset={() => resetOverride('description')}
                 multiline
+                t={t}
               />
             </div>
-            {activeChannelId === null ? (
-              <p className="b2b-help" style={{ marginTop: 8, marginBottom: 0 }}>
-                Channel = Global — overrides only apply to a specific Sales Channel. Switch
-                to a channel above to edit overrides. The per-language baseline still lives
-                in the Name / Description fields below.
-              </p>
-            ) : (
-              <p className="b2b-help" style={{ marginTop: 8, marginBottom: 0 }}>
-                Editing the active <code>{scope.channels.find((c) => c.id === activeChannelId)?.code}</code>
-                {' '}override for language <code>{activeLanguageCode ?? '—'}</code>. Save Override writes
-                a per-(channel, language) slot; Reset to Global removes it and falls back to the baseline.
-              </p>
-            )}
+            <p className="b2b-help" style={{ marginTop: 8, marginBottom: 0 }}>
+              {channelHelpText}
+            </p>
             {info ? (
               <Alert variant="default" className="mt-3">
                 <AlertDescription>{info}</AlertDescription>
@@ -490,6 +504,7 @@ const ScopedField = ({
   onSave,
   onReset,
   multiline,
+  t,
 }: {
   label: string;
   resolved: string | null;
@@ -501,6 +516,7 @@ const ScopedField = ({
   onSave: (v: string) => void;
   onReset: () => void;
   multiline: boolean;
+  t: (key: string, params?: Record<string, string>) => string;
 }): ReactNode => {
   const isEditing = draft !== null;
   // Seed the draft with the override's value when entering edit mode;
@@ -518,7 +534,7 @@ const ScopedField = ({
           {label}
         </span>
         <Badge variant={source === 'absent' ? 'destructive' : 'secondary'}>
-          {sourceLabel(source)}
+          {t(sourceLabelKey(source))}
         </Badge>
       </div>
       {!isEditing ? (
@@ -533,7 +549,7 @@ const ScopedField = ({
             whiteSpace: 'pre-wrap',
           }}
         >
-          {resolved ?? <em className="b2b-help">— no value at any slot —</em>}
+          {resolved ?? <em className="b2b-help">{t('productEditor.scopeEditor.noValue')}</em>}
         </div>
       ) : (
         <div className="b2b-col" style={{ gap: 6, marginTop: 4 }}>
@@ -549,7 +565,7 @@ const ScopedField = ({
           )}
           <div className="b2b-row" style={{ gap: 6 }}>
             <Button type="button" size="sm" onClick={(): void => onSave(draft ?? '')}>
-              Save Override
+              {t('productEditor.scopeEditor.saveOverride')}
             </Button>
             <Button
               type="button"
@@ -557,7 +573,7 @@ const ScopedField = ({
               variant="outline"
               onClick={(): void => onDraftChange(null)}
             >
-              Cancel
+              {t('productEditor.scopeEditor.cancelEdit')}
             </Button>
           </div>
         </div>
@@ -571,7 +587,9 @@ const ScopedField = ({
             onClick={startEditing}
             disabled={!canEdit}
           >
-            {override ? 'Edit override' : 'Add override'}
+            {override
+              ? t('productEditor.scopeEditor.editOverride')
+              : t('productEditor.scopeEditor.addOverride')}
           </Button>
           {override ? (
             <Button
@@ -581,7 +599,7 @@ const ScopedField = ({
               onClick={onReset}
               disabled={!canEdit}
             >
-              Reset to Global
+              {t('productEditor.scopeEditor.resetToGlobal')}
             </Button>
           ) : null}
         </div>
@@ -590,17 +608,17 @@ const ScopedField = ({
   );
 };
 
-function sourceLabel(source: ResolvedSource): string {
+function sourceLabelKey(source: ResolvedSource): string {
   switch (source) {
     case 'channel+language':
-      return 'channel + language override';
+      return 'productEditor.scopeEditor.source.channelLanguage';
     case 'channel':
-      return 'channel override';
+      return 'productEditor.scopeEditor.source.channel';
     case 'global+language':
-      return 'global baseline (language)';
+      return 'productEditor.scopeEditor.source.globalLanguage';
     case 'global':
-      return 'global baseline (fallback)';
+      return 'productEditor.scopeEditor.source.global';
     case 'absent':
-      return 'no value';
+      return 'productEditor.scopeEditor.source.absent';
   }
 }
