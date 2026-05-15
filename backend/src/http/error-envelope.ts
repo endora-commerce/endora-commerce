@@ -13,13 +13,17 @@ import { ERROR_TRANSLATION_KEYS } from '../modules/_i18n/services/error-translat
 export class HttpError extends Error {
   readonly statusCode: number;
   readonly code: ErrorCode;
-  readonly details?: Array<{ path: string; issue: string }>;
+  // The legacy shape (an array of {path, issue}) is preserved for Zod-style
+  // validation failures. Feature 022 introduced bulk-operation errors that
+  // need a free-form object (e.g. `{ maxBatchSize: 200, attribute: "brand" }`).
+  // Both shapes are propagated verbatim into the response envelope.
+  readonly details?: Array<{ path: string; issue: string }> | Record<string, unknown>;
 
   constructor(
     statusCode: number,
     code: ErrorCode,
     message: string,
-    details?: Array<{ path: string; issue: string }>,
+    details?: Array<{ path: string; issue: string }> | Record<string, unknown>,
   ) {
     super(message);
     this.statusCode = statusCode;

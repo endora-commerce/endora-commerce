@@ -156,6 +156,8 @@ export class CatalogAdminService {
       description: { ...product.description },
       stockMode: product.stockMode,
       visibility: product.visibility,
+      status: product.status,
+      archivedAt: product.archivedAt ?? null,
       attributeValues: { ...product.attributeValues },
       allowedOrganizationIds: [...product.allowedOrganizationIds],
     };
@@ -189,6 +191,19 @@ export class CatalogAdminService {
     if (req.description) { product.description = req.description; changedFields.push('description'); }
     if (req.stockMode !== undefined) { product.stockMode = req.stockMode; changedFields.push('stockMode'); }
     if (req.visibility) { product.visibility = req.visibility; changedFields.push('visibility'); }
+    // Feature 022 — status field. Cross-field rule: transitioning to
+    // 'archived' sets archivedAt; transitioning away from 'archived'
+    // clears it. Only push to changedFields when the value actually
+    // moved, so untouched-field invariant holds for no-op writes.
+    if (req.status !== undefined && req.status !== product.status) {
+      product.status = req.status;
+      if (req.status === 'archived') {
+        product.archivedAt = new Date();
+      } else {
+        product.archivedAt = null;
+      }
+      changedFields.push('status');
+    }
     // Feature 002 (T034) — attribute_set_id swap. Persist BEFORE
     // attribute_values so the validation sees the new set's allowed keys.
     if (req.attributeSetId !== undefined && req.attributeSetId !== product.attributeSetId) {
@@ -266,6 +281,8 @@ export class CatalogAdminService {
           description: { ...product.description },
           stockMode: product.stockMode,
           visibility: product.visibility,
+          status: product.status,
+          archivedAt: product.archivedAt ?? null,
           attributeValues: { ...product.attributeValues },
           allowedOrganizationIds: [...product.allowedOrganizationIds],
           changedFields,
@@ -340,6 +357,7 @@ export class CatalogAdminService {
       isPromoRule: req.isPromoRule ?? false,
       filterPosition: req.filterPosition ?? 0,
       isVisibleOnProductPage: req.isVisibleOnProductPage ?? false,
+      massEditable: req.massEditable ?? false,
     });
     try {
       await em.persistAndFlush(attr);
@@ -437,6 +455,9 @@ export class CatalogAdminService {
     if (req.filterPosition !== undefined) attr.filterPosition = req.filterPosition;
     if (req.isVisibleOnProductPage !== undefined) {
       attr.isVisibleOnProductPage = req.isVisibleOnProductPage;
+    }
+    if (req.massEditable !== undefined) {
+      attr.massEditable = req.massEditable;
     }
     if (req.type !== undefined) {
       // Feature 002 — patching `type` re-derives valueType + displayAsSlider.
@@ -639,12 +660,16 @@ export class CatalogAdminService {
       | 'isVariantAxis'
       | 'isPromoRule'
       | 'isVisibleOnProductPage'
-      | 'isRequired',
+      | 'isRequired'
+      | 'isMassEditable',
   ): Promise<ProductAttribute[]> {
     const em = this.emFactory();
+    // `isMassEditable` is exposed as a separate API flag name; the backing
+    // entity field is `massEditable` (no `is` prefix). Map here.
+    const entityFlag = flag === 'isMassEditable' ? 'massEditable' : flag;
     return em.find(
       ProductAttribute,
-      { [flag]: true } as Partial<ProductAttribute>,
+      { [entityFlag]: true } as Partial<ProductAttribute>,
       { orderBy: { key: 'asc' } },
     );
   }

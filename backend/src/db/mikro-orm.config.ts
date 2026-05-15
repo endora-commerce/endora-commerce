@@ -44,6 +44,7 @@ import { Migration039ModuleLifecycleInit } from './migrations/039_module_lifecyc
 import { Migration040AdminI18nInit } from './migrations/040_admin_i18n_init.js';
 import { Migration041AdminActionsInit } from './migrations/041_admin_actions_init.js';
 import { Migration042SettingsGlobalValue } from './migrations/042_settings_global_value.js';
+import { Migration043AttributeMassEditable } from '../modules/catalog/migrations/043_attribute_mass_editable.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -191,6 +192,10 @@ export default defineConfig({
       {
         name: 'Migration042SettingsGlobalValue',
         class: Migration042SettingsGlobalValue,
+      },
+      {
+        name: 'Migration043AttributeMassEditable',
+        class: Migration043AttributeMassEditable,
       },
     ],
     transactional: true,

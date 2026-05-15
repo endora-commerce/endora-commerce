@@ -5,6 +5,7 @@ import type { AuditLogService } from '../audit_logs/services/audit-log-service.j
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import { CatalogQueryService } from './services/catalog-query.service.js';
 import { CatalogAdminService, type CatalogEventBus } from './services/catalog-admin.service.js';
+import { CatalogBulkUpdateService } from './services/catalog-bulk-update.service.js';
 import { CategoryAdminService } from './services/category-admin.service.js';
 import { AttributeSetService } from './services/attribute-set.service.js';
 import { GalleryService } from './services/gallery.service.js';
@@ -75,6 +76,13 @@ export function catalogModule(options: CatalogModuleOptions) {
     // 006 / R-3); catalog only owns the read-side adapter here.
     const searchQueryService = new SearchQueryService(options.emFactory);
 
+    const bulkUpdateService = new CatalogBulkUpdateService(
+      options.emFactory,
+      adminService,
+      options.salesChannelMembership,
+      options.auditLogService,
+    );
+
     const bundleServicePublic = new BundleService(options.emFactory);
     await registerCatalogPublicRoutes(app, {
       queryService,
@@ -108,6 +116,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       productLinkService,
       groupedService,
       bundleService,
+      bulkUpdateService,
       requireAdmin:
         options.requireAdmin ??
         (() => async () => {

@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   assignAttributesRequestSchema,
   batchByIdProductsRequestSchema,
+  bulkUpdateProductsRequestSchema,
   createAttributeRequestSchema,
   createAttributeSetRequestSchema,
   createCategoryRequestSchema,
@@ -29,6 +30,7 @@ import {
   updateVariantRequestSchema,
 } from '@b2b/contracts';
 import type { CatalogAdminService } from './services/catalog-admin.service.js';
+import type { CatalogBulkUpdateService } from './services/catalog-bulk-update.service.js';
 import { dbToApiAttributeType } from './services/catalog-admin.service.js';
 import type { CategoryAdminService } from './services/category-admin.service.js';
 import type { AttributeSetService } from './services/attribute-set.service.js';
@@ -76,6 +78,12 @@ export interface CatalogAdminDeps {
   groupedService?: GroupedService;
   /** Feature 002 — Bundle slots + options admin CRUD (US5). */
   bundleService?: BundleService;
+  /**
+   * Feature 022 — Products Bulk Edit. Optional so tests / dev composition
+   * roots that don't yet wire the service stay green; the route is only
+   * registered when this dep is present.
+   */
+  bulkUpdateService?: CatalogBulkUpdateService;
   /**
    * PreHandler gate — supplied by the composition root. Set to the real
    * `requireAdmin('catalog:write')` factory at server boot. Optional so tests
@@ -156,7 +164,7 @@ export async function registerCatalogAdminRoutes(
       const body = createProductRequestSchema.parse(request.body);
       const product = await adminService.createProduct(body);
       reply.status(201);
-      return { data: product };
+      return { data: serializeAdminProduct(product) };
     },
   );
 
@@ -185,7 +193,7 @@ export async function registerCatalogAdminRoutes(
             }
           : undefined,
       );
-      return { data: product };
+      return { data: serializeAdminProduct(product) };
     },
   );
 
@@ -197,6 +205,37 @@ export async function registerCatalogAdminRoutes(
       reply.status(204).send();
     },
   );
+
+  // Feature 022 — Products Bulk Edit. Applies a sparse field-patch to a
+  // selection of products in one call; returns a per-product outcome.
+  if (deps.bulkUpdateService) {
+    const bulkUpdateService = deps.bulkUpdateService;
+    app.post(
+      '/api/v1/admin/catalog/products/bulk-update',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: bulkUpdateProductsRequestSchema },
+      },
+      async (request) => {
+        const body = bulkUpdateProductsRequestSchema.parse(request.body);
+        const auditCtx = deps.resolveAdminAuditContext?.(request);
+        const ctx = auditCtx
+          ? {
+              actorAdminUserId: auditCtx.actorAdminUserId,
+              impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId ?? null,
+              ipAddress: request.ip ?? null,
+              userAgent:
+                typeof request.headers['user-agent'] === 'string'
+                  ? request.headers['user-agent']
+                  : null,
+              requestId: request.id,
+            }
+          : undefined;
+        const result = await bulkUpdateService.bulkUpdate(body, ctx);
+        return { data: result };
+      },
+    );
+  }
 
   app.post(
     '/api/v1/admin/catalog/attributes',
@@ -343,6 +382,7 @@ export async function registerCatalogAdminRoutes(
         'isPromoRule',
         'isVisibleOnProductPage',
         'isRequired',
+        'isMassEditable',
       ] as const;
       if (!flag || !(allowed as readonly string[]).includes(flag)) {
         reply.status(400);
@@ -1238,6 +1278,18 @@ function serializeAdminProduct(p: Product) {
     // admin Product editor can render the selector with the right
     // initial value.
     attributeSetId: p.attributeSetId,
+    // Feature 002 — virtual product download fields.
+    downloadAssetId: p.downloadAssetId ?? null,
+    downloadUrl: p.downloadUrl ?? null,
+    // Feature 010 — inventory module per-product stock flags.
+    manageStock: p.manageStock,
+    backorderEnabled: p.backorderEnabled,
+    lowStockThreshold: p.lowStockThreshold ?? null,
+    fulfilmentStrategy: p.fulfilmentStrategy ?? null,
+    fulfilmentStrategyWarehouseOrder: p.fulfilmentStrategyWarehouseOrder ?? null,
+    // Feature 022 — surface so the Bulk Edit summary and the single-
+    // product editor can render the archived state.
+    archivedAt: p.archivedAt ? p.archivedAt.toISOString() : null,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };
@@ -1272,6 +1324,8 @@ function serializeAdminAttribute(
     isPromoRule: a.isPromoRule,
     filterPosition: a.filterPosition,
     isVisibleOnProductPage: a.isVisibleOnProductPage,
+    // Feature 022 — gates appearance in the Products Bulk Edit dialog.
+    massEditable: a.massEditable,
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
   };
