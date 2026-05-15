@@ -39,6 +39,7 @@ import { EntityChannelMembership } from '../sales_channels/components/EntityChan
 import { ProductInventoryTab } from './ProductInventoryTab';
 import { LinkedPriceListsPanel } from '../price_lists/LinkedPriceListsPanel';
 import { ProductPicker } from './components/ProductPicker';
+import { ProductScopeEditor } from './components/ProductScopeEditor';
 
 const LOCALES = ['en-US', 'pl-PL'] as const;
 type Locale = (typeof LOCALES)[number];
@@ -351,6 +352,14 @@ export function ProductEditor(): ReactNode {
           {activeTab === 'details' ? (
             <form id="product-details-form" onSubmit={handleSave}>
               <div className="b2b-col" style={{ gap: 18 }}>
+                {/* Feature 022 — per-Sales-Channel + per-Language scope
+                    editor. Read-only first slice: previews the resolved
+                    Name/Description per (channel, language) using the
+                    backend resolver. Channel-aware write surface mounts
+                    via PATCH .../value-overrides; UI editing affordance
+                    follows in a later patch. */}
+                {id ? <ProductScopeEditor productId={id} /> : null}
+
                 <div>
                   <div className="b2b-label">{t('productEditor.section.identity')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
