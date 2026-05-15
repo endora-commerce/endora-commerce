@@ -12,7 +12,11 @@ import { AttachmentService } from './services/attachment.service.js';
 import { ProductLinkService } from './services/product-link.service.js';
 import { GroupedService } from './services/grouped.service.js';
 import { BundleService } from './services/bundle.service.js';
+import { ProductEditorPreferencesService } from './services/product-editor-preferences.service.js';
+import { ProductScopeContextService } from './services/product-scope-context.service.js';
+import { ProductValueResolverService } from './services/product-value-resolver.service.js';
 import { SearchQueryService } from '../search/services/search-query.service.js';
+import type { LanguageService } from '../languages/services/language-service.js';
 import { registerCatalogPublicRoutes } from './routes.public.js';
 import { registerCatalogAdminRoutes, type RequireAdminFactory } from './routes.admin.js';
 import { registerCatalogApiKeyRoutes } from './routes.api-key.js';
@@ -53,6 +57,13 @@ export interface CatalogModuleOptions {
    * pre-feature-005 fixtures.
    */
   salesChannelMembership?: SalesChannelMembershipService;
+  /**
+   * Feature 022 — language admin service used by the product scope
+   * editor's scope-context endpoint (for the primary admin language)
+   * and the resolver service (for the same). Optional: when omitted,
+   * the new admin endpoints are NOT registered.
+   */
+  languageService?: LanguageService;
 }
 
 export function catalogModule(options: CatalogModuleOptions) {
@@ -99,6 +110,26 @@ export function catalogModule(options: CatalogModuleOptions) {
       emFactory: options.emFactory,
       ...(options.requireApiKey ? { requireApiKey: options.requireApiKey } : {}),
     });
+    // Feature 022 — scope editor services. Conditional on the
+    // composition root providing both LanguageService and the
+    // SalesChannelMembershipService, since the context endpoint needs
+    // both to assemble its response.
+    const editorPreferencesService = new ProductEditorPreferencesService(
+      options.emFactory,
+    );
+    const valueResolverService = options.languageService
+      ? new ProductValueResolverService(options.emFactory, options.languageService)
+      : undefined;
+    const scopeContextService =
+      options.salesChannelMembership && options.languageService
+        ? new ProductScopeContextService(
+            options.emFactory,
+            options.salesChannelMembership,
+            options.languageService,
+            editorPreferencesService,
+          )
+        : undefined;
+
     await registerCatalogAdminRoutes(app, {
       adminService,
       categoryAdminService,
@@ -117,6 +148,9 @@ export function catalogModule(options: CatalogModuleOptions) {
         ? { resolveAdminAuditContext: options.resolveAdminAuditContext }
         : {}),
       ...(options.auditLogService ? { auditLogService: options.auditLogService } : {}),
+      ...(scopeContextService ? { productScopeContextService: scopeContextService } : {}),
+      productEditorPreferencesService: editorPreferencesService,
+      ...(valueResolverService ? { productValueResolverService: valueResolverService } : {}),
     });
   };
 }

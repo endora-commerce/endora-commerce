@@ -37,6 +37,9 @@ import type { AttachmentService } from './services/attachment.service.js';
 import type { ProductLinkService } from './services/product-link.service.js';
 import type { GroupedService } from './services/grouped.service.js';
 import type { BundleService } from './services/bundle.service.js';
+import type { ProductScopeContextService } from './services/product-scope-context.service.js';
+import type { ProductEditorPreferencesService } from './services/product-editor-preferences.service.js';
+import type { ProductValueResolverService } from './services/product-value-resolver.service.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { ProductVariant } from './entities/product-variant.entity.js';
 import type { Product } from './entities/product.entity.js';
@@ -76,6 +79,23 @@ export interface CatalogAdminDeps {
   groupedService?: GroupedService;
   /** Feature 002 — Bundle slots + options admin CRUD (US5). */
   bundleService?: BundleService;
+  /**
+   * Feature 022 — per-Sales-Channel + per-Language product scope
+   * context endpoint backing the product edit page switchers. When
+   * omitted, the scope-context route is NOT registered (back-compat).
+   */
+  productScopeContextService?: ProductScopeContextService;
+  /**
+   * Feature 022 — editor preference upsert backing the remembered
+   * switcher state. Optional same reason as above.
+   */
+  productEditorPreferencesService?: ProductEditorPreferencesService;
+  /**
+   * Feature 022 — resolver wrapper used by the modified
+   * `GET /admin/products/:id` to attach a `resolved` preview block
+   * when `channelId` / `languageCode` are passed.
+   */
+  productValueResolverService?: ProductValueResolverService;
   /**
    * PreHandler gate — supplied by the composition root. Set to the real
    * `requireAdmin('catalog:write')` factory at server boot. Optional so tests
@@ -280,14 +300,156 @@ export async function registerCatalogAdminRoutes(
     },
   );
 
-  app.get<{ Params: { id: string } }>(
+  app.get<{
+    Params: { id: string };
+    Querystring: {
+      channelId?: string;
+      languageCode?: string;
+      includeOverridesMap?: string | boolean;
+    };
+  }>(
     '/api/v1/admin/catalog/products/:id',
     { preHandler: requireAdmin('catalog:read') },
     async (request) => {
       const product = await adminService.getProductById(request.params.id);
-      return { data: serializeAdminProduct(product) };
+      const base = serializeAdminProduct(product);
+      const channelIdRaw = request.query.channelId;
+      const languageCodeRaw = request.query.languageCode;
+      const includeOverridesMap =
+        request.query.includeOverridesMap === true ||
+        request.query.includeOverridesMap === 'true';
+
+      // Feature 022 — attach resolved + overrides blocks when the caller
+      // asked for a specific (channel, language) context, or for the
+      // full override map. Both pieces are gated on the resolver service
+      // being wired (test/dev setups may omit it).
+      if (
+        deps.productValueResolverService &&
+        (channelIdRaw !== undefined || languageCodeRaw !== undefined || includeOverridesMap)
+      ) {
+        const resolverSvc = deps.productValueResolverService;
+        const channelId = channelIdRaw ?? null;
+        const languageCode = languageCodeRaw ?? null;
+        const ctx = await resolverSvc.makeContext(channelId, languageCode);
+        const overrides = await resolverSvc.loadOverrides(product.id);
+        const resolved = await resolverSvc.resolveForProduct(product, ctx);
+        const decorated: Record<string, unknown> = { ...base };
+        if (includeOverridesMap) {
+          decorated['overrides'] = overrides.map((o) => ({
+            attributeKey: o.attributeKey,
+            channelId: o.channelId,
+            languageCode: o.languageCode,
+            value: o.value,
+          }));
+        }
+        if (channelIdRaw !== undefined || languageCodeRaw !== undefined) {
+          decorated['resolved'] = {
+            context: { channelId, languageCode },
+            name: resolved.values['name'] ?? null,
+            description: resolved.values['description'] ?? null,
+            attributeValues: Object.fromEntries(
+              Object.entries(resolved.values).filter(
+                ([k]) => k !== 'name' && k !== 'description',
+              ),
+            ),
+            sources: resolved.sources,
+          };
+        }
+        return { data: decorated };
+      }
+
+      return { data: base };
     },
   );
+
+  // -------------------------------------------------------------------------
+  // Feature 022 — Product Scope Editor: per Sales Channel + per Language.
+  // -------------------------------------------------------------------------
+
+  if (deps.productScopeContextService) {
+    const scopeContextSvc = deps.productScopeContextService;
+    app.get<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/products/:id/scope-context',
+      { preHandler: requireAdmin('catalog:read') },
+      async (request) => {
+        const ctx = deps.resolveAdminAuditContext?.(request);
+        // Editor identity is required for the per-(user, product) prefs;
+        // when the composition root cannot resolve an admin actor (e.g.,
+        // dev mode without auth), fall back to a fixed UUID — the
+        // returned preference block is just `null` in that path.
+        const adminUserId =
+          ctx?.actorAdminUserId ?? '00000000-0000-0000-0000-000000000000';
+        const data = await scopeContextSvc.getContext(request.params.id, adminUserId);
+        return { data };
+      },
+    );
+  }
+
+  if (deps.productValueResolverService) {
+    const resolverSvc = deps.productValueResolverService;
+    app.get<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/products/:id/value-overrides',
+      { preHandler: requireAdmin('catalog:read') },
+      async (request) => {
+        // For a missing product the resolver service does not 404 on
+        // its own (it just returns an empty list). Run the lookup
+        // through adminService.getProductById so the 404 path stays
+        // consistent with every other product-scoped endpoint.
+        const product = await adminService.getProductById(request.params.id);
+        const overrides = await resolverSvc.loadOverrides(product.id);
+        return {
+          data: {
+            productId: product.id,
+            overrides: overrides.map((o) => ({
+              attributeKey: o.attributeKey,
+              channelId: o.channelId,
+              languageCode: o.languageCode,
+              value: o.value,
+            })),
+          },
+        };
+      },
+    );
+  }
+
+  if (deps.productEditorPreferencesService && deps.productScopeContextService) {
+    const prefSvc = deps.productEditorPreferencesService;
+    const scopeContextSvc = deps.productScopeContextService;
+    app.put<{
+      Params: { id: string };
+      Body: { lastChannelId: string | null; lastLanguageCode: string | null };
+    }>(
+      '/api/v1/admin/catalog/products/:id/editor-preference',
+      { preHandler: requireAdmin('catalog:read') },
+      async (request) => {
+        // Validate the product exists + channel (if any) is assigned to it.
+        await adminService.getProductById(request.params.id);
+        const ctx = deps.resolveAdminAuditContext?.(request);
+        const adminUserId =
+          ctx?.actorAdminUserId ?? '00000000-0000-0000-0000-000000000000';
+        const body = request.body;
+        if (body.lastChannelId) {
+          await scopeContextSvc.assertChannelAssignedToProduct(
+            request.params.id,
+            body.lastChannelId,
+          );
+        }
+        const row = await prefSvc.upsert(adminUserId, request.params.id, {
+          lastChannelId: body.lastChannelId,
+          lastLanguageCode: body.lastLanguageCode,
+        });
+        return {
+          data: {
+            productId: row.productId,
+            adminUserId: row.adminUserId,
+            lastChannelId: row.lastChannelId ?? null,
+            lastLanguageCode: row.lastLanguageCode ?? null,
+            updatedAt: row.updatedAt.toISOString(),
+          },
+        };
+      },
+    );
+  }
 
   app.post(
     '/api/v1/admin/catalog/products/batch-by-id',
