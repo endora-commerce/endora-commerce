@@ -472,6 +472,7 @@ export async function setupBackendServer(
       auditLogService,
       requireApiKey: integrations.handle.requireApiKey,
       salesChannelMembership: salesChannels.handle.membershipService,
+      languageService: i18n.handle.languageService,
       resolveAdminAuditContext: (request) => {
         if (request.testActor?.kind !== 'admin') {
           return { actorAdminUserId: TEST_ADMIN_ID };

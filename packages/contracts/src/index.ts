@@ -99,3 +99,5 @@ export * from './blog.js';
 export * from './dictionary.js';
 export * from './modules.js';
 export * from './admin-actions.js';
+export * from './product-scope-overrides.js';
+export * from './product-value-resolver.js';

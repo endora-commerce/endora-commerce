@@ -7,6 +7,8 @@ import { ProductVariant } from '../modules/catalog/entities/product-variant.enti
 import { Category } from '../modules/catalog/entities/category.entity.js';
 import { ProductAttribute } from '../modules/catalog/entities/product-attribute.entity.js';
 import { AttributeOption } from '../modules/catalog/entities/attribute-option.entity.js';
+import { ProductValueOverride } from '../modules/catalog/entities/product-value-override.entity.js';
+import { ProductEditorPreference } from '../modules/catalog/entities/product-editor-preference.entity.js';
 import { AttributeSet } from '../modules/catalog/entities/attribute-set.entity.js';
 import { AttributeSetAttribute } from '../modules/catalog/entities/attribute-set-attribute.entity.js';
 import { GalleryItem } from '../modules/catalog/entities/gallery-item.entity.js';
@@ -127,6 +129,9 @@ export const ALL_ENTITIES = [
   Category,
   ProductAttribute,
   AttributeOption,
+  // per-channel + per-language overrides (feature 022)
+  ProductValueOverride,
+  ProductEditorPreference,
   // Attribute Sets (feature 002)
   AttributeSet,
   AttributeSetAttribute,

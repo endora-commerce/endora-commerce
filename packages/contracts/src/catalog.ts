@@ -653,9 +653,24 @@ const baseCreateAttributeObject = z.object({
   /** Feature 012 — gates inclusion in the storefront PDP "Parametry produktu" tab. */
   isVisibleOnProductPage: z.boolean().optional(),
   /**
-   * Feature 022 — makes the attribute available in the Products Bulk Edit
-   * dialog's attribute field list. Default false; operators opt each
-   * attribute in explicitly.
+   * Feature 023 — when `true` the attribute may carry per-Sales-Channel
+   * overrides. Default `false` (global-only). Independent of
+   * `languageScoped`; the two flags compose into one of four effective
+   * scopes (`global` / `language` / `channel` / `channel+language`).
+   */
+  channelScoped: z.boolean().optional(),
+  /**
+   * Feature 023 — when `true` the attribute's value is keyed by
+   * language at every slot. For user-defined attributes the baseline
+   * is stored as `Record<lang, value>` in `products.attribute_values`;
+   * for the system Name / Description attributes this flag is pinned
+   * `true` by SYSTEM_ATTRIBUTE_SCOPES.
+   */
+  languageScoped: z.boolean().optional(),
+  /**
+   * Feature 022 (products bulk edit) — makes the attribute available in
+   * the Products Bulk Edit dialog's attribute field list. Default false;
+   * operators opt each attribute in explicitly.
    */
   massEditable: z.boolean().optional(),
   /**
@@ -725,7 +740,11 @@ export const updateAttributeRequestSchema = z
     filterPosition: z.number().int().min(0).max(10000).optional(),
     /** Feature 012 — gates inclusion in the storefront PDP "Parametry produktu" tab. */
     isVisibleOnProductPage: z.boolean().optional(),
-    /** Feature 022 — toggles bulk-editability. */
+    /** Feature 023 — see `baseCreateAttributeObject.channelScoped`. */
+    channelScoped: z.boolean().optional(),
+    /** Feature 023 — see `baseCreateAttributeObject.languageScoped`. */
+    languageScoped: z.boolean().optional(),
+    /** Feature 022 (products bulk edit) — toggles bulk-editability. */
     massEditable: z.boolean().optional(),
   })
   .strict()
