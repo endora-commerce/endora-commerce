@@ -243,6 +243,50 @@ export class CatalogAdminService {
       product.allowedOrganizationIds = req.allowedOrganizationIds;
       changedFields.push('allowedOrganizationIds');
     }
+    // Feature 022 — category membership writes. `categoryIds` is the
+    // canonical set; rows are diffed against the current `product_categories`
+    // bridge and only added/removed rows are touched. Callers wanting
+    // `add` (union) semantics compute the union before passing it in
+    // (see CatalogBulkUpdateService).
+    if (req.categoryIds !== undefined) {
+      const conn = em.getConnection();
+      const txCtx = em.getTransactionContext();
+      const currentRows = (await conn.execute<Array<{ category_id: string }>>(
+        `select category_id from product_categories where product_id = ?`,
+        [product.id],
+        'all',
+        txCtx,
+      )) as Array<{ category_id: string }>;
+      const current = new Set(currentRows.map((r) => r.category_id));
+      const target = new Set(req.categoryIds);
+      const toAdd = req.categoryIds.filter((id) => !current.has(id));
+      const toRemove = [...current].filter((id) => !target.has(id));
+      if (toRemove.length > 0) {
+        const placeholders = toRemove.map(() => '?').join(',');
+        await conn.execute(
+          `delete from product_categories where product_id = ? and category_id in (${placeholders})`,
+          [product.id, ...toRemove],
+          'run',
+          txCtx,
+        );
+      }
+      if (toAdd.length > 0) {
+        const placeholders = toAdd.map(() => '(?,?)').join(',');
+        const params: unknown[] = [];
+        for (const cid of toAdd) {
+          params.push(product.id, cid);
+        }
+        await conn.execute(
+          `insert into product_categories (product_id, category_id) values ${placeholders}`,
+          params,
+          'run',
+          txCtx,
+        );
+      }
+      if (toAdd.length > 0 || toRemove.length > 0) {
+        changedFields.push('categoryIds');
+      }
+    }
     // Feature 010 — per-product stock-management flags.
     if (req.manageStock !== undefined) {
       product.manageStock = req.manageStock;
