@@ -1,8 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Meilisearch, type Index } from 'meilisearch';
+import {
+  resolveAttribute,
+  type OverrideRow,
+  type ResolverContext,
+} from '@b2b/contracts';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { ProductAttribute } from '../../catalog/entities/product-attribute.entity.js';
+import { ProductValueOverride } from '../../catalog/entities/product-value-override.entity.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SYSTEM_ATTRIBUTE_SCOPES } from '../../catalog/services/system-attribute-scopes.js';
 
 /**
  * SearchIndexer (T067 — initial offline path).
@@ -115,8 +122,28 @@ export class SearchIndexer {
     // attribute and its option labels so buildDocument() can render the
     // per-locale text for each product's selected value(s).
     const optionLookup = await this.loadSearchableOptionLookup(em, this.locale);
+
+    // Feature 022 — fetch every override row for this batch of products
+    // in one query, then bucket by productId. Each document is built
+    // with the channel's defaultLanguage so per-(channel, language)
+    // overrides for system Name / Description flow through.
+    const overrideRows =
+      productIds.length === 0
+        ? []
+        : await em.find(ProductValueOverride, { productId: { $in: productIds } });
+    const overridesByProduct = new Map<string, ProductValueOverride[]>();
+    for (const row of overrideRows) {
+      const list = overridesByProduct.get(row.productId) ?? [];
+      list.push(row);
+      overridesByProduct.set(row.productId, list);
+    }
+
     const documents: IndexedDocument[] = products.map((p) =>
-      buildDocument(p, categoriesByProduct.get(p.id) ?? [], this.locale, optionLookup),
+      buildDocument(p, categoriesByProduct.get(p.id) ?? [], this.locale, optionLookup, {
+        overrides: overridesByProduct.get(p.id) ?? [],
+        channelId: channel.id,
+        languageCode: channel.defaultLanguage,
+      }),
     );
 
     // Wipe the index first so removed-from-channel products disappear from
@@ -195,7 +222,9 @@ export class SearchIndexer {
     // used by the offline reindex. Per-product upsert is incremental,
     // so we only build the lookup once per call.
     const optionLookup = await this.loadSearchableOptionLookup(em, this.locale);
-    const document = buildDocument(product, categories, this.locale, optionLookup);
+    // Feature 022 — per-channel overrides for system Name / Description.
+    // Fetch once; the resolver then runs per (channel, channel.defaultLanguage).
+    const overrides = await em.find(ProductValueOverride, { productId });
 
     const isPublishable =
       product.status === 'active' && !product.deletedAt && !product.archivedAt;
@@ -205,6 +234,11 @@ export class SearchIndexer {
       const indexUid = indexUidFor(channel);
       const index = await this.ensureIndex(indexUid);
       if (linkedChannelIds.has(channel.id) && isPublishable) {
+        const document = buildDocument(product, categories, this.locale, optionLookup, {
+          overrides,
+          channelId: channel.id,
+          languageCode: channel.defaultLanguage,
+        });
         const task = await index.addDocuments([document], { primaryKey: 'id' });
         await this.client.tasks.waitForTask(task.taskUid);
       } else {
@@ -431,9 +465,51 @@ function buildDocument(
   categories: Array<{ id: string; slug: string }>,
   locale: string,
   searchableOptionLookup: Map<string, Map<string, string>>,
+  resolverInputs?: {
+    overrides: ProductValueOverride[];
+    channelId: string;
+    languageCode: string;
+  },
 ): IndexedDocument {
-  const name = pickLocale(product.name, locale);
-  const description = pickLocale(product.description, locale);
+  // Feature 022 — when resolver inputs are supplied, route the system
+  // Name / Description through the four-step fallback chain so
+  // per-(channel, language) overrides are visible in search. When not
+  // supplied (legacy callers), fall back to plain locale-pick.
+  let name = pickLocale(product.name, locale);
+  let description = pickLocale(product.description, locale);
+  if (resolverInputs) {
+    const overrideRows: OverrideRow[] = resolverInputs.overrides.map((o) => ({
+      attributeKey: o.attributeKey,
+      channelId: o.channelId,
+      languageCode: o.languageCode ?? null,
+      value: o.value,
+    }));
+    const ctx: ResolverContext = {
+      channelId: resolverInputs.channelId,
+      languageCode: resolverInputs.languageCode,
+      primaryLanguage: resolverInputs.languageCode,
+    };
+    const resolvedName = resolveAttribute({
+      attributeKey: 'name',
+      baseline: product.name,
+      overrides: overrideRows,
+      scope: SYSTEM_ATTRIBUTE_SCOPES.name!,
+      ctx,
+    });
+    const resolvedDesc = resolveAttribute({
+      attributeKey: 'description',
+      baseline: product.description,
+      overrides: overrideRows,
+      scope: SYSTEM_ATTRIBUTE_SCOPES.description!,
+      ctx,
+    });
+    if (typeof resolvedName.value === 'string' && resolvedName.value.length > 0) {
+      name = resolvedName.value;
+    }
+    if (typeof resolvedDesc.value === 'string' && resolvedDesc.value.length > 0) {
+      description = resolvedDesc.value;
+    }
+  }
   const attrs: IndexedDocument['attributes'] = {};
   // Feature 012 — collect resolved per-locale option labels for every
   // searchable select-style attribute the product carries a value for.
