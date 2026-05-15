@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { ApiError, apiClient } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 /**
@@ -189,6 +191,125 @@ export const ProductScopeEditor = ({ productId }: Props): ReactNode => {
     return ch ? [...ch.languages].sort() : [];
   }, [scope, activeChannelId]);
 
+  /**
+   * Look up the active override for a given system attribute at the
+   * current (channel, language) context. Returns undefined when no
+   * override exists at that exact slot.
+   */
+  const findOverride = useCallback(
+    (attributeKey: 'name' | 'description'): Override | undefined => {
+      if (activeChannelId === null) return undefined;
+      return overrides.find(
+        (o) =>
+          o.attributeKey === attributeKey &&
+          o.channelId === activeChannelId &&
+          o.languageCode === activeLanguageCode,
+      );
+    },
+    [overrides, activeChannelId, activeLanguageCode],
+  );
+
+  // Inline edit state per system attribute. `null` means "not editing";
+  // any string means "editing — current draft value".
+  const [draftName, setDraftName] = useState<string | null>(null);
+  const [draftDescription, setDraftDescription] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [info, setInfo] = useState<string | null>(null);
+
+  // Clear drafts when the active context changes — otherwise a draft
+  // typed against (vip, en) would leak into (retail, pl) on switch.
+  useEffect(() => {
+    setDraftName(null);
+    setDraftDescription(null);
+    setInfo(null);
+  }, [activeChannelId, activeLanguageCode]);
+
+  const canEditOverride =
+    activeChannelId !== null && activeLanguageCode !== null && !saving;
+
+  /**
+   * Apply a bulk override write. The same payload shape is used for
+   * upserts and deletes; callers populate one array or the other.
+   */
+  const applyOverrides = useCallback(
+    async (payload: {
+      upserts: Array<{ attributeKey: string; channelId: string; languageCode: string | null; value: { v: unknown } }>;
+      deletes: Array<{ attributeKey: string; channelId: string; languageCode: string | null }>;
+    }) => {
+      setSaving(true);
+      setError(null);
+      try {
+        const res = await apiClient.patch<{
+          data: { overrides: Override[]; applied: { upserted: number; deleted: number } };
+        }>(`/api/v1/admin/catalog/products/${productId}/value-overrides`, payload);
+        setOverrides(res.data.overrides);
+        const { upserted, deleted } = res.data.applied;
+        const parts: string[] = [];
+        if (upserted > 0) parts.push(`${upserted} override${upserted === 1 ? '' : 's'} saved`);
+        if (deleted > 0) parts.push(`${deleted} override${deleted === 1 ? '' : 's'} reset`);
+        setInfo(parts.join(' • ') || 'No changes.');
+        // Refresh the resolver preview so the new "source" badge reflects
+        // the post-write state.
+        const params = new URLSearchParams();
+        if (activeChannelId) params.set('channelId', activeChannelId);
+        if (activeLanguageCode) params.set('languageCode', activeLanguageCode);
+        if (params.toString().length === 0 && scope) {
+          params.set('languageCode', scope.primaryAdminLanguage);
+        }
+        const r = await apiClient.get<{ data: AdminProductWithResolved }>(
+          `/api/v1/admin/catalog/products/${productId}?${params.toString()}`,
+        );
+        setResolved(r.data.resolved ?? null);
+        setDraftName(null);
+        setDraftDescription(null);
+      } catch (err) {
+        if (err instanceof ApiError) {
+          setError(`${err.envelope.error.code}: ${err.envelope.error.message}`);
+        } else {
+          setError('Failed to save override.');
+        }
+      } finally {
+        setSaving(false);
+      }
+    },
+    [productId, activeChannelId, activeLanguageCode, scope],
+  );
+
+  const saveOverride = useCallback(
+    (attributeKey: 'name' | 'description', value: string) => {
+      if (!canEditOverride || activeChannelId === null || activeLanguageCode === null) return;
+      void applyOverrides({
+        upserts: [
+          {
+            attributeKey,
+            channelId: activeChannelId,
+            languageCode: activeLanguageCode,
+            value: { v: value },
+          },
+        ],
+        deletes: [],
+      });
+    },
+    [applyOverrides, canEditOverride, activeChannelId, activeLanguageCode],
+  );
+
+  const resetOverride = useCallback(
+    (attributeKey: 'name' | 'description') => {
+      if (!canEditOverride || activeChannelId === null) return;
+      void applyOverrides({
+        upserts: [],
+        deletes: [
+          {
+            attributeKey,
+            channelId: activeChannelId,
+            languageCode: activeLanguageCode,
+          },
+        ],
+      });
+    },
+    [applyOverrides, canEditOverride, activeChannelId, activeLanguageCode],
+  );
+
   const handleChannelChange = useCallback(
     (next: string | null) => {
       setActiveChannelId(next);
@@ -274,26 +395,53 @@ export const ProductScopeEditor = ({ productId }: Props): ReactNode => {
             </div>
           </div>
 
-          {/* Resolved preview */}
+          {/* Resolved preview + override edit affordance */}
           <div>
             <div className="b2b-label">Resolved preview</div>
-            <div className="b2b-col" style={{ gap: 10 }}>
-              <ResolvedField
+            <div className="b2b-col" style={{ gap: 14 }}>
+              <ScopedField
                 label="Name"
-                value={(resolved?.name ?? null) as string | null}
+                resolved={(resolved?.name ?? null) as string | null}
                 source={nameSource}
+                override={findOverride('name')}
+                canEdit={canEditOverride}
+                draft={draftName}
+                onDraftChange={setDraftName}
+                onSave={(v) => saveOverride('name', v)}
+                onReset={() => resetOverride('name')}
+                multiline={false}
               />
-              <ResolvedField
+              <ScopedField
                 label="Description"
-                value={(resolved?.description ?? null) as string | null}
+                resolved={(resolved?.description ?? null) as string | null}
                 source={descriptionSource}
+                override={findOverride('description')}
+                canEdit={canEditOverride}
+                draft={draftDescription}
+                onDraftChange={setDraftDescription}
+                onSave={(v) => saveOverride('description', v)}
+                onReset={() => resetOverride('description')}
+                multiline
               />
             </div>
-            <p className="b2b-help" style={{ marginTop: 8, marginBottom: 0 }}>
-              Edit the per-language baseline below; channel-aware overrides land via the
-              backend's <code>PATCH .../value-overrides</code> endpoint (UI editing surface in
-              a follow-up).
-            </p>
+            {activeChannelId === null ? (
+              <p className="b2b-help" style={{ marginTop: 8, marginBottom: 0 }}>
+                Channel = Global — overrides only apply to a specific Sales Channel. Switch
+                to a channel above to edit overrides. The per-language baseline still lives
+                in the Name / Description fields below.
+              </p>
+            ) : (
+              <p className="b2b-help" style={{ marginTop: 8, marginBottom: 0 }}>
+                Editing the active <code>{scope.channels.find((c) => c.id === activeChannelId)?.code}</code>
+                {' '}override for language <code>{activeLanguageCode ?? '—'}</code>. Save Override writes
+                a per-(channel, language) slot; Reset to Global removes it and falls back to the baseline.
+              </p>
+            )}
+            {info ? (
+              <Alert variant="default" className="mt-3">
+                <AlertDescription>{info}</AlertDescription>
+              </Alert>
+            ) : null}
           </div>
         </div>
       </CardContent>
@@ -331,15 +479,38 @@ const ScopeChip = ({
   );
 };
 
-const ResolvedField = ({
+const ScopedField = ({
   label,
-  value,
+  resolved,
   source,
+  override,
+  canEdit,
+  draft,
+  onDraftChange,
+  onSave,
+  onReset,
+  multiline,
 }: {
   label: string;
-  value: string | null;
+  resolved: string | null;
   source: ResolvedSource;
+  override: Override | undefined;
+  canEdit: boolean;
+  draft: string | null;
+  onDraftChange: (v: string | null) => void;
+  onSave: (v: string) => void;
+  onReset: () => void;
+  multiline: boolean;
 }): ReactNode => {
+  const isEditing = draft !== null;
+  // Seed the draft with the override's value when entering edit mode;
+  // fall back to the resolved value so editors don't lose the current
+  // text when switching from "view" to "edit".
+  const startEditing = (): void => {
+    const seed =
+      (override?.value.v as string | undefined) ?? (resolved ?? '');
+    onDraftChange(seed);
+  };
   return (
     <div>
       <div className="b2b-row" style={{ gap: 8, alignItems: 'center' }}>
@@ -350,19 +521,71 @@ const ResolvedField = ({
           {sourceLabel(source)}
         </Badge>
       </div>
-      <div
-        style={{
-          marginTop: 4,
-          padding: '6px 10px',
-          background: 'var(--b2b-surface-muted, #f9fafb)',
-          borderRadius: 6,
-          fontSize: 14,
-          minHeight: 24,
-          whiteSpace: 'pre-wrap',
-        }}
-      >
-        {value ?? <em className="b2b-help">— no value at any slot —</em>}
-      </div>
+      {!isEditing ? (
+        <div
+          style={{
+            marginTop: 4,
+            padding: '6px 10px',
+            background: 'var(--b2b-surface-muted, #f9fafb)',
+            borderRadius: 6,
+            fontSize: 14,
+            minHeight: 24,
+            whiteSpace: 'pre-wrap',
+          }}
+        >
+          {resolved ?? <em className="b2b-help">— no value at any slot —</em>}
+        </div>
+      ) : (
+        <div className="b2b-col" style={{ gap: 6, marginTop: 4 }}>
+          {multiline ? (
+            <textarea
+              rows={3}
+              className="b2b-field"
+              value={draft}
+              onChange={(e): void => onDraftChange(e.target.value)}
+            />
+          ) : (
+            <Input value={draft} onChange={(e): void => onDraftChange(e.target.value)} />
+          )}
+          <div className="b2b-row" style={{ gap: 6 }}>
+            <Button type="button" size="sm" onClick={(): void => onSave(draft ?? '')}>
+              Save Override
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={(): void => onDraftChange(null)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+      {!isEditing ? (
+        <div className="b2b-row" style={{ gap: 6, marginTop: 6 }}>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={startEditing}
+            disabled={!canEdit}
+          >
+            {override ? 'Edit override' : 'Add override'}
+          </Button>
+          {override ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onReset}
+              disabled={!canEdit}
+            >
+              Reset to Global
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 };
