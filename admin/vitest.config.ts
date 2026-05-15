@@ -16,8 +16,13 @@ export default mergeConfig(
     },
     test: {
       name: 'admin',
-      environment: 'node',
+      // jsdom is the default so interaction tests can drive @testing-library
+      // (click, type, focus). Pure-logic tests opt out per-file with the
+      // `// @vitest-environment node` annotation if needed; under jsdom they
+      // still work — react-dom/server's `renderToString` is environment-agnostic.
+      environment: 'jsdom',
       include: ['test/**/*.test.ts', 'test/**/*.test.tsx'],
+      setupFiles: ['./test/setup.ts'],
       hookTimeout: 30_000,
       testTimeout: 30_000,
     },

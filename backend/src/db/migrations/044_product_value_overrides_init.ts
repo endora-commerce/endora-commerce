@@ -32,7 +32,7 @@ import { Migration } from '@mikro-orm/migrations';
  *
  * See specs/023-product-scope-editor/data-model.md §1.
  */
-export class Migration043ProductValueOverridesInit extends Migration {
+export class Migration044ProductValueOverridesInit extends Migration {
   override async up(): Promise<void> {
     // 1. Scope flags on product_attributes (opt-in, default false).
     this.addSql(`

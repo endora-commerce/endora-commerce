@@ -51,7 +51,8 @@ export class ProductAttribute {
     | 'filterPosition'
     | 'isVisibleOnProductPage'
     | 'channelScoped'
-    | 'languageScoped';
+    | 'languageScoped'
+    | 'massEditable';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -111,7 +112,7 @@ export class ProductAttribute {
   isVisibleOnProductPage: boolean = false;
 
   /**
-   * Feature 022 — when `true`, the attribute MAY carry per-Sales-Channel
+   * Feature 023 — when `true`, the attribute MAY carry per-Sales-Channel
    * overrides (stored in `product_value_overrides`). When `false`, the
    * attribute is global across every channel the product is assigned
    * to. Defaults to `false` so existing attributes opt in only via
@@ -121,7 +122,7 @@ export class ProductAttribute {
   channelScoped: boolean = false;
 
   /**
-   * Feature 022 — when `true`, the attribute's value is keyed by
+   * Feature 023 — when `true`, the attribute's value is keyed by
    * language at every slot. For user-defined attributes the baseline
    * is stored as `Record<lang, value>` in `products.attribute_values`;
    * for system attributes Name and Description (whose baselines are
@@ -130,6 +131,16 @@ export class ProductAttribute {
    */
   @Property({ type: 'boolean' })
   languageScoped: boolean = false;
+
+  /**
+   * Feature 022 (products bulk edit) — `true` makes the attribute appear
+   * in the Products Bulk Edit dialog's attribute field list. Default
+   * `false` — operators must opt each attribute in explicitly. No
+   * reindex on toggle; the dialog re-fetches on open via
+   * `/attributes/by-flag?flag=isMassEditable`.
+   */
+  @Property({ type: 'boolean' })
+  massEditable: boolean = false;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

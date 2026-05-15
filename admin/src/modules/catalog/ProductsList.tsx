@@ -8,12 +8,11 @@ import {
 } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Archive,
-  CheckCircle2,
   CircleDollarSign,
   Download,
   MoreHorizontal,
   Package,
+  PenSquare,
   Plus,
   Search,
   Store,
@@ -23,6 +22,7 @@ import {
   Warehouse,
   X,
 } from 'lucide-react';
+import { ProductsBulkEditDialog } from './ProductsBulkEditDialog';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { PaginationFooter } from '@/components/PaginationFooter';
@@ -78,6 +78,7 @@ export function ProductsList(): ReactNode {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [stockFilter, setStockFilter] = useState<StockFilter>('all');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const { pageSize, setPageSize } = usePageSizePreference('catalog-products');
   const [page, setPage] = useState(0);
 
@@ -262,17 +263,15 @@ export function ProductsList(): ReactNode {
             />
             <span className="count">{t('productsList.bulk.selected', { count: selected.size })}</span>
             <div className="actions">
-              <button type="button" className="b2b-btn">
-                <CheckCircle2 size={13} /> {t('productsList.bulk.activate')}
-              </button>
-              <button type="button" className="b2b-btn">
-                <Archive size={13} /> {t('productsList.bulk.archive')}
+              <button
+                type="button"
+                className="b2b-btn b2b-btn--primary"
+                onClick={(): void => setBulkEditOpen(true)}
+              >
+                <PenSquare size={13} /> {t('productsList.bulk.edit')}
               </button>
               <button type="button" className="b2b-btn">
                 <CircleDollarSign size={13} /> {t('productsList.bulk.editPrice')}
-              </button>
-              <button type="button" className="b2b-btn">
-                <Tag size={13} /> {t('productsList.bulk.addToCategory')}
               </button>
               <button type="button" className="b2b-btn b2b-btn--danger">
                 <Trash2 size={13} /> {t('productsList.bulk.delete')}
@@ -287,6 +286,17 @@ export function ProductsList(): ReactNode {
               <X size={14} />
             </button>
           </div>
+        ) : null}
+
+        {bulkEditOpen && selected.size > 0 ? (
+          <ProductsBulkEditDialog
+            productIds={Array.from(selected)}
+            onClose={(): void => setBulkEditOpen(false)}
+            onApplied={(): void => {
+              void refresh();
+              setSelected(new Set());
+            }}
+          />
         ) : null}
 
         <div className="b2b-card__body b2b-card__body--flush">

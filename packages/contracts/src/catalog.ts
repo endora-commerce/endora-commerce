@@ -421,6 +421,10 @@ const baseProductRequestObject = z.object({
   attributeValues: z.record(z.string(), z.unknown()),
   stockMode: stockModeSchema.optional(),
   visibility: productVisibilitySchema,
+  // Feature 022 — accepted by the single-product PATCH and the bulk
+  // update endpoint. Cross-field rule on `archivedAt` is enforced in
+  // the service layer (CatalogAdminService.updateProduct).
+  status: z.enum(['draft', 'active', 'archived']).optional(),
   allowedOrganizationIds: z.array(uuidSchema).optional(),
   assetIds: z.array(uuidSchema).optional(),
   initialStock: z.number().int().nonnegative().optional(),
@@ -492,6 +496,87 @@ export const batchByIdProductsRequestSchema = z.object({
   pageSize: z.number().int().min(1).max(500).optional(),
 });
 export type BatchByIdProductsRequest = z.infer<typeof batchByIdProductsRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// Feature 022 — Products Bulk Edit
+// ---------------------------------------------------------------------------
+
+const bulkEditModeSchema = z.enum(['add', 'replace']);
+
+const bulkUpdateFieldsObject = z.object({
+  status: z.enum(['draft', 'active', 'archived']).optional(),
+  visibility: productVisibilitySchema.optional(),
+  salesChannels: z
+    .object({
+      mode: bulkEditModeSchema,
+      channelIds: z.array(uuidSchema),
+    })
+    .optional(),
+  categories: z
+    .object({
+      mode: bulkEditModeSchema,
+      categoryIds: z.array(uuidSchema),
+    })
+    .optional(),
+  attributeValues: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const bulkUpdateProductsRequestSchema = z.object({
+  // The non-empty constraint is part of the schema (a Zod-level
+  // validation failure). The 200-item soft cap is enforced inside the
+  // handler so the response carries the dedicated `BULK_TOO_LARGE`
+  // code along with `details.maxBatchSize` / `details.recommendedSplitInto`.
+  // An upper hard limit at 10_000 prevents pathological payloads from
+  // ever reaching the cap check.
+  productIds: z.array(uuidSchema).min(1).max(10_000),
+  fields: bulkUpdateFieldsObject.refine(
+    (f) =>
+      f.status !== undefined ||
+      f.visibility !== undefined ||
+      f.salesChannels !== undefined ||
+      f.categories !== undefined ||
+      (f.attributeValues !== undefined && Object.keys(f.attributeValues).length > 0),
+    { message: 'at least one field must be present' },
+  ),
+});
+export type BulkUpdateProductsRequest = z.infer<typeof bulkUpdateProductsRequestSchema>;
+
+export const bulkUpdateProductResultSchema = z.object({
+  productId: z.string().uuid(),
+  status: z.enum(['succeeded', 'skipped', 'failed']),
+  reason: z
+    .enum([
+      'attribute_not_in_set',
+      'validation_failed',
+      'permission_denied',
+      'concurrent_modification',
+      'product_not_found',
+    ])
+    .optional(),
+  details: z
+    .object({
+      code: z.string().optional(),
+      message: z.string().optional(),
+      attribute: z.string().optional(),
+    })
+    .optional(),
+  changedFields: z.array(z.string()).optional(),
+});
+export type BulkUpdateProductResult = z.infer<typeof bulkUpdateProductResultSchema>;
+
+export const bulkUpdateProductsResponseSchema = z.object({
+  data: z.object({
+    bulkOperationId: z.string().uuid(),
+    summary: z.object({
+      succeeded: z.number().int().nonnegative(),
+      skipped: z.number().int().nonnegative(),
+      failed: z.number().int().nonnegative(),
+      total: z.number().int().nonnegative(),
+    }),
+    results: z.array(bulkUpdateProductResultSchema),
+  }),
+});
+export type BulkUpdateProductsResponse = z.infer<typeof bulkUpdateProductsResponseSchema>;
 
 export const createVariantRequestSchema = z.object({
   sku: z.string().min(1).max(64),
@@ -568,20 +653,26 @@ const baseCreateAttributeObject = z.object({
   /** Feature 012 — gates inclusion in the storefront PDP "Parametry produktu" tab. */
   isVisibleOnProductPage: z.boolean().optional(),
   /**
-   * Feature 022 — when `true` the attribute may carry per-Sales-Channel
+   * Feature 023 — when `true` the attribute may carry per-Sales-Channel
    * overrides. Default `false` (global-only). Independent of
    * `languageScoped`; the two flags compose into one of four effective
    * scopes (`global` / `language` / `channel` / `channel+language`).
    */
   channelScoped: z.boolean().optional(),
   /**
-   * Feature 022 — when `true` the attribute's value is keyed by
+   * Feature 023 — when `true` the attribute's value is keyed by
    * language at every slot. For user-defined attributes the baseline
    * is stored as `Record<lang, value>` in `products.attribute_values`;
    * for the system Name / Description attributes this flag is pinned
    * `true` by SYSTEM_ATTRIBUTE_SCOPES.
    */
   languageScoped: z.boolean().optional(),
+  /**
+   * Feature 022 (products bulk edit) — makes the attribute available in
+   * the Products Bulk Edit dialog's attribute field list. Default false;
+   * operators opt each attribute in explicitly.
+   */
+  massEditable: z.boolean().optional(),
   /**
    * Feature 012 — rich option list for select / enum / multiselect types.
    * When supplied alongside the legacy `enumValues`, this wins. The
@@ -649,10 +740,12 @@ export const updateAttributeRequestSchema = z
     filterPosition: z.number().int().min(0).max(10000).optional(),
     /** Feature 012 — gates inclusion in the storefront PDP "Parametry produktu" tab. */
     isVisibleOnProductPage: z.boolean().optional(),
-    /** Feature 022 — see `baseCreateAttributeObject.channelScoped`. */
+    /** Feature 023 — see `baseCreateAttributeObject.channelScoped`. */
     channelScoped: z.boolean().optional(),
-    /** Feature 022 — see `baseCreateAttributeObject.languageScoped`. */
+    /** Feature 023 — see `baseCreateAttributeObject.languageScoped`. */
     languageScoped: z.boolean().optional(),
+    /** Feature 022 (products bulk edit) — toggles bulk-editability. */
+    massEditable: z.boolean().optional(),
   })
   .strict()
   .refine(
