@@ -198,6 +198,7 @@
   "productEditor.scopeEditor.applied.upserted": "{count} override(s) saved",
   "productEditor.scopeEditor.applied.deleted": "{count} override(s) reset",
   "productEditor.scopeEditor.applied.none": "No changes.",
+  "productEditor.scopeEditor.languageNarrowed": "Language {previous} is not available in channel {channel}; switched to {next}.",
   "productEditor.scopeEditor.source.channelLanguage": "channel + language override",
   "productEditor.scopeEditor.source.channel": "channel override",
   "productEditor.scopeEditor.source.globalLanguage": "global baseline (language)",

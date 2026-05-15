@@ -198,6 +198,7 @@
   "productEditor.scopeEditor.applied.upserted": "Zapisano nadpisań: {count}",
   "productEditor.scopeEditor.applied.deleted": "Wycofano nadpisań: {count}",
   "productEditor.scopeEditor.applied.none": "Bez zmian.",
+  "productEditor.scopeEditor.languageNarrowed": "Język {previous} nie jest dostępny w kanale {channel}; przełączono na {next}.",
   "productEditor.scopeEditor.source.channelLanguage": "nadpisanie kanał + język",
   "productEditor.scopeEditor.source.channel": "nadpisanie kanału",
   "productEditor.scopeEditor.source.globalLanguage": "wartość bazowa (per język)",

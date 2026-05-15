@@ -32,7 +32,7 @@ import { cn } from '@/lib/utils';
  * here in a follow-up patch. This first slice is read-only.
  */
 
-interface Channel {
+export interface Channel {
   id: string;
   code: string;
   name: string;
@@ -45,12 +45,51 @@ interface PreferenceFields {
   lastLanguageCode: string | null;
 }
 
-interface ScopeContext {
+export interface ScopeContext {
   productId: string;
   channels: Channel[];
   languagesUnion: string[];
   primaryAdminLanguage: string;
   preference: PreferenceFields | null;
+}
+
+/**
+ * Compute the language-switcher pool for a given channel context.
+ *
+ * - `activeChannelId === null` ⇒ union of all channels' languages
+ *   (`scope.languagesUnion`).
+ * - specific channel id ⇒ that channel's `languages` (or `[]` when the
+ *   id is no longer in `scope.channels`).
+ *
+ * Always returns a sorted ascending copy so the chip order is stable
+ * across channel switches (FR-021 deterministic).
+ */
+export function computeLanguagePool(
+  scope: ScopeContext,
+  activeChannelId: string | null,
+): string[] {
+  if (activeChannelId === null) return [...scope.languagesUnion].sort();
+  const ch = scope.channels.find((c) => c.id === activeChannelId);
+  return ch ? [...ch.languages].sort() : [];
+}
+
+/**
+ * Resolve the active language for a new channel context.
+ *
+ * - When the previously-active language is still in the new pool, keep it
+ *   and report `changed=false`.
+ * - When it's not in the pool (or no language was active yet), fall back
+ *   to the first option in the sorted pool and report `changed=true` so
+ *   the caller can surface a toast (FR-021 / FR-022).
+ */
+export function computeLanguageFallback(
+  pool: string[],
+  current: string | null,
+): { next: string | null; changed: boolean } {
+  if (current !== null && pool.includes(current)) {
+    return { next: current, changed: false };
+  }
+  return { next: pool[0] ?? null, changed: current !== null };
 }
 
 interface Override {
@@ -196,9 +235,7 @@ export const ProductScopeEditor = ({ productId }: Props): ReactNode => {
 
   const availableLanguages = useMemo(() => {
     if (!scope) return [];
-    if (activeChannelId === null) return [...scope.languagesUnion].sort();
-    const ch = scope.channels.find((c) => c.id === activeChannelId);
-    return ch ? [...ch.languages].sort() : [];
+    return computeLanguagePool(scope, activeChannelId);
   }, [scope, activeChannelId]);
 
   /**
@@ -325,18 +362,27 @@ export const ProductScopeEditor = ({ productId }: Props): ReactNode => {
   const handleChannelChange = useCallback(
     (next: string | null) => {
       setActiveChannelId(next);
-      // If the active language is not in the new channel's set, fall
-      // back to the first (sorted) option.
       if (!scope) return;
-      const pool =
-        next === null
-          ? [...scope.languagesUnion].sort()
-          : scope.channels.find((c) => c.id === next)?.languages.slice().sort() ?? [];
-      if (activeLanguageCode && !pool.includes(activeLanguageCode)) {
-        setActiveLanguageCode(pool[0] ?? null);
+      const pool = computeLanguagePool(scope, next);
+      const fallback = computeLanguageFallback(pool, activeLanguageCode);
+      if (fallback.changed) {
+        setActiveLanguageCode(fallback.next);
+        // FR-021 — explain the silent narrowing so editors don't lose
+        // sight of which language slot they're now writing into.
+        const channelName =
+          next === null
+            ? t('productEditor.scopeEditor.channelGlobalOption')
+            : scope.channels.find((c) => c.id === next)?.code ?? '';
+        setInfo(
+          t('productEditor.scopeEditor.languageNarrowed', {
+            previous: activeLanguageCode ?? '',
+            channel: channelName,
+            next: fallback.next ?? '—',
+          }),
+        );
       }
     },
-    [scope, activeLanguageCode],
+    [scope, activeLanguageCode, t],
   );
 
   if (loading) return null;
