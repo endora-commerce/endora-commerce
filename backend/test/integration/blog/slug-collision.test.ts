@@ -112,7 +112,8 @@ describe('blog slug-collision (T013 — cross-table guard)', () => {
     });
     expect(err).toBeInstanceOf(HttpError);
     expect(err!.code).toBe('BLOG_SLUG_TAKEN');
-    expect(err!.details?.[0]?.issue).toContain('category');
+    const details1 = err!.details as Array<{ path: string; issue: string }> | undefined;
+    expect(details1?.[0]?.issue).toContain('category');
   });
 
   it('refuses a Category slug that collides with a Post slug in the same channel', async () => {
@@ -124,7 +125,8 @@ describe('blog slug-collision (T013 — cross-table guard)', () => {
     });
     expect(err).toBeInstanceOf(HttpError);
     expect(err!.code).toBe('BLOG_SLUG_TAKEN');
-    expect(err!.details?.[0]?.issue).toContain('post');
+    const details2 = err!.details as Array<{ path: string; issue: string }> | undefined;
+    expect(details2?.[0]?.issue).toContain('post');
   });
 
   it('allows the same slug across different channels', async () => {

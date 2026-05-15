@@ -1,11 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
+import { TranslationProvider } from '../../../src/i18n/TranslationProvider';
 import {
   LinkedPriceListsList,
   toInternalPath,
   type LinkedPriceListRow,
 } from '../../../src/modules/price_lists/LinkedPriceListsPanel';
+
+// `LinkedPriceListsList` calls `useTranslation('core')` for the inline
+// labels (System, Open, status chips). Wrap each renderToString call
+// in a `<TranslationProvider>` with an inline bundle so the tree can
+// resolve those keys without hitting the network.
+const CORE_BUNDLE = {
+  core: {
+    'priceLists.linked.system': 'System',
+    'priceLists.linked.open': 'Open',
+    'priceLists.linked.openEditor': 'Open editor',
+    'priceLists.linked.noBracketsYet': 'No bracket prices yet for this list.',
+    'priceLists.linked.helpText': '',
+    'priceLists.type.base': 'Base',
+    'priceLists.type.sale': 'Sale',
+    'priceLists.status.active': 'Active',
+    'priceLists.status.draft': 'Draft',
+    'priceLists.status.scheduled': 'Scheduled',
+    'priceLists.status.expired': 'Expired',
+  },
+} as const;
 
 /**
  * T093 — admin LinkedPriceListsPanel render tests (US8).
@@ -68,9 +89,11 @@ describe('LinkedPriceListsList', () => {
     ];
 
     const html = renderToString(
+      <TranslationProvider language="en" initialBundle={CORE_BUNDLE}>
       <MemoryRouter>
         <LinkedPriceListsList rows={rows} />
-      </MemoryRouter>,
+      </MemoryRouter>
+      </TranslationProvider>,
     );
 
     // One row per list, marked via data-testid for ergonomic counting.
@@ -110,9 +133,11 @@ describe('LinkedPriceListsList', () => {
     ];
 
     const html = renderToString(
+      <TranslationProvider language="en" initialBundle={CORE_BUNDLE}>
       <MemoryRouter>
         <LinkedPriceListsList rows={rows} />
-      </MemoryRouter>,
+      </MemoryRouter>
+      </TranslationProvider>,
     );
 
     // Both the title link and the Open button point at the internal route.
@@ -127,9 +152,11 @@ describe('LinkedPriceListsList', () => {
     const rows: LinkedPriceListRow[] = [baseRow({})];
 
     const html = renderToString(
+      <TranslationProvider language="en" initialBundle={CORE_BUNDLE}>
       <MemoryRouter>
         <LinkedPriceListsList rows={rows} />
-      </MemoryRouter>,
+      </MemoryRouter>
+      </TranslationProvider>,
     );
 
     expect((html.match(/data-testid="linked-price-list-row"/g) ?? []).length).toBe(1);
@@ -158,9 +185,11 @@ describe('LinkedPriceListsList', () => {
     ];
 
     const html = renderToString(
+      <TranslationProvider language="en" initialBundle={CORE_BUNDLE}>
       <MemoryRouter>
         <LinkedPriceListsList rows={rows} />
-      </MemoryRouter>,
+      </MemoryRouter>
+      </TranslationProvider>,
     );
 
     expect(html).toContain('No bracket prices yet for this list.');

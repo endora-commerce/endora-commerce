@@ -22,7 +22,7 @@ export const manifest = defineModuleManifest({
   name: 'Catalog',
   description:
     'Products, variants, categories, attributes, attribute sets, gallery, attachments, links, and bundles.',
-  version: '1.4.0',
+  version: '1.5.0',
   dependencies: [],
   i18n: { bundlesDir: 'i18n' },
   actions: [

@@ -249,6 +249,10 @@ export const ERROR_CODES = {
 
   // Module Lifecycle (feature 018)
   MODULE_DISABLED: 'MODULE_DISABLED',
+
+  // Catalog (feature 022 — Products Bulk Edit)
+  BULK_TOO_LARGE: 'BULK_TOO_LARGE',
+  ATTRIBUTE_NOT_MASS_EDITABLE: 'ATTRIBUTE_NOT_MASS_EDITABLE',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
@@ -262,7 +266,11 @@ export const errorEnvelopeSchema = z.object({
   error: z.object({
     code: z.enum(Object.values(ERROR_CODES) as [ErrorCode, ...ErrorCode[]]),
     message: z.string(),
-    details: z.array(errorDetailSchema).optional(),
+    // Two shapes: (a) the legacy Zod-style array of {path, issue}, used by
+    // request-validation failures, and (b) a free-form object used by
+    // domain errors that carry structured metadata (e.g. feature 022's
+    // `BULK_TOO_LARGE` envelope carries `{ maxBatchSize, recommendedSplitInto }`).
+    details: z.union([z.array(errorDetailSchema), z.record(z.string(), z.unknown())]).optional(),
     requestId: z.string().optional(),
   }),
 });

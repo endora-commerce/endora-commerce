@@ -49,7 +49,8 @@ export class ProductAttribute {
     | 'isRequired'
     | 'isPromoRule'
     | 'filterPosition'
-    | 'isVisibleOnProductPage';
+    | 'isVisibleOnProductPage'
+    | 'massEditable';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -107,6 +108,15 @@ export class ProductAttribute {
   /** FR-030 — gates inclusion in the storefront PDP "Parametry produktu" tab. */
   @Property({ type: 'boolean' })
   isVisibleOnProductPage: boolean = false;
+
+  /**
+   * Feature 022 — `true` makes the attribute appear in the Products Bulk
+   * Edit dialog's attribute field list. Default `false` — operators must
+   * opt each attribute in explicitly. No reindex on toggle; the dialog
+   * re-fetches on open via `/attributes/by-flag?flag=isMassEditable`.
+   */
+  @Property({ type: 'boolean' })
+  massEditable: boolean = false;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

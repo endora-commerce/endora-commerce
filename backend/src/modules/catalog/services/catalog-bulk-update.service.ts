@@ -1,0 +1,392 @@
+import { randomUUID } from 'crypto';
+import type { EntityManager } from '@mikro-orm/postgresql';
+import { ERROR_CODES, type BulkUpdateProductsRequest } from '@b2b/contracts';
+import { HttpError } from '../../../http/error-envelope.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
+import { CatalogAdminService, type AdminAuditContext } from './catalog-admin.service.js';
+import { Product } from '../entities/product.entity.js';
+import { ProductAttribute } from '../entities/product-attribute.entity.js';
+
+/**
+ * Feature 022 — Products Bulk Edit.
+ *
+ * Composes existing module-public services to apply a sparse field-patch
+ * to a selection of products and report a per-product outcome. Honours:
+ *
+ *  - Per-product atomicity (each product writes inside its own transaction).
+ *  - No batch abort: a single failure does NOT roll back other products.
+ *  - One summary `audit_logs` row per bulk operation; per-product audit
+ *    rows are emitted by `CatalogAdminService.updateProduct` as before.
+ */
+
+export interface BulkUpdateOutcome {
+  productId: string;
+  status: 'succeeded' | 'skipped' | 'failed';
+  reason?:
+    | 'attribute_not_in_set'
+    | 'validation_failed'
+    | 'permission_denied'
+    | 'concurrent_modification'
+    | 'product_not_found';
+  details?: { code?: string; message?: string; attribute?: string };
+  changedFields?: string[];
+}
+
+export interface BulkUpdateResult {
+  bulkOperationId: string;
+  summary: {
+    succeeded: number;
+    skipped: number;
+    failed: number;
+    total: number;
+  };
+  results: BulkUpdateOutcome[];
+}
+
+const MAX_BATCH_SIZE = 200;
+const RECOMMENDED_SPLIT_INTO = 100;
+
+export class CatalogBulkUpdateService {
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly catalogAdmin: CatalogAdminService,
+    private readonly salesChannelMembership?: SalesChannelMembershipService,
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  /**
+   * Apply `req.fields` to every product in `req.productIds`.
+   *
+   * Pre-flight (rejects whole request):
+   *   - productIds.length > 200            → BULK_TOO_LARGE
+   *   - attributeValues key not flagged    → ATTRIBUTE_NOT_MASS_EDITABLE
+   *     mass_editable=true
+   *
+   * Per-product outcomes:
+   *   - succeeded                          → all touched fields applied
+   *   - skipped, product_not_found         → product id missing in DB
+   *   - skipped, attribute_not_in_set      → one of the requested
+   *                                          attribute keys is not in
+   *                                          the product's attribute set
+   *                                          AND no other field changed
+   *   - failed,  validation_failed         → any other write rejection
+   */
+  async bulkUpdate(
+    req: BulkUpdateProductsRequest,
+    auditCtx?: AdminAuditContext,
+  ): Promise<BulkUpdateResult> {
+    if (req.productIds.length > MAX_BATCH_SIZE) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.BULK_TOO_LARGE,
+        `productIds.length=${req.productIds.length} exceeds maxBatchSize=${MAX_BATCH_SIZE}`,
+        { maxBatchSize: MAX_BATCH_SIZE, recommendedSplitInto: RECOMMENDED_SPLIT_INTO },
+      );
+    }
+
+    // Pre-flight: every attributeValues key MUST be flagged mass_editable=true.
+    // This is a client-side bug (the dialog should never offer a non-flagged
+    // attribute), so the whole batch is rejected before any per-product write.
+    if (req.fields.attributeValues && Object.keys(req.fields.attributeValues).length > 0) {
+      await this.assertAllAttributesAreMassEditable(
+        Object.keys(req.fields.attributeValues),
+      );
+    }
+
+    const bulkOperationId = randomUUID();
+    const results: BulkUpdateOutcome[] = [];
+
+    for (const productId of req.productIds) {
+      const outcome = await this.applyToOneProduct(productId, req, auditCtx);
+      results.push(outcome);
+    }
+
+    const summary = {
+      succeeded: results.filter((r) => r.status === 'succeeded').length,
+      skipped: results.filter((r) => r.status === 'skipped').length,
+      failed: results.filter((r) => r.status === 'failed').length,
+      total: results.length,
+    };
+
+    await this.recordSummaryAudit(bulkOperationId, req, results, summary, auditCtx);
+
+    return { bulkOperationId, summary, results };
+  }
+
+  // --------------------------------------------------------------------
+  // Internal helpers
+  // --------------------------------------------------------------------
+
+  private async assertAllAttributesAreMassEditable(keys: string[]): Promise<void> {
+    const em = this.emFactory();
+    const rows = await em.find(
+      ProductAttribute,
+      { key: { $in: keys } },
+    );
+    const byKey = new Map(rows.map((r) => [r.key, r]));
+    for (const key of keys) {
+      const row = byKey.get(key);
+      if (!row || !row.massEditable) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.ATTRIBUTE_NOT_MASS_EDITABLE,
+          `attribute_not_mass_editable`,
+          { attribute: key },
+        );
+      }
+    }
+  }
+
+  private async applyToOneProduct(
+    productId: string,
+    req: BulkUpdateProductsRequest,
+    auditCtx?: AdminAuditContext,
+  ): Promise<BulkUpdateOutcome> {
+    const em = this.emFactory();
+    const product = await em.findOne(Product, { id: productId });
+    if (!product) {
+      return { productId, status: 'skipped', reason: 'product_not_found' };
+    }
+
+    // Partition attributeValues into those allowed for the product's set
+    // and those that must be skipped. Build the partial UpdateProductRequest.
+    const fields = req.fields;
+    const partial: Record<string, unknown> = {};
+    let touchedAny = false;
+    let attributeSkipReason: { attribute: string } | null = null;
+
+    if (fields.status !== undefined) {
+      partial.status = fields.status;
+      touchedAny = true;
+    }
+    if (fields.visibility !== undefined) {
+      partial.visibility = fields.visibility;
+      touchedAny = true;
+    }
+
+    // Categories — translate {mode, categoryIds} into the partial's
+    // categoryIds field (which the single-product PATCH treats as the
+    // canonical set when present). For `add` mode, union the target with
+    // current memberships before passing through.
+    if (fields.categories) {
+      if (fields.categories.mode === 'replace') {
+        partial.categoryIds = fields.categories.categoryIds;
+      } else {
+        const current = await this.readCurrentCategoryIds(em, productId);
+        const union = Array.from(new Set([...current, ...fields.categories.categoryIds]));
+        partial.categoryIds = union;
+      }
+      touchedAny = true;
+    }
+
+    // Attribute values — drop keys that are not in this product's set;
+    // surface a skip reason if NO other field is being touched and EVERY
+    // attribute write would be dropped.
+    if (fields.attributeValues && Object.keys(fields.attributeValues).length > 0) {
+      const allowedKeys = await this.readAllowedAttributeKeys(em, product.attributeSetId);
+      const allowed: Record<string, unknown> = {};
+      const dropped: string[] = [];
+      for (const [k, v] of Object.entries(fields.attributeValues)) {
+        if (allowedKeys.has(k)) {
+          allowed[k] = v;
+        } else {
+          dropped.push(k);
+        }
+      }
+      if (Object.keys(allowed).length > 0) {
+        partial.attributeValues = allowed;
+        touchedAny = true;
+      }
+      if (
+        dropped.length > 0 &&
+        Object.keys(allowed).length === 0 &&
+        fields.status === undefined &&
+        fields.visibility === undefined &&
+        fields.categories === undefined &&
+        fields.salesChannels === undefined
+      ) {
+        // Nothing else to do for this product and at least one attribute
+        // was skipped — report skip with the first dropped key for
+        // visibility in the response.
+        attributeSkipReason = { attribute: dropped[0]! };
+      }
+    }
+
+    // Apply updateProduct (status / visibility / categories / attributeValues).
+    let changedFields: string[] = [];
+    if (touchedAny) {
+      try {
+        await this.catalogAdmin.updateProduct(
+          productId,
+          partial as unknown as Parameters<CatalogAdminService['updateProduct']>[1],
+          auditCtx,
+        );
+        // The service tracks changedFields internally; from the caller's
+        // perspective we report the set of fields we *attempted* to write
+        // (the audit row has the canonical changedFields).
+        changedFields = Object.keys(partial);
+      } catch (err) {
+        return this.classifyPerProductError(productId, err);
+      }
+    }
+
+    // Sales channels run AFTER updateProduct because they live on a
+    // different bridge table and use a dedicated service.
+    if (fields.salesChannels && this.salesChannelMembership) {
+      try {
+        const changed = await this.applySalesChannels(
+          productId,
+          fields.salesChannels.mode,
+          fields.salesChannels.channelIds,
+        );
+        if (changed) {
+          changedFields = Array.from(new Set([...changedFields, 'salesChannels']));
+        }
+      } catch (err) {
+        return this.classifyPerProductError(productId, err);
+      }
+    }
+
+    if (changedFields.length === 0 && attributeSkipReason) {
+      return {
+        productId,
+        status: 'skipped',
+        reason: 'attribute_not_in_set',
+        details: attributeSkipReason,
+      };
+    }
+
+    return {
+      productId,
+      status: 'succeeded',
+      changedFields,
+      // Surface the skipped attribute when other fields *did* succeed —
+      // not strictly required by the contract but useful to the admin.
+      ...(attributeSkipReason
+        ? { details: { ...attributeSkipReason, message: 'attribute_not_in_set' } }
+        : {}),
+    };
+  }
+
+  private classifyPerProductError(productId: string, err: unknown): BulkUpdateOutcome {
+    if (err instanceof HttpError) {
+      if (err.code === ERROR_CODES.PRODUCT_NOT_FOUND) {
+        return { productId, status: 'skipped', reason: 'product_not_found' };
+      }
+      return {
+        productId,
+        status: 'failed',
+        reason: 'validation_failed',
+        details: { code: err.code, message: err.message },
+      };
+    }
+    return {
+      productId,
+      status: 'failed',
+      reason: 'validation_failed',
+      details: { message: err instanceof Error ? err.message : String(err) },
+    };
+  }
+
+  private async readCurrentCategoryIds(
+    em: EntityManager,
+    productId: string,
+  ): Promise<string[]> {
+    const rows = await em
+      .getConnection()
+      .execute<Array<{ category_id: string }>>(
+        `select category_id from product_categories where product_id = ?`,
+        [productId],
+        'all',
+        em.getTransactionContext(),
+      );
+    return rows.map((r) => r.category_id);
+  }
+
+  private async readAllowedAttributeKeys(
+    em: EntityManager,
+    attributeSetId: string,
+  ): Promise<Set<string>> {
+    const rows = await em
+      .getConnection()
+      .execute<Array<{ key: string }>>(
+        `select pa.key from attribute_set_attributes asa ` +
+          `join product_attributes pa on pa.id = asa.product_attribute_id ` +
+          `where asa.attribute_set_id = ?`,
+        [attributeSetId],
+        'all',
+        em.getTransactionContext(),
+      );
+    return new Set(rows.map((r) => r.key));
+  }
+
+  private async applySalesChannels(
+    productId: string,
+    mode: 'add' | 'replace',
+    targetChannelIds: string[],
+  ): Promise<boolean> {
+    const svc = this.salesChannelMembership!;
+    const current = await svc.listChannelsForEntity('product', productId);
+    const currentIds = new Set(current.map((c) => c.id));
+    const targetSet = new Set(targetChannelIds);
+    let changed = false;
+    if (mode === 'add') {
+      for (const id of targetChannelIds) {
+        if (!currentIds.has(id)) {
+          const r = await svc.addToChannel(id, 'product', productId);
+          if (r.changed) changed = true;
+        }
+      }
+    } else {
+      // replace
+      for (const id of targetChannelIds) {
+        if (!currentIds.has(id)) {
+          const r = await svc.addToChannel(id, 'product', productId);
+          if (r.changed) changed = true;
+        }
+      }
+      for (const id of currentIds) {
+        if (!targetSet.has(id)) {
+          const r = await svc.removeFromChannel(id, 'product', productId, {
+            fallbackToDefault: true,
+          });
+          if (r.changed) changed = true;
+        }
+      }
+    }
+    return changed;
+  }
+
+  private async recordSummaryAudit(
+    bulkOperationId: string,
+    req: BulkUpdateProductsRequest,
+    results: BulkUpdateOutcome[],
+    summary: BulkUpdateResult['summary'],
+    auditCtx?: AdminAuditContext,
+  ): Promise<void> {
+    if (!this.auditLog || !auditCtx) return;
+    await this.auditLog.record({
+      actorAdminUserId: auditCtx.actorAdminUserId,
+      ...(auditCtx.impersonatedCustomerAccountId !== undefined
+        ? { impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId }
+        : {}),
+      action: 'product.bulk_update',
+      objectType: 'bulk_operation',
+      objectId: bulkOperationId,
+      stateAfter: {
+        selectionIds: req.productIds,
+        touchedFields: Object.entries(req.fields)
+          .filter(([, v]) => v !== undefined)
+          .map(([k]) => k),
+        categoryMode: req.fields.categories?.mode ?? null,
+        salesChannelMode: req.fields.salesChannels?.mode ?? null,
+        resultsSummary: summary,
+        perProductOutcomes: results,
+      },
+      ...(auditCtx.ipAddress !== undefined ? { ipAddress: auditCtx.ipAddress } : {}),
+      ...(auditCtx.userAgent !== undefined ? { userAgent: auditCtx.userAgent } : {}),
+      ...(auditCtx.requestId !== undefined ? { requestId: auditCtx.requestId } : {}),
+    });
+  }
+}
