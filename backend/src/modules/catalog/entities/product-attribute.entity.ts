@@ -49,7 +49,9 @@ export class ProductAttribute {
     | 'isRequired'
     | 'isPromoRule'
     | 'filterPosition'
-    | 'isVisibleOnProductPage';
+    | 'isVisibleOnProductPage'
+    | 'channelScoped'
+    | 'languageScoped';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -107,6 +109,27 @@ export class ProductAttribute {
   /** FR-030 — gates inclusion in the storefront PDP "Parametry produktu" tab. */
   @Property({ type: 'boolean' })
   isVisibleOnProductPage: boolean = false;
+
+  /**
+   * Feature 022 — when `true`, the attribute MAY carry per-Sales-Channel
+   * overrides (stored in `product_value_overrides`). When `false`, the
+   * attribute is global across every channel the product is assigned
+   * to. Defaults to `false` so existing attributes opt in only via
+   * operator action.
+   */
+  @Property({ type: 'boolean' })
+  channelScoped: boolean = false;
+
+  /**
+   * Feature 022 — when `true`, the attribute's value is keyed by
+   * language at every slot. For user-defined attributes the baseline
+   * is stored as `Record<lang, value>` in `products.attribute_values`;
+   * for system attributes Name and Description (whose baselines are
+   * already per-language JSONB on `products`) this flag is pinned
+   * `true` by `SYSTEM_ATTRIBUTE_SCOPES`. Defaults to `false`.
+   */
+  @Property({ type: 'boolean' })
+  languageScoped: boolean = false;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();
