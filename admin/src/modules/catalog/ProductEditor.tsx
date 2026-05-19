@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Archive as ArchiveIcon,
@@ -39,7 +47,10 @@ import { EntityChannelMembership } from '../sales_channels/components/EntityChan
 import { ProductInventoryTab } from './ProductInventoryTab';
 import { LinkedPriceListsPanel } from '../price_lists/LinkedPriceListsPanel';
 import { ProductPicker } from './components/ProductPicker';
-import { ProductScopeEditor } from './components/ProductScopeEditor';
+import {
+  ProductScopeEditor,
+  type ProductScopeEditorHandle,
+} from './components/ProductScopeEditor';
 
 const LOCALES = ['en-US', 'pl-PL'] as const;
 type Locale = (typeof LOCALES)[number];
@@ -106,6 +117,9 @@ export function ProductEditor(): ReactNode {
   // Feature 002 (T034) — Attribute Set selector
   const [attributeSets, setAttributeSets] = useState<AdminAttributeSet[]>([]);
   const [attributeSetId, setAttributeSetId] = useState<string>('');
+  // Feature 023 — imperative handle on the scope-editor so the page Save
+  // can flush every pending channel-scoped override in a single PATCH.
+  const scopeEditorRef = useRef<ProductScopeEditorHandle | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -195,17 +209,25 @@ export function ProductEditor(): ReactNode {
           );
           navigate(`/catalog/products/${res.data.id}`);
         } else if (id) {
-          await apiClient.patch<{ data: AdminProduct }>(
-            `/api/v1/admin/catalog/products/${id}`,
-            {
-              name: trimmedName,
-              description: trimmedDescription,
-              categoryIds,
-              attributeValues,
-              visibility,
-              ...(attributeSetId ? { attributeSetId } : {}),
-            },
-          );
+          // Feature 023 — page-Save commits both the per-language baseline
+          // (carried by `trimmedName` / `trimmedDescription` via the existing
+          // PATCH) AND any pending channel-scoped override drafts held in
+          // the ProductScopeEditor panel. Run them in parallel; if the
+          // override flush rejects, the page PATCH still committed.
+          await Promise.all([
+            apiClient.patch<{ data: AdminProduct }>(
+              `/api/v1/admin/catalog/products/${id}`,
+              {
+                name: trimmedName,
+                description: trimmedDescription,
+                categoryIds,
+                attributeValues,
+                visibility,
+                ...(attributeSetId ? { attributeSetId } : {}),
+              },
+            ),
+            scopeEditorRef.current?.flushOverrides() ?? Promise.resolve(),
+          ]);
           setInfo('Saved.');
           await refresh();
         }
@@ -352,13 +374,31 @@ export function ProductEditor(): ReactNode {
           {activeTab === 'details' ? (
             <form id="product-details-form" onSubmit={handleSave}>
               <div className="b2b-col" style={{ gap: 18 }}>
-                {/* Feature 022 — per-Sales-Channel + per-Language scope
-                    editor. Read-only first slice: previews the resolved
-                    Name/Description per (channel, language) using the
-                    backend resolver. Channel-aware write surface mounts
-                    via PATCH .../value-overrides; UI editing affordance
-                    follows in a later patch. */}
-                {id ? <ProductScopeEditor productId={id} /> : null}
+                {/* Feature 023 — per-Sales-Channel + per-Language scope
+                    editor. Sole editor for system Name + Description on
+                    existing products: at Channel = Global it writes the
+                    per-language baseline on `products`; at a specific
+                    channel it writes a `product_value_overrides` row. */}
+                {id ? (
+                  <ProductScopeEditor
+                    ref={scopeEditorRef}
+                    productId={id}
+                    baselineName={name}
+                    baselineDescription={description}
+                    onBaselineNameChange={(next): void =>
+                      setName({
+                        'en-US': next['en-US'] ?? '',
+                        'pl-PL': next['pl-PL'] ?? '',
+                      })
+                    }
+                    onBaselineDescriptionChange={(next): void =>
+                      setDescription({
+                        'en-US': next['en-US'] ?? '',
+                        'pl-PL': next['pl-PL'] ?? '',
+                      })
+                    }
+                  />
+                ) : null}
 
                 <div>
                   <div className="b2b-label">{t('productEditor.section.identity')}</div>
@@ -458,42 +498,52 @@ export function ProductEditor(): ReactNode {
                   </div>
                 </div>
 
-                <hr className="b2b-hr" />
-
-                <div>
-                  <div className="b2b-label">{t('productEditor.section.localizedContent')}</div>
-                  <p className="b2b-help" style={{ marginTop: 0, marginBottom: 12 }}>
-                    {t('productEditor.section.localizedContent.help')}
-                  </p>
-                  <div className="b2b-col" style={{ gap: 18 }}>
-                    {LOCALES.map((l) => (
-                      <div key={l} className="b2b-col" style={{ gap: 8 }}>
-                        <div>
-                          <Label htmlFor={`name-${l}`}>{t('productEditor.field.localizedName', { locale: l })}</Label>
-                          <Input
-                            id={`name-${l}`}
-                            value={name[l]}
-                            onChange={(e): void =>
-                              setName((prev) => ({ ...prev, [l]: e.target.value }))
-                            }
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`desc-${l}`}>{t('productEditor.field.localizedDescription', { locale: l })}</Label>
-                          <textarea
-                            id={`desc-${l}`}
-                            rows={3}
-                            className="b2b-field"
-                            value={description[l]}
-                            onChange={(e): void =>
-                              setDescription((prev) => ({ ...prev, [l]: e.target.value }))
-                            }
-                          />
-                        </div>
+                {/* Feature 023 — on existing products the
+                    ProductScopeEditor panel above is the sole editor for
+                    Name + Description. On NEW products the panel cannot
+                    render yet (it needs a productId), so we keep the
+                    per-locale inputs here as the create-time entry
+                    surface; switch them off as soon as the product
+                    exists. */}
+                {isNew ? (
+                  <>
+                    <hr className="b2b-hr" />
+                    <div>
+                      <div className="b2b-label">{t('productEditor.section.localizedContent')}</div>
+                      <p className="b2b-help" style={{ marginTop: 0, marginBottom: 12 }}>
+                        {t('productEditor.section.localizedContent.help')}
+                      </p>
+                      <div className="b2b-col" style={{ gap: 18 }}>
+                        {LOCALES.map((l) => (
+                          <div key={l} className="b2b-col" style={{ gap: 8 }}>
+                            <div>
+                              <Label htmlFor={`name-${l}`}>{t('productEditor.field.localizedName', { locale: l })}</Label>
+                              <Input
+                                id={`name-${l}`}
+                                value={name[l]}
+                                onChange={(e): void =>
+                                  setName((prev) => ({ ...prev, [l]: e.target.value }))
+                                }
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor={`desc-${l}`}>{t('productEditor.field.localizedDescription', { locale: l })}</Label>
+                              <textarea
+                                id={`desc-${l}`}
+                                rows={3}
+                                className="b2b-field"
+                                value={description[l]}
+                                onChange={(e): void =>
+                                  setDescription((prev) => ({ ...prev, [l]: e.target.value }))
+                                }
+                              />
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </div>
+                  </>
+                ) : null}
 
                 <hr className="b2b-hr" />
 
