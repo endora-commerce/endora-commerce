@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -108,6 +116,8 @@ type ResolvedSource =
 
 interface AdminProductWithResolved {
   id: string;
+  name: Record<string, string>;
+  description: Record<string, string>;
   resolved?: {
     context: { channelId: string | null; languageCode: string | null };
     name: unknown;
@@ -119,9 +129,49 @@ interface AdminProductWithResolved {
 
 interface Props {
   productId: string;
+  /**
+   * Per-language baseline JSONB on `products`. Owned by the parent's
+   * product form so the form's Save button PATCHes them via its
+   * existing single PATCH; at Channel = Global the panel inputs are
+   * a controlled view into these.
+   */
+  baselineName: Record<string, string>;
+  baselineDescription: Record<string, string>;
+  onBaselineNameChange: (next: Record<string, string>) => void;
+  onBaselineDescriptionChange: (next: Record<string, string>) => void;
 }
 
-export const ProductScopeEditor = ({ productId }: Props): ReactNode => {
+/**
+ * Imperative handle exposed to the parent product form so its Save
+ * button can flush every pending channel-scoped override in one call.
+ * Baseline edits are flushed by the parent's existing PATCH because
+ * `baselineName` / `baselineDescription` are controlled by the parent.
+ */
+export interface ProductScopeEditorHandle {
+  /** True when there are pending override upserts or deletes. */
+  hasPendingOverrideChanges: () => boolean;
+  /** PATCH /value-overrides for every pending override change. No-op when empty. */
+  flushOverrides: () => Promise<void>;
+}
+
+/** Stable internal key for an override slot. */
+const slotKey = (
+  attributeKey: string,
+  channelId: string,
+  languageCode: string | null,
+): string => `${attributeKey}|${channelId}|${languageCode ?? ''}`;
+
+export const ProductScopeEditor = forwardRef<ProductScopeEditorHandle, Props>(
+  function ProductScopeEditor(
+    {
+      productId,
+      baselineName,
+      baselineDescription,
+      onBaselineNameChange,
+      onBaselineDescriptionChange,
+    },
+    ref,
+  ): ReactNode {
   const t = useTranslation('catalog');
   const [scope, setScope] = useState<ScopeContext | null>(null);
   const [overrides, setOverrides] = useState<Override[]>([]);
@@ -130,6 +180,13 @@ export const ProductScopeEditor = ({ productId }: Props): ReactNode => {
   const [resolved, setResolved] = useState<AdminProductWithResolved['resolved'] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Pending channel-scoped override changes. The page-Save button flushes
+  // both maps in a single PATCH; map keys are `slotKey(...)`.
+  const [overrideUpserts, setOverrideUpserts] = useState<Map<string, string>>(
+    () => new Map(),
+  );
+  const [overrideDeletes, setOverrideDeletes] = useState<Set<string>>(() => new Set());
+  const [saving, setSaving] = useState(false);
 
   // Initial fetch: scope-context + overrides in parallel. Seed the
   // switchers from the editor's remembered preference (if any) or the
@@ -238,125 +295,170 @@ export const ProductScopeEditor = ({ productId }: Props): ReactNode => {
     return computeLanguagePool(scope, activeChannelId);
   }, [scope, activeChannelId]);
 
+  const [info, setInfo] = useState<string | null>(null);
+
+  // The active (channel, language) determines which override slot the
+  // edit affordance writes into. Editing requires a language.
+  const canEdit = activeLanguageCode !== null && !saving;
+
   /**
-   * Look up the active override for a given system attribute at the
-   * current (channel, language) context. Returns undefined when no
-   * override exists at that exact slot.
+   * The effective draft value for an override slot. Returns:
+   *   - the pending upsert value if user has typed something this session,
+   *   - else `''` when the user queued a delete,
+   *   - else the existing override row's value (if any),
+   *   - else an empty string.
    */
-  const findOverride = useCallback(
-    (attributeKey: 'name' | 'description'): Override | undefined => {
-      if (activeChannelId === null) return undefined;
-      return overrides.find(
+  const getOverrideDraftValue = useCallback(
+    (attributeKey: 'name' | 'description'): string => {
+      if (activeChannelId === null || activeLanguageCode === null) return '';
+      const key = slotKey(attributeKey, activeChannelId, activeLanguageCode);
+      if (overrideUpserts.has(key)) return overrideUpserts.get(key) ?? '';
+      if (overrideDeletes.has(key)) return '';
+      const existing = overrides.find(
         (o) =>
           o.attributeKey === attributeKey &&
           o.channelId === activeChannelId &&
           o.languageCode === activeLanguageCode,
       );
+      return (existing?.value.v as string | undefined) ?? '';
     },
-    [overrides, activeChannelId, activeLanguageCode],
+    [activeChannelId, activeLanguageCode, overrideUpserts, overrideDeletes, overrides],
   );
 
-  // Inline edit state per system attribute. `null` means "not editing";
-  // any string means "editing — current draft value".
-  const [draftName, setDraftName] = useState<string | null>(null);
-  const [draftDescription, setDraftDescription] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [info, setInfo] = useState<string | null>(null);
-
-  // Clear drafts when the active context changes — otherwise a draft
-  // typed against (vip, en) would leak into (retail, pl) on switch.
-  useEffect(() => {
-    setDraftName(null);
-    setDraftDescription(null);
-    setInfo(null);
-  }, [activeChannelId, activeLanguageCode]);
-
-  const canEditOverride =
-    activeChannelId !== null && activeLanguageCode !== null && !saving;
+  const setOverrideDraft = useCallback(
+    (attributeKey: 'name' | 'description', value: string) => {
+      if (activeChannelId === null || activeLanguageCode === null) return;
+      const key = slotKey(attributeKey, activeChannelId, activeLanguageCode);
+      setOverrideUpserts((prev) => {
+        const next = new Map(prev);
+        next.set(key, value);
+        return next;
+      });
+      setOverrideDeletes((prev) => {
+        if (!prev.has(key)) return prev;
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    },
+    [activeChannelId, activeLanguageCode],
+  );
 
   /**
-   * Apply a bulk override write. The same payload shape is used for
-   * upserts and deletes; callers populate one array or the other.
+   * Queue a "reset to global" for the active slot: clear any pending
+   * upsert draft and mark the existing override (if any) for delete on
+   * the next flush. No-op when no existing override AND no pending draft.
    */
-  const applyOverrides = useCallback(
-    async (payload: {
-      upserts: Array<{ attributeKey: string; channelId: string; languageCode: string | null; value: { v: unknown } }>;
-      deletes: Array<{ attributeKey: string; channelId: string; languageCode: string | null }>;
-    }) => {
-      setSaving(true);
-      setError(null);
-      try {
-        const res = await apiClient.patch<{
-          data: { overrides: Override[]; applied: { upserted: number; deleted: number } };
-        }>(`/api/v1/admin/catalog/products/${productId}/value-overrides`, payload);
-        setOverrides(res.data.overrides);
-        const { upserted, deleted } = res.data.applied;
-        const parts: string[] = [];
-        if (upserted > 0)
-          parts.push(t('productEditor.scopeEditor.applied.upserted', { count: String(upserted) }));
-        if (deleted > 0)
-          parts.push(t('productEditor.scopeEditor.applied.deleted', { count: String(deleted) }));
-        setInfo(parts.join(' • ') || t('productEditor.scopeEditor.applied.none'));
-        // Refresh the resolver preview so the new "source" badge reflects
-        // the post-write state.
-        const params = new URLSearchParams();
-        if (activeChannelId) params.set('channelId', activeChannelId);
-        if (activeLanguageCode) params.set('languageCode', activeLanguageCode);
-        if (params.toString().length === 0 && scope) {
-          params.set('languageCode', scope.primaryAdminLanguage);
-        }
-        const r = await apiClient.get<{ data: AdminProductWithResolved }>(
-          `/api/v1/admin/catalog/products/${productId}?${params.toString()}`,
-        );
-        setResolved(r.data.resolved ?? null);
-        setDraftName(null);
-        setDraftDescription(null);
-      } catch (err) {
-        if (err instanceof ApiError) {
-          setError(`${err.envelope.error.code}: ${err.envelope.error.message}`);
-        } else {
-          setError(t('productEditor.scopeEditor.saveFailed'));
-        }
-      } finally {
-        setSaving(false);
+  const queueOverrideReset = useCallback(
+    (attributeKey: 'name' | 'description') => {
+      if (activeChannelId === null || activeLanguageCode === null) return;
+      const key = slotKey(attributeKey, activeChannelId, activeLanguageCode);
+      const hasExisting = overrides.some(
+        (o) =>
+          o.attributeKey === attributeKey &&
+          o.channelId === activeChannelId &&
+          o.languageCode === activeLanguageCode,
+      );
+      setOverrideUpserts((prev) => {
+        if (!prev.has(key)) return prev;
+        const next = new Map(prev);
+        next.delete(key);
+        return next;
+      });
+      if (hasExisting) {
+        setOverrideDeletes((prev) => {
+          const next = new Set(prev);
+          next.add(key);
+          return next;
+        });
       }
     },
-    [productId, activeChannelId, activeLanguageCode, scope, t],
+    [activeChannelId, activeLanguageCode, overrides],
   );
 
-  const saveOverride = useCallback(
-    (attributeKey: 'name' | 'description', value: string) => {
-      if (!canEditOverride || activeChannelId === null || activeLanguageCode === null) return;
-      void applyOverrides({
-        upserts: [
-          {
-            attributeKey,
-            channelId: activeChannelId,
-            languageCode: activeLanguageCode,
-            value: { v: value },
-          },
-        ],
-        deletes: [],
+  /**
+   * Page-Save dispatch. Flushes every pending override change in a
+   * single PATCH and refreshes the local override list. Baseline edits
+   * are NOT touched here — the parent's PATCH carries them via the
+   * controlled `baselineName` / `baselineDescription` props.
+   */
+  const flushOverrides = useCallback(async (): Promise<void> => {
+    if (overrideUpserts.size === 0 && overrideDeletes.size === 0) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const upserts: Array<{
+        attributeKey: string;
+        channelId: string;
+        languageCode: string | null;
+        value: { v: unknown };
+      }> = [];
+      for (const [key, value] of overrideUpserts) {
+        const [attributeKey, channelId, languageCode] = key.split('|');
+        upserts.push({
+          attributeKey: attributeKey!,
+          channelId: channelId!,
+          languageCode: languageCode === '' ? null : languageCode!,
+          value: { v: value },
+        });
+      }
+      const deletes: Array<{
+        attributeKey: string;
+        channelId: string;
+        languageCode: string | null;
+      }> = [];
+      for (const key of overrideDeletes) {
+        const [attributeKey, channelId, languageCode] = key.split('|');
+        deletes.push({
+          attributeKey: attributeKey!,
+          channelId: channelId!,
+          languageCode: languageCode === '' ? null : languageCode!,
+        });
+      }
+      const res = await apiClient.patch<{
+        data: { overrides: Override[]; applied: { upserted: number; deleted: number } };
+      }>(`/api/v1/admin/catalog/products/${productId}/value-overrides`, {
+        upserts,
+        deletes,
       });
-    },
-    [applyOverrides, canEditOverride, activeChannelId, activeLanguageCode],
-  );
+      setOverrides(res.data.overrides);
+      setOverrideUpserts(new Map());
+      setOverrideDeletes(new Set());
+      const parts: string[] = [];
+      if (res.data.applied.upserted > 0)
+        parts.push(
+          t('productEditor.scopeEditor.applied.upserted', {
+            count: String(res.data.applied.upserted),
+          }),
+        );
+      if (res.data.applied.deleted > 0)
+        parts.push(
+          t('productEditor.scopeEditor.applied.deleted', {
+            count: String(res.data.applied.deleted),
+          }),
+        );
+      setInfo(parts.join(' • ') || t('productEditor.scopeEditor.applied.none'));
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const msg = `${err.envelope.error.code}: ${err.envelope.error.message}`;
+        setError(msg);
+        throw err;
+      }
+      setError(t('productEditor.scopeEditor.saveFailed'));
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  }, [overrideUpserts, overrideDeletes, productId, t]);
 
-  const resetOverride = useCallback(
-    (attributeKey: 'name' | 'description') => {
-      if (!canEditOverride || activeChannelId === null) return;
-      void applyOverrides({
-        upserts: [],
-        deletes: [
-          {
-            attributeKey,
-            channelId: activeChannelId,
-            languageCode: activeLanguageCode,
-          },
-        ],
-      });
-    },
-    [applyOverrides, canEditOverride, activeChannelId, activeLanguageCode],
+  useImperativeHandle(
+    ref,
+    () => ({
+      hasPendingOverrideChanges: () =>
+        overrideUpserts.size > 0 || overrideDeletes.size > 0,
+      flushOverrides,
+    }),
+    [overrideUpserts, overrideDeletes, flushOverrides],
   );
 
   const handleChannelChange = useCallback(
@@ -463,33 +565,82 @@ export const ProductScopeEditor = ({ productId }: Props): ReactNode => {
             </div>
           </div>
 
-          {/* Resolved preview + override edit affordance */}
+          {/* Always-editable Name + Description for the active context.
+              Baseline (Channel = Global) inputs are controlled by the
+              parent form; channel-scoped inputs hold pending drafts that
+              the page-Save button flushes via `flushOverrides`. */}
           <div>
-            <div className="b2b-label">{t('productEditor.scopeEditor.resolvedPreview')}</div>
             <div className="b2b-col" style={{ gap: 14 }}>
               <ScopedField
                 label={t('productEditor.scopeEditor.fieldName')}
-                resolved={(resolved?.name ?? null) as string | null}
                 source={nameSource}
-                override={findOverride('name')}
-                canEdit={canEditOverride}
-                draft={draftName}
-                onDraftChange={setDraftName}
-                onSave={(v) => saveOverride('name', v)}
-                onReset={() => resetOverride('name')}
+                atGlobal={activeChannelId === null}
+                canEdit={canEdit}
+                value={
+                  activeChannelId === null
+                    ? activeLanguageCode
+                      ? baselineName[activeLanguageCode] ?? ''
+                      : ''
+                    : getOverrideDraftValue('name')
+                }
+                placeholder={
+                  activeChannelId === null
+                    ? ''
+                    : ((resolved?.name as string | null) ?? '')
+                }
+                hasOverride={overrides.some(
+                  (o) =>
+                    o.attributeKey === 'name' &&
+                    o.channelId === activeChannelId &&
+                    o.languageCode === activeLanguageCode,
+                )}
+                onChange={(v) => {
+                  if (activeChannelId === null) {
+                    if (!activeLanguageCode) return;
+                    onBaselineNameChange({ ...baselineName, [activeLanguageCode]: v });
+                  } else {
+                    setOverrideDraft('name', v);
+                  }
+                }}
+                onReset={() => queueOverrideReset('name')}
                 multiline={false}
                 t={t}
               />
               <ScopedField
                 label={t('productEditor.scopeEditor.fieldDescription')}
-                resolved={(resolved?.description ?? null) as string | null}
                 source={descriptionSource}
-                override={findOverride('description')}
-                canEdit={canEditOverride}
-                draft={draftDescription}
-                onDraftChange={setDraftDescription}
-                onSave={(v) => saveOverride('description', v)}
-                onReset={() => resetOverride('description')}
+                atGlobal={activeChannelId === null}
+                canEdit={canEdit}
+                value={
+                  activeChannelId === null
+                    ? activeLanguageCode
+                      ? baselineDescription[activeLanguageCode] ?? ''
+                      : ''
+                    : getOverrideDraftValue('description')
+                }
+                placeholder={
+                  activeChannelId === null
+                    ? ''
+                    : ((resolved?.description as string | null) ?? '')
+                }
+                hasOverride={overrides.some(
+                  (o) =>
+                    o.attributeKey === 'description' &&
+                    o.channelId === activeChannelId &&
+                    o.languageCode === activeLanguageCode,
+                )}
+                onChange={(v) => {
+                  if (activeChannelId === null) {
+                    if (!activeLanguageCode) return;
+                    onBaselineDescriptionChange({
+                      ...baselineDescription,
+                      [activeLanguageCode]: v,
+                    });
+                  } else {
+                    setOverrideDraft('description', v);
+                  }
+                }}
+                onReset={() => queueOverrideReset('description')}
                 multiline
                 t={t}
               />
@@ -507,7 +658,7 @@ export const ProductScopeEditor = ({ productId }: Props): ReactNode => {
       </CardContent>
     </Card>
   );
-};
+});
 
 const ScopeChip = ({
   active,
@@ -541,38 +692,31 @@ const ScopeChip = ({
 
 const ScopedField = ({
   label,
-  resolved,
   source,
-  override,
+  atGlobal,
   canEdit,
-  draft,
-  onDraftChange,
-  onSave,
+  value,
+  placeholder,
+  hasOverride,
+  onChange,
   onReset,
   multiline,
   t,
 }: {
   label: string;
-  resolved: string | null;
   source: ResolvedSource;
-  override: Override | undefined;
+  atGlobal: boolean;
   canEdit: boolean;
-  draft: string | null;
-  onDraftChange: (v: string | null) => void;
-  onSave: (v: string) => void;
+  value: string;
+  /** Hint shown when the input is empty (typically the resolved baseline). */
+  placeholder: string;
+  /** True iff an override row exists on the server for this slot. */
+  hasOverride: boolean;
+  onChange: (v: string) => void;
   onReset: () => void;
   multiline: boolean;
   t: (key: string, params?: Record<string, string>) => string;
 }): ReactNode => {
-  const isEditing = draft !== null;
-  // Seed the draft with the override's value when entering edit mode;
-  // fall back to the resolved value so editors don't lose the current
-  // text when switching from "view" to "edit".
-  const startEditing = (): void => {
-    const seed =
-      (override?.value.v as string | undefined) ?? (resolved ?? '');
-    onDraftChange(seed);
-  };
   return (
     <div>
       <div className="b2b-row" style={{ gap: 8, alignItems: 'center' }}>
@@ -583,61 +727,28 @@ const ScopedField = ({
           {t(sourceLabelKey(source))}
         </Badge>
       </div>
-      {!isEditing ? (
-        <div
-          style={{
-            marginTop: 4,
-            padding: '6px 10px',
-            background: 'var(--b2b-surface-muted, #f9fafb)',
-            borderRadius: 6,
-            fontSize: 14,
-            minHeight: 24,
-            whiteSpace: 'pre-wrap',
-          }}
-        >
-          {resolved ?? <em className="b2b-help">{t('productEditor.scopeEditor.noValue')}</em>}
-        </div>
-      ) : (
-        <div className="b2b-col" style={{ gap: 6, marginTop: 4 }}>
-          {multiline ? (
-            <textarea
-              rows={3}
-              className="b2b-field"
-              value={draft}
-              onChange={(e): void => onDraftChange(e.target.value)}
-            />
-          ) : (
-            <Input value={draft} onChange={(e): void => onDraftChange(e.target.value)} />
-          )}
-          <div className="b2b-row" style={{ gap: 6 }}>
-            <Button type="button" size="sm" onClick={(): void => onSave(draft ?? '')}>
-              {t('productEditor.scopeEditor.saveOverride')}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={(): void => onDraftChange(null)}
-            >
-              {t('productEditor.scopeEditor.cancelEdit')}
-            </Button>
-          </div>
-        </div>
-      )}
-      {!isEditing ? (
-        <div className="b2b-row" style={{ gap: 6, marginTop: 6 }}>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={startEditing}
+      <div className="b2b-col" style={{ gap: 6, marginTop: 4 }}>
+        {multiline ? (
+          <textarea
+            rows={3}
+            className="b2b-field"
+            value={value}
+            placeholder={placeholder}
             disabled={!canEdit}
-          >
-            {override
-              ? t('productEditor.scopeEditor.editOverride')
-              : t('productEditor.scopeEditor.addOverride')}
-          </Button>
-          {override ? (
+            onChange={(e): void => onChange(e.target.value)}
+          />
+        ) : (
+          <Input
+            value={value}
+            placeholder={placeholder}
+            disabled={!canEdit}
+            onChange={(e): void => onChange(e.target.value)}
+          />
+        )}
+        {/* Reset only applies to channel-scoped overrides; the baseline
+            IS the source of truth at Channel = Global. */}
+        {!atGlobal && hasOverride ? (
+          <div className="b2b-row" style={{ gap: 6 }}>
             <Button
               type="button"
               size="sm"
@@ -647,9 +758,9 @@ const ScopedField = ({
             >
               {t('productEditor.scopeEditor.resetToGlobal')}
             </Button>
-          ) : null}
-        </div>
-      ) : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 };
