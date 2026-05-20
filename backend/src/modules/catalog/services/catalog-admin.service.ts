@@ -68,7 +68,10 @@ export class CatalogAdminService {
     private readonly salesChannelMembership?: SalesChannelMembershipService,
   ) {}
 
-  async createProduct(req: CreateProductRequest): Promise<Product> {
+  async createProduct(
+    req: CreateProductRequest,
+    auditCtx?: AdminAuditContext,
+  ): Promise<Product> {
     const em = this.emFactory();
     // Feature 002 (T047): cross-field validation for virtual download
     // fields. Zod's .refine() catches most cases at the boundary; the
@@ -137,6 +140,31 @@ export class CatalogAdminService {
       productId: product.id,
       sku: product.sku,
     });
+    // Feature 024 — audit `product.create` so the dashboard's Recent
+    // Activity card surfaces newly-created products. Fires after the
+    // entity is committed; rolled-back creates therefore never produce
+    // an audit row.
+    if (this.auditLog && auditCtx) {
+      await this.auditLog.record({
+        actorAdminUserId: auditCtx.actorAdminUserId,
+        ...(auditCtx.impersonatedCustomerAccountId !== undefined
+          ? { impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId }
+          : {}),
+        action: 'product.create',
+        objectType: 'product',
+        objectId: product.id,
+        stateAfter: {
+          sku: product.sku,
+          name: { ...product.name },
+          status: product.status,
+          visibility: product.visibility,
+          stockMode: product.stockMode,
+        },
+        ...(auditCtx.ipAddress !== undefined ? { ipAddress: auditCtx.ipAddress } : {}),
+        ...(auditCtx.userAgent !== undefined ? { userAgent: auditCtx.userAgent } : {}),
+        ...(auditCtx.requestId !== undefined ? { requestId: auditCtx.requestId } : {}),
+      });
+    }
     return product;
   }
 
@@ -346,12 +374,14 @@ export class CatalogAdminService {
     return product;
   }
 
-  async archiveProduct(id: string): Promise<void> {
+  async archiveProduct(id: string, auditCtx?: AdminAuditContext): Promise<void> {
     const em = this.emFactory();
     const product = await em.findOne(Product, { id });
     if (!product) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
+    const previousStatus = product.status;
+    const previousArchivedAt = product.archivedAt ?? null;
     product.status = 'archived';
     product.archivedAt = new Date();
     await em.flush();
@@ -360,6 +390,35 @@ export class CatalogAdminService {
       occurredAt: new Date().toISOString(),
       productId: product.id,
     });
+    // Feature 024 — audit `product.archive` so the dashboard surfaces
+    // status transitions. Snapshots carry the SKU + name so the row
+    // renders meaningfully even after a hard-delete (FR-019).
+    if (this.auditLog && auditCtx) {
+      await this.auditLog.record({
+        actorAdminUserId: auditCtx.actorAdminUserId,
+        ...(auditCtx.impersonatedCustomerAccountId !== undefined
+          ? { impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId }
+          : {}),
+        action: 'product.archive',
+        objectType: 'product',
+        objectId: product.id,
+        stateBefore: {
+          status: previousStatus,
+          archivedAt: previousArchivedAt,
+          sku: product.sku,
+          name: { ...product.name },
+        },
+        stateAfter: {
+          status: product.status,
+          archivedAt: product.archivedAt,
+          sku: product.sku,
+          name: { ...product.name },
+        },
+        ...(auditCtx.ipAddress !== undefined ? { ipAddress: auditCtx.ipAddress } : {}),
+        ...(auditCtx.userAgent !== undefined ? { userAgent: auditCtx.userAgent } : {}),
+        ...(auditCtx.requestId !== undefined ? { requestId: auditCtx.requestId } : {}),
+      });
+    }
   }
 
   // ------------------------------------------------------------------

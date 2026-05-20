@@ -16,7 +16,16 @@ import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { SalesChannelResolverService } from '../sales_channels/services/sales-channel-resolver.service.js';
 import type { SettingsService } from '../settings/services/settings.service.js';
 import { ConsoleMailer, type Mailer } from '../email/services/mailer.js';
+import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { DictionaryValidator } from '@b2b/contracts';
+
+export interface InventoryAuditContext {
+  actorAdminUserId: string;
+  impersonatedCustomerAccountId?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  requestId?: string | null;
+}
 
 /**
  * Composition root for the inventory module — feature 010.
@@ -51,6 +60,15 @@ export interface InventoryModuleOptions {
    *  when omitted. */
   resolveSystemDefaultChannelId?: () => Promise<string | null>;
   dictionaryValidator?: DictionaryValidator;
+  /** Feature 024 — optional cross-module hook so warehouse / stock /
+   *  threshold / CSV-import mutations land in the audit log. Tests that
+   *  don't care about audit can omit it. */
+  auditLogService?: AuditLogService;
+  /** Feature 024 — resolves the admin actor identity for audit entries. */
+  resolveAdminAuditContext?: (request: FastifyRequest) => {
+    actorAdminUserId: string;
+    impersonatedCustomerAccountId?: string | null;
+  };
 }
 
 export function inventoryModule(options: InventoryModuleOptions) {
@@ -77,8 +95,15 @@ export function inventoryModule(options: InventoryModuleOptions) {
       mirror.attach(options.eventBus);
     }
     const warehouseChannelService = new WarehouseChannelService(options.emFactory);
-    const stockLevelService = new StockLevelService(options.emFactory, options.eventBus);
-    const thresholdAdminService = new ThresholdAdminService(options.emFactory);
+    const stockLevelService = new StockLevelService(
+      options.emFactory,
+      options.eventBus,
+      options.auditLogService,
+    );
+    const thresholdAdminService = new ThresholdAdminService(
+      options.emFactory,
+      options.auditLogService,
+    );
     const lowStockAlertService = new LowStockAlertService(
       options.emFactory,
       mailer,
@@ -99,8 +124,16 @@ export function inventoryModule(options: InventoryModuleOptions) {
       ...(options.settingsService ? { settingsService: options.settingsService } : {}),
     });
     if (options.requireAdmin) {
-      const warehouseService = new WarehouseService(options.emFactory, options.dictionaryValidator);
-      const csvStockImporter = new CsvStockImporter(options.emFactory, options.eventBus);
+      const warehouseService = new WarehouseService(
+        options.emFactory,
+        options.dictionaryValidator,
+        options.auditLogService,
+      );
+      const csvStockImporter = new CsvStockImporter(
+        options.emFactory,
+        options.eventBus,
+        options.auditLogService,
+      );
       await registerInventoryAdminRoutes(app, {
         emFactory: options.emFactory,
         warehouseService,
@@ -111,6 +144,9 @@ export function inventoryModule(options: InventoryModuleOptions) {
         availabilityNotificationService: availabilityService,
         csvStockImporter,
         requireAdmin: options.requireAdmin,
+        ...(options.resolveAdminAuditContext
+          ? { resolveAdminAuditContext: options.resolveAdminAuditContext }
+          : {}),
       });
     }
   };

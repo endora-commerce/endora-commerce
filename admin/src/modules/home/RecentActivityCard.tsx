@@ -89,6 +89,16 @@ function ActivityRow({
   const time = formatRelative(row.actedAt);
   const timeLabel = t(time.key, time.params);
 
+  // Feature 024 / US3 — a small native tooltip for bulk-summary rows so
+  // the admin can see counts on hover without rendering raw JSON.
+  // Composed as human-readable "key: value" pairs.
+  const summaryTooltip = row.summary
+    ? Object.entries(row.summary)
+        .filter(([, v]) => v !== null && v !== undefined)
+        .map(([k, v]) => `${k}: ${String(v)}`)
+        .join(' · ')
+    : undefined;
+
   // Compose the visible row text in two pieces so the actor stays
   // visually distinct from the verb + target without forcing the i18n
   // bundle to carry HTML.
@@ -125,6 +135,7 @@ function ActivityRow({
         className="b2b-minirow"
         style={{ textDecoration: 'none', color: 'inherit' }}
         data-testid="recent-activity-row"
+        {...(summaryTooltip ? { title: summaryTooltip } : {})}
       >
         {inner}
       </Link>
@@ -137,6 +148,7 @@ function ActivityRow({
       style={{ opacity: 0.7, cursor: 'default' }}
       data-testid="recent-activity-row"
       data-disabled="true"
+      {...(summaryTooltip ? { title: summaryTooltip } : {})}
     >
       {inner}
     </div>

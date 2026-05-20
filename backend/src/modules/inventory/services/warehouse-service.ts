@@ -10,6 +10,8 @@ import {
 } from '../entities/warehouse.entity.js';
 import { WarehouseChannelAssignment } from '../entities/warehouse-channel-assignment.entity.js';
 import { StockLevel } from '../entities/stock-level.entity.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { InventoryAuditContext } from '../plugin.js';
 
 export interface WarehouseContact {
   name?: string | null | undefined;
@@ -68,6 +70,7 @@ export class WarehouseService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly dictionaryValidator?: DictionaryValidator,
+    private readonly auditLog?: AuditLogService,
   ) {}
 
   async list(options: {
@@ -110,7 +113,10 @@ export class WarehouseService {
     return this.toDTO(row, totals.get(row.id));
   }
 
-  async create(input: CreateWarehouseInput): Promise<WarehouseDTO> {
+  async create(
+    input: CreateWarehouseInput,
+    auditCtx?: InventoryAuditContext,
+  ): Promise<WarehouseDTO> {
     if (input.address?.countryCode) {
       await this.validateCountry(input.address.countryCode, 'create-or-change');
     }
@@ -133,10 +139,15 @@ export class WarehouseService {
       }
       throw err;
     }
+    await this.audit('warehouse.create', row, null, snapshotOf(row), auditCtx);
     return this.toDTO(row);
   }
 
-  async update(id: string, input: UpdateWarehouseInput): Promise<WarehouseDTO> {
+  async update(
+    id: string,
+    input: UpdateWarehouseInput,
+    auditCtx?: InventoryAuditContext,
+  ): Promise<WarehouseDTO> {
     const em = this.emFactory();
     const row = await em.findOne(Warehouse, { id });
     if (!row) throw new HttpError(404, 'WAREHOUSE_NOT_FOUND', 'Warehouse not found');
@@ -147,6 +158,8 @@ export class WarehouseService {
         dispatchValidatorMode(row.address?.countryCode, input.address.countryCode),
       );
     }
+    const before = snapshotOf(row);
+    const activeBefore = row.active;
     if (input.name !== undefined) row.name = input.name;
     if (input.active !== undefined) row.active = input.active;
     if (input.description !== undefined) row.description = input.description;
@@ -157,6 +170,23 @@ export class WarehouseService {
       row.contactPhone = input.contact?.phone ?? null;
     }
     await em.persistAndFlush(row);
+    // Feature 024 — emit deactivate / reactivate when the only meaningful
+    // change was the active flip; otherwise emit a plain `warehouse.update`.
+    const after = snapshotOf(row);
+    const activeFlipped = activeBefore !== row.active;
+    const isPureActiveFlip =
+      activeFlipped &&
+      input.name === undefined &&
+      input.description === undefined &&
+      input.address === undefined &&
+      input.contact === undefined;
+    if (isPureActiveFlip && row.active) {
+      await this.audit('warehouse.reactivate', row, before, after, auditCtx);
+    } else if (isPureActiveFlip && !row.active) {
+      await this.audit('warehouse.deactivate', row, before, after, auditCtx);
+    } else {
+      await this.audit('warehouse.update', row, before, after, auditCtx);
+    }
     return this.toDTO(row);
   }
 
@@ -182,12 +212,36 @@ export class WarehouseService {
     }
   }
 
-  async deactivate(id: string): Promise<WarehouseDTO> {
-    return this.update(id, { active: false });
+  async deactivate(id: string, auditCtx?: InventoryAuditContext): Promise<WarehouseDTO> {
+    return this.update(id, { active: false }, auditCtx);
   }
 
-  async reactivate(id: string): Promise<WarehouseDTO> {
-    return this.update(id, { active: true });
+  async reactivate(id: string, auditCtx?: InventoryAuditContext): Promise<WarehouseDTO> {
+    return this.update(id, { active: true }, auditCtx);
+  }
+
+  private async audit(
+    action: string,
+    row: Warehouse,
+    stateBefore: Record<string, unknown> | null,
+    stateAfter: Record<string, unknown>,
+    auditCtx?: InventoryAuditContext,
+  ): Promise<void> {
+    if (!this.auditLog || !auditCtx) return;
+    await this.auditLog.record({
+      actorAdminUserId: auditCtx.actorAdminUserId,
+      ...(auditCtx.impersonatedCustomerAccountId !== undefined
+        ? { impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId }
+        : {}),
+      action,
+      objectType: 'warehouse',
+      objectId: row.id,
+      ...(stateBefore !== null ? { stateBefore } : {}),
+      stateAfter,
+      ...(auditCtx.ipAddress !== undefined ? { ipAddress: auditCtx.ipAddress } : {}),
+      ...(auditCtx.userAgent !== undefined ? { userAgent: auditCtx.userAgent } : {}),
+      ...(auditCtx.requestId !== undefined ? { requestId: auditCtx.requestId } : {}),
+    });
   }
 
   async delete(id: string): Promise<void> {
@@ -289,4 +343,13 @@ export class WarehouseService {
       updatedAt: row.updatedAt.toISOString(),
     };
   }
+}
+
+function snapshotOf(row: Warehouse): Record<string, unknown> {
+  return {
+    name: row.name,
+    code: row.code,
+    active: row.active,
+    description: row.description ?? null,
+  };
 }

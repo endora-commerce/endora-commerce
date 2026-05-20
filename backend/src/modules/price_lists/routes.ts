@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   createPriceListEngineRequestSchema,
   patchPriceListEngineRequestSchema,
@@ -25,6 +25,31 @@ export interface PricingRoutesDeps {
   pricingService: PricingService;
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
+  /** Feature 024 — resolves admin actor identity for audit entries. */
+  resolveAdminAuditContext?: (req: FastifyRequest) => {
+    actorAdminUserId: string;
+    impersonatedCustomerAccountId?: string | null;
+  };
+}
+
+function buildAuditCtx(
+  request: FastifyRequest,
+  resolver:
+    | ((req: FastifyRequest) => { actorAdminUserId: string; impersonatedCustomerAccountId?: string | null })
+    | undefined,
+) {
+  const base = resolver?.(request);
+  if (!base) return undefined;
+  return {
+    actorAdminUserId: base.actorAdminUserId,
+    impersonatedCustomerAccountId: base.impersonatedCustomerAccountId ?? null,
+    ipAddress: request.ip ?? null,
+    userAgent:
+      typeof request.headers['user-agent'] === 'string'
+        ? request.headers['user-agent']
+        : null,
+    requestId: request.id,
+  };
 }
 
 export async function registerPricingRoutes(
@@ -112,13 +137,16 @@ export async function registerPricingRoutes(
     },
     async (request, reply) => {
       const body = createPriceListEngineRequestSchema.parse(request.body);
-      const row = await priceListService.create({
-        name: body.name,
-        type: body.type,
-        startsAt: body.startsAt ? new Date(body.startsAt) : null,
-        endsAt: body.endsAt ? new Date(body.endsAt) : null,
-        ...(body.applicationRule !== undefined ? { applicationRule: body.applicationRule } : {}),
-      });
+      const row = await priceListService.create(
+        {
+          name: body.name,
+          type: body.type,
+          startsAt: body.startsAt ? new Date(body.startsAt) : null,
+          endsAt: body.endsAt ? new Date(body.endsAt) : null,
+          ...(body.applicationRule !== undefined ? { applicationRule: body.applicationRule } : {}),
+        },
+        buildAuditCtx(request, deps.resolveAdminAuditContext),
+      );
       reply.status(201);
       return { data: serializePriceListEngine(row) };
     },
@@ -138,7 +166,11 @@ export async function registerPricingRoutes(
       if (body.startsAt !== undefined) patch.startsAt = body.startsAt ? new Date(body.startsAt) : null;
       if (body.endsAt !== undefined) patch.endsAt = body.endsAt ? new Date(body.endsAt) : null;
       if (body.applicationRule !== undefined) patch.applicationRule = body.applicationRule;
-      const row = await priceListService.patch(request.params.id, patch);
+      const row = await priceListService.patch(
+        request.params.id,
+        patch,
+        buildAuditCtx(request, deps.resolveAdminAuditContext),
+      );
       return { data: serializePriceListEngine(row) };
     },
   );
@@ -156,7 +188,10 @@ export async function registerPricingRoutes(
     '/api/v1/admin/price-lists-engine/:id/activate',
     { preHandler: requireAdmin('catalog:write') },
     async (request) => {
-      const row = await priceListService.activate(request.params.id);
+      const row = await priceListService.activate(
+        request.params.id,
+        buildAuditCtx(request, deps.resolveAdminAuditContext),
+      );
       return { data: serializePriceListEngine(row) };
     },
   );
@@ -165,7 +200,10 @@ export async function registerPricingRoutes(
     '/api/v1/admin/price-lists-engine/:id/draftify',
     { preHandler: requireAdmin('catalog:write') },
     async (request) => {
-      const row = await priceListService.draftify(request.params.id);
+      const row = await priceListService.draftify(
+        request.params.id,
+        buildAuditCtx(request, deps.resolveAdminAuditContext),
+      );
       return { data: serializePriceListEngine(row) };
     },
   );
@@ -174,7 +212,10 @@ export async function registerPricingRoutes(
     '/api/v1/admin/price-lists-engine/:id/duplicate',
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
-      const dup = await priceListService.duplicate(request.params.id);
+      const dup = await priceListService.duplicate(
+        request.params.id,
+        buildAuditCtx(request, deps.resolveAdminAuditContext),
+      );
       reply.status(201);
       return { data: serializePriceListEngine(dup) };
     },
@@ -208,7 +249,11 @@ export async function registerPricingRoutes(
     },
     async (request) => {
       const body = replaceProductsRequestSchema.parse(request.body);
-      const result = await priceListService.replaceProducts(request.params.id, body.productIds);
+      const result = await priceListService.replaceProducts(
+        request.params.id,
+        body.productIds,
+        buildAuditCtx(request, deps.resolveAdminAuditContext),
+      );
       return { data: result };
     },
   );
@@ -261,6 +306,7 @@ export async function registerPricingRoutes(
         request.params.id,
         request.params.productId,
         body.bracketsByCurrency,
+        buildAuditCtx(request, deps.resolveAdminAuditContext),
       );
       return { data: { bracketsByCurrency: out } };
     },

@@ -384,6 +384,11 @@ export async function setupBackendServer(
     // so each contract/integration case sees fresh DB state. Production
     // composition uses the default 60-s TTL.
     pricingCacheTtlMs: 0,
+    auditLogService,
+    resolveAdminAuditContext: (request) => ({
+      actorAdminUserId:
+        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+    }),
   });
 
   // Taxes (T128 / FR-051) + Promotions (T129 / FR-052).
@@ -486,6 +491,11 @@ export async function setupBackendServer(
       resolveCustomerContext: customerResolver,
       requireAdmin: requireTestAdmin(permissionService),
       dictionaryValidator: dictionaries.handle.validator,
+      auditLogService,
+      resolveAdminAuditContext: (request) => ({
+        actorAdminUserId:
+          request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+      }),
     }),
   ];
 

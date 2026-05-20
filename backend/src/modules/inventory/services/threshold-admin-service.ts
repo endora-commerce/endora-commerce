@@ -3,6 +3,8 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { InventoryThreshold } from '../entities/inventory-threshold.entity.js';
 import { Category } from '../../catalog/entities/category.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { InventoryAuditContext } from '../plugin.js';
 
 export interface ThresholdTriple {
   high: number | null;
@@ -40,7 +42,10 @@ export interface ThresholdsPatch {
  * with the category row keep the storefront resolver one query light.
  */
 export class ThresholdAdminService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
 
   async read(): Promise<ThresholdsView> {
     const em = this.emFactory();
@@ -80,7 +85,10 @@ export class ThresholdAdminService {
     return { global, perCategory, perProduct };
   }
 
-  async patch(input: ThresholdsPatch): Promise<ThresholdsView> {
+  async patch(
+    input: ThresholdsPatch,
+    auditCtx?: InventoryAuditContext,
+  ): Promise<ThresholdsView> {
     const em = this.emFactory();
 
     if (input.global) {
@@ -97,7 +105,32 @@ export class ThresholdAdminService {
       }
     }
     await em.flush();
-    return this.read();
+    const view = await this.read();
+
+    // Feature 024 — audit threshold patches as a single
+    // `low_stock_threshold.update` row per request. Bulk patches across
+    // global / perCategory / perProduct collapse into one summary row so
+    // the dashboard isn't flooded (FR-011, SC-010).
+    if (this.auditLog && auditCtx) {
+      const touched: Record<string, unknown> = {};
+      if (input.global) touched['global'] = input.global;
+      if (input.perCategory) touched['perCategoryCount'] = input.perCategory.length;
+      if (input.perProduct) touched['perProductCount'] = input.perProduct.length;
+      await this.auditLog.record({
+        actorAdminUserId: auditCtx.actorAdminUserId,
+        ...(auditCtx.impersonatedCustomerAccountId !== undefined
+          ? { impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId }
+          : {}),
+        action: 'low_stock_threshold.update',
+        objectType: 'low_stock_threshold',
+        objectId: 'global',
+        stateAfter: touched,
+        ...(auditCtx.ipAddress !== undefined ? { ipAddress: auditCtx.ipAddress } : {}),
+        ...(auditCtx.userAgent !== undefined ? { userAgent: auditCtx.userAgent } : {}),
+        ...(auditCtx.requestId !== undefined ? { requestId: auditCtx.requestId } : {}),
+      });
+    }
+    return view;
   }
 
   private async applyGlobal(em: EntityManager, patch: ThresholdTriplePartial): Promise<void> {

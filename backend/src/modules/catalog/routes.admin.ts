@@ -191,7 +191,22 @@ export async function registerCatalogAdminRoutes(
     },
     async (request, reply) => {
       const body = createProductRequestSchema.parse(request.body);
-      const product = await adminService.createProduct(body);
+      const auditCtx = deps.resolveAdminAuditContext?.(request);
+      const product = await adminService.createProduct(
+        body,
+        auditCtx
+          ? {
+              actorAdminUserId: auditCtx.actorAdminUserId,
+              impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId ?? null,
+              ipAddress: request.ip ?? null,
+              userAgent:
+                typeof request.headers['user-agent'] === 'string'
+                  ? request.headers['user-agent']
+                  : null,
+              requestId: request.id,
+            }
+          : undefined,
+      );
       reply.status(201);
       return { data: serializeAdminProduct(product) };
     },
@@ -230,7 +245,22 @@ export async function registerCatalogAdminRoutes(
     '/api/v1/admin/catalog/products/:id',
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
-      await adminService.archiveProduct(request.params.id);
+      const auditCtx = deps.resolveAdminAuditContext?.(request);
+      await adminService.archiveProduct(
+        request.params.id,
+        auditCtx
+          ? {
+              actorAdminUserId: auditCtx.actorAdminUserId,
+              impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId ?? null,
+              ipAddress: request.ip ?? null,
+              userAgent:
+                typeof request.headers['user-agent'] === 'string'
+                  ? request.headers['user-agent']
+                  : null,
+              requestId: request.id,
+            }
+          : undefined,
+      );
       reply.status(204).send();
     },
   );

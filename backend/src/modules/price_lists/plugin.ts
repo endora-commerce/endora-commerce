@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { CustomerGroupService } from './services/customer-group-service.js';
 import { PriceListService } from './services/price-list-service.js';
@@ -8,8 +8,17 @@ import { PricingCache } from './services/pricing-cache.js';
 import { registerPricingRoutes } from './routes.js';
 import { registerStorefrontPricingRoutes } from './routes.storefront.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 
 const STATUS_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+
+export interface PriceListsAuditContext {
+  actorAdminUserId: string;
+  impersonatedCustomerAccountId?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  requestId?: string | null;
+}
 
 export interface PriceListsModuleOptions {
   emFactory: () => EntityManager;
@@ -24,6 +33,13 @@ export interface PriceListsModuleOptions {
   enableStatusSweeper?: boolean;
   /** Pass `0` to disable the in-memory pricing LRU (tests). */
   pricingCacheTtlMs?: number;
+  /** Feature 024 — optional cross-module hook so price-list mutations land in the audit log. */
+  auditLogService?: AuditLogService;
+  /** Feature 024 — resolves the admin actor identity for audit entries. */
+  resolveAdminAuditContext?: (req: FastifyRequest) => {
+    actorAdminUserId: string;
+    impersonatedCustomerAccountId?: string | null;
+  };
 }
 
 export interface PriceListsModuleHandle {
@@ -41,7 +57,11 @@ export function priceListsModule(options: PriceListsModuleOptions): {
   const pricingCache = new PricingCache<Awaited<ReturnType<PricingService['resolveEngine']>>>(
     options.pricingCacheTtlMs !== undefined ? { ttlMs: options.pricingCacheTtlMs } : {},
   );
-  const priceListService = new PriceListService(options.emFactory, pricingCache);
+  const priceListService = new PriceListService(
+    options.emFactory,
+    pricingCache,
+    options.auditLogService,
+  );
   const pricingService = new PricingService(options.emFactory, pricingCache);
   const statusWorker = new PriceListStatusWorker(options.emFactory);
 
@@ -54,6 +74,9 @@ export function priceListsModule(options: PriceListsModuleOptions): {
         pricingService,
         emFactory: options.emFactory,
         requireAdmin: options.requireAdmin,
+        ...(options.resolveAdminAuditContext
+          ? { resolveAdminAuditContext: options.resolveAdminAuditContext }
+          : {}),
       });
       await registerStorefrontPricingRoutes(app, {
         priceListService,

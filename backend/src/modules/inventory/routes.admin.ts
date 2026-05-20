@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import {
@@ -41,6 +41,32 @@ export interface InventoryAdminDeps {
   availabilityNotificationService: AvailabilityNotificationService;
   csvStockImporter: CsvStockImporter;
   requireAdmin: RequireAdminFactory;
+  /** Feature 024 — resolves admin actor identity for audit entries. */
+  resolveAdminAuditContext?: (req: FastifyRequest) => {
+    actorAdminUserId: string;
+    impersonatedCustomerAccountId?: string | null;
+  };
+}
+
+/** Build the per-request audit context for inventory route handlers. */
+function buildAuditCtx(
+  request: FastifyRequest,
+  resolver:
+    | ((req: FastifyRequest) => { actorAdminUserId: string; impersonatedCustomerAccountId?: string | null })
+    | undefined,
+) {
+  const base = resolver?.(request);
+  if (!base) return undefined;
+  return {
+    actorAdminUserId: base.actorAdminUserId,
+    impersonatedCustomerAccountId: base.impersonatedCustomerAccountId ?? null,
+    ipAddress: request.ip ?? null,
+    userAgent:
+      typeof request.headers['user-agent'] === 'string'
+        ? request.headers['user-agent']
+        : null,
+    requestId: request.id,
+  };
 }
 
 const setLegacyStockLevelSchema = z.object({
@@ -111,12 +137,15 @@ export async function registerInventoryAdminRoutes(
     },
     async (request) => {
       const body = setStockLevelRequestSchema.parse(request.body);
-      const data = await stockLevelService.setOnHand({
-        productId: body.productId,
-        warehouseId: body.warehouseId,
-        ...(body.variantId ? { variantId: body.variantId } : {}),
-        onHand: body.onHand,
-      });
+      const data = await stockLevelService.setOnHand(
+        {
+          productId: body.productId,
+          warehouseId: body.warehouseId,
+          ...(body.variantId ? { variantId: body.variantId } : {}),
+          onHand: body.onHand,
+        },
+        buildAuditCtx(request, deps.resolveAdminAuditContext),
+      );
       return { data };
     },
   );
@@ -168,14 +197,17 @@ export async function registerInventoryAdminRoutes(
     },
     async (request, reply) => {
       const body = createWarehouseRequestSchema.parse(request.body);
-      const data = await warehouseService.create({
-        name: body.name,
-        code: body.code,
-        ...(body.active !== undefined ? { active: body.active } : {}),
-        ...(body.description !== undefined ? { description: body.description ?? null } : {}),
-        ...(body.address !== undefined ? { address: body.address ?? null } : {}),
-        ...(body.contact !== undefined ? { contact: body.contact ?? null } : {}),
-      });
+      const data = await warehouseService.create(
+        {
+          name: body.name,
+          code: body.code,
+          ...(body.active !== undefined ? { active: body.active } : {}),
+          ...(body.description !== undefined ? { description: body.description ?? null } : {}),
+          ...(body.address !== undefined ? { address: body.address ?? null } : {}),
+          ...(body.contact !== undefined ? { contact: body.contact ?? null } : {}),
+        },
+        buildAuditCtx(request, deps.resolveAdminAuditContext),
+      );
       reply.status(201);
       return { data };
     },
@@ -190,13 +222,17 @@ export async function registerInventoryAdminRoutes(
     async (request) => {
       const { id } = request.params as { id: string };
       const body = updateWarehouseRequestSchema.parse(request.body);
-      const data = await warehouseService.update(id, {
-        ...(body.name !== undefined ? { name: body.name } : {}),
-        ...(body.active !== undefined ? { active: body.active } : {}),
-        ...(body.description !== undefined ? { description: body.description ?? null } : {}),
-        ...(body.address !== undefined ? { address: body.address ?? null } : {}),
-        ...(body.contact !== undefined ? { contact: body.contact ?? null } : {}),
-      });
+      const data = await warehouseService.update(
+        id,
+        {
+          ...(body.name !== undefined ? { name: body.name } : {}),
+          ...(body.active !== undefined ? { active: body.active } : {}),
+          ...(body.description !== undefined ? { description: body.description ?? null } : {}),
+          ...(body.address !== undefined ? { address: body.address ?? null } : {}),
+          ...(body.contact !== undefined ? { contact: body.contact ?? null } : {}),
+        },
+        buildAuditCtx(request, deps.resolveAdminAuditContext),
+      );
       return { data };
     },
   );
@@ -245,11 +281,14 @@ export async function registerInventoryAdminRoutes(
     },
     async (request) => {
       const body = patchInventoryThresholdsRequestSchema.parse(request.body);
-      const data = await thresholdAdminService.patch({
-        ...(body.global ? { global: body.global } : {}),
-        ...(body.perCategory ? { perCategory: body.perCategory } : {}),
-        ...(body.perProduct ? { perProduct: body.perProduct } : {}),
-      });
+      const data = await thresholdAdminService.patch(
+        {
+          ...(body.global ? { global: body.global } : {}),
+          ...(body.perCategory ? { perCategory: body.perCategory } : {}),
+          ...(body.perProduct ? { perProduct: body.perProduct } : {}),
+        },
+        buildAuditCtx(request, deps.resolveAdminAuditContext),
+      );
       return { data };
     },
   );
@@ -274,11 +313,15 @@ export async function registerInventoryAdminRoutes(
           },
         };
       }
-      const result = await csvStockImporter.run({
-        csv: body.csv,
-        warehouseId: body.warehouseId,
-        dryRun: q['dryRun'] === 'true',
-      });
+      const result = await csvStockImporter.run(
+        {
+          csv: body.csv,
+          warehouseId: body.warehouseId,
+          dryRun: q['dryRun'] === 'true',
+          ...(q['fileName'] !== undefined ? { fileName: q['fileName'] } : {}),
+        },
+        buildAuditCtx(request, deps.resolveAdminAuditContext),
+      );
       return { data: result };
     },
   );

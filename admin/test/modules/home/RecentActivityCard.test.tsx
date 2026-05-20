@@ -184,4 +184,34 @@ describe('<RecentActivityCard />', () => {
     const link = await screen.findByRole('link', { name: 'home.activity.viewAll' });
     expect(link.getAttribute('href')).toBe('/audit-logs');
   });
+
+  it('renders a summary tooltip on bulk rows (never raw JSON)', async () => {
+    getSpy.mockResolvedValue({
+      data: [
+        {
+          id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          actedAt: new Date().toISOString(),
+          action: 'stock_level.bulk_import',
+          module: 'inventory',
+          actorDisplayName: 'Tomasz W.',
+          actorKind: 'admin',
+          targetType: 'bulk_operation',
+          targetId: 'bulkop-1',
+          targetDisplayName: 'stock.csv → wh-main',
+          targetUrl: null,
+          summary: { rowsProcessed: 2480, rowsSkipped: 3, rowsErrored: 0 },
+        },
+      ],
+      pagination: { limit: 8, fetchedAt: '' },
+    });
+    renderCard();
+    const row = await screen.findByTestId('recent-activity-row');
+    const title = row.getAttribute('title');
+    expect(title).toBeTruthy();
+    expect(title).toContain('rowsProcessed: 2480');
+    expect(title).toContain('rowsSkipped: 3');
+    // Must NOT be raw JSON.
+    expect(title).not.toContain('{');
+    expect(title).not.toContain('}');
+  });
 });

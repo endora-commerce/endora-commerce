@@ -4,11 +4,16 @@ import type { EventBus } from '../../../events/bus.js';
 import { randomUUID } from 'crypto';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { StockLevel } from '../entities/stock-level.entity.js';
+import { Warehouse } from '../entities/warehouse.entity.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { InventoryAuditContext } from '../plugin.js';
 
 export interface CsvImportInput {
   csv: string;
   warehouseId: string;
   dryRun?: boolean;
+  /** Optional original filename — surfaces in the audit row summary. */
+  fileName?: string | null;
 }
 
 /**
@@ -35,9 +40,13 @@ export class CsvStockImporter {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly eventBus?: EventBus,
+    private readonly auditLog?: AuditLogService,
   ) {}
 
-  async run(input: CsvImportInput): Promise<StockImportResult> {
+  async run(
+    input: CsvImportInput,
+    auditCtx?: InventoryAuditContext,
+  ): Promise<StockImportResult> {
     const lines = input.csv.split(/\r?\n/);
     const errors: StockImportError[] = [];
     let rowsRead = 0;
@@ -128,6 +137,32 @@ export class CsvStockImporter {
           after: onHand,
         } as never);
       }
+    }
+
+    // Feature 024 — single summary audit row per CSV import, never per
+    // CSV line. Dry runs are not audited (no state changed).
+    if (this.auditLog && auditCtx && !input.dryRun && rowsApplied > 0) {
+      const warehouse = await em.findOne(Warehouse, { id: input.warehouseId });
+      await this.auditLog.record({
+        actorAdminUserId: auditCtx.actorAdminUserId,
+        ...(auditCtx.impersonatedCustomerAccountId !== undefined
+          ? { impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId }
+          : {}),
+        action: 'stock_level.bulk_import',
+        objectType: 'bulk_operation',
+        objectId: randomUUID(),
+        stateAfter: {
+          warehouseId: input.warehouseId,
+          warehouseCode: warehouse?.code ?? null,
+          fileName: input.fileName ?? null,
+          rowsProcessed: rowsApplied,
+          rowsSkipped,
+          rowsErrored: errors.length,
+        },
+        ...(auditCtx.ipAddress !== undefined ? { ipAddress: auditCtx.ipAddress } : {}),
+        ...(auditCtx.userAgent !== undefined ? { userAgent: auditCtx.userAgent } : {}),
+        ...(auditCtx.requestId !== undefined ? { requestId: auditCtx.requestId } : {}),
+      });
     }
 
     return { rowsRead, rowsApplied, rowsSkipped, errors };
