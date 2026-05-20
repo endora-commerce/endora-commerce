@@ -27,6 +27,7 @@ export class Product {
     | 'manageStock'
     | 'backorderEnabled'
     | 'lowStockThreshold'
+    | 'lowStockThresholdMode'
     | 'fulfilmentStrategy'
     | 'fulfilmentStrategyWarehouseOrder';
 
@@ -128,9 +129,21 @@ export class Product {
   backorderEnabled: boolean = false;
 
   /** Optional integer; when null the product is exempt from
-   *  low-stock alerts (FR-013). */
+   *  low-stock alerts (FR-013). Used in `cumulative` mode against the
+   *  product's total on-hand across all warehouses. */
   @Property({ type: 'integer', nullable: true })
   lowStockThreshold?: number | null;
+
+  /**
+   * Determines how `lowStockThreshold` is interpreted:
+   *  - `cumulative` (default): one threshold applied to the cumulative
+   *    on-hand across every warehouse holding stock for the product.
+   *  - `per_warehouse`: the per-(product, warehouse) rows in
+   *    `product_warehouse_low_stock_thresholds` are consulted instead,
+   *    each warehouse evaluated independently against its own threshold.
+   */
+  @Property({ type: 'string', length: 16 })
+  lowStockThresholdMode: 'cumulative' | 'per_warehouse' = 'cumulative';
 
   /** Per-product override of the global fulfilment strategy (FR-030). */
   @Property({ type: 'string', length: 32, nullable: true })

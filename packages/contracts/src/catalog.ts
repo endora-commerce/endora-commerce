@@ -454,6 +454,14 @@ const baseProductRequestObject = z.object({
   manageStock: z.boolean().optional(),
   backorderEnabled: z.boolean().optional(),
   lowStockThreshold: z.number().int().nonnegative().nullable().optional(),
+  /**
+   * Determines how `lowStockThreshold` is interpreted.
+   *  - `'cumulative'`: one threshold against the cumulative on-hand.
+   *  - `'per_warehouse'`: per-(product, warehouse) thresholds maintained
+   *    via the inventory admin surface; the value of `lowStockThreshold`
+   *    is then unused.
+   */
+  lowStockThresholdMode: z.enum(['cumulative', 'per_warehouse']).optional(),
   fulfilmentStrategy: z
     .enum(['any', 'default_first', 'lowest_stock_first', 'highest_stock_first', 'defined_order'])
     .nullable()

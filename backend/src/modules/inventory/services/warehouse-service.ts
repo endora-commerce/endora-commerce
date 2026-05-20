@@ -24,6 +24,7 @@ export interface CreateWarehouseInput {
   description?: string | null;
   address?: WarehouseAddress | null;
   contact?: WarehouseContact | null;
+  defaultLowStockThreshold?: number | null;
 }
 
 export interface UpdateWarehouseInput {
@@ -32,6 +33,7 @@ export interface UpdateWarehouseInput {
   description?: string | null;
   address?: WarehouseAddress | null;
   contact?: WarehouseContact | null;
+  defaultLowStockThreshold?: number | null;
 }
 
 export interface WarehouseTotals {
@@ -48,6 +50,7 @@ export interface WarehouseDTO {
   description: string | null;
   address: WarehouseAddress | null;
   contact: WarehouseContact | null;
+  defaultLowStockThreshold: number | null;
   totals?: WarehouseTotals;
   createdAt: string;
   updatedAt: string;
@@ -124,6 +127,7 @@ export class WarehouseService {
       contactName: input.contact?.name ?? null,
       contactEmail: input.contact?.email ?? null,
       contactPhone: input.contact?.phone ?? null,
+      defaultLowStockThreshold: input.defaultLowStockThreshold ?? null,
     });
     try {
       await em.persistAndFlush(row);
@@ -155,6 +159,9 @@ export class WarehouseService {
       row.contactName = input.contact?.name ?? null;
       row.contactEmail = input.contact?.email ?? null;
       row.contactPhone = input.contact?.phone ?? null;
+    }
+    if (input.defaultLowStockThreshold !== undefined) {
+      row.defaultLowStockThreshold = input.defaultLowStockThreshold;
     }
     await em.persistAndFlush(row);
     return this.toDTO(row);
@@ -284,6 +291,7 @@ export class WarehouseService {
       description: row.description ?? null,
       address: row.address ?? null,
       contact,
+      defaultLowStockThreshold: row.defaultLowStockThreshold ?? null,
       ...(totals ? { totals } : {}),
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

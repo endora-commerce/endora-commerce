@@ -32,6 +32,8 @@ export interface PerWarehouseStockRow {
   warehouseCode: string;
   onHand: number;
   reserved: number;
+  /** Effective low-stock threshold resolved per-warehouse (see roster docs). */
+  lowStockThreshold: number | null;
 }
 
 export interface StockLevelRow {
@@ -41,6 +43,7 @@ export interface StockLevelRow {
   manageStock: boolean;
   backorderEnabled: boolean;
   lowStockThreshold: number | null;
+  lowStockThresholdMode: 'cumulative' | 'per_warehouse';
   perWarehouse: PerWarehouseStockRow[];
   cumulativeOnHand: number;
   displayBand: DisplayBand;
@@ -252,6 +255,26 @@ export class StockLevelService {
 
     const globalThresholds = await this.loadGlobalThresholds(em);
 
+    // Pull every per-(product, warehouse) low-stock threshold for the
+    // candidate products in a single round-trip. `null` means there is
+    // no explicit row; callers fall back to the warehouse default.
+    const perWarehouseThresholdRows = (await knex('product_warehouse_low_stock_thresholds')
+      .whereIn('product_id', productIds)
+      .select<
+        Array<{ product_id: string; warehouse_id: string; threshold: number | string }>
+      >('product_id', 'warehouse_id', 'threshold')) as Array<{
+      product_id: string;
+      warehouse_id: string;
+      threshold: number | string;
+    }>;
+    const explicitPerWarehouseThreshold = new Map<string, number>();
+    for (const row of perWarehouseThresholdRows) {
+      explicitPerWarehouseThreshold.set(
+        `${row.product_id}:${row.warehouse_id}`,
+        Number(row.threshold),
+      );
+    }
+
     const items: StockLevelRow[] = [];
     for (const productId of productIds) {
       const product = productById.get(productId);
@@ -291,32 +314,149 @@ export class StockLevelService {
           ? Object.values(product.name)[0]
           : product.sku) ?? product.sku;
 
+      const mode = product.lowStockThresholdMode ?? 'cumulative';
+
+      // Resolve the effective low-stock threshold per warehouse:
+      //   1. explicit row in `product_warehouse_low_stock_thresholds`
+      //   2. `warehouses.default_low_stock_threshold`
+      //   3. null (no threshold for that warehouse)
+      // Surfaced regardless of mode so the admin UI can show / edit it.
+      const perWarehouseWithThreshold = productCumulative.map((r) => {
+        const explicit = explicitPerWarehouseThreshold.get(
+          `${productId}:${r.warehouse_id}`,
+        );
+        const wh = warehouseById.get(r.warehouse_id);
+        const resolved =
+          explicit !== undefined ? explicit : wh?.defaultLowStockThreshold ?? null;
+        return {
+          warehouseId: r.warehouse_id,
+          warehouseCode: wh?.code ?? '',
+          onHand: Number(r.on_hand ?? 0),
+          reserved: Number(r.reserved ?? 0),
+          lowStockThreshold: resolved,
+        };
+      });
+
+      // Top-level `lowStockThreshold` + `isLowStock` semantics depend on mode:
+      //  - cumulative: one threshold against summed on-hand. Falls back to the
+      //    MAX(warehouse.defaultLowStockThreshold) across the product's
+      //    warehouses (most-permissive wins) when the product has none.
+      //  - per_warehouse: each warehouse evaluated independently; product is
+      //    "low" if ANY warehouse has on_hand > 0 and on_hand <= its threshold.
+      let topLevelThreshold: number | null;
+      let isLowStock = false;
+      if (mode === 'per_warehouse') {
+        topLevelThreshold = product.lowStockThreshold ?? null;
+        for (const pw of perWarehouseWithThreshold) {
+          if (
+            pw.lowStockThreshold !== null &&
+            pw.onHand > 0 &&
+            pw.onHand <= pw.lowStockThreshold
+          ) {
+            isLowStock = true;
+            break;
+          }
+        }
+      } else {
+        let effective = product.lowStockThreshold ?? null;
+        if (effective == null) {
+          let warehouseFallback: number | null = null;
+          for (const pw of perWarehouseWithThreshold) {
+            const wh = warehouseById.get(pw.warehouseId);
+            const wt = wh?.defaultLowStockThreshold ?? null;
+            if (wt != null && (warehouseFallback == null || wt > warehouseFallback)) {
+              warehouseFallback = wt;
+            }
+          }
+          effective = warehouseFallback;
+        }
+        topLevelThreshold = effective;
+        isLowStock =
+          effective !== null &&
+          cumulativeOnHand > 0 &&
+          cumulativeOnHand <= effective;
+      }
+
       items.push({
         productId,
         productSku: product.sku,
         productName: String(productName),
         manageStock: product.manageStock ?? true,
         backorderEnabled: product.backorderEnabled ?? false,
-        lowStockThreshold: product.lowStockThreshold ?? null,
-        perWarehouse: productCumulative.map((r) => ({
-          warehouseId: r.warehouse_id,
-          warehouseCode: warehouseById.get(r.warehouse_id)?.code ?? '',
-          onHand: Number(r.on_hand ?? 0),
-          reserved: Number(r.reserved ?? 0),
-        })),
+        lowStockThreshold: topLevelThreshold,
+        lowStockThresholdMode: mode,
+        perWarehouse: perWarehouseWithThreshold,
         cumulativeOnHand,
         displayBand,
-        isLowStock:
-          (product.manageStock ?? true) &&
-          product.lowStockThreshold !== null &&
-          product.lowStockThreshold !== undefined &&
-          cumulativeOnHand > 0 &&
-          cumulativeOnHand <= product.lowStockThreshold,
+        isLowStock: (product.manageStock ?? true) && isLowStock,
         isOutOfStock: (product.manageStock ?? true) && cumulativeOnHand <= 0,
       });
     }
 
     return { items, page, pageSize, total };
+  }
+
+  /**
+   * Replace the per-warehouse low-stock threshold map for one product.
+   * Entries with `threshold === null` are deleted; the rest are upserted.
+   * Warehouse rows not mentioned in `entries` are left untouched (callers
+   * that want a hard replace should explicitly include `threshold: null`
+   * for every (product, warehouse) they wish to clear).
+   */
+  async setProductWarehouseThresholds(input: {
+    productId: string;
+    entries: Array<{ warehouseId: string; threshold: number | null }>;
+  }): Promise<void> {
+    const em = this.emFactory();
+    const product = await em.findOne(Product, { id: input.productId });
+    if (!product) {
+      throw new HttpError(404, 'PRODUCT_NOT_FOUND', 'Product not found');
+    }
+    if (input.entries.length === 0) return;
+
+    const warehouseIds = input.entries.map((e) => e.warehouseId);
+    const warehouses = await em.find(Warehouse, { id: { $in: warehouseIds } });
+    const knownWarehouseIds = new Set(warehouses.map((w) => w.id));
+    for (const e of input.entries) {
+      if (!knownWarehouseIds.has(e.warehouseId)) {
+        throw new HttpError(
+          404,
+          'WAREHOUSE_NOT_FOUND',
+          `Warehouse ${e.warehouseId} not found`,
+        );
+      }
+    }
+
+    const conn = em.getConnection();
+    const txCtx = em.getTransactionContext();
+    const deletes = input.entries.filter((e) => e.threshold === null);
+    const upserts = input.entries.filter(
+      (e): e is { warehouseId: string; threshold: number } => e.threshold !== null,
+    );
+
+    if (deletes.length > 0) {
+      const placeholders = deletes.map(() => '?').join(',');
+      await conn.execute(
+        `delete from "product_warehouse_low_stock_thresholds"
+           where "product_id" = ? and "warehouse_id" in (${placeholders})`,
+        [input.productId, ...deletes.map((d) => d.warehouseId)],
+        'run',
+        txCtx,
+      );
+    }
+    for (const u of upserts) {
+      await conn.execute(
+        `insert into "product_warehouse_low_stock_thresholds"
+           ("product_id", "warehouse_id", "threshold", "created_at", "updated_at")
+           values (?, ?, ?, now(), now())
+         on conflict ("product_id", "warehouse_id") do update
+           set "threshold" = excluded."threshold",
+               "updated_at" = now()`,
+        [input.productId, u.warehouseId, u.threshold],
+        'run',
+        txCtx,
+      );
+    }
   }
 
   async setOnHand(input: SetOnHandInput): Promise<SetOnHandResult> {

@@ -300,6 +300,10 @@ export class CatalogAdminService {
       product.lowStockThreshold = req.lowStockThreshold;
       changedFields.push('lowStockThreshold');
     }
+    if (req.lowStockThresholdMode !== undefined) {
+      product.lowStockThresholdMode = req.lowStockThresholdMode;
+      changedFields.push('lowStockThresholdMode');
+    }
     if (req.fulfilmentStrategy !== undefined) {
       product.fulfilmentStrategy = req.fulfilmentStrategy;
       changedFields.push('fulfilmentStrategy');
@@ -344,6 +348,281 @@ export class CatalogAdminService {
       changedFields,
     });
     return product;
+  }
+
+  /**
+   * Duplicate an existing Product: copies the core row plus bridge tables
+   * (categories, sales-channel memberships, gallery items + labels,
+   * attachments, related/up-sell/cross-sell links, grouped children,
+   * bundle slots + options, variants).
+   *
+   * The duplicated row gets a fresh UUID; the SKU is derived from the
+   * source by appending `-copy`, then `-copy-2`, `-copy-3`, … until a
+   * free slot is found. Status is reset to `'draft'` and `archivedAt`
+   * is cleared so the operator can review before publishing.
+   *
+   * Variants have their own globally-unique SKUs; each is suffixed in
+   * the same way against the variant SKU space.
+   */
+  async duplicateProduct(id: string): Promise<Product> {
+    const em = this.emFactory();
+    const source = await em.findOne(Product, { id });
+    if (!source) {
+      throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+    }
+
+    const newSku = await this.allocateCopySku(em, source.sku);
+    const newSlug = await this.allocateCopySlug(em, source.slug);
+
+    const dup = em.create(Product, {
+      sku: newSku,
+      slug: newSlug,
+      type: source.type,
+      status: 'draft',
+      name: this.suffixCopyNames(source.name),
+      description: { ...source.description },
+      stockMode: source.stockMode ?? null,
+      visibility: source.visibility,
+      attributeValues: { ...source.attributeValues },
+      allowedOrganizationIds: [...source.allowedOrganizationIds],
+      attributeSetId: source.attributeSetId,
+      ...(source.downloadAssetId !== undefined && source.downloadAssetId !== null
+        ? { downloadAssetId: source.downloadAssetId }
+        : {}),
+      ...(source.downloadUrl !== undefined && source.downloadUrl !== null
+        ? { downloadUrl: source.downloadUrl }
+        : {}),
+      manageStock: source.manageStock,
+      backorderEnabled: source.backorderEnabled,
+      ...(source.lowStockThreshold !== undefined && source.lowStockThreshold !== null
+        ? { lowStockThreshold: source.lowStockThreshold }
+        : {}),
+      lowStockThresholdMode: source.lowStockThresholdMode,
+      ...(source.fulfilmentStrategy !== undefined && source.fulfilmentStrategy !== null
+        ? { fulfilmentStrategy: source.fulfilmentStrategy }
+        : {}),
+      ...(source.fulfilmentStrategyWarehouseOrder !== undefined &&
+      source.fulfilmentStrategyWarehouseOrder !== null
+        ? {
+            fulfilmentStrategyWarehouseOrder: [
+              ...source.fulfilmentStrategyWarehouseOrder,
+            ],
+          }
+        : {}),
+    });
+    await em.persistAndFlush(dup);
+
+    const conn = em.getConnection();
+
+    // product_categories (bridge)
+    await conn.execute(
+      `insert into "product_categories" ("product_id", "category_id")
+         select ?, "category_id" from "product_categories" where "product_id" = ?`,
+      [dup.id, source.id],
+    );
+
+    // sales_channel_products (bridge)
+    await conn.execute(
+      `insert into "sales_channel_products" ("sales_channel_id", "product_id")
+         select "sales_channel_id", ? from "sales_channel_products" where "product_id" = ?`,
+      [dup.id, source.id],
+    );
+
+    // gallery_items + gallery_item_labels — we need a fresh UUID per item
+    // and to rewrite the bridge rows to the new ids.
+    const galleryRows = (await conn.execute(
+      `select "id", "asset_id", "position" from "gallery_items"
+         where "product_id" = ? order by "position" asc`,
+      [source.id],
+    )) as Array<{ id: string; asset_id: string; position: number }>;
+    if (galleryRows.length > 0) {
+      const idMap = new Map<string, string>();
+      for (const row of galleryRows) {
+        const newId = randomUUID();
+        idMap.set(row.id, newId);
+        await conn.execute(
+          `insert into "gallery_items"
+             ("id", "product_id", "asset_id", "position", "created_at", "updated_at")
+             values (?, ?, ?, ?, now(), now())`,
+          [newId, dup.id, row.asset_id, row.position],
+        );
+      }
+      const labelRows = (await conn.execute(
+        `select "gallery_item_id", "label" from "gallery_item_labels"
+           where "product_id" = ?`,
+        [source.id],
+      )) as Array<{ gallery_item_id: string; label: string }>;
+      for (const lbl of labelRows) {
+        const mapped = idMap.get(lbl.gallery_item_id);
+        if (!mapped) continue;
+        await conn.execute(
+          `insert into "gallery_item_labels"
+             ("gallery_item_id", "product_id", "label") values (?, ?, ?)`,
+          [mapped, dup.id, lbl.label],
+        );
+      }
+    }
+
+    // product_attachments
+    await conn.execute(
+      `insert into "product_attachments"
+         ("id", "product_id", "asset_id", "attachment_type_id", "name", "description", "position", "created_at", "updated_at")
+         select gen_random_uuid(), ?, "asset_id", "attachment_type_id", "name", "description", "position", now(), now()
+           from "product_attachments" where "product_id" = ?`,
+      [dup.id, source.id],
+    );
+
+    // product_links (only outgoing links are copied — incoming links from
+    // other products toward the source product stay attached to the source)
+    await conn.execute(
+      `insert into "product_links"
+         ("id", "source_product_id", "target_product_id", "kind", "position", "created_at", "updated_at")
+         select gen_random_uuid(), ?, "target_product_id", "kind", "position", now(), now()
+           from "product_links" where "source_product_id" = ?`,
+      [dup.id, source.id],
+    );
+
+    // grouped_items (children of a grouped product)
+    if (source.type === 'grouped') {
+      await conn.execute(
+        `insert into "grouped_items"
+           ("id", "parent_product_id", "child_product_id", "quantity", "position", "created_at", "updated_at")
+           select gen_random_uuid(), ?, "child_product_id", "quantity", "position", now(), now()
+             from "grouped_items" where "parent_product_id" = ?`,
+        [dup.id, source.id],
+      );
+    }
+
+    // bundle_slots + bundle_slot_options
+    if (source.type === 'bundle') {
+      const slotRows = (await conn.execute(
+        `select "id", "name", "min_quantity", "max_quantity", "position"
+           from "bundle_slots" where "parent_product_id" = ?`,
+        [source.id],
+      )) as Array<{
+        id: string;
+        name: unknown;
+        min_quantity: number;
+        max_quantity: number;
+        position: number;
+      }>;
+      for (const slot of slotRows) {
+        const newSlotId = randomUUID();
+        await conn.execute(
+          `insert into "bundle_slots"
+             ("id", "parent_product_id", "name", "min_quantity", "max_quantity", "position", "created_at", "updated_at")
+             values (?, ?, ?::jsonb, ?, ?, ?, now(), now())`,
+          [
+            newSlotId,
+            dup.id,
+            JSON.stringify(slot.name),
+            slot.min_quantity,
+            slot.max_quantity,
+            slot.position,
+          ],
+        );
+        await conn.execute(
+          `insert into "bundle_slot_options"
+             ("id", "slot_id", "option_product_id", "default_quantity", "position", "created_at", "updated_at")
+             select gen_random_uuid(), ?, "option_product_id", "default_quantity", "position", now(), now()
+               from "bundle_slot_options" where "slot_id" = ?`,
+          [newSlotId, slot.id],
+        );
+      }
+    }
+
+    // product_warehouse_low_stock_thresholds — per-(product, warehouse)
+    // low-stock thresholds. Carry these over so duplicates inherit the
+    // same per-warehouse alerting profile.
+    await conn.execute(
+      `insert into "product_warehouse_low_stock_thresholds"
+         ("product_id", "warehouse_id", "threshold", "created_at", "updated_at")
+         select ?, "warehouse_id", "threshold", now(), now()
+           from "product_warehouse_low_stock_thresholds" where "product_id" = ?`,
+      [dup.id, source.id],
+    );
+
+    // product_variants (configurable products) — each variant has its own
+    // unique SKU; we allocate copies the same way as the parent SKU.
+    if (source.type === 'configurable') {
+      const variants = await em.find(ProductVariant, { parentProductId: source.id });
+      for (const v of variants) {
+        const variantSku = await this.allocateCopySku(em, v.sku);
+        const newVariant = em.create(ProductVariant, {
+          parentProductId: dup.id,
+          sku: variantSku,
+          variantAttributeValues: { ...v.variantAttributeValues },
+          ...(v.priceOverride != null ? { priceOverride: v.priceOverride } : {}),
+          ...(v.stockLevel != null ? { stockLevel: v.stockLevel } : {}),
+        });
+        em.persist(newVariant);
+      }
+      await em.flush();
+    }
+
+    this.events.emit('product.created.v1', {
+      eventId: randomUUID(),
+      occurredAt: new Date().toISOString(),
+      productId: dup.id,
+      sku: dup.sku,
+    });
+
+    return dup;
+  }
+
+  /**
+   * Find a free SKU derived from `baseSku` by appending `-copy`,
+   * `-copy-2`, `-copy-3`, … until both Product and ProductVariant tables
+   * are clear (SKUs share a global namespace per `createVariant`).
+   * Bounded by 1000 attempts so a pathological collision can't hang.
+   */
+  private async allocateCopySku(em: EntityManager, baseSku: string): Promise<string> {
+    const root = `${baseSku}-copy`;
+    for (let i = 0; i < 1000; i += 1) {
+      const candidate = i === 0 ? root : `${root}-${i + 1}`;
+      const trimmed = candidate.slice(0, 64);
+      const productHit = await em.findOne(Product, { sku: trimmed });
+      if (productHit) continue;
+      const variantHit = await em.findOne(ProductVariant, { sku: trimmed });
+      if (variantHit) continue;
+      return trimmed;
+    }
+    throw new HttpError(
+      409,
+      ERROR_CODES.SKU_ALREADY_EXISTS,
+      `Could not allocate a unique SKU derived from "${baseSku}".`,
+    );
+  }
+
+  private async allocateCopySlug(em: EntityManager, baseSlug: string): Promise<string> {
+    const root = this.slugify(`${baseSlug}-copy`);
+    for (let i = 0; i < 1000; i += 1) {
+      const candidate = i === 0 ? root : this.slugify(`${root}-${i + 1}`);
+      const hit = await em.findOne(Product, { slug: candidate });
+      if (!hit) return candidate;
+    }
+    throw new HttpError(
+      409,
+      ERROR_CODES.VALIDATION_FAILED,
+      `Could not allocate a unique slug derived from "${baseSlug}".`,
+    );
+  }
+
+  /**
+   * Multilingual `name`: tag every locale with a "(copy)" suffix so the
+   * duplicated product is obviously a clone in lists. Empty locales are
+   * left untouched.
+   */
+  private suffixCopyNames(name: Record<string, string>): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const [locale, value] of Object.entries(name)) {
+      if (!value || value.trim() === '') {
+        out[locale] = value;
+      } else {
+        out[locale] = `${value} (copy)`.slice(0, 255);
+      }
+    }
+    return out;
   }
 
   async archiveProduct(id: string): Promise<void> {

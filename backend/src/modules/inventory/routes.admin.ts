@@ -6,6 +6,7 @@ import {
   createWarehouseRequestSchema,
   patchInventoryThresholdsRequestSchema,
   patchWarehouseChannelAssignmentRequestSchema,
+  setProductWarehouseLowStockThresholdsRequestSchema,
   setStockLevelRequestSchema,
   updateWarehouseRequestSchema,
 } from '@b2b/contracts';
@@ -121,6 +122,27 @@ export async function registerInventoryAdminRoutes(
     },
   );
 
+  // Per-(product, warehouse) low-stock thresholds. Consulted only when the
+  // product runs in `lowStockThresholdMode = 'per_warehouse'`, but writeable
+  // regardless of mode so admins can pre-populate values before switching.
+  app.put(
+    '/api/v1/admin/inventory/warehouse-low-stock-thresholds',
+    {
+      preHandler: requireAdmin('catalog:write'),
+      schema: { body: setProductWarehouseLowStockThresholdsRequestSchema },
+    },
+    async (request, reply) => {
+      const body = setProductWarehouseLowStockThresholdsRequestSchema.parse(
+        request.body,
+      );
+      await stockLevelService.setProductWarehouseThresholds({
+        productId: body.productId,
+        entries: body.thresholds,
+      });
+      reply.status(204).send();
+    },
+  );
+
   // ---------------------------------------------------------------------------
   // Warehouse CRUD (US1)
   // ---------------------------------------------------------------------------
@@ -175,6 +197,9 @@ export async function registerInventoryAdminRoutes(
         ...(body.description !== undefined ? { description: body.description ?? null } : {}),
         ...(body.address !== undefined ? { address: body.address ?? null } : {}),
         ...(body.contact !== undefined ? { contact: body.contact ?? null } : {}),
+        ...(body.defaultLowStockThreshold !== undefined
+          ? { defaultLowStockThreshold: body.defaultLowStockThreshold ?? null }
+          : {}),
       });
       reply.status(201);
       return { data };
@@ -196,6 +221,9 @@ export async function registerInventoryAdminRoutes(
         ...(body.description !== undefined ? { description: body.description ?? null } : {}),
         ...(body.address !== undefined ? { address: body.address ?? null } : {}),
         ...(body.contact !== undefined ? { contact: body.contact ?? null } : {}),
+        ...(body.defaultLowStockThreshold !== undefined
+          ? { defaultLowStockThreshold: body.defaultLowStockThreshold ?? null }
+          : {}),
       });
       return { data };
     },
