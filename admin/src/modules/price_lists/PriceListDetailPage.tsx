@@ -533,7 +533,12 @@ function DetailsPanel({
 interface AdminProductSummary {
   id: string;
   sku: string;
-  name: string;
+  name: Record<string, string>;
+}
+
+function pickName(name: Record<string, string> | undefined | null, fallback = ''): string {
+  if (!name) return fallback;
+  return name['en-US'] ?? name['pl-PL'] ?? Object.values(name)[0] ?? fallback;
 }
 
 interface RosterEntry {
@@ -716,7 +721,7 @@ function ProductsAndBracketsPanel({
                     }}
                   >
                     <div style={{ fontSize: 12, fontWeight: 500 }}>
-                      {product?.name ?? e.productId.slice(0, 8)}
+                      {product ? pickName(product.name, e.productId.slice(0, 8)) : e.productId.slice(0, 8)}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--fg-muted)', display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
                       <span className="b2b-mono">{product?.sku ?? '—'}</span>
@@ -734,7 +739,7 @@ function ProductsAndBracketsPanel({
             <BracketGrid
               priceListId={priceListId}
               productId={selected.productId}
-              productName={selectedProduct.name}
+              productName={pickName(selectedProduct.name, selected.productId.slice(0, 8))}
               initial={selected.bracketsByCurrency}
               systemList={systemList}
               onSaved={(next): void => handleBracketsSaved(selected.productId, next)}
@@ -807,7 +812,7 @@ function ProductPickerDialog({
     if (existing.has(p.id)) return false;
     if (!query.trim()) return true;
     const q = query.toLowerCase();
-    return p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
+    return pickName(p.name).toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
   });
 
   return (
@@ -851,7 +856,7 @@ function ProductPickerDialog({
                     borderBottom: '1px solid var(--border-color)',
                   }}
                 >
-                  <div style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</div>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>{pickName(p.name, p.sku)}</div>
                   <div className="b2b-mono" style={{ fontSize: 11, color: 'var(--fg-muted)' }}>
                     {p.sku}
                   </div>

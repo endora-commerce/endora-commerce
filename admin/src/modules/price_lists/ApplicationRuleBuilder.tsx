@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -66,11 +66,12 @@ export function ApplicationRuleBuilder(props: {
     currency: { loading: false, options: [], error: null },
   }));
 
-  const ensurePicker = async (type: RuleCriterionType): Promise<void> => {
-    setPickers((prev) => {
-      if (prev[type].options.length > 0 || prev[type].loading) return prev;
-      return { ...prev, [type]: { ...prev[type], loading: true } };
-    });
+  const attemptedRef = useRef<Set<RuleCriterionType>>(new Set());
+
+  const ensurePicker = useCallback(async (type: RuleCriterionType): Promise<void> => {
+    if (attemptedRef.current.has(type)) return;
+    attemptedRef.current.add(type);
+    setPickers((prev) => ({ ...prev, [type]: { ...prev[type], loading: true } }));
     try {
       const options = await loadPicker(type);
       setPickers((prev) => ({ ...prev, [type]: { loading: false, options, error: null } }));
@@ -78,7 +79,7 @@ export function ApplicationRuleBuilder(props: {
       const message = err instanceof ApiError ? err.envelope.error.message : t('priceLists.rule.error.load');
       setPickers((prev) => ({ ...prev, [type]: { ...prev[type], loading: false, error: message } }));
     }
-  };
+  }, [t]);
 
   return (
     <div className="b2b-col" style={{ gap: 12 }}>
@@ -597,31 +598,38 @@ function emptyCriterion(): RuleCriterionNode {
   return { kind: 'criterion', type: 'salesChannel', values: [] };
 }
 
+type LocalisedName = string | Record<string, string>;
+
+function flattenName(name: LocalisedName, fallback: string): string {
+  if (typeof name === 'string') return name || fallback;
+  return name['en-US'] ?? name['pl-PL'] ?? Object.values(name)[0] ?? fallback;
+}
+
 async function loadPicker(type: RuleCriterionType): Promise<PickerOption[]> {
   switch (type) {
     case 'salesChannel': {
-      const res = await apiClient.get<{ data: { items: { id: string; code: string; name: string }[] } }>(
+      const res = await apiClient.get<{ data: { items: { id: string; code: string; name: LocalisedName }[] } }>(
         '/api/v1/admin/pricing/rule-targets/sales-channels',
       );
-      return res.data.items.map((i) => ({ value: i.id, label: i.name, hint: i.code }));
+      return res.data.items.map((i) => ({ value: i.id, label: flattenName(i.name, i.code), hint: i.code }));
     }
     case 'customerGroup': {
-      const res = await apiClient.get<{ data: { items: { id: string; code: string; name: string }[] } }>(
+      const res = await apiClient.get<{ data: { items: { id: string; code: string; name: LocalisedName }[] } }>(
         '/api/v1/admin/pricing/rule-targets/customer-groups',
       );
-      return res.data.items.map((i) => ({ value: i.id, label: i.name, hint: i.code }));
+      return res.data.items.map((i) => ({ value: i.id, label: flattenName(i.name, i.code), hint: i.code }));
     }
     case 'organization': {
       const res = await apiClient.get<{
-        data: { items: { id: string; name: string; taxId: string }[] };
+        data: { items: { id: string; name: LocalisedName; taxId: string }[] };
       }>('/api/v1/admin/pricing/rule-targets/organizations?limit=200');
-      return res.data.items.map((i) => ({ value: i.id, label: i.name, hint: i.taxId }));
+      return res.data.items.map((i) => ({ value: i.id, label: flattenName(i.name, i.taxId), hint: i.taxId }));
     }
     case 'category': {
       const res = await apiClient.get<{
-        data: { items: { id: string; slug: string; name: string }[] };
+        data: { items: { id: string; slug: string; name: LocalisedName }[] };
       }>('/api/v1/admin/pricing/rule-targets/categories');
-      return res.data.items.map((i) => ({ value: i.id, label: i.name, hint: i.slug }));
+      return res.data.items.map((i) => ({ value: i.id, label: flattenName(i.name, i.slug), hint: i.slug }));
     }
     case 'currency': {
       const res = await apiClient.get<{ data: { items: { code: string; exposedByChannels: string[] }[] } }>(
