@@ -178,11 +178,11 @@ describe('<RecentActivityCard />', () => {
     });
   });
 
-  it('renders a "View all" link to /audit-logs in the card header', async () => {
+  it('renders a "View all" link to /audit-log in the card header', async () => {
     getSpy.mockResolvedValue({ data: [], pagination: { limit: 8, fetchedAt: '' } });
     renderCard();
     const link = await screen.findByRole('link', { name: 'home.activity.viewAll' });
-    expect(link.getAttribute('href')).toBe('/audit-logs');
+    expect(link.getAttribute('href')).toBe('/audit-log');
   });
 
   it('renders a summary tooltip on bulk rows (never raw JSON)', async () => {

@@ -37,7 +37,7 @@ export function RecentActivityCard(): ReactNode {
           <div className="b2b-card__title">{t('home.recentActivity.title')}</div>
           <div className="b2b-card__sub">{t('home.recentActivity.subtitle')}</div>
         </div>
-        <Link to="/audit-logs" className="b2b-btn b2b-btn--ghost b2b-btn--sm">
+        <Link to="/audit-log" className="b2b-btn b2b-btn--ghost b2b-btn--sm">
           {t('home.activity.viewAll')}
         </Link>
       </div>
