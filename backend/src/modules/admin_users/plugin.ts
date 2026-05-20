@@ -11,6 +11,8 @@ import { registerAdminPublicRoutes } from './routes.public.js';
 import { registerImpersonationRoutes } from './routes.impersonation.js';
 import { registerAdminUsersAdminRoutes } from './routes.admin.js';
 import { registerAuditLogAdminRoutes } from '../audit_logs/routes.admin.js';
+import { registerRecentActivityRoutes } from '../audit_logs/routes.admin.recent-activity.js';
+import { RecentActivityService } from '../audit_logs/services/recent-activity-service.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
 export interface AdminModuleOptions {
@@ -52,6 +54,7 @@ export function adminModule(
   };
   const adminUserService = new AdminUserService(options.emFactory);
   const adminRoleService = new AdminRoleService(options.emFactory);
+  const recentActivityService = new RecentActivityService(options.emFactory);
   return {
     handle,
     plugin: async (app) => {
@@ -69,6 +72,10 @@ export function adminModule(
       });
       await registerAuditLogAdminRoutes(app, {
         auditLogService: options.auditLogService,
+        requireAdmin: options.requireAdmin,
+      });
+      await registerRecentActivityRoutes(app, {
+        recentActivityService,
         requireAdmin: options.requireAdmin,
       });
     },
