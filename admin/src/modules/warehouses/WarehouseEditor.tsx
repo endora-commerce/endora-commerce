@@ -25,6 +25,7 @@ interface FormState {
   contactName: string;
   contactEmail: string;
   contactPhone: string;
+  defaultLowStockThreshold: string;
 }
 
 const EMPTY: FormState = {
@@ -39,6 +40,7 @@ const EMPTY: FormState = {
   contactName: '',
   contactEmail: '',
   contactPhone: '',
+  defaultLowStockThreshold: '',
 };
 
 function fromWarehouse(w: Warehouse): FormState {
@@ -54,7 +56,17 @@ function fromWarehouse(w: Warehouse): FormState {
     contactName: w.contact?.name ?? '',
     contactEmail: w.contact?.email ?? '',
     contactPhone: w.contact?.phone ?? '',
+    defaultLowStockThreshold:
+      w.defaultLowStockThreshold == null ? '' : String(w.defaultLowStockThreshold),
   };
+}
+
+function parseThreshold(value: string): number | null {
+  const trimmed = value.trim();
+  if (trimmed === '') return null;
+  const n = Number.parseInt(trimmed, 10);
+  if (Number.isNaN(n) || n < 0) return null;
+  return n;
 }
 
 function buildAddress(s: FormState) {
@@ -127,6 +139,7 @@ export function WarehouseEditor(): ReactNode {
           description: form.description.trim() || null,
           address: buildAddress(form),
           contact: buildContact(form),
+          defaultLowStockThreshold: parseThreshold(form.defaultLowStockThreshold),
         };
         const created = await warehousesClient.create(body);
         navigate(`/warehouses/${created.id}`, { replace: true });
@@ -137,6 +150,7 @@ export function WarehouseEditor(): ReactNode {
           description: form.description.trim() || null,
           address: buildAddress(form),
           contact: buildContact(form),
+          defaultLowStockThreshold: parseThreshold(form.defaultLowStockThreshold),
         });
         setLoaded(updated);
       }
@@ -322,6 +336,31 @@ export function WarehouseEditor(): ReactNode {
               <div>
                 <label className="b2b-label">{t('warehouses.editor.field.contactPhone')}</label>
                 <input className="b2b-field" value={form.contactPhone} onChange={(e): void => update({ contactPhone: e.target.value })} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="b2b-card" style={{ marginBottom: 16 }}>
+          <div className="b2b-card__head">
+            <h2>{t('warehouses.editor.lowStockTitle')}</h2>
+          </div>
+          <div className="b2b-card__body">
+            <div style={{ maxWidth: 260 }}>
+              <label className="b2b-label" htmlFor="wh-low-stock">
+                {t('warehouses.editor.field.defaultLowStockThreshold')}
+              </label>
+              <input
+                id="wh-low-stock"
+                className="b2b-field"
+                type="number"
+                min="0"
+                value={form.defaultLowStockThreshold}
+                placeholder={t('warehouses.editor.field.defaultLowStockThresholdPlaceholder')}
+                onChange={(e): void => update({ defaultLowStockThreshold: e.target.value })}
+              />
+              <div className="b2b-help">
+                {t('warehouses.editor.field.defaultLowStockThresholdHelp')}
               </div>
             </div>
           </div>

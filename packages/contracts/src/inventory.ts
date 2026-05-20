@@ -42,6 +42,12 @@ export const warehouseSchema = z.object({
   description: z.string().nullable(),
   address: warehouseAddressSchema.nullable(),
   contact: warehouseContactSchema.nullable(),
+  /**
+   * Per-warehouse fallback low-stock threshold. Applied when the
+   * Product itself has no `lowStockThreshold`. NULL means: no fallback
+   * from this warehouse — system falls through to the global threshold.
+   */
+  defaultLowStockThreshold: z.number().int().nonnegative().nullable(),
   totals: z
     .object({
       products: z.number().int().nonnegative(),
@@ -65,6 +71,7 @@ export const createWarehouseRequestSchema = z.object({
   description: z.string().max(2000).nullable().optional(),
   address: warehouseAddressSchema.nullable().optional(),
   contact: warehouseContactSchema.nullable().optional(),
+  defaultLowStockThreshold: z.number().int().nonnegative().nullable().optional(),
 });
 export type CreateWarehouseRequest = z.infer<typeof createWarehouseRequestSchema>;
 
@@ -75,6 +82,7 @@ export const updateWarehouseRequestSchema = z
     description: z.string().max(2000).nullable().optional(),
     address: warehouseAddressSchema.nullable().optional(),
     contact: warehouseContactSchema.nullable().optional(),
+    defaultLowStockThreshold: z.number().int().nonnegative().nullable().optional(),
   })
   .strict();
 export type UpdateWarehouseRequest = z.infer<typeof updateWarehouseRequestSchema>;
@@ -146,12 +154,20 @@ export const stockLevelRowSchema = z.object({
   manageStock: z.boolean(),
   backorderEnabled: z.boolean(),
   lowStockThreshold: z.number().int().nullable(),
+  lowStockThresholdMode: z.enum(['cumulative', 'per_warehouse']),
   perWarehouse: z.array(
     z.object({
       warehouseId: uuidSchema,
       warehouseCode: z.string(),
       onHand: z.number().int().nonnegative(),
       reserved: z.number().int().nonnegative(),
+      /**
+       * Effective low-stock threshold for this (product, warehouse).
+       * Resolved via: explicit row in `product_warehouse_low_stock_thresholds`
+       * → `warehouses.default_low_stock_threshold` fallback → null.
+       * Surfaced regardless of mode so the admin UI can render it.
+       */
+      lowStockThreshold: z.number().int().nullable(),
     }),
   ),
   cumulativeOnHand: z.number().int().nonnegative(),
@@ -160,6 +176,25 @@ export const stockLevelRowSchema = z.object({
   isOutOfStock: z.boolean(),
 });
 export type StockLevelRow = z.infer<typeof stockLevelRowSchema>;
+
+/**
+ * Bulk replace per-warehouse low-stock thresholds for one product.
+ * The submitted set is the new truth: any (product, warehouse) row not
+ * mentioned here is deleted. Pass `threshold: null` in an entry to
+ * delete that single entry while keeping others.
+ */
+export const setProductWarehouseLowStockThresholdsRequestSchema = z.object({
+  productId: uuidSchema,
+  thresholds: z.array(
+    z.object({
+      warehouseId: uuidSchema,
+      threshold: z.number().int().nonnegative().nullable(),
+    }),
+  ),
+});
+export type SetProductWarehouseLowStockThresholdsRequest = z.infer<
+  typeof setProductWarehouseLowStockThresholdsRequestSchema
+>;
 
 export const setStockLevelRequestSchema = z.object({
   productId: uuidSchema,

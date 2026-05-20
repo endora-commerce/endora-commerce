@@ -95,6 +95,7 @@ import { OrganizationSalesRepAssignment } from '../modules/organizations/entitie
 import { Warehouse } from '../modules/inventory/entities/warehouse.entity.js';
 import { WarehouseChannelAssignment } from '../modules/inventory/entities/warehouse-channel-assignment.entity.js';
 import { InventoryThreshold } from '../modules/inventory/entities/inventory-threshold.entity.js';
+import { ProductWarehouseLowStockThreshold } from '../modules/inventory/entities/product-warehouse-low-stock-threshold.entity.js';
 import { StockAllocation } from '../modules/inventory/entities/stock-allocation.entity.js';
 import { ModuleRegistration } from '../modules/_lifecycle/entities/module-registration.entity.js';
 import { TranslationBundle } from '../modules/_i18n/entities/translation-bundle.entity.js';
@@ -246,6 +247,7 @@ export const ALL_ENTITIES = [
   Warehouse,
   WarehouseChannelAssignment,
   InventoryThreshold,
+  ProductWarehouseLowStockThreshold,
   StockAllocation,
   // module lifecycle registry (feature 018)
   ModuleRegistration,

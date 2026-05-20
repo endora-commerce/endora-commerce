@@ -249,6 +249,25 @@ export function ProductEditor(): ReactNode {
     }
   }, [id, navigate]);
 
+  const [duplicating, setDuplicating] = useState(false);
+  const handleDuplicate = useCallback(async (): Promise<void> => {
+    if (!id || duplicating) return;
+    if (!confirm('Duplicate this product? A draft copy will be created.')) return;
+    setDuplicating(true);
+    setError(null);
+    try {
+      const res = await apiClient.post<{ data: AdminProduct }>(
+        `/api/v1/admin/catalog/products/${id}/duplicate`,
+        {},
+      );
+      navigate(`/catalog/products/${res.data.id}`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Duplicate failed.');
+    } finally {
+      setDuplicating(false);
+    }
+  }, [id, duplicating, navigate]);
+
   const categoryOptions = useMemo(
     () =>
       categories.map((c) => ({
@@ -316,8 +335,13 @@ export function ProductEditor(): ReactNode {
               <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm">
                 <Eye size={13} /> Preview
               </button>
-              <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm">
-                <Copy size={13} /> Duplicate
+              <button
+                type="button"
+                className="b2b-btn b2b-btn--default b2b-btn--sm"
+                onClick={(): void => void handleDuplicate()}
+                disabled={duplicating}
+              >
+                <Copy size={13} /> {duplicating ? 'Duplicating…' : 'Duplicate'}
               </button>
               <button
                 type="button"
