@@ -29,7 +29,8 @@ export class Warehouse {
     | 'address'
     | 'contactName'
     | 'contactEmail'
-    | 'contactPhone';
+    | 'contactPhone'
+    | 'defaultLowStockThreshold';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -59,6 +60,14 @@ export class Warehouse {
 
   @Property({ type: 'string', length: 64, nullable: true })
   contactPhone?: string | null;
+
+  /**
+   * Per-warehouse fallback low-stock threshold. Used when a Product has
+   * no `lowStockThreshold` of its own; the StockLevelService picks the
+   * MAX value across warehouses holding stock for the product.
+   */
+  @Property({ type: 'integer', nullable: true })
+  defaultLowStockThreshold?: number | null;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

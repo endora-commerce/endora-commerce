@@ -265,6 +265,22 @@ export async function registerCatalogAdminRoutes(
     },
   );
 
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/catalog/products/:id/duplicate',
+    { preHandler: requireAdmin('catalog:write') },
+    async (request, reply) => {
+      const dup = await adminService.duplicateProduct(request.params.id);
+      await auditEmit(request, {
+        action: 'product.duplicate',
+        objectType: 'product',
+        objectId: dup.id,
+        stateAfter: { sourceProductId: request.params.id, sku: dup.sku },
+      });
+      reply.status(201);
+      return { data: serializeAdminProduct(dup) };
+    },
+  );
+
   // Feature 022 — Products Bulk Edit. Applies a sparse field-patch to a
   // selection of products in one call; returns a per-product outcome.
   if (deps.bulkUpdateService) {
@@ -1517,6 +1533,7 @@ function serializeAdminProduct(p: Product) {
     manageStock: p.manageStock,
     backorderEnabled: p.backorderEnabled,
     lowStockThreshold: p.lowStockThreshold ?? null,
+    lowStockThresholdMode: p.lowStockThresholdMode,
     fulfilmentStrategy: p.fulfilmentStrategy ?? null,
     fulfilmentStrategyWarehouseOrder: p.fulfilmentStrategyWarehouseOrder ?? null,
     // Feature 022 — surface so the Bulk Edit summary and the single-
