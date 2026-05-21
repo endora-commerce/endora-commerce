@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { AdminNotificationService } from './services/admin-notification-service.js';
+import { registerAdminNotificationsRoutes } from './routes.admin.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
 /**
@@ -32,10 +33,11 @@ export function adminNotificationsModule(options: AdminNotificationsModuleOption
 
   return {
     handle: { adminNotificationService },
-    plugin: async (_app: FastifyInstance): Promise<void> => {
-      // Routes are registered by a follow-up task (US1 T043) once the
-      // admin route gate factory and Zod request schemas are in place.
-      // The handle is already usable by other modules at this point.
+    plugin: async (app: FastifyInstance): Promise<void> => {
+      await registerAdminNotificationsRoutes(app, {
+        adminNotificationService,
+        requireAdmin: options.requireAdmin,
+      });
     },
   };
 }

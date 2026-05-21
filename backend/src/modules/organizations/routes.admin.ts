@@ -17,6 +17,18 @@ import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { InvitationService } from './services/invitation-service.js';
 import type { RoleService } from '../customer_accounts/services/role-service.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import {
+  OrganizationModerationService,
+  OrganizationNotFoundError,
+  OrganizationStatusGuardError,
+  OrganizationVersionMismatchError,
+} from './services/organization-moderation-service.js';
+import {
+  approveOrganizationSchema,
+  rejectOrganizationSchema,
+  blockOrganizationSchema,
+  unblockOrganizationSchema,
+} from './schemas/organization.js';
 import { hashPassword } from '../auth/services/password-hasher.js';
 
 /**
@@ -36,6 +48,8 @@ export interface AdminOrgsDeps {
   invitationService: InvitationService;
   roleService: RoleService;
   auditLogService: AuditLogService;
+  /** Optional — when provided, mounts the approve / reject / block / unblock endpoints. */
+  moderationService?: OrganizationModerationService;
 }
 
 export async function registerOrganizationsAdminRoutes(
@@ -43,6 +57,7 @@ export async function registerOrganizationsAdminRoutes(
   deps: AdminOrgsDeps,
 ): Promise<void> {
   const { requireAdmin, emFactory, invitationService, roleService, auditLogService } = deps;
+  const moderationService = deps.moderationService;
 
   const audit = async (
     request: FastifyRequest,
@@ -155,6 +170,103 @@ export async function registerOrganizationsAdminRoutes(
       return { data: serializeOrg(org) };
     },
   );
+
+  // ── Moderation lifecycle (feature 026) ─────────────────────────────────
+  // Approve / Reject / Block / Unblock. Mounted only when the moderation
+  // service was wired (composition root passes it in).
+
+  if (moderationService) {
+    app.post<{ Params: { id: string } }>(
+      '/api/v1/admin/organizations/:id/approve',
+      {
+        preHandler: requireAdmin('customers:manage'),
+        schema: { body: approveOrganizationSchema },
+      },
+      async (request) => {
+        const body = approveOrganizationSchema.parse(request.body);
+        const rid = request.headers['x-request-id'];
+        try {
+          const org = await moderationService.approve(request.params.id, {
+            expectedVersion: body.expectedVersion,
+            actorAdminUserId: resolveAdminUserId(request),
+            requestId: typeof rid === 'string' ? rid : null,
+          });
+          return { data: serializeOrg(org) };
+        } catch (err) {
+          throw mapModerationError(err);
+        }
+      },
+    );
+
+    app.post<{ Params: { id: string } }>(
+      '/api/v1/admin/organizations/:id/reject',
+      {
+        preHandler: requireAdmin('customers:manage'),
+        schema: { body: rejectOrganizationSchema },
+      },
+      async (request) => {
+        const body = rejectOrganizationSchema.parse(request.body);
+        const rid = request.headers['x-request-id'];
+        try {
+          const org = await moderationService.reject(request.params.id, {
+            expectedVersion: body.expectedVersion,
+            reason: body.reason,
+            notifyCustomerEmail: body.notifyCustomerEmail,
+            actorAdminUserId: resolveAdminUserId(request),
+            requestId: typeof rid === 'string' ? rid : null,
+          });
+          return { data: serializeOrg(org) };
+        } catch (err) {
+          throw mapModerationError(err);
+        }
+      },
+    );
+
+    app.post<{ Params: { id: string } }>(
+      '/api/v1/admin/organizations/:id/block',
+      {
+        preHandler: requireAdmin('customers:manage'),
+        schema: { body: blockOrganizationSchema },
+      },
+      async (request) => {
+        const body = blockOrganizationSchema.parse(request.body);
+        const rid = request.headers['x-request-id'];
+        try {
+          const org = await moderationService.block(request.params.id, {
+            expectedVersion: body.expectedVersion,
+            reason: body.reason ?? null,
+            actorAdminUserId: resolveAdminUserId(request),
+            requestId: typeof rid === 'string' ? rid : null,
+          });
+          return { data: serializeOrg(org) };
+        } catch (err) {
+          throw mapModerationError(err);
+        }
+      },
+    );
+
+    app.post<{ Params: { id: string } }>(
+      '/api/v1/admin/organizations/:id/unblock',
+      {
+        preHandler: requireAdmin('customers:manage'),
+        schema: { body: unblockOrganizationSchema },
+      },
+      async (request) => {
+        const body = unblockOrganizationSchema.parse(request.body);
+        const rid = request.headers['x-request-id'];
+        try {
+          const org = await moderationService.unblock(request.params.id, {
+            expectedVersion: body.expectedVersion,
+            actorAdminUserId: resolveAdminUserId(request),
+            requestId: typeof rid === 'string' ? rid : null,
+          });
+          return { data: serializeOrg(org) };
+        } catch (err) {
+          throw mapModerationError(err);
+        }
+      },
+    );
+  }
 
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/organizations/:id/members/invite',
@@ -380,10 +492,23 @@ function serializeOrg(o: Organization): Record<string, unknown> {
   return {
     id: o.id,
     name: o.name,
+    legalName: o.legalName ?? null,
     taxId: o.taxId,
     status: o.status,
     vatStatus: o.vatStatus,
     registeredAddress: o.registeredAddress,
+    version: o.version,
+    blockedReason: o.blockedReason ?? null,
+    blockedAt: o.blockedAt?.toISOString() ?? null,
+    rejectedReason: o.rejectedReason ?? null,
+    rejectedAt: o.rejectedAt?.toISOString() ?? null,
+    approvedAt: o.approvedAt?.toISOString() ?? null,
+    approvedByAdminUserId: o.approvedByAdminUserId ?? null,
+    vatValidation: {
+      outcome: o.vatValidationOutcome ?? null,
+      provider: o.vatValidationProvider ?? null,
+      validatedAt: o.vatValidatedAt?.toISOString() ?? null,
+    },
     createdAt: o.createdAt.toISOString(),
     updatedAt: o.updatedAt.toISOString(),
   };
@@ -402,6 +527,62 @@ function serializeMemberDetail(m: CustomerAccount): Record<string, unknown> {
     createdAt: m.createdAt.toISOString(),
     updatedAt: m.updatedAt.toISOString(),
   };
+}
+
+/**
+ * Reads the admin user id from whichever actor decoration is available.
+ * Production wiring decorates `request.actor` via the auth plugin; the
+ * test harness decorates `request.testActor` via `registerTestAuth`.
+ * Falls back to `null` when no admin actor is present (e.g., the auth
+ * gate already returned 401, or a future surface invokes this for a
+ * system actor).
+ */
+function resolveAdminUserId(request: FastifyRequest): string | null {
+  const testActor = (request as FastifyRequest & { testActor?: { kind: string; adminUserId?: string } }).testActor;
+  if (testActor && testActor.kind === 'admin' && testActor.adminUserId) {
+    return testActor.adminUserId;
+  }
+  const actor = (request as FastifyRequest & { actor?: { kind: string; adminUserId?: string } }).actor;
+  if (actor && actor.kind === 'admin' && actor.adminUserId) {
+    return actor.adminUserId;
+  }
+  return null;
+}
+
+/**
+ * Maps the domain errors raised by OrganizationModerationService to their
+ * HTTP equivalents. 409 for version mismatch (with `currentVersion` in the
+ * body), 404 for missing org, 422 for status-guard violations.
+ */
+function mapModerationError(err: unknown): HttpError {
+  if (err instanceof OrganizationVersionMismatchError) {
+    return new HttpError(
+      409,
+      ERROR_CODES.VERSION_CONFLICT,
+      'Organization was modified by another request. Refresh and retry.',
+      {
+        code: 'organization_version_mismatch',
+        currentVersion: err.currentVersion,
+      },
+    );
+  }
+  if (err instanceof OrganizationStatusGuardError) {
+    return new HttpError(
+      422,
+      ERROR_CODES.VALIDATION_FAILED,
+      `Organization is in status '${err.currentStatus}', cannot perform an action that requires '${err.requiredStatus}'.`,
+      { currentStatus: err.currentStatus, requiredStatus: err.requiredStatus },
+    );
+  }
+  if (err instanceof OrganizationNotFoundError) {
+    return new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+  }
+  if (err instanceof HttpError) return err;
+  return new HttpError(
+    500,
+    ERROR_CODES.INTERNAL,
+    err instanceof Error ? err.message : 'Internal error.',
+  );
 }
 
 void (null as FastifyRequest | null);

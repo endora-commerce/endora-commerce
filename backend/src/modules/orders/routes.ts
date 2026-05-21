@@ -14,6 +14,7 @@ import { Invoice } from '../invoices/entities/invoice.entity.js';
 import { Asset } from '../assets_library/entities/asset.entity.js';
 import { buildMinimalInvoicePdf } from '../invoices/services/invoice-pdf.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import { OrganizationCannotTransactError } from '../organizations/services/organization-context-service.js';
 
 export interface OrdersDeps {
   orderService: OrderService;
@@ -25,6 +26,11 @@ export interface OrdersDeps {
     organizationId: string;
     impersonatorAdminUserId?: string | null;
   };
+  /**
+   * Optional gate — when provided, refuses to place an order when the
+   * Customer's Organization is not `active`. Feature 026 US1 / US3.
+   */
+  assertOrganizationCanTransact?: (organizationId: string) => Promise<void>;
 }
 
 export async function registerOrderRoutes(
@@ -32,6 +38,7 @@ export async function registerOrderRoutes(
   deps: OrdersDeps,
 ): Promise<void> {
   const { orderService, emFactory, requireCustomer, requireAdmin, resolveCustomerContext } = deps;
+  const { assertOrganizationCanTransact } = deps;
 
   // --- Customer surface -------------------------------------------------
   app.post(
@@ -40,6 +47,21 @@ export async function registerOrderRoutes(
     async (request, reply) => {
       const body = placeOrderRequestSchema.parse(request.body);
       const ctx = resolveCustomerContext(request);
+      if (assertOrganizationCanTransact) {
+        try {
+          await assertOrganizationCanTransact(ctx.organizationId);
+        } catch (err) {
+          if (err instanceof OrganizationCannotTransactError) {
+            throw new HttpError(
+              423,
+              ERROR_CODES.FORBIDDEN,
+              'Your Organization cannot transact in its current status.',
+              { code: 'organization_cannot_transact', status: err.status },
+            );
+          }
+          throw err;
+        }
+      }
       const order = await orderService.placeOrder(ctx, body);
       reply.status(201);
       return { data: await serializeOrder(emFactory(), order) };

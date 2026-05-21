@@ -16,6 +16,12 @@ import { i18nModule as adminI18nModule } from '../../src/modules/_i18n/plugin.js
 import { adminActionsModule } from '../../src/modules/admin_actions/plugin.js';
 import { AdminRole } from '../../src/modules/admin_roles/entities/admin-role.entity.js';
 import { organizationsModule } from '../../src/modules/organizations/plugin.js';
+import { adminNotificationsModule } from '../../src/modules/admin_notifications/plugin.js';
+import { OrganizationModerationService } from '../../src/modules/organizations/services/organization-moderation-service.js';
+import { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
+import { OrgRegistrationNotifier } from '../../src/modules/organizations/services/org-registration-notifier.js';
+import type { OrganizationEventBus } from '../../src/modules/organizations/services/registration-service.js';
+import { ConsoleMailer } from '../../src/modules/email/services/mailer.js';
 import { commerceModule } from '../../src/modules/orders/plugin.js';
 import { adminModule } from '../../src/modules/admin_users/plugin.js';
 import { inventoryModule } from '../../src/modules/inventory/plugin.js';
@@ -117,6 +123,14 @@ export interface BackendServerHandle {
   dictionaries: ReturnType<typeof dictionariesModule>['handle'];
   /** Feature 021 — error-envelope i18n bridge. */
   adminI18n: ReturnType<typeof adminI18nModule>['handle'];
+  /** Feature 026 — moderation lifecycle, admin notifications, org context. */
+  organizations: {
+    moderationService: OrganizationModerationService;
+    adminNotificationService: ReturnType<
+      typeof adminNotificationsModule
+    >['handle']['adminNotificationService'];
+    organizationContextService: OrganizationContextService;
+  };
 }
 
 const SEEDED_TABLES = [
@@ -272,6 +286,7 @@ export async function setupBackendServer(
   // CartService is exposed by the commerce module so the login handler in
   // organizations can merge anonymous baskets after sign-in.
   let cartService: CartService | null = null;
+  let handleFeature026: BackendServerHandle['organizations'] | null = null;
 
   // Standalone AdminUserService for modules that need direct service-level
   // access to admin users (feature 019 — wires the preferred-language
@@ -449,27 +464,70 @@ export async function setupBackendServer(
         cartService = cs;
       },
     }),
-    organizationsModule({
-      emFactory: em,
-      eventBus,
-      sessionService,
-      requireCustomer: requireTestCustomer(),
-      requireAdmin: requireTestAdmin(permissionService),
-      resolveCustomerContext: customerResolver,
-      auditLogService,
-      exposeTestProbe: true,
-      dictionaryValidator: dictionaries.handle.validator,
-      ...(options.organizationsMailer ? { mailer: options.organizationsMailer } : {}),
-      storefrontBaseUrl: 'http://localhost:3000',
-      onLogin: async (ctx) => {
-        if (cartService && ctx.anonymousCartToken) {
-          await cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
-            customerAccountId: ctx.customerAccountId,
-            organizationId: ctx.organizationId,
-          });
-        }
-      },
-    }),
+    // Feature 026 — moderation lifecycle wiring for the test server.
+    // Built before organizationsModule so the moderation service can be
+    // passed in. Subscribes the registration notifier + auto-approve
+    // handler to the same event bus.
+    ...(() => {
+      const moderationMailer = options.organizationsMailer ?? new ConsoleMailer();
+      const adminNotifications = adminNotificationsModule({
+        emFactory: em,
+        requireAdmin: requireTestAdmin(permissionService),
+      });
+      const moderationService = new OrganizationModerationService(
+        em,
+        auditLogService,
+        eventBus as unknown as OrganizationEventBus,
+        moderationMailer,
+        async () => 'manual',
+      );
+      const orgRegistrationNotifier = new OrgRegistrationNotifier({
+        emFactory: em,
+        adminNotificationService: adminNotifications.handle.adminNotificationService,
+        mailer: moderationMailer,
+        resolveRecipients: async () => [],
+      });
+      eventBus.on('organization.registered.v1', async (payload) => {
+        const orgId = (payload as unknown as { organizationId: string }).organizationId;
+        await orgRegistrationNotifier.handleRegistered(orgId);
+      });
+      eventBus.on('organization.registered.v1', async (payload) => {
+        const orgId = (payload as unknown as { organizationId: string }).organizationId;
+        await moderationService.handleNewlyRegistered(orgId);
+      });
+      // Expose handles on the harness for tests that want to call the
+      // services directly.
+      handleFeature026 = {
+        moderationService,
+        adminNotificationService: adminNotifications.handle.adminNotificationService,
+        organizationContextService: new OrganizationContextService(em),
+      };
+      return [
+        adminNotifications.plugin,
+        organizationsModule({
+          emFactory: em,
+          eventBus,
+          sessionService,
+          requireCustomer: requireTestCustomer(),
+          requireAdmin: requireTestAdmin(permissionService),
+          resolveCustomerContext: customerResolver,
+          auditLogService,
+          moderationService,
+          exposeTestProbe: true,
+          dictionaryValidator: dictionaries.handle.validator,
+          mailer: moderationMailer,
+          storefrontBaseUrl: 'http://localhost:3000',
+          onLogin: async (ctx) => {
+            if (cartService && ctx.anonymousCartToken) {
+              await cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
+                customerAccountId: ctx.customerAccountId,
+                organizationId: ctx.organizationId,
+              });
+            }
+          },
+        }),
+      ];
+    })(),
     catalogModule({
       emFactory: em,
       eventBus,
@@ -810,6 +868,13 @@ export async function setupBackendServer(
     blog: blog.handle,
     dictionaries: dictionaries.handle,
     adminI18n: adminI18n.handle,
+    organizations: handleFeature026 ?? {
+      moderationService: null as unknown as OrganizationModerationService,
+      adminNotificationService: null as unknown as ReturnType<
+        typeof adminNotificationsModule
+      >['handle']['adminNotificationService'],
+      organizationContextService: null as unknown as OrganizationContextService,
+    },
   };
 }
 

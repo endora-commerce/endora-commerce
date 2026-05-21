@@ -66,6 +66,12 @@ export interface OrdersModuleOptions {
    * don't care about pricing engine semantics can omit it.
    */
   pricingService?: PricingService;
+  /**
+   * Feature 026 — optional gate that refuses cart-line-add, place-order, and
+   * RFQ-submit when the Customer's Organization is not `active`. Threaded
+   * through to both registerCartRoutes and registerOrderRoutes.
+   */
+  assertOrganizationCanTransact?: (organizationId: string) => Promise<void>;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -83,6 +89,9 @@ export function commerceModule(options: OrdersModuleOptions) {
       cartService,
       resolveCartActor: options.resolveCartActor,
       emFactory: options.emFactory,
+      ...(options.assertOrganizationCanTransact
+        ? { assertOrganizationCanTransact: options.assertOrganizationCanTransact }
+        : {}),
     });
     await registerOrderRoutes(app, {
       orderService,
@@ -90,6 +99,9 @@ export function commerceModule(options: OrdersModuleOptions) {
       requireCustomer: options.requireCustomer,
       requireAdmin: options.requireAdmin,
       resolveCustomerContext: options.resolveCustomerContext,
+      ...(options.assertOrganizationCanTransact
+        ? { assertOrganizationCanTransact: options.assertOrganizationCanTransact }
+        : {}),
     });
     await registerDeliveryMethodsPublicRoutes(app, { emFactory: options.emFactory });
     await registerPaymentMethodsPublicRoutes(app, { emFactory: options.emFactory });

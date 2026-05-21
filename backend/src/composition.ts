@@ -17,6 +17,16 @@ import { PermissionService } from './modules/admin_roles/services/permission-ser
 import { catalogModule } from './modules/catalog/plugin.js';
 import { quoteRequestsModule } from './modules/quote_requests/plugin.js';
 import { organizationsModule } from './modules/organizations/plugin.js';
+import { adminNotificationsModule } from './modules/admin_notifications/plugin.js';
+import { OrganizationModerationService } from './modules/organizations/services/organization-moderation-service.js';
+import type { OrganizationEventBus } from './modules/organizations/services/registration-service.js';
+import { OrgRegistrationNotifier } from './modules/organizations/services/org-registration-notifier.js';
+import { OrganizationContextService } from './modules/organizations/services/organization-context-service.js';
+import {
+  moderationModeSchema,
+  notificationRecipientsSchema,
+} from './modules/organizations/schemas/settings.js';
+import { ORGANIZATIONS_SETTING_CODES } from './modules/organizations/manifest.js';
 import { ConsoleMailer } from './modules/email/services/mailer.js';
 import { resolveSmtpUrlFromEnv } from './modules/email/resolve-smtp-url.js';
 import { SmtpMailer } from './modules/email/services/smtp-mailer.js';
@@ -338,6 +348,79 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // is safe at request time.
   let comparisonAdoption: ((customerAccountId: string, anonymousToken: string) => Promise<void>) | null = null;
 
+  // ── Feature 026 — Organizations moderation lifecycle ────────────────────
+  //
+  // Builds the admin_notifications sub-module + the moderation service +
+  // the registration notifier, subscribes both to organization.registered.v1,
+  // and exposes the resulting transaction gate (assertOrganizationCanTransact)
+  // for the carts / orders / quote_requests modules.
+
+  const adminNotifications = adminNotificationsModule({
+    emFactory: em,
+    requireAdmin,
+  });
+
+  const platformSettingsChannelId = process.env['ORGANIZATIONS_SETTINGS_CHANNEL_ID'] ?? 'default';
+
+  const resolveModerationMode = async (): Promise<'auto' | 'manual'> => {
+    try {
+      return await settings.handle.settingsService.get(
+        ORGANIZATIONS_SETTING_CODES.MODERATION_MODE,
+        platformSettingsChannelId,
+        moderationModeSchema,
+      );
+    } catch {
+      // Setting not seeded / out-of-scope for the channel — degrade safely
+      // to the most restrictive option so brand-new installs never grant
+      // unverified Organizations transaction rights by accident.
+      return 'manual';
+    }
+  };
+
+  const resolveRegistrationRecipients = async (): Promise<string[]> => {
+    try {
+      return await settings.handle.settingsService.get(
+        ORGANIZATIONS_SETTING_CODES.NEW_REGISTRATION_RECIPIENTS,
+        platformSettingsChannelId,
+        notificationRecipientsSchema,
+      );
+    } catch {
+      return [];
+    }
+  };
+
+  const organizationModerationService = new OrganizationModerationService(
+    em,
+    auditLogService,
+    eventBus as unknown as OrganizationEventBus,
+    organizationsMailer,
+    resolveModerationMode,
+  );
+
+  const orgRegistrationNotifier = new OrgRegistrationNotifier({
+    emFactory: em,
+    adminNotificationService: adminNotifications.handle.adminNotificationService,
+    mailer: organizationsMailer,
+    resolveRecipients: resolveRegistrationRecipients,
+  });
+
+  const organizationContextService = new OrganizationContextService(em);
+  const assertOrganizationCanTransact = async (organizationId: string): Promise<void> => {
+    await organizationContextService.assertCanTransact(organizationId);
+  };
+
+  // Subscribe the two reactors to the registration event. Failures inside
+  // either reactor never poison the registration itself — the EventBus
+  // catches handler throws and logs them.
+  eventBus.on('organization.registered.v1', async (payload) => {
+    const orgId = (payload as unknown as { organizationId: string }).organizationId;
+    await orgRegistrationNotifier.handleRegistered(orgId);
+  });
+  eventBus.on('organization.registered.v1', async (payload) => {
+    const orgId = (payload as unknown as { organizationId: string }).organizationId;
+    await organizationModerationService.handleNewlyRegistered(orgId);
+  });
+
   const modules: ModulePlugin[] = [
     authModulePlugin,
     admin.plugin,
@@ -378,6 +461,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       exposeCartService: (cs) => {
         cartService = cs;
       },
+      assertOrganizationCanTransact,
     }),
     organizationsModule({
       emFactory: em,
@@ -388,6 +472,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCustomerContext: customerResolver,
       mailer: organizationsMailer,
       auditLogService,
+      moderationService: organizationModerationService,
       dictionaryValidator: dictionaries.handle.validator,
       ...(process.env['STOREFRONT_BASE_URL']
         ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
@@ -613,6 +698,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
   modules.push(search.plugin);
 
+  // Feature 026 — Admin notifications bell. The plugin only mounts read
+  // routes; writes happen via the handle (consumed above by the
+  // OrgRegistrationNotifier and by future modules that emit notifications).
+  modules.push(adminNotifications.plugin);
+
   // Feature 007 — Comparisons module. US1 wires the customer-facing CRUD
   // endpoints; US2/US4/US5 extend the plugin with share, PDF, and admin
   // routes respectively. Reads catalog through CatalogQueryService (the
@@ -699,6 +789,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return true;
       }
     },
+    assertOrganizationCanTransact,
   });
   modules.push(quoteRequests.register);
 

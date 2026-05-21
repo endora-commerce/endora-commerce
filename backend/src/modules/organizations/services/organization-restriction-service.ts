@@ -71,33 +71,34 @@ export class OrganizationRestrictionService {
     input: ReplaceAllowListsInput,
   ): Promise<AllowListsRead> {
     const em = this.emFactory();
-    await em.begin();
     try {
-      const org = await em.findOneOrFail(Organization, { id: organizationId, deletedAt: null });
-      this.guardVersion(org, input.expectedVersion);
+      await em.transactional(async (tem) => {
+        const org = await tem.findOneOrFail(Organization, {
+          id: organizationId,
+          deletedAt: null,
+        });
+        this.guardVersion(org, input.expectedVersion);
 
-      await em.nativeDelete(OrganizationPaymentMethodLink, { organizationId });
-      await em.nativeDelete(OrganizationDeliveryMethodLink, { organizationId });
-      await em.nativeDelete(OrganizationWarehouseLink, { organizationId });
+        await tem.nativeDelete(OrganizationPaymentMethodLink, { organizationId });
+        await tem.nativeDelete(OrganizationDeliveryMethodLink, { organizationId });
+        await tem.nativeDelete(OrganizationWarehouseLink, { organizationId });
 
-      for (const paymentMethodId of dedupe(input.paymentMethodIds)) {
-        em.persist(em.create(OrganizationPaymentMethodLink, { organizationId, paymentMethodId }));
-      }
-      for (const deliveryMethodId of dedupe(input.deliveryMethodIds)) {
-        em.persist(em.create(OrganizationDeliveryMethodLink, { organizationId, deliveryMethodId }));
-      }
-      for (const warehouseId of dedupe(input.warehouseIds)) {
-        em.persist(em.create(OrganizationWarehouseLink, { organizationId, warehouseId }));
-      }
+        for (const paymentMethodId of dedupe(input.paymentMethodIds)) {
+          tem.persist(tem.create(OrganizationPaymentMethodLink, { organizationId, paymentMethodId }));
+        }
+        for (const deliveryMethodId of dedupe(input.deliveryMethodIds)) {
+          tem.persist(tem.create(OrganizationDeliveryMethodLink, { organizationId, deliveryMethodId }));
+        }
+        for (const warehouseId of dedupe(input.warehouseIds)) {
+          tem.persist(tem.create(OrganizationWarehouseLink, { organizationId, warehouseId }));
+        }
 
-      // Touch the Organization so the version column advances. MikroORM's
-      // optimistic-lock semantics bump `version` automatically on flush.
-      org.updatedAt = new Date();
-
-      await em.flush();
-      await em.commit();
+        // Touch the Organization so the version column advances. MikroORM's
+        // optimistic-lock semantics bump `version` automatically on flush.
+        org.updatedAt = new Date();
+        await tem.flush();
+      });
     } catch (err) {
-      await em.rollback();
       throw this.translateOptimisticLockError(err, organizationId);
     }
 
@@ -110,51 +111,53 @@ export class OrganizationRestrictionService {
     input: PatchAllowListInput,
   ): Promise<AllowListsRead> {
     const em = this.emFactory();
-    await em.begin();
     try {
-      const org = await em.findOneOrFail(Organization, { id: organizationId, deletedAt: null });
-      this.guardVersion(org, input.expectedVersion);
+      await em.transactional(async (tem) => {
+        const org = await tem.findOneOrFail(Organization, {
+          id: organizationId,
+          deletedAt: null,
+        });
+        this.guardVersion(org, input.expectedVersion);
 
-      const add = dedupe(input.add ?? []);
-      const remove = dedupe(input.remove ?? []);
+        const add = dedupe(input.add ?? []);
+        const remove = dedupe(input.remove ?? []);
 
-      if (kind === 'payment_method') {
-        if (remove.length) {
-          await em.nativeDelete(OrganizationPaymentMethodLink, {
-            organizationId,
-            paymentMethodId: { $in: remove },
-          });
+        if (kind === 'payment_method') {
+          if (remove.length) {
+            await tem.nativeDelete(OrganizationPaymentMethodLink, {
+              organizationId,
+              paymentMethodId: { $in: remove },
+            });
+          }
+          for (const id of add) {
+            tem.persist(tem.create(OrganizationPaymentMethodLink, { organizationId, paymentMethodId: id }));
+          }
+        } else if (kind === 'delivery_method') {
+          if (remove.length) {
+            await tem.nativeDelete(OrganizationDeliveryMethodLink, {
+              organizationId,
+              deliveryMethodId: { $in: remove },
+            });
+          }
+          for (const id of add) {
+            tem.persist(tem.create(OrganizationDeliveryMethodLink, { organizationId, deliveryMethodId: id }));
+          }
+        } else {
+          if (remove.length) {
+            await tem.nativeDelete(OrganizationWarehouseLink, {
+              organizationId,
+              warehouseId: { $in: remove },
+            });
+          }
+          for (const id of add) {
+            tem.persist(tem.create(OrganizationWarehouseLink, { organizationId, warehouseId: id }));
+          }
         }
-        for (const id of add) {
-          em.persist(em.create(OrganizationPaymentMethodLink, { organizationId, paymentMethodId: id }));
-        }
-      } else if (kind === 'delivery_method') {
-        if (remove.length) {
-          await em.nativeDelete(OrganizationDeliveryMethodLink, {
-            organizationId,
-            deliveryMethodId: { $in: remove },
-          });
-        }
-        for (const id of add) {
-          em.persist(em.create(OrganizationDeliveryMethodLink, { organizationId, deliveryMethodId: id }));
-        }
-      } else {
-        if (remove.length) {
-          await em.nativeDelete(OrganizationWarehouseLink, {
-            organizationId,
-            warehouseId: { $in: remove },
-          });
-        }
-        for (const id of add) {
-          em.persist(em.create(OrganizationWarehouseLink, { organizationId, warehouseId: id }));
-        }
-      }
 
-      org.updatedAt = new Date();
-      await em.flush();
-      await em.commit();
+        org.updatedAt = new Date();
+        await tem.flush();
+      });
     } catch (err) {
-      await em.rollback();
       throw this.translateOptimisticLockError(err, organizationId);
     }
 

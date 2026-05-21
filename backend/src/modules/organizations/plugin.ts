@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
 import type { SessionService } from '../auth/services/session-service.js';
+import type { OrganizationModerationService } from './services/organization-moderation-service.js';
 import {
   RegistrationService,
   type OrganizationEventBus,
@@ -62,6 +63,12 @@ export interface OrganizationsModuleOptions {
   /** Required when `requireAdmin` is set — audit trail for admin org mutations. */
   auditLogService?: AuditLogService;
   dictionaryValidator?: DictionaryValidator;
+  /**
+   * Feature 026 — moderation service that owns approve / reject / block /
+   * unblock. When provided alongside `requireAdmin`, the matching admin
+   * endpoints are mounted; otherwise only the legacy PATCH endpoint runs.
+   */
+  moderationService?: OrganizationModerationService;
 }
 
 export function organizationsModule(options: OrganizationsModuleOptions) {
@@ -131,6 +138,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
         invitationService,
         roleService,
         auditLogService: options.auditLogService,
+        ...(options.moderationService ? { moderationService: options.moderationService } : {}),
       });
     }
   };
