@@ -24,7 +24,7 @@ import { hashPassword } from '../auth/services/password-hasher.js';
  */
 
 const listQuerySchema = z.object({
-  'filter[status]': z.enum(['pending_verification', 'active', 'suspended']).optional(),
+  'filter[status]': z.enum(['pending_verification', 'active', 'blocked', 'rejected']).optional(),
   'filter[vatStatus]': z.enum(['vat_payer', 'vat_exempt', 'reverse_charge']).optional(),
   q: z.string().optional(),
   limit: z.coerce.number().int().positive().max(200).default(50),

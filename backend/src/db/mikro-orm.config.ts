@@ -48,6 +48,8 @@ import { Migration043AttributeMassEditable } from '../modules/catalog/migrations
 import { Migration044ProductValueOverridesInit } from './migrations/044_product_value_overrides_init.js';
 import { Migration045WarehouseDefaultLowStockThreshold } from '../modules/inventory/migrations/045_warehouse_default_low_stock_threshold.js';
 import { Migration046PerWarehouseLowStockThresholds } from '../modules/inventory/migrations/046_per_warehouse_low_stock_thresholds.js';
+import { Migration047OrganizationsConsolidation } from '../modules/organizations/migrations/047_organizations_consolidation.js';
+import { Migration048AdminNotificationsInit } from '../modules/admin_notifications/migrations/048_admin_notifications_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -211,6 +213,14 @@ export default defineConfig({
       {
         name: 'Migration046PerWarehouseLowStockThresholds',
         class: Migration046PerWarehouseLowStockThresholds,
+      },
+      {
+        name: 'Migration047OrganizationsConsolidation',
+        class: Migration047OrganizationsConsolidation,
+      },
+      {
+        name: 'Migration048AdminNotificationsInit',
+        class: Migration048AdminNotificationsInit,
       },
     ],
     transactional: true,

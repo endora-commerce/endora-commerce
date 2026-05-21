@@ -27,6 +27,12 @@ import { Organization } from '../modules/organizations/entities/organization.ent
 import { CustomerAccount } from '../modules/customer_accounts/entities/customer-account.entity.js';
 import { Address } from '../modules/addresses/entities/address.entity.js';
 import { EmailVerificationToken } from '../modules/organizations/entities/email-verification-token.entity.js';
+import { OrganizationTaxIdValidation } from '../modules/organizations/entities/organization-tax-id-validation.entity.js';
+import { OrganizationPaymentMethodLink } from '../modules/organizations/entities/organization-payment-method-link.entity.js';
+import { OrganizationDeliveryMethodLink } from '../modules/organizations/entities/organization-delivery-method-link.entity.js';
+import { OrganizationWarehouseLink } from '../modules/organizations/entities/organization-warehouse-link.entity.js';
+import { AdminNotification } from '../modules/admin_notifications/entities/admin-notification.entity.js';
+import { AdminNotificationRead } from '../modules/admin_notifications/entities/admin-notification-read.entity.js';
 import { Cart } from '../modules/carts/entities/cart.entity.js';
 import { CartItem } from '../modules/carts/entities/cart-item.entity.js';
 import { StockLevel } from '../modules/inventory/entities/stock-level.entity.js';
@@ -255,4 +261,12 @@ export const ALL_ENTITIES = [
   TranslationBundle,
   // module-contributed admin command palette actions (feature 020)
   ModuleAction,
+  // organizations consolidation (feature 026)
+  OrganizationTaxIdValidation,
+  OrganizationPaymentMethodLink,
+  OrganizationDeliveryMethodLink,
+  OrganizationWarehouseLink,
+  // admin notifications "bell" surface (feature 026)
+  AdminNotification,
+  AdminNotificationRead,
 ] as const;
