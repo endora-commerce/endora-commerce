@@ -1,18 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import {
-  Archive,
-  CircleDollarSign,
-  ClipboardCheck,
-  CreditCard,
-  Edit,
-  FileText,
-  Plus,
-  Upload,
-} from 'lucide-react';
+import { CircleDollarSign, FileText, Plus, Upload } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth';
 import { useTranslation } from '@/i18n/useTranslation';
+import { RecentActivityCard } from './RecentActivityCard';
 
 /**
  * Dashboard / home page (feature 008).
@@ -132,42 +124,7 @@ export function HomePage(): ReactNode {
 
       {/* Two-column: recent activity + sidebar (quick actions, stock alerts) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 16 }}>
-        {/* Recent activity */}
-        <div className="b2b-card">
-          <div className="b2b-card__head">
-            <div>
-              <div className="b2b-card__title">{t('home.recentActivity.title')}</div>
-              <div className="b2b-card__sub">{t('home.recentActivity.subtitle')}</div>
-            </div>
-          </div>
-          <div className="b2b-card__body b2b-card__body--flush">
-            <div className="b2b-minilist" style={{ padding: 4 }}>
-              {buildActivity(t).map((event, idx) => {
-                const Icon = event.icon;
-                return (
-                  <div key={idx} className="b2b-minirow">
-                    <div
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: '50%',
-                        background: 'var(--surface-sunken)',
-                        display: 'grid',
-                        placeItems: 'center',
-                        color: 'var(--fg-muted)',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Icon size={13} />
-                    </div>
-                    <div style={{ flex: 1, fontSize: 13 }}>{event.text}</div>
-                    <span className="b2b-muted" style={{ fontSize: 11, flexShrink: 0 }}>{event.when}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+        <RecentActivityCard />
 
         <div className="b2b-col" style={{ gap: 16 }}>
           {/* Quick actions */}
@@ -302,91 +259,5 @@ async function fetchKpi(path: string, set: (data: unknown) => void): Promise<voi
     }
     /* swallow — leave the placeholder */
   }
-}
-
-/* Static activity feed copy. Once the audit-log module exposes a
- * "recent admin events" endpoint we'll point this at it; until then
- * the home page renders representative activity that matches the
- * design's intent. */
-function buildActivity(t: (key: string, params?: Record<string, string | number>) => string): Array<{ icon: typeof Edit; text: ReactNode; when: string }> {
-  const annaK = 'Anna K.';
-  const tomaszW = 'Tomasz W.';
-  const tier1 = 'Tier 1 distributors';
-  const acmeIndustrial = 'Acme Industrial';
-  const acme2026 = 'Acme — 2026';
-  const bauhaus = 'Bauhaus Polska';
-  const wurth = 'Würth Polska';
-  const creditAmount = '+ 50 000 PLN';
-  return [
-  {
-    icon: Edit,
-    text: (
-      <>
-        <b>{annaK}</b> {t('home.activity.updatedPriceList')}{' '}
-        <Link to="/price-lists" style={{ color: 'var(--primary-color)' }}>
-          {tier1}
-        </Link>
-      </>
-    ),
-    when: t('home.activity.minutesAgo', { count: 2 }),
-  },
-  {
-    icon: Plus,
-    text: (
-      <>
-        <b>{tomaszW}</b> {t('home.activity.createdProduct')} <span className="b2b-mono">CABLE-LIY-1.5-50</span>
-      </>
-    ),
-    when: t('home.activity.minutesAgo', { count: 38 }),
-  },
-  {
-    icon: Archive,
-    text: (
-      <>
-        <b>{t('home.activity.systemActor')}</b> {t('home.activity.autoArchived')}
-      </>
-    ),
-    when: t('home.activity.hoursAgo', { count: 2 }),
-  },
-  {
-    icon: ClipboardCheck,
-    text: (
-      <>
-        <b>{acmeIndustrial}</b> {t('home.activity.placedOrder')} <span className="b2b-mono">SO-184221</span>
-      </>
-    ),
-    when: t('home.activity.hoursAgo', { count: 4 }),
-  },
-  {
-    icon: CircleDollarSign,
-    text: (
-      <>
-        <b>{annaK}</b> {t('home.activity.importedRules')}{' '}
-        <Link to="/price-lists" style={{ color: 'var(--primary-color)' }}>
-          {acme2026}
-        </Link>
-      </>
-    ),
-    when: t('home.activity.hoursAgo', { count: 6 }),
-  },
-  {
-    icon: FileText,
-    text: (
-      <>
-        <b>{bauhaus}</b> {t('home.activity.requestedQuote')}
-      </>
-    ),
-    when: t('home.activity.yesterday'),
-  },
-  {
-    icon: CreditCard,
-    text: (
-      <>
-        <b>{t('home.activity.financeActor')}</b> {t('home.activity.raisedCredit')} <b>{wurth}</b> {t('home.activity.byAmount')} <span className="b2b-mono">{creditAmount}</span>
-      </>
-    ),
-    when: t('home.activity.daysAgo', { count: 2 }),
-  },
-  ];
 }
 

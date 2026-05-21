@@ -261,7 +261,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // after the assetsLibrary module is built — so its `storefrontDeps`
   // can resolve asset URLs through the assets-library service. Search
   // for `megamenuModule(` below for the actual instantiation.
-  const priceLists = priceListsModule({ emFactory: em, requireAdmin });
+  const priceLists = priceListsModule({
+    emFactory: em,
+    requireAdmin,
+    auditLogService,
+    resolveAdminAuditContext: (request) => {
+      const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
+      if (actor?.kind !== 'admin') {
+        return { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
+      }
+      return { actorAdminUserId: actor.adminUserId };
+    },
+  });
   const taxes = taxesModule({
     emFactory: em,
     requireAdmin,
@@ -428,6 +439,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       channelResolver: salesChannels.handle.resolver,
       settingsService: settings.handle.settingsService,
       dictionaryValidator: dictionaries.handle.validator,
+      auditLogService,
+      resolveAdminAuditContext: (request) => {
+        const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
+        if (actor?.kind !== 'admin') {
+          return { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
+        }
+        return { actorAdminUserId: actor.adminUserId };
+      },
     }),
   ];
 

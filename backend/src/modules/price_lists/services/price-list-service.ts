@@ -13,6 +13,8 @@ import { Product } from '../../catalog/entities/product.entity.js';
 import { Setting } from '../../settings/entities/setting.entity.js';
 import { SettingValue } from '../../settings/entities/setting-value.entity.js';
 import { randomUUID } from 'crypto';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { PriceListsAuditContext } from '../plugin.js';
 
 export type DisplayMode = 'gross_only' | 'net_only' | 'both' | 'none';
 export type DisplayModeOverrideScope = 'organization' | 'category' | 'product';
@@ -69,10 +71,37 @@ export class PriceListService {
      * unprofitable until profiling shows otherwise.
      */
     private readonly pricingCache?: { invalidateAll: () => void },
+    /** Feature 024 — optional audit log writer. When omitted, no audit
+     *  rows are emitted (tests that don't care about audit pass nothing). */
+    private readonly auditLog?: AuditLogService,
   ) {}
 
   private invalidatePricingCache(): void {
     this.pricingCache?.invalidateAll();
+  }
+
+  private async audit(
+    action: string,
+    row: { id: string; name: string; code?: string },
+    stateBefore: Record<string, unknown> | null,
+    stateAfter: Record<string, unknown> | null,
+    auditCtx?: PriceListsAuditContext,
+  ): Promise<void> {
+    if (!this.auditLog || !auditCtx) return;
+    await this.auditLog.record({
+      actorAdminUserId: auditCtx.actorAdminUserId,
+      ...(auditCtx.impersonatedCustomerAccountId !== undefined
+        ? { impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId }
+        : {}),
+      action,
+      objectType: 'price_list',
+      objectId: row.id,
+      ...(stateBefore !== null ? { stateBefore } : {}),
+      ...(stateAfter !== null ? { stateAfter } : {}),
+      ...(auditCtx.ipAddress !== undefined ? { ipAddress: auditCtx.ipAddress } : {}),
+      ...(auditCtx.userAgent !== undefined ? { userAgent: auditCtx.userAgent } : {}),
+      ...(auditCtx.requestId !== undefined ? { requestId: auditCtx.requestId } : {}),
+    });
   }
 
   // ---- PriceList -----------------------------------------------------
@@ -159,7 +188,7 @@ export class PriceListService {
    * protections are out of scope here — system rows are seeded by migration
    * 031, never created via this method.
    */
-  async create(input: CreatePriceListInput): Promise<PriceList> {
+  async create(input: CreatePriceListInput, auditCtx?: PriceListsAuditContext): Promise<PriceList> {
     this.assertDateSanity(input.startsAt ?? null, input.endsAt ?? null, true);
     const normalisedRule =
       input.applicationRule !== undefined
@@ -185,6 +214,21 @@ export class PriceListService {
     });
     await em.persistAndFlush(row);
     this.invalidatePricingCache();
+    await this.audit(
+      'price_list.create',
+      row,
+      null,
+      {
+        name: row.name,
+        code: row.code,
+        type: row.type,
+        status: row.status,
+        startsAt: row.startsAt ?? null,
+        endsAt: row.endsAt ?? null,
+        applicationRuleKind: row.applicationRule.kind,
+      },
+      auditCtx,
+    );
     return row;
   }
 
@@ -192,7 +236,11 @@ export class PriceListService {
    * Partial update. Bumps `modifiedAt` on every material change.
    * Refuses non-empty rule attachment on the seeded `Default` row (FR-006).
    */
-  async patch(id: string, input: PatchPriceListInput): Promise<PriceList> {
+  async patch(
+    id: string,
+    input: PatchPriceListInput,
+    auditCtx?: PriceListsAuditContext,
+  ): Promise<PriceList> {
     const em = this.emFactory();
     const row = await this.getById(id, em);
 
@@ -208,32 +256,61 @@ export class PriceListService {
       this.assertDateSanity(nextStartsAt, nextEndsAt, false);
     }
 
+    const stateBefore = {
+      name: row.name,
+      type: row.type,
+      status: row.status,
+      startsAt: row.startsAt ?? null,
+      endsAt: row.endsAt ?? null,
+    };
     let mutated = false;
+    const changedFields: string[] = [];
     if (input.name !== undefined && input.name !== row.name) {
       row.name = input.name;
       mutated = true;
+      changedFields.push('name');
     }
     if (input.type !== undefined && input.type !== row.type) {
       row.type = input.type;
       mutated = true;
+      changedFields.push('type');
     }
     if (input.startsAt !== undefined) {
       row.startsAt = input.startsAt;
       mutated = true;
+      changedFields.push('startsAt');
     }
     if (input.endsAt !== undefined) {
       row.endsAt = input.endsAt;
       mutated = true;
+      changedFields.push('endsAt');
     }
     if (input.applicationRule !== undefined && normalisedRule !== undefined) {
       row.applicationRule = normalisedRule;
       mutated = true;
+      changedFields.push('applicationRule');
     }
     if (mutated) {
       row.modifiedAt = new Date();
     }
     await em.flush();
-    if (mutated) this.invalidatePricingCache();
+    if (mutated) {
+      this.invalidatePricingCache();
+      await this.audit(
+        'price_list.update',
+        row,
+        stateBefore,
+        {
+          name: row.name,
+          type: row.type,
+          status: row.status,
+          startsAt: row.startsAt ?? null,
+          endsAt: row.endsAt ?? null,
+          changedFields,
+        },
+        auditCtx,
+      );
+    }
     return row;
   }
 
@@ -241,7 +318,7 @@ export class PriceListService {
    * Manual transition: draft → active (or scheduled / expired if dates
    * dictate). FR-009 row 1.
    */
-  async activate(id: string): Promise<PriceList> {
+  async activate(id: string, auditCtx?: PriceListsAuditContext): Promise<PriceList> {
     const em = this.emFactory();
     const row = await this.getById(id, em);
     // FR-023: a non-Default list cannot leave `draft` while its rule is empty.
@@ -261,25 +338,45 @@ export class PriceListService {
           : 'active';
     if (row.status === next) return row;
     await this.assertCanTransitionStatus(id, next);
+    const previousStatus = row.status;
     row.status = next;
     row.modifiedAt = new Date();
     await em.flush();
     this.invalidatePricingCache();
+    // Pick the right action token for the dashboard: `price_list.activate`
+    // when the row moved into a live state, `price_list.expire` when the
+    // start/end-dates pushed it directly to expired.
+    const action = next === 'expired' ? 'price_list.expire' : 'price_list.activate';
+    await this.audit(
+      action,
+      row,
+      { status: previousStatus },
+      { name: row.name, status: row.status, activatedAt: new Date() },
+      auditCtx,
+    );
     return row;
   }
 
   /**
    * Manual transition: any state → draft. Freezes the list immediately.
    */
-  async draftify(id: string): Promise<PriceList> {
+  async draftify(id: string, auditCtx?: PriceListsAuditContext): Promise<PriceList> {
     const em = this.emFactory();
     const row = await this.getById(id, em);
     if (row.status === 'draft') return row;
     await this.assertCanTransitionStatus(id, 'draft');
+    const previousStatus = row.status;
     row.status = 'draft';
     row.modifiedAt = new Date();
     await em.flush();
     this.invalidatePricingCache();
+    await this.audit(
+      'price_list.draftify',
+      row,
+      { status: previousStatus },
+      { name: row.name, status: row.status },
+      auditCtx,
+    );
     return row;
   }
 
@@ -288,7 +385,7 @@ export class PriceListService {
    * every bracket row. Resets status to `draft`, clears dates, and derives
    * a unique name (suffix ` (copy)`, ` (copy 2)`, …) — FR-013.
    */
-  async duplicate(id: string): Promise<PriceList> {
+  async duplicate(id: string, auditCtx?: PriceListsAuditContext): Promise<PriceList> {
     const em = this.emFactory();
     const source = await this.getById(id, em);
 
@@ -351,6 +448,17 @@ export class PriceListService {
     await em.flush();
     this.invalidatePricingCache();
 
+    await this.audit(
+      'price_list.duplicate',
+      dup,
+      null,
+      {
+        name: dup.name,
+        sourcePriceListId: source.id,
+        sourceName: source.name,
+      },
+      auditCtx,
+    );
     return dup;
   }
 
@@ -886,6 +994,7 @@ export class PriceListService {
   async replaceProducts(
     priceListId: string,
     productIds: readonly string[],
+    auditCtx?: PriceListsAuditContext,
   ): Promise<ReplaceProductsResult> {
     const em = this.emFactory();
     const list = await this.getById(priceListId, em);
@@ -904,7 +1013,23 @@ export class PriceListService {
       list.modifiedAt = new Date();
     }
     await em.flush();
-    if (toAdd.length > 0 || toRemove.length > 0) this.invalidatePricingCache();
+    if (toAdd.length > 0 || toRemove.length > 0) {
+      this.invalidatePricingCache();
+      // Feature 024 — emit a single summary audit row carrying only counts
+      // (never the full product-id list — FR-013).
+      await this.audit(
+        'price_list.products_replace',
+        list,
+        null,
+        {
+          name: list.name,
+          added: toAdd.length,
+          removed: toRemove.length,
+          kept: unchanged.length,
+        },
+        auditCtx,
+      );
+    }
 
     return { added: toAdd.length, removed: toRemove.length, unchanged: unchanged.length };
   }
@@ -924,6 +1049,7 @@ export class PriceListService {
     priceListId: string,
     productId: string,
     bracketsByCurrency: Record<string, readonly BracketInput[]>,
+    auditCtx?: PriceListsAuditContext,
   ): Promise<Record<string, BracketInput[]>> {
     const em = this.emFactory();
     const list = await this.getById(priceListId, em);
@@ -984,6 +1110,24 @@ export class PriceListService {
     list.modifiedAt = new Date();
     await em.flush();
     this.invalidatePricingCache();
+
+    // Feature 024 — one audit row per (list, product) bracket save, with
+    // per-currency bracket counts in the summary (never the raw amounts).
+    const summary: Record<string, number> = {};
+    for (const [currency, rows] of Object.entries(out)) {
+      summary[currency] = rows.length;
+    }
+    await this.audit(
+      'price_list.bracket_update',
+      list,
+      null,
+      {
+        name: list.name,
+        productId,
+        bracketCountByCurrency: summary,
+      },
+      auditCtx,
+    );
 
     return out;
   }

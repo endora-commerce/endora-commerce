@@ -2,6 +2,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../../http/error-envelope.js';
 import { randomUUID } from 'crypto';
 import type { EventBus } from '../../../events/bus.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { InventoryAuditContext } from '../plugin.js';
 
 export interface InventoryAdjustedEvent {
   eventId: string;
@@ -89,6 +91,7 @@ export class StockLevelService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly eventBus?: EventBus,
+    private readonly auditLog?: AuditLogService,
   ) {}
 
   async listLandingKpis(): Promise<InventoryLandingKpis> {
@@ -459,7 +462,10 @@ export class StockLevelService {
     }
   }
 
-  async setOnHand(input: SetOnHandInput): Promise<SetOnHandResult> {
+  async setOnHand(
+    input: SetOnHandInput,
+    auditCtx?: InventoryAuditContext,
+  ): Promise<SetOnHandResult> {
     const em = this.emFactory();
     const product = await em.findOne(Product, { id: input.productId });
     if (!product) throw new HttpError(404, 'PRODUCT_NOT_FOUND', 'Product not found');
@@ -496,6 +502,33 @@ export class StockLevelService {
         before,
         after: input.onHand,
       } as never);
+    }
+
+    // Feature 024 — audit stock adjustments so the dashboard surfaces
+    // them. Snapshot carries the SKU + warehouse code so the row stays
+    // readable after either reference is renamed.
+    if (this.auditLog && auditCtx && before !== input.onHand) {
+      await this.auditLog.record({
+        actorAdminUserId: auditCtx.actorAdminUserId,
+        ...(auditCtx.impersonatedCustomerAccountId !== undefined
+          ? { impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId }
+          : {}),
+        action: 'stock_level.adjust',
+        objectType: 'stock_level',
+        objectId: `${input.productId}:${input.warehouseId}`,
+        stateBefore: { onHand: before },
+        stateAfter: {
+          productId: input.productId,
+          productSku: product.sku,
+          warehouseId: input.warehouseId,
+          warehouseCode: warehouse.code,
+          onHand: input.onHand,
+          delta: input.onHand - before,
+        },
+        ...(auditCtx.ipAddress !== undefined ? { ipAddress: auditCtx.ipAddress } : {}),
+        ...(auditCtx.userAgent !== undefined ? { userAgent: auditCtx.userAgent } : {}),
+        ...(auditCtx.requestId !== undefined ? { requestId: auditCtx.requestId } : {}),
+      });
     }
 
     return {
