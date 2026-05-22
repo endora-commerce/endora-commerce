@@ -69,6 +69,12 @@ export interface InventoryModuleOptions {
     actorAdminUserId: string;
     impersonatedCustomerAccountId?: string | null;
   };
+  /**
+   * Feature 026 US4 — when provided, the storefront stock-figure endpoint
+   * intersects its candidate warehouse set with the Organization's assigned
+   * warehouses. Empty / null ⇒ platform defaults apply.
+   */
+  resolveOrganizationWarehouseAllowList?: (req: FastifyRequest) => Promise<string[] | null>;
 }
 
 export function inventoryModule(options: InventoryModuleOptions) {
@@ -122,6 +128,9 @@ export function inventoryModule(options: InventoryModuleOptions) {
       stockLevelService,
       ...(options.channelResolver ? { channelResolver: options.channelResolver } : {}),
       ...(options.settingsService ? { settingsService: options.settingsService } : {}),
+      ...(options.resolveOrganizationWarehouseAllowList
+        ? { resolveOrganizationWarehouseAllowList: options.resolveOrganizationWarehouseAllowList }
+        : {}),
     });
     if (options.requireAdmin) {
       const warehouseService = new WarehouseService(

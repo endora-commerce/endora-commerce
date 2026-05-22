@@ -3,6 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
 import type { SessionService } from '../auth/services/session-service.js';
 import type { OrganizationModerationService } from './services/organization-moderation-service.js';
+import type { OrganizationRestrictionService } from './services/organization-restriction-service.js';
 import {
   RegistrationService,
   type OrganizationEventBus,
@@ -18,6 +19,8 @@ import { ConsoleMailer, type Mailer } from '../email/services/mailer.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import { registerOrganizationsPublicRoutes } from './routes.public.js';
 import { registerOrganizationsCustomerRoutes } from './routes.customer.js';
+import { registerOrganizationsStorefrontRoutes } from './routes.storefront.js';
+import { OrganizationContextService } from './services/organization-context-service.js';
 import { registerMembersRoutes } from './routes.members.js';
 import { registerOrganizationsAdminRoutes } from './routes.admin.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
@@ -70,6 +73,12 @@ export interface OrganizationsModuleOptions {
    * endpoints are mounted; otherwise only the legacy PATCH endpoint runs.
    */
   moderationService?: OrganizationModerationService;
+  /**
+   * Feature 026 US4 — restriction service that owns the per-Organization
+   * payment / delivery / warehouse allow-lists. When provided alongside
+   * `requireAdmin`, the matching admin endpoints are mounted.
+   */
+  restrictionService?: OrganizationRestrictionService;
 }
 
 export function organizationsModule(options: OrganizationsModuleOptions) {
@@ -120,6 +129,19 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       resolveCustomerContext: options.resolveCustomerContext,
       emFactory: options.emFactory,
     });
+    if (options.restrictionService) {
+      await registerOrganizationsStorefrontRoutes(app, {
+        contextService: new OrganizationContextService(options.emFactory),
+        restrictionService: options.restrictionService,
+        requireCustomer: options.requireCustomer,
+        // The preflight endpoint must accept no-org Customers (they receive
+        // platform defaults). We read the actor decoration directly rather
+        // than going through `resolveCustomerContext`, which throws 422 for
+        // no-org callers — that behavior is correct for order placement and
+        // RFQ submission but wrong here.
+        resolveCustomerContext: resolveOptionalOrgContext,
+      });
+    }
     await registerMembersRoutes(app, {
       invitationService,
       roleService,
@@ -140,7 +162,39 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
         roleService,
         auditLogService: options.auditLogService,
         ...(options.moderationService ? { moderationService: options.moderationService } : {}),
+        ...(options.restrictionService ? { restrictionService: options.restrictionService } : {}),
       });
     }
   };
+}
+
+/**
+ * Reads the customer context from whichever actor decoration is present —
+ * `request.actor` in production, `request.testActor` in the test harness.
+ * Returns `organizationId: null` for no-org Customer accounts (feature 026
+ * US2). Used by the storefront preflight endpoint which must accept both
+ * org-bound and no-org Customers.
+ */
+function resolveOptionalOrgContext(
+  request: FastifyRequest,
+): { customerAccountId: string; organizationId: string | null } {
+  const r = request as FastifyRequest & {
+    testActor?: { kind: string; customerAccountId?: string; organizationId?: string | null };
+    actor?: { kind: string; customerAccountId?: string; organizationId?: string | null };
+  };
+  if (r.testActor?.kind === 'customer' && r.testActor.customerAccountId) {
+    return {
+      customerAccountId: r.testActor.customerAccountId,
+      organizationId: r.testActor.organizationId ?? null,
+    };
+  }
+  if (r.actor?.kind === 'customer' && r.actor.customerAccountId) {
+    return {
+      customerAccountId: r.actor.customerAccountId,
+      organizationId: r.actor.organizationId ?? null,
+    };
+  }
+  throw new Error(
+    'resolveOptionalOrgContext: no Customer actor on the request — requireCustomer preHandler should have rejected.',
+  );
 }

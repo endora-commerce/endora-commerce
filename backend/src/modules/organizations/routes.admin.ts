@@ -24,10 +24,16 @@ import {
   OrganizationVersionMismatchError,
 } from './services/organization-moderation-service.js';
 import {
+  OrganizationRestrictionService,
+  OrganizationVersionMismatchError as RestrictionVersionMismatchError,
+} from './services/organization-restriction-service.js';
+import {
   approveOrganizationSchema,
   rejectOrganizationSchema,
   blockOrganizationSchema,
   unblockOrganizationSchema,
+  replaceOrgRestrictionsSchema,
+  patchOrgRestrictionsSchema,
 } from './schemas/organization.js';
 import { hashPassword } from '../auth/services/password-hasher.js';
 
@@ -50,6 +56,8 @@ export interface AdminOrgsDeps {
   auditLogService: AuditLogService;
   /** Optional — when provided, mounts the approve / reject / block / unblock endpoints. */
   moderationService?: OrganizationModerationService;
+  /** Optional — when provided, mounts the restrictions admin endpoints (US4). */
+  restrictionService?: OrganizationRestrictionService;
 }
 
 export async function registerOrganizationsAdminRoutes(
@@ -58,6 +66,7 @@ export async function registerOrganizationsAdminRoutes(
 ): Promise<void> {
   const { requireAdmin, emFactory, invitationService, roleService, auditLogService } = deps;
   const moderationService = deps.moderationService;
+  const restrictionService = deps.restrictionService;
 
   const audit = async (
     request: FastifyRequest,
@@ -266,6 +275,63 @@ export async function registerOrganizationsAdminRoutes(
         }
       },
     );
+  }
+
+  // ── Restrictions (feature 026 US4) ─────────────────────────────────────
+  // Per-Organization allow-lists for payment methods, delivery methods, and
+  // assigned warehouses. Empty allow-list ⇒ platform defaults apply.
+  if (restrictionService) {
+    app.get<{ Params: { id: string } }>(
+      '/api/v1/admin/organizations/:id/restrictions',
+      { preHandler: requireAdmin('customers:manage') },
+      async (request) => {
+        const data = await restrictionService.readAllowLists(request.params.id);
+        return { data };
+      },
+    );
+
+    app.put<{ Params: { id: string } }>(
+      '/api/v1/admin/organizations/:id/restrictions',
+      {
+        preHandler: requireAdmin('customers:manage'),
+        schema: { body: replaceOrgRestrictionsSchema },
+      },
+      async (request) => {
+        const body = replaceOrgRestrictionsSchema.parse(request.body);
+        try {
+          const data = await restrictionService.replaceAllowLists(request.params.id, body);
+          return { data };
+        } catch (err) {
+          throw mapRestrictionError(err);
+        }
+      },
+    );
+
+    const patchRoute = (
+      url: string,
+      kind: 'payment_method' | 'delivery_method' | 'warehouse',
+    ): void => {
+      app.patch<{ Params: { id: string } }>(
+        url,
+        {
+          preHandler: requireAdmin('customers:manage'),
+          schema: { body: patchOrgRestrictionsSchema },
+        },
+        async (request) => {
+          const body = patchOrgRestrictionsSchema.parse(request.body);
+          try {
+            const data = await restrictionService.patchAllowList(request.params.id, kind, body);
+            return { data };
+          } catch (err) {
+            throw mapRestrictionError(err);
+          }
+        },
+      );
+    };
+
+    patchRoute('/api/v1/admin/organizations/:id/restrictions/payment-methods', 'payment_method');
+    patchRoute('/api/v1/admin/organizations/:id/restrictions/delivery-methods', 'delivery_method');
+    patchRoute('/api/v1/admin/organizations/:id/restrictions/warehouses', 'warehouse');
   }
 
   app.post<{ Params: { id: string } }>(
@@ -554,6 +620,30 @@ function resolveAdminUserId(request: FastifyRequest): string | null {
  * HTTP equivalents. 409 for version mismatch (with `currentVersion` in the
  * body), 404 for missing org, 422 for status-guard violations.
  */
+/**
+ * Maps OrganizationRestrictionService errors to HTTP. Same 409 contract as
+ * the moderation endpoints (the body carries `currentVersion`).
+ */
+function mapRestrictionError(err: unknown): HttpError {
+  if (err instanceof RestrictionVersionMismatchError) {
+    return new HttpError(
+      409,
+      ERROR_CODES.VERSION_CONFLICT,
+      'Organization was modified by another request. Refresh and retry.',
+      {
+        code: 'organization_version_mismatch',
+        currentVersion: err.currentVersion,
+      },
+    );
+  }
+  if (err instanceof HttpError) return err;
+  return new HttpError(
+    500,
+    ERROR_CODES.INTERNAL,
+    err instanceof Error ? err.message : 'Internal error.',
+  );
+}
+
 function mapModerationError(err: unknown): HttpError {
   if (err instanceof OrganizationVersionMismatchError) {
     return new HttpError(

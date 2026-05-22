@@ -72,6 +72,13 @@ export interface OrdersModuleOptions {
    * through to both registerCartRoutes and registerOrderRoutes.
    */
   assertOrganizationCanTransact?: (organizationId: string) => Promise<void>;
+  /**
+   * Feature 026 US4 — When provided, the storefront payment-methods endpoint
+   * intersects the active set with the caller's Organization allow-list.
+   */
+  resolveOrganizationPaymentMethodAllowList?: (req: FastifyRequest) => Promise<string[] | null>;
+  /** Feature 026 US4 — same for delivery methods. */
+  resolveOrganizationDeliveryMethodAllowList?: (req: FastifyRequest) => Promise<string[] | null>;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -103,8 +110,18 @@ export function commerceModule(options: OrdersModuleOptions) {
         ? { assertOrganizationCanTransact: options.assertOrganizationCanTransact }
         : {}),
     });
-    await registerDeliveryMethodsPublicRoutes(app, { emFactory: options.emFactory });
-    await registerPaymentMethodsPublicRoutes(app, { emFactory: options.emFactory });
+    await registerDeliveryMethodsPublicRoutes(app, {
+      emFactory: options.emFactory,
+      ...(options.resolveOrganizationDeliveryMethodAllowList
+        ? { resolveOrganizationDeliveryMethodAllowList: options.resolveOrganizationDeliveryMethodAllowList }
+        : {}),
+    });
+    await registerPaymentMethodsPublicRoutes(app, {
+      emFactory: options.emFactory,
+      ...(options.resolveOrganizationPaymentMethodAllowList
+        ? { resolveOrganizationPaymentMethodAllowList: options.resolveOrganizationPaymentMethodAllowList }
+        : {}),
+    });
     await registerDeliveryMethodsAdminRoutes(app, {
       emFactory: options.emFactory,
       requireAdmin: options.requireAdmin,

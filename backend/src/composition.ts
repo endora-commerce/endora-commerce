@@ -19,6 +19,7 @@ import { quoteRequestsModule } from './modules/quote_requests/plugin.js';
 import { organizationsModule } from './modules/organizations/plugin.js';
 import { adminNotificationsModule } from './modules/admin_notifications/plugin.js';
 import { OrganizationModerationService } from './modules/organizations/services/organization-moderation-service.js';
+import { OrganizationRestrictionService } from './modules/organizations/services/organization-restriction-service.js';
 import type { OrganizationEventBus } from './modules/organizations/services/registration-service.js';
 import { OrgRegistrationNotifier } from './modules/organizations/services/org-registration-notifier.js';
 import { OrganizationContextService } from './modules/organizations/services/organization-context-service.js';
@@ -422,6 +423,39 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
 
   const organizationContextService = new OrganizationContextService(em);
+  const organizationRestrictionService = new OrganizationRestrictionService(em);
+
+  /**
+   * Builds per-request resolvers that fetch the caller's Organization
+   * allow-list for one of the three restriction kinds. Anonymous requests
+   * and no-org Customers return `null` (no filter applied; platform defaults).
+   * Production wiring resolves the actor via `request.actor`; the test
+   * harness uses `request.testActor` — both shapes are checked.
+   */
+  const buildOrgAllowListResolver = (
+    kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
+  ) => async (request: FastifyRequest): Promise<string[] | null> => {
+    const r = request as FastifyRequest & {
+      testActor?: { kind: string; organizationId?: string | null };
+      actor?: { kind: string; organizationId?: string | null };
+    };
+    const orgId =
+      (r.testActor?.kind === 'customer' && r.testActor.organizationId) ||
+      (r.actor?.kind === 'customer' && r.actor.organizationId) ||
+      null;
+    if (!orgId) return null;
+    try {
+      const lists = await organizationRestrictionService.readAllowLists(orgId);
+      return lists[kind];
+    } catch {
+      // Org not found / soft-deleted — degrade to "no restriction".
+      return null;
+    }
+  };
+
+  const resolveOrganizationPaymentMethodAllowList = buildOrgAllowListResolver('paymentMethodIds');
+  const resolveOrganizationDeliveryMethodAllowList = buildOrgAllowListResolver('deliveryMethodIds');
+  const resolveOrganizationWarehouseAllowList = buildOrgAllowListResolver('warehouseIds');
   const assertOrganizationCanTransact = async (organizationId: string): Promise<void> => {
     await organizationContextService.assertCanTransact(organizationId);
   };
@@ -479,6 +513,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         cartService = cs;
       },
       assertOrganizationCanTransact,
+      resolveOrganizationPaymentMethodAllowList,
+      resolveOrganizationDeliveryMethodAllowList,
     }),
     organizationsModule({
       emFactory: em,
@@ -490,6 +526,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       mailer: organizationsMailer,
       auditLogService,
       moderationService: organizationModerationService,
+      restrictionService: organizationRestrictionService,
       dictionaryValidator: dictionaries.handle.validator,
       ...(process.env['STOREFRONT_BASE_URL']
         ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
@@ -549,6 +586,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         }
         return { actorAdminUserId: actor.adminUserId };
       },
+      resolveOrganizationWarehouseAllowList,
     }),
   ];
 

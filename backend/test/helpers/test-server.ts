@@ -19,6 +19,7 @@ import { organizationsModule } from '../../src/modules/organizations/plugin.js';
 import { adminNotificationsModule } from '../../src/modules/admin_notifications/plugin.js';
 import { OrganizationModerationService } from '../../src/modules/organizations/services/organization-moderation-service.js';
 import { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
+import { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
 import { OrgRegistrationNotifier } from '../../src/modules/organizations/services/org-registration-notifier.js';
 import type { OrganizationEventBus } from '../../src/modules/organizations/services/registration-service.js';
 import { ConsoleMailer } from '../../src/modules/email/services/mailer.js';
@@ -130,6 +131,8 @@ export interface BackendServerHandle {
       typeof adminNotificationsModule
     >['handle']['adminNotificationService'];
     organizationContextService: OrganizationContextService;
+    /** Feature 026 US4 — per-org allow-list service. */
+    restrictionService: OrganizationRestrictionService;
   };
 }
 
@@ -287,6 +290,33 @@ export async function setupBackendServer(
   // organizations can merge anonymous baskets after sign-in.
   let cartService: CartService | null = null;
   let handleFeature026: BackendServerHandle['organizations'] | null = null;
+
+  // Feature 026 US4 — restriction service + per-request allow-list resolvers.
+  // Mirrors the composition.ts pattern: production wiring reads
+  // `request.actor`; the test harness uses `request.testActor`.
+  const sharedRestrictionService = new OrganizationRestrictionService(em);
+  const buildOrgAllowListResolver = (
+    kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
+  ) => async (request: FastifyRequest): Promise<string[] | null> => {
+    const r = request as FastifyRequest & {
+      testActor?: { kind: string; organizationId?: string | null };
+      actor?: { kind: string; organizationId?: string | null };
+    };
+    const orgId =
+      (r.testActor?.kind === 'customer' && r.testActor.organizationId) ||
+      (r.actor?.kind === 'customer' && r.actor.organizationId) ||
+      null;
+    if (!orgId) return null;
+    try {
+      const lists = await sharedRestrictionService.readAllowLists(orgId);
+      return lists[kind];
+    } catch {
+      return null;
+    }
+  };
+  const resolveOrganizationPaymentMethodAllowList = buildOrgAllowListResolver('paymentMethodIds');
+  const resolveOrganizationDeliveryMethodAllowList = buildOrgAllowListResolver('deliveryMethodIds');
+  const resolveOrganizationWarehouseAllowList = buildOrgAllowListResolver('warehouseIds');
 
   // Standalone AdminUserService for modules that need direct service-level
   // access to admin users (feature 019 — wires the preferred-language
@@ -463,6 +493,8 @@ export async function setupBackendServer(
       exposeCartService: (cs) => {
         cartService = cs;
       },
+      resolveOrganizationPaymentMethodAllowList,
+      resolveOrganizationDeliveryMethodAllowList,
     }),
     // Feature 026 — moderation lifecycle wiring for the test server.
     // Built before organizationsModule so the moderation service can be
@@ -495,12 +527,16 @@ export async function setupBackendServer(
         const orgId = (payload as unknown as { organizationId: string }).organizationId;
         await moderationService.handleNewlyRegistered(orgId);
       });
+      // Reuse the shared service from above so the per-request resolvers and
+      // the admin endpoints operate over the same instance.
+      const restrictionService = sharedRestrictionService;
       // Expose handles on the harness for tests that want to call the
       // services directly.
       handleFeature026 = {
         moderationService,
         adminNotificationService: adminNotifications.handle.adminNotificationService,
         organizationContextService: new OrganizationContextService(em),
+        restrictionService,
       };
       return [
         adminNotifications.plugin,
@@ -513,12 +549,13 @@ export async function setupBackendServer(
           resolveCustomerContext: customerResolver,
           auditLogService,
           moderationService,
+          restrictionService,
           exposeTestProbe: true,
           dictionaryValidator: dictionaries.handle.validator,
           mailer: moderationMailer,
           storefrontBaseUrl: 'http://localhost:3000',
           onLogin: async (ctx) => {
-            if (cartService && ctx.anonymousCartToken) {
+            if (cartService && ctx.anonymousCartToken && ctx.organizationId) {
               await cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
                 customerAccountId: ctx.customerAccountId,
                 organizationId: ctx.organizationId,
@@ -554,6 +591,7 @@ export async function setupBackendServer(
         actorAdminUserId:
           request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
       }),
+      resolveOrganizationWarehouseAllowList,
     }),
   ];
 
@@ -874,6 +912,7 @@ export async function setupBackendServer(
         typeof adminNotificationsModule
       >['handle']['adminNotificationService'],
       organizationContextService: null as unknown as OrganizationContextService,
+      restrictionService: null as unknown as OrganizationRestrictionService,
     },
   };
 }

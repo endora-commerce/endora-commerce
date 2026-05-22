@@ -25,8 +25,8 @@ export type RestrictionKind = 'payment_method' | 'delivery_method' | 'warehouse'
 
 export interface PatchAllowListInput {
   expectedVersion: number;
-  add?: string[];
-  remove?: string[];
+  add?: string[] | undefined;
+  remove?: string[] | undefined;
 }
 
 /**

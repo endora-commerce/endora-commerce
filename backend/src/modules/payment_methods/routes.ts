@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import { ERROR_CODES } from '@b2b/contracts';
@@ -16,6 +16,12 @@ import type { SalesChannelMembershipService } from '../sales_channels/services/s
  */
 export interface PaymentMethodsPublicDeps {
   emFactory: () => EntityManager;
+  /**
+   * Feature 026 US4 — When provided, returns the per-Organization allow-list
+   * of payment-method IDs for the caller. Empty / null ⇒ platform defaults
+   * apply (every active method is offered).
+   */
+  resolveOrganizationPaymentMethodAllowList?: (req: FastifyRequest) => Promise<string[] | null>;
 }
 
 export interface PaymentMethodsAdminDeps {
@@ -36,13 +42,24 @@ export async function registerPaymentMethodsPublicRoutes(
   app: FastifyInstance,
   deps: PaymentMethodsPublicDeps,
 ): Promise<void> {
-  app.get('/api/v1/payment-methods', async () => {
+  app.get('/api/v1/payment-methods', async (request) => {
     const em = deps.emFactory();
-    const rows = await em.find(
+    let rows = await em.find(
       PaymentMethod,
       { status: 'active' },
       { orderBy: { code: 'asc' } },
     );
+
+    // Feature 026 US4 — when the caller's Organization has a non-empty
+    // payment-method allow-list, the available set is intersected with it.
+    if (deps.resolveOrganizationPaymentMethodAllowList) {
+      const allowList = await deps.resolveOrganizationPaymentMethodAllowList(request);
+      if (allowList && allowList.length > 0) {
+        const allowSet = new Set(allowList);
+        rows = rows.filter((m) => allowSet.has(m.id));
+      }
+    }
+
     return { data: rows.map(serializePaymentMethod) };
   });
 }
