@@ -260,7 +260,7 @@
   "productEditor.attributeSet.loading": "— wczytywanie —",
   "productEditor.attributeSet.systemSuffix": " (systemowy)",
   "productEditor.field.status": "Status",
-  "productEditor.field.status.help": "Użyj Archiwizuj (góra po prawej) aby dezaktywować; cykl życia zarządzany jest osobno.",
+  "productEditor.field.status.help": "Wybierz szkic, aktywny lub zarchiwizowany. Możesz też użyć Archiwizuj (góra po prawej) jako skrótu do zarchiwizowanego.",
   "productEditor.field.defaultPrice": "Domyślna cena jednostkowa",
   "productEditor.field.defaultPrice.help": "Nadpisania z cenników mają pierwszeństwo przy kasie.",
   "productEditor.field.localizedName": "Nazwa [{locale}]",
