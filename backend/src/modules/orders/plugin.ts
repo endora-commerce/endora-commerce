@@ -7,6 +7,9 @@ import { CartService } from '../carts/services/cart-service.js';
 import { CartUpsellService } from '../carts/services/cart-upsell-service.js';
 import { CartCouponService } from '../carts/services/cart-coupon-service.js';
 import { CartConversionService } from '../carts/services/cart-conversion-service.js';
+import { CartAdminService } from '../carts/services/cart-admin-service.js';
+import { CartAuditService } from '../carts/services/cart-audit-service.js';
+import { registerCartsAdminRoutes } from '../carts/routes.admin.js';
 import type { PricingService } from '../price_lists/services/pricing-service.js';
 import type { PromotionService } from '../promotions/services/promotion-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
@@ -149,6 +152,12 @@ export function commerceModule(options: OrdersModuleOptions) {
     const cartCouponService = options.promotionService
       ? new CartCouponService(options.emFactory, options.promotionService)
       : undefined;
+    const cartAuditService = options.auditLogService
+      ? new CartAuditService(options.emFactory, options.auditLogService)
+      : undefined;
+    const cartAdminService = cartAuditService
+      ? new CartAdminService(options.emFactory, cartAuditService)
+      : undefined;
     // Build a thin lazy-resolving wrapper so the QR service can be
     // injected after commerceModule is constructed (chicken-and-egg in
     // composition.ts).
@@ -225,5 +234,21 @@ export function commerceModule(options: OrdersModuleOptions) {
       emFactory: options.emFactory,
       requireAdmin: options.requireAdmin,
     });
+
+    if (cartAdminService) {
+      await registerCartsAdminRoutes(app, {
+        cartAdminService,
+        requireAdmin: options.requireAdmin,
+        resolveAdminUserId: (req: FastifyRequest): string | null => {
+          // Production rig: `request.actor` (set by the auth plugin).
+          // Test rig: `request.testActor` (set by test-actors.ts).
+          const prodActor = (req as { actor?: { kind?: string; adminUserId?: string } }).actor;
+          if (prodActor?.kind === 'admin' && prodActor.adminUserId) return prodActor.adminUserId;
+          const testActor = (req as { testActor?: { kind?: string; adminUserId?: string } }).testActor;
+          if (testActor?.kind === 'admin' && testActor.adminUserId) return testActor.adminUserId;
+          return null;
+        },
+      });
+    }
   };
 }
