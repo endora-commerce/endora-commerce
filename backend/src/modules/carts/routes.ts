@@ -12,6 +12,7 @@ import type { CartService } from './services/cart-service.js';
 import type { CartUpsellService } from './services/cart-upsell-service.js';
 import type { CartCouponService } from './services/cart-coupon-service.js';
 import type { CartConversionService } from './services/cart-conversion-service.js';
+import type { CartPricingRecompute } from './services/cart-pricing-recompute.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Cart } from './entities/cart.entity.js';
 import type { CartItem } from './entities/cart-item.entity.js';
@@ -50,6 +51,14 @@ export interface CartsDeps {
    * Optional so legacy compositions still build.
    */
   cartConversionService?: CartConversionService;
+  /**
+   * Feature 027 §R5 — re-pricing on read. When wired, every full-cart
+   * read calls the helper to refresh `cart_items.unit_price` from the
+   * customer's currently resolved price list (Redis-cached for 30 s).
+   * The response uses the recomputed prices; the snapshotted column is
+   * kept for audit / diff.
+   */
+  cartPricingRecompute?: CartPricingRecompute;
   /**
    * Feature 027 US3 — ShoppingListService.convertToCart bridge for the
    * `POST /api/v1/cart/from-shopping-list/:listId` endpoint. Returns the
@@ -132,7 +141,37 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
       return { data: emptyCart() };
     }
     const items = await cartService.getItems(cart.id);
-    return { data: serializeCart(cart, items) };
+
+    // Feature 027 §R5 — re-pricing on read (FR-008).
+    let recomputedPrices: Map<string, { amount: number; currency: string }> | null = null;
+    if (deps.cartPricingRecompute && items.length > 0) {
+      try {
+        const lines = items.map((it) => ({
+          cartItemId: it.id,
+          productId: it.productId,
+          variantId: it.variantId ?? null,
+          quantity: it.quantity,
+        }));
+        const resolved = await deps.cartPricingRecompute.recompute(
+          {
+            cartId: cart.id,
+            organizationId: cart.organizationId ?? null,
+            salesChannelId: cart.salesChannelId ?? null,
+          },
+          lines,
+        );
+        recomputedPrices = new Map(
+          resolved
+            .filter((r) => r.amount !== null)
+            .map((r) => [r.cartItemId, { amount: r.amount as number, currency: r.currency }]),
+        );
+      } catch {
+        // Never block a cart read on a resolver hiccup; fall back to the
+        // snapshotted unit price.
+        recomputedPrices = null;
+      }
+    }
+    return { data: serializeCart(cart, items, recomputedPrices) };
   });
 
   app.post(
@@ -474,9 +513,30 @@ function emptyCart() {
  * the CartPricingRecompute helper (foundation T014) will be wired into
  * this serializer when the read path lands.
  */
-function serializeCart(cart: Cart, items: CartItem[]) {
-  const subtotal = items.reduce((acc, it) => acc + Number(it.unitPrice) * it.quantity, 0);
-  const currency = items[0]?.currency ?? 'PLN';
+function serializeCart(
+  cart: Cart,
+  items: CartItem[],
+  recomputedPrices: Map<string, { amount: number; currency: string }> | null = null,
+) {
+  let subtotal = 0;
+  let currency = items[0]?.currency ?? 'PLN';
+  const serializedItems = items.map((it) => {
+    const recomputed = recomputedPrices?.get(it.id);
+    const unitPriceAmount = recomputed ? recomputed.amount : Number(it.unitPrice);
+    const lineCurrency = recomputed ? recomputed.currency : it.currency;
+    if (currency === 'PLN' && lineCurrency !== 'PLN') currency = lineCurrency;
+    subtotal += unitPriceAmount * it.quantity;
+    return {
+      id: it.id,
+      productId: it.productId,
+      variantId: it.variantId ?? null,
+      quantity: it.quantity,
+      unitPrice: { amount: unitPriceAmount, currency: lineCurrency },
+      lineTotal: { amount: unitPriceAmount * it.quantity, currency: lineCurrency },
+      unavailable: false,
+      unavailableReason: null,
+    };
+  });
   return {
     id: cart.id,
     customerAccountId: cart.customerAccountId ?? null,
@@ -485,19 +545,7 @@ function serializeCart(cart: Cart, items: CartItem[]) {
     anonymousCartToken: cart.anonymousCartToken ?? null,
     status: cart.status,
     approvalStatus: cart.approvalStatus,
-    items: items.map((it) => {
-      const unitPriceAmount = Number(it.unitPrice);
-      return {
-        id: it.id,
-        productId: it.productId,
-        variantId: it.variantId ?? null,
-        quantity: it.quantity,
-        unitPrice: { amount: unitPriceAmount, currency: it.currency },
-        lineTotal: { amount: unitPriceAmount * it.quantity, currency: it.currency },
-        unavailable: false,
-        unavailableReason: null,
-      };
-    }),
+    items: serializedItems,
     itemCount: items.length,
     subtotal: { amount: subtotal, currency },
     discount: cart.appliedPromotionCode

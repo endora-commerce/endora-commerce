@@ -520,6 +520,7 @@ export async function setupBackendServer(
       salesChannelMembership: salesChannels.handle.membershipService,
       pricingService: priceLists.handle.pricingService,
       promotionService: promotions.handle.promotionService,
+      redis,
       getRfqService: () => quoteRequests?.handle().rfqService ?? null,
       resolveCartActor: (request) => {
         if (request.testActor?.kind === 'customer') {

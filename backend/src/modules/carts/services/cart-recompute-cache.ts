@@ -27,7 +27,8 @@ export interface CartRecomputeCacheOptions {
 
 export interface CachedCartLinePrice {
   cartItemId: string;
-  unitPrice: { amount: number; currency: string };
+  /** `amount: null` = resolver failed; the caller should fall back to the snapshot. */
+  unitPrice: { amount: number | null; currency: string };
   resolvedAt: string;
 }
 

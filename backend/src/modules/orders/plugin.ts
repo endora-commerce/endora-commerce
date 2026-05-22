@@ -11,11 +11,14 @@ import { CartAdminService } from '../carts/services/cart-admin-service.js';
 import { CartAuditService } from '../carts/services/cart-audit-service.js';
 import { CartApprovalService } from '../carts/services/cart-approval-service.js';
 import { CartOrganizationVisibilityService } from '../carts/services/cart-organization-visibility-service.js';
+import { CartRecomputeCache } from '../carts/services/cart-recompute-cache.js';
+import { CartPricingRecompute } from '../carts/services/cart-pricing-recompute.js';
 import { registerCartsAdminRoutes } from '../carts/routes.admin.js';
 import { registerCartsOrganizationRoutes } from '../carts/routes.organization.js';
 import type { PricingService } from '../price_lists/services/pricing-service.js';
 import type { PromotionService } from '../promotions/services/promotion-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
+import type Redis from 'ioredis';
 import {
   OrderService,
   type CreditLimitPort,
@@ -138,6 +141,13 @@ export interface OrdersModuleOptions {
     appendedLineCount: number;
     droppedLines: Array<{ productId: string; productName: string; reason: string }>;
   }>;
+  /**
+   * Feature 027 §R5 — Redis client used by the cart-pricing-recompute
+   * cache. When provided alongside `pricingService`, every full-cart
+   * read re-resolves unit prices through PricingService with a 30 s
+   * Redis cache. Without it, the snapshotted unit_price is returned.
+   */
+  redis?: Redis;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -173,6 +183,14 @@ export function commerceModule(options: OrdersModuleOptions) {
           cartApprovalService,
         )
       : undefined;
+    const cartPricingRecompute =
+      options.redis && options.pricingService
+        ? new CartPricingRecompute(
+            options.emFactory,
+            options.pricingService,
+            new CartRecomputeCache(options.redis),
+          )
+        : undefined;
     const cartAdminService = cartAuditService
       ? new CartAdminService(options.emFactory, cartAuditService)
       : undefined;
@@ -197,6 +215,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       cartUpsellService,
       ...(cartCouponService ? { cartCouponService } : {}),
       ...(cartConversionService ? { cartConversionService } : {}),
+      ...(cartPricingRecompute ? { cartPricingRecompute } : {}),
       resolveCartActor: options.resolveCartActor,
       emFactory: options.emFactory,
       ...(options.assertOrganizationCanTransact

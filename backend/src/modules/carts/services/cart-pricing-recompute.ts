@@ -61,6 +61,9 @@ export class CartPricingRecompute {
     // Cache hit returns the previously resolved prices in their original
     // order (the cache stores keyed by cartItemId so any line removed
     // since the last resolve is naturally dropped on the next read).
+    // `unitPrice.amount === null` in the cache means the resolver
+    // previously returned no eligible price; we propagate the null so
+    // the caller falls back to the snapshot.
     const cached = await this.cache.get(ctx.cartId);
     if (cached && this.allLinesCached(cached, lines)) {
       return lines.map((line) => {
@@ -124,12 +127,13 @@ export class CartPricingRecompute {
     }
 
     // Write the resolved set to the cache so subsequent reads within the
-    // TTL skip the resolver entirely.
+    // TTL skip the resolver entirely. `amount: null` is preserved so the
+    // cache hit correctly signals "no resolver match — use snapshot".
     const payload: CachedCartRecompute = {
       cartId: ctx.cartId,
       lines: recomputed.map((r) => ({
         cartItemId: r.cartItemId,
-        unitPrice: { amount: r.amount ?? 0, currency: r.currency },
+        unitPrice: { amount: r.amount, currency: r.currency },
         resolvedAt: new Date().toISOString(),
       })),
       resolvedAt: new Date().toISOString(),
