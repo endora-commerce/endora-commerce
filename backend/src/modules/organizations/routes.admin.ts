@@ -39,6 +39,7 @@ import {
   triggerVatValidationSchema,
 } from './schemas/organization.js';
 import { hashPassword } from '../auth/services/password-hasher.js';
+import { normalizeOrganizationName } from './services/normalize-name.js';
 
 /**
  * Admin /admin/organizations — platform staff operations (003).
@@ -120,8 +121,14 @@ export async function registerOrganizationsAdminRoutes(
       if (query['filter[status]']) where['status'] = query['filter[status]'];
       if (query['filter[vatStatus]']) where['vatStatus'] = query['filter[vatStatus]'];
       if (query.q) {
+        // Feature 026 US8 — diacritic-insensitive search via the
+        // denormalized `nameSearch` column populated by the
+        // @BeforeCreate / @BeforeUpdate hooks on the Organization
+        // entity. Falls back to taxId ILIKE so admins can also paste a
+        // tax-id fragment.
+        const normalized = normalizeOrganizationName(query.q);
         where['$or'] = [
-          { name: { $ilike: `%${query.q}%` } },
+          { nameSearch: { $ilike: `%${normalized}%` } },
           { taxId: { $ilike: `%${query.q}%` } },
         ];
       }
