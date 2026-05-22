@@ -494,9 +494,14 @@ export class OrderService {
       await tx.persistAndFlush(invoice);
 
       // Clear cart — the cart produced an Order, so its lifecycle terminates
-      // in `completed` per feature 027's renamed status vocabulary.
+      // in `completed` per feature 027's renamed status vocabulary. Also
+      // release the anonymous-cart token (always null on an authenticated
+      // checkout today, but defensively cleared for future edge cases
+      // where a customer might check out from an anon-derived cart that
+      // still carries the token).
       await tx.nativeDelete(CartItem, { cartId: cart.id });
       cart.status = 'completed';
+      cart.anonymousCartToken = null;
       await tx.flush();
 
       this.events.emit('order.created.v1', {
