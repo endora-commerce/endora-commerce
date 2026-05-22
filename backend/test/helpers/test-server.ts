@@ -886,9 +886,13 @@ function customerResolver(request: FastifyRequest): {
   if (request.testActor?.kind !== 'customer') {
     return { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID };
   }
+  // Feature 026 US2 — testActor.organizationId may be null (no-org Customer).
+  // Tests that drive routes requiring an Organization fall back to the
+  // shared TEST_ORGANIZATION_ID; tests that genuinely exercise the no-org
+  // path use `cartActorResolver` or call services directly.
   return {
     customerAccountId: request.testActor.customerAccountId,
-    organizationId: request.testActor.organizationId,
+    organizationId: request.testActor.organizationId ?? TEST_ORGANIZATION_ID,
     impersonatorAdminUserId: request.testActor.impersonatorAdminUserId,
   };
 }

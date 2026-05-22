@@ -30,7 +30,8 @@ export const TEST_ADMIN_ID = '00000000-0000-4000-8000-0000000000b1';
 export interface TestCustomerActor {
   kind: 'customer';
   customerAccountId: string;
-  organizationId: string;
+  /** Null for no-org Customer accounts (feature 026 US2). */
+  organizationId: string | null;
   impersonatorAdminUserId: string | null;
 }
 
@@ -140,7 +141,7 @@ export function registerTestAuth(app: FastifyInstance, deps: TestAuthDeps): void
             request.testActor = {
               kind: 'customer',
               customerAccountId: customer.id,
-              organizationId: customer.organizationId,
+              organizationId: customer.organizationId ?? null,
               impersonatorAdminUserId: resolved.session.impersonatorAdminUserId ?? null,
             };
             return;

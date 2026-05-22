@@ -49,7 +49,7 @@ export interface OrdersModuleOptions {
    * plugin.
    */
   resolveCartActor: (req: FastifyRequest) => {
-    customer?: { customerAccountId: string; organizationId: string };
+    customer?: { customerAccountId: string; organizationId: string | null };
     anonymousToken?: string;
   };
   /** Hook — returned cart service so the login route can merge anonymous baskets. */

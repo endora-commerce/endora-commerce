@@ -49,7 +49,8 @@ export interface OrganizationsModuleOptions {
    */
   onLogin?: (ctx: {
     customerAccountId: string;
-    organizationId: string;
+    /** Null for no-org Customer accounts (feature 026 US2). */
+    organizationId: string | null;
     anonymousCartToken?: string;
     /** `compare_token` cookie value, if the caller was building an anonymous comparison. */
     anonymousCompareToken?: string;

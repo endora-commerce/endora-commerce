@@ -146,6 +146,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       }
     };
 
+  /**
+   * Resolver for routes that require an authenticated Customer **with** an
+   * Organization. Feature 026 US2 introduces no-org Customer accounts;
+   * routes that read price lists, credit limit, addresses, or place orders
+   * still need an Organization, so this resolver throws 422 when one is
+   * missing. Routes that genuinely work without an Organization (cart-add,
+   * browsing, profile-read) use `resolveCartActor` or read `request.actor`
+   * directly.
+   */
   const customerResolver = (
     request: FastifyRequest,
   ): {
@@ -155,6 +164,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   } => {
     if (request.actor.kind !== 'customer') {
       throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+    }
+    if (!request.actor.organizationId) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.VALIDATION_FAILED,
+        'This action requires an Organization attached to your account.',
+        { code: 'organization_required' },
+      );
     }
     return {
       customerAccountId: request.actor.customerAccountId,
@@ -735,6 +752,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveCustomerContext: async (request) => {
       if (request.actor.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+      }
+      if (!request.actor.organizationId) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.VALIDATION_FAILED,
+          'Quote Requests require an Organization attached to your account.',
+          { code: 'organization_required' },
+        );
       }
       const account = await em().findOne(CustomerAccount, {
         id: request.actor.customerAccountId,

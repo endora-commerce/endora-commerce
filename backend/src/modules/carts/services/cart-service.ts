@@ -26,7 +26,13 @@ export interface AnonymousContext {
 
 export interface CustomerContext {
   customerAccountId: string;
-  organizationId: string;
+  /**
+   * Feature 026 US2 — null for guest-style Customer accounts that have no
+   * Organization. Carts already persist `organization_id` nullable, so the
+   * service handles either case (no-org carts fall back to platform-default
+   * prices via PricingService).
+   */
+  organizationId: string | null;
 }
 
 export class CartService {

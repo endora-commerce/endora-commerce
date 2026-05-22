@@ -25,9 +25,17 @@ export class CustomerAccount {
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
 
-  @Property({ type: 'uuid' })
+  /**
+   * Feature 026 US2 — relaxed to nullable so the platform can serve no-org /
+   * guest-style Customer accounts that fall back to platform defaults for
+   * prices, credit limit, allowed payment / delivery methods, and warehouse
+   * visibility. Order placement and RFQ submission still require a
+   * non-null organizationId — the order / RFQ route handlers refuse a
+   * 422 when the caller has no Organization.
+   */
+  @Property({ type: 'uuid', nullable: true })
   @Index()
-  organizationId!: string;
+  organizationId?: string | null;
 
   @Property({ type: 'string', length: 320 })
   @Unique()

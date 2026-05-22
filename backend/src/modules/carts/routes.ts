@@ -12,7 +12,7 @@ const ANON_COOKIE = 'b2b_cart_anon';
 export interface CartsDeps {
   cartService: CartService;
   resolveCartActor: (request: FastifyRequest) => {
-    customer?: { customerAccountId: string; organizationId: string };
+    customer?: { customerAccountId: string; organizationId: string | null };
     anonymousToken?: string;
   };
   emFactory: () => EntityManager;
@@ -44,10 +44,14 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
    * attached to them).
    */
   const guardOrganizationTransact = async (actor: {
-    customer?: { customerAccountId: string; organizationId: string };
+    customer?: { customerAccountId: string; organizationId: string | null };
   }): Promise<void> => {
     if (!assertOrganizationCanTransact) return;
     if (!actor.customer) return;
+    // No-org Customer accounts (feature 026 US2) bypass the gate — they
+    // already use platform defaults and have no Organization status to fail
+    // against. Cart-add stays open.
+    if (!actor.customer.organizationId) return;
     try {
       await assertOrganizationCanTransact(actor.customer.organizationId);
     } catch (err) {

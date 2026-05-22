@@ -43,7 +43,8 @@ export interface OrganizationsPublicDeps {
    */
   onLogin?: (ctx: {
     customerAccountId: string;
-    organizationId: string;
+    /** Null for no-org Customer accounts (feature 026 US2). */
+    organizationId: string | null;
     anonymousCartToken?: string;
     anonymousCompareToken?: string;
   }) => Promise<void>;
@@ -136,7 +137,7 @@ export async function registerOrganizationsPublicRoutes(
         const compareAnon = cookies?.['compare_token'];
         await deps.onLogin({
           customerAccountId: result.customerAccount.id,
-          organizationId: result.customerAccount.organizationId,
+          organizationId: result.customerAccount.organizationId ?? null,
           ...(anon ? { anonymousCartToken: anon } : {}),
           ...(compareAnon ? { anonymousCompareToken: compareAnon } : {}),
         });
@@ -231,7 +232,7 @@ function serializeOrganization(o: {
 
 function serializeCustomerAccount(c: {
   id: string;
-  organizationId: string;
+  organizationId?: string | null;
   email: string;
   firstName: string;
   lastName: string;
@@ -243,7 +244,7 @@ function serializeCustomerAccount(c: {
 }) {
   return {
     id: c.id,
-    organizationId: c.organizationId,
+    organizationId: c.organizationId ?? null,
     email: c.email,
     firstName: c.firstName,
     lastName: c.lastName,
