@@ -104,6 +104,120 @@ export async function removeCartItem(
   return { cart: result.data!, newAnonCookie: extractAnonCookieFromHeaders(result.setCookie) };
 }
 
+// ──────────────────────────────────────────────────────────────────────
+//  Feature 027 — coupon / conversions / approval
+// ──────────────────────────────────────────────────────────────────────
+
+export interface ApplyCouponOk {
+  outcome: 'applied';
+  cart: CartSummary;
+}
+
+export interface ApplyCouponRejected {
+  outcome: 'rejected';
+  reason:
+    | 'invalid_code'
+    | 'expired'
+    | 'below_min_spend'
+    | 'wrong_channel'
+    | 'wrong_customer_group'
+    | 'wrong_organization'
+    | 'coupon_format_invalid';
+  shortfall?: { amount: number; currency: string };
+}
+
+export type ApplyCouponResult = ApplyCouponOk | ApplyCouponRejected;
+
+export async function applyCartCoupon(
+  jar: CartCookieJar,
+  code: string | null,
+  ctx?: RequestContext,
+): Promise<ApplyCouponResult> {
+  try {
+    const result = await apiMutate<CartSummary>({
+      method: 'POST',
+      path: '/api/v1/cart/coupon',
+      body: { code },
+      rawCookieHeader: combineCookies(jar) || null,
+      ...(ctx ? { ctx } : {}),
+    });
+    return { outcome: 'applied', cart: result.data! };
+  } catch (err) {
+    // The backend emits a typed 422 with `details.reason` on rejection.
+    // The storefront's apiMutate wrapper throws a StorefrontApiError —
+    // we inspect its raw body for the reason. Callers see a typed
+    // `rejected` outcome instead of a thrown exception.
+    if (err && typeof err === 'object' && 'details' in err) {
+      const d = (err as { details?: { reason?: string; shortfall?: { amount: number; currency: string } } })
+        .details;
+      if (d?.reason) {
+        return {
+          outcome: 'rejected',
+          reason: d.reason as ApplyCouponRejected['reason'],
+          ...(d.shortfall ? { shortfall: d.shortfall } : {}),
+        };
+      }
+    }
+    throw err;
+  }
+}
+
+export async function clearCartCoupon(
+  jar: CartCookieJar,
+  ctx?: RequestContext,
+): Promise<CartSummary> {
+  const result = await apiMutate<CartSummary>({
+    method: 'DELETE',
+    path: '/api/v1/cart/coupon',
+    rawCookieHeader: combineCookies(jar) || null,
+    ...(ctx ? { ctx } : {}),
+  });
+  return result.data!;
+}
+
+export async function convertCartToQuoteRequest(
+  jar: CartCookieJar,
+  note: string | null,
+  ctx?: RequestContext,
+): Promise<{ quoteRequestId: string; quoteRequestSlug: string }> {
+  const result = await apiMutate<{
+    quoteRequestId: string;
+    cartId: string;
+    quoteRequestSlug: string;
+  }>({
+    method: 'POST',
+    path: '/api/v1/cart/convert-to-quote-request',
+    body: note ? { note } : {},
+    rawCookieHeader: combineCookies(jar) || null,
+    ...(ctx ? { ctx } : {}),
+  });
+  return {
+    quoteRequestId: result.data!.quoteRequestId,
+    quoteRequestSlug: result.data!.quoteRequestSlug,
+  };
+}
+
+export async function submitCartForApproval(
+  jar: CartCookieJar,
+  ctx?: RequestContext,
+): Promise<void> {
+  await apiMutate({
+    method: 'POST',
+    path: '/api/v1/cart/submit-for-approval',
+    rawCookieHeader: combineCookies(jar) || null,
+    ...(ctx ? { ctx } : {}),
+  });
+}
+
+export async function touchCart(jar: CartCookieJar, ctx?: RequestContext): Promise<void> {
+  await apiMutate({
+    method: 'POST',
+    path: '/api/v1/cart/touch',
+    rawCookieHeader: combineCookies(jar) || null,
+    ...(ctx ? { ctx } : {}),
+  });
+}
+
 /**
  * `apiMutate.sessionCookie` only carries one cookie pair, so combine
  * both candidates into the Cookie header verbatim. This keeps the
