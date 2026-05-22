@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Bell,
   Boxes,
   Building2,
   ChevronDown,
@@ -48,6 +47,7 @@ import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
 import { LanguagePicker } from './LanguagePicker.js';
+import { NotificationBell } from './notifications';
 import { useAdminActions } from '@/lib/admin-actions/useAdminActions';
 import { resolveIcon } from '@/lib/admin-actions/icon-map';
 
@@ -809,15 +809,7 @@ export function AppShell(): ReactNode {
             >
               <Search size={16} />
             </button>
-            <button
-              type="button"
-              className="b2b-topbar__icon-btn"
-              title={t('appShell.topbar.notifications')}
-              aria-label={t('appShell.topbar.notifications')}
-            >
-              <Bell size={16} />
-              <span className="dot" />
-            </button>
+            <NotificationBell />
             <button
               type="button"
               className="b2b-topbar__icon-btn"

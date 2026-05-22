@@ -4,8 +4,8 @@ import { ArrowRight } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { OrganizationStatusBadge } from '@/components/organization-picker';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,18 +25,12 @@ interface AdminOrganization {
   id: string;
   name: string;
   taxId: string;
-  status: 'pending_verification' | 'active' | 'suspended';
+  status: 'pending_verification' | 'active' | 'blocked' | 'rejected';
   vatStatus: 'vat_payer' | 'vat_exempt' | 'reverse_charge';
   createdAt: string;
 }
 
-const STATUSES = ['pending_verification', 'active', 'suspended'] as const;
-
-const STATUS_VARIANT: Record<AdminOrganization['status'], 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
-  pending_verification: 'warning',
-  active: 'success',
-  suspended: 'destructive',
-};
+const STATUSES = ['pending_verification', 'active', 'blocked', 'rejected'] as const;
 
 export function OrganizationsList(): ReactNode {
   const t = useTranslation('core');
@@ -129,7 +123,7 @@ export function OrganizationsList(): ReactNode {
                     <TableCell className="font-medium">{o.name}</TableCell>
                     <TableCell className="font-mono text-xs">{o.taxId}</TableCell>
                     <TableCell>
-                      <Badge variant={STATUS_VARIANT[o.status]}>{o.status}</Badge>
+                      <OrganizationStatusBadge status={o.status} />
                     </TableCell>
                     <TableCell>{o.vatStatus}</TableCell>
                     <TableCell>{formatDateTime(o.createdAt)}</TableCell>

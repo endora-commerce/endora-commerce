@@ -16,7 +16,9 @@ import {
 } from '../../../lib/session';
 import { StorefrontApiError } from '../../../lib/api/client';
 import { CrossSellSection } from '../../../components/CrossSellSection';
+import { OrganizationModerationBanner } from '../../../components/OrganizationModerationBanner';
 import { tForLocale } from '../../../lib/i18n/messages';
+import { getMe } from '../../../lib/api/account';
 
 /**
  * Cart page (T156). Lists the current cart's items and lets the buyer
@@ -35,6 +37,15 @@ export default async function CartPage({
   const result = await getCart(jar);
   if (result.newAnonCookie) await setAnonCartCookie(result.newAnonCookie);
   const cart = result.cart;
+
+  // Feature 026 — fetch the customer's Organization moderation status so
+  // we can render a banner + drive checkout-CTA disable. Anonymous carts
+  // skip the lookup (no Organization is attached).
+  const session = await getSessionCookie();
+  const me = session
+    ? await getMe(session).catch(() => null)
+    : null;
+  const canTransact = me?.organization?.canTransact ?? true;
 
   // Feature 002 US4 — cross-sell from cart items. We fan out one fetch
   // per unique productId; CrossSellSection dedupes targets so the same
@@ -62,6 +73,10 @@ export default async function CartPage({
   return (
     <div className="b2b-auth" style={{ maxWidth: 720 }}>
       <h1>Your cart</h1>
+      <OrganizationModerationBanner
+        status={me?.organization?.status}
+        message={me?.organization?.moderationMessage ?? null}
+      />
       {params.error ? <p className="b2b-auth__error">{params.error}</p> : null}
       <table className="b2b-account__table">
         <thead>
@@ -129,9 +144,21 @@ export default async function CartPage({
         Taxes + delivery charges are calculated at checkout.
       </p>
       <div className="b2b-auth__actions">
-        <Link href="/checkout">
-          <button type="button">Proceed to checkout</button>
-        </Link>
+        {canTransact ? (
+          <Link href="/checkout">
+            <button type="button">Proceed to checkout</button>
+          </Link>
+        ) : (
+          <button
+            type="button"
+            disabled
+            aria-disabled
+            title={me?.organization?.moderationMessage ?? 'Ordering is currently unavailable.'}
+            style={{ opacity: 0.6, cursor: 'not-allowed' }}
+          >
+            Proceed to checkout
+          </button>
+        )}
       </div>
 
       <CrossSellSection

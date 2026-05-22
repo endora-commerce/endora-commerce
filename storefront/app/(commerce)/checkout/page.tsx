@@ -8,7 +8,9 @@ import { listDeliveryMethods, listPaymentMethods } from '../../../lib/api/method
 import { placeOrder } from '../../../lib/api/orders';
 import { getMyCreditLimit } from '../../../lib/api/credit-limit';
 import { CreditLimitWidget } from '../../../components/CreditLimitWidget';
+import { OrganizationModerationBanner } from '../../../components/OrganizationModerationBanner';
 import { StorefrontApiError } from '../../../lib/api/client';
+import { getMe } from '../../../lib/api/account';
 
 /**
  * Checkout (T157 / FR-046, FR-049). One page, four sections — pick a
@@ -32,16 +34,18 @@ export default async function CheckoutPage({
   const params = await searchParams;
   const jar: CartCookieJar = await readJar();
 
-  const [cartResult, addresses, deliveryMethods, paymentMethodsRaw, creditLimit] =
+  const [cartResult, addresses, deliveryMethods, paymentMethodsRaw, creditLimit, me] =
     await Promise.all([
       getCart(jar),
       listAddresses(session),
       listDeliveryMethods(),
       listPaymentMethods(),
       getMyCreditLimit(session),
+      getMe(session).catch(() => null),
     ]);
   if (cartResult.newAnonCookie) await setAnonCartCookie(cartResult.newAnonCookie);
   const cart = cartResult.cart;
+  const canTransact = me?.organization?.canTransact ?? true;
   // Hide the credit_limit-kind method(s) when the buyer's organization
   // hasn't been granted a limit, or when the cart total clearly exceeds
   // the available credit. The backend rejects an over-limit reservation
@@ -87,6 +91,10 @@ export default async function CheckoutPage({
   return (
     <div className="b2b-auth" style={{ maxWidth: 720 }}>
       <h1>Checkout</h1>
+      <OrganizationModerationBanner
+        status={me?.organization?.status}
+        message={me?.organization?.moderationMessage ?? null}
+      />
       {params.error ? <p className="b2b-auth__error">{params.error}</p> : null}
 
       <form action={submitAction} className="b2b-auth__form">
@@ -188,7 +196,15 @@ export default async function CheckoutPage({
         </table>
 
         <div className="b2b-auth__actions">
-          <button type="submit">Place order</button>
+          <button
+            type="submit"
+            disabled={!canTransact}
+            aria-disabled={!canTransact}
+            title={!canTransact ? (me?.organization?.moderationMessage ?? 'Ordering is currently unavailable.') : undefined}
+            style={!canTransact ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
+          >
+            Place order
+          </button>
         </div>
       </form>
     </div>
