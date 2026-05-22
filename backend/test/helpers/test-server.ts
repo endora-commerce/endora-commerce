@@ -21,6 +21,11 @@ import { OrganizationModerationService } from '../../src/modules/organizations/s
 import { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
 import { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
 import { OrganizationEffectivePriceListsService } from '../../src/modules/organizations/services/organization-effective-pricelists-service.js';
+import { OrganizationTaxIdValidationService } from '../../src/modules/organizations/services/organization-tax-id-validation-service.js';
+import type {
+  VatValidator,
+  VatValidationResult,
+} from '../../src/modules/organizations/services/vat-validator-port.js';
 import { OrgRegistrationNotifier } from '../../src/modules/organizations/services/org-registration-notifier.js';
 import type { OrganizationEventBus } from '../../src/modules/organizations/services/registration-service.js';
 import { ConsoleMailer } from '../../src/modules/email/services/mailer.js';
@@ -576,6 +581,16 @@ export async function setupBackendServer(
           return channel?.id ?? 'default';
         },
       });
+      // Feature 026 US7 — fake VAT validators for the test harness. No
+      // real HTTP traffic. The fake returns `validated` for any taxId
+      // ending in `00000` (a pure 5-zero suffix) and `failed` / `deferred`
+      // otherwise — gives tests three deterministic branches without
+      // needing to mock fetch.
+      const testTaxIdValidationService = new OrganizationTaxIdValidationService({
+        emFactory: em,
+        vies: new FakeVatValidator('vies'),
+        mfPl: new FakeVatValidator('mf_pl'),
+      });
       // Expose handles on the harness for tests that want to call the
       // services directly.
       handleFeature026 = {
@@ -597,6 +612,7 @@ export async function setupBackendServer(
           moderationService,
           restrictionService,
           effectivePriceListsService,
+          taxIdValidationService: testTaxIdValidationService,
           exposeTestProbe: true,
           dictionaryValidator: dictionaries.handle.validator,
           mailer: moderationMailer,
@@ -988,4 +1004,43 @@ export async function teardownBackendServer(h: BackendServerHandle): Promise<voi
   await h.app.close();
   h.redis.disconnect();
   await closeOrm();
+}
+
+/**
+ * Deterministic VAT validator stub used by the test harness (feature 026 US7).
+ *
+ *   - taxId ending in `00000` → `validated` with legalName "Test Legal Co"
+ *   - taxId ending in `99999` → `deferred` (simulates provider outage)
+ *   - everything else → `failed` / `not_found`
+ *
+ * No real HTTP traffic; lets tests cover all three branches deterministically.
+ */
+class FakeVatValidator implements VatValidator {
+  constructor(public readonly provider: 'vies' | 'mf_pl') {}
+
+  async validate(input: { taxId: string }): Promise<VatValidationResult> {
+    const cleaned = input.taxId.replace(/[\s-]+/g, '').toUpperCase();
+    if (cleaned.endsWith('00000')) {
+      return {
+        outcome: 'validated',
+        legalName: 'Test Legal Co',
+        address: { line1: 'ul. Testowa 1', city: 'Warszawa', countryCode: 'PL' },
+        errorKind: null,
+      };
+    }
+    if (cleaned.endsWith('99999')) {
+      return {
+        outcome: 'deferred',
+        legalName: null,
+        address: null,
+        errorKind: 'network_timeout',
+      };
+    }
+    return {
+      outcome: 'failed',
+      legalName: null,
+      address: null,
+      errorKind: 'not_found',
+    };
+  }
 }

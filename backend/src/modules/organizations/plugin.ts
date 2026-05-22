@@ -5,6 +5,7 @@ import type { SessionService } from '../auth/services/session-service.js';
 import type { OrganizationModerationService } from './services/organization-moderation-service.js';
 import type { OrganizationRestrictionService } from './services/organization-restriction-service.js';
 import type { OrganizationEffectivePriceListsService } from './services/organization-effective-pricelists-service.js';
+import type { OrganizationTaxIdValidationService } from './services/organization-tax-id-validation-service.js';
 import {
   RegistrationService,
   type OrganizationEventBus,
@@ -86,6 +87,12 @@ export interface OrganizationsModuleOptions {
    * `/applicable-price-lists` admin endpoint when provided.
    */
   effectivePriceListsService?: OrganizationEffectivePriceListsService;
+  /**
+   * Feature 026 US7 — service that runs VAT-ID validation via VIES /
+   * Ministerstwo Finansów. Mounts the `/vat-validations` admin endpoints
+   * when provided.
+   */
+  taxIdValidationService?: OrganizationTaxIdValidationService;
 }
 
 export function organizationsModule(options: OrganizationsModuleOptions) {
@@ -172,6 +179,9 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
         ...(options.restrictionService ? { restrictionService: options.restrictionService } : {}),
         ...(options.effectivePriceListsService
           ? { effectivePriceListsService: options.effectivePriceListsService }
+          : {}),
+        ...(options.taxIdValidationService
+          ? { taxIdValidationService: options.taxIdValidationService }
           : {}),
       });
     }

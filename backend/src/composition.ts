@@ -21,6 +21,9 @@ import { adminNotificationsModule } from './modules/admin_notifications/plugin.j
 import { OrganizationModerationService } from './modules/organizations/services/organization-moderation-service.js';
 import { OrganizationRestrictionService } from './modules/organizations/services/organization-restriction-service.js';
 import { OrganizationEffectivePriceListsService } from './modules/organizations/services/organization-effective-pricelists-service.js';
+import { OrganizationTaxIdValidationService } from './modules/organizations/services/organization-tax-id-validation-service.js';
+import { ViesClient } from './modules/organizations/integrations/vies-client.js';
+import { MinisterstwoFinansowClient } from './modules/organizations/integrations/ministerstwo-finansow-client.js';
 import type { OrganizationEventBus } from './modules/organizations/services/registration-service.js';
 import { OrgRegistrationNotifier } from './modules/organizations/services/org-registration-notifier.js';
 import { OrganizationContextService } from './modules/organizations/services/organization-context-service.js';
@@ -502,6 +505,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       return channel?.id ?? 'default';
     },
   });
+
+  // Feature 026 US7 — tax-ID validation. The two real clients hit VIES +
+  // Ministerstwo Finansów. Both degrade safely on outage; the service
+  // persists a record regardless of outcome and never throws upstream.
+  const organizationTaxIdValidationService = new OrganizationTaxIdValidationService({
+    emFactory: em,
+    vies: new ViesClient(),
+    mfPl: new MinisterstwoFinansowClient(),
+  });
   const assertOrganizationCanTransact = async (organizationId: string): Promise<void> => {
     await organizationContextService.assertCanTransact(organizationId);
   };
@@ -575,6 +587,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       moderationService: organizationModerationService,
       restrictionService: organizationRestrictionService,
       effectivePriceListsService: organizationEffectivePriceListsService,
+      taxIdValidationService: organizationTaxIdValidationService,
       dictionaryValidator: dictionaries.handle.validator,
       ...(process.env['STOREFRONT_BASE_URL']
         ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }

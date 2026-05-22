@@ -28,6 +28,7 @@ import {
   OrganizationVersionMismatchError as RestrictionVersionMismatchError,
 } from './services/organization-restriction-service.js';
 import type { OrganizationEffectivePriceListsService } from './services/organization-effective-pricelists-service.js';
+import type { OrganizationTaxIdValidationService } from './services/organization-tax-id-validation-service.js';
 import {
   approveOrganizationSchema,
   rejectOrganizationSchema,
@@ -35,6 +36,7 @@ import {
   unblockOrganizationSchema,
   replaceOrgRestrictionsSchema,
   patchOrgRestrictionsSchema,
+  triggerVatValidationSchema,
 } from './schemas/organization.js';
 import { hashPassword } from '../auth/services/password-hasher.js';
 
@@ -61,6 +63,8 @@ export interface AdminOrgsDeps {
   restrictionService?: OrganizationRestrictionService;
   /** Optional — when provided, mounts the applicable-price-lists endpoint (US5). */
   effectivePriceListsService?: OrganizationEffectivePriceListsService;
+  /** Optional — when provided, mounts the VAT-validation endpoints (US7). */
+  taxIdValidationService?: OrganizationTaxIdValidationService;
 }
 
 export async function registerOrganizationsAdminRoutes(
@@ -71,6 +75,7 @@ export async function registerOrganizationsAdminRoutes(
   const moderationService = deps.moderationService;
   const restrictionService = deps.restrictionService;
   const effectivePriceListsService = deps.effectivePriceListsService;
+  const taxIdValidationService = deps.taxIdValidationService;
 
   const audit = async (
     request: FastifyRequest,
@@ -348,6 +353,61 @@ export async function registerOrganizationsAdminRoutes(
       async (request) => {
         const items = await effectivePriceListsService.listApplicable(request.params.id);
         return { items };
+      },
+    );
+  }
+
+  // ── VAT validation (feature 026 US7) ────────────────────────────────────
+  // History list + trigger-now endpoints. Provider outage always degrades
+  // to `outcome: 'deferred'` rather than HTTP 5xx — the org save never
+  // fails because of a third-party hiccup.
+  if (taxIdValidationService) {
+    app.get<{ Params: { id: string } }>(
+      '/api/v1/admin/organizations/:id/vat-validations',
+      { preHandler: requireAdmin('customers:manage') },
+      async (request) => {
+        const items = await taxIdValidationService.listForOrganization(request.params.id);
+        return {
+          items: items.map((r) => ({
+            id: r.id,
+            provider: r.provider,
+            outcome: r.outcome,
+            taxIdValue: r.taxIdValue,
+            legalNameReturned: r.legalNameReturned ?? null,
+            addressReturned: r.addressReturned ?? null,
+            errorKind: r.errorKind ?? null,
+            requestedByAdminUserId: r.requestedByAdminUserId ?? null,
+            createdAt: r.createdAt.toISOString(),
+          })),
+        };
+      },
+    );
+
+    app.post<{ Params: { id: string } }>(
+      '/api/v1/admin/organizations/:id/vat-validations',
+      {
+        preHandler: requireAdmin('customers:manage'),
+        schema: { body: triggerVatValidationSchema },
+      },
+      async (request) => {
+        const body = triggerVatValidationSchema.parse(request.body ?? {});
+        const result = await taxIdValidationService.trigger(request.params.id, {
+          providerHint: body.providerHint,
+          applyAutoFill: body.applyAutoFill,
+          actorAdminUserId: resolveAdminUserId(request),
+        });
+        return {
+          id: result.record.id,
+          provider: result.record.provider,
+          outcome: result.record.outcome,
+          taxIdValue: result.record.taxIdValue,
+          legalNameReturned: result.record.legalNameReturned ?? null,
+          addressReturned: result.record.addressReturned ?? null,
+          errorKind: result.record.errorKind ?? null,
+          requestedByAdminUserId: result.record.requestedByAdminUserId ?? null,
+          createdAt: result.record.createdAt.toISOString(),
+          organization: result.organization,
+        };
       },
     );
   }
