@@ -4,6 +4,7 @@ import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import { Promotion } from '../../promotions/entities/promotion.entity.js';
 import type { PromotionService } from '../../promotions/services/promotion-service.js';
+import type { CartApprovalService } from './cart-approval-service.js';
 
 /**
  * Cart-level coupon application (feature 027 US2).
@@ -46,9 +47,16 @@ export interface CouponReevaluateResult {
 }
 
 export class CartCouponService {
+  /**
+   * `approvalService` is optional — when wired, applying or clearing a
+   * coupon on an `approved` cart re-arms approval to `pending`. Legacy
+   * compositions without the approval surface omit it (re-arm is a
+   * no-op when absent).
+   */
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly promotionService: PromotionService,
+    private readonly approvalService?: CartApprovalService,
   ) {}
 
   /**
@@ -138,6 +146,11 @@ export class CartCouponService {
     cart.appliedPromotionCode = code;
     cart.lastActivityAt = new Date();
     await em.flush();
+    if (this.approvalService && cart.customerAccountId) {
+      await this.approvalService.maybeReArm(cart, {
+        customerAccountId: cart.customerAccountId,
+      });
+    }
     return { outcome: 'applied', cart, appliedCode: code };
   }
 
@@ -147,6 +160,11 @@ export class CartCouponService {
     cart.appliedPromotionCode = null;
     cart.lastActivityAt = new Date();
     await em.flush();
+    if (this.approvalService && cart.customerAccountId) {
+      await this.approvalService.maybeReArm(cart, {
+        customerAccountId: cart.customerAccountId,
+      });
+    }
   }
 
   /**

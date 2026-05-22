@@ -7,6 +7,7 @@ import { Product } from '../../catalog/entities/product.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import type { PricingService } from '../../price_lists/services/pricing-service.js';
+import type { CartApprovalService } from './cart-approval-service.js';
 
 /**
  * CartService (T125).
@@ -57,9 +58,17 @@ export class CartService {
    * therefore won't apply on the cart line until cart-side channel
    * tracking lands.
    */
+  /**
+   * `approvalService` is optional — when wired (production composition),
+   * any buyer-driven mutation on an `approved` cart re-arms approval to
+   * `pending` via `CartApprovalService.maybeReArm`. Foundation tests and
+   * legacy test rigs that don't wire approval still construct the
+   * service without it (re-arm is a no-op when absent).
+   */
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly pricingService?: PricingService,
+    private readonly approvalService?: CartApprovalService,
   ) {}
 
   async getOrCreateForCustomer(ctx: CustomerContext): Promise<Cart> {
@@ -181,6 +190,12 @@ export class CartService {
       await em.flush();
     }
 
+    if (this.approvalService && actor.customer) {
+      await this.approvalService.maybeReArm(cart, {
+        customerAccountId: actor.customer.customerAccountId,
+      });
+    }
+
     const items = await em.find(CartItem, { cartId: cart.id });
     return { cart, items };
   }
@@ -253,6 +268,11 @@ export class CartService {
     }
     cart.lastActivityAt = new Date();
     await em.flush();
+    if (this.approvalService && actor.customer) {
+      await this.approvalService.maybeReArm(cart, {
+        customerAccountId: actor.customer.customerAccountId,
+      });
+    }
     const items = await em.find(CartItem, { cartId: cart.id });
     return { cart, items };
   }
@@ -270,6 +290,11 @@ export class CartService {
     em.remove(item);
     cart.lastActivityAt = new Date();
     await em.flush();
+    if (this.approvalService && actor.customer) {
+      await this.approvalService.maybeReArm(cart, {
+        customerAccountId: actor.customer.customerAccountId,
+      });
+    }
     const items = await em.find(CartItem, { cartId: cart.id });
     return { cart, items };
   }

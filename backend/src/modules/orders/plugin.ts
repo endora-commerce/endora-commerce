@@ -142,7 +142,21 @@ export interface OrdersModuleOptions {
 
 export function commerceModule(options: OrdersModuleOptions) {
   return async (app: FastifyInstance): Promise<void> => {
-    const cartService = new CartService(options.emFactory, options.pricingService);
+    // Feature 027 — construct audit + approval services first so the
+    // mutation surfaces (CartService, CartCouponService) can wire the
+    // re-arm hook through their optional approvalService param.
+    const cartAuditService = options.auditLogService
+      ? new CartAuditService(options.emFactory, options.auditLogService)
+      : undefined;
+    const cartApprovalService = cartAuditService
+      ? new CartApprovalService(options.emFactory, cartAuditService)
+      : undefined;
+
+    const cartService = new CartService(
+      options.emFactory,
+      options.pricingService,
+      cartApprovalService,
+    );
     const orderService = new OrderService(
       options.emFactory,
       options.eventBus as OrderEventBus,
@@ -153,10 +167,11 @@ export function commerceModule(options: OrdersModuleOptions) {
 
     const cartUpsellService = new CartUpsellService(options.emFactory);
     const cartCouponService = options.promotionService
-      ? new CartCouponService(options.emFactory, options.promotionService)
-      : undefined;
-    const cartAuditService = options.auditLogService
-      ? new CartAuditService(options.emFactory, options.auditLogService)
+      ? new CartCouponService(
+          options.emFactory,
+          options.promotionService,
+          cartApprovalService,
+        )
       : undefined;
     const cartAdminService = cartAuditService
       ? new CartAdminService(options.emFactory, cartAuditService)
@@ -239,11 +254,10 @@ export function commerceModule(options: OrdersModuleOptions) {
     });
 
     // Feature 027 US4 — Organization-Administrator visibility + approval
-    // workflow. Both services need the audit writer, so they ride on the
-    // same `auditLogService` precondition as the admin surface above.
-    if (cartAuditService) {
+    // workflow. cartApprovalService already constructed above so the
+    // re-arm hook works on every cart-mutation surface.
+    if (cartApprovalService) {
       const visibilityService = new CartOrganizationVisibilityService(options.emFactory);
-      const cartApprovalService = new CartApprovalService(options.emFactory, cartAuditService);
       await registerCartsOrganizationRoutes(app, {
         cartService,
         cartApprovalService,
