@@ -5,6 +5,9 @@ import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { OrganizationSalesRepsTab } from './OrganizationSalesRepsTab';
 import { ModerationActionsPanel } from './panels/ModerationActionsPanel';
+import { ApplicablePriceListsPanel } from './panels/ApplicablePriceListsPanel';
+import { VatValidationPanel } from './panels/VatValidationPanel';
+import { RestrictionsPanel } from './panels/RestrictionsPanel';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -52,6 +55,11 @@ interface OrgDetail {
   rejectedAt?: string | null;
   approvedAt?: string | null;
   approvedByAdminUserId?: string | null;
+  vatValidation?: {
+    outcome: 'validated' | 'failed' | 'deferred' | 'unverified' | null;
+    provider: 'vies' | 'mf_pl' | 'format_only' | null;
+    validatedAt: string | null;
+  };
   updatedAt?: string;
 }
 
@@ -585,6 +593,33 @@ export function OrganizationDetail(): ReactNode {
           </CardContent>
         </Card>
       ) : null}
+
+      {/* Feature 026 US4 — per-Organization payment / delivery / warehouse allow-lists. */}
+      <div className="mt-4">
+        <RestrictionsPanel
+          organizationId={org.id}
+          version={org.version ?? 0}
+          onChanged={refresh}
+        />
+      </div>
+
+      {/* Feature 026 US7 — VAT-ID / NIP validation history + retrigger. */}
+      <div className="mt-4">
+        <VatValidationPanel
+          organizationId={org.id}
+          summary={{
+            outcome: org.vatValidation?.outcome ?? null,
+            provider: org.vatValidation?.provider ?? null,
+            validatedAt: org.vatValidation?.validatedAt ?? null,
+          }}
+          onChanged={refresh}
+        />
+      </div>
+
+      {/* Feature 026 US5 — read-only "what price lists apply to this org". */}
+      <div className="mt-4">
+        <ApplicablePriceListsPanel organizationId={org.id} />
+      </div>
 
       {id ? <OrganizationSalesRepsTab organizationId={id} /> : null}
     </>
