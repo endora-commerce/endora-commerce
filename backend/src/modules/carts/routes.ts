@@ -132,7 +132,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
     }
   };
 
-  app.get('/api/v1/cart', async (request) => {
+  app.get<{ Querystring: { view?: string } }>('/api/v1/cart', async (request) => {
     const actor = resolveCartActor(request);
     const em = emFactory();
     let cart: Cart | null = null;
@@ -141,9 +141,21 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
     } else if (actor.anonymousToken) {
       cart = await cartService.getOrCreateForAnon(em, actor.anonymousToken);
     } else {
-      return { data: emptyCart() };
+      return request.query?.view === 'mini'
+        ? { data: emptyMiniCart() }
+        : { data: emptyCart() };
     }
     const items = await cartService.getItems(cart.id);
+
+    // Feature 027 FR-007 — mini-cart payload. Skips re-pricing-on-read,
+    // skips coupon re-evaluation, and emits the lightweight serializer
+    // (no per-line `unavailable*`, no `droppedLines`, no
+    // `couponDroppedThisRead`). The mini endpoint is on the storefront's
+    // hot path (every header render) so the heavy work is intentionally
+    // deferred to the full view.
+    if (request.query?.view === 'mini') {
+      return { data: serializeCartMini(cart, items) };
+    }
 
     // Feature 027 §R5 — re-pricing on read (FR-008).
     let recomputedPrices: Map<string, { amount: number; currency: string }> | null = null;
@@ -517,6 +529,52 @@ function emptyCart() {
     createdAt: null,
     updatedAt: null,
     lastActivityAt: null,
+  };
+}
+
+function emptyMiniCart() {
+  return {
+    id: null,
+    itemCount: 0,
+    items: [] as Array<{
+      id: string;
+      productId: string;
+      variantId: string | null;
+      quantity: number;
+      unitPrice: { amount: number; currency: string };
+      lineTotal: { amount: number; currency: string };
+    }>,
+    subtotal: { amount: 0, currency: 'PLN' },
+  };
+}
+
+/**
+ * Mini-cart payload (Feature 027 FR-007). Strips the heavy parts of the
+ * full view: no re-pricing-on-read, no coupon re-evaluation, no per-line
+ * `unavailable*`, no `droppedLines`, no `couponDroppedThisRead`, no
+ * `primaryCta`. The header renders this on every page navigation so the
+ * envelope is intentionally minimal.
+ */
+function serializeCartMini(cart: Cart, items: CartItem[]) {
+  let subtotal = 0;
+  const currency = items[0]?.currency ?? 'PLN';
+  const serializedItems = items.map((it) => {
+    const unitPriceAmount = Number(it.unitPrice);
+    subtotal += unitPriceAmount * it.quantity;
+    return {
+      id: it.id,
+      productId: it.productId,
+      variantId: it.variantId ?? null,
+      quantity: it.quantity,
+      unitPrice: { amount: unitPriceAmount, currency: it.currency },
+      lineTotal: { amount: unitPriceAmount * it.quantity, currency: it.currency },
+    };
+  });
+  return {
+    id: cart.id,
+    itemCount: items.length,
+    items: serializedItems,
+    subtotal: { amount: subtotal, currency },
   };
 }
 
