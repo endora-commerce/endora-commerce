@@ -79,6 +79,15 @@ export interface OrdersModuleOptions {
   resolveOrganizationPaymentMethodAllowList?: (req: FastifyRequest) => Promise<string[] | null>;
   /** Feature 026 US4 — same for delivery methods. */
   resolveOrganizationDeliveryMethodAllowList?: (req: FastifyRequest) => Promise<string[] | null>;
+  /**
+   * Feature 026 US6 — sales-rep ownership scoping for the admin orders list.
+   * Platform admins return `{ allowAll: true }`; sales reps return the set
+   * of organization ids they own.
+   */
+  resolveAdminOrdersScope?: (req: FastifyRequest) => Promise<
+    | { allowAll: true }
+    | { allowAll: false; allowedOrganizationIds: string[] }
+  >;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -108,6 +117,9 @@ export function commerceModule(options: OrdersModuleOptions) {
       resolveCustomerContext: options.resolveCustomerContext,
       ...(options.assertOrganizationCanTransact
         ? { assertOrganizationCanTransact: options.assertOrganizationCanTransact }
+        : {}),
+      ...(options.resolveAdminOrdersScope
+        ? { resolveAdminOrdersScope: options.resolveAdminOrdersScope }
         : {}),
     });
     await registerDeliveryMethodsPublicRoutes(app, {

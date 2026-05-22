@@ -321,6 +321,33 @@ export async function setupBackendServer(
   const resolveOrganizationDeliveryMethodAllowList = buildOrgAllowListResolver('deliveryMethodIds');
   const resolveOrganizationWarehouseAllowList = buildOrgAllowListResolver('warehouseIds');
 
+  /**
+   * Feature 026 US6 — admin orders/RFQ scope for the test harness. Mirrors
+   * the composition.ts resolver but reads `request.testActor` (the test
+   * harness's decoration).
+   */
+  const resolveTestAdminOrdersScope = async (
+    request: FastifyRequest,
+  ): Promise<{ allowAll: true } | { allowAll: false; allowedOrganizationIds: string[] }> => {
+    const actor = request.testActor;
+    if (!actor || actor.kind !== 'admin') return { allowAll: true };
+    const knex = em().getKnex();
+    const roleRow = (await knex.raw(
+      `select ar."code" as code from "admin_users" au left join "admin_roles" ar on ar."id" = au."admin_role_id" where au."id" = ?`,
+      [actor.adminUserId],
+    )) as { rows: Array<{ code: string | null }> };
+    const roleCode = roleRow.rows[0]?.code ?? null;
+    if (roleCode !== 'sales_representative') return { allowAll: true };
+    const assignments = (await knex.raw(
+      `select "organization_id" from "organization_sales_rep_assignments" where "admin_user_id" = ?`,
+      [actor.adminUserId],
+    )) as { rows: Array<{ organization_id: string }> };
+    return {
+      allowAll: false,
+      allowedOrganizationIds: assignments.rows.map((r) => r.organization_id),
+    };
+  };
+
   // Standalone AdminUserService for modules that need direct service-level
   // access to admin users (feature 019 — wires the preferred-language
   // setter into the i18n module's PATCH route).
@@ -506,6 +533,7 @@ export async function setupBackendServer(
       },
       resolveOrganizationPaymentMethodAllowList,
       resolveOrganizationDeliveryMethodAllowList,
+      resolveAdminOrdersScope: resolveTestAdminOrdersScope,
     }),
     // Feature 026 — moderation lifecycle wiring for the test server.
     // Built before organizationsModule so the moderation service can be

@@ -85,7 +85,11 @@ const CUSTOMER_COOKIES: Record<string, { customerAccountId: string; organization
   },
 };
 
-const ADMIN_COOKIES: Record<string, { adminUserId: string }> = {
+/**
+ * Stub admin cookies. Exported so tests can register new sales-rep
+ * scenarios at runtime (feature 026 US6).
+ */
+export const ADMIN_COOKIES: Record<string, { adminUserId: string }> = {
   'stub-admin-session': { adminUserId: TEST_ADMIN_ID },
   // Restricted admin (T181 permissions test) — only `orders:read` permission.
   'stub-restricted-admin-session': {

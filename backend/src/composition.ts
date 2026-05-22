@@ -433,6 +433,37 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const organizationRestrictionService = new OrganizationRestrictionService(em);
 
   /**
+   * Feature 026 US6 — admin orders/RFQ visibility scope. Sales-rep admins
+   * see only orders/RFQs from organizations they own; any other admin
+   * (platform admin, content manager, etc.) sees everything.
+   */
+  const resolveAdminOrdersScope = async (
+    request: FastifyRequest,
+  ): Promise<{ allowAll: true } | { allowAll: false; allowedOrganizationIds: string[] }> => {
+    const actor = (request as { actor?: { kind: string; adminUserId?: string } }).actor;
+    if (!actor || actor.kind !== 'admin' || !actor.adminUserId) {
+      return { allowAll: true };
+    }
+    const knex = em().getKnex();
+    const roleRow = (await knex.raw(
+      `select ar."code" as code from "admin_users" au left join "admin_roles" ar on ar."id" = au."admin_role_id" where au."id" = ?`,
+      [actor.adminUserId],
+    )) as { rows: Array<{ code: string | null }> };
+    const roleCode = roleRow.rows[0]?.code ?? null;
+    if (roleCode !== 'sales_representative') {
+      return { allowAll: true };
+    }
+    const assignments = (await knex.raw(
+      `select "organization_id" from "organization_sales_rep_assignments" where "admin_user_id" = ?`,
+      [actor.adminUserId],
+    )) as { rows: Array<{ organization_id: string }> };
+    return {
+      allowAll: false,
+      allowedOrganizationIds: assignments.rows.map((r) => r.organization_id),
+    };
+  };
+
+  /**
    * Builds per-request resolvers that fetch the caller's Organization
    * allow-list for one of the three restriction kinds. Anonymous requests
    * and no-org Customers return `null` (no filter applied; platform defaults).
@@ -530,6 +561,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       assertOrganizationCanTransact,
       resolveOrganizationPaymentMethodAllowList,
       resolveOrganizationDeliveryMethodAllowList,
+      resolveAdminOrdersScope,
     }),
     organizationsModule({
       emFactory: em,

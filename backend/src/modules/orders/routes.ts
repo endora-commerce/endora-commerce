@@ -31,6 +31,15 @@ export interface OrdersDeps {
    * Customer's Organization is not `active`. Feature 026 US1 / US3.
    */
   assertOrganizationCanTransact?: (organizationId: string) => Promise<void>;
+  /**
+   * Feature 026 US6 — resolves admin visibility scope for the orders list.
+   * `{ allowAll: true }` ⇒ platform admin (no filter); otherwise the list
+   * is intersected with `allowedOrganizationIds` (sales-rep ownership).
+   */
+  resolveAdminOrdersScope?: (req: FastifyRequest) => Promise<
+    | { allowAll: true }
+    | { allowAll: false; allowedOrganizationIds: string[] }
+  >;
 }
 
 export async function registerOrderRoutes(
@@ -133,8 +142,16 @@ export async function registerOrderRoutes(
   app.get(
     '/api/v1/admin/orders',
     { preHandler: requireAdmin('orders:read') },
-    async () => {
-      const orders = await orderService.listAll();
+    async (request) => {
+      let orders = await orderService.listAll();
+      // Feature 026 US6 — sales-rep scope: filter to orgs the rep owns.
+      if (deps.resolveAdminOrdersScope) {
+        const scope = await deps.resolveAdminOrdersScope(request);
+        if (!scope.allowAll) {
+          const allowed = new Set(scope.allowedOrganizationIds);
+          orders = orders.filter((o) => allowed.has(o.organizationId));
+        }
+      }
       const em = emFactory();
       return {
         data: await Promise.all(orders.map((o) => serializeOrder(em, o))),
