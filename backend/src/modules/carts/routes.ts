@@ -13,6 +13,7 @@ import type { CartUpsellService } from './services/cart-upsell-service.js';
 import type { CartCouponService } from './services/cart-coupon-service.js';
 import type { CartConversionService } from './services/cart-conversion-service.js';
 import type { CartPricingRecompute } from './services/cart-pricing-recompute.js';
+import { derivePrimaryCta } from './services/cart-state-machine.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Cart } from './entities/cart.entity.js';
 import type { CartItem } from './entities/cart-item.entity.js';
@@ -642,20 +643,18 @@ function serializeCart(
   };
 }
 
-/**
- * Derives the buyer's primary CTA from the cart's two-axis state
- * (main `status` × `approval_status`). See spec FR-024.
- */
-function resolvePrimaryCta(cart: Cart): 'checkout' | 'submit_for_approval' | 'awaiting_approval' | 'blocked_by_organization' {
-  if (cart.status === 'rejected' || cart.status === 'completed') return 'blocked_by_organization';
-  if (cart.approvalStatus === 'pending') return 'awaiting_approval';
-  if (cart.approvalStatus === 'rejected_by_org_admin') return 'blocked_by_organization';
-  // `not_required` and `approved` both → checkout. The `submit_for_approval`
-  // CTA is only emitted when the Organization's policy is on but the cart
-  // hasn't been submitted yet — the route handler can compute that flag
-  // when it has the OrganizationContextService on hand; for now we default
-  // to `checkout`.
-  return 'checkout';
+function resolvePrimaryCta(cart: Cart) {
+  // The `submit_for_approval` branch needs the Organization's policy
+  // flag, which the route handler does not have on hand here. The
+  // helper is callable from the org-admin route with the flag passed
+  // through explicitly; for the storefront read we default to
+  // `requiresApproval: false`, which makes `not_required` + cart-active
+  // collapse to `checkout`.
+  return derivePrimaryCta({
+    status: cart.status,
+    approvalStatus: cart.approvalStatus,
+    requiresApproval: false,
+  });
 }
 
 declare const crypto: { randomUUID: () => string };
