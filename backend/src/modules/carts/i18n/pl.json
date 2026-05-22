@@ -19,24 +19,78 @@
   "errors.QUOTE_REQUEST_NOT_FOUND": "Nie znaleziono zapytania ofertowego.",
   "errors.QUOTE_REQUEST_NOT_CONVERTIBLE": "Tego zapytania ofertowego nie można zamienić na koszyk w obecnym stanie.",
   "errors.ALREADY_TERMINAL": "Ten koszyk jest już w stanie końcowym.",
+
   "lines.unavailable.out_of_stock": "Brak na stanie.",
   "lines.unavailable.not_purchasable": "Niedostępny.",
   "lines.unavailable.no_price_in_customer_list": "Brak ceny dla Twojego konta.",
+  "lines.qty.label": "Ilość",
+  "lines.unit_price.label": "Cena jednostkowa",
+  "lines.line_total.label": "Wartość pozycji",
+  "lines.remove.label": "Usuń",
+  "lines.save_to_list.label": "Zapisz na liście zakupowej",
+
+  "totals.subtotal": "Suma częściowa",
+  "totals.discount": "Rabat",
+  "totals.grand_total": "Razem",
+  "totals.empty": "Twój koszyk jest pusty.",
+
+  "minicart.heading": "Koszyk",
+  "minicart.empty": "Twój koszyk jest pusty.",
+  "minicart.view_full": "Otwórz koszyk",
+  "minicart.checkout": "Do kasy",
+  "minicart.item_count_one": "{count} pozycja",
+  "minicart.item_count_other": "{count} pozycji",
+
   "dropped.not_purchasable": "Pominięto — produkt jest niedostępny.",
   "dropped.out_of_stock": "Pominięto — produkt jest niedostępny w magazynie.",
   "dropped.no_price_in_customer_list": "Pominięto — brak ceny dla Twojego konta.",
   "dropped.removed_by_conversion": "Pominięto podczas konwersji.",
+  "dropped.banner.heading": "Niektóre pozycje zostały pominięte",
+  "dropped.banner.intro": "Następujące produkty nie zostały dodane, ponieważ:",
+
   "cta.checkout": "Przejdź do kasy",
   "cta.submit_for_approval": "Zgłoś do akceptacji",
   "cta.awaiting_approval": "Oczekuje na akceptację",
   "cta.blocked_by_organization": "Kasa niedostępna",
+  "cta.convert_to_qr": "Zamień na zapytanie ofertowe",
+  "cta.convert_to_qr.hint": "Wyślij ten koszyk do działu sprzedaży jako zapytanie ofertowe.",
+  "cta.convert_from_qr": "Zamień na koszyk",
+  "cta.convert_from_qr.hint": "Utwórz nowy koszyk wypełniony pozycjami z tego zapytania ofertowego.",
+  "cta.add_list_to_cart": "Dodaj listę do koszyka",
+  "cta.add_list_to_cart.hint": "Wypełnij koszyk pozycjami z tej listy.",
+  "cta.save_to_list": "Zapisz na liście zakupowej",
+  "cta.apply_coupon": "Zastosuj kupon",
+  "cta.clear_coupon": "Usuń kupon",
+
+  "coupon.placeholder": "Wpisz kod kuponu",
+  "coupon.applied": "Kupon {code} jest aktywny.",
+  "coupon.dropped_on_read": "Kupon {code} nie obowiązuje już dla tego koszyka i został usunięty.",
+
+  "conversion.banner.qr_created": "Twój koszyk został wysłany do działu sprzedaży jako nowe zapytanie ofertowe.",
+  "conversion.banner.qr_converted": "Utworzono nowy koszyk na podstawie zapytania ofertowego {reference}.",
+  "conversion.banner.list_added": "Zawartość listy \"{listName}\" została dodana do koszyka.",
+  "conversion.banner.lines_dropped_during_conversion": "Niektóre pozycje zostały pominięte podczas konwersji — zobacz panel poniżej.",
+
   "approval.banner.pending": "Twój koszyk oczekuje na akceptację administratora organizacji.",
   "approval.banner.approved": "Twój koszyk został zaakceptowany i jest gotowy do realizacji.",
   "approval.banner.rejected": "Twój koszyk został odrzucony przez administratora organizacji.",
   "approval.banner.policy_on": "Twoja organizacja wymaga teraz akceptacji koszyka przed realizacją.",
+  "approval.banner.policy_off": "Twoja organizacja nie wymaga już akceptacji koszyka.",
+  "approval.reject_reason.prompt": "Dlaczego odrzucasz ten koszyk?",
+  "approval.reject_reason.placeholder": "Krótkie wyjaśnienie widoczne dla kupującego",
+  "approval.reject_reason.required": "Podaj powód odrzucenia.",
+
+  "approval.email.submit.subject": "Koszyk zgłoszony do Twojej akceptacji",
+  "approval.email.submit.body": "{submitterDisplayName} zgłosił(a) koszyk do akceptacji. Otwórz panel, aby go zaakceptować lub odrzucić.",
+  "approval.email.approve.subject": "Twój koszyk został zaakceptowany",
+  "approval.email.approve.body": "Twój koszyk został zaakceptowany przez {approverDisplayName} i jest gotowy do realizacji.",
+
   "abandonment.email.subject": "Porzucony koszyk",
   "abandonment.email.body": "Koszyk klienta {ownerDisplayName} został oznaczony jako Porzucony po przekroczeniu progu nieaktywności.",
+
   "reject.email.subject": "Twój koszyk został odrzucony",
   "reject.email.body": "Administrator odrzucił Twój koszyk. Powód: {reason}",
-  "upsells.heading": "Możesz też potrzebować"
+
+  "upsells.heading": "Możesz też potrzebować",
+  "upsells.empty": "Brak sugestii dla tego koszyka."
 }

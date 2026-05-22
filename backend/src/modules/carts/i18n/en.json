@@ -19,24 +19,78 @@
   "errors.QUOTE_REQUEST_NOT_FOUND": "Quote request not found.",
   "errors.QUOTE_REQUEST_NOT_CONVERTIBLE": "This quote request cannot be converted to a cart in its current state.",
   "errors.ALREADY_TERMINAL": "This cart is already in a terminal state.",
+
   "lines.unavailable.out_of_stock": "Out of stock.",
   "lines.unavailable.not_purchasable": "No longer available.",
   "lines.unavailable.no_price_in_customer_list": "Pricing unavailable for your account.",
+  "lines.qty.label": "Quantity",
+  "lines.unit_price.label": "Unit price",
+  "lines.line_total.label": "Line total",
+  "lines.remove.label": "Remove",
+  "lines.save_to_list.label": "Save to shopping list",
+
+  "totals.subtotal": "Subtotal",
+  "totals.discount": "Discount",
+  "totals.grand_total": "Total",
+  "totals.empty": "Your cart is empty.",
+
+  "minicart.heading": "Cart",
+  "minicart.empty": "Your cart is empty.",
+  "minicart.view_full": "View cart",
+  "minicart.checkout": "Checkout",
+  "minicart.item_count_one": "{count} item",
+  "minicart.item_count_other": "{count} items",
+
   "dropped.not_purchasable": "Removed because it is no longer available.",
   "dropped.out_of_stock": "Removed because it is out of stock.",
   "dropped.no_price_in_customer_list": "Removed because pricing is unavailable for your account.",
   "dropped.removed_by_conversion": "Skipped during conversion.",
+  "dropped.banner.heading": "Some lines were skipped",
+  "dropped.banner.intro": "These products were not added because:",
+
   "cta.checkout": "Proceed to checkout",
   "cta.submit_for_approval": "Submit for approval",
   "cta.awaiting_approval": "Awaiting approval",
   "cta.blocked_by_organization": "Checkout unavailable",
+  "cta.convert_to_qr": "Convert to quote request",
+  "cta.convert_to_qr.hint": "Send this cart to sales as a quote request.",
+  "cta.convert_from_qr": "Convert to cart",
+  "cta.convert_from_qr.hint": "Start a new cart pre-filled from this quote request.",
+  "cta.add_list_to_cart": "Add list to cart",
+  "cta.add_list_to_cart.hint": "Pre-fill the cart with the items from this list.",
+  "cta.save_to_list": "Save to a shopping list",
+  "cta.apply_coupon": "Apply coupon",
+  "cta.clear_coupon": "Remove coupon",
+
+  "coupon.placeholder": "Enter coupon code",
+  "coupon.applied": "Coupon {code} is active.",
+  "coupon.dropped_on_read": "The coupon {code} is no longer valid for this cart and has been removed.",
+
+  "conversion.banner.qr_created": "We've sent your cart to sales as a new quote request.",
+  "conversion.banner.qr_converted": "We've started a new cart from quote request {reference}.",
+  "conversion.banner.list_added": "We've added the contents of \"{listName}\" to your cart.",
+  "conversion.banner.lines_dropped_during_conversion": "Some lines were skipped during conversion — see the panel below.",
+
   "approval.banner.pending": "Your cart is awaiting approval by an organization administrator.",
   "approval.banner.approved": "Your cart has been approved and is ready for checkout.",
   "approval.banner.rejected": "Your cart was rejected by an organization administrator.",
   "approval.banner.policy_on": "Your organization now requires cart approval before checkout.",
+  "approval.banner.policy_off": "Cart approval is no longer required by your organization.",
+  "approval.reject_reason.prompt": "Why are you rejecting this cart?",
+  "approval.reject_reason.placeholder": "Short explanation visible to the buyer",
+  "approval.reject_reason.required": "Please provide a rejection reason.",
+
+  "approval.email.submit.subject": "A cart was submitted for your approval",
+  "approval.email.submit.body": "{submitterDisplayName} submitted a cart for approval. Visit your dashboard to review or reject it.",
+  "approval.email.approve.subject": "Your cart was approved",
+  "approval.email.approve.body": "Your cart was approved by {approverDisplayName} and is ready for checkout.",
+
   "abandonment.email.subject": "A cart was abandoned",
   "abandonment.email.body": "A cart belonging to {ownerDisplayName} has been inactive for the configured threshold and has been marked Abandoned.",
+
   "reject.email.subject": "Your cart was rejected",
   "reject.email.body": "An administrator rejected your cart. Reason: {reason}",
-  "upsells.heading": "You might also need"
+
+  "upsells.heading": "You might also need",
+  "upsells.empty": "No suggestions for this cart."
 }
