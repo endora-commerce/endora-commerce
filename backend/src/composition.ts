@@ -555,6 +555,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCustomerContext: customerResolver,
       salesChannelMembership: salesChannels.handle.membershipService,
       pricingService: priceLists.handle.pricingService,
+      promotionService: promotions.handle.promotionService,
       resolveCartActor: (request) => {
         if (request.actor.kind === 'customer') {
           return {

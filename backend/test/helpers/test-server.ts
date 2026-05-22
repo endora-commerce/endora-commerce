@@ -519,6 +519,7 @@ export async function setupBackendServer(
       resolveCustomerContext: customerResolver,
       salesChannelMembership: salesChannels.handle.membershipService,
       pricingService: priceLists.handle.pricingService,
+      promotionService: promotions.handle.promotionService,
       resolveCartActor: (request) => {
         if (request.testActor?.kind === 'customer') {
           return {

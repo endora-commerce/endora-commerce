@@ -5,7 +5,9 @@ import type { AuditLogService } from '../audit_logs/services/audit-log-service.j
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import { CartService } from '../carts/services/cart-service.js';
 import { CartUpsellService } from '../carts/services/cart-upsell-service.js';
+import { CartCouponService } from '../carts/services/cart-coupon-service.js';
 import type { PricingService } from '../price_lists/services/pricing-service.js';
+import type { PromotionService } from '../promotions/services/promotion-service.js';
 import {
   OrderService,
   type CreditLimitPort,
@@ -102,6 +104,12 @@ export interface OrdersModuleOptions {
     variantId: string | null;
     quantity: number;
   }) => Promise<void>;
+  /**
+   * Feature 027 US2 — promotion engine used by the cart's coupon flow.
+   * When provided, `POST /api/v1/cart/coupon` validates the code via
+   * `applyToCart`. Optional so legacy compositions still build.
+   */
+  promotionService?: PromotionService;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -116,10 +124,14 @@ export function commerceModule(options: OrdersModuleOptions) {
     if (options.exposeCartService) options.exposeCartService(cartService);
 
     const cartUpsellService = new CartUpsellService(options.emFactory);
+    const cartCouponService = options.promotionService
+      ? new CartCouponService(options.emFactory, options.promotionService)
+      : undefined;
 
     await registerCartRoutes(app, {
       cartService,
       cartUpsellService,
+      ...(cartCouponService ? { cartCouponService } : {}),
       resolveCartActor: options.resolveCartActor,
       emFactory: options.emFactory,
       ...(options.assertOrganizationCanTransact

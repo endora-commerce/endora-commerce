@@ -143,7 +143,7 @@ export class CartService {
       if (currentLineCount >= CART_MAX_LINES) {
         throw new HttpError(
           422,
-          ERROR_CODES.VALIDATION_FAILED,
+          ERROR_CODES.CART_LINE_CAP_EXCEEDED,
           'cart_line_cap_exceeded',
         );
       }

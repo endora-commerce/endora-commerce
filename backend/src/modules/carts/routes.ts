@@ -4,10 +4,12 @@ import {
   updateCartItemRequestSchema,
   saveCartItemToListSchema,
   cartUpsellsQuerySchema,
+  applyCartCouponSchema,
   ERROR_CODES,
 } from '@b2b/contracts';
 import type { CartService } from './services/cart-service.js';
 import type { CartUpsellService } from './services/cart-upsell-service.js';
+import type { CartCouponService } from './services/cart-coupon-service.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Cart } from './entities/cart.entity.js';
 import type { CartItem } from './entities/cart-item.entity.js';
@@ -36,6 +38,11 @@ export interface CartsDeps {
     variantId: string | null;
     quantity: number;
   }) => Promise<void>;
+  /**
+   * Feature 027 US2 — coupon application service. Optional so legacy
+   * compositions still build; production wires it.
+   */
+  cartCouponService?: CartCouponService;
   resolveCartActor: (request: FastifyRequest) => {
     customer?: { customerAccountId: string; organizationId: string | null };
     anonymousToken?: string;
@@ -219,6 +226,76 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
       return null;
     },
   );
+
+  /**
+   * Apply (or replace, or clear) the active coupon code on the cart.
+   * Returns the recomputed full cart on success; HTTP 422 with a
+   * reason-specific body on rejection.
+   */
+  app.post(
+    '/api/v1/cart/coupon',
+    { schema: { body: applyCartCouponSchema } },
+    async (request) => {
+      const actor = resolveCartActor(request);
+      const em = emFactory();
+      let cart: Cart | null = null;
+      if (actor.customer) {
+        cart = await cartService.getOrCreateForCustomer(actor.customer);
+      } else if (actor.anonymousToken) {
+        cart = await cartService.getOrCreateForAnon(em, actor.anonymousToken);
+      } else {
+        throw new HttpError(
+          401,
+          ERROR_CODES.UNAUTHORIZED,
+          'Cart not found.',
+        );
+      }
+      const items = await cartService.getItems(cart.id);
+      if (items.length === 0) {
+        throw new HttpError(422, ERROR_CODES.CART_EMPTY, 'cart_empty');
+      }
+      if (!deps.cartCouponService) {
+        throw new HttpError(503, ERROR_CODES.NOT_FOUND, 'promotions_unavailable');
+      }
+      const body = applyCartCouponSchema.parse(request.body);
+      const result = await deps.cartCouponService.apply(cart, body.code);
+      if (result.outcome === 'dropped') {
+        const detailsBody: Record<string, unknown> = { reason: result.reason };
+        if ('shortfall' in result && result.shortfall) {
+          detailsBody['shortfall'] = result.shortfall;
+        }
+        throw new HttpError(
+          422,
+          ERROR_CODES.CART_COUPON_REJECTED,
+          'CART_COUPON_REJECTED',
+          detailsBody,
+        );
+      }
+      const freshItems = await cartService.getItems(cart.id);
+      return { data: serializeCart(cart, freshItems) };
+    },
+  );
+
+  /**
+   * Convenience alias for `POST /api/v1/cart/coupon` with `code=null`.
+   */
+  app.delete('/api/v1/cart/coupon', async (request) => {
+    const actor = resolveCartActor(request);
+    const em = emFactory();
+    let cart: Cart | null = null;
+    if (actor.customer) {
+      cart = await cartService.getOrCreateForCustomer(actor.customer);
+    } else if (actor.anonymousToken) {
+      cart = await cartService.getOrCreateForAnon(em, actor.anonymousToken);
+    } else {
+      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Cart not found.');
+    }
+    if (deps.cartCouponService) {
+      await deps.cartCouponService.clear(cart);
+    }
+    const items = await cartService.getItems(cart.id);
+    return { data: serializeCart(cart, items) };
+  });
 
   /**
    * Up-sell strip for the full cart view. Aggregator over Catalog's
