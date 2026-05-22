@@ -31,11 +31,55 @@ export interface ApproveActor {
   organizationId: string;
 }
 
+/**
+ * Email-dispatch port (feature 027 T090). The carts module hands the
+ * transition event + actor + cart payload to the composition root,
+ * which is responsible for: (a) resolving recipients (org admins for
+ * submit, the buyer for approve / reject), (b) rendering the i18n
+ * template from the buyer / admin's preferred language, and (c)
+ * calling the platform Mailer. Implementations are expected to be
+ * fire-and-forget: a thrown error MUST NOT roll back the approval
+ * transition (it would be a UX regression to fail an approve because
+ * mail delivery hiccupped). Production composition wraps each method
+ * in a try / catch + structured log.
+ */
+export interface CartEmailDispatch {
+  onSubmittedForApproval(input: {
+    cart: Cart;
+    submitter: ApproveActor;
+  }): Promise<void>;
+  onApproved(input: {
+    cart: Cart;
+    approver: ApproveActor;
+  }): Promise<void>;
+  onRejected(input: {
+    cart: Cart;
+    rejector: ApproveActor;
+    reason: string;
+  }): Promise<void>;
+}
+
 export class CartApprovalService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly cartAuditService: CartAuditService,
+    private readonly emailDispatch?: CartEmailDispatch,
   ) {}
+
+  /**
+   * Fire-and-forget e-mail dispatch. Wraps each call so any throw is
+   * swallowed — approval transitions must complete even if mail
+   * delivery hiccups. Production composition is responsible for
+   * surfacing the failure through the platform's log + alerting paths.
+   */
+  private async dispatch<T>(fn: () => Promise<T>): Promise<void> {
+    if (!this.emailDispatch) return;
+    try {
+      await fn();
+    } catch {
+      // Swallow — see contract on CartEmailDispatch.
+    }
+  }
 
   /**
    * Buyer submits the cart for Org-Admin approval. Refuses if:
@@ -81,6 +125,9 @@ export class CartApprovalService {
       fromState: 'not_required',
       toState: 'pending',
     });
+    await this.dispatch(() =>
+      this.emailDispatch!.onSubmittedForApproval({ cart, submitter: actor }),
+    );
     return cart;
   }
 
@@ -107,6 +154,9 @@ export class CartApprovalService {
       fromState: 'pending',
       toState: 'approved',
     });
+    await this.dispatch(() =>
+      this.emailDispatch!.onApproved({ cart, approver: actor }),
+    );
     return cart;
   }
 
@@ -136,6 +186,9 @@ export class CartApprovalService {
       toState: 'rejected_by_org_admin',
       reason,
     });
+    await this.dispatch(() =>
+      this.emailDispatch!.onRejected({ cart, rejector: actor, reason }),
+    );
     return cart;
   }
 
