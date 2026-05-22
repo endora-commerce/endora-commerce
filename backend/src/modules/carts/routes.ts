@@ -36,6 +36,7 @@ export interface CartsDeps {
    */
   pushLineToShoppingList?: (input: {
     customerAccountId: string;
+    organizationId: string | null;
     shoppingListId: string;
     productId: string;
     variantId: string | null;
@@ -297,6 +298,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
       }
       await deps.pushLineToShoppingList({
         customerAccountId: actor.customer.customerAccountId,
+        organizationId: actor.customer.organizationId,
         shoppingListId: body.shoppingListId,
         productId: item.productId,
         variantId: item.variantId ?? null,

@@ -638,9 +638,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         await shoppingListService.addItem(
           {
             customerAccountId: input.customerAccountId,
-            // ShoppingListService.addItem ignores organizationId for ownership
-            // checks; we pass an empty string to satisfy the type.
-            organizationId: '',
+            organizationId: input.organizationId ?? '',
           },
           input.shoppingListId,
           {

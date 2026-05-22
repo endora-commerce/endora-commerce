@@ -297,6 +297,7 @@ export async function setupBackendServer(
   // CartService is exposed by the commerce module so the login handler in
   // organizations can merge anonymous baskets after sign-in.
   let cartService: CartService | null = null;
+  let shoppingListServiceRef: import('../../src/modules/shopping_lists/services/shopping-list-service.js').ShoppingListService | null = null;
   let handleFeature026: BackendServerHandle['organizations'] | null = null;
 
   // Feature 026 US4 — restriction service + per-request allow-list resolvers.
@@ -538,6 +539,23 @@ export async function setupBackendServer(
       },
       exposeCartService: (cs) => {
         cartService = cs;
+      },
+      pushLineToShoppingList: async (input) => {
+        if (!shoppingListServiceRef) {
+          throw new Error('shopping_lists module not initialized');
+        }
+        await shoppingListServiceRef.addItem(
+          {
+            customerAccountId: input.customerAccountId,
+            organizationId: input.organizationId ?? '',
+          },
+          input.shoppingListId,
+          {
+            productId: input.productId,
+            ...(input.variantId ? { variantId: input.variantId } : {}),
+            quantity: input.quantity,
+          },
+        );
       },
       resolveOrganizationPaymentMethodAllowList,
       resolveOrganizationDeliveryMethodAllowList,
@@ -905,6 +923,9 @@ export async function setupBackendServer(
       rfqService: quoteRequests.handle().rfqService,
       requireCustomer: requireTestCustomer(),
       resolveCustomerContext: customerResolver,
+      exposeShoppingListService: (svc) => {
+        shoppingListServiceRef = svc;
+      },
     }),
   );
 

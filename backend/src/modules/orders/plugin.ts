@@ -111,6 +111,7 @@ export interface OrdersModuleOptions {
    */
   pushLineToShoppingList?: (input: {
     customerAccountId: string;
+    organizationId: string | null;
     shoppingListId: string;
     productId: string;
     variantId: string | null;
