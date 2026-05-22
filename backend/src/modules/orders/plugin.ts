@@ -4,6 +4,7 @@ import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import { CartService } from '../carts/services/cart-service.js';
+import { CartUpsellService } from '../carts/services/cart-upsell-service.js';
 import type { PricingService } from '../price_lists/services/pricing-service.js';
 import {
   OrderService,
@@ -88,6 +89,19 @@ export interface OrdersModuleOptions {
     | { allowAll: true }
     | { allowAll: false; allowedOrganizationIds: string[] }
   >;
+  /**
+   * Feature 027 — Cross-module port that pushes a cart line into one of
+   * the buyer's shopping lists. The carts module calls this when the
+   * buyer clicks "Save to Purchase List". Wired by the shopping_lists
+   * module composition.
+   */
+  pushLineToShoppingList?: (input: {
+    customerAccountId: string;
+    shoppingListId: string;
+    productId: string;
+    variantId: string | null;
+    quantity: number;
+  }) => Promise<void>;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -101,12 +115,18 @@ export function commerceModule(options: OrdersModuleOptions) {
     );
     if (options.exposeCartService) options.exposeCartService(cartService);
 
+    const cartUpsellService = new CartUpsellService(options.emFactory);
+
     await registerCartRoutes(app, {
       cartService,
+      cartUpsellService,
       resolveCartActor: options.resolveCartActor,
       emFactory: options.emFactory,
       ...(options.assertOrganizationCanTransact
         ? { assertOrganizationCanTransact: options.assertOrganizationCanTransact }
+        : {}),
+      ...(options.pushLineToShoppingList
+        ? { pushLineToShoppingList: options.pushLineToShoppingList }
         : {}),
     });
     await registerOrderRoutes(app, {

@@ -35,6 +35,12 @@ export interface CustomerContext {
   organizationId: string | null;
 }
 
+/**
+ * Cart-line hard cap (feature 027 FR-001 / spec edge case "Cart contents
+ * cap"). The 201st distinct line is refused with HTTP 422.
+ */
+export const CART_MAX_LINES = 200;
+
 export class CartService {
   /**
    * `pricingService` is optional so test rigs that don't wire the
@@ -127,8 +133,20 @@ export class CartService {
     });
     if (existing) {
       existing.quantity += input.quantity;
+      cart.lastActivityAt = new Date();
       await em.flush();
     } else {
+      // Feature 027 FR-001: enforce the 200-line cap on the 201st distinct
+      // (productId, variantId) pair. Foundation duplicate-summation above
+      // does not trigger the cap.
+      const currentLineCount = await em.count(CartItem, { cartId: cart.id });
+      if (currentLineCount >= CART_MAX_LINES) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.VALIDATION_FAILED,
+          'cart_line_cap_exceeded',
+        );
+      }
       const resolved = await this.#resolveLineUnitPrice(em, {
         product,
         organizationId: actor.customer?.organizationId ?? null,
@@ -158,7 +176,9 @@ export class CartService {
             )).toFixed(2),
         currency: resolved?.currency ?? 'PLN',
       });
-      await em.persistAndFlush(item);
+      em.persist(item);
+      cart.lastActivityAt = new Date();
+      await em.flush();
     }
 
     const items = await em.find(CartItem, { cartId: cart.id });
@@ -227,11 +247,12 @@ export class CartService {
     this.#assertOwnership(cart, actor);
 
     if (quantity <= 0) {
-      await em.removeAndFlush(item);
+      em.remove(item);
     } else {
       item.quantity = quantity;
-      await em.flush();
     }
+    cart.lastActivityAt = new Date();
+    await em.flush();
     const items = await em.find(CartItem, { cartId: cart.id });
     return { cart, items };
   }
@@ -246,9 +267,42 @@ export class CartService {
     const cart = await em.findOne(Cart, { id: item.cartId });
     if (!cart) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Cart not found.');
     this.#assertOwnership(cart, actor);
-    await em.removeAndFlush(item);
+    em.remove(item);
+    cart.lastActivityAt = new Date();
+    await em.flush();
     const items = await em.find(CartItem, { cartId: cart.id });
     return { cart, items };
+  }
+
+  /**
+   * Explicit "this buyer just opened the cart page" ping (feature 027 §R4 /
+   * FR-032). Bumps `last_activity_at` and, if the cart had transitioned to
+   * `abandoned`, brings it back to `active` and clears
+   * `abandonment_notified_at` so the next abandonment cycle can notify
+   * again. No-op on a missing cart.
+   */
+  async touch(actor: { customer?: CustomerContext; anonymousToken?: string }): Promise<Cart | null> {
+    const em = this.emFactory();
+    let cart: Cart | null = null;
+    if (actor.customer) {
+      cart = await em.findOne(Cart, {
+        customerAccountId: actor.customer.customerAccountId,
+        status: { $in: ['active', 'abandoned'] },
+      });
+    } else if (actor.anonymousToken) {
+      cart = await em.findOne(Cart, {
+        anonymousCartToken: actor.anonymousToken,
+        status: { $in: ['active', 'abandoned'] },
+      });
+    }
+    if (!cart) return null;
+    cart.lastActivityAt = new Date();
+    if (cart.status === 'abandoned') {
+      cart.status = 'active';
+      cart.abandonmentNotifiedAt = null;
+    }
+    await em.flush();
+    return cart;
   }
 
   /** Merge anonymous cart items into the customer's cart at login time. */
