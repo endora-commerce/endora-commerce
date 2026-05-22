@@ -9,6 +9,7 @@ import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity
 import type { PricingService } from '../../price_lists/services/pricing-service.js';
 import type { CartApprovalService } from './cart-approval-service.js';
 import type { CartAuditService } from './cart-audit-service.js';
+import type { CartRecomputeCache } from './cart-recompute-cache.js';
 import type { DisplayMode } from '@b2b/contracts';
 
 /**
@@ -73,7 +74,18 @@ export class CartService {
     private readonly pricingService?: PricingService,
     private readonly approvalService?: CartApprovalService,
     private readonly auditService?: CartAuditService,
+    private readonly recomputeCache?: CartRecomputeCache,
   ) {}
+
+  /** Invalidate the per-cart price-recompute cache on every cart-side write. */
+  async #invalidateRecomputeCache(cartId: string): Promise<void> {
+    if (!this.recomputeCache) return;
+    try {
+      await this.recomputeCache.invalidate(cartId);
+    } catch {
+      // Cache invalidation is best-effort — never block a write.
+    }
+  }
 
   async getOrCreateForCustomer(ctx: CustomerContext): Promise<Cart> {
     const em = this.emFactory();
@@ -214,6 +226,8 @@ export class CartService {
       });
     }
 
+    await this.#invalidateRecomputeCache(cart.id);
+
     const items = await em.find(CartItem, { cartId: cart.id });
     return { cart, items };
   }
@@ -306,6 +320,7 @@ export class CartService {
         },
       });
     }
+    await this.#invalidateRecomputeCache(cart.id);
     const items = await em.find(CartItem, { cartId: cart.id });
     return { cart, items };
   }
@@ -344,6 +359,7 @@ export class CartService {
         },
       });
     }
+    await this.#invalidateRecomputeCache(cart.id);
     const items = await em.find(CartItem, { cartId: cart.id });
     return { cart, items };
   }

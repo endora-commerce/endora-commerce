@@ -192,11 +192,19 @@ export function commerceModule(options: OrdersModuleOptions) {
       ? new CartApprovalService(options.emFactory, cartAuditService)
       : undefined;
 
+    // Construct the recompute cache early so CartService can invalidate
+    // it on every cart-side write (feature 027 data-model.md / §R5
+    // "Cleared on every cart-side write").
+    const cartRecomputeCacheEarly = options.redis
+      ? new CartRecomputeCache(options.redis)
+      : undefined;
+
     const cartService = new CartService(
       options.emFactory,
       options.pricingService,
       cartApprovalService,
       cartAuditService,
+      cartRecomputeCacheEarly,
     );
     const orderService = new OrderService(
       options.emFactory,
@@ -215,11 +223,11 @@ export function commerceModule(options: OrdersModuleOptions) {
         )
       : undefined;
     const cartPricingRecompute =
-      options.redis && options.pricingService
+      cartRecomputeCacheEarly && options.pricingService
         ? new CartPricingRecompute(
             options.emFactory,
             options.pricingService,
-            new CartRecomputeCache(options.redis),
+            cartRecomputeCacheEarly,
           )
         : undefined;
     const cartAdminService = cartAuditService
