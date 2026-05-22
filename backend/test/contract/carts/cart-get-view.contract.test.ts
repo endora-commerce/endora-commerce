@@ -121,6 +121,43 @@ describe('POST /api/v1/cart/touch — feature 027', () => {
     expect(res.statusCode).toBe(204);
   });
 
+  it('reactivates an abandoned cart back to active and clears abandonment_notified_at', async () => {
+    const anonToken = `anon-reactivate-${Date.now()}`;
+    // Build a cart, then directly mark it abandoned via SQL.
+    await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/cart/items',
+      payload: { productId: '00000000-0000-4000-8000-000000000101', quantity: 1 },
+      cookies: { b2b_cart_anon: anonToken },
+    });
+    await h.em().getConnection().execute(
+      `update carts set status='abandoned', abandonment_notified_at=now()
+       where anonymous_cart_token = ?`,
+      [anonToken],
+    );
+
+    const touch = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/cart/touch',
+      cookies: { b2b_cart_anon: anonToken },
+    });
+    expect(touch.statusCode).toBe(204);
+
+    const after = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/cart',
+      cookies: { b2b_cart_anon: anonToken },
+    });
+    const afterBody = after.json() as { data: { status: string } };
+    expect(afterBody.data.status).toBe('active');
+
+    const dbRow = await h.em().getConnection().execute<{ abandonment_notified_at: Date | null }[]>(
+      `select abandonment_notified_at from carts where anonymous_cart_token = ?`,
+      [anonToken],
+    );
+    expect(dbRow[0]?.abandonment_notified_at ?? null).toBeNull();
+  });
+
   it('bumps last_activity_at on an existing cart', async () => {
     const anonToken = `anon-touch-${Date.now()}`;
     await h.app.inject({
