@@ -9,7 +9,10 @@ import { CartCouponService } from '../carts/services/cart-coupon-service.js';
 import { CartConversionService } from '../carts/services/cart-conversion-service.js';
 import { CartAdminService } from '../carts/services/cart-admin-service.js';
 import { CartAuditService } from '../carts/services/cart-audit-service.js';
+import { CartApprovalService } from '../carts/services/cart-approval-service.js';
+import { CartOrganizationVisibilityService } from '../carts/services/cart-organization-visibility-service.js';
 import { registerCartsAdminRoutes } from '../carts/routes.admin.js';
+import { registerCartsOrganizationRoutes } from '../carts/routes.organization.js';
 import type { PricingService } from '../price_lists/services/pricing-service.js';
 import type { PromotionService } from '../promotions/services/promotion-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
@@ -234,6 +237,21 @@ export function commerceModule(options: OrdersModuleOptions) {
       emFactory: options.emFactory,
       requireAdmin: options.requireAdmin,
     });
+
+    // Feature 027 US4 — Organization-Administrator visibility + approval
+    // workflow. Both services need the audit writer, so they ride on the
+    // same `auditLogService` precondition as the admin surface above.
+    if (cartAuditService) {
+      const visibilityService = new CartOrganizationVisibilityService(options.emFactory);
+      const cartApprovalService = new CartApprovalService(options.emFactory, cartAuditService);
+      await registerCartsOrganizationRoutes(app, {
+        cartService,
+        cartApprovalService,
+        visibilityService,
+        emFactory: options.emFactory,
+        resolveCartActor: options.resolveCartActor,
+      });
+    }
 
     if (cartAdminService) {
       await registerCartsAdminRoutes(app, {
