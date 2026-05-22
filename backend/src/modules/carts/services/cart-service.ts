@@ -8,6 +8,7 @@ import { Organization } from '../../organizations/entities/organization.entity.j
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import type { PricingService } from '../../price_lists/services/pricing-service.js';
 import type { CartApprovalService } from './cart-approval-service.js';
+import type { CartAuditService } from './cart-audit-service.js';
 import type { DisplayMode } from '@b2b/contracts';
 
 /**
@@ -60,16 +61,18 @@ export class CartService {
    * tracking lands.
    */
   /**
-   * `approvalService` is optional — when wired (production composition),
-   * any buyer-driven mutation on an `approved` cart re-arms approval to
-   * `pending` via `CartApprovalService.maybeReArm`. Foundation tests and
-   * legacy test rigs that don't wire approval still construct the
-   * service without it (re-arm is a no-op when absent).
+   * `approvalService` and `auditService` are optional — when wired
+   * (production composition), any buyer-driven mutation on an
+   * `approved` cart re-arms approval to `pending` and a typed audit
+   * row is landed (line_added / line_qty_changed / line_removed).
+   * Foundation tests and legacy test rigs that don't wire either still
+   * construct the service without them; both hooks no-op when absent.
    */
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly pricingService?: PricingService,
     private readonly approvalService?: CartApprovalService,
+    private readonly auditService?: CartAuditService,
   ) {}
 
   async getOrCreateForCustomer(ctx: CustomerContext): Promise<Cart> {
@@ -197,6 +200,20 @@ export class CartService {
       });
     }
 
+    if (this.auditService) {
+      await this.auditService.record({
+        cartId: cart.id,
+        actorType: actor.customer ? 'customer' : 'system',
+        ...(actor.customer ? { actorId: actor.customer.customerAccountId } : {}),
+        action: 'line_added',
+        metadata: {
+          productId: input.productId,
+          ...(input.variantId ? { variantId: input.variantId } : {}),
+          quantity: input.quantity,
+        },
+      });
+    }
+
     const items = await em.find(CartItem, { cartId: cart.id });
     return { cart, items };
   }
@@ -262,6 +279,7 @@ export class CartService {
     if (!cart) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Cart not found.');
     this.#assertOwnership(cart, actor);
 
+    const oldQuantity = item.quantity;
     if (quantity <= 0) {
       em.remove(item);
     } else {
@@ -272,6 +290,20 @@ export class CartService {
     if (this.approvalService && actor.customer) {
       await this.approvalService.maybeReArm(cart, {
         customerAccountId: actor.customer.customerAccountId,
+      });
+    }
+    if (this.auditService) {
+      await this.auditService.record({
+        cartId: cart.id,
+        actorType: actor.customer ? 'customer' : 'system',
+        ...(actor.customer ? { actorId: actor.customer.customerAccountId } : {}),
+        action: quantity <= 0 ? 'line_removed' : 'line_qty_changed',
+        metadata: {
+          productId: item.productId,
+          ...(item.variantId ? { variantId: item.variantId } : {}),
+          oldQuantity,
+          newQuantity: quantity,
+        },
       });
     }
     const items = await em.find(CartItem, { cartId: cart.id });
@@ -288,12 +320,28 @@ export class CartService {
     const cart = await em.findOne(Cart, { id: item.cartId });
     if (!cart) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Cart not found.');
     this.#assertOwnership(cart, actor);
+    const removedProductId = item.productId;
+    const removedVariantId = item.variantId ?? null;
+    const removedQuantity = item.quantity;
     em.remove(item);
     cart.lastActivityAt = new Date();
     await em.flush();
     if (this.approvalService && actor.customer) {
       await this.approvalService.maybeReArm(cart, {
         customerAccountId: actor.customer.customerAccountId,
+      });
+    }
+    if (this.auditService) {
+      await this.auditService.record({
+        cartId: cart.id,
+        actorType: actor.customer ? 'customer' : 'system',
+        ...(actor.customer ? { actorId: actor.customer.customerAccountId } : {}),
+        action: 'line_removed',
+        metadata: {
+          productId: removedProductId,
+          ...(removedVariantId ? { variantId: removedVariantId } : {}),
+          quantity: removedQuantity,
+        },
       });
     }
     const items = await em.find(CartItem, { cartId: cart.id });

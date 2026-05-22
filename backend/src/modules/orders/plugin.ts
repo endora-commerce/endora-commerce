@@ -196,6 +196,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       options.emFactory,
       options.pricingService,
       cartApprovalService,
+      cartAuditService,
     );
     const orderService = new OrderService(
       options.emFactory,
