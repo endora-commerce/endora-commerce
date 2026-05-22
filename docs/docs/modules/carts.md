@@ -189,4 +189,40 @@ surfaces `couponDroppedThisRead`. Wiring into the read path is a follow-up.
   e-mails are scaffolded in the service surfaces; dedicated templates are a
   follow-up.
 - **Abandonment scheduler** — the worker is constructed in production
-  composition but not yet wired to a cron / BullMQ schedule.
+  composition but not yet wired to a cron / BullMQ schedule. The ops CLI
+  `pnpm --filter backend run cart:abandonment-sweep` runs one tick by hand;
+  see `backend/src/modules/carts/scripts/abandonment-sweep.ts`.
+
+## Audit retention
+
+`cart_audit_entries` is the **per-cart action log** (line added/removed,
+quantity changed, coupon applied/cleared/dropped, approval submitted /
+approved / rejected, sweep marked the cart abandoned, conversion to /
+from a Quote Request, conversion from a Shopping List). Every row also
+lands in the platform-wide `audit_log_entries` table via
+`CartAuditService.record`, so the carts table is the canonical
+denormalised view used by the Org-Admin and platform-admin "Cart history"
+panel.
+
+Retention policy (feature 027):
+
+- **Never auto-purge `cart_audit_entries`.** Org admins and the platform
+  admin rely on a complete history to defend approval decisions and
+  reproduce buyer disputes. The table is append-only — services never
+  `UPDATE` or `DELETE` rows.
+- **Cart deletion cascade.** `cart_audit_entries.cart_id` is `ON DELETE
+  CASCADE`. We do not currently delete carts in production; if a future
+  GDPR / right-to-erasure workflow ever does, the audit trail follows.
+  When that workflow lands, mirror the carts row plus its audit entries
+  into a long-term audit-only archive table *before* the cascade fires —
+  do not silently lose history.
+- **Production data-purges must exclude `cart_audit_entries`.** Any
+  scheduled job that prunes carts, customer accounts, or organizations
+  for storage hygiene MUST either skip `cart_audit_entries` or archive
+  it first. Reviewers: add this table to the exclusion list in
+  `backend/src/modules/audit_logs/retention-policy.ts` when that policy
+  is introduced.
+- **The platform-wide `audit_log_entries` table follows the audit_logs
+  module's retention policy** (controlled outside this feature). The
+  carts-side mirror in `cart_audit_entries` is the source of truth for
+  the carts UI even when the platform-wide table has aged out.
