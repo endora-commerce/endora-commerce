@@ -218,6 +218,8 @@ export function ProductEditor(): ReactNode {
             apiClient.patch<{ data: AdminProduct }>(
               `/api/v1/admin/catalog/products/${id}`,
               {
+                sku: sku.trim(),
+                status,
                 name: trimmedName,
                 description: trimmedDescription,
                 categoryIds,
@@ -235,7 +237,7 @@ export function ProductEditor(): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
       }
     },
-    [isNew, id, sku, type, name, description, categoryIds, defaultPrice, visibility, navigate, refresh],
+    [isNew, id, sku, status, type, name, description, categoryIds, defaultPrice, visibility, navigate, refresh],
   );
 
   const handleArchive = useCallback(async (): Promise<void> => {
@@ -433,7 +435,6 @@ export function ProductEditor(): ReactNode {
                         id="sku"
                         value={sku}
                         onChange={(e): void => setSku(e.target.value)}
-                        disabled={!isNew}
                         required
                       />
                     </div>
@@ -498,7 +499,13 @@ export function ProductEditor(): ReactNode {
                     </div>
                     <div>
                       <Label htmlFor="pstatus">{t('productEditor.field.status')}</Label>
-                      <Select id="pstatus" value={status} disabled>
+                      <Select
+                        id="pstatus"
+                        value={status}
+                        onChange={(e): void =>
+                          setStatus(e.target.value as AdminProduct['status'])
+                        }
+                      >
                         {STATUSES.map((s) => (
                           <option key={s} value={s}>
                             {s}

@@ -212,6 +212,15 @@ export class CatalogAdminService {
           `sku_in_use { conflictingProductId: ${conflict.id}, conflictingSku: ${trimmed} }`,
         );
       }
+      // Feature 025 — SKUs share a global namespace with variants (see createVariant).
+      const variantConflict = await em.findOne(ProductVariant, { sku: trimmed });
+      if (variantConflict) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          `sku_in_use { conflictingVariantId: ${variantConflict.id}, conflictingSku: ${trimmed} }`,
+        );
+      }
       product.sku = trimmed;
       changedFields.push('sku');
     }
