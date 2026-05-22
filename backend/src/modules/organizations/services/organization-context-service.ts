@@ -44,6 +44,18 @@ export class OrganizationContextService {
     }
     return org;
   }
+
+  /**
+   * Feature 027 §R2 — single-boolean lookup driving the per-Organization
+   * cart-approval policy. Returns `false` when the Organization is
+   * missing or soft-deleted (the gate is off by definition in that case
+   * — a Customer with no Organization uses platform defaults).
+   */
+  async loadCartApprovalPolicy(organizationId: string | null): Promise<boolean> {
+    if (!organizationId) return false;
+    const org = await this.loadEffectiveOrganization(organizationId);
+    return org?.requiresCartApproval ?? false;
+  }
 }
 
 export class OrganizationNotFoundError extends Error {
