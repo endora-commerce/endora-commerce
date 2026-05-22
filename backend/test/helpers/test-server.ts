@@ -7,6 +7,10 @@ import { EventBus } from '../../src/events/bus.js';
 import { SessionService } from '../../src/modules/auth/services/session-service.js';
 import { AuditLogService } from '../../src/modules/audit_logs/services/audit-log-service.js';
 import { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
+import { PermissionCatalogueService } from '../../src/modules/admin_roles/services/permission-catalogue.service.js';
+import { AdminRoleService } from '../../src/modules/admin_roles/services/admin-role-service.js';
+import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-manifests.js';
+import { registryCache } from '../../src/modules/_lifecycle/services/registry-cache.js';
 import { catalogModule } from '../../src/modules/catalog/plugin.js';
 import { quoteRequestsModule } from '../../src/modules/quote_requests/plugin.js';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
@@ -62,6 +66,7 @@ import { seedTestAdmins } from './seed-admins.js';
 import {
   registerTestAuth,
   requireTestAdmin,
+  requireTestAdminAny,
   requireTestCustomer,
   TEST_ADMIN_ID,
   TEST_CUSTOMER_ID,
@@ -96,6 +101,7 @@ export interface BackendServerHandle {
   sessionService: SessionService;
   auditLogService: AuditLogService;
   permissionService: PermissionService;
+  permissionCatalogueService: PermissionCatalogueService;
   /** Feature 004 — exposes the universal getter and cache invalidator for tests. */
   settings: ReturnType<typeof settingsModule>['handle'];
   /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
@@ -217,6 +223,11 @@ export async function setupBackendServer(
   const sessionService = new SessionService(em, redis);
   const auditLogService = new AuditLogService(em);
   const permissionService = new PermissionService(em);
+  const permissionCatalogueService = new PermissionCatalogueService({
+    registryEntries: REGISTERED_MANIFESTS,
+  });
+  const adminRoleService = new AdminRoleService(em, permissionCatalogueService);
+  const requireAdminAny = requireTestAdminAny(permissionService);
 
   const conn = orm.em.getConnection();
   await conn.execute(`truncate table ${SEEDED_TABLES.map((t) => `"${t}"`).join(', ')} cascade`);
@@ -285,6 +296,8 @@ export async function setupBackendServer(
     sessionService,
     auditLogService,
     permissionService,
+    permissionCatalogueService,
+    adminRoleService,
     requireAdmin: requireTestAdmin(permissionService),
     resolveAdminContext: (request) => ({
       adminUserId:
@@ -455,6 +468,7 @@ export async function setupBackendServer(
       sessionService,
       requireCustomer: requireTestCustomer(),
       requireAdmin: requireTestAdmin(permissionService),
+      requireAdminAny,
       resolveCustomerContext: customerResolver,
       auditLogService,
       exposeTestProbe: true,
@@ -789,6 +803,7 @@ export async function setupBackendServer(
       },
     },
   });
+  permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
   await app.ready();
 
   return {
@@ -800,6 +815,7 @@ export async function setupBackendServer(
     sessionService,
     auditLogService,
     permissionService,
+    permissionCatalogueService,
     settings: settings.handle,
     salesChannels: salesChannels.handle,
     search: search.handle,

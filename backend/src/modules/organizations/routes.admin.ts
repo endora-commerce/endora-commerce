@@ -14,6 +14,7 @@ import { HttpError } from '../../http/error-envelope.js';
 import { Organization } from './entities/organization.entity.js';
 import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminAnyFactory } from '../../http/require-admin-any.js';
 import type { InvitationService } from './services/invitation-service.js';
 import type { RoleService } from '../customer_accounts/services/role-service.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
@@ -33,6 +34,7 @@ const listQuerySchema = z.object({
 export interface AdminOrgsDeps {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
+  requireAdminAny: RequireAdminAnyFactory;
   invitationService: InvitationService;
   roleService: RoleService;
   auditLogService: AuditLogService;
@@ -42,7 +44,16 @@ export async function registerOrganizationsAdminRoutes(
   app: FastifyInstance,
   deps: AdminOrgsDeps,
 ): Promise<void> {
-  const { requireAdmin, emFactory, invitationService, roleService, auditLogService } = deps;
+  const {
+    requireAdmin,
+    requireAdminAny,
+    emFactory,
+    invitationService,
+    roleService,
+    auditLogService,
+  } = deps;
+
+  const customersRead = requireAdminAny(['customers:read', 'customers:manage']);
 
   const audit = async (
     request: FastifyRequest,
@@ -79,7 +90,7 @@ export async function registerOrganizationsAdminRoutes(
 
   app.get(
     '/api/v1/admin/organizations',
-    { preHandler: requireAdmin('customers:manage') },
+    { preHandler: customersRead },
     async (request) => {
       const query = listQuerySchema.parse(request.query);
       const em = emFactory();
@@ -105,7 +116,7 @@ export async function registerOrganizationsAdminRoutes(
 
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/organizations/:id',
-    { preHandler: requireAdmin('customers:manage') },
+    { preHandler: customersRead },
     async (request) => {
       const em = emFactory();
       const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });

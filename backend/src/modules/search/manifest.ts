@@ -109,6 +109,7 @@ export const manifest = defineModuleManifest({
   dependencies: ['settings', 'sales_channels'],
   settings,
   i18n: { bundlesDir: 'i18n' },
+  permissions: [{ code: 'search:write', label: 'Configure search (LLM / indexing)' }],
 });
 
 /** Legacy export retained for backward compatibility. */

@@ -50,6 +50,7 @@ export const manifest = defineModuleManifest({
   dependencies: ['settings', 'catalog'],
   settings,
   i18n: { bundlesDir: 'i18n' },
+  permissions: [{ code: 'comparisons:read', label: 'View product comparisons' }],
 });
 
 /** Legacy export retained for backward compatibility. */

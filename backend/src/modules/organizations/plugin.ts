@@ -20,6 +20,7 @@ import { registerOrganizationsCustomerRoutes } from './routes.customer.js';
 import { registerMembersRoutes } from './routes.members.js';
 import { registerOrganizationsAdminRoutes } from './routes.admin.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminAnyFactory } from '../../http/require-admin-any.js';
 import type { DictionaryValidator } from '@b2b/contracts';
 
 /**
@@ -55,6 +56,8 @@ export interface OrganizationsModuleOptions {
   }) => Promise<void>;
   /** Admin gate for /admin/organizations routes. */
   requireAdmin?: RequireAdminFactory;
+  /** Read-only org routes accept `customers:read` OR `customers:manage`. */
+  requireAdminAny?: RequireAdminAnyFactory;
   /** Mailer used to dispatch invitation + verification emails. Defaults to ConsoleMailer. */
   mailer?: Mailer;
   /** Storefront base URL for the invitation accept link. */
@@ -125,9 +128,13 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       if (!options.auditLogService) {
         throw new Error('organizationsModule: auditLogService is required when requireAdmin is set');
       }
+      if (!options.requireAdminAny) {
+        throw new Error('organizationsModule: requireAdminAny is required when requireAdmin is set');
+      }
       await registerOrganizationsAdminRoutes(app, {
         emFactory: options.emFactory,
         requireAdmin: options.requireAdmin,
+        requireAdminAny: options.requireAdminAny,
         invitationService,
         roleService,
         auditLogService: options.auditLogService,
