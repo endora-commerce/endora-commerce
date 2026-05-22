@@ -68,7 +68,7 @@ describe('POST /api/v1/cart/coupon', () => {
     });
     expect(res.statusCode).toBe(422);
     const body = res.json() as {
-      error: { message: string; details: { reason: string } };
+      error: { code: string; message: string; details: { reason: string } };
     };
     expect(body.error.code).toBe('CART_COUPON_REJECTED');
     expect(body.error.details.reason).toBe('invalid_code');
@@ -129,6 +129,7 @@ describe('POST /api/v1/cart/coupon', () => {
     expect(apply.statusCode).toBe(422);
     const body = apply.json() as {
       error: {
+        code: string;
         message: string;
         details: { reason: string; shortfall?: { amount: number; currency: string } };
       };

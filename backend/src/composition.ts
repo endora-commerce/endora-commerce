@@ -556,6 +556,31 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       salesChannelMembership: salesChannels.handle.membershipService,
       pricingService: priceLists.handle.pricingService,
       promotionService: promotions.handle.promotionService,
+      getRfqService: () => quoteRequests?.handle().rfqService ?? null,
+      appendShoppingListToCart: async (input) => {
+        if (!shoppingListService) {
+          throw new Error('shopping_lists module not initialized');
+        }
+        const res = await shoppingListService.convertToCart(
+          {
+            customerAccountId: input.customerAccountId,
+            organizationId: input.organizationId ?? '',
+          },
+          input.shoppingListId,
+          undefined,
+        );
+        // Map ShoppingListService.convertToCart's shape onto the carts
+        // module's uniform return shape across the three conversions.
+        return {
+          cartId: '',
+          appendedLineCount: res.added,
+          droppedLines: res.skipped.map((it) => ({
+            productId: it.productId,
+            productName: it.productId,
+            reason: 'not_purchasable',
+          })),
+        };
+      },
       resolveCartActor: (request) => {
         if (request.actor.kind === 'customer') {
           return {

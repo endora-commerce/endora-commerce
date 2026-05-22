@@ -6,8 +6,10 @@ import type { SalesChannelMembershipService } from '../sales_channels/services/s
 import { CartService } from '../carts/services/cart-service.js';
 import { CartUpsellService } from '../carts/services/cart-upsell-service.js';
 import { CartCouponService } from '../carts/services/cart-coupon-service.js';
+import { CartConversionService } from '../carts/services/cart-conversion-service.js';
 import type { PricingService } from '../price_lists/services/pricing-service.js';
 import type { PromotionService } from '../promotions/services/promotion-service.js';
+import type { RfqService } from '../quote_requests/services/rfq-service.js';
 import {
   OrderService,
   type CreditLimitPort,
@@ -110,6 +112,26 @@ export interface OrdersModuleOptions {
    * `applyToCart`. Optional so legacy compositions still build.
    */
   promotionService?: PromotionService;
+  /**
+   * Feature 027 US3 — getter for the RFQ service used by Cart → Quote
+   * Request and Quote Request → Cart conversions. Getter (not direct
+   * reference) so the QR module can be constructed AFTER commerceModule
+   * in composition.ts; the closure resolves lazily at request time.
+   */
+  getRfqService?: () => RfqService | null;
+  /**
+   * Feature 027 US3 — port that appends a Shopping List's lines to the
+   * buyer's cart. Wired by composition to ShoppingListService.convertToCart.
+   */
+  appendShoppingListToCart?: (input: {
+    customerAccountId: string;
+    organizationId: string | null;
+    shoppingListId: string;
+  }) => Promise<{
+    cartId: string;
+    appendedLineCount: number;
+    droppedLines: Array<{ productId: string; productName: string; reason: string }>;
+  }>;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -127,11 +149,27 @@ export function commerceModule(options: OrdersModuleOptions) {
     const cartCouponService = options.promotionService
       ? new CartCouponService(options.emFactory, options.promotionService)
       : undefined;
+    // Build a thin lazy-resolving wrapper so the QR service can be
+    // injected after commerceModule is constructed (chicken-and-egg in
+    // composition.ts).
+    const lazyRfqProxy = options.getRfqService
+      ? (new Proxy({} as RfqService, {
+          get: (_target, prop) => {
+            const svc = options.getRfqService?.();
+            if (!svc) throw new Error('RfqService not yet available');
+            return Reflect.get(svc, prop, svc);
+          },
+        }) as RfqService)
+      : null;
+    const cartConversionService = lazyRfqProxy
+      ? new CartConversionService(options.emFactory, cartService, lazyRfqProxy)
+      : undefined;
 
     await registerCartRoutes(app, {
       cartService,
       cartUpsellService,
       ...(cartCouponService ? { cartCouponService } : {}),
+      ...(cartConversionService ? { cartConversionService } : {}),
       resolveCartActor: options.resolveCartActor,
       emFactory: options.emFactory,
       ...(options.assertOrganizationCanTransact
@@ -139,6 +177,9 @@ export function commerceModule(options: OrdersModuleOptions) {
         : {}),
       ...(options.pushLineToShoppingList
         ? { pushLineToShoppingList: options.pushLineToShoppingList }
+        : {}),
+      ...(options.appendShoppingListToCart
+        ? { appendShoppingListToCart: options.appendShoppingListToCart }
         : {}),
     });
     await registerOrderRoutes(app, {

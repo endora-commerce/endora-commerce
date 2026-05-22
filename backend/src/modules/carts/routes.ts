@@ -5,11 +5,13 @@ import {
   saveCartItemToListSchema,
   cartUpsellsQuerySchema,
   applyCartCouponSchema,
+  convertCartToQrSchema,
   ERROR_CODES,
 } from '@b2b/contracts';
 import type { CartService } from './services/cart-service.js';
 import type { CartUpsellService } from './services/cart-upsell-service.js';
 import type { CartCouponService } from './services/cart-coupon-service.js';
+import type { CartConversionService } from './services/cart-conversion-service.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Cart } from './entities/cart.entity.js';
 import type { CartItem } from './entities/cart-item.entity.js';
@@ -43,6 +45,25 @@ export interface CartsDeps {
    * compositions still build; production wires it.
    */
   cartCouponService?: CartCouponService;
+  /**
+   * Feature 027 US3 — three conversions (Cart→QR, QR→Cart, ShoppingList→Cart).
+   * Optional so legacy compositions still build.
+   */
+  cartConversionService?: CartConversionService;
+  /**
+   * Feature 027 US3 — ShoppingListService.convertToCart bridge for the
+   * `POST /api/v1/cart/from-shopping-list/:listId` endpoint. Returns the
+   * cart-side append result.
+   */
+  appendShoppingListToCart?: (input: {
+    customerAccountId: string;
+    organizationId: string | null;
+    shoppingListId: string;
+  }) => Promise<{
+    cartId: string;
+    appendedLineCount: number;
+    droppedLines: Array<{ productId: string; productName: string; reason: string }>;
+  }>;
   resolveCartActor: (request: FastifyRequest) => {
     customer?: { customerAccountId: string; organizationId: string | null };
     anonymousToken?: string;
@@ -296,6 +317,99 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
     const items = await cartService.getItems(cart.id);
     return { data: serializeCart(cart, items) };
   });
+
+  // ── Feature 027 US3 — three conversions
+
+  /**
+   * Cart → Quote Request. Refuses on an empty cart or unauthenticated
+   * caller. Source cart flips to `completed` with
+   * `converted_to_quote_request_id` set.
+   */
+  app.post(
+    '/api/v1/cart/convert-to-quote-request',
+    { schema: { body: convertCartToQrSchema } },
+    async (request) => {
+      const actor = resolveCartActor(request);
+      if (!actor.customer) {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Sign-in required.');
+      }
+      if (!deps.cartConversionService) {
+        throw new HttpError(503, ERROR_CODES.NOT_FOUND, 'quote_requests_unavailable');
+      }
+      if (!actor.customer.organizationId) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.VALIDATION_FAILED,
+          'organization_required_for_quote_request',
+        );
+      }
+      const cart = await cartService.getOrCreateForCustomer(actor.customer);
+      const body = convertCartToQrSchema.parse(request.body ?? {});
+      const result = await deps.cartConversionService.convertToQuoteRequest(
+        cart,
+        {
+          customerAccountId: actor.customer.customerAccountId,
+          organizationId: actor.customer.organizationId,
+          isOrgAdmin: false,
+        },
+        body.note,
+      );
+      return {
+        data: {
+          quoteRequestId: result.quoteRequestId,
+          cartId: result.cartId,
+          quoteRequestSlug: result.quoteRequestId,
+        },
+      };
+    },
+  );
+
+  /**
+   * Quote Request → Cart. Re-prices from the customer's current list;
+   * unavailable / no-price lines are dropped and returned to the
+   * caller.
+   */
+  app.post<{ Params: { quoteRequestId: string } }>(
+    '/api/v1/cart/from-quote-request/:quoteRequestId',
+    async (request) => {
+      const actor = resolveCartActor(request);
+      if (!actor.customer) {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Sign-in required.');
+      }
+      if (!deps.cartConversionService) {
+        throw new HttpError(503, ERROR_CODES.NOT_FOUND, 'quote_requests_unavailable');
+      }
+      const result = await deps.cartConversionService.createCartFromQuoteRequest(
+        request.params.quoteRequestId,
+        actor.customer,
+      );
+      return { data: result };
+    },
+  );
+
+  /**
+   * Shopping List → Cart. Delegates to ShoppingListService.convertToCart
+   * through the `appendShoppingListToCart` port. Composition wires that
+   * port at boot time.
+   */
+  app.post<{ Params: { shoppingListId: string } }>(
+    '/api/v1/cart/from-shopping-list/:shoppingListId',
+    async (request) => {
+      const actor = resolveCartActor(request);
+      if (!actor.customer) {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Sign-in required.');
+      }
+      if (!deps.appendShoppingListToCart) {
+        throw new HttpError(503, ERROR_CODES.NOT_FOUND, 'shopping_lists_unavailable');
+      }
+      const result = await deps.appendShoppingListToCart({
+        customerAccountId: actor.customer.customerAccountId,
+        organizationId: actor.customer.organizationId,
+        shoppingListId: request.params.shoppingListId,
+      });
+      return { data: result };
+    },
+  );
 
   /**
    * Up-sell strip for the full cart view. Aggregator over Catalog's
