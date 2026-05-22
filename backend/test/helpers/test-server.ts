@@ -16,6 +16,19 @@ import { i18nModule as adminI18nModule } from '../../src/modules/_i18n/plugin.js
 import { adminActionsModule } from '../../src/modules/admin_actions/plugin.js';
 import { AdminRole } from '../../src/modules/admin_roles/entities/admin-role.entity.js';
 import { organizationsModule } from '../../src/modules/organizations/plugin.js';
+import { adminNotificationsModule } from '../../src/modules/admin_notifications/plugin.js';
+import { OrganizationModerationService } from '../../src/modules/organizations/services/organization-moderation-service.js';
+import { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
+import { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
+import { OrganizationEffectivePriceListsService } from '../../src/modules/organizations/services/organization-effective-pricelists-service.js';
+import { OrganizationTaxIdValidationService } from '../../src/modules/organizations/services/organization-tax-id-validation-service.js';
+import type {
+  VatValidator,
+  VatValidationResult,
+} from '../../src/modules/organizations/services/vat-validator-port.js';
+import { OrgRegistrationNotifier } from '../../src/modules/organizations/services/org-registration-notifier.js';
+import type { OrganizationEventBus } from '../../src/modules/organizations/services/registration-service.js';
+import { ConsoleMailer } from '../../src/modules/email/services/mailer.js';
 import { commerceModule } from '../../src/modules/orders/plugin.js';
 import { adminModule } from '../../src/modules/admin_users/plugin.js';
 import { inventoryModule } from '../../src/modules/inventory/plugin.js';
@@ -117,6 +130,18 @@ export interface BackendServerHandle {
   dictionaries: ReturnType<typeof dictionariesModule>['handle'];
   /** Feature 021 — error-envelope i18n bridge. */
   adminI18n: ReturnType<typeof adminI18nModule>['handle'];
+  /** Feature 015+ — promotions module handle (exposes PromotionService). */
+  promotions: ReturnType<typeof promotionsModule>['handle'];
+  /** Feature 026 — moderation lifecycle, admin notifications, org context. */
+  organizations: {
+    moderationService: OrganizationModerationService;
+    adminNotificationService: ReturnType<
+      typeof adminNotificationsModule
+    >['handle']['adminNotificationService'];
+    organizationContextService: OrganizationContextService;
+    /** Feature 026 US4 — per-org allow-list service. */
+    restrictionService: OrganizationRestrictionService;
+  };
 }
 
 const SEEDED_TABLES = [
@@ -272,6 +297,61 @@ export async function setupBackendServer(
   // CartService is exposed by the commerce module so the login handler in
   // organizations can merge anonymous baskets after sign-in.
   let cartService: CartService | null = null;
+  let handleFeature026: BackendServerHandle['organizations'] | null = null;
+
+  // Feature 026 US4 — restriction service + per-request allow-list resolvers.
+  // Mirrors the composition.ts pattern: production wiring reads
+  // `request.actor`; the test harness uses `request.testActor`.
+  const sharedRestrictionService = new OrganizationRestrictionService(em);
+  const buildOrgAllowListResolver = (
+    kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
+  ) => async (request: FastifyRequest): Promise<string[] | null> => {
+    const r = request as FastifyRequest & {
+      testActor?: { kind: string; organizationId?: string | null };
+      actor?: { kind: string; organizationId?: string | null };
+    };
+    const orgId =
+      (r.testActor?.kind === 'customer' && r.testActor.organizationId) ||
+      (r.actor?.kind === 'customer' && r.actor.organizationId) ||
+      null;
+    if (!orgId) return null;
+    try {
+      const lists = await sharedRestrictionService.readAllowLists(orgId);
+      return lists[kind];
+    } catch {
+      return null;
+    }
+  };
+  const resolveOrganizationPaymentMethodAllowList = buildOrgAllowListResolver('paymentMethodIds');
+  const resolveOrganizationDeliveryMethodAllowList = buildOrgAllowListResolver('deliveryMethodIds');
+  const resolveOrganizationWarehouseAllowList = buildOrgAllowListResolver('warehouseIds');
+
+  /**
+   * Feature 026 US6 — admin orders/RFQ scope for the test harness. Mirrors
+   * the composition.ts resolver but reads `request.testActor` (the test
+   * harness's decoration).
+   */
+  const resolveTestAdminOrdersScope = async (
+    request: FastifyRequest,
+  ): Promise<{ allowAll: true } | { allowAll: false; allowedOrganizationIds: string[] }> => {
+    const actor = request.testActor;
+    if (!actor || actor.kind !== 'admin') return { allowAll: true };
+    const knex = em().getKnex();
+    const roleRow = (await knex.raw(
+      `select ar."code" as code from "admin_users" au left join "admin_roles" ar on ar."id" = au."admin_role_id" where au."id" = ?`,
+      [actor.adminUserId],
+    )) as { rows: Array<{ code: string | null }> };
+    const roleCode = roleRow.rows[0]?.code ?? null;
+    if (roleCode !== 'sales_representative') return { allowAll: true };
+    const assignments = (await knex.raw(
+      `select "organization_id" from "organization_sales_rep_assignments" where "admin_user_id" = ?`,
+      [actor.adminUserId],
+    )) as { rows: Array<{ organization_id: string }> };
+    return {
+      allowAll: false,
+      allowedOrganizationIds: assignments.rows.map((r) => r.organization_id),
+    };
+  };
 
   // Standalone AdminUserService for modules that need direct service-level
   // access to admin users (feature 019 — wires the preferred-language
@@ -406,6 +486,14 @@ export async function setupBackendServer(
     // picker + criterion validation work in tests.
     catalogQueryService: new CatalogQueryService(em),
     dictionaryValidator: dictionaries.handle.validator,
+    // Feature 026 US5 — org-targeted promotions skip when the Organization
+    // is not active. Inlined as a raw SQL lookup to avoid coupling promotions
+    // to the Organization entity at module-construction time.
+    resolveOrganizationStatus: async (orgId) => {
+      const row = (await em().getKnex()
+        .raw(`select "status" from "organizations" where "id" = ? and "deleted_at" is null`, [orgId])) as { rows: Array<{ status: string }> };
+      return row.rows[0]?.status ?? null;
+    },
   });
 
   const modules: ModulePlugin[] = [
@@ -448,28 +536,98 @@ export async function setupBackendServer(
       exposeCartService: (cs) => {
         cartService = cs;
       },
+      resolveOrganizationPaymentMethodAllowList,
+      resolveOrganizationDeliveryMethodAllowList,
+      resolveAdminOrdersScope: resolveTestAdminOrdersScope,
     }),
-    organizationsModule({
-      emFactory: em,
-      eventBus,
-      sessionService,
-      requireCustomer: requireTestCustomer(),
-      requireAdmin: requireTestAdmin(permissionService),
-      resolveCustomerContext: customerResolver,
-      auditLogService,
-      exposeTestProbe: true,
-      dictionaryValidator: dictionaries.handle.validator,
-      ...(options.organizationsMailer ? { mailer: options.organizationsMailer } : {}),
-      storefrontBaseUrl: 'http://localhost:3000',
-      onLogin: async (ctx) => {
-        if (cartService && ctx.anonymousCartToken) {
-          await cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
-            customerAccountId: ctx.customerAccountId,
-            organizationId: ctx.organizationId,
-          });
-        }
-      },
-    }),
+    // Feature 026 — moderation lifecycle wiring for the test server.
+    // Built before organizationsModule so the moderation service can be
+    // passed in. Subscribes the registration notifier + auto-approve
+    // handler to the same event bus.
+    ...(() => {
+      const moderationMailer = options.organizationsMailer ?? new ConsoleMailer();
+      const adminNotifications = adminNotificationsModule({
+        emFactory: em,
+        requireAdmin: requireTestAdmin(permissionService),
+      });
+      const moderationService = new OrganizationModerationService(
+        em,
+        auditLogService,
+        eventBus as unknown as OrganizationEventBus,
+        moderationMailer,
+        async () => 'manual',
+      );
+      const orgRegistrationNotifier = new OrgRegistrationNotifier({
+        emFactory: em,
+        adminNotificationService: adminNotifications.handle.adminNotificationService,
+        mailer: moderationMailer,
+        resolveRecipients: async () => [],
+      });
+      eventBus.on('organization.registered.v1', async (payload) => {
+        const orgId = (payload as unknown as { organizationId: string }).organizationId;
+        await orgRegistrationNotifier.handleRegistered(orgId);
+      });
+      eventBus.on('organization.registered.v1', async (payload) => {
+        const orgId = (payload as unknown as { organizationId: string }).organizationId;
+        await moderationService.handleNewlyRegistered(orgId);
+      });
+      // Reuse the shared service from above so the per-request resolvers and
+      // the admin endpoints operate over the same instance.
+      const restrictionService = sharedRestrictionService;
+      const effectivePriceListsService = new OrganizationEffectivePriceListsService({
+        emFactory: em,
+        resolveDefaultSalesChannelId: async () => {
+          const channel = await salesChannels.handle.resolver.getSystemDefault();
+          return channel?.id ?? 'default';
+        },
+      });
+      // Feature 026 US7 — fake VAT validators for the test harness. No
+      // real HTTP traffic. The fake returns `validated` for any taxId
+      // ending in `00000` (a pure 5-zero suffix) and `failed` / `deferred`
+      // otherwise — gives tests three deterministic branches without
+      // needing to mock fetch.
+      const testTaxIdValidationService = new OrganizationTaxIdValidationService({
+        emFactory: em,
+        vies: new FakeVatValidator('vies'),
+        mfPl: new FakeVatValidator('mf_pl'),
+      });
+      // Expose handles on the harness for tests that want to call the
+      // services directly.
+      handleFeature026 = {
+        moderationService,
+        adminNotificationService: adminNotifications.handle.adminNotificationService,
+        organizationContextService: new OrganizationContextService(em),
+        restrictionService,
+      };
+      return [
+        adminNotifications.plugin,
+        organizationsModule({
+          emFactory: em,
+          eventBus,
+          sessionService,
+          requireCustomer: requireTestCustomer(),
+          requireAdmin: requireTestAdmin(permissionService),
+          resolveCustomerContext: customerResolver,
+          auditLogService,
+          moderationService,
+          restrictionService,
+          effectivePriceListsService,
+          taxIdValidationService: testTaxIdValidationService,
+          exposeTestProbe: true,
+          dictionaryValidator: dictionaries.handle.validator,
+          mailer: moderationMailer,
+          storefrontBaseUrl: 'http://localhost:3000',
+          onLogin: async (ctx) => {
+            if (cartService && ctx.anonymousCartToken && ctx.organizationId) {
+              await cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
+                customerAccountId: ctx.customerAccountId,
+                organizationId: ctx.organizationId,
+              });
+            }
+          },
+        }),
+      ];
+    })(),
     catalogModule({
       emFactory: em,
       eventBus,
@@ -496,6 +654,7 @@ export async function setupBackendServer(
         actorAdminUserId:
           request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
       }),
+      resolveOrganizationWarehouseAllowList,
     }),
   ];
 
@@ -810,6 +969,15 @@ export async function setupBackendServer(
     blog: blog.handle,
     dictionaries: dictionaries.handle,
     adminI18n: adminI18n.handle,
+    promotions: promotions.handle,
+    organizations: handleFeature026 ?? {
+      moderationService: null as unknown as OrganizationModerationService,
+      adminNotificationService: null as unknown as ReturnType<
+        typeof adminNotificationsModule
+      >['handle']['adminNotificationService'],
+      organizationContextService: null as unknown as OrganizationContextService,
+      restrictionService: null as unknown as OrganizationRestrictionService,
+    },
   };
 }
 
@@ -821,9 +989,13 @@ function customerResolver(request: FastifyRequest): {
   if (request.testActor?.kind !== 'customer') {
     return { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID };
   }
+  // Feature 026 US2 — testActor.organizationId may be null (no-org Customer).
+  // Tests that drive routes requiring an Organization fall back to the
+  // shared TEST_ORGANIZATION_ID; tests that genuinely exercise the no-org
+  // path use `cartActorResolver` or call services directly.
   return {
     customerAccountId: request.testActor.customerAccountId,
-    organizationId: request.testActor.organizationId,
+    organizationId: request.testActor.organizationId ?? TEST_ORGANIZATION_ID,
     impersonatorAdminUserId: request.testActor.impersonatorAdminUserId,
   };
 }
@@ -832,4 +1004,43 @@ export async function teardownBackendServer(h: BackendServerHandle): Promise<voi
   await h.app.close();
   h.redis.disconnect();
   await closeOrm();
+}
+
+/**
+ * Deterministic VAT validator stub used by the test harness (feature 026 US7).
+ *
+ *   - taxId ending in `00000` → `validated` with legalName "Test Legal Co"
+ *   - taxId ending in `99999` → `deferred` (simulates provider outage)
+ *   - everything else → `failed` / `not_found`
+ *
+ * No real HTTP traffic; lets tests cover all three branches deterministically.
+ */
+class FakeVatValidator implements VatValidator {
+  constructor(public readonly provider: 'vies' | 'mf_pl') {}
+
+  async validate(input: { taxId: string }): Promise<VatValidationResult> {
+    const cleaned = input.taxId.replace(/[\s-]+/g, '').toUpperCase();
+    if (cleaned.endsWith('00000')) {
+      return {
+        outcome: 'validated',
+        legalName: 'Test Legal Co',
+        address: { line1: 'ul. Testowa 1', city: 'Warszawa', countryCode: 'PL' },
+        errorKind: null,
+      };
+    }
+    if (cleaned.endsWith('99999')) {
+      return {
+        outcome: 'deferred',
+        legalName: null,
+        address: null,
+        errorKind: 'network_timeout',
+      };
+    }
+    return {
+      outcome: 'failed',
+      legalName: null,
+      address: null,
+      errorKind: 'not_found',
+    };
+  }
 }

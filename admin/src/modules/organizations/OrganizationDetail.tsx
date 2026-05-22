@@ -4,6 +4,10 @@ import { ArrowLeft } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { OrganizationSalesRepsTab } from './OrganizationSalesRepsTab';
+import { ModerationActionsPanel } from './panels/ModerationActionsPanel';
+import { ApplicablePriceListsPanel } from './panels/ApplicablePriceListsPanel';
+import { VatValidationPanel } from './panels/VatValidationPanel';
+import { RestrictionsPanel } from './panels/RestrictionsPanel';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,15 +42,28 @@ interface OrgMember {
 interface OrgDetail {
   id: string;
   name: string;
+  legalName?: string | null;
   taxId: string;
-  status: 'pending_verification' | 'active' | 'suspended';
+  status: 'pending_verification' | 'active' | 'blocked' | 'rejected';
   vatStatus: 'vat_payer' | 'vat_exempt' | 'reverse_charge';
   registeredAddress: { street: string; city: string; postalCode: string; country: string };
   members: OrgMember[];
+  version?: number;
+  blockedReason?: string | null;
+  blockedAt?: string | null;
+  rejectedReason?: string | null;
+  rejectedAt?: string | null;
+  approvedAt?: string | null;
+  approvedByAdminUserId?: string | null;
+  vatValidation?: {
+    outcome: 'validated' | 'failed' | 'deferred' | 'unverified' | null;
+    provider: 'vies' | 'mf_pl' | 'format_only' | null;
+    validatedAt: string | null;
+  };
   updatedAt?: string;
 }
 
-const STATUSES = ['pending_verification', 'active', 'suspended'] as const;
+const STATUSES = ['pending_verification', 'active', 'blocked', 'rejected'] as const;
 const VAT_STATUSES = ['vat_payer', 'vat_exempt', 'reverse_charge'] as const;
 const ROLES = ['organization_admin', 'regular_user'] as const;
 
@@ -272,6 +289,18 @@ export function OrganizationDetail(): ReactNode {
           <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
+
+      <div className="mb-4">
+        <ModerationActionsPanel
+          organizationId={org.id}
+          status={org.status}
+          version={org.version ?? 0}
+          blockedReason={org.blockedReason ?? null}
+          rejectedReason={org.rejectedReason ?? null}
+          approvedAt={org.approvedAt ?? null}
+          onChanged={refresh}
+        />
+      </div>
 
       <Card className="mb-4">
         <CardHeader>
@@ -564,6 +593,33 @@ export function OrganizationDetail(): ReactNode {
           </CardContent>
         </Card>
       ) : null}
+
+      {/* Feature 026 US4 — per-Organization payment / delivery / warehouse allow-lists. */}
+      <div className="mt-4">
+        <RestrictionsPanel
+          organizationId={org.id}
+          version={org.version ?? 0}
+          onChanged={refresh}
+        />
+      </div>
+
+      {/* Feature 026 US7 — VAT-ID / NIP validation history + retrigger. */}
+      <div className="mt-4">
+        <VatValidationPanel
+          organizationId={org.id}
+          summary={{
+            outcome: org.vatValidation?.outcome ?? null,
+            provider: org.vatValidation?.provider ?? null,
+            validatedAt: org.vatValidation?.validatedAt ?? null,
+          }}
+          onChanged={refresh}
+        />
+      </div>
+
+      {/* Feature 026 US5 — read-only "what price lists apply to this org". */}
+      <div className="mt-4">
+        <ApplicablePriceListsPanel organizationId={org.id} />
+      </div>
 
       {id ? <OrganizationSalesRepsTab organizationId={id} /> : null}
     </>

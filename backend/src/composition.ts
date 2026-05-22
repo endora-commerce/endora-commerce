@@ -17,6 +17,21 @@ import { PermissionService } from './modules/admin_roles/services/permission-ser
 import { catalogModule } from './modules/catalog/plugin.js';
 import { quoteRequestsModule } from './modules/quote_requests/plugin.js';
 import { organizationsModule } from './modules/organizations/plugin.js';
+import { adminNotificationsModule } from './modules/admin_notifications/plugin.js';
+import { OrganizationModerationService } from './modules/organizations/services/organization-moderation-service.js';
+import { OrganizationRestrictionService } from './modules/organizations/services/organization-restriction-service.js';
+import { OrganizationEffectivePriceListsService } from './modules/organizations/services/organization-effective-pricelists-service.js';
+import { OrganizationTaxIdValidationService } from './modules/organizations/services/organization-tax-id-validation-service.js';
+import { ViesClient } from './modules/organizations/integrations/vies-client.js';
+import { MinisterstwoFinansowClient } from './modules/organizations/integrations/ministerstwo-finansow-client.js';
+import type { OrganizationEventBus } from './modules/organizations/services/registration-service.js';
+import { OrgRegistrationNotifier } from './modules/organizations/services/org-registration-notifier.js';
+import { OrganizationContextService } from './modules/organizations/services/organization-context-service.js';
+import {
+  moderationModeSchema,
+  notificationRecipientsSchema,
+} from './modules/organizations/schemas/settings.js';
+import { ORGANIZATIONS_SETTING_CODES } from './modules/organizations/manifest.js';
 import { ConsoleMailer } from './modules/email/services/mailer.js';
 import { resolveSmtpUrlFromEnv } from './modules/email/resolve-smtp-url.js';
 import { SmtpMailer } from './modules/email/services/smtp-mailer.js';
@@ -136,6 +151,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       }
     };
 
+  /**
+   * Resolver for routes that require an authenticated Customer **with** an
+   * Organization. Feature 026 US2 introduces no-org Customer accounts;
+   * routes that read price lists, credit limit, addresses, or place orders
+   * still need an Organization, so this resolver throws 422 when one is
+   * missing. Routes that genuinely work without an Organization (cart-add,
+   * browsing, profile-read) use `resolveCartActor` or read `request.actor`
+   * directly.
+   */
   const customerResolver = (
     request: FastifyRequest,
   ): {
@@ -145,6 +169,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   } => {
     if (request.actor.kind !== 'customer') {
       throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+    }
+    if (!request.actor.organizationId) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.VALIDATION_FAILED,
+        'This action requires an Organization attached to your account.',
+        { code: 'organization_required' },
+      );
     }
     return {
       customerAccountId: request.actor.customerAccountId,
@@ -290,6 +322,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     salesChannelMembership: salesChannels.handle.membershipService,
     catalogQueryService: catalogQueryServiceForPromotions,
     dictionaryValidator: dictionaries.handle.validator,
+    // Feature 026 US5 — org-targeted promotions only fire for active Organizations.
+    resolveOrganizationStatus: async (orgId) => {
+      const row = (await em().getKnex()
+        .raw(`select "status" from "organizations" where "id" = ? and "deleted_at" is null`, [orgId])) as { rows: Array<{ status: string }> };
+      return row.rows[0]?.status ?? null;
+    },
   });
 
   // Settings module is constructed up here (rather than further down) so its
@@ -338,6 +376,160 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // is safe at request time.
   let comparisonAdoption: ((customerAccountId: string, anonymousToken: string) => Promise<void>) | null = null;
 
+  // ── Feature 026 — Organizations moderation lifecycle ────────────────────
+  //
+  // Builds the admin_notifications sub-module + the moderation service +
+  // the registration notifier, subscribes both to organization.registered.v1,
+  // and exposes the resulting transaction gate (assertOrganizationCanTransact)
+  // for the carts / orders / quote_requests modules.
+
+  const adminNotifications = adminNotificationsModule({
+    emFactory: em,
+    requireAdmin,
+  });
+
+  const platformSettingsChannelId = process.env['ORGANIZATIONS_SETTINGS_CHANNEL_ID'] ?? 'default';
+
+  const resolveModerationMode = async (): Promise<'auto' | 'manual'> => {
+    try {
+      return await settings.handle.settingsService.get(
+        ORGANIZATIONS_SETTING_CODES.MODERATION_MODE,
+        platformSettingsChannelId,
+        moderationModeSchema,
+      );
+    } catch {
+      // Setting not seeded / out-of-scope for the channel — degrade safely
+      // to the most restrictive option so brand-new installs never grant
+      // unverified Organizations transaction rights by accident.
+      return 'manual';
+    }
+  };
+
+  const resolveRegistrationRecipients = async (): Promise<string[]> => {
+    try {
+      return await settings.handle.settingsService.get(
+        ORGANIZATIONS_SETTING_CODES.NEW_REGISTRATION_RECIPIENTS,
+        platformSettingsChannelId,
+        notificationRecipientsSchema,
+      );
+    } catch {
+      return [];
+    }
+  };
+
+  const organizationModerationService = new OrganizationModerationService(
+    em,
+    auditLogService,
+    eventBus as unknown as OrganizationEventBus,
+    organizationsMailer,
+    resolveModerationMode,
+  );
+
+  const orgRegistrationNotifier = new OrgRegistrationNotifier({
+    emFactory: em,
+    adminNotificationService: adminNotifications.handle.adminNotificationService,
+    mailer: organizationsMailer,
+    resolveRecipients: resolveRegistrationRecipients,
+  });
+
+  const organizationContextService = new OrganizationContextService(em);
+  const organizationRestrictionService = new OrganizationRestrictionService(em);
+
+  /**
+   * Feature 026 US6 — admin orders/RFQ visibility scope. Sales-rep admins
+   * see only orders/RFQs from organizations they own; any other admin
+   * (platform admin, content manager, etc.) sees everything.
+   */
+  const resolveAdminOrdersScope = async (
+    request: FastifyRequest,
+  ): Promise<{ allowAll: true } | { allowAll: false; allowedOrganizationIds: string[] }> => {
+    const actor = (request as { actor?: { kind: string; adminUserId?: string } }).actor;
+    if (!actor || actor.kind !== 'admin' || !actor.adminUserId) {
+      return { allowAll: true };
+    }
+    const knex = em().getKnex();
+    const roleRow = (await knex.raw(
+      `select ar."code" as code from "admin_users" au left join "admin_roles" ar on ar."id" = au."admin_role_id" where au."id" = ?`,
+      [actor.adminUserId],
+    )) as { rows: Array<{ code: string | null }> };
+    const roleCode = roleRow.rows[0]?.code ?? null;
+    if (roleCode !== 'sales_representative') {
+      return { allowAll: true };
+    }
+    const assignments = (await knex.raw(
+      `select "organization_id" from "organization_sales_rep_assignments" where "admin_user_id" = ?`,
+      [actor.adminUserId],
+    )) as { rows: Array<{ organization_id: string }> };
+    return {
+      allowAll: false,
+      allowedOrganizationIds: assignments.rows.map((r) => r.organization_id),
+    };
+  };
+
+  /**
+   * Builds per-request resolvers that fetch the caller's Organization
+   * allow-list for one of the three restriction kinds. Anonymous requests
+   * and no-org Customers return `null` (no filter applied; platform defaults).
+   * Production wiring resolves the actor via `request.actor`; the test
+   * harness uses `request.testActor` — both shapes are checked.
+   */
+  const buildOrgAllowListResolver = (
+    kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
+  ) => async (request: FastifyRequest): Promise<string[] | null> => {
+    const r = request as FastifyRequest & {
+      testActor?: { kind: string; organizationId?: string | null };
+      actor?: { kind: string; organizationId?: string | null };
+    };
+    const orgId =
+      (r.testActor?.kind === 'customer' && r.testActor.organizationId) ||
+      (r.actor?.kind === 'customer' && r.actor.organizationId) ||
+      null;
+    if (!orgId) return null;
+    try {
+      const lists = await organizationRestrictionService.readAllowLists(orgId);
+      return lists[kind];
+    } catch {
+      // Org not found / soft-deleted — degrade to "no restriction".
+      return null;
+    }
+  };
+
+  const resolveOrganizationPaymentMethodAllowList = buildOrgAllowListResolver('paymentMethodIds');
+  const resolveOrganizationDeliveryMethodAllowList = buildOrgAllowListResolver('deliveryMethodIds');
+  const resolveOrganizationWarehouseAllowList = buildOrgAllowListResolver('warehouseIds');
+
+  const organizationEffectivePriceListsService = new OrganizationEffectivePriceListsService({
+    emFactory: em,
+    resolveDefaultSalesChannelId: async () => {
+      const channel = await salesChannels.handle.resolver.getSystemDefault();
+      return channel?.id ?? 'default';
+    },
+  });
+
+  // Feature 026 US7 — tax-ID validation. The two real clients hit VIES +
+  // Ministerstwo Finansów. Both degrade safely on outage; the service
+  // persists a record regardless of outcome and never throws upstream.
+  const organizationTaxIdValidationService = new OrganizationTaxIdValidationService({
+    emFactory: em,
+    vies: new ViesClient(),
+    mfPl: new MinisterstwoFinansowClient(),
+  });
+  const assertOrganizationCanTransact = async (organizationId: string): Promise<void> => {
+    await organizationContextService.assertCanTransact(organizationId);
+  };
+
+  // Subscribe the two reactors to the registration event. Failures inside
+  // either reactor never poison the registration itself — the EventBus
+  // catches handler throws and logs them.
+  eventBus.on('organization.registered.v1', async (payload) => {
+    const orgId = (payload as unknown as { organizationId: string }).organizationId;
+    await orgRegistrationNotifier.handleRegistered(orgId);
+  });
+  eventBus.on('organization.registered.v1', async (payload) => {
+    const orgId = (payload as unknown as { organizationId: string }).organizationId;
+    await organizationModerationService.handleNewlyRegistered(orgId);
+  });
+
   const modules: ModulePlugin[] = [
     authModulePlugin,
     admin.plugin,
@@ -378,6 +570,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       exposeCartService: (cs) => {
         cartService = cs;
       },
+      assertOrganizationCanTransact,
+      resolveOrganizationPaymentMethodAllowList,
+      resolveOrganizationDeliveryMethodAllowList,
+      resolveAdminOrdersScope,
     }),
     organizationsModule({
       emFactory: em,
@@ -388,6 +584,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCustomerContext: customerResolver,
       mailer: organizationsMailer,
       auditLogService,
+      moderationService: organizationModerationService,
+      restrictionService: organizationRestrictionService,
+      effectivePriceListsService: organizationEffectivePriceListsService,
+      taxIdValidationService: organizationTaxIdValidationService,
       dictionaryValidator: dictionaries.handle.validator,
       ...(process.env['STOREFRONT_BASE_URL']
         ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
@@ -447,6 +647,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         }
         return { actorAdminUserId: actor.adminUserId };
       },
+      resolveOrganizationWarehouseAllowList,
     }),
   ];
 
@@ -613,6 +814,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
   modules.push(search.plugin);
 
+  // Feature 026 — Admin notifications bell. The plugin only mounts read
+  // routes; writes happen via the handle (consumed above by the
+  // OrgRegistrationNotifier and by future modules that emit notifications).
+  modules.push(adminNotifications.plugin);
+
   // Feature 007 — Comparisons module. US1 wires the customer-facing CRUD
   // endpoints; US2/US4/US5 extend the plugin with share, PDF, and admin
   // routes respectively. Reads catalog through CatalogQueryService (the
@@ -645,6 +851,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveCustomerContext: async (request) => {
       if (request.actor.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+      }
+      if (!request.actor.organizationId) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.VALIDATION_FAILED,
+          'Quote Requests require an Organization attached to your account.',
+          { code: 'organization_required' },
+        );
       }
       const account = await em().findOne(CustomerAccount, {
         id: request.actor.customerAccountId,
@@ -699,6 +913,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return true;
       }
     },
+    assertOrganizationCanTransact,
   });
   modules.push(quoteRequests.register);
 

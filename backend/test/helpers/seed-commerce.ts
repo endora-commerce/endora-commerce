@@ -100,7 +100,10 @@ export async function seedSuspendedOrganization(em: EntityManager): Promise<void
     id: TEST_SUSPENDED_ORGANIZATION_ID,
     name: 'Suspended Co',
     taxId: 'PL0000000098',
-    status: 'suspended',
+    // Feature 026 (Organizations) renamed `suspended` → `blocked`; the
+    // existing fixture name + test semantics are preserved (cannot-transact),
+    // only the literal value changes.
+    status: 'blocked',
     vatStatus: 'vat_payer',
     registeredAddress: {
       street: 'ul. Wstrzymanych 1',

@@ -16,13 +16,32 @@ export interface CurrentCustomer {
   twoFactorEnabled: boolean;
 }
 
+export type OrganizationLifecycleStatus =
+  | 'pending_verification'
+  | 'active'
+  | 'blocked'
+  | 'rejected';
+
 export interface CurrentOrganization {
   id: string;
   name: string;
+  legalName?: string | null;
   taxId: string;
-  status: string;
+  status: OrganizationLifecycleStatus | string;
   vatStatus: string;
   registeredAddress: { street: string; city: string; postalCode: string; country: string };
+  version?: number;
+  /**
+   * Feature 026 — convenience flag (`status === 'active'`). Surfaced by the
+   * backend so the storefront can disable order CTAs without re-implementing
+   * the rule.
+   */
+  canTransact?: boolean;
+  /**
+   * Feature 026 — localized, customer-safe explanation of the current status.
+   * `null` when `canTransact` is `true`. Use as the cart/checkout banner body.
+   */
+  moderationMessage?: string | null;
 }
 
 export interface MeResult {

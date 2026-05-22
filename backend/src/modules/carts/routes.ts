@@ -1,19 +1,30 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { addCartItemRequestSchema, updateCartItemRequestSchema } from '@b2b/contracts';
+import { addCartItemRequestSchema, updateCartItemRequestSchema, ERROR_CODES } from '@b2b/contracts';
 import type { CartService } from './services/cart-service.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Cart } from './entities/cart.entity.js';
 import type { CartItem } from './entities/cart-item.entity.js';
+import { OrganizationCannotTransactError } from '../organizations/services/organization-context-service.js';
+import { HttpError } from '../../http/error-envelope.js';
 
 const ANON_COOKIE = 'b2b_cart_anon';
 
 export interface CartsDeps {
   cartService: CartService;
   resolveCartActor: (request: FastifyRequest) => {
-    customer?: { customerAccountId: string; organizationId: string };
+    customer?: { customerAccountId: string; organizationId: string | null };
     anonymousToken?: string;
   };
   emFactory: () => EntityManager;
+  /**
+   * Optional gate — when provided, signed-in customers whose Organization
+   * is not `active` (pending_verification / blocked / rejected) cannot add
+   * lines to the cart. Anonymous users are always permitted.
+   *
+   * Feature 026 (US1 / US3). Throws OrganizationCannotTransactError, which
+   * the route translates to HTTP 423 with a localized body.
+   */
+  assertOrganizationCanTransact?: (organizationId: string) => Promise<void>;
 }
 
 /**
@@ -25,6 +36,36 @@ export interface CartsDeps {
  */
 export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps): Promise<void> {
   const { cartService, resolveCartActor, emFactory } = deps;
+  const { assertOrganizationCanTransact } = deps;
+
+  /**
+   * Refuses to mutate a cart when the signed-in Customer's Organization is
+   * not active. Anonymous carts are always permitted (no Organization is
+   * attached to them).
+   */
+  const guardOrganizationTransact = async (actor: {
+    customer?: { customerAccountId: string; organizationId: string | null };
+  }): Promise<void> => {
+    if (!assertOrganizationCanTransact) return;
+    if (!actor.customer) return;
+    // No-org Customer accounts (feature 026 US2) bypass the gate — they
+    // already use platform defaults and have no Organization status to fail
+    // against. Cart-add stays open.
+    if (!actor.customer.organizationId) return;
+    try {
+      await assertOrganizationCanTransact(actor.customer.organizationId);
+    } catch (err) {
+      if (err instanceof OrganizationCannotTransactError) {
+        throw new HttpError(
+          423,
+          ERROR_CODES.FORBIDDEN,
+          'Your Organization cannot transact in its current status.',
+          { code: 'organization_cannot_transact', status: err.status },
+        );
+      }
+      throw err;
+    }
+  };
 
   app.get('/api/v1/cart', async (request) => {
     const actor = resolveCartActor(request);
@@ -52,6 +93,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         reply.setCookie(ANON_COOKIE, token, { path: '/', sameSite: 'lax', httpOnly: true });
         actor = { anonymousToken: token };
       }
+      await guardOrganizationTransact(actor);
       const body = addCartItemRequestSchema.parse(request.body);
       const result = await cartService.addItem(actor, {
         productId: body.productId,

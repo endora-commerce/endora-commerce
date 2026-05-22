@@ -35,6 +35,15 @@ export interface InventoryRoutesDeps {
   warehouseChannelService?: WarehouseChannelService;
   stockLevelService?: StockLevelService;
   settingsService?: SettingsService;
+  /**
+   * Feature 026 US4 — Per-request resolver that returns the warehouse-id
+   * allow-list for the caller's Organization, or `null` when no restriction
+   * applies (anonymous request, no-org Customer, or org has no warehouses
+   * explicitly assigned). When the returned list is non-empty, the
+   * storefront stock-figure endpoint intersects its candidate warehouse
+   * set with this list before summing on-hand.
+   */
+  resolveOrganizationWarehouseAllowList?: (req: FastifyRequest) => Promise<string[] | null>;
 }
 
 export async function registerInventoryRoutes(
@@ -167,9 +176,24 @@ export async function registerInventoryRoutes(
       }
 
       const channelId = await resolveChannelId(request, channelResolver);
-      const candidateWarehouseIds = warehouseChannelService
+      let candidateWarehouseIds = warehouseChannelService
         ? await warehouseChannelService.resolveCandidateWarehouseIds(channelId)
         : [];
+
+      // Feature 026 US4 — intersect with the caller's Organization allow-
+      // list when one is configured. Empty per-org assignment (or no
+      // resolver wired) falls through to the platform defaults above.
+      if (deps.resolveOrganizationWarehouseAllowList) {
+        const allowList = await deps.resolveOrganizationWarehouseAllowList(request);
+        if (allowList && allowList.length > 0) {
+          const allowSet = new Set(allowList);
+          if (candidateWarehouseIds.length === 0) {
+            candidateWarehouseIds = [...allowSet];
+          } else {
+            candidateWarehouseIds = candidateWarehouseIds.filter((id) => allowSet.has(id));
+          }
+        }
+      }
 
       let cumulativeOnHand = 0;
       if (candidateWarehouseIds.length > 0) {

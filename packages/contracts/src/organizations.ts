@@ -14,10 +14,21 @@ import {
 
 // --- Primitives --------------------------------------------------------------
 
+/**
+ * Organization lifecycle status (feature 026 consolidation).
+ *
+ *  - `pending_verification` — newly registered, blocks transactions until
+ *    moderator approves (manual moderation mode) or auto-activated.
+ *  - `active` — may transact normally.
+ *  - `blocked` — operator-blocked (replaces the legacy `suspended`); the
+ *    Organization cannot place Orders or Quote Requests; reversible.
+ *  - `rejected` — moderator rejected at registration; terminal.
+ */
 export const organizationStatusSchema = z.enum([
   'pending_verification',
   'active',
-  'suspended',
+  'blocked',
+  'rejected',
 ]);
 export type OrganizationStatus = z.infer<typeof organizationStatusSchema>;
 

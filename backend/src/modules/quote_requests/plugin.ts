@@ -33,6 +33,11 @@ export interface QuoteRequestsModuleOptions {
   resolveExpiryDays: () => Promise<number>;
   /** Reads the storefront-visibility flags from settings. */
   resolveBoolSetting: (key: 'show_add_to_quote_on_card' | 'show_add_to_quote_on_pdp') => Promise<boolean>;
+  /**
+   * Feature 026 — refuses RFQ submission when the Customer's Organization is
+   * not `active`.
+   */
+  assertOrganizationCanTransact?: (organizationId: string) => Promise<void>;
 }
 
 export interface QuoteRequestsModuleHandle {
@@ -116,6 +121,9 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
         rfqService,
         requireCustomer: options.requireCustomer,
         resolveCustomerContext: options.resolveCustomerContext,
+        ...(options.assertOrganizationCanTransact
+          ? { assertOrganizationCanTransact: options.assertOrganizationCanTransact }
+          : {}),
       });
       await registerQuoteRequestsAdminRoutes(app, {
         adminService,

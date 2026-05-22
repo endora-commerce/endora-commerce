@@ -49,7 +49,7 @@ export interface OrdersModuleOptions {
    * plugin.
    */
   resolveCartActor: (req: FastifyRequest) => {
-    customer?: { customerAccountId: string; organizationId: string };
+    customer?: { customerAccountId: string; organizationId: string | null };
     anonymousToken?: string;
   };
   /** Hook — returned cart service so the login route can merge anonymous baskets. */
@@ -66,6 +66,28 @@ export interface OrdersModuleOptions {
    * don't care about pricing engine semantics can omit it.
    */
   pricingService?: PricingService;
+  /**
+   * Feature 026 — optional gate that refuses cart-line-add, place-order, and
+   * RFQ-submit when the Customer's Organization is not `active`. Threaded
+   * through to both registerCartRoutes and registerOrderRoutes.
+   */
+  assertOrganizationCanTransact?: (organizationId: string) => Promise<void>;
+  /**
+   * Feature 026 US4 — When provided, the storefront payment-methods endpoint
+   * intersects the active set with the caller's Organization allow-list.
+   */
+  resolveOrganizationPaymentMethodAllowList?: (req: FastifyRequest) => Promise<string[] | null>;
+  /** Feature 026 US4 — same for delivery methods. */
+  resolveOrganizationDeliveryMethodAllowList?: (req: FastifyRequest) => Promise<string[] | null>;
+  /**
+   * Feature 026 US6 — sales-rep ownership scoping for the admin orders list.
+   * Platform admins return `{ allowAll: true }`; sales reps return the set
+   * of organization ids they own.
+   */
+  resolveAdminOrdersScope?: (req: FastifyRequest) => Promise<
+    | { allowAll: true }
+    | { allowAll: false; allowedOrganizationIds: string[] }
+  >;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -83,6 +105,9 @@ export function commerceModule(options: OrdersModuleOptions) {
       cartService,
       resolveCartActor: options.resolveCartActor,
       emFactory: options.emFactory,
+      ...(options.assertOrganizationCanTransact
+        ? { assertOrganizationCanTransact: options.assertOrganizationCanTransact }
+        : {}),
     });
     await registerOrderRoutes(app, {
       orderService,
@@ -90,9 +115,25 @@ export function commerceModule(options: OrdersModuleOptions) {
       requireCustomer: options.requireCustomer,
       requireAdmin: options.requireAdmin,
       resolveCustomerContext: options.resolveCustomerContext,
+      ...(options.assertOrganizationCanTransact
+        ? { assertOrganizationCanTransact: options.assertOrganizationCanTransact }
+        : {}),
+      ...(options.resolveAdminOrdersScope
+        ? { resolveAdminOrdersScope: options.resolveAdminOrdersScope }
+        : {}),
     });
-    await registerDeliveryMethodsPublicRoutes(app, { emFactory: options.emFactory });
-    await registerPaymentMethodsPublicRoutes(app, { emFactory: options.emFactory });
+    await registerDeliveryMethodsPublicRoutes(app, {
+      emFactory: options.emFactory,
+      ...(options.resolveOrganizationDeliveryMethodAllowList
+        ? { resolveOrganizationDeliveryMethodAllowList: options.resolveOrganizationDeliveryMethodAllowList }
+        : {}),
+    });
+    await registerPaymentMethodsPublicRoutes(app, {
+      emFactory: options.emFactory,
+      ...(options.resolveOrganizationPaymentMethodAllowList
+        ? { resolveOrganizationPaymentMethodAllowList: options.resolveOrganizationPaymentMethodAllowList }
+        : {}),
+    });
     await registerDeliveryMethodsAdminRoutes(app, {
       emFactory: options.emFactory,
       requireAdmin: options.requireAdmin,

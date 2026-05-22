@@ -58,6 +58,17 @@ export class EmailVerificationService {
         'Associated account was removed.',
       );
     }
+    // Feature 026 US2 — Customer may have no Organization (post-026 schema).
+    // Verification through this flow always carries an org today
+    // (RegistrationService.registerOrganization always creates the pair),
+    // but guard defensively in case a no-org Customer ever lands here.
+    if (!customer.organizationId) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.TOKEN_INVALID_OR_EXPIRED,
+        'Verification flow requires an Organization.',
+      );
+    }
     const organization = await em.findOne(Organization, { id: customer.organizationId });
     if (!organization) {
       throw new HttpError(

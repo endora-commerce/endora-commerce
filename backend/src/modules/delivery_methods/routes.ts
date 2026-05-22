@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import { ERROR_CODES } from '@b2b/contracts';
@@ -15,6 +15,12 @@ import type { SalesChannelMembershipService } from '../sales_channels/services/s
  */
 export interface DeliveryMethodsPublicDeps {
   emFactory: () => EntityManager;
+  /**
+   * Feature 026 US4 — When provided, returns the per-Organization allow-list
+   * of delivery-method IDs for the caller. Empty / null ⇒ platform defaults
+   * apply.
+   */
+  resolveOrganizationDeliveryMethodAllowList?: (req: FastifyRequest) => Promise<string[] | null>;
 }
 
 export interface DeliveryMethodsAdminDeps {
@@ -36,13 +42,24 @@ export async function registerDeliveryMethodsPublicRoutes(
   app: FastifyInstance,
   deps: DeliveryMethodsPublicDeps,
 ): Promise<void> {
-  app.get('/api/v1/delivery-methods', async () => {
+  app.get('/api/v1/delivery-methods', async (request) => {
     const em = deps.emFactory();
-    const rows = await em.find(
+    let rows = await em.find(
       DeliveryMethod,
       { status: 'active' },
       { orderBy: { code: 'asc' } },
     );
+
+    // Feature 026 US4 — intersect with the Organization's delivery-method
+    // allow-list when one is configured.
+    if (deps.resolveOrganizationDeliveryMethodAllowList) {
+      const allowList = await deps.resolveOrganizationDeliveryMethodAllowList(request);
+      if (allowList && allowList.length > 0) {
+        const allowSet = new Set(allowList);
+        rows = rows.filter((m) => allowSet.has(m.id));
+      }
+    }
+
     return { data: rows.map(serializeDeliveryMethod) };
   });
 }

@@ -26,12 +26,20 @@ export const customersAdapter: ImportExportAdapter = {
   async exportRows(em: EntityManager): Promise<string[][]> {
     const accounts = await em.find(CustomerAccount, {});
     if (accounts.length === 0) return [];
-    const orgIds = Array.from(new Set(accounts.map((a) => a.organizationId)));
-    const orgs = await em.find(Organization, { id: { $in: orgIds } });
+    const orgIds = Array.from(
+      new Set(
+        accounts
+          .map((a) => a.organizationId)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0),
+      ),
+    );
+    const orgs = orgIds.length > 0
+      ? await em.find(Organization, { id: { $in: orgIds } })
+      : [];
     const orgNameById = new Map(orgs.map((o) => [o.id, o.name]));
     return accounts.map((a) => [
       a.email,
-      orgNameById.get(a.organizationId) ?? '',
+      a.organizationId ? (orgNameById.get(a.organizationId) ?? '') : '',
       a.firstName,
       a.lastName,
       a.role,

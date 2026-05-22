@@ -67,6 +67,12 @@ export class PromotionService {
     private readonly auditLogger: PromotionAuditLogger = {
       info: (message, fields) => console.warn(`[audit] ${message}`, fields ?? {}),
     },
+    /**
+     * Feature 026 US5 — when provided, org-targeted promotions are only
+     * applied if the caller's Organization is currently `active`.
+     * `null` means "org missing" → skip the org-targeted promotion.
+     */
+    private readonly resolveOrganizationStatus?: (orgId: string) => Promise<string | null>,
   ) {}
 
   async list(): Promise<Promotion[]> {
@@ -184,6 +190,22 @@ export class PromotionService {
     );
 
     const all = await em.find(Promotion, { isActive: true });
+
+    // Feature 026 US5 — when org-targeted promotions are present and the
+    // snapshot carries an organizationId, resolve that org's status once.
+    // Org-targeted promotions only apply if the org is `active`. Without a
+    // resolver wired (e.g., legacy test composition), the gate is skipped.
+    let orgStatusCheckResult: 'allow' | 'skip-org-targeted' = 'allow';
+    if (this.resolveOrganizationStatus && snapshot.organizationId) {
+      const hasOrgTargeted = all.some((p) => p.organizationId === snapshot.organizationId);
+      if (hasOrgTargeted) {
+        const status = await this.resolveOrganizationStatus(snapshot.organizationId);
+        if (status !== 'active') {
+          orgStatusCheckResult = 'skip-org-targeted';
+        }
+      }
+    }
+
     const eligible = all.filter((p) => {
       if (p.validFrom && now < p.validFrom) return false;
       if (p.validUntil && now > p.validUntil) return false;
@@ -194,6 +216,13 @@ export class PromotionService {
         return false;
       }
       if (p.organizationId && p.organizationId !== snapshot.organizationId) return false;
+      // Org-targeted promotions only fire for an active Organization.
+      if (
+        p.organizationId &&
+        orgStatusCheckResult === 'skip-org-targeted'
+      ) {
+        return false;
+      }
       if (p.customerGroupId && p.customerGroupId !== snapshot.customerGroupId) return false;
       if (p.code) {
         if (!snapshot.promotionCode) return false;
