@@ -250,13 +250,39 @@ function emptyCart() {
     id: null,
     customerAccountId: null,
     organizationId: null,
+    salesChannelId: null,
     anonymousCartToken: null,
+    status: 'active' as const,
+    approvalStatus: 'not_required' as const,
     items: [],
     itemCount: 0,
     subtotal: { amount: 0, currency: 'PLN' },
+    discount: null,
+    grandTotal: { amount: 0, currency: 'PLN' },
+    primaryCta: 'checkout' as const,
+    droppedLines: [],
+    couponDroppedThisRead: null,
+    createdAt: null,
+    updatedAt: null,
+    lastActivityAt: null,
   };
 }
 
+/**
+ * Builds the cart-view response payload. Backward-compatible: the
+ * foundation fields (`id`, `customerAccountId`, `organizationId`,
+ * `anonymousCartToken`, `items` with `unitPrice`, `itemCount`, `subtotal`,
+ * `createdAt`, `updatedAt`) are preserved verbatim so the existing
+ * storefront keeps building.
+ *
+ * Feature 027 fields are additive: `salesChannelId`, `status`,
+ * `approvalStatus`, `discount`, `grandTotal`, `primaryCta`,
+ * `droppedLines`, `couponDroppedThisRead`, `lastActivityAt`, and per-line
+ * `lineTotal`. Re-pricing-on-read is a follow-up — the snapshotted
+ * `unitPrice` on `cart_items` is returned as the current price for now;
+ * the CartPricingRecompute helper (foundation T014) will be wired into
+ * this serializer when the read path lands.
+ */
 function serializeCart(cart: Cart, items: CartItem[]) {
   const subtotal = items.reduce((acc, it) => acc + Number(it.unitPrice) * it.quantity, 0);
   const currency = items[0]?.currency ?? 'PLN';
@@ -264,19 +290,52 @@ function serializeCart(cart: Cart, items: CartItem[]) {
     id: cart.id,
     customerAccountId: cart.customerAccountId ?? null,
     organizationId: cart.organizationId ?? null,
+    salesChannelId: cart.salesChannelId ?? null,
     anonymousCartToken: cart.anonymousCartToken ?? null,
-    items: items.map((it) => ({
-      id: it.id,
-      productId: it.productId,
-      variantId: it.variantId ?? null,
-      quantity: it.quantity,
-      unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
-    })),
+    status: cart.status,
+    approvalStatus: cart.approvalStatus,
+    items: items.map((it) => {
+      const unitPriceAmount = Number(it.unitPrice);
+      return {
+        id: it.id,
+        productId: it.productId,
+        variantId: it.variantId ?? null,
+        quantity: it.quantity,
+        unitPrice: { amount: unitPriceAmount, currency: it.currency },
+        lineTotal: { amount: unitPriceAmount * it.quantity, currency: it.currency },
+        unavailable: false,
+        unavailableReason: null,
+      };
+    }),
     itemCount: items.length,
     subtotal: { amount: subtotal, currency },
+    discount: cart.appliedPromotionCode
+      ? { code: cart.appliedPromotionCode, amount: 0, currency }
+      : null,
+    grandTotal: { amount: subtotal, currency },
+    primaryCta: resolvePrimaryCta(cart),
+    droppedLines: [],
+    couponDroppedThisRead: null,
     createdAt: cart.createdAt.toISOString(),
     updatedAt: cart.updatedAt.toISOString(),
+    lastActivityAt: cart.lastActivityAt.toISOString(),
   };
+}
+
+/**
+ * Derives the buyer's primary CTA from the cart's two-axis state
+ * (main `status` × `approval_status`). See spec FR-024.
+ */
+function resolvePrimaryCta(cart: Cart): 'checkout' | 'submit_for_approval' | 'awaiting_approval' | 'blocked_by_organization' {
+  if (cart.status === 'rejected' || cart.status === 'completed') return 'blocked_by_organization';
+  if (cart.approvalStatus === 'pending') return 'awaiting_approval';
+  if (cart.approvalStatus === 'rejected_by_org_admin') return 'blocked_by_organization';
+  // `not_required` and `approved` both → checkout. The `submit_for_approval`
+  // CTA is only emitted when the Organization's policy is on but the cart
+  // hasn't been submitted yet — the route handler can compute that flag
+  // when it has the OrganizationContextService on hand; for now we default
+  // to `checkout`.
+  return 'checkout';
 }
 
 declare const crypto: { randomUUID: () => string };
