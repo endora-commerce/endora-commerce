@@ -260,7 +260,7 @@
   "productEditor.attributeSet.loading": "— loading —",
   "productEditor.attributeSet.systemSuffix": " (system)",
   "productEditor.field.status": "Status",
-  "productEditor.field.status.help": "Use Archive (top right) to deactivate; lifecycle is managed elsewhere.",
+  "productEditor.field.status.help": "Choose draft, active, or archived. You can also use Archive (top right) as a shortcut to archived.",
   "productEditor.field.defaultPrice": "Default unit price",
   "productEditor.field.defaultPrice.help": "Price-list overrides take precedence at checkout.",
   "productEditor.field.localizedName": "Name [{locale}]",
