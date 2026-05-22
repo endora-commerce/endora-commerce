@@ -20,6 +20,7 @@ import { adminNotificationsModule } from '../../src/modules/admin_notifications/
 import { OrganizationModerationService } from '../../src/modules/organizations/services/organization-moderation-service.js';
 import { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
 import { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
+import { OrganizationEffectivePriceListsService } from '../../src/modules/organizations/services/organization-effective-pricelists-service.js';
 import { OrgRegistrationNotifier } from '../../src/modules/organizations/services/org-registration-notifier.js';
 import type { OrganizationEventBus } from '../../src/modules/organizations/services/registration-service.js';
 import { ConsoleMailer } from '../../src/modules/email/services/mailer.js';
@@ -124,6 +125,8 @@ export interface BackendServerHandle {
   dictionaries: ReturnType<typeof dictionariesModule>['handle'];
   /** Feature 021 — error-envelope i18n bridge. */
   adminI18n: ReturnType<typeof adminI18nModule>['handle'];
+  /** Feature 015+ — promotions module handle (exposes PromotionService). */
+  promotions: ReturnType<typeof promotionsModule>['handle'];
   /** Feature 026 — moderation lifecycle, admin notifications, org context. */
   organizations: {
     moderationService: OrganizationModerationService;
@@ -451,6 +454,14 @@ export async function setupBackendServer(
     // picker + criterion validation work in tests.
     catalogQueryService: new CatalogQueryService(em),
     dictionaryValidator: dictionaries.handle.validator,
+    // Feature 026 US5 — org-targeted promotions skip when the Organization
+    // is not active. Inlined as a raw SQL lookup to avoid coupling promotions
+    // to the Organization entity at module-construction time.
+    resolveOrganizationStatus: async (orgId) => {
+      const row = (await em().getKnex()
+        .raw(`select "status" from "organizations" where "id" = ? and "deleted_at" is null`, [orgId])) as { rows: Array<{ status: string }> };
+      return row.rows[0]?.status ?? null;
+    },
   });
 
   const modules: ModulePlugin[] = [
@@ -530,6 +541,13 @@ export async function setupBackendServer(
       // Reuse the shared service from above so the per-request resolvers and
       // the admin endpoints operate over the same instance.
       const restrictionService = sharedRestrictionService;
+      const effectivePriceListsService = new OrganizationEffectivePriceListsService({
+        emFactory: em,
+        resolveDefaultSalesChannelId: async () => {
+          const channel = await salesChannels.handle.resolver.getSystemDefault();
+          return channel?.id ?? 'default';
+        },
+      });
       // Expose handles on the harness for tests that want to call the
       // services directly.
       handleFeature026 = {
@@ -550,6 +568,7 @@ export async function setupBackendServer(
           auditLogService,
           moderationService,
           restrictionService,
+          effectivePriceListsService,
           exposeTestProbe: true,
           dictionaryValidator: dictionaries.handle.validator,
           mailer: moderationMailer,
@@ -906,6 +925,7 @@ export async function setupBackendServer(
     blog: blog.handle,
     dictionaries: dictionaries.handle,
     adminI18n: adminI18n.handle,
+    promotions: promotions.handle,
     organizations: handleFeature026 ?? {
       moderationService: null as unknown as OrganizationModerationService,
       adminNotificationService: null as unknown as ReturnType<

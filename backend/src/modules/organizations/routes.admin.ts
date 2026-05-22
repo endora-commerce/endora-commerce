@@ -27,6 +27,7 @@ import {
   OrganizationRestrictionService,
   OrganizationVersionMismatchError as RestrictionVersionMismatchError,
 } from './services/organization-restriction-service.js';
+import type { OrganizationEffectivePriceListsService } from './services/organization-effective-pricelists-service.js';
 import {
   approveOrganizationSchema,
   rejectOrganizationSchema,
@@ -58,6 +59,8 @@ export interface AdminOrgsDeps {
   moderationService?: OrganizationModerationService;
   /** Optional — when provided, mounts the restrictions admin endpoints (US4). */
   restrictionService?: OrganizationRestrictionService;
+  /** Optional — when provided, mounts the applicable-price-lists endpoint (US5). */
+  effectivePriceListsService?: OrganizationEffectivePriceListsService;
 }
 
 export async function registerOrganizationsAdminRoutes(
@@ -67,6 +70,7 @@ export async function registerOrganizationsAdminRoutes(
   const { requireAdmin, emFactory, invitationService, roleService, auditLogService } = deps;
   const moderationService = deps.moderationService;
   const restrictionService = deps.restrictionService;
+  const effectivePriceListsService = deps.effectivePriceListsService;
 
   const audit = async (
     request: FastifyRequest,
@@ -332,6 +336,20 @@ export async function registerOrganizationsAdminRoutes(
     patchRoute('/api/v1/admin/organizations/:id/restrictions/payment-methods', 'payment_method');
     patchRoute('/api/v1/admin/organizations/:id/restrictions/delivery-methods', 'delivery_method');
     patchRoute('/api/v1/admin/organizations/:id/restrictions/warehouses', 'warehouse');
+  }
+
+  // ── Applicable Price Lists (feature 026 US5) ────────────────────────────
+  // Read-only panel showing every Price List currently applicable to the
+  // Organization, each tagged with the reasons it applies.
+  if (effectivePriceListsService) {
+    app.get<{ Params: { id: string } }>(
+      '/api/v1/admin/organizations/:id/applicable-price-lists',
+      { preHandler: requireAdmin('customers:manage') },
+      async (request) => {
+        const items = await effectivePriceListsService.listApplicable(request.params.id);
+        return { items };
+      },
+    );
   }
 
   app.post<{ Params: { id: string } }>(

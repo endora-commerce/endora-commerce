@@ -20,6 +20,7 @@ import { organizationsModule } from './modules/organizations/plugin.js';
 import { adminNotificationsModule } from './modules/admin_notifications/plugin.js';
 import { OrganizationModerationService } from './modules/organizations/services/organization-moderation-service.js';
 import { OrganizationRestrictionService } from './modules/organizations/services/organization-restriction-service.js';
+import { OrganizationEffectivePriceListsService } from './modules/organizations/services/organization-effective-pricelists-service.js';
 import type { OrganizationEventBus } from './modules/organizations/services/registration-service.js';
 import { OrgRegistrationNotifier } from './modules/organizations/services/org-registration-notifier.js';
 import { OrganizationContextService } from './modules/organizations/services/organization-context-service.js';
@@ -318,6 +319,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     salesChannelMembership: salesChannels.handle.membershipService,
     catalogQueryService: catalogQueryServiceForPromotions,
     dictionaryValidator: dictionaries.handle.validator,
+    // Feature 026 US5 — org-targeted promotions only fire for active Organizations.
+    resolveOrganizationStatus: async (orgId) => {
+      const row = (await em().getKnex()
+        .raw(`select "status" from "organizations" where "id" = ? and "deleted_at" is null`, [orgId])) as { rows: Array<{ status: string }> };
+      return row.rows[0]?.status ?? null;
+    },
   });
 
   // Settings module is constructed up here (rather than further down) so its
@@ -456,6 +463,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const resolveOrganizationPaymentMethodAllowList = buildOrgAllowListResolver('paymentMethodIds');
   const resolveOrganizationDeliveryMethodAllowList = buildOrgAllowListResolver('deliveryMethodIds');
   const resolveOrganizationWarehouseAllowList = buildOrgAllowListResolver('warehouseIds');
+
+  const organizationEffectivePriceListsService = new OrganizationEffectivePriceListsService({
+    emFactory: em,
+    resolveDefaultSalesChannelId: async () => {
+      const channel = await salesChannels.handle.resolver.getSystemDefault();
+      return channel?.id ?? 'default';
+    },
+  });
   const assertOrganizationCanTransact = async (organizationId: string): Promise<void> => {
     await organizationContextService.assertCanTransact(organizationId);
   };
@@ -527,6 +542,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       auditLogService,
       moderationService: organizationModerationService,
       restrictionService: organizationRestrictionService,
+      effectivePriceListsService: organizationEffectivePriceListsService,
       dictionaryValidator: dictionaries.handle.validator,
       ...(process.env['STOREFRONT_BASE_URL']
         ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }

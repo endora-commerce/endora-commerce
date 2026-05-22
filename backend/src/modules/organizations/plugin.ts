@@ -4,6 +4,7 @@ import type { EventBus } from '../../events/bus.js';
 import type { SessionService } from '../auth/services/session-service.js';
 import type { OrganizationModerationService } from './services/organization-moderation-service.js';
 import type { OrganizationRestrictionService } from './services/organization-restriction-service.js';
+import type { OrganizationEffectivePriceListsService } from './services/organization-effective-pricelists-service.js';
 import {
   RegistrationService,
   type OrganizationEventBus,
@@ -79,6 +80,12 @@ export interface OrganizationsModuleOptions {
    * `requireAdmin`, the matching admin endpoints are mounted.
    */
   restrictionService?: OrganizationRestrictionService;
+  /**
+   * Feature 026 US5 — service returning the Price Lists currently
+   * applicable to an Organization. Mounts the
+   * `/applicable-price-lists` admin endpoint when provided.
+   */
+  effectivePriceListsService?: OrganizationEffectivePriceListsService;
 }
 
 export function organizationsModule(options: OrganizationsModuleOptions) {
@@ -163,6 +170,9 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
         auditLogService: options.auditLogService,
         ...(options.moderationService ? { moderationService: options.moderationService } : {}),
         ...(options.restrictionService ? { restrictionService: options.restrictionService } : {}),
+        ...(options.effectivePriceListsService
+          ? { effectivePriceListsService: options.effectivePriceListsService }
+          : {}),
       });
     }
   };

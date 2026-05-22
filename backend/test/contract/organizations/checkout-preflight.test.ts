@@ -7,7 +7,6 @@ import {
 import { seedSuspendedOrganization } from '../../helpers/seed-commerce.js';
 import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
-import { DeliveryMethod } from '../../../src/modules/delivery_methods/entities/delivery-method.entity.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
 /**
@@ -28,7 +27,6 @@ import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 describe('Storefront preflight + payment-method allow-list (feature 026 US4)', () => {
   let h: BackendServerHandle;
   let paymentMethodIds: string[];
-  let originalVersion: number;
   let restrictedPaymentId: string;
 
   beforeAll(async () => {
@@ -51,9 +49,6 @@ describe('Storefront preflight + payment-method allow-list (feature 026 US4)', (
       paymentMethodIds.push(extra.id);
     }
     restrictedPaymentId = paymentMethodIds[0]!;
-
-    const org = await em.findOneOrFail(Organization, { id: TEST_ORGANIZATION_ID });
-    originalVersion = org.version;
   });
 
   afterAll(async () => {
