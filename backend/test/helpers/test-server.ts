@@ -557,6 +557,28 @@ export async function setupBackendServer(
           },
         );
       },
+      appendShoppingListToCart: async (input) => {
+        if (!shoppingListServiceRef) {
+          throw new Error('shopping_lists module not initialized');
+        }
+        const res = await shoppingListServiceRef.convertToCart(
+          {
+            customerAccountId: input.customerAccountId,
+            organizationId: input.organizationId ?? '',
+          },
+          input.shoppingListId,
+          undefined,
+        );
+        return {
+          cartId: '',
+          appendedLineCount: res.added,
+          droppedLines: res.skipped.map((it) => ({
+            productId: it.productId,
+            productName: it.productId,
+            reason: 'not_purchasable',
+          })),
+        };
+      },
       resolveOrganizationPaymentMethodAllowList,
       resolveOrganizationDeliveryMethodAllowList,
       resolveAdminOrdersScope: resolveTestAdminOrdersScope,
