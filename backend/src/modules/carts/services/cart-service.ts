@@ -271,7 +271,11 @@ export class CartService {
         item.cartId = customerCart.id;
       }
     }
-    anon.status = 'abandoned';
+    // Merge complete — mark the source anonymous cart as `completed` (it
+    // produced a target authenticated cart; treating it as `abandoned`
+    // would falsely flag it for the abandonment-notification sweep when
+    // a non-empty merge actually took place). See feature 027 §R10.
+    anon.status = 'completed';
     anon.anonymousCartToken = null;
     await em.flush();
   }
@@ -284,7 +288,7 @@ export class CartService {
     });
     if (!cart) return;
     await em.nativeDelete(CartItem, { cartId: cart.id });
-    cart.status = 'converted';
+    cart.status = 'completed';
     await em.flush();
   }
 

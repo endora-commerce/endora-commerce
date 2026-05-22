@@ -493,9 +493,10 @@ export class OrderService {
       });
       await tx.persistAndFlush(invoice);
 
-      // Clear cart
+      // Clear cart — the cart produced an Order, so its lifecycle terminates
+      // in `completed` per feature 027's renamed status vocabulary.
       await tx.nativeDelete(CartItem, { cartId: cart.id });
-      cart.status = 'converted';
+      cart.status = 'completed';
       await tx.flush();
 
       this.events.emit('order.created.v1', {

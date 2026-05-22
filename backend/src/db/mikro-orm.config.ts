@@ -51,6 +51,7 @@ import { Migration046PerWarehouseLowStockThresholds } from '../modules/inventory
 import { Migration047OrganizationsConsolidation } from '../modules/organizations/migrations/047_organizations_consolidation.js';
 import { Migration048AdminNotificationsInit } from '../modules/admin_notifications/migrations/048_admin_notifications_init.js';
 import { Migration049CustomerAccountsOrganizationOptional } from '../modules/customer_accounts/migrations/049_customer_accounts_organization_optional.js';
+import { Migration050CartsConsolidation } from '../modules/carts/migrations/050_carts_consolidation.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -226,6 +227,10 @@ export default defineConfig({
       {
         name: 'Migration049CustomerAccountsOrganizationOptional',
         class: Migration049CustomerAccountsOrganizationOptional,
+      },
+      {
+        name: 'Migration050CartsConsolidation',
+        class: Migration050CartsConsolidation,
       },
     ],
     transactional: true,
