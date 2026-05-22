@@ -65,6 +65,11 @@ export class CartCouponService {
    *
    * `code === null` clears any active coupon (use the `clear` alias for
    * readability — both are equivalent).
+   *
+   * Note: the cart passed in may have been loaded by a different
+   * EntityManager fork. We re-load it on our own fork so the
+   * `appliedPromotionCode` mutation flushes to the DB and the
+   * caller's in-memory cart is also updated.
    */
   async apply(cart: Cart, code: string | null): Promise<CouponApplyResult> {
     if (code === null) {
@@ -73,6 +78,10 @@ export class CartCouponService {
     }
 
     const em = this.emFactory();
+    const managedCart = await em.findOne(Cart, { id: cart.id });
+    if (!managedCart) {
+      return { outcome: 'dropped', reason: 'invalid_code' };
+    }
 
     // Resolve the promotion row by code so we can build the reason-specific
     // drop response (the snapshot's eligibility filter inside applyToCart
@@ -90,11 +99,11 @@ export class CartCouponService {
     if (promotion.validUntil && now > promotion.validUntil) {
       return { outcome: 'dropped', reason: 'expired' };
     }
-    if (promotion.organizationId && promotion.organizationId !== cart.organizationId) {
+    if (promotion.organizationId && promotion.organizationId !== managedCart.organizationId) {
       return { outcome: 'dropped', reason: 'wrong_organization' };
     }
 
-    const items = await em.find(CartItem, { cartId: cart.id });
+    const items = await em.find(CartItem, { cartId: managedCart.id });
     const subtotal = items.reduce(
       (acc, it) => acc + Number(it.unitPrice) * it.quantity,
       0,
@@ -143,13 +152,18 @@ export class CartCouponService {
       return { outcome: 'dropped', reason: 'wrong_customer_group' };
     }
 
-    cart.appliedPromotionCode = code;
-    cart.lastActivityAt = new Date();
+    managedCart.appliedPromotionCode = code;
+    managedCart.lastActivityAt = new Date();
     await em.flush();
-    if (this.approvalService && cart.customerAccountId) {
-      await this.approvalService.maybeReArm(cart, {
-        customerAccountId: cart.customerAccountId,
+    // Mirror the persisted mutation onto the caller's in-memory cart so
+    // serializeCart in the route handler reflects it without re-reading.
+    cart.appliedPromotionCode = code;
+    cart.lastActivityAt = managedCart.lastActivityAt;
+    if (this.approvalService && managedCart.customerAccountId) {
+      await this.approvalService.maybeReArm(managedCart, {
+        customerAccountId: managedCart.customerAccountId,
       });
+      cart.approvalStatus = managedCart.approvalStatus;
     }
     return { outcome: 'applied', cart, appliedCode: code };
   }
@@ -157,13 +171,18 @@ export class CartCouponService {
   async clear(cart: Cart): Promise<void> {
     if (cart.appliedPromotionCode === null) return;
     const em = this.emFactory();
-    cart.appliedPromotionCode = null;
-    cart.lastActivityAt = new Date();
+    const managedCart = await em.findOne(Cart, { id: cart.id });
+    if (!managedCart) return;
+    managedCart.appliedPromotionCode = null;
+    managedCart.lastActivityAt = new Date();
     await em.flush();
-    if (this.approvalService && cart.customerAccountId) {
-      await this.approvalService.maybeReArm(cart, {
-        customerAccountId: cart.customerAccountId,
+    cart.appliedPromotionCode = null;
+    cart.lastActivityAt = managedCart.lastActivityAt;
+    if (this.approvalService && managedCart.customerAccountId) {
+      await this.approvalService.maybeReArm(managedCart, {
+        customerAccountId: managedCart.customerAccountId,
       });
+      cart.approvalStatus = managedCart.approvalStatus;
     }
   }
 
@@ -183,8 +202,7 @@ export class CartCouponService {
     const em = this.emFactory();
     const promotion = await em.findOne(Promotion, { code, isActive: true });
     if (!promotion) {
-      cart.appliedPromotionCode = null;
-      await em.flush();
+      await this.persistDrop(em, cart);
       return { dropped: { code, reason: 'invalid_code' } };
     }
 
@@ -193,8 +211,7 @@ export class CartCouponService {
       (promotion.validFrom && now < promotion.validFrom) ||
       (promotion.validUntil && now > promotion.validUntil)
     ) {
-      cart.appliedPromotionCode = null;
-      await em.flush();
+      await this.persistDrop(em, cart);
       return { dropped: { code, reason: 'expired' } };
     }
 
@@ -206,13 +223,26 @@ export class CartCouponService {
     if (promotion.minCartSubtotal != null) {
       const min = Number(promotion.minCartSubtotal);
       if (min > subtotal) {
-        cart.appliedPromotionCode = null;
-        await em.flush();
+        await this.persistDrop(em, cart);
         return { dropped: { code, reason: 'below_min_spend' } };
       }
     }
 
     return { dropped: null };
+  }
+
+  /**
+   * Persists a coupon drop. The caller's `cart` entity may belong to a
+   * different EntityManager fork; we reload on our own fork, mutate, and
+   * also mirror the change onto the caller's in-memory cart so the
+   * read-side serializer sees the dropped coupon.
+   */
+  private async persistDrop(em: EntityManager, cart: Cart): Promise<void> {
+    const managed = await em.findOne(Cart, { id: cart.id });
+    if (!managed) return;
+    managed.appliedPromotionCode = null;
+    await em.flush();
+    cart.appliedPromotionCode = null;
   }
 }
 

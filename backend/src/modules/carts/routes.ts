@@ -43,7 +43,9 @@ export interface CartsDeps {
   }) => Promise<void>;
   /**
    * Feature 027 US2 — coupon application service. Optional so legacy
-   * compositions still build; production wires it.
+   * compositions still build; production wires it. Also drives the
+   * `reevaluateOnRead` auto-drop in the GET handler when a previously-
+   * applied code no longer fits the cart.
    */
   cartCouponService?: CartCouponService;
   /**
@@ -171,7 +173,25 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         recomputedPrices = null;
       }
     }
-    return { data: serializeCart(cart, items, recomputedPrices) };
+
+    // Feature 027 US2 / FR-014 — re-evaluate the applied coupon on every
+    // read. If a previously-valid code is no longer eligible (e.g. the
+    // cart fell below min spend after a line removal), drop it silently
+    // on the cart record and surface `couponDroppedThisRead` so the
+    // storefront banner can inform the buyer.
+    let couponDroppedThisRead: { code: string; reason: string } | null = null;
+    if (deps.cartCouponService && cart.appliedPromotionCode && items.length > 0) {
+      try {
+        const result = await deps.cartCouponService.reevaluateOnRead(cart, items);
+        if (result.dropped) {
+          couponDroppedThisRead = result.dropped;
+        }
+      } catch {
+        // Never block a cart read on a coupon-engine hiccup.
+        couponDroppedThisRead = null;
+      }
+    }
+    return { data: serializeCart(cart, items, recomputedPrices, couponDroppedThisRead) };
   });
 
   app.post(
@@ -517,6 +537,7 @@ function serializeCart(
   cart: Cart,
   items: CartItem[],
   recomputedPrices: Map<string, { amount: number; currency: string }> | null = null,
+  couponDroppedThisRead: { code: string; reason: string } | null = null,
 ) {
   let subtotal = 0;
   let currency = items[0]?.currency ?? 'PLN';
@@ -554,7 +575,7 @@ function serializeCart(
     grandTotal: { amount: subtotal, currency },
     primaryCta: resolvePrimaryCta(cart),
     droppedLines: [],
-    couponDroppedThisRead: null,
+    couponDroppedThisRead,
     createdAt: cart.createdAt.toISOString(),
     updatedAt: cart.updatedAt.toISOString(),
     lastActivityAt: cart.lastActivityAt.toISOString(),
