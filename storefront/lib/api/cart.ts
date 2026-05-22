@@ -236,6 +236,31 @@ export interface OrgCartsListResponse {
 }
 
 /**
+ * Feature 027 US4 — set the per-Organization `requires_cart_approval`
+ * policy. Requires `organization_admin` role; on `false`, every pending/
+ * approved cart in the Organization is reset to `not_required` server-
+ * side.
+ */
+export async function setCartApprovalPolicy(
+  jar: CartCookieJar,
+  requiresCartApproval: boolean,
+  ctx?: RequestContext,
+): Promise<{ organizationId: string; requiresCartApproval: boolean; updatedAt: string }> {
+  const result = await apiMutate<{
+    organizationId: string;
+    requiresCartApproval: boolean;
+    updatedAt: string;
+  }>({
+    method: 'PATCH',
+    path: '/api/v1/organization/policies/cart-approval',
+    body: { requiresCartApproval },
+    rawCookieHeader: combineCookies(jar) || null,
+    ...(ctx ? { ctx } : {}),
+  });
+  return result.data!;
+}
+
+/**
  * Feature 027 US4 — list every cart in the caller's Organization.
  * Requires the caller's CustomerAccount.role === 'organization_admin';
  * a 403 is returned otherwise.
