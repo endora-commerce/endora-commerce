@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import type { Cart } from '../entities/cart.entity.js';
+import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import { QuoteRequest } from '../../quote_requests/entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../../quote_requests/entities/quote-request-item.entity.js';
@@ -93,12 +93,24 @@ export class CartConversionService {
       })),
     });
 
-    // Flip the source cart to `completed` + record the conversion lineage.
-    cart.status = 'completed';
-    cart.convertedToQuoteRequestId = rfq.id;
-    cart.lastActivityAt = new Date();
+    // Flip the source cart to `completed` + record the conversion
+    // lineage. Reload on this service's own EM fork before mutating —
+    // the `cart` arg was loaded by the route handler's fork and a
+    // cross-fork flush would silently no-op (same bug we hit in
+    // CartCouponService.apply). Mirror the change back onto the
+    // caller's in-memory cart so the audit / response paths see the
+    // post-conversion state.
+    const managedCart = await em.findOne(Cart, { id: cart.id });
+    if (managedCart) {
+      managedCart.status = 'completed';
+      managedCart.convertedToQuoteRequestId = rfq.id;
+      managedCart.lastActivityAt = new Date();
+    }
     await em.nativeDelete(CartItem, { cartId: cart.id });
     await em.flush();
+    cart.status = 'completed';
+    cart.convertedToQuoteRequestId = rfq.id;
+    cart.lastActivityAt = managedCart?.lastActivityAt ?? new Date();
 
     return { quoteRequestId: rfq.id, cartId: cart.id };
   }
