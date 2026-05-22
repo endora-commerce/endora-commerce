@@ -140,6 +140,51 @@ export class CartApprovalService {
   }
 
   /**
+   * Platform-admin variant of {@link setPolicyForOrganization}. Same
+   * semantics (policy-off cascades a reset of every pending/approved
+   * cart in the Org) but the actor is a platform admin rather than an
+   * Org Admin — recorded as `actorType: 'platform_admin'` in the
+   * audit row.
+   */
+  async setPolicyByAdmin(
+    organizationId: string,
+    adminUserId: string,
+    requires: boolean,
+  ): Promise<Organization> {
+    const em = this.emFactory();
+    const org = await em.findOne(Organization, { id: organizationId });
+    if (!org) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'organization_not_found');
+    }
+    if (org.requiresCartApproval === requires) {
+      return org;
+    }
+    org.requiresCartApproval = requires;
+    await em.flush();
+
+    if (!requires) {
+      const affected = await em.find(Cart, {
+        organizationId,
+        approvalStatus: { $in: ['pending', 'approved'] satisfies CartApprovalStatus[] },
+      });
+      for (const cart of affected) {
+        const prev = cart.approvalStatus;
+        cart.approvalStatus = 'not_required';
+        await em.flush();
+        await this.cartAuditService.record({
+          cartId: cart.id,
+          actorType: 'platform_admin',
+          actorId: adminUserId,
+          action: 'approval_policy_reset',
+          fromState: prev,
+          toState: 'not_required',
+        });
+      }
+    }
+    return org;
+  }
+
+  /**
    * Org Admin toggles the per-Organization `requires_cart_approval` policy.
    * On `false`: every `pending` or `approved` cart in the Org returns to
    * `not_required` and is audited as `approval_policy_reset`.

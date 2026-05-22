@@ -341,6 +341,7 @@ export function commerceModule(options: OrdersModuleOptions) {
     if (cartAdminService) {
       await registerCartsAdminRoutes(app, {
         cartAdminService,
+        ...(cartApprovalService ? { cartApprovalService } : {}),
         requireAdmin: options.requireAdmin,
         resolveAdminUserId: (req: FastifyRequest): string | null => {
           // Production rig: `request.actor` (set by the auth plugin).
