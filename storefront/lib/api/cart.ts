@@ -218,6 +218,58 @@ export async function touchCart(jar: CartCookieJar, ctx?: RequestContext): Promi
   });
 }
 
+export interface OrgCartSummary {
+  id: string;
+  ownerCustomerAccountId: string;
+  ownerDisplayName: string;
+  status: 'active' | 'abandoned' | 'completed' | 'rejected';
+  approvalStatus: 'not_required' | 'pending' | 'approved' | 'rejected_by_org_admin';
+  itemCount: number;
+  total: { amount: number; currency: string };
+  lastActivityAt: string;
+  submittedForApprovalAt: string | null;
+}
+
+export interface OrgCartsListResponse {
+  data: OrgCartSummary[];
+  meta: { page: number; pageSize: number; totalCount: number };
+}
+
+/**
+ * Feature 027 US4 — list every cart in the caller's Organization.
+ * Requires the caller's CustomerAccount.role === 'organization_admin';
+ * a 403 is returned otherwise.
+ */
+export async function listOrganizationCarts(
+  jar: CartCookieJar,
+  filter?: {
+    status?: ReadonlyArray<'active' | 'abandoned' | 'completed' | 'rejected'>;
+    approvalStatus?: ReadonlyArray<
+      'not_required' | 'pending' | 'approved' | 'rejected_by_org_admin'
+    >;
+    page?: number;
+  },
+  ctx?: RequestContext,
+): Promise<OrgCartsListResponse> {
+  const params = new URLSearchParams();
+  if (filter?.status?.length) params.set('status', filter.status.join(','));
+  if (filter?.approvalStatus?.length) params.set('approvalStatus', filter.approvalStatus.join(','));
+  if (filter?.page) params.set('page', String(filter.page));
+  const qs = params.toString();
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (ctx?.salesChannelCode) headers['X-Sales-Channel'] = ctx.salesChannelCode;
+  const cookie = combineCookies(jar);
+  if (cookie) headers['Cookie'] = cookie;
+  const res = await fetch(
+    `${baseUrl}/api/v1/organization/carts${qs ? `?${qs}` : ''}`,
+    { headers, credentials: 'include' as RequestCredentials },
+  );
+  if (!res.ok) {
+    throw new Error(`organization/carts list failed with HTTP ${res.status}`);
+  }
+  return (await res.json()) as OrgCartsListResponse;
+}
+
 /**
  * `apiMutate.sessionCookie` only carries one cookie pair, so combine
  * both candidates into the Cookie header verbatim. This keeps the
