@@ -8,6 +8,7 @@ import { Organization } from '../../organizations/entities/organization.entity.j
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import type { PricingService } from '../../price_lists/services/pricing-service.js';
 import type { CartApprovalService } from './cart-approval-service.js';
+import type { DisplayMode } from '@b2b/contracts';
 
 /**
  * CartService (T125).
@@ -219,7 +220,7 @@ export class CartService {
     amount: string;
     currency: string;
     priceListId: string;
-    displayMode: import('@b2b/contracts').DisplayMode;
+    displayMode: DisplayMode;
   } | null> {
     if (!this.pricingService) return null;
     try {

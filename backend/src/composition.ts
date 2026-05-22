@@ -557,6 +557,31 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       pricingService: priceLists.handle.pricingService,
       promotionService: promotions.handle.promotionService,
       redis,
+      // Feature 027 US5 — abandonment-sweep resolvers + dispatcher.
+      resolveCartAbandonmentInactivityMinutes: async () => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'carts.abandonment.inactivity_minutes',
+            'default',
+            z.number().int().nonnegative(),
+          );
+        } catch {
+          return 0;
+        }
+      },
+      resolveCartAbandonmentNotificationRecipient: async () => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'carts.abandonment.notification_recipient',
+            'default',
+            z.string(),
+          );
+        } catch {
+          return '';
+        }
+      },
       getRfqService: () => quoteRequests?.handle().rfqService ?? null,
       appendShoppingListToCart: async (input) => {
         if (!shoppingListService) {

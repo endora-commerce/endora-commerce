@@ -109,7 +109,6 @@ export class CartAbandonmentWorker {
           // Notification failure must not roll back the status flip.
           // The audit trail records the abandonment; an oncall who
           // notices the e-mail never arrived can replay manually.
-          // eslint-disable-next-line no-console
           console.error('[cart-abandonment-worker] notification failed', err);
         }
       }

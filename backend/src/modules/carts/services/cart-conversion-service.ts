@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
-import { Cart } from '../entities/cart.entity.js';
+import type { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import { QuoteRequest } from '../../quote_requests/entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../../quote_requests/entities/quote-request-item.entity.js';

@@ -13,6 +13,7 @@ import { CartApprovalService } from '../carts/services/cart-approval-service.js'
 import { CartOrganizationVisibilityService } from '../carts/services/cart-organization-visibility-service.js';
 import { CartRecomputeCache } from '../carts/services/cart-recompute-cache.js';
 import { CartPricingRecompute } from '../carts/services/cart-pricing-recompute.js';
+import { CartAbandonmentWorker } from '../carts/services/cart-abandonment-worker.js';
 import { registerCartsAdminRoutes } from '../carts/routes.admin.js';
 import { registerCartsOrganizationRoutes } from '../carts/routes.organization.js';
 import type { PricingService } from '../price_lists/services/pricing-service.js';
@@ -148,6 +149,35 @@ export interface OrdersModuleOptions {
    * Redis cache. Without it, the snapshotted unit_price is returned.
    */
   redis?: Redis;
+  /**
+   * Feature 027 US5 — resolves the current
+   * `carts.abandonment.inactivity_minutes` setting. Wired by composition.
+   * `0` disables the sweep.
+   */
+  resolveCartAbandonmentInactivityMinutes?: () => Promise<number>;
+  /**
+   * Feature 027 US5 — resolves the current
+   * `carts.abandonment.notification_recipient` setting. Wired by composition.
+   * Empty string = no notification e-mail.
+   */
+  resolveCartAbandonmentNotificationRecipient?: () => Promise<string>;
+  /**
+   * Feature 027 US5 — outbound notification dispatch. When omitted, the
+   * sweep still flips status but suppresses the e-mail.
+   */
+  dispatchCartAbandonmentNotification?: (input: {
+    recipientEmail: string;
+    cartId: string;
+    ownerDisplayName: string | null;
+    lineCount: number;
+    organizationId: string | null;
+  }) => Promise<void>;
+  /**
+   * Feature 027 US5 — hook for the future scheduler / test harness to
+   * grab the worker handle. The worker exposes `sweep(now?)` for direct
+   * invocation; production scheduling is an operational concern.
+   */
+  exposeCartAbandonmentWorker?: (worker: CartAbandonmentWorker) => void;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -271,6 +301,28 @@ export function commerceModule(options: OrdersModuleOptions) {
       emFactory: options.emFactory,
       requireAdmin: options.requireAdmin,
     });
+
+    // Feature 027 US5 — abandonment-sweep worker. Constructed when the
+    // settings resolvers are wired; exposed via the optional hook so a
+    // future scheduler / test harness can invoke `sweep(now?)` directly.
+    if (
+      cartAuditService &&
+      options.resolveCartAbandonmentInactivityMinutes &&
+      options.resolveCartAbandonmentNotificationRecipient
+    ) {
+      const abandonmentWorker = new CartAbandonmentWorker({
+        emFactory: options.emFactory,
+        cartAuditService,
+        resolveInactivityMinutes: options.resolveCartAbandonmentInactivityMinutes,
+        resolveNotificationRecipient: options.resolveCartAbandonmentNotificationRecipient,
+        ...(options.dispatchCartAbandonmentNotification
+          ? { dispatchNotification: options.dispatchCartAbandonmentNotification }
+          : {}),
+      });
+      if (options.exposeCartAbandonmentWorker) {
+        options.exposeCartAbandonmentWorker(abandonmentWorker);
+      }
+    }
 
     // Feature 027 US4 — Organization-Administrator visibility + approval
     // workflow. cartApprovalService already constructed above so the
