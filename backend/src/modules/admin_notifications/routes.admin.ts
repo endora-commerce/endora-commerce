@@ -3,10 +3,8 @@ import { z } from 'zod';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
-import {
-  AdminNotificationService,
-  NotificationNotFoundError,
-} from './services/admin-notification-service.js';
+import type { AdminNotificationService } from './services/admin-notification-service.js';
+import { NotificationNotFoundError } from './services/admin-notification-service.js';
 
 const listQuerySchema = z.object({
   unread: z.coerce.boolean().default(false),
