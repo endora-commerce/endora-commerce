@@ -18,6 +18,16 @@ export interface CartItem {
   variantId: string | null;
   quantity: number;
   unitPrice: { amount: number; currency: string };
+  /** Feature 027 — qty × unitPrice, surfaced by the backend serializer. */
+  lineTotal?: { amount: number; currency: string };
+  /** Feature 027 — true when the line should be dimmed on the page. */
+  unavailable?: boolean;
+  /** Feature 027 — populated when `unavailable` is true. */
+  unavailableReason?:
+    | 'out_of_stock'
+    | 'not_purchasable'
+    | 'no_price_in_customer_list'
+    | null;
 }
 
 export interface CartSummary {
@@ -28,6 +38,30 @@ export interface CartSummary {
   items: CartItem[];
   itemCount: number;
   subtotal: { amount: number; currency: string };
+  /** Feature 027 — cart status (active / abandoned / completed / rejected). */
+  status?: 'active' | 'abandoned' | 'completed' | 'rejected';
+  /** Feature 027 — approval-axis state. */
+  approvalStatus?: 'not_required' | 'pending' | 'approved' | 'rejected_by_org_admin';
+  /** Feature 027 — applied coupon discount (null when none active). */
+  discount?: { code: string; amount: number; currency: string } | null;
+  /** Feature 027 — grand total after the optional discount. */
+  grandTotal?: { amount: number; currency: string };
+  /** Feature 027 — buyer-facing primary CTA derived from the two-axis state. */
+  primaryCta?:
+    | 'checkout'
+    | 'submit_for_approval'
+    | 'awaiting_approval'
+    | 'blocked_by_organization';
+  /** Feature 027 — lines dropped during the last conversion (informational). */
+  droppedLines?: Array<{
+    productId: string;
+    productName: string;
+    reason: 'not_purchasable' | 'out_of_stock' | 'no_price_in_customer_list' | 'removed_by_conversion';
+  }>;
+  /** Feature 027 — set when GET silently dropped a previously-valid coupon. */
+  couponDroppedThisRead?: { code: string; reason: string } | null;
+  /** Feature 027 — surfaced for client-side activity-bookkeeping displays. */
+  lastActivityAt?: string | null;
 }
 
 export interface CartCookieJar {
@@ -213,6 +247,59 @@ export async function touchCart(jar: CartCookieJar, ctx?: RequestContext): Promi
   await apiMutate({
     method: 'POST',
     path: '/api/v1/cart/touch',
+    rawCookieHeader: combineCookies(jar) || null,
+    ...(ctx ? { ctx } : {}),
+  });
+}
+
+/**
+ * Feature 027 US1 — up-sell strip. The endpoint returns a list of
+ * Catalog `product_links` of kind `up_sell` that originate from any
+ * product currently in the cart, filtered to ones the cart does not
+ * already contain.
+ */
+export interface CartUpsellLine {
+  productId: string;
+  productName: string;
+  productSlug: string;
+  unitPrice: { amount: number; currency: string } | null;
+}
+
+export async function getCartUpsells(
+  jar: CartCookieJar,
+  ctx?: RequestContext,
+): Promise<CartUpsellLine[]> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (ctx?.salesChannelCode) headers['X-Sales-Channel'] = ctx.salesChannelCode;
+  if (ctx?.locale) headers['Accept-Language'] = ctx.locale;
+  const cookie = combineCookies(jar);
+  if (cookie) headers['Cookie'] = cookie;
+  const res = await fetch(`${baseUrl}/api/v1/cart/upsells`, {
+    method: 'GET',
+    headers,
+    cache: 'no-store',
+  });
+  if (!res.ok) return [];
+  const payload = (await res.json()) as { data: CartUpsellLine[] };
+  return payload.data ?? [];
+}
+
+/**
+ * Feature 027 US1 — copy a cart line into a named shopping list.
+ * The line stays in the cart; the list gets a new entry with the
+ * line's product + quantity. Backend enforces (customer, organization)
+ * ownership and returns 404 on a foreign-owner list.
+ */
+export async function saveCartItemToShoppingList(
+  jar: CartCookieJar,
+  itemId: string,
+  shoppingListId: string,
+  ctx?: RequestContext,
+): Promise<void> {
+  await apiMutate({
+    method: 'POST',
+    path: `/api/v1/cart/items/${itemId}/save-to-shopping-list`,
+    body: { shoppingListId },
     rawCookieHeader: combineCookies(jar) || null,
     ...(ctx ? { ctx } : {}),
   });
