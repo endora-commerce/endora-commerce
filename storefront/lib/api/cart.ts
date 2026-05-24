@@ -83,11 +83,25 @@ export async function getCart(jar: CartCookieJar, ctx?: RequestContext): Promise
   if (ctx?.locale) headers['Accept-Language'] = ctx.locale;
   const cookie = combineCookies(jar);
   if (cookie) headers['Cookie'] = cookie;
-  const response = await fetch(`${baseUrl}/api/v1/cart`, {
+  let response = await fetch(`${baseUrl}/api/v1/cart`, {
     method: 'GET',
     headers,
     cache: 'no-store',
   });
+  // SSR re-renders can fan out 10+ requests per navigation (layout
+  // hooks, cart, /me, upsells, …). A transient 429 from the rate
+  // limiter shouldn't render a 500 to the buyer — wait for the
+  // server-advertised retry budget and try once more.
+  if (response.status === 429) {
+    const retryAfter = Number(response.headers.get('retry-after') ?? '1');
+    const waitMs = Math.min(Math.max(Number.isFinite(retryAfter) ? retryAfter : 1, 1), 5) * 1000;
+    await new Promise((r) => setTimeout(r, waitMs));
+    response = await fetch(`${baseUrl}/api/v1/cart`, {
+      method: 'GET',
+      headers,
+      cache: 'no-store',
+    });
+  }
   if (!response.ok) throw new Error(`GET /cart failed with ${response.status}`);
   const payload = (await response.json()) as { data: CartSummary };
   return { cart: payload.data, newAnonCookie: extractAnonCookie(response.headers) };

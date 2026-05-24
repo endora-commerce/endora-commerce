@@ -40,6 +40,14 @@ export interface BuildServerOptions {
   openApi: OpenApiMetadata;
   /** Test overrides — bypass rate limits so contract tests are not flaky. */
   disableRateLimit?: boolean;
+  /**
+   * Optional per-IP request budget (requests per minute). When omitted, the
+   * default is 1000/min — high enough that local SSR dev (which can fire
+   * 10+ backend calls per page render across layout hooks, cart, /me,
+   * upsells, etc.) does not trip the limiter on every navigation.
+   * Production composition can pass a tighter ceiling via env.
+   */
+  rateLimitMax?: number;
   /** Business-module route registrations, invoked after cross-cutting hooks are installed. */
   modules?: ModulePlugin[];
   /** Optional i18n bridge for translating standardized error envelopes. */
@@ -99,7 +107,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
 
   if (options.disableRateLimit !== true) {
     await app.register(rateLimit, {
-      max: 200,
+      max: options.rateLimitMax ?? 1000,
       timeWindow: '1 minute',
     });
   }
