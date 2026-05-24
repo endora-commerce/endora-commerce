@@ -3,28 +3,36 @@ import { renderToString } from 'react-dom/server';
 import { CartTotals } from '../../components/CartTotals';
 
 /**
- * Feature 027 US1 — SSR contract for CartTotals.
+ * Feature 027 US1 — SSR contract for the Industria-themed CartTotals.
+ *
+ * The component itself emits the row list + total; the surrounding
+ * `.cart-summary` card is provided by the parent page. Tests assert
+ * the row contract rather than the wrapper.
  */
 
 const STRINGS = {
-  subtotalLabel: 'Subtotal',
+  subtotalLabel: (n: number) => (n === 1 ? 'Subtotal (1 item)' : `Subtotal (${n} items)`),
   discountLabel: (code: string) => `Discount (${code})`,
   grandTotalLabel: 'Total',
+  deliveryLabel: 'Delivery',
+  deliveryValue: 'calculated at checkout',
 };
 
 describe('CartTotals — SSR rendering', () => {
-  it('renders subtotal + grand total, no discount block when discount is null', () => {
+  it('renders subtotal + grand total, no discount row when discount is null', () => {
     const html = renderToString(
       <CartTotals
         subtotal={{ amount: 100, currency: 'PLN' }}
         discount={null}
         grandTotal={{ amount: 100, currency: 'PLN' }}
+        itemCount={2}
         strings={STRINGS}
       />,
     );
-    expect(html).toContain('Subtotal');
+    expect(html).toContain('Subtotal (2 items)');
     expect(html).toContain('Total');
-    expect(html).toContain('100.00 PLN');
+    expect(html).toContain('Delivery');
+    expect(html).toContain('100,00 PLN');
     expect(html).not.toContain('Discount');
   });
 
@@ -34,27 +42,28 @@ describe('CartTotals — SSR rendering', () => {
         subtotal={{ amount: 100, currency: 'PLN' }}
         discount={{ code: 'SAVE10', amount: 10, currency: 'PLN' }}
         grandTotal={{ amount: 90, currency: 'PLN' }}
+        itemCount={1}
         strings={STRINGS}
       />,
     );
     expect(html).toContain('Discount (SAVE10)');
-    // Discount amount rendered as negative. React SSR may insert a
-    // comment marker between the minus sign and the amount span, so
-    // assert each side independently.
-    expect(html).toMatch(/−[^<]*<!--.*?-->[^>]*10\.00 PLN|−10\.00 PLN/);
-    expect(html).toContain('90.00 PLN');
+    expect(html).toContain('Subtotal (1 item)');
+    // The "−" sign + amount may be split by a comment marker; match either form.
+    expect(html).toMatch(/−[^<]*<!--.*?-->[^>]*10,00 PLN|−10,00 PLN/);
+    expect(html).toContain('90,00 PLN');
   });
 
-  it('handles fractional currency formatting', () => {
+  it('formats fractional currency with pl-PL locale', () => {
     const html = renderToString(
       <CartTotals
         subtotal={{ amount: 12.345, currency: 'EUR' }}
         discount={null}
         grandTotal={{ amount: 12.345, currency: 'EUR' }}
+        itemCount={1}
         strings={STRINGS}
       />,
     );
-    // .toFixed(2) rounds to 12.35 with banker rounding falling back to half-away.
-    expect(html).toContain('12.35 EUR');
+    // pl-PL uses comma as decimal separator: 12,35 EUR (rounded).
+    expect(html).toContain('12,35 EUR');
   });
 });

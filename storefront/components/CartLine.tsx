@@ -1,24 +1,16 @@
 import type { ReactNode } from 'react';
 
 /**
- * CartLine (feature 027 US1).
+ * CartLine — Industria-themed cart row (feature 027 US1).
  *
- * Server-component-friendly per-line row. Dispatches three Next.js
- * server actions wired by the parent (the cart page):
- *   - `updateAction`     — PATCH the qty (auto-saved by the parent
- *                          form on submit; debounce-on-change is the
- *                          parent's job; the form re-submits on every
- *                          change at the browser layer)
- *   - `removeAction`     — DELETE the line
- *   - `saveToListAction` — POST to `/api/v1/cart/items/:id/save-to-shopping-list`
- *                          (opens the list picker via a separate page
- *                          flow today; once a modal exists this becomes
- *                          a direct save)
+ * Matches the layout from
+ * `specs/b2b-platform-storefront-ui/project/industria-views-checkout.jsx`
+ * (checkout step 0 — the cart): a 6-column grid
+ *   [media | name+sku | qty stepper | unit price | line total | remove]
+ * with a per-line `<form>` for each mutation so SSR / no-JS still works.
  *
- * Browser-verification note: the qty input's 500 ms auto-save debounce
- * is browser-side state (`useEffect` + `setTimeout`). The server-side
- * shell here renders a plain `<form>` so SSR / no-JS still works (the
- * buyer can hit "Save" to submit the same form).
+ * The 500 ms auto-save debounce on the qty input is browser-side state
+ * the parent page wires; the SSR shell ships a small "↻" submit button.
  */
 
 export interface CartLineViewModel {
@@ -32,6 +24,8 @@ export interface CartLineViewModel {
   unavailableReason?: 'out_of_stock' | 'not_purchasable' | 'no_price_in_customer_list' | null;
   /** Resolved + display-ready name; the parent looked it up. */
   productName: string;
+  /** Optional SKU surfaced above the name. */
+  sku?: string | null;
 }
 
 interface CartLineProps {
@@ -45,6 +39,7 @@ interface CartLineProps {
     lineTotalLabel: string;
     removeLabel: string;
     saveToListLabel: string;
+    updateLabel?: string;
     unavailable: {
       out_of_stock: string;
       not_purchasable: string;
@@ -54,7 +49,7 @@ interface CartLineProps {
 }
 
 function formatMoney(m: { amount: number; currency: string }): string {
-  return `${m.amount.toFixed(2)} ${m.currency}`;
+  return `${m.amount.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${m.currency}`;
 }
 
 export function CartLine({
@@ -69,74 +64,85 @@ export function CartLine({
       ? strings.unavailable[line.unavailableReason]
       : null;
   return (
-    <li
-      className="b2b-cart__line"
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '2fr 1fr 1fr 1fr auto',
-        gap: '1rem',
-        alignItems: 'center',
-        padding: '0.75rem 0',
-        borderBottom: '1px solid #e5e5e5',
-        opacity: line.unavailable ? 0.55 : 1,
-      }}
-    >
-      <span className="b2b-cart__line-name">{line.productName}</span>
+    <div className={`cart-line${line.unavailable ? ' is-unavailable' : ''}`}>
+      <div className="cart-line__media" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="6" width="18" height="13" rx="2" />
+          <path d="M3 10h18" />
+          <path d="M8 6V4h8v2" />
+        </svg>
+      </div>
 
-      <form
-        action={updateAction}
-        className="b2b-cart__line-qty"
-        style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}
-      >
-        <input type="hidden" name="itemId" value={line.id} />
-        <label htmlFor={`qty-${line.id}`} className="sr-only">
-          {strings.qtyLabel}
-        </label>
-        <input
-          id={`qty-${line.id}`}
-          type="number"
-          name="quantity"
-          min={1}
-          defaultValue={line.quantity}
-          aria-label={strings.qtyLabel}
-          style={{ width: '4rem' }}
-        />
-        <button type="submit" className="sr-only">
-          {strings.qtyLabel}
-        </button>
-      </form>
-
-      <span className="b2b-cart__line-unit-price" aria-label={strings.unitPriceLabel}>
-        {formatMoney(line.unitPrice)}
-      </span>
-
-      <span className="b2b-cart__line-total" aria-label={strings.lineTotalLabel}>
-        {formatMoney(line.lineTotal)}
-      </span>
-
-      <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-        <form action={saveToListAction}>
+      <div className="cart-line__body">
+        {line.sku ? <span className="cart-line__sku">{line.sku}</span> : null}
+        <span className="cart-line__name">{line.productName}</span>
+        {unavailableLabel ? (
+          <span className="cart-line__unavailable">{unavailableLabel}</span>
+        ) : null}
+        <form action={saveToListAction} style={{ marginTop: 4 }}>
           <input type="hidden" name="itemId" value={line.id} />
-          <button type="submit" className="b2b-cart__line-save-to-list">
+          <button type="submit" className="cart-line__save-link">
             {strings.saveToListLabel}
           </button>
         </form>
-        <form action={removeAction}>
-          <input type="hidden" name="itemId" value={line.id} />
-          <button type="submit" className="b2b-cart__line-remove" aria-label={strings.removeLabel}>
-            ×
+      </div>
+
+      <form action={updateAction} className="cart-line__stepper">
+        <input type="hidden" name="itemId" value={line.id} />
+        <div className="qty__stepper" role="group" aria-label={strings.qtyLabel}>
+          <button
+            type="submit"
+            name="quantity"
+            value={Math.max(1, line.quantity - 1)}
+            aria-label="−"
+            title="−"
+          >
+            −
           </button>
-        </form>
+          <input
+            type="number"
+            name="quantity"
+            min={1}
+            defaultValue={line.quantity}
+            aria-label={strings.qtyLabel}
+          />
+          <button
+            type="submit"
+            name="quantity"
+            value={line.quantity + 1}
+            aria-label="+"
+            title="+"
+          >
+            +
+          </button>
+        </div>
+      </form>
+
+      <span className="cart-line__unit" aria-label={strings.unitPriceLabel}>
+        {formatMoney(line.unitPrice)}
       </span>
 
-      {unavailableLabel ? (
-        <span
-          className="b2b-cart__line-unavailable"
-          style={{ gridColumn: '1 / -1', color: '#a06000', fontSize: '0.85rem' }}
+      <span className="cart-line__total" aria-label={strings.lineTotalLabel}>
+        {formatMoney(line.lineTotal)}
+      </span>
+
+      <form action={removeAction}>
+        <input type="hidden" name="itemId" value={line.id} />
+        <button
+          type="submit"
+          className="cart-line__remove"
+          aria-label={strings.removeLabel}
+          title={strings.removeLabel}
         >
-          {unavailableLabel}
-        </span>
-      ) : null}
-    </li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+            <path d="M10 11v6" />
+            <path d="M14 11v6" />
+            <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+          </svg>
+        </button>
+      </form>
+    </div>
   );
 }

@@ -1,20 +1,12 @@
 import type { ReactNode } from 'react';
 
 /**
- * CartCouponInput (feature 027 US2).
+ * CartCouponInput — Industria-themed coupon block (feature 027 US2).
  *
- * Server-component-friendly coupon input. Dispatches a Next.js server
- * action that calls `applyCartCoupon` / `clearCartCoupon`. The component
- * shows the active code when present, an inline reason-specific error
- * after a failed apply, and an "auto-dropped" notice when the cart-side
- * `couponDroppedThisRead` field is set (the GET handler dropped a
- * previously-valid code because the cart fell below min spend / the
- * promotion expired / etc.).
- *
- * Browser-verification note: visual states (active / error /
- * auto-dropped) need eyes; the data flow is straight server-action +
- * `<form>` submission so RTL coverage would be limited. The unit test
- * for the api client (`applyCartCoupon`) lives next to its callers.
+ * Embedded inside the `.cart-summary` aside (see cart page). Server-
+ * component-friendly. Two states: input form (no active code) and an
+ * active-code row with a clear button. Surfaces the auto-dropped-on-
+ * read notice and the typed apply-error inline.
  */
 
 interface CartCouponInputProps {
@@ -60,36 +52,41 @@ export function CartCouponInput({
   strings,
 }: CartCouponInputProps): ReactNode {
   return (
-    <div className="b2b-cart__coupon" style={{ marginTop: '1.5rem' }}>
-      <h2 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>{strings.label}</h2>
-
-      {droppedOnRead ? (
-        <p className="b2b-cart__coupon-notice" style={{ color: '#a06000' }}>
-          {strings.autoDropped(droppedOnRead.code, droppedOnRead.reason)}
-        </p>
-      ) : null}
+    <div className="cart-coupon">
+      <h4>{strings.label}</h4>
 
       {appliedCode ? (
-        <form action={clearAction} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <span className="b2b-cart__coupon-active">{strings.activeCode(appliedCode)}</span>
-          <button type="submit">{strings.clearButton}</button>
+        <form action={clearAction} className="cart-coupon__active">
+          <span>
+            <code>{appliedCode}</code> · {strings.activeCode(appliedCode)}
+          </span>
+          <button type="submit" className="btn btn--ghost btn--sm">
+            {strings.clearButton}
+          </button>
         </form>
       ) : (
-        <form action={applyAction} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <form action={applyAction} className="cart-coupon__form">
           <input
             type="text"
             name="code"
             placeholder={strings.placeholder}
             required
             pattern="[A-Z0-9_-]{1,64}"
-            style={{ width: '12rem' }}
           />
-          <button type="submit">{strings.applyButton}</button>
+          <button type="submit" className="btn btn--dark btn--sm">
+            {strings.applyButton}
+          </button>
         </form>
       )}
 
+      {droppedOnRead ? (
+        <p className="cart-coupon__notice">
+          {strings.autoDropped(droppedOnRead.code, droppedOnRead.reason)}
+        </p>
+      ) : null}
+
       {applyError ? (
-        <p className="b2b-auth__error" style={{ marginTop: '0.5rem' }}>
+        <p className="cart-coupon__error">
           {strings.rejectedReason(applyError.reason, applyError.shortfall)}
         </p>
       ) : null}

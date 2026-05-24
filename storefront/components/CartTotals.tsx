@@ -1,58 +1,66 @@
 import type { ReactNode } from 'react';
 
 /**
- * CartTotals (feature 027 US1).
+ * CartTotals — Industria-themed summary block (feature 027 US1).
  *
- * Pure presentational summary block. Shows the subtotal, optional
- * applied-coupon discount, and the grand total. The parent passes the
- * already-resolved amounts; this component does no math beyond the
- * money format helper.
+ * Mirrors the `.summary` aside from
+ * `specs/b2b-platform-storefront-ui/project/industria-views-checkout.jsx`.
+ * Sticky right column with subtotal, optional discount row (in green),
+ * and a font-mono total. The page renders this inside a `.cart-summary`
+ * card; the component itself emits only the rows + total so it can be
+ * embedded alongside a coupon block / shipping hint without wrestling
+ * the surrounding container.
  */
 
 interface CartTotalsProps {
   subtotal: { amount: number; currency: string };
   discount: { code: string; amount: number; currency: string } | null;
   grandTotal: { amount: number; currency: string };
+  itemCount: number;
   strings: {
-    subtotalLabel: string;
+    subtotalLabel: (itemCount: number) => string;
     discountLabel: (code: string) => string;
     grandTotalLabel: string;
+    deliveryLabel: string;
+    deliveryValue: string;
   };
 }
 
 function formatMoney(m: { amount: number; currency: string }): string {
-  return `${m.amount.toFixed(2)} ${m.currency}`;
+  return `${m.amount.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${m.currency}`;
 }
 
 export function CartTotals({
   subtotal,
   discount,
   grandTotal,
+  itemCount,
   strings,
 }: CartTotalsProps): ReactNode {
   return (
-    <div
-      className="b2b-cart__totals"
-      style={{
-        marginTop: '1.5rem',
-        padding: '1rem',
-        background: '#fafafa',
-        border: '1px solid #e5e5e5',
-        borderRadius: '0.25rem',
-      }}
-    >
-      <dl style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem 1rem' }}>
-        <dt>{strings.subtotalLabel}</dt>
-        <dd>{formatMoney(subtotal)}</dd>
-        {discount ? (
-          <>
-            <dt>{strings.discountLabel(discount.code)}</dt>
-            <dd>−{formatMoney({ amount: discount.amount, currency: discount.currency })}</dd>
-          </>
-        ) : null}
-        <dt style={{ fontWeight: 600 }}>{strings.grandTotalLabel}</dt>
-        <dd style={{ fontWeight: 600 }}>{formatMoney(grandTotal)}</dd>
-      </dl>
-    </div>
+    <>
+      <div className="cart-summary__row">
+        <span>{strings.subtotalLabel(itemCount)}</span>
+        <span className="cart-summary__row__value">{formatMoney(subtotal)}</span>
+      </div>
+      <div className="cart-summary__row">
+        <span>{strings.deliveryLabel}</span>
+        <span className="cart-summary__row__value" style={{ color: 'var(--ok-700)' }}>
+          {strings.deliveryValue}
+        </span>
+      </div>
+      {discount ? (
+        <div className="cart-summary__row cart-summary__row--discount">
+          <span>{strings.discountLabel(discount.code)}</span>
+          <span className="cart-summary__row__value">
+            −{formatMoney({ amount: discount.amount, currency: discount.currency })}
+          </span>
+        </div>
+      ) : null}
+      <div className="cart-summary__total">
+        <span>{strings.grandTotalLabel}</span>
+        <span className="num">{formatMoney(grandTotal)}</span>
+      </div>
+    </>
   );
 }

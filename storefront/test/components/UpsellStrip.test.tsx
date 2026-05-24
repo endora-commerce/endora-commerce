@@ -39,7 +39,7 @@ describe('UpsellStrip — SSR rendering', () => {
     expect(html).toContain('href="/p/shiny-grommet"');
     expect(html).toContain('Premium bracket');
     expect(html).toContain('Shiny grommet');
-    expect(html).toContain('49.99 PLN');
+    expect(html).toContain('49,99 PLN');
   });
 
   it('falls back to noPriceLabel when an up-sell has no resolved price', () => {

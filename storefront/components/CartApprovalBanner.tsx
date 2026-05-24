@@ -52,31 +52,33 @@ export function CartApprovalBanner({
 }: CartApprovalBannerProps): ReactNode {
   if (approvalStatus === 'pending') {
     return (
-      <div className="b2b-cart__approval-banner" role="status" style={{ background: '#fff7e0', padding: '0.75rem', borderRadius: '0.25rem' }}>
+      <div className="cart-approval-banner cart-approval-banner--pending" role="status">
         {strings.pending}
       </div>
     );
   }
   if (approvalStatus === 'approved') {
     return (
-      <div className="b2b-cart__approval-banner" role="status" style={{ background: '#e6f7e6', padding: '0.75rem', borderRadius: '0.25rem' }}>
+      <div className="cart-approval-banner cart-approval-banner--approved" role="status">
         {strings.approved}
       </div>
     );
   }
   if (approvalStatus === 'rejected_by_org_admin') {
     return (
-      <div className="b2b-cart__approval-banner" role="alert" style={{ background: '#fce0e0', padding: '0.75rem', borderRadius: '0.25rem' }}>
+      <div className="cart-approval-banner cart-approval-banner--rejected" role="alert">
         {strings.rejected(rejectedReason)}
       </div>
     );
   }
   if (policyOn && approvalStatus === 'not_required') {
     return (
-      <div className="b2b-cart__approval-banner" style={{ background: '#eef', padding: '0.75rem', borderRadius: '0.25rem' }}>
-        <p>{strings.policyOn}</p>
-        <form action={submitForApprovalAction} style={{ marginTop: '0.5rem' }}>
-          <button type="submit">{strings.submitButton}</button>
+      <div className="cart-approval-banner cart-approval-banner--policy" role="status">
+        <span>{strings.policyOn}</span>
+        <form action={submitForApprovalAction}>
+          <button type="submit" className="btn btn--dark btn--sm">
+            {strings.submitButton}
+          </button>
         </form>
       </div>
     );
