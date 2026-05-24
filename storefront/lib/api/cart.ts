@@ -77,6 +77,35 @@ export interface CartResult {
 
 const baseUrl = process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001';
 
+/**
+ * Cheap mini-cart fetch for the header badge — uses the backend's
+ * `?view=mini` branch which skips re-pricing-on-read and coupon
+ * re-evaluation. Returns just the item count; on any error (including
+ * 429 from the rate limiter) returns 0 so the header keeps rendering.
+ */
+export async function getCartItemCount(
+  jar: CartCookieJar,
+  ctx?: RequestContext,
+): Promise<number> {
+  try {
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (ctx?.salesChannelCode) headers['X-Sales-Channel'] = ctx.salesChannelCode;
+    if (ctx?.locale) headers['Accept-Language'] = ctx.locale;
+    const cookie = combineCookies(jar);
+    if (cookie) headers['Cookie'] = cookie;
+    const response = await fetch(`${baseUrl}/api/v1/cart?view=mini`, {
+      method: 'GET',
+      headers,
+      cache: 'no-store',
+    });
+    if (!response.ok) return 0;
+    const payload = (await response.json()) as { data: { itemCount?: number } };
+    return payload.data?.itemCount ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function getCart(jar: CartCookieJar, ctx?: RequestContext): Promise<CartResult> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (ctx?.salesChannelCode) headers['X-Sales-Channel'] = ctx.salesChannelCode;

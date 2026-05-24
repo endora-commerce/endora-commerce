@@ -9,6 +9,8 @@ import { getActiveMegamenu } from '../lib/api/megamenu';
 import { getServerContext } from '../lib/server-context';
 import { fetchDictionary } from '../lib/dictionary/client';
 import { DictionaryProvider } from '../lib/dictionary/DictionaryProvider';
+import { getCartItemCount } from '../lib/api/cart';
+import { getAnonCartCookie, getSessionCookie } from '../lib/session';
 import './globals.css';
 
 export const metadata = {
@@ -38,9 +40,18 @@ export default async function RootLayout({
   children: ReactNode;
 }): Promise<ReactNode> {
   const { config, locale, ctx } = await getServerContext();
-  const [megamenu, dictionary] = await Promise.all([
+  const session = await getSessionCookie();
+  const anon = await getAnonCartCookie();
+  const cartJar = {
+    ...(session ? { session } : {}),
+    ...(anon ? { anon } : {}),
+  };
+  const [megamenu, dictionary, cartItemCount] = await Promise.all([
     getActiveMegamenu(ctx),
     fetchDictionary({ ctx }),
+    // Header cart-icon badge. Never blocks the render — getCartItemCount
+    // swallows all errors and returns 0 on the worst case.
+    session || anon ? getCartItemCount(cartJar) : Promise.resolve(0),
   ]);
   return (
     <html lang={locale}>
@@ -52,7 +63,7 @@ export default async function RootLayout({
         >
           <div className="b2b-shell">
             <Hook code="header.top" />
-            <Header config={config} locale={locale} />
+            <Header config={config} locale={locale} cartItemCount={cartItemCount} />
             <Megamenu megamenu={megamenu} />
             <Hook code="header.bottom" />
             <main className="b2b-shell__main">
