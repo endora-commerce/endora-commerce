@@ -28,6 +28,12 @@ export interface CartItem {
     | 'not_purchasable'
     | 'no_price_in_customer_list'
     | null;
+  /** Feature 027 — display-ready name resolved against Accept-Language. */
+  productName?: string | null;
+  /** Feature 027 — for linking the row back to the PDP. */
+  productSlug?: string | null;
+  /** Feature 027 — surfaced above the name for buyer reference. */
+  productSku?: string | null;
 }
 
 export interface CartSummary {

@@ -16,6 +16,7 @@ import type { CartPricingRecompute } from './services/cart-pricing-recompute.js'
 import { derivePrimaryCta } from './services/cart-state-machine.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Cart } from './entities/cart.entity.js';
+import { Product } from '../catalog/entities/product.entity.js';
 import type { CartItem } from './entities/cart-item.entity.js';
 import { OrganizationCannotTransactError } from '../organizations/services/organization-context-service.js';
 import { HttpError } from '../../http/error-envelope.js';
@@ -158,6 +159,15 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
       return { data: serializeCartMini(cart, items) };
     }
 
+    // Resolve per-line display name + slug so the storefront does not
+    // have to fan out one fetch per line. Bulk lookup keyed by
+    // productId; locale comes from Accept-Language (first tag wins),
+    // English/Polish are the documented fallback chain.
+    const preferredLanguage = parsePreferredLanguage(
+      request.headers['accept-language'],
+    );
+    const productMeta = await loadProductMeta(em, items.map((it) => it.productId), preferredLanguage);
+
     // Feature 027 §R5 — re-pricing on read (FR-008).
     let recomputedPrices: Map<string, { amount: number; currency: string }> | null = null;
     if (deps.cartPricingRecompute && items.length > 0) {
@@ -205,7 +215,9 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         couponDroppedThisRead = null;
       }
     }
-    return { data: serializeCart(cart, items, recomputedPrices, couponDroppedThisRead) };
+    return {
+      data: serializeCart(cart, items, recomputedPrices, couponDroppedThisRead, productMeta),
+    };
   });
 
   app.post(
@@ -594,11 +606,18 @@ function serializeCartMini(cart: Cart, items: CartItem[]) {
  * the CartPricingRecompute helper (foundation T014) will be wired into
  * this serializer when the read path lands.
  */
+interface ProductMeta {
+  name: string;
+  slug: string;
+  sku: string | null;
+}
+
 function serializeCart(
   cart: Cart,
   items: CartItem[],
   recomputedPrices: Map<string, { amount: number; currency: string }> | null = null,
   couponDroppedThisRead: { code: string; reason: string } | null = null,
+  productMeta: Map<string, ProductMeta> = new Map(),
 ) {
   let subtotal = 0;
   let currency = items[0]?.currency ?? 'PLN';
@@ -608,6 +627,7 @@ function serializeCart(
     const lineCurrency = recomputed ? recomputed.currency : it.currency;
     if (currency === 'PLN' && lineCurrency !== 'PLN') currency = lineCurrency;
     subtotal += unitPriceAmount * it.quantity;
+    const meta = productMeta.get(it.productId) ?? null;
     return {
       id: it.id,
       productId: it.productId,
@@ -617,6 +637,9 @@ function serializeCart(
       lineTotal: { amount: unitPriceAmount * it.quantity, currency: lineCurrency },
       unavailable: false,
       unavailableReason: null,
+      productName: meta?.name ?? null,
+      productSlug: meta?.slug ?? null,
+      productSku: meta?.sku ?? null,
     };
   });
   return {
@@ -655,6 +678,70 @@ function resolvePrimaryCta(cart: Cart) {
     approvalStatus: cart.approvalStatus,
     requiresApproval: false,
   });
+}
+
+/**
+ * Resolves the storefront's preferred language from `Accept-Language`.
+ * Falls back to undefined when the header is missing — the caller
+ * then walks Product.name's locale chain in serializeCart's helper.
+ */
+function parsePreferredLanguage(header: string | string[] | undefined): string | undefined {
+  const raw = Array.isArray(header) ? header[0] : header;
+  if (!raw) return undefined;
+  const first = raw.split(',')[0]?.trim();
+  return first || undefined;
+}
+
+/**
+ * Bulk-fetches Product metadata for every productId on the cart and
+ * resolves a display name from `Product.name` (per-locale JSONB) using
+ * the `Accept-Language` tag with a `pl` → `pl-PL` → `en-US` → first
+ * available fallback chain. Empty list returns an empty map (the
+ * serializer treats `null` name as "unknown" and the storefront falls
+ * back to the productId).
+ */
+async function loadProductMeta(
+  em: EntityManager,
+  productIds: string[],
+  preferredLanguage: string | undefined,
+): Promise<Map<string, ProductMeta>> {
+  const meta = new Map<string, ProductMeta>();
+  if (productIds.length === 0) return meta;
+  const unique = Array.from(new Set(productIds));
+  const products = await em.find(Product, { id: { $in: unique } });
+  for (const p of products) {
+    meta.set(p.id, {
+      name: pickLocalized(p.name as Record<string, string>, preferredLanguage),
+      slug: p.slug,
+      sku: p.sku ?? null,
+    });
+  }
+  return meta;
+}
+
+/**
+ * Walks the locale-fallback chain for a per-locale JSONB field. Tries:
+ *   1. exact match on the preferred language (e.g. `pl-PL`)
+ *   2. language-only match (`pl` → first `pl-*` key)
+ *   3. `en-US`, then `en`
+ *   4. first available value
+ *   5. empty string
+ */
+function pickLocalized(
+  field: Record<string, string> | null | undefined,
+  preferredLanguage: string | undefined,
+): string {
+  if (!field) return '';
+  if (preferredLanguage && field[preferredLanguage]) return field[preferredLanguage];
+  const langOnly = preferredLanguage?.split('-')[0];
+  if (langOnly) {
+    const match = Object.keys(field).find((k) => k === langOnly || k.startsWith(`${langOnly}-`));
+    if (match) return field[match] ?? '';
+  }
+  if (field['en-US']) return field['en-US'];
+  if (field['en']) return field['en'];
+  const first = Object.values(field)[0];
+  return first ?? '';
 }
 
 declare const crypto: { randomUUID: () => string };
