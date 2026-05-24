@@ -58,6 +58,7 @@ export class Organization {
     | 'rejectedAt'
     | 'approvedAt'
     | 'approvedByAdminUserId'
+    | 'requiresCartApproval'
     | 'nameSearch'
     | 'version';
 
@@ -129,6 +130,16 @@ export class Organization {
 
   @Property({ type: 'uuid', nullable: true })
   approvedByAdminUserId?: string | null;
+
+  /**
+   * Per-Organization policy flag (feature 027 US4). When `true`, ordinary
+   * Customer members of this Organization must submit their cart for
+   * approval by an Organization Administrator before checkout. Carts
+   * created by an Organization Administrator are exempt from the gate
+   * (self-approval exemption — see research.md §R11 for feature 027).
+   */
+  @Property({ type: 'boolean' })
+  requiresCartApproval: boolean = false;
 
   /**
    * Lowercased + diacritic-stripped copy of `name`. Kept in sync by the

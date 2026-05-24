@@ -21,6 +21,8 @@ export function Header(props: {
   locale: string;
   /** Optional sales-channel code for the autocomplete's `X-Sales-Channel` header. */
   salesChannelCode?: string;
+  /** Feature 027 — buyer's cart line count for the icon-btn badge. */
+  cartItemCount?: number;
 }): ReactNode {
   const t = tForLocale(props.locale);
   const apiBaseUrl =
@@ -79,8 +81,24 @@ export function Header(props: {
               <HeartIcon />
             </Link>
             <CompareCounterLink href="/compare" />
-            <Link href="/cart" className="icon-btn" aria-label="Koszyk">
+            <Link
+              href="/cart"
+              className="icon-btn"
+              aria-label={
+                props.cartItemCount && props.cartItemCount > 0
+                  ? `Koszyk · ${props.cartItemCount} pozycji`
+                  : 'Koszyk'
+              }
+            >
               <CartIcon />
+              {props.cartItemCount && props.cartItemCount > 0 ? (
+                <span
+                  className="icon-btn__count"
+                  aria-hidden="true"
+                >
+                  {props.cartItemCount > 99 ? '99+' : props.cartItemCount}
+                </span>
+              ) : null}
             </Link>
             <Link href="/account" className="industria-header__user">
               <span className="industria-header__user__avatar">MK</span>

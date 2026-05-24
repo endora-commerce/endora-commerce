@@ -35,6 +35,7 @@ import { AdminNotification } from '../modules/admin_notifications/entities/admin
 import { AdminNotificationRead } from '../modules/admin_notifications/entities/admin-notification-read.entity.js';
 import { Cart } from '../modules/carts/entities/cart.entity.js';
 import { CartItem } from '../modules/carts/entities/cart-item.entity.js';
+import { CartAuditEntry } from '../modules/carts/entities/cart-audit-entry.entity.js';
 import { StockLevel } from '../modules/inventory/entities/stock-level.entity.js';
 import { DeliveryMethod } from '../modules/delivery_methods/entities/delivery-method.entity.js';
 import { PaymentMethod } from '../modules/payment_methods/entities/payment-method.entity.js';
@@ -166,6 +167,7 @@ export const ALL_ENTITIES = [
   // carts + commerce
   Cart,
   CartItem,
+  CartAuditEntry,
   StockLevel,
   DeliveryMethod,
   PaymentMethod,

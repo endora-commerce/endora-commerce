@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { Breadcrumbs } from '../../../../components/Breadcrumbs';
 import { ProductGallery } from '../../../../components/ProductGallery';
 import { GallerySwitcher } from '../../../../components/GallerySwitcher';
@@ -23,6 +23,12 @@ import { getProductBySlug } from '../../../../lib/api/catalog';
 import { getStorefrontProductStock } from '../../../../lib/api/inventory';
 import { getResolvedPrice } from '../../../../lib/api/pricing';
 import { getMe } from '../../../../lib/api/account';
+import { addCartItem, type CartCookieJar } from '../../../../lib/api/cart';
+import {
+  getAnonCartCookie,
+  getSessionCookie,
+  setAnonCartCookie,
+} from '../../../../lib/session';
 import { cookies } from 'next/headers';
 import { getServerContext } from '../../../../lib/server-context';
 import { tForLocale } from '../../../../lib/i18n/messages';
@@ -102,6 +108,12 @@ export default async function ProductPage({
   ]);
   const customerEmail = await readCustomerEmail();
   const isQuoteOnly = resolvedPrice?.displayMode === 'none';
+  // Resolve the optional variant the buyer selected via `?variant=<sku>`
+  // to its UUID so the Add-to-cart form posts the right variantId.
+  const selectedVariantId =
+    selectedVariantSku
+      ? product.variants.find((v) => v.sku === selectedVariantSku)?.id ?? null
+      : null;
 
   return (
     <div className="container industria-pdp">
@@ -170,9 +182,23 @@ export default async function ProductPage({
                       }}
                     />
                   ) : product.price ? (
-                    <a href="/cart" className="b2b-cta">
-                      {t('product.addToCart')}
-                    </a>
+                    <form action={addToCartAction} style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                      <input type="hidden" name="productId" value={product.id} />
+                      {selectedVariantId ? (
+                        <input type="hidden" name="variantId" value={selectedVariantId} />
+                      ) : null}
+                      <input
+                        type="number"
+                        name="quantity"
+                        min={1}
+                        defaultValue={1}
+                        aria-label={t('product.addToCart')}
+                        style={{ width: '4rem' }}
+                      />
+                      <button type="submit" className="b2b-cta">
+                        {t('product.addToCart')}
+                      </button>
+                    </form>
                   ) : null}
                   {rfqSettings.showAddToQuoteOnPdp ? (
                     <AddToRfqForm productId={product.id} productSlug={product.slug} />
@@ -305,4 +331,41 @@ async function readCustomerEmail(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+async function readCartJar(): Promise<CartCookieJar> {
+  const session = await getSessionCookie();
+  const anon = await getAnonCartCookie();
+  return {
+    ...(session ? { session } : {}),
+    ...(anon ? { anon } : {}),
+  };
+}
+
+/**
+ * Add-to-cart server action for the PDP. POSTs to the carts module,
+ * persists the `b2b_cart_anon` cookie the backend mints on the first
+ * call (without it the redirect lands on `/cart` with no jar and the
+ * full GET returns an empty cart), then redirects to `/cart`.
+ */
+async function addToCartAction(formData: FormData): Promise<void> {
+  'use server';
+  const productId = ((formData.get('productId') as string) ?? '').trim();
+  const variantId = ((formData.get('variantId') as string) ?? '').trim();
+  const quantity = Number(formData.get('quantity') ?? '1');
+  if (!productId) redirect('/cart?error=missing-product');
+  const qty = Number.isFinite(quantity) && quantity >= 1 ? Math.floor(quantity) : 1;
+  try {
+    const result = await addCartItem(await readCartJar(), {
+      productId,
+      ...(variantId ? { variantId } : {}),
+      quantity: qty,
+    });
+    if (result.newAnonCookie) await setAnonCartCookie(result.newAnonCookie);
+  } catch (err) {
+    const message =
+      err instanceof StorefrontApiError ? err.message : 'Could not add to cart.';
+    redirect(`/cart?error=${encodeURIComponent(message)}`);
+  }
+  redirect('/cart');
 }

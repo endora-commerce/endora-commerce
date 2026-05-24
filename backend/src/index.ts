@@ -19,6 +19,18 @@ async function main(): Promise<void> {
 
   const composition = await composeApp();
 
+  // Rate-limit knobs:
+  //   BACKEND_RATE_LIMIT_DISABLED=true → bypass the limiter entirely
+  //   BACKEND_RATE_LIMIT_MAX=<int>     → override the per-IP req/min ceiling
+  // Default ceiling is 1000/min (set in buildServer); local SSR dev can
+  // easily fire 10+ calls per page render across layout hooks, cart, /me,
+  // upsells, etc. — a tighter limit makes every navigation flaky.
+  const disableRateLimit =
+    process.env['BACKEND_RATE_LIMIT_DISABLED'] === 'true' ||
+    process.env['BACKEND_RATE_LIMIT_DISABLED'] === '1';
+  const rateLimitMaxEnv = process.env['BACKEND_RATE_LIMIT_MAX'];
+  const rateLimitMax = rateLimitMaxEnv ? Number(rateLimitMaxEnv) : undefined;
+
   const app = await buildServer({
     sessionCookieSecret,
     openApi: {
@@ -28,6 +40,8 @@ async function main(): Promise<void> {
     },
     modules: composition.modules,
     errorEnvelope: composition.errorEnvelope,
+    ...(disableRateLimit ? { disableRateLimit: true } : {}),
+    ...(rateLimitMax && Number.isFinite(rateLimitMax) ? { rateLimitMax } : {}),
   });
 
   const shutdown = async (signal: string): Promise<void> => {

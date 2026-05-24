@@ -81,6 +81,7 @@ import { WarehouseChannelReconciler } from './modules/inventory/services/warehou
 import { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
 import type { CartService } from './modules/carts/services/cart-service.js';
+import type { ShoppingListService } from './modules/shopping_lists/services/shopping-list-service.js';
 
 /**
  * Production composition root.
@@ -363,6 +364,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
 
   let cartService: CartService | null = null;
+  let shoppingListService: ShoppingListService | null = null;
 
   const organizationsSmtpUrl = resolveSmtpUrlFromEnv();
   const organizationsMailer = organizationsSmtpUrl
@@ -553,6 +555,58 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCustomerContext: customerResolver,
       salesChannelMembership: salesChannels.handle.membershipService,
       pricingService: priceLists.handle.pricingService,
+      promotionService: promotions.handle.promotionService,
+      redis,
+      // Feature 027 US5 — abandonment-sweep resolvers + dispatcher.
+      resolveCartAbandonmentInactivityMinutes: async () => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'carts.abandonment.inactivity_minutes',
+            'default',
+            z.number().int().nonnegative(),
+          );
+        } catch {
+          return 0;
+        }
+      },
+      resolveCartAbandonmentNotificationRecipient: async () => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'carts.abandonment.notification_recipient',
+            'default',
+            z.string(),
+          );
+        } catch {
+          return '';
+        }
+      },
+      getRfqService: () => quoteRequests?.handle().rfqService ?? null,
+      appendShoppingListToCart: async (input) => {
+        if (!shoppingListService) {
+          throw new Error('shopping_lists module not initialized');
+        }
+        const res = await shoppingListService.convertToCart(
+          {
+            customerAccountId: input.customerAccountId,
+            organizationId: input.organizationId ?? '',
+          },
+          input.shoppingListId,
+          undefined,
+        );
+        // Map ShoppingListService.convertToCart's shape onto the carts
+        // module's uniform return shape across the three conversions.
+        return {
+          cartId: '',
+          appendedLineCount: res.added,
+          droppedLines: res.skipped.map((it) => ({
+            productId: it.productId,
+            productName: it.productId,
+            reason: 'not_purchasable',
+          })),
+        };
+      },
       resolveCartActor: (request) => {
         if (request.actor.kind === 'customer') {
           return {
@@ -574,6 +628,26 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveOrganizationPaymentMethodAllowList,
       resolveOrganizationDeliveryMethodAllowList,
       resolveAdminOrdersScope,
+      // Feature 027 — `Save to shopping list` bridge. Late-bound via
+      // closure so the shopping_lists module (constructed below) can
+      // inject the real service after this point.
+      pushLineToShoppingList: async (input) => {
+        if (!shoppingListService) {
+          throw new Error('shopping_lists module not initialized');
+        }
+        await shoppingListService.addItem(
+          {
+            customerAccountId: input.customerAccountId,
+            organizationId: input.organizationId ?? '',
+          },
+          input.shoppingListId,
+          {
+            productId: input.productId,
+            ...(input.variantId ? { variantId: input.variantId } : {}),
+            quantity: input.quantity,
+          },
+        );
+      },
     }),
     organizationsModule({
       emFactory: em,
@@ -925,6 +999,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       rfqService: quoteRequests.handle().rfqService,
       requireCustomer,
       resolveCustomerContext: customerResolver,
+      // Feature 027 — late-bind the service for the carts module's
+      // save-to-list bridge (commerceModule's pushLineToShoppingList).
+      exposeShoppingListService: (svc) => {
+        shoppingListService = svc;
+      },
     }),
   );
 

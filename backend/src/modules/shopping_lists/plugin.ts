@@ -24,6 +24,13 @@ export interface ShoppingListsModuleOptions {
     customerAccountId: string;
     organizationId: string;
   };
+  /**
+   * Feature 027 — exposes the ShoppingListService back to commerceModule so
+   * its `/api/v1/cart/items/:itemId/save-to-shopping-list` endpoint can
+   * push lines into a list (cross-module call through this public
+   * service, not via direct entity access).
+   */
+  exposeShoppingListService?: (service: ShoppingListService) => void;
 }
 
 export function shoppingListsModule(options: ShoppingListsModuleOptions) {
@@ -34,6 +41,7 @@ export function shoppingListsModule(options: ShoppingListsModuleOptions) {
       cartService,
       options.rfqService,
     );
+    if (options.exposeShoppingListService) options.exposeShoppingListService(shoppingListService);
     const csvImporter = new QuickOrderCsvImporter(options.emFactory);
 
     await registerShoppingListRoutes(app, {

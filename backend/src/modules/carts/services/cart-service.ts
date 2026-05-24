@@ -7,6 +7,10 @@ import { Product } from '../../catalog/entities/product.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import type { PricingService } from '../../price_lists/services/pricing-service.js';
+import type { CartApprovalService } from './cart-approval-service.js';
+import type { CartAuditService } from './cart-audit-service.js';
+import type { CartRecomputeCache } from './cart-recompute-cache.js';
+import type { DisplayMode } from '@b2b/contracts';
 
 /**
  * CartService (T125).
@@ -35,6 +39,12 @@ export interface CustomerContext {
   organizationId: string | null;
 }
 
+/**
+ * Cart-line hard cap (feature 027 FR-001 / spec edge case "Cart contents
+ * cap"). The 201st distinct line is refused with HTTP 422.
+ */
+export const CART_MAX_LINES = 200;
+
 export class CartService {
   /**
    * `pricingService` is optional so test rigs that don't wire the
@@ -51,10 +61,31 @@ export class CartService {
    * therefore won't apply on the cart line until cart-side channel
    * tracking lands.
    */
+  /**
+   * `approvalService` and `auditService` are optional — when wired
+   * (production composition), any buyer-driven mutation on an
+   * `approved` cart re-arms approval to `pending` and a typed audit
+   * row is landed (line_added / line_qty_changed / line_removed).
+   * Foundation tests and legacy test rigs that don't wire either still
+   * construct the service without them; both hooks no-op when absent.
+   */
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly pricingService?: PricingService,
+    private readonly approvalService?: CartApprovalService,
+    private readonly auditService?: CartAuditService,
+    private readonly recomputeCache?: CartRecomputeCache,
   ) {}
+
+  /** Invalidate the per-cart price-recompute cache on every cart-side write. */
+  async #invalidateRecomputeCache(cartId: string): Promise<void> {
+    if (!this.recomputeCache) return;
+    try {
+      await this.recomputeCache.invalidate(cartId);
+    } catch {
+      // Cache invalidation is best-effort — never block a write.
+    }
+  }
 
   async getOrCreateForCustomer(ctx: CustomerContext): Promise<Cart> {
     const em = this.emFactory();
@@ -127,8 +158,20 @@ export class CartService {
     });
     if (existing) {
       existing.quantity += input.quantity;
+      cart.lastActivityAt = new Date();
       await em.flush();
     } else {
+      // Feature 027 FR-001: enforce the 200-line cap on the 201st distinct
+      // (productId, variantId) pair. Foundation duplicate-summation above
+      // does not trigger the cap.
+      const currentLineCount = await em.count(CartItem, { cartId: cart.id });
+      if (currentLineCount >= CART_MAX_LINES) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.CART_LINE_CAP_EXCEEDED,
+          'cart_line_cap_exceeded',
+        );
+      }
       const resolved = await this.#resolveLineUnitPrice(em, {
         product,
         organizationId: actor.customer?.organizationId ?? null,
@@ -158,8 +201,32 @@ export class CartService {
             )).toFixed(2),
         currency: resolved?.currency ?? 'PLN',
       });
-      await em.persistAndFlush(item);
+      em.persist(item);
+      cart.lastActivityAt = new Date();
+      await em.flush();
     }
+
+    if (this.approvalService && actor.customer) {
+      await this.approvalService.maybeReArm(cart, {
+        customerAccountId: actor.customer.customerAccountId,
+      });
+    }
+
+    if (this.auditService) {
+      await this.auditService.record({
+        cartId: cart.id,
+        actorType: actor.customer ? 'customer' : 'system',
+        ...(actor.customer ? { actorId: actor.customer.customerAccountId } : {}),
+        action: 'line_added',
+        metadata: {
+          productId: input.productId,
+          ...(input.variantId ? { variantId: input.variantId } : {}),
+          quantity: input.quantity,
+        },
+      });
+    }
+
+    await this.#invalidateRecomputeCache(cart.id);
 
     const items = await em.find(CartItem, { cartId: cart.id });
     return { cart, items };
@@ -184,7 +251,7 @@ export class CartService {
     amount: string;
     currency: string;
     priceListId: string;
-    displayMode: import('@b2b/contracts').DisplayMode;
+    displayMode: DisplayMode;
   } | null> {
     if (!this.pricingService) return null;
     try {
@@ -226,12 +293,34 @@ export class CartService {
     if (!cart) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Cart not found.');
     this.#assertOwnership(cart, actor);
 
+    const oldQuantity = item.quantity;
     if (quantity <= 0) {
-      await em.removeAndFlush(item);
+      em.remove(item);
     } else {
       item.quantity = quantity;
-      await em.flush();
     }
+    cart.lastActivityAt = new Date();
+    await em.flush();
+    if (this.approvalService && actor.customer) {
+      await this.approvalService.maybeReArm(cart, {
+        customerAccountId: actor.customer.customerAccountId,
+      });
+    }
+    if (this.auditService) {
+      await this.auditService.record({
+        cartId: cart.id,
+        actorType: actor.customer ? 'customer' : 'system',
+        ...(actor.customer ? { actorId: actor.customer.customerAccountId } : {}),
+        action: quantity <= 0 ? 'line_removed' : 'line_qty_changed',
+        metadata: {
+          productId: item.productId,
+          ...(item.variantId ? { variantId: item.variantId } : {}),
+          oldQuantity,
+          newQuantity: quantity,
+        },
+      });
+    }
+    await this.#invalidateRecomputeCache(cart.id);
     const items = await em.find(CartItem, { cartId: cart.id });
     return { cart, items };
   }
@@ -246,9 +335,64 @@ export class CartService {
     const cart = await em.findOne(Cart, { id: item.cartId });
     if (!cart) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Cart not found.');
     this.#assertOwnership(cart, actor);
-    await em.removeAndFlush(item);
+    const removedProductId = item.productId;
+    const removedVariantId = item.variantId ?? null;
+    const removedQuantity = item.quantity;
+    em.remove(item);
+    cart.lastActivityAt = new Date();
+    await em.flush();
+    if (this.approvalService && actor.customer) {
+      await this.approvalService.maybeReArm(cart, {
+        customerAccountId: actor.customer.customerAccountId,
+      });
+    }
+    if (this.auditService) {
+      await this.auditService.record({
+        cartId: cart.id,
+        actorType: actor.customer ? 'customer' : 'system',
+        ...(actor.customer ? { actorId: actor.customer.customerAccountId } : {}),
+        action: 'line_removed',
+        metadata: {
+          productId: removedProductId,
+          ...(removedVariantId ? { variantId: removedVariantId } : {}),
+          quantity: removedQuantity,
+        },
+      });
+    }
+    await this.#invalidateRecomputeCache(cart.id);
     const items = await em.find(CartItem, { cartId: cart.id });
     return { cart, items };
+  }
+
+  /**
+   * Explicit "this buyer just opened the cart page" ping (feature 027 §R4 /
+   * FR-032). Bumps `last_activity_at` and, if the cart had transitioned to
+   * `abandoned`, brings it back to `active` and clears
+   * `abandonment_notified_at` so the next abandonment cycle can notify
+   * again. No-op on a missing cart.
+   */
+  async touch(actor: { customer?: CustomerContext; anonymousToken?: string }): Promise<Cart | null> {
+    const em = this.emFactory();
+    let cart: Cart | null = null;
+    if (actor.customer) {
+      cart = await em.findOne(Cart, {
+        customerAccountId: actor.customer.customerAccountId,
+        status: { $in: ['active', 'abandoned'] },
+      });
+    } else if (actor.anonymousToken) {
+      cart = await em.findOne(Cart, {
+        anonymousCartToken: actor.anonymousToken,
+        status: { $in: ['active', 'abandoned'] },
+      });
+    }
+    if (!cart) return null;
+    cart.lastActivityAt = new Date();
+    if (cart.status === 'abandoned') {
+      cart.status = 'active';
+      cart.abandonmentNotifiedAt = null;
+    }
+    await em.flush();
+    return cart;
   }
 
   /** Merge anonymous cart items into the customer's cart at login time. */
@@ -271,7 +415,11 @@ export class CartService {
         item.cartId = customerCart.id;
       }
     }
-    anon.status = 'abandoned';
+    // Merge complete — mark the source anonymous cart as `completed` (it
+    // produced a target authenticated cart; treating it as `abandoned`
+    // would falsely flag it for the abandonment-notification sweep when
+    // a non-empty merge actually took place). See feature 027 §R10.
+    anon.status = 'completed';
     anon.anonymousCartToken = null;
     await em.flush();
   }
@@ -284,7 +432,7 @@ export class CartService {
     });
     if (!cart) return;
     await em.nativeDelete(CartItem, { cartId: cart.id });
-    cart.status = 'converted';
+    cart.status = 'completed';
     await em.flush();
   }
 
