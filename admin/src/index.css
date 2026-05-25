@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* Feature 029 — prevent accidental horizontal page scroll on narrow viewports */
+html,
+body,
+#root {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
 /*
  * shadcn/ui design tokens — light + dark mode. The semantic palette below
  * follows the conventional shadcn naming so any component copied from the

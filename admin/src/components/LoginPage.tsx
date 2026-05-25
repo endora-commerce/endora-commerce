@@ -23,7 +23,7 @@ export function LoginPage(): ReactNode {
   const [submitting, setSubmitting] = useState(false);
 
   return (
-    <div className="grid min-h-screen place-items-center bg-muted/40 px-4">
+    <div className="grid min-h-screen place-items-center bg-muted/40 px-4 py-8" style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}>
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
@@ -74,7 +74,7 @@ export function LoginPage(): ReactNode {
                 onChange={(e): void => setPassword(e.target.value)}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={submitting || status === 'loading'}>
+            <Button type="submit" className="w-full min-h-11" disabled={submitting || status === 'loading'}>
               {submitting ? loginCopy.submitting : loginCopy.submit}
             </Button>
           </form>

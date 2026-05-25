@@ -111,7 +111,7 @@ export function HomePage(): ReactNode {
       </div>
 
       {/* KPI tiles */}
-      <div className="b2b-row" style={{ gap: 16, marginBottom: 20 }}>
+      <div className="b2b-row b2b-kpi-grid" style={{ gap: 16, marginBottom: 20 }}>
         {kpis.map((k) => (
           <Stat
             key={k.labelKey}
@@ -123,7 +123,7 @@ export function HomePage(): ReactNode {
       </div>
 
       {/* Two-column: recent activity + sidebar (quick actions, stock alerts) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 16 }}>
+      <div className="b2b-home-dashboard-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 16 }}>
         <RecentActivityCard />
 
         <div className="b2b-col" style={{ gap: 16 }}>

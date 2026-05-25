@@ -6,6 +6,11 @@ const sidebars = {
     'intro',
     {
       type: 'category',
+      label: 'Admin UI',
+      items: ['admin/mobile-responsive'],
+    },
+    {
+      type: 'category',
       label: 'Architecture',
       link: { type: 'generated-index', title: 'Architecture' },
       items: [],

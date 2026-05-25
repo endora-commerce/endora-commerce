@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useFocusTrap } from './hooks/useFocusTrap.js';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   Boxes,
@@ -16,6 +17,7 @@ import {
   HelpCircle,
   Home as HomeIcon,
   Image as ImageIcon,
+  Menu,
   KeyRound,
   Languages,
   LayoutDashboard,
@@ -47,6 +49,7 @@ import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
 import { LanguagePicker } from './LanguagePicker.js';
+import { useViewportTier } from './hooks/useViewportTier.js';
 import { NotificationBell } from './notifications';
 import { useAdminActions } from '@/lib/admin-actions/useAdminActions';
 import { resolveIcon } from '@/lib/admin-actions/icon-map';
@@ -548,6 +551,11 @@ export function AppShell(): ReactNode {
   const [collapsed, setCollapsed] = useState<Set<string>>(() => loadCollapsed());
   const [railMode, setRailMode] = useState<boolean>(() => loadRailMode());
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [navDrawerOpen, setNavDrawerOpen] = useState(false);
+  const sidebarRef = useRef<HTMLElement | null>(null);
+  const viewportTier = useViewportTier();
+  const isMobile = viewportTier === 'mobile';
+  useFocusTrap(sidebarRef, isMobile && navDrawerOpen);
 
   const toggleRailMode = useCallback((): void => {
     setRailMode((prev) => {
@@ -578,27 +586,54 @@ export function AppShell(): ReactNode {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setPaletteOpen(true);
-      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
+      } else if (
+        !isMobile &&
+        (e.metaKey || e.ctrlKey) &&
+        e.key.toLowerCase() === 'b'
+      ) {
         e.preventDefault();
         toggleRailMode();
+      } else if (e.key === 'Escape' && navDrawerOpen) {
+        setNavDrawerOpen(false);
       }
     };
     window.addEventListener('keydown', onKey);
     return (): void => window.removeEventListener('keydown', onKey);
-  }, [toggleRailMode]);
+  }, [toggleRailMode, isMobile, navDrawerOpen]);
+
+  useEffect(() => {
+    setNavDrawerOpen(false);
+  }, [location.pathname]);
 
   const crumbs = useMemo(() => buildCrumbs(location.pathname), [location.pathname]);
 
   return (
     <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: railMode ? '64px 1fr' : '248px 1fr',
-        minHeight: '100vh',
-      }}
+      className={cn(
+        'b2b-app-layout',
+        isMobile ? null : railMode ? 'b2b-app-layout--rail' : 'b2b-app-layout--expanded',
+      )}
     >
+      {isMobile && navDrawerOpen ? (
+        <button
+          type="button"
+          className="b2b-nav-drawer-backdrop"
+          aria-label={t('appShell.mobileMenu.close')}
+          onClick={(): void => setNavDrawerOpen(false)}
+        />
+      ) : null}
       {/* ============ Sidebar ============ */}
-      <aside className={cn('b2b-sidebar', railMode && 'b2b-sidebar--rail')}>
+      <aside
+        ref={sidebarRef}
+        className={cn(
+          'b2b-sidebar',
+          railMode && !isMobile && 'b2b-sidebar--rail',
+          isMobile && navDrawerOpen && 'b2b-sidebar--drawer-open',
+        )}
+        aria-hidden={isMobile && !navDrawerOpen ? true : undefined}
+        role="navigation"
+        aria-label={t('appShell.mobileMenu.title')}
+      >
         <NavLink
           to="/"
           end
@@ -751,6 +786,7 @@ export function AppShell(): ReactNode {
             </button>
           </div>
         ) : null}
+        {!isMobile ? (
         <button
           type="button"
           className="b2b-sidebar__rail-toggle"
@@ -774,11 +810,23 @@ export function AppShell(): ReactNode {
             </span>
           ) : null}
         </button>
+        ) : null}
       </aside>
 
       {/* ============ Main column (topbar + content) ============ */}
       <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         <div className="b2b-topbar">
+          {isMobile ? (
+            <button
+              type="button"
+              className="b2b-topbar__menu-btn"
+              aria-label={t('appShell.mobileMenu.open')}
+              aria-expanded={navDrawerOpen}
+              onClick={(): void => setNavDrawerOpen((open) => !open)}
+            >
+              <Menu size={20} />
+            </button>
+          ) : null}
           <div className="b2b-topbar__crumbs">
             {crumbs.map((c, i) => (
               <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -812,7 +860,7 @@ export function AppShell(): ReactNode {
             <NotificationBell />
             <button
               type="button"
-              className="b2b-topbar__icon-btn"
+              className="b2b-topbar__icon-btn b2b-topbar__hide-mobile"
               title={t('appShell.topbar.help')}
               aria-label={t('appShell.topbar.help')}
             >
@@ -839,6 +887,7 @@ export function AppShell(): ReactNode {
           </div>
         </div>
         <main className="b2b-main" style={{ flex: 1, overflow: 'auto' }}>
+          <div className="b2b-impersonation-slot" data-impersonation-banner />
           <Outlet />
         </main>
       </div>

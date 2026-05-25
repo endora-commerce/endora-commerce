@@ -13,7 +13,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "dependencies": {
     "@b2b/api-client": "workspace:*",

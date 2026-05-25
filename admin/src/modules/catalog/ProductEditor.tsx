@@ -28,6 +28,7 @@ import { ApiError, apiClient } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';
 import { AssetPicker } from '@/modules/assets_library/components/AssetPicker';
 import type { AssetSummary, AssetDetail } from '@/modules/assets_library/api/assets-library-client';
+import { StickyFormActions } from '@/components/StickyFormActions';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -331,7 +332,7 @@ export function ProductEditor(): ReactNode {
             </div>
           ) : null}
         </div>
-        <div className="b2b-page-head__actions">
+        <StickyFormActions className="b2b-page-head__actions">
           {!isNew ? (
             <>
               <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm">
@@ -363,7 +364,7 @@ export function ProductEditor(): ReactNode {
           >
             <Save size={14} /> Save
           </button>
-        </div>
+        </StickyFormActions>
       </div>
 
       {error ? (
@@ -378,7 +379,8 @@ export function ProductEditor(): ReactNode {
       ) : null}
 
       <div className="b2b-card">
-        <div style={{ padding: '4px 4px 0' }}>
+        <div style={{ padding: '4px 4px 0', overflow: 'hidden' }}>
+          <div className="b2b-tabs-scroll">
           <div className="b2b-tabs" role="tablist">
             {visibleTabs.map((t) => (
               <button
@@ -393,6 +395,7 @@ export function ProductEditor(): ReactNode {
                 {t.label}
               </button>
             ))}
+          </div>
           </div>
         </div>
 
