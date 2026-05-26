@@ -45,6 +45,7 @@ import { Migration040AdminI18nInit } from './migrations/040_admin_i18n_init.js';
 import { Migration041AdminActionsInit } from './migrations/041_admin_actions_init.js';
 import { Migration042SettingsGlobalValue } from './migrations/042_settings_global_value.js';
 import { Migration043AttributeMassEditable } from '../modules/catalog/migrations/043_attribute_mass_editable.js';
+import { Migration044ProductStatusInactive } from '../modules/catalog/migrations/044_product_status_inactive.js';
 import { Migration044ProductValueOverridesInit } from './migrations/044_product_value_overrides_init.js';
 import { Migration045WarehouseDefaultLowStockThreshold } from '../modules/inventory/migrations/045_warehouse_default_low_stock_threshold.js';
 import { Migration046PerWarehouseLowStockThresholds } from '../modules/inventory/migrations/046_per_warehouse_low_stock_thresholds.js';
@@ -203,6 +204,10 @@ export default defineConfig({
       {
         name: 'Migration043AttributeMassEditable',
         class: Migration043AttributeMassEditable,
+      },
+      {
+        name: 'Migration044ProductStatusInactive',
+        class: Migration044ProductStatusInactive,
       },
       {
         name: 'Migration044ProductValueOverridesInit',

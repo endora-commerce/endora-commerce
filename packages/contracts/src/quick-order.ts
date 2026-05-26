@@ -55,6 +55,6 @@ export const quickOrderSearchResultSchema = z.object({
   sku: z.string(),
   name: z.string(),
   slug: z.string(),
-  status: z.enum(['draft', 'active', 'archived']),
+  status: z.enum(['draft', 'active', 'inactive']),
 });
 export type QuickOrderSearchResult = z.infer<typeof quickOrderSearchResultSchema>;

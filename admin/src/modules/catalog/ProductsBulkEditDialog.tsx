@@ -20,7 +20,7 @@ import { useTranslation } from '@/i18n/useTranslation';
  * open via `/attributes/by-flag?flag=isMassEditable`.
  */
 
-type BulkStatus = 'draft' | 'active' | 'archived';
+type BulkStatus = 'draft' | 'active' | 'inactive';
 type BulkVisibility = 'public' | 'logged_in_only' | 'organization_restricted';
 type BulkMode = 'add' | 'replace';
 
@@ -295,7 +295,7 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
               >
                 <option value="draft">draft</option>
                 <option value="active">active</option>
-                <option value="archived">archived</option>
+                <option value="inactive">inactive</option>
               </select>
             </FieldGroup>
 

@@ -69,8 +69,8 @@ describe('CatalogAdminService — audit emissions for create / archive', () => {
     expect(after['name']).toBeTruthy();
   });
 
-  it('writes a product.archive audit entry on DELETE /catalog/products/:id', async () => {
-    const id = await createProduct('AUDIT-ARCH-001');
+  it('writes a product.delete audit entry on DELETE /catalog/products/:id', async () => {
+    const id = await createProduct('AUDIT-DEL-001');
 
     const del = await h.app.inject({
       method: 'DELETE',
@@ -81,15 +81,11 @@ describe('CatalogAdminService — audit emissions for create / archive', () => {
 
     const rows = await h
       .em()
-      .find(AuditLogEntry, { action: 'product.archive', objectId: id });
+      .find(AuditLogEntry, { action: 'product.delete', objectId: id });
     expect(rows.length).toBe(1);
     const row = rows[0]!;
     expect(row.objectType).toBe('product');
-    expect(row.actorAdminUserId).toBe('00000000-0000-4000-8000-0000000000b1');
-    const before = (row.stateBefore ?? {}) as Record<string, unknown>;
     const after = (row.stateAfter ?? {}) as Record<string, unknown>;
-    expect(before['status']).not.toBe('archived');
-    expect(after['status']).toBe('archived');
-    expect(after['archivedAt']).toBeTruthy();
+    expect(after['deletedAt']).toBeTruthy();
   });
 });

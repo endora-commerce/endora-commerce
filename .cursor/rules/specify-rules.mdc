@@ -6,11 +6,13 @@ alwaysApply: true
 
 # b2b-monorepo Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-05-25
+Auto-generated from all feature plans. Last updated: 2026-05-26
 
 ## Active Technologies
 - TypeScript 5.x strict; Node.js LTS ≥ 22.17 (per `admin/package.json` engines). Browser target: evergreen mobile Safari/Chrome (admin Vite SPA). + Existing stack only — React 19, Vite 7, react-router-dom 7, Tailwind CSS 4 (`@tailwindcss/vite`), shadcn/Radix primitives, `lucide-react`, `@b2b/api-client`, `@b2b/contracts`, `@measured/puck` (CMS editors). **No new runtime dependency.** (029-admin-mobile-ui)
 - N/A — no database, cache, or schema changes. All state is client-side (drawer open, viewport tier, existing `localStorage` rail preference). (029-admin-mobile-ui)
+- TypeScript 5.x strict on Node.js LTS ≥ 22.17 (backend + admin), per README and `backend/package.json` engines. + Existing stack — Fastify, MikroORM, Zod, Vitest, ioredis/event bus (search reindex), React 19 + Vite (admin). **No new runtime dependency.** (032-product-lifecycle)
+- PostgreSQL — `products.status` is `varchar(16)` (not a PG enum); migrate `archived` → `inactive`. Reuse `products.deleted_at` for deletion; keep `archived_at` as withdrawal timestamp when status becomes `inactive`. (032-product-lifecycle)
 
 - TypeScript 5.x strict, Node.js LTS per root `README` (≥ 22.x). + Existing stack — Fastify, MikroORM, Zod, Vitest. **New runtime dependency**: `nodemailer` (or similar minimal SMTP client) **only if** implementing production `Mailer` via SMTP — justified in PR per Principle IV (see `research.md` R-1). (003-org-client-admin-governance)
 
@@ -30,10 +32,10 @@ npm test && npm run lint
 TypeScript 5.x strict, Node.js LTS per root `README` (≥ 22.x).: Follow standard conventions
 
 ## Recent Changes
+- 032-product-lifecycle: Added TypeScript 5.x strict on Node.js LTS ≥ 22.17 (backend + admin), per README and `backend/package.json` engines. + Existing stack — Fastify, MikroORM, Zod, Vitest, ioredis/event bus (search reindex), React 19 + Vite (admin). **No new runtime dependency.**
 - 029-admin-mobile-ui: Added TypeScript 5.x strict; Node.js LTS ≥ 22.17 (per `admin/package.json` engines). Browser target: evergreen mobile Safari/Chrome (admin Vite SPA). + Existing stack only — React 19, Vite 7, react-router-dom 7, Tailwind CSS 4 (`@tailwindcss/vite`), shadcn/Radix primitives, `lucide-react`, `@b2b/api-client`, `@b2b/contracts`, `@measured/puck` (CMS editors). **No new runtime dependency.**
 - 029-admin-mobile-ui: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
 
-- 003-org-client-admin-governance: Added TypeScript 5.x strict, Node.js LTS per root `README` (≥ 22.x). + Existing stack — Fastify, MikroORM, Zod, Vitest. **New runtime dependency**: `nodemailer` (or similar minimal SMTP client) **only if** implementing production `Mailer` via SMTP — justified in PR per Principle IV (see `research.md` R-1).
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->

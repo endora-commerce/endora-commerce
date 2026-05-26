@@ -104,7 +104,7 @@ export class QuickOrderCsvImporter {
         rejected.push({ line: row.line, raw: row.raw, reason: 'product_not_found' });
         continue;
       }
-      if (product.status === 'archived' || product.deletedAt) {
+      if (product.status === 'inactive' || product.deletedAt) {
         rejected.push({ line: row.line, raw: row.raw, reason: 'product_archived' });
         continue;
       }

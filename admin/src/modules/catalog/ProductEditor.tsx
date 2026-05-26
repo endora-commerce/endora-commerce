@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Archive as ArchiveIcon,
+  Trash2,
   ChevronLeft,
   Copy,
   Eye,
@@ -64,14 +64,14 @@ const PRODUCT_TYPES = [
   'virtual',
 ] as const;
 const VISIBILITIES = ['public', 'logged_in_only', 'organization_restricted'] as const;
-const STATUSES = ['draft', 'active', 'archived'] as const;
+const STATUSES = ['draft', 'active', 'inactive'] as const;
 
 interface AdminProduct {
   id: string;
   sku: string;
   slug: string;
   type: 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
-  status: 'draft' | 'active' | 'archived';
+  status: 'draft' | 'active' | 'inactive';
   name: Record<string, string>;
   description: Record<string, string>;
   visibility: 'public' | 'logged_in_only' | 'organization_restricted';
@@ -105,7 +105,7 @@ export function ProductEditor(): ReactNode {
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [sku, setSku] = useState('');
   const [type, setType] = useState<'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual'>('simple');
-  const [status, setStatus] = useState<'draft' | 'active' | 'archived'>('draft');
+  const [status, setStatus] = useState<'draft' | 'active' | 'inactive'>('draft');
   const [visibility, setVisibility] = useState<AdminProduct['visibility']>('public');
   const [name, setName] = useState<Record<Locale, string>>({ 'en-US': '', 'pl-PL': '' });
   const [description, setDescription] = useState<Record<Locale, string>>({
@@ -241,16 +241,16 @@ export function ProductEditor(): ReactNode {
     [isNew, id, sku, status, type, name, description, categoryIds, defaultPrice, visibility, navigate, refresh],
   );
 
-  const handleArchive = useCallback(async (): Promise<void> => {
+  const handleDeleteProduct = useCallback(async (): Promise<void> => {
     if (!id) return;
-    if (!confirm('Archive this product? It will disappear from the storefront.')) return;
+    if (!confirm(t('productEditor.deleteConfirm'))) return;
     try {
       await apiClient.delete<void>(`/api/v1/admin/catalog/products/${id}`);
       navigate('/catalog/products');
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Archive failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
     }
-  }, [id, navigate]);
+  }, [id, navigate, t]);
 
   const [duplicating, setDuplicating] = useState(false);
   const handleDuplicate = useCallback(async (): Promise<void> => {
@@ -349,9 +349,9 @@ export function ProductEditor(): ReactNode {
               <button
                 type="button"
                 className="b2b-btn b2b-btn--danger b2b-btn--sm"
-                onClick={(): void => void handleArchive()}
+                onClick={(): void => void handleDeleteProduct()}
               >
-                <ArchiveIcon size={13} /> Archive
+                <Trash2 size={13} /> {t('productEditor.action.delete')}
               </button>
             </>
           ) : null}
@@ -640,7 +640,7 @@ function StatusPill({ status }: { status: AdminProduct['status'] }): ReactNode {
   const map = {
     active: { cls: 'b2b-badge--success', label: 'Active' },
     draft: { cls: 'b2b-badge--warn', label: 'Draft' },
-    archived: { cls: '', label: 'Archived' },
+    inactive: { cls: '', label: 'Inactive' },
   } as const;
   const v = map[status];
   return <span className={cn('b2b-badge', 'b2b-badge--dot', v.cls)}>{v.label}</span>;
@@ -1574,7 +1574,7 @@ interface AdminProductSummary {
   id: string;
   sku: string;
   slug: string;
-  status: 'draft' | 'active' | 'archived';
+  status: 'draft' | 'active' | 'inactive';
   name: Record<string, string>;
 }
 
@@ -1728,14 +1728,14 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
                       {byKind[kind].map((link) => {
                         const target = targetsById.get(link.targetProductId);
                         const isMissing = !target;
-                        const isArchived = target?.status === 'archived';
+                        const isInactive = target?.status === 'inactive';
                         return (
                           <TableRow key={link.id}>
                             <TableCell>
                               <div className="flex items-center gap-2">
                                 <span
                                   className={
-                                    isMissing || isArchived ? 'text-muted-foreground' : ''
+                                    isMissing || isInactive ? 'text-muted-foreground' : ''
                                   }
                                 >
                                   {target
@@ -1747,9 +1747,9 @@ function ProductLinksSection({ productId }: { productId: string }): ReactNode {
                                     {t('productEditor.links.badge.missing')}
                                   </span>
                                 ) : null}
-                                {isArchived ? (
+                                {isInactive ? (
                                   <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
-                                    {t('productEditor.links.badge.archived')}
+                                    {t('productEditor.links.badge.inactive')}
                                   </span>
                                 ) : null}
                               </div>

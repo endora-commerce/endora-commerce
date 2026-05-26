@@ -35,7 +35,7 @@ export interface QuickOrderSearchResult {
   sku: string;
   name: string;
   slug: string;
-  status: 'draft' | 'active' | 'archived';
+  status: 'draft' | 'active' | 'inactive';
 }
 
 export async function importQuickOrderCsv(
