@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { setMobileViewport } from '../../setup';
 
 /**
  * Feature 027 US6 — CartsList interaction test.
@@ -134,5 +135,40 @@ describe('CartsList', () => {
     await waitFor(() => {
       expect(getSpy).toHaveBeenCalledWith('/api/v1/admin/carts?status=active');
     });
+  });
+
+  it('renders card layout on mobile without column headers', async () => {
+    setMobileViewport(true);
+    getSpy.mockResolvedValueOnce({
+      data: [
+        {
+          id: '00000000-0000-4000-8000-0000000000c1',
+          ownerCustomerAccountId: null,
+          ownerDisplayName: 'buyer@example.com',
+          organizationId: null,
+          organizationDisplayName: null,
+          salesChannelCode: null,
+          status: 'active',
+          approvalStatus: 'not_required',
+          itemCount: 1,
+          total: { amount: 10, currency: 'PLN' },
+          appliedPromotionCode: null,
+          lastActivityAt: '2026-05-22T12:00:00Z',
+          createdAt: '2026-05-22T11:00:00Z',
+        },
+      ],
+    });
+
+    renderWithI18n(
+      <MemoryRouter>
+        <CartsList />
+      </MemoryRouter>,
+      BUNDLE,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('buyer@example.com')).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('columnheader')).not.toBeInTheDocument();
   });
 });

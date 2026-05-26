@@ -10,14 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { ResponsiveTable } from '@/components/ResponsiveTable';
 import { useTranslation } from '@/i18n/useTranslation';
 
 interface AdminOrderRow {
@@ -104,52 +97,65 @@ export function OrdersList(): ReactNode {
           ) : visible.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('orders.empty')}</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('orders.column.placed')}</TableHead>
-                  <TableHead>{t('orders.column.order')}</TableHead>
-                  <TableHead>{t('orders.column.org')}</TableHead>
-                  <TableHead>{t('orders.column.status')}</TableHead>
-                  <TableHead>{t('orders.column.payment')}</TableHead>
-                  <TableHead>{t('orders.column.total')}</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visible.map((o) => (
-                  <TableRow key={o.id}>
-                    <TableCell>{formatDateTime(o.placedAt)}</TableCell>
-                    <TableCell>
-                      <Link
-                        to={`/orders/${o.id}`}
-                        className="font-mono text-xs underline underline-offset-2"
-                      >
-                        {o.id.slice(0, 8)}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
+            <ResponsiveTable
+              data={visible}
+              keyExtractor={(o) => o.id}
+              columns={[
+                {
+                  id: 'order',
+                  header: t('orders.column.order'),
+                  primary: true,
+                  render: (o) => (
+                    <Link
+                      to={`/orders/${o.id}`}
+                      className="font-mono text-xs underline underline-offset-2"
+                    >
+                      {o.id.slice(0, 8)}
+                    </Link>
+                  ),
+                  meta: (o) => formatDateTime(o.placedAt),
+                },
+                {
+                  id: 'org',
+                  header: t('orders.column.org'),
+                  render: (o) => (
+                    <span className="font-mono text-xs text-muted-foreground">
                       {o.organizationId.slice(0, 8)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={STATUS_VARIANT[o.status] ?? 'secondary'}>{o.status}</Badge>
-                    </TableCell>
-                    <TableCell>{o.paymentStatus}</TableCell>
-                    <TableCell className="tabular-nums">
+                    </span>
+                  ),
+                },
+                {
+                  id: 'status',
+                  header: t('orders.column.status'),
+                  render: (o) => (
+                    <Badge variant={STATUS_VARIANT[o.status] ?? 'secondary'}>{o.status}</Badge>
+                  ),
+                },
+                {
+                  id: 'payment',
+                  header: t('orders.column.payment'),
+                  hideOnMobile: true,
+                  render: (o) => o.paymentStatus,
+                },
+                {
+                  id: 'total',
+                  header: t('orders.column.total'),
+                  render: (o) => (
+                    <span className="tabular-nums">
                       {o.total.toFixed(2)} {o.currency}
-                    </TableCell>
-                    <TableCell>
-                      <Button asChild variant="outline" size="sm">
-                        <Link to={`/orders/${o.id}`}>
-                          {t('orders.open')}
-                          <ArrowRight />
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </span>
+                  ),
+                },
+              ]}
+              renderActions={(o) => (
+                <Button asChild variant="outline" size="sm" className="min-h-11">
+                  <Link to={`/orders/${o.id}`}>
+                    {t('orders.open')}
+                    <ArrowRight />
+                  </Link>
+                </Button>
+              )}
+            />
           )}
         </CardContent>
       </Card>

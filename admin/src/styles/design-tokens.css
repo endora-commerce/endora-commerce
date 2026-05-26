@@ -7,6 +7,9 @@
    ============================================================ */
 
 :root {
+  /* ---------- Layout breakpoints (feature 029 — mobile admin shell) ---------- */
+  --breakpoint-lg: 1024px;
+
   /* ---------- Brand / accent (#6754e2 — feature 010 rebrand) ---------- */
   --accent-h: 248;
   --accent-s: 71%;

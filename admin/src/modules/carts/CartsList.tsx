@@ -10,14 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { ResponsiveTable } from '@/components/ResponsiveTable';
 import { useTranslation } from '@/i18n/useTranslation';
 
 /**
@@ -151,59 +144,76 @@ export function CartsList(): ReactNode {
           ) : rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('carts.empty')}</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('carts.column.lastActivity')}</TableHead>
-                  <TableHead>{t('carts.column.id')}</TableHead>
-                  <TableHead>{t('carts.column.owner')}</TableHead>
-                  <TableHead>{t('carts.column.org')}</TableHead>
-                  <TableHead>{t('carts.column.status')}</TableHead>
-                  <TableHead>{t('carts.column.approval')}</TableHead>
-                  <TableHead>{t('carts.column.items')}</TableHead>
-                  <TableHead>{t('carts.column.total')}</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell>{formatDateTime(c.lastActivityAt)}</TableCell>
-                    <TableCell>
-                      <Link to={`/carts/${c.id}`} className="font-mono text-xs underline underline-offset-2">
-                        {c.id.slice(0, 8)}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+            <ResponsiveTable
+              data={rows}
+              keyExtractor={(c) => c.id}
+              columns={[
+                {
+                  id: 'cart',
+                  header: t('carts.column.id'),
+                  primary: true,
+                  render: (c) => (
+                    <Link to={`/carts/${c.id}`} className="font-mono text-xs underline underline-offset-2">
+                      {c.id.slice(0, 8)}
+                    </Link>
+                  ),
+                  meta: (c) => formatDateTime(c.lastActivityAt),
+                },
+                {
+                  id: 'owner',
+                  header: t('carts.column.owner'),
+                  render: (c) => (
+                    <span className="text-xs text-muted-foreground">
                       {c.ownerDisplayName ?? '(anonymous)'}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    </span>
+                  ),
+                },
+                {
+                  id: 'org',
+                  header: t('carts.column.org'),
+                  hideOnMobile: true,
+                  render: (c) => (
+                    <span className="text-xs text-muted-foreground">
                       {c.organizationDisplayName ?? '—'}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={STATUS_VARIANT[c.status] ?? 'secondary'}>{c.status}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={APPROVAL_VARIANT[c.approvalStatus] ?? 'secondary'}>
-                        {c.approvalStatus}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="tabular-nums">{c.itemCount}</TableCell>
-                    <TableCell className="tabular-nums">
+                    </span>
+                  ),
+                },
+                {
+                  id: 'status',
+                  header: t('carts.column.status'),
+                  render: (c) => (
+                    <Badge variant={STATUS_VARIANT[c.status] ?? 'secondary'}>{c.status}</Badge>
+                  ),
+                },
+                {
+                  id: 'approval',
+                  header: t('carts.column.approval'),
+                  render: (c) => (
+                    <Badge variant={APPROVAL_VARIANT[c.approvalStatus] ?? 'secondary'}>
+                      {c.approvalStatus}
+                    </Badge>
+                  ),
+                },
+                {
+                  id: 'total',
+                  header: t('carts.column.total'),
+                  render: (c) => (
+                    <span className="tabular-nums">
                       {c.total.amount.toFixed(2)} {c.total.currency}
-                    </TableCell>
-                    <TableCell>
-                      <Button asChild variant="outline" size="sm">
-                        <Link to={`/carts/${c.id}`}>
-                          {t('carts.open')}
-                          <ArrowRight />
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </span>
+                  ),
+                  meta: (c) => `${c.itemCount} items`,
+                },
+              ]}
+              renderActions={(c) => (
+                <Button asChild variant="outline" size="sm" className="min-h-11">
+                  <Link to={`/carts/${c.id}`}>
+                    {t('carts.open')}
+                    <ArrowRight />
+                  </Link>
+                </Button>
+              )}
+            />
           )}
         </CardContent>
       </Card>

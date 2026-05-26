@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { ArrowDown, ArrowUp, Plus, Star, Trash2 } from 'lucide-react';
+import { TouchReorderButtons } from '@/components/TouchReorderButtons';
 import type {
   Country,
   CreateCountryRequest,
@@ -312,11 +313,18 @@ export function CountriesTab(): ReactNode {
                     </TableCell>
                     <TableCell>{row.sortOrder}</TableCell>
                     <TableCell>
-                      <div className="flex justify-end gap-1">
+                      <div className="flex justify-end gap-1 items-center">
+                        <TouchReorderButtons
+                          onMoveUp={() => void move(row, -1)}
+                          onMoveDown={() => void move(row, 1)}
+                          disableUp={index === 0}
+                          disableDown={index === filtered.length - 1}
+                        />
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
+                          className="b2b-reorder-desktop-only"
                           disabled={index === 0}
                           title={t('action.moveUp')}
                           onClick={() => void move(row, -1)}
@@ -327,6 +335,7 @@ export function CountriesTab(): ReactNode {
                           type="button"
                           variant="ghost"
                           size="icon"
+                          className="b2b-reorder-desktop-only"
                           disabled={index === filtered.length - 1}
                           title={t('action.moveDown')}
                           onClick={() => void move(row, 1)}
