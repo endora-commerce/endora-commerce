@@ -1001,6 +1001,16 @@ export class CatalogAdminService {
     return product;
   }
 
+  /** Category membership ids for admin product editor (feature 031). */
+  async getProductCategoryIds(productId: string): Promise<string[]> {
+    const em = this.emFactory();
+    const rows = (await em.getConnection().execute(
+      `select category_id from product_categories where product_id = ?`,
+      [productId],
+    )) as Array<{ category_id: string }>;
+    return rows.map((r) => r.category_id);
+  }
+
   /**
    * Batch-by-id read. Returns matching products for the given id set,
    * deduped server-side. Includes archived rows so callers can resolve

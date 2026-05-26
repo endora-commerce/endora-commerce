@@ -34,6 +34,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { CategoryTreePicker } from '@/components/category-tree-picker';
 import { cn } from '@/lib/utils';
 import {
   Table,
@@ -76,6 +77,7 @@ interface AdminProduct {
   visibility: 'public' | 'logged_in_only' | 'organization_restricted';
   attributeValues: Record<string, unknown>;
   attributeSetId: string;
+  categoryIds?: string[];
 }
 
 interface AdminAttributeSet {
@@ -87,8 +89,10 @@ interface AdminAttributeSet {
 
 interface AdminCategory {
   id: string;
+  parentCategoryId: string | null;
   name: Record<string, string>;
   slug: string;
+  sortOrder: number;
 }
 
 export function ProductEditor(): ReactNode {
@@ -156,6 +160,7 @@ export function ProductEditor(): ReactNode {
         const price = (p.attributeValues['defaultPrice'] as number | undefined) ?? null;
         setDefaultPrice(price != null ? String(price) : '');
         setAttributeSetId(p.attributeSetId);
+        setCategoryIds(p.categoryIds ?? []);
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
@@ -269,15 +274,6 @@ export function ProductEditor(): ReactNode {
       setDuplicating(false);
     }
   }, [id, duplicating, navigate]);
-
-  const categoryOptions = useMemo(
-    () =>
-      categories.map((c) => ({
-        id: c.id,
-        label: `${c.name['en-US'] ?? c.slug} (${c.slug})`,
-      })),
-    [categories],
-  );
 
   if (loading)
     return (
@@ -580,22 +576,12 @@ export function ProductEditor(): ReactNode {
 
                 <div>
                   <div className="b2b-label">{t('productEditor.section.categories')}</div>
-                  <Select
-                    multiple
-                    value={categoryIds}
-                    onChange={(e): void => {
-                      const next: string[] = [];
-                      for (const opt of e.target.selectedOptions) next.push(opt.value);
-                      setCategoryIds(next);
-                    }}
-                    className="min-h-32"
-                  >
-                    {categoryOptions.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </Select>
+                  <CategoryTreePicker
+                    categories={categories}
+                    selectedIds={categoryIds}
+                    onChange={setCategoryIds}
+                    loading={loading}
+                  />
                   <p className="b2b-help">{t('productEditor.section.categories.help')}</p>
                 </div>
               </div>
