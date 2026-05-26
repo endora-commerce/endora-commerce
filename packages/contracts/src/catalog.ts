@@ -506,6 +506,28 @@ export const batchByIdProductsRequestSchema = z.object({
 export type BatchByIdProductsRequest = z.infer<typeof batchByIdProductsRequestSchema>;
 
 // ---------------------------------------------------------------------------
+// Feature 033 — Resolve product IDs by list filters (collection selection)
+// ---------------------------------------------------------------------------
+
+export const MAX_RESOLVE_SELECTION_SIZE = 10_000;
+
+export const resolveProductIdsRequestSchema = z.object({
+  status: productStatusSchema.optional(),
+  type: productTypeSchema.optional(),
+  q: z.string().trim().min(1).optional(),
+  includeArchived: z.boolean().optional(),
+});
+export type ResolveProductIdsRequest = z.infer<typeof resolveProductIdsRequestSchema>;
+
+export const resolveProductIdsResponseSchema = z.object({
+  data: z.object({
+    productIds: z.array(uuidSchema),
+    total: z.number().int().nonnegative(),
+  }),
+});
+export type ResolveProductIdsResponse = z.infer<typeof resolveProductIdsResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // Feature 022 — Products Bulk Edit
 // ---------------------------------------------------------------------------
 

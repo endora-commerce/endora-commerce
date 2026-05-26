@@ -100,15 +100,14 @@ export class AdminNotificationService {
 
     const cursor = input.cursor ? this.parseCursor(input.cursor) : null;
     const whereParts: string[] = [];
-    const params: (string | number | boolean | null)[] = [];
-    let i = 1;
+    // Knex `raw()` expects `?` placeholders (not PostgreSQL `$1`), in SQL top-to-bottom order.
+    const bindings: (string | number | boolean | null)[] = [input.adminUserId];
 
     // Visible to this admin: their personal rows OR broadcasts.
     whereParts.push(
-      `(n."audience" = 'all_admins' or (n."audience" = 'admin_user' and n."target_admin_user_id" = $${i}))`,
+      `(n."audience" = 'all_admins' or (n."audience" = 'admin_user' and n."target_admin_user_id" = ?))`,
     );
-    params.push(input.adminUserId);
-    i += 1;
+    bindings.push(input.adminUserId);
 
     whereParts.push(`n."archived_at" is null`);
 
@@ -119,19 +118,17 @@ export class AdminNotificationService {
           or (n."audience" = 'all_admins'
               and not exists (
                 select 1 from "admin_notification_reads" r
-                where r."notification_id" = n."id" and r."admin_user_id" = $${i}
+                where r."notification_id" = n."id" and r."admin_user_id" = ?
               ))
         )`,
       );
-      params.push(input.adminUserId);
-      i += 1;
+      bindings.push(input.adminUserId);
     }
 
     if (cursor) {
-      whereParts.push(`(n."created_at", n."id") < ($${i}, $${i + 1})`);
-      params.push(cursor.createdAt.toISOString());
-      params.push(cursor.id);
-      i += 2;
+      whereParts.push(`(n."created_at", n."id") < (?, ?)`);
+      bindings.push(cursor.createdAt.toISOString());
+      bindings.push(cursor.id);
     }
 
     const sql = `
@@ -151,7 +148,7 @@ export class AdminNotificationService {
           when n."audience" = 'admin_user' then n."read_at" is not null
           else exists (
             select 1 from "admin_notification_reads" r
-            where r."notification_id" = n."id" and r."admin_user_id" = $1
+            where r."notification_id" = n."id" and r."admin_user_id" = ?
           )
         end as "isRead"
       from "admin_notifications" n
@@ -161,7 +158,7 @@ export class AdminNotificationService {
     `;
 
     const knex = em.getConnection().getKnex();
-    const rows = (await knex.raw(sql, params)).rows as RawNotificationRow[];
+    const rows = (await knex.raw(sql, bindings)).rows as RawNotificationRow[];
 
     const hasMore = rows.length > limit;
     const visibleRows = hasMore ? rows.slice(0, limit) : rows;
