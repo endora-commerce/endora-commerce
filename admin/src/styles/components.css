@@ -1134,19 +1134,25 @@ textarea.b2b-field {
     min-height: 44px;
     min-width: 44px;
   }
-  .b2b-sticky-form-actions {
+  /* Combine both classes so this beats the unconditional `.b2b-sticky-form-actions`
+     flex rule below (equal specificity would otherwise let the later flex rule win,
+     stacking every button onto its own row via flex-wrap + width:100%). */
+  .b2b-page-head__actions.b2b-sticky-form-actions {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
     justify-items: stretch;
   }
-  .b2b-sticky-form-actions .b2b-btn {
+  .b2b-page-head__actions.b2b-sticky-form-actions .b2b-btn {
     min-width: 0;
     width: 100%;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .b2b-sticky-form-actions .b2b-btn--primary {
+  /* Primary (Save) spans the full width on its own row — also keeps it full-width
+     when it's the only button (new-product create view). */
+  .b2b-page-head__actions.b2b-sticky-form-actions .b2b-btn--primary {
     grid-column: 1 / -1;
   }
   .b2b-palette {
