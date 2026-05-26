@@ -156,8 +156,15 @@ describe('CartDetail', () => {
     await u.type(reasonInput, 'Out of budget');
     expect((submitButton as HTMLButtonElement).disabled).toBe(false);
 
-    // Stub the post-reject re-fetch so it doesn't blow up.
-    getSpy.mockResolvedValue({ data: { ...(activeCartFixture() as object), status: 'rejected' } });
+    // Stub the post-reject re-fetch: detail + audit endpoints must stay distinct.
+    getSpy.mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.endsWith('/audit')) {
+        return Promise.resolve({ data: [] });
+      }
+      return Promise.resolve({
+        data: { ...(activeCartFixture() as object), status: 'rejected' },
+      });
+    });
 
     await u.click(submitButton);
 

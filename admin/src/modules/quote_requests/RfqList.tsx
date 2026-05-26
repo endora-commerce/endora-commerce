@@ -11,14 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { ResponsiveTable } from '@/components/ResponsiveTable';
 import { useTranslation } from '@/i18n/useTranslation';
 
 /**
@@ -165,58 +158,65 @@ export function RfqList(): ReactNode {
             </Alert>
           ) : null}
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('rfq.list.column.rfq')}</TableHead>
-                <TableHead>{t('rfq.list.column.organization')}</TableHead>
-                <TableHead>{t('rfq.list.column.customer')}</TableHead>
-                <TableHead>{t('rfq.list.column.status')}</TableHead>
-                <TableHead>{t('rfq.list.column.lines')}</TableHead>
-                <TableHead>{t('rfq.list.column.total')}</TableHead>
-                <TableHead>{t('rfq.list.column.updated')}</TableHead>
-                <TableHead style={{ width: 80 }}></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.length === 0 && !loading ? (
-                <TableRow>
-                  <TableCell colSpan={8} style={{ textAlign: 'center', color: 'var(--b2b-muted)' }}>
-                    {t('rfq.list.empty')}
-                  </TableCell>
-                </TableRow>
-              ) : null}
-              {rows.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell>
-                    <code>{r.id.slice(0, 8)}</code>
-                  </TableCell>
-                  <TableCell>{r.organizationName ?? r.organizationId.slice(0, 8)}</TableCell>
-                  <TableCell>{r.customerDisplayName ?? '—'}</TableCell>
-                  <TableCell>
-                    <Badge variant={STATUS_VARIANT[r.status] ?? 'default'}>{r.status}</Badge>
-                    {r.awaitingCustomerRevisionAcceptance ? (
-                      <Badge variant="warning" style={{ marginLeft: 4 }}>
-                        {t('rfq.list.badge.awaitingCustomer')}
-                      </Badge>
-                    ) : null}
-                  </TableCell>
-                  <TableCell>{r.lineCount}</TableCell>
-                  <TableCell>
-                    {formatTotal(r)}
-                  </TableCell>
-                  <TableCell>{formatDateTime(r.updatedAt)}</TableCell>
-                  <TableCell>
-                    <Button asChild variant="ghost" size="sm">
-                      <Link to={`/quote-requests/${r.id}`}>
-                        {t('rfq.list.open')} <ArrowRight size={14} style={{ marginLeft: 4 }} />
-                      </Link>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          {rows.length === 0 && !loading ? (
+            <p className="text-sm text-muted-foreground text-center py-8">{t('rfq.list.empty')}</p>
+          ) : (
+            <ResponsiveTable
+              data={rows}
+              keyExtractor={(r) => r.id}
+              columns={[
+                {
+                  id: 'rfq',
+                  header: t('rfq.list.column.rfq'),
+                  primary: true,
+                  render: (r) => <code>{r.id.slice(0, 8)}</code>,
+                  meta: (r) => formatDateTime(r.updatedAt),
+                },
+                {
+                  id: 'org',
+                  header: t('rfq.list.column.organization'),
+                  render: (r) => r.organizationName ?? r.organizationId.slice(0, 8),
+                },
+                {
+                  id: 'customer',
+                  header: t('rfq.list.column.customer'),
+                  render: (r) => r.customerDisplayName ?? '—',
+                },
+                {
+                  id: 'status',
+                  header: t('rfq.list.column.status'),
+                  render: (r) => (
+                    <>
+                      <Badge variant={STATUS_VARIANT[r.status] ?? 'default'}>{r.status}</Badge>
+                      {r.awaitingCustomerRevisionAcceptance ? (
+                        <Badge variant="warning" className="ml-1">
+                          {t('rfq.list.badge.awaitingCustomer')}
+                        </Badge>
+                      ) : null}
+                    </>
+                  ),
+                },
+                {
+                  id: 'lines',
+                  header: t('rfq.list.column.lines'),
+                  hideOnMobile: true,
+                  render: (r) => r.lineCount,
+                },
+                {
+                  id: 'total',
+                  header: t('rfq.list.column.total'),
+                  render: (r) => formatTotal(r),
+                },
+              ]}
+              renderActions={(r) => (
+                <Button asChild variant="outline" size="sm" className="min-h-11">
+                  <Link to={`/quote-requests/${r.id}`}>
+                    {t('rfq.list.open')} <ArrowRight size={14} />
+                  </Link>
+                </Button>
+              )}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

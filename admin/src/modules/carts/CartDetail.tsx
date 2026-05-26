@@ -93,7 +93,7 @@ export function CartDetail(): ReactNode {
         apiClient.get<{ data: AuditRow[] }>(`/api/v1/admin/carts/${id}/audit`),
       ]);
       setCart(detail.data);
-      setAudit(auditRes.data);
+      setAudit(Array.isArray(auditRes.data) ? auditRes.data : []);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load cart.');
     } finally {

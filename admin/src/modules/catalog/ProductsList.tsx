@@ -195,12 +195,14 @@ export function ProductsList(): ReactNode {
       ) : null}
 
       <div className="b2b-card">
-        <div style={{ padding: '4px 12px 0' }}>
+        <div style={{ padding: '4px 12px 0', overflow: 'hidden' }}>
+          <div className="b2b-tabs-scroll">
           <div className="b2b-tabs" role="tablist">
             <Tab id="all" label={t('productsList.tab.all')} count={counts.all} active={statusFilter} onChange={setStatusFilter} />
             <Tab id="active" label={t('productsList.tab.active')} count={counts.active} active={statusFilter} onChange={setStatusFilter} />
             <Tab id="draft" label={t('productsList.tab.draft')} count={counts.draft} active={statusFilter} onChange={setStatusFilter} />
             <Tab id="archived" label={t('productsList.tab.archived')} count={counts.archived} active={statusFilter} onChange={setStatusFilter} />
+          </div>
           </div>
         </div>
 
@@ -322,6 +324,7 @@ export function ProductsList(): ReactNode {
               </div>
             </div>
           ) : (
+            <div className="b2b-table-scroll">
             <table className="b2b-tbl">
               <thead>
                 <tr>
@@ -428,6 +431,7 @@ export function ProductsList(): ReactNode {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 
