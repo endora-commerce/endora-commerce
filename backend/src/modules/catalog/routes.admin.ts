@@ -406,7 +406,8 @@ export async function registerCatalogAdminRoutes(
     { preHandler: requireAdmin('catalog:read') },
     async (request) => {
       const product = await adminService.getProductById(request.params.id);
-      const base = serializeAdminProduct(product);
+      const categoryIds = await adminService.getProductCategoryIds(request.params.id);
+      const base = { ...serializeAdminProduct(product), categoryIds };
       const channelIdRaw = request.query.channelId;
       const languageCodeRaw = request.query.languageCode;
       const includeOverridesMap =
