@@ -38,6 +38,10 @@ export async function seedCreditLimitRaceFixture(em: EntityManager): Promise<voi
     code: 'credit_limit',
     name: { 'en-US': 'Credit limit', 'pl-PL': 'Limit kredytowy' },
     kind: 'credit_limit',
+    adapter: 'credit_limit',
+    statusOnPending: 'new',
+    statusOnSuccess: 'confirmed',
+    statusOnFailure: 'cancelled',
   });
   await em.persistAndFlush(cl);
 
@@ -103,6 +107,10 @@ export async function seedCreditLimitWithActiveReservation(em: EntityManager): P
     code: 'credit_limit',
     name: { 'en-US': 'Credit limit', 'pl-PL': 'Limit kredytowy' },
     kind: 'credit_limit',
+    adapter: 'credit_limit',
+    statusOnPending: 'new',
+    statusOnSuccess: 'confirmed',
+    statusOnFailure: 'cancelled',
   });
   await em.persistAndFlush(cl);
 

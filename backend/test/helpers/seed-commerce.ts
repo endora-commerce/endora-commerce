@@ -53,6 +53,10 @@ export async function seedUs2Commerce(em: EntityManager): Promise<void> {
     code: 'bank_transfer',
     name: { 'en-US': 'Bank transfer', 'pl-PL': 'Przelew bankowy' },
     kind: 'bank_transfer',
+    adapter: 'bank_transfer',
+    statusOnPending: 'new',
+    statusOnSuccess: 'confirmed',
+    statusOnFailure: 'cancelled',
   });
   await em.persistAndFlush([delivery, payment]);
 

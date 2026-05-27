@@ -9,7 +9,10 @@ export class Payment {
     | 'updatedAt'
     | 'status'
     | 'paidAt'
-    | 'externalReference';
+    | 'externalReference'
+    | 'providerDetails'
+    | 'failureReason'
+    | 'attemptNo';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -23,7 +26,7 @@ export class Payment {
 
   @Property({ type: 'string', length: 32 })
   @Index()
-  status: 'awaiting_payment' | 'paid' | 'deferred' | 'refunded' = 'awaiting_payment';
+  status: 'awaiting_payment' | 'paid' | 'failed' | 'deferred' | 'refunded' = 'awaiting_payment';
 
   @Property({ type: 'decimal', precision: 14, scale: 2 })
   amount!: string;
@@ -36,6 +39,18 @@ export class Payment {
 
   @Property({ type: 'string', length: 255, nullable: true })
   externalReference?: string | null;
+
+  /** Adapter/PSP payload captured on receive_payment (feature 034). */
+  @Property({ type: 'json', nullable: true })
+  providerDetails?: Record<string, unknown> | null;
+
+  /** Populated on a failure outcome. */
+  @Property({ type: 'text', nullable: true })
+  failureReason?: string | null;
+
+  /** Retry sequence per order: 1 = first attempt. */
+  @Property({ type: 'integer' })
+  attemptNo: number = 1;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

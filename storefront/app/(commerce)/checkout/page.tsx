@@ -8,6 +8,7 @@ import { listDeliveryMethods, listPaymentMethods } from '../../../lib/api/method
 import { placeOrder } from '../../../lib/api/orders';
 import { getMyCreditLimit } from '../../../lib/api/credit-limit';
 import { CreditLimitWidget } from '../../../components/CreditLimitWidget';
+import { PaymentMethods } from '../../../components/checkout/PaymentMethods';
 import { OrganizationModerationBanner } from '../../../components/OrganizationModerationBanner';
 import { StorefrontApiError } from '../../../lib/api/client';
 import { getMe } from '../../../lib/api/account';
@@ -135,20 +136,7 @@ export default async function CheckoutPage({
           ))}
         </fieldset>
 
-        <fieldset className="b2b-auth__form" style={{ border: 0, padding: 0 }}>
-          <legend style={{ fontWeight: 600 }}>Payment method</legend>
-          {paymentMethods.map((m) => (
-            <label key={m.id} style={{ display: 'block' }}>
-              <input
-                type="radio"
-                name="paymentMethodId"
-                value={m.id}
-                defaultChecked={m.id === paymentMethods[0]!.id}
-              />{' '}
-              {pickName(m.name)} <span className="muted">({m.kind})</span>
-            </label>
-          ))}
-        </fieldset>
+        <PaymentMethods methods={paymentMethods} currency={cart.subtotal.currency} />
 
         <div className="b2b-auth__field">
           <label htmlFor="promo">Promotion code (optional)</label>

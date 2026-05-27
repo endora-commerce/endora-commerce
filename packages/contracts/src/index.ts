@@ -23,6 +23,7 @@ export * from './promotions.js';
 export * from './inventory.js';
 export * from './invoices.js';
 export * from './payments.js';
+export * from './payment-methods.js';
 export * from './admin.js';
 export * from './credit-limits.js';
 export * from './api-keys.js';

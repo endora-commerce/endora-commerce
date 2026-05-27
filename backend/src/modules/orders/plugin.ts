@@ -35,6 +35,12 @@ import {
   registerPaymentMethodsPublicRoutes,
   registerPaymentMethodsAdminRoutes,
 } from '../payment_methods/routes.js';
+import { paymentAdapterRegistry } from '../payment_methods/services/registry-singleton.js';
+import { EnumOrderStatusRegistry } from '../payment_methods/services/order-status-registry.port.js';
+import { builtInPaymentAdapters } from '../payments/adapters/built-in-adapters.js';
+import { ReceivePaymentHandler, type PaymentEventBus } from '../payments/services/receive-payment-handler.js';
+import { PaymentService } from '../payments/services/payment-service.js';
+import { registerPaymentsRoutes } from '../payments/routes.js';
 import { registerInvoicesAdminRoutes } from '../invoices/routes.admin.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
@@ -56,6 +62,8 @@ export interface OrdersModuleOptions {
   };
   /** Audit-log writer; OrderService stamps order.place_on_behalf rows on impersonated checkouts. */
   auditLogService?: AuditLogService;
+  /** Feature 034 — mailer for the order-confirmation e-mail (best-effort, post-commit). */
+  mailer?: import('../email/services/mailer.js').Mailer;
   /** Optional CreditLimit driver — wired by the credit_limits module composition root. */
   creditLimit?: CreditLimitPort;
   /**
@@ -207,11 +215,30 @@ export function commerceModule(options: OrdersModuleOptions) {
       cartAuditService,
       cartRecomputeCacheEarly,
     );
+    // Feature 034 — payment adapter framework. Built-in adapters are populated
+    // into the process-wide singleton (registry-singleton.ts) idempotently, so
+    // external payment-method modules that registered their adapter from a
+    // lifecycle install hook share the same instance the live routes use. The
+    // OrderStatusRegistry port resolves statusOn* references (enum-backed until
+    // the Orders module ships a configurable registry).
+    for (const adapter of builtInPaymentAdapters()) {
+      if (!paymentAdapterRegistry.isRegistered(adapter.adapterKey)) {
+        paymentAdapterRegistry.register(adapter);
+      }
+    }
+    const orderStatusRegistry = new EnumOrderStatusRegistry();
+
     const orderService = new OrderService(
       options.emFactory,
       options.eventBus as OrderEventBus,
       options.auditLogService,
       options.creditLimit,
+      undefined,
+      {
+        paymentAdapters: paymentAdapterRegistry,
+        orderStatusRegistry,
+        ...(options.mailer ? { mailer: options.mailer } : {}),
+      },
     );
     if (options.exposeCartService) options.exposeCartService(cartService);
 
@@ -289,6 +316,7 @@ export function commerceModule(options: OrdersModuleOptions) {
     });
     await registerPaymentMethodsPublicRoutes(app, {
       emFactory: options.emFactory,
+      registry: paymentAdapterRegistry,
       ...(options.resolveOrganizationPaymentMethodAllowList
         ? { resolveOrganizationPaymentMethodAllowList: options.resolveOrganizationPaymentMethodAllowList }
         : {}),
@@ -303,6 +331,8 @@ export function commerceModule(options: OrdersModuleOptions) {
     await registerPaymentMethodsAdminRoutes(app, {
       emFactory: options.emFactory,
       requireAdmin: options.requireAdmin,
+      registry: paymentAdapterRegistry,
+      orderStatusRegistry,
       ...(options.salesChannelMembership
         ? { salesChannelMembership: options.salesChannelMembership }
         : {}),
@@ -310,6 +340,17 @@ export function commerceModule(options: OrdersModuleOptions) {
     await registerInvoicesAdminRoutes(app, {
       emFactory: options.emFactory,
       requireAdmin: options.requireAdmin,
+    });
+
+    // Feature 034 — payment lifecycle: receive_payment ingress, retry, history.
+    await registerPaymentsRoutes(app, {
+      requireAdmin: options.requireAdmin,
+      receiveHandler: new ReceivePaymentHandler(
+        options.emFactory,
+        orderStatusRegistry,
+        options.eventBus as PaymentEventBus,
+      ),
+      paymentService: new PaymentService(options.emFactory),
     });
 
     // Feature 027 US5 — abandonment-sweep worker. Constructed when the

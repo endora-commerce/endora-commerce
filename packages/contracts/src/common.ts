@@ -58,8 +58,8 @@ export const orderStatusSchema = z.enum([
 ]);
 export type OrderStatus = z.infer<typeof orderStatusSchema>;
 
-/** Payment lifecycle statuses (FR-014). */
-export const paymentStatusSchema = z.enum(['awaiting_payment', 'paid', 'deferred', 'refunded']);
+/** Payment lifecycle statuses (FR-014). `failed` added by feature 034 (payment-method adapter framework). */
+export const paymentStatusSchema = z.enum(['awaiting_payment', 'paid', 'failed', 'deferred', 'refunded']);
 export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
 
 /** Roles within a Customer Organization (FR-042). */

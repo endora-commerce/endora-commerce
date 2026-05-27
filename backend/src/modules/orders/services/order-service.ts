@@ -18,6 +18,11 @@ import { OrderItem } from '../entities/order-item.entity.js';
 import { Payment } from '../../payments/entities/payment.entity.js';
 import { Invoice } from '../../invoices/entities/invoice.entity.js';
 import { OrderAccessService } from './order-access-service.js';
+import type { PaymentAdapterRegistry } from '../../payment_methods/services/payment-adapter-registry.js';
+import type { OrderStatusRegistry } from '../../payment_methods/services/order-status-registry.port.js';
+import type { Mailer } from '../../email/services/mailer.js';
+import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
+import { buildOrderConfirmationEmail } from '../email-templates/order-confirmation.js';
 
 /**
  * Narrow port consumed by the order-placement transaction. The credit_limits
@@ -83,14 +88,127 @@ export interface CustomerContext {
 export class OrderService {
   private readonly accessService: OrderAccessService;
 
+  private readonly paymentAdapters: PaymentAdapterRegistry | undefined;
+  private readonly orderStatusRegistry: OrderStatusRegistry | undefined;
+  private readonly mailer: Mailer | undefined;
+
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly events: OrderEventBus,
     private readonly auditLog?: AuditLogService,
     private readonly creditLimit?: CreditLimitPort,
     accessService?: OrderAccessService,
+    paymentDeps?: {
+      paymentAdapters?: PaymentAdapterRegistry;
+      orderStatusRegistry?: OrderStatusRegistry;
+      mailer?: Mailer;
+    },
   ) {
     this.accessService = accessService ?? new OrderAccessService(emFactory);
+    this.paymentAdapters = paymentDeps?.paymentAdapters;
+    this.orderStatusRegistry = paymentDeps?.orderStatusRegistry;
+    this.mailer = paymentDeps?.mailer;
+  }
+
+  /**
+   * Feature 034 — order-confirmation e-mail, dispatched post-commit (best
+   * effort; a mail failure never rolls back a placed order). Resolves the
+   * customer's address, the line items, and the adapter's e-mail renderer key,
+   * then sends the templated confirmation.
+   */
+  private async sendOrderConfirmation(order: Order): Promise<void> {
+    if (!this.mailer) return;
+    const em = this.emFactory();
+    const [customer, items] = await Promise.all([
+      em.findOne(CustomerAccount, { id: order.placedByCustomerAccountId }),
+      em.find(OrderItem, { orderId: order.id }),
+    ]);
+    if (!customer) return;
+    const rendererKey =
+      this.paymentAdapters?.get(order.paymentMethodSnapshot.adapter ?? '')?.renderers?.email ??
+      null;
+    const message = buildOrderConfirmationEmail({
+      to: customer.email,
+      order: {
+        id: order.id,
+        deliveryMethodSnapshot: order.deliveryMethodSnapshot,
+        paymentMethodSnapshot: order.paymentMethodSnapshot,
+        paymentRendererKey: rendererKey,
+        subtotal: order.subtotal,
+        taxTotal: order.taxTotal,
+        discountTotal: order.discountTotal,
+        deliveryTotal: order.deliveryTotal,
+        total: order.total,
+        currency: order.currency,
+        promotionCode: order.promotionCode ?? null,
+        deliveryAddress: order.deliveryAddress,
+        billingAddress: order.billingAddress,
+      },
+      items: items.map((it) => ({
+        productSnapshot: { sku: it.productSnapshot.sku, name: it.productSnapshot.name },
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        lineTotal: it.lineTotal,
+      })),
+    });
+    await this.mailer.send(message);
+  }
+
+  /**
+   * Feature 034 — resolve a payment method's `statusOnPending` into a valid
+   * order status. Returns `undefined` (keep the entity default `new`) when the
+   * reference is empty or, with a registry wired, not a known order status.
+   */
+  private resolvePendingStatus(ref: string | undefined): Order['status'] | undefined {
+    if (!ref) return undefined;
+    if (this.orderStatusRegistry && !this.orderStatusRegistry.has(ref)) return undefined;
+    return ref as Order['status'];
+  }
+
+  /**
+   * Feature 034 (US4/FR-013/FR-015) — re-validate the selected payment method's
+   * adapter validator for the submission surface. No-op when the adapter
+   * registry is not wired or the adapter is unregistered (the active-status
+   * check already gates those). API-surface detection is a follow-up; an
+   * impersonated submission counts as the admin surface.
+   */
+  private async assertPaymentMethodUsable(
+    ctx: CustomerContext,
+    method: PaymentMethod,
+  ): Promise<void> {
+    const adapter = this.paymentAdapters?.get(method.adapter);
+    if (!adapter) return;
+    const surface = ctx.impersonatorAdminUserId ? 'admin' : 'storefront';
+    const eligCtx = {
+      paymentMethod: {
+        id: method.id,
+        code: method.code,
+        adapter: method.adapter,
+        kind: method.kind,
+        name: method.name,
+        status: method.status,
+        additionalPrice: Number(method.additionalPrice),
+        statusOnPending: method.statusOnPending,
+        statusOnSuccess: method.statusOnSuccess,
+        statusOnFailure: method.statusOnFailure,
+        salesChannelIds: [] as string[],
+      },
+      salesChannelId: '',
+      organizationId: ctx.organizationId,
+      customerAccountId: ctx.customerAccountId,
+      surface: surface as 'admin' | 'storefront',
+    };
+    const ok =
+      surface === 'admin'
+        ? await adapter.validateUseOnAdmin(eligCtx)
+        : await adapter.validateUseOnStorefront(eligCtx);
+    if (!ok) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.VALIDATION_FAILED,
+        'The selected payment method is not available for this order.',
+      );
+    }
   }
 
   async placeOrder(
@@ -98,7 +216,7 @@ export class OrderService {
     req: PlaceOrderRequest,
   ): Promise<Order> {
     const em = this.emFactory();
-    return em.transactional(async (tx) => {
+    const order = await em.transactional(async (tx) => {
       const org = await tx.findOne(Organization, { id: ctx.organizationId });
       if (!org) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       if (org.status !== 'active') {
@@ -134,6 +252,11 @@ export class OrderService {
       if (!paymentMethod) {
         throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'Payment method is not active.');
       }
+      // Feature 034 (US4/FR-015) — re-validate the selected method's adapter at
+      // submit using the surface-appropriate validator. Admin (impersonated)
+      // submissions use validateUseOnAdmin; customer submissions use
+      // validateUseOnStorefront. A stale/ineligible selection is rejected.
+      await this.assertPaymentMethodUsable(ctx, paymentMethod);
 
       // Reserve stock — feature 010 / US7 strategy-driven multi-warehouse
       // allocation (T079). Replaces the foundation 001 single-bucket
@@ -328,7 +451,9 @@ export class OrderService {
       const taxRate = 0.23; // Polish VAT default — the real tax service picks per country+type in T131.
       const taxTotal = Math.round(subtotal * taxRate * 100) / 100;
       const deliveryTotal = Number(deliveryMethod.cost);
-      const total = Math.round((subtotal + taxTotal + deliveryTotal) * 100) / 100;
+      // Feature 034 — flat payment surcharge in the order currency (FR-005 / US2 AC2).
+      const paymentSurcharge = Number(paymentMethod.additionalPrice ?? '0');
+      const total = Math.round((subtotal + taxTotal + deliveryTotal + paymentSurcharge) * 100) / 100;
       const currency = deliveryMethod.currency;
 
       // Sales channel — use any active one; real resolution uses Cart ↔ Channel in US2 T136.
@@ -365,7 +490,15 @@ export class OrderService {
           code: paymentMethod.code,
           name: this.anyValue(paymentMethod.name),
           kind: paymentMethod.kind,
+          adapter: paymentMethod.adapter,
+          additionalPrice: paymentSurcharge,
         },
+        // Feature 034 — the method's statusOnPending drives the initial order
+        // status (validated against the OrderStatusRegistry when wired; falls
+        // back to the entity default 'new' otherwise).
+        ...(this.resolvePendingStatus(paymentMethod.statusOnPending)
+          ? { status: this.resolvePendingStatus(paymentMethod.statusOnPending)! }
+          : {}),
         subtotal: subtotal.toFixed(2),
         taxTotal: taxTotal.toFixed(2),
         deliveryTotal: deliveryTotal.toFixed(2),
@@ -430,6 +563,20 @@ export class OrderService {
         currency,
       });
       await tx.persistAndFlush(payment);
+
+      // Feature 034 — invoke the adapter's storefront_order_created handler
+      // (FR-021). Threading the returned nextAction into the place-order
+      // response is a follow-up; the bundled offline adapters are
+      // side-effect-free here and credit_limit reserves inline below.
+      const adapter = this.paymentAdapters?.get(paymentMethod.adapter);
+      if (adapter) {
+        await adapter.onStorefrontOrderCreated({
+          orderId: order.id,
+          paymentId: payment.id,
+          amount: total,
+          currency,
+        });
+      }
 
       // Reserve credit limit when this order pays via the credit_limit driver.
       // Reservation runs INSIDE the order-placement transaction so a failure
@@ -521,12 +668,22 @@ export class OrderService {
           objectType: 'order',
           objectId: order.id,
           stateBefore: null,
-          stateAfter: { total: total.toFixed(2), currency, status: 'new' },
+          stateAfter: { total: total.toFixed(2), currency, status: order.status },
         });
       }
 
       return order;
     });
+
+    // Post-commit: order-confirmation e-mail (feature 034). Best effort — a
+    // mail failure must not undo a placed order.
+    try {
+      await this.sendOrderConfirmation(order);
+    } catch {
+      // Swallowed: the order is already committed; mail delivery is retried by
+      // the transport, not by re-placing the order.
+    }
+    return order;
   }
 
   async getById(orderId: string, ctx: CustomerContext): Promise<Order> {
