@@ -91,6 +91,8 @@ export class Order {
     kind: 'bank_transfer' | 'pickup' | 'credit_limit' | 'gateway';
     /** Feature 034 — adapter registry key the order was placed with. */
     adapter?: string;
+    /** Feature 034 — flat payment surcharge captured at placement. */
+    additionalPrice?: number;
   };
 
   @Property({ type: 'uuid', nullable: true })

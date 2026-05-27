@@ -549,6 +549,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       emFactory: em,
       eventBus,
       auditLogService,
+      mailer: organizationsMailer,
       creditLimit: creditLimits.handle.creditLimitService,
       requireCustomer,
       requireAdmin,

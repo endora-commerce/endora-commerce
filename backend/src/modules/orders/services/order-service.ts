@@ -20,6 +20,9 @@ import { Invoice } from '../../invoices/entities/invoice.entity.js';
 import { OrderAccessService } from './order-access-service.js';
 import type { PaymentAdapterRegistry } from '../../payment_methods/services/payment-adapter-registry.js';
 import type { OrderStatusRegistry } from '../../payment_methods/services/order-status-registry.port.js';
+import type { Mailer } from '../../email/services/mailer.js';
+import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
+import { buildOrderConfirmationEmail } from '../email-templates/order-confirmation.js';
 
 /**
  * Narrow port consumed by the order-placement transaction. The credit_limits
@@ -87,6 +90,7 @@ export class OrderService {
 
   private readonly paymentAdapters: PaymentAdapterRegistry | undefined;
   private readonly orderStatusRegistry: OrderStatusRegistry | undefined;
+  private readonly mailer: Mailer | undefined;
 
   constructor(
     private readonly emFactory: () => EntityManager,
@@ -97,11 +101,57 @@ export class OrderService {
     paymentDeps?: {
       paymentAdapters?: PaymentAdapterRegistry;
       orderStatusRegistry?: OrderStatusRegistry;
+      mailer?: Mailer;
     },
   ) {
     this.accessService = accessService ?? new OrderAccessService(emFactory);
     this.paymentAdapters = paymentDeps?.paymentAdapters;
     this.orderStatusRegistry = paymentDeps?.orderStatusRegistry;
+    this.mailer = paymentDeps?.mailer;
+  }
+
+  /**
+   * Feature 034 — order-confirmation e-mail, dispatched post-commit (best
+   * effort; a mail failure never rolls back a placed order). Resolves the
+   * customer's address, the line items, and the adapter's e-mail renderer key,
+   * then sends the templated confirmation.
+   */
+  private async sendOrderConfirmation(order: Order): Promise<void> {
+    if (!this.mailer) return;
+    const em = this.emFactory();
+    const [customer, items] = await Promise.all([
+      em.findOne(CustomerAccount, { id: order.placedByCustomerAccountId }),
+      em.find(OrderItem, { orderId: order.id }),
+    ]);
+    if (!customer) return;
+    const rendererKey =
+      this.paymentAdapters?.get(order.paymentMethodSnapshot.adapter ?? '')?.renderers?.email ??
+      null;
+    const message = buildOrderConfirmationEmail({
+      to: customer.email,
+      order: {
+        id: order.id,
+        deliveryMethodSnapshot: order.deliveryMethodSnapshot,
+        paymentMethodSnapshot: order.paymentMethodSnapshot,
+        paymentRendererKey: rendererKey,
+        subtotal: order.subtotal,
+        taxTotal: order.taxTotal,
+        discountTotal: order.discountTotal,
+        deliveryTotal: order.deliveryTotal,
+        total: order.total,
+        currency: order.currency,
+        promotionCode: order.promotionCode ?? null,
+        deliveryAddress: order.deliveryAddress,
+        billingAddress: order.billingAddress,
+      },
+      items: items.map((it) => ({
+        productSnapshot: { sku: it.productSnapshot.sku, name: it.productSnapshot.name },
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        lineTotal: it.lineTotal,
+      })),
+    });
+    await this.mailer.send(message);
   }
 
   /**
@@ -166,7 +216,7 @@ export class OrderService {
     req: PlaceOrderRequest,
   ): Promise<Order> {
     const em = this.emFactory();
-    return em.transactional(async (tx) => {
+    const order = await em.transactional(async (tx) => {
       const org = await tx.findOne(Organization, { id: ctx.organizationId });
       if (!org) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       if (org.status !== 'active') {
@@ -441,6 +491,7 @@ export class OrderService {
           name: this.anyValue(paymentMethod.name),
           kind: paymentMethod.kind,
           adapter: paymentMethod.adapter,
+          additionalPrice: paymentSurcharge,
         },
         // Feature 034 — the method's statusOnPending drives the initial order
         // status (validated against the OrderStatusRegistry when wired; falls
@@ -623,6 +674,16 @@ export class OrderService {
 
       return order;
     });
+
+    // Post-commit: order-confirmation e-mail (feature 034). Best effort — a
+    // mail failure must not undo a placed order.
+    try {
+      await this.sendOrderConfirmation(order);
+    } catch {
+      // Swallowed: the order is already committed; mail delivery is retried by
+      // the transport, not by re-placing the order.
+    }
+    return order;
   }
 
   async getById(orderId: string, ctx: CustomerContext): Promise<Order> {

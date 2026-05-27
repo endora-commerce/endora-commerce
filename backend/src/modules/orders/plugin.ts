@@ -62,6 +62,8 @@ export interface OrdersModuleOptions {
   };
   /** Audit-log writer; OrderService stamps order.place_on_behalf rows on impersonated checkouts. */
   auditLogService?: AuditLogService;
+  /** Feature 034 — mailer for the order-confirmation e-mail (best-effort, post-commit). */
+  mailer?: import('../email/services/mailer.js').Mailer;
   /** Optional CreditLimit driver — wired by the credit_limits module composition root. */
   creditLimit?: CreditLimitPort;
   /**
@@ -232,7 +234,11 @@ export function commerceModule(options: OrdersModuleOptions) {
       options.auditLogService,
       options.creditLimit,
       undefined,
-      { paymentAdapters: paymentAdapterRegistry, orderStatusRegistry },
+      {
+        paymentAdapters: paymentAdapterRegistry,
+        orderStatusRegistry,
+        ...(options.mailer ? { mailer: options.mailer } : {}),
+      },
     );
     if (options.exposeCartService) options.exposeCartService(cartService);
 

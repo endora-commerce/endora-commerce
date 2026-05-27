@@ -44,11 +44,23 @@ for the same reason.
 `order.created.v1`, `order.status_changed.v1`, `order.cancelled.v1`,
 `payment.settled.v1`.
 
+## Order-confirmation e-mail (feature 034)
+
+After a successful checkout, `OrderService.placeOrder` dispatches a
+confirmation e-mail (post-commit, best-effort — a mail failure never undoes a
+placed order). Built by `email-templates/order-confirmation.ts`, it contains
+the ordered products with amounts, the delivery method + cost, the payment
+method with any additional payment cost (e.g. `+5.00 PLN` for cash on
+delivery), the applied discounts, the order-total summary, and both the
+shipping and billing addresses. The payment line is rendered through the
+payment e-mail renderer registry (`payments/services/payment-email-renderer.ts`)
+— an adapter's `renderers.email` key overrides the platform default.
+
 ## Extension points
 
-- **Payment drivers** — `payments/drivers/*-driver.ts` plug new payment
-  methods. The driver's `reserve` call runs inside the order-placement
-  transaction.
+- **Payment adapters** — see the `payment_methods` module. `placeOrder`
+  dispatches start-payment through the `PaymentAdapterRegistry`; new methods
+  register an adapter rather than editing the order service.
 - **Access scoping** — `order-access-service.ts` is the single place that
   enforces the Regular User / Organization Admin / Admin User scoping rule;
   add new actor kinds here.
