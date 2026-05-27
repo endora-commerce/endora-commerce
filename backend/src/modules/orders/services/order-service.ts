@@ -115,6 +115,52 @@ export class OrderService {
     return ref as Order['status'];
   }
 
+  /**
+   * Feature 034 (US4/FR-013/FR-015) — re-validate the selected payment method's
+   * adapter validator for the submission surface. No-op when the adapter
+   * registry is not wired or the adapter is unregistered (the active-status
+   * check already gates those). API-surface detection is a follow-up; an
+   * impersonated submission counts as the admin surface.
+   */
+  private async assertPaymentMethodUsable(
+    ctx: CustomerContext,
+    method: PaymentMethod,
+  ): Promise<void> {
+    const adapter = this.paymentAdapters?.get(method.adapter);
+    if (!adapter) return;
+    const surface = ctx.impersonatorAdminUserId ? 'admin' : 'storefront';
+    const eligCtx = {
+      paymentMethod: {
+        id: method.id,
+        code: method.code,
+        adapter: method.adapter,
+        kind: method.kind,
+        name: method.name,
+        status: method.status,
+        additionalPrice: Number(method.additionalPrice),
+        statusOnPending: method.statusOnPending,
+        statusOnSuccess: method.statusOnSuccess,
+        statusOnFailure: method.statusOnFailure,
+        salesChannelIds: [] as string[],
+      },
+      salesChannelId: '',
+      organizationId: ctx.organizationId,
+      customerAccountId: ctx.customerAccountId,
+      surface: surface as 'admin' | 'storefront',
+    };
+    const ok =
+      surface === 'admin'
+        ? await adapter.validateUseOnAdmin(eligCtx)
+        : await adapter.validateUseOnStorefront(eligCtx);
+    if (!ok) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.VALIDATION_FAILED,
+        'The selected payment method is not available for this order.',
+      );
+    }
+  }
+
   async placeOrder(
     ctx: CustomerContext,
     req: PlaceOrderRequest,
@@ -156,6 +202,11 @@ export class OrderService {
       if (!paymentMethod) {
         throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'Payment method is not active.');
       }
+      // Feature 034 (US4/FR-015) — re-validate the selected method's adapter at
+      // submit using the surface-appropriate validator. Admin (impersonated)
+      // submissions use validateUseOnAdmin; customer submissions use
+      // validateUseOnStorefront. A stale/ineligible selection is rejected.
+      await this.assertPaymentMethodUsable(ctx, paymentMethod);
 
       // Reserve stock — feature 010 / US7 strategy-driven multi-warehouse
       // allocation (T079). Replaces the foundation 001 single-bucket
