@@ -16,12 +16,14 @@ export const paymentAdapterTypeSchema = paymentMethodKindSchema;
 export type PaymentAdapterType = PaymentMethodKind;
 
 /**
- * Localised name: a required `default` plus optional per-language overrides.
- * A surface in language `xx` uses `name[xx]` when present, else `name.default`.
+ * Localised name: a non-empty record of `lang → label`. A surface in language
+ * `xx` uses `name[xx]` when present; otherwise the `default` key, otherwise the
+ * first available value (see the backend name-resolver). Kept as an open record
+ * for compatibility with the existing locale-keyed payloads (`en-US`, `pl-PL`).
  */
 export const paymentMethodNameSchema = z
-  .object({ default: z.string().min(1) })
-  .catchall(z.string().min(1));
+  .record(z.string(), z.string().min(1))
+  .refine((r) => Object.keys(r).length > 0, { message: 'name requires at least one entry' });
 export type PaymentMethodName = z.infer<typeof paymentMethodNameSchema>;
 
 /** One selectable Order-status option (from the OrderStatusRegistry port). */
@@ -31,15 +33,23 @@ export const orderStatusOptionSchema = z.object({
 });
 export type OrderStatusOption = z.infer<typeof orderStatusOptionSchema>;
 
-/** Admin upsert body for a payment-method entry. */
+/**
+ * Admin upsert body for a payment-method entry. `kind` is required (the core
+ * discriminator); `adapter` defaults to `kind` and `statusOn*` to the seed
+ * order statuses when omitted — keeping the pre-feature-034 payload
+ * (`{ code, name, kind }`) valid while letting the richer admin form send the
+ * full configuration.
+ */
 export const paymentMethodUpsertSchema = z.object({
+  code: z.string().min(1).max(64).optional(),
   name: paymentMethodNameSchema,
-  adapter: z.string().min(1).max(64),
-  additionalPrice: z.number().finite().nonnegative().default(0),
-  status: z.enum(['active', 'inactive']).default('active'),
-  statusOnPending: z.string().min(1).max(64),
-  statusOnSuccess: z.string().min(1).max(64),
-  statusOnFailure: z.string().min(1).max(64),
+  kind: paymentAdapterTypeSchema,
+  adapter: z.string().min(1).max(64).optional(),
+  additionalPrice: z.number().finite().nonnegative().optional(),
+  status: z.enum(['active', 'inactive']).optional(),
+  statusOnPending: z.string().min(1).max(64).optional(),
+  statusOnSuccess: z.string().min(1).max(64).optional(),
+  statusOnFailure: z.string().min(1).max(64).optional(),
   salesChannelIds: z.array(uuidSchema).optional(),
 });
 export type PaymentMethodUpsert = z.infer<typeof paymentMethodUpsertSchema>;

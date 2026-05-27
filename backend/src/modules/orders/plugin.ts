@@ -35,6 +35,9 @@ import {
   registerPaymentMethodsPublicRoutes,
   registerPaymentMethodsAdminRoutes,
 } from '../payment_methods/routes.js';
+import { PaymentAdapterRegistry } from '../payment_methods/services/payment-adapter-registry.js';
+import { EnumOrderStatusRegistry } from '../payment_methods/services/order-status-registry.port.js';
+import { builtInPaymentAdapters } from '../payments/adapters/built-in-adapters.js';
 import { registerInvoicesAdminRoutes } from '../invoices/routes.admin.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
@@ -207,6 +210,15 @@ export function commerceModule(options: OrdersModuleOptions) {
       cartAuditService,
       cartRecomputeCacheEarly,
     );
+    // Feature 034 — payment adapter framework. The registry is populated with
+    // the built-in adapters here; external payment-method modules register
+    // their own adapter from their lifecycle install hook (US7). The
+    // OrderStatusRegistry port resolves statusOn* references (enum-backed
+    // until the Orders module ships a configurable registry).
+    const paymentAdapterRegistry = new PaymentAdapterRegistry();
+    for (const adapter of builtInPaymentAdapters()) paymentAdapterRegistry.register(adapter);
+    const orderStatusRegistry = new EnumOrderStatusRegistry();
+
     const orderService = new OrderService(
       options.emFactory,
       options.eventBus as OrderEventBus,
@@ -289,6 +301,7 @@ export function commerceModule(options: OrdersModuleOptions) {
     });
     await registerPaymentMethodsPublicRoutes(app, {
       emFactory: options.emFactory,
+      registry: paymentAdapterRegistry,
       ...(options.resolveOrganizationPaymentMethodAllowList
         ? { resolveOrganizationPaymentMethodAllowList: options.resolveOrganizationPaymentMethodAllowList }
         : {}),
@@ -303,6 +316,8 @@ export function commerceModule(options: OrdersModuleOptions) {
     await registerPaymentMethodsAdminRoutes(app, {
       emFactory: options.emFactory,
       requireAdmin: options.requireAdmin,
+      registry: paymentAdapterRegistry,
+      orderStatusRegistry,
       ...(options.salesChannelMembership
         ? { salesChannelMembership: options.salesChannelMembership }
         : {}),
