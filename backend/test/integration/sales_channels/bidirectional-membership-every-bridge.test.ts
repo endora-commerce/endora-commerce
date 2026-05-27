@@ -119,8 +119,9 @@ describe('bidirectional membership: every bridge (T043)', () => {
   async function insertPaymentMethod(): Promise<string> {
     const id = randomUUID();
     await rawExec(
-      `insert into "payment_methods" ("id","code","name","kind","created_at","updated_at") ` +
-        `values (?, ?, ?::jsonb, 'manual', now(), now())`,
+      `insert into "payment_methods" ("id","code","name","kind","adapter",` +
+        `"status_on_pending","status_on_success","status_on_failure","created_at","updated_at") ` +
+        `values (?, ?, ?::jsonb, 'manual', 'manual', 'new', 'confirmed', 'cancelled', now(), now())`,
       [id, `t043-pm-${id.slice(0, 8)}`, '{"en":"PM"}'],
     );
     return id;

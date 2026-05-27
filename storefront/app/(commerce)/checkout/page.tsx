@@ -9,6 +9,7 @@ import { placeOrder } from '../../../lib/api/orders';
 import { getMyCreditLimit } from '../../../lib/api/credit-limit';
 import { CreditLimitWidget } from '../../../components/CreditLimitWidget';
 import { PaymentMethods } from '../../../components/checkout/PaymentMethods';
+import { ShippingMethods } from '../../../components/checkout/ShippingMethods';
 import { OrganizationModerationBanner } from '../../../components/OrganizationModerationBanner';
 import { StorefrontApiError } from '../../../lib/api/client';
 import { getMe } from '../../../lib/api/account';
@@ -121,20 +122,7 @@ export default async function CheckoutPage({
           </select>
         </fieldset>
 
-        <fieldset className="b2b-auth__form" style={{ border: 0, padding: 0 }}>
-          <legend style={{ fontWeight: 600 }}>Delivery method</legend>
-          {deliveryMethods.map((m) => (
-            <label key={m.id} style={{ display: 'block' }}>
-              <input
-                type="radio"
-                name="deliveryMethodId"
-                value={m.id}
-                defaultChecked={m.id === deliveryMethods[0]!.id}
-              />{' '}
-              {pickName(m.name)} — {m.cost.amount.toFixed(2)} {m.cost.currency}
-            </label>
-          ))}
-        </fieldset>
+        <ShippingMethods methods={deliveryMethods} />
 
         <PaymentMethods methods={paymentMethods} currency={cart.subtotal.currency} />
 
@@ -233,8 +221,4 @@ async function submitAction(formData: FormData): Promise<void> {
     redirect(`/checkout?error=${encodeURIComponent(message)}`);
   }
   redirect(`/orders/${orderId}`);
-}
-
-function pickName(name: Record<string, string>): string {
-  return name['en-US'] ?? Object.values(name)[0] ?? 'Method';
 }

@@ -41,6 +41,15 @@ import { builtInPaymentAdapters } from '../payments/adapters/built-in-adapters.j
 import { ReceivePaymentHandler, type PaymentEventBus } from '../payments/services/receive-payment-handler.js';
 import { PaymentService } from '../payments/services/payment-service.js';
 import { registerPaymentsRoutes } from '../payments/routes.js';
+// Feature 035 — shipping-method adapter framework + shipment lifecycle.
+import { shippingAdapterRegistry } from '../delivery_methods/services/registry-singleton.js';
+import { EnumOrderStatusRegistry as ShippingEnumOrderStatusRegistry } from '../delivery_methods/services/order-status-registry.port.js';
+import { ShippingMethodEligibilityService } from '../delivery_methods/services/shipping-method-eligibility.js';
+import { builtInShippingAdapters } from '../delivery_methods/adapters/built-in-adapters.js';
+import { ShipmentService } from '../shipments/services/shipment-service.js';
+import { ReceiveShipmentHandler } from '../shipments/services/receive-shipment-handler.js';
+import type { ShippingEventBus } from '../shipments/services/events.js';
+import { registerShipmentsRoutes } from '../shipments/routes.js';
 import { registerInvoicesAdminRoutes } from '../invoices/routes.admin.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
@@ -228,6 +237,19 @@ export function commerceModule(options: OrdersModuleOptions) {
     }
     const orderStatusRegistry = new EnumOrderStatusRegistry();
 
+    // Feature 035 — shipping-method adapter framework. Built-in offline adapters
+    // are populated into the process-wide singleton idempotently, so external
+    // shipping-method modules that registered their adapter from a lifecycle
+    // install hook share the same instance the live routes use. The shipping
+    // OrderStatusRegistry resolves statusOnSuccess/Failure references.
+    for (const adapter of builtInShippingAdapters()) {
+      if (!shippingAdapterRegistry.isRegistered(adapter.adapterKey)) {
+        shippingAdapterRegistry.register(adapter);
+      }
+    }
+    const shippingOrderStatusRegistry = new ShippingEnumOrderStatusRegistry();
+    const shippingEligibility = new ShippingMethodEligibilityService(shippingAdapterRegistry);
+
     const orderService = new OrderService(
       options.emFactory,
       options.eventBus as OrderEventBus,
@@ -237,6 +259,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       {
         paymentAdapters: paymentAdapterRegistry,
         orderStatusRegistry,
+        shippingAdapters: shippingAdapterRegistry,
         ...(options.mailer ? { mailer: options.mailer } : {}),
       },
     );
@@ -310,6 +333,8 @@ export function commerceModule(options: OrdersModuleOptions) {
     });
     await registerDeliveryMethodsPublicRoutes(app, {
       emFactory: options.emFactory,
+      registry: shippingAdapterRegistry,
+      eligibility: shippingEligibility,
       ...(options.resolveOrganizationDeliveryMethodAllowList
         ? { resolveOrganizationDeliveryMethodAllowList: options.resolveOrganizationDeliveryMethodAllowList }
         : {}),
@@ -324,6 +349,8 @@ export function commerceModule(options: OrdersModuleOptions) {
     await registerDeliveryMethodsAdminRoutes(app, {
       emFactory: options.emFactory,
       requireAdmin: options.requireAdmin,
+      registry: shippingAdapterRegistry,
+      orderStatusRegistry: shippingOrderStatusRegistry,
       ...(options.salesChannelMembership
         ? { salesChannelMembership: options.salesChannelMembership }
         : {}),
@@ -351,6 +378,22 @@ export function commerceModule(options: OrdersModuleOptions) {
         options.eventBus as PaymentEventBus,
       ),
       paymentService: new PaymentService(options.emFactory),
+    });
+
+    // Feature 035 — shipment lifecycle: shipment_created, receive_shipment,
+    // retry, history.
+    await registerShipmentsRoutes(app, {
+      requireAdmin: options.requireAdmin,
+      receiveHandler: new ReceiveShipmentHandler(
+        options.emFactory,
+        shippingOrderStatusRegistry,
+        options.eventBus as ShippingEventBus,
+      ),
+      shipmentService: new ShipmentService(
+        options.emFactory,
+        shippingAdapterRegistry,
+        options.eventBus as ShippingEventBus,
+      ),
     });
 
     // Feature 027 US5 — abandonment-sweep worker. Constructed when the

@@ -20,6 +20,7 @@ import { Invoice } from '../../invoices/entities/invoice.entity.js';
 import { OrderAccessService } from './order-access-service.js';
 import type { PaymentAdapterRegistry } from '../../payment_methods/services/payment-adapter-registry.js';
 import type { OrderStatusRegistry } from '../../payment_methods/services/order-status-registry.port.js';
+import type { ShippingAdapterRegistry } from '../../delivery_methods/services/shipping-adapter-registry.js';
 import type { Mailer } from '../../email/services/mailer.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { buildOrderConfirmationEmail } from '../email-templates/order-confirmation.js';
@@ -90,6 +91,7 @@ export class OrderService {
 
   private readonly paymentAdapters: PaymentAdapterRegistry | undefined;
   private readonly orderStatusRegistry: OrderStatusRegistry | undefined;
+  private readonly shippingAdapters: ShippingAdapterRegistry | undefined;
   private readonly mailer: Mailer | undefined;
 
   constructor(
@@ -101,12 +103,14 @@ export class OrderService {
     paymentDeps?: {
       paymentAdapters?: PaymentAdapterRegistry;
       orderStatusRegistry?: OrderStatusRegistry;
+      shippingAdapters?: ShippingAdapterRegistry;
       mailer?: Mailer;
     },
   ) {
     this.accessService = accessService ?? new OrderAccessService(emFactory);
     this.paymentAdapters = paymentDeps?.paymentAdapters;
     this.orderStatusRegistry = paymentDeps?.orderStatusRegistry;
+    this.shippingAdapters = paymentDeps?.shippingAdapters;
     this.mailer = paymentDeps?.mailer;
   }
 
@@ -127,6 +131,11 @@ export class OrderService {
     const rendererKey =
       this.paymentAdapters?.get(order.paymentMethodSnapshot.adapter ?? '')?.renderers?.email ??
       null;
+    // Feature 035 — resolve the shipping adapter's e-mail renderer key. The
+    // delivery snapshot does not store the adapter, so look the method up.
+    const deliveryMethod = await em.findOne(DeliveryMethod, { id: order.deliveryMethodId });
+    const shippingRendererKey =
+      this.shippingAdapters?.get(deliveryMethod?.adapter ?? '')?.renderers?.email ?? null;
     const message = buildOrderConfirmationEmail({
       to: customer.email,
       order: {
@@ -134,6 +143,7 @@ export class OrderService {
         deliveryMethodSnapshot: order.deliveryMethodSnapshot,
         paymentMethodSnapshot: order.paymentMethodSnapshot,
         paymentRendererKey: rendererKey,
+        shippingRendererKey,
         subtotal: order.subtotal,
         taxTotal: order.taxTotal,
         discountTotal: order.discountTotal,
@@ -211,6 +221,50 @@ export class OrderService {
     }
   }
 
+  /**
+   * Feature 035 (US4/FR-014/FR-015) — re-validate the selected shipping
+   * method's adapter validator for the submission surface. No-op when the
+   * registry is not wired or the adapter is unregistered (the active-status
+   * check already gates those). An impersonated submission counts as admin.
+   */
+  private async assertShippingMethodUsable(
+    ctx: CustomerContext,
+    method: DeliveryMethod,
+  ): Promise<void> {
+    const adapter = this.shippingAdapters?.get(method.adapter);
+    if (!adapter) return;
+    const surface = ctx.impersonatorAdminUserId ? 'admin' : 'storefront';
+    const eligCtx = {
+      deliveryMethod: {
+        id: method.id,
+        code: method.code,
+        adapter: method.adapter,
+        name: method.name,
+        cost: { amount: Number(method.cost), currency: method.currency },
+        status: method.status,
+        statusOnSuccess: method.statusOnSuccess,
+        statusOnFailure: method.statusOnFailure,
+        salesChannelIds: [] as string[],
+        rendererKey: adapter.renderers?.storefront ?? null,
+      },
+      salesChannelId: '',
+      organizationId: ctx.organizationId,
+      customerAccountId: ctx.customerAccountId,
+      surface: surface as 'admin' | 'storefront',
+    };
+    const ok =
+      surface === 'admin'
+        ? await adapter.validateUseOnAdmin(eligCtx)
+        : await adapter.validateUseOnStorefront(eligCtx);
+    if (!ok) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.VALIDATION_FAILED,
+        'The selected shipping method is not available for this order.',
+      );
+    }
+  }
+
   async placeOrder(
     ctx: CustomerContext,
     req: PlaceOrderRequest,
@@ -257,6 +311,8 @@ export class OrderService {
       // submissions use validateUseOnAdmin; customer submissions use
       // validateUseOnStorefront. A stale/ineligible selection is rejected.
       await this.assertPaymentMethodUsable(ctx, paymentMethod);
+      // Feature 035 (FR-014/FR-015) — same re-validation for the shipping method.
+      await this.assertShippingMethodUsable(ctx, deliveryMethod);
 
       // Reserve stock — feature 010 / US7 strategy-driven multi-warehouse
       // allocation (T079). Replaces the foundation 001 single-bucket
@@ -575,6 +631,19 @@ export class OrderService {
           paymentId: payment.id,
           amount: total,
           currency,
+        });
+      }
+
+      // Feature 035 (FR-020) — fire the shipping adapter's order_created hook.
+      // Offline adapters are no-ops; a Shipment is opened later by the explicit
+      // shipment_created trigger, not here.
+      const shippingAdapter = this.shippingAdapters?.get(deliveryMethod.adapter);
+      if (shippingAdapter) {
+        await shippingAdapter.onOrderCreated({
+          orderId: order.id,
+          deliveryMethodId: deliveryMethod.id,
+          salesChannelId: order.salesChannelId,
+          organizationId: ctx.organizationId,
         });
       }
 
