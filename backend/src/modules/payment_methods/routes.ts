@@ -6,6 +6,7 @@ import { PaymentMethod } from './entities/payment-method.entity.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import type { PaymentAdapterRegistry } from './services/payment-adapter-registry.js';
+import type { PaymentMethodEligibilityService } from './services/payment-method-eligibility.js';
 import {
   OrderStatusRegistryError,
   type OrderStatusRegistry,
@@ -27,6 +28,8 @@ export interface PaymentMethodsPublicDeps {
   resolveOrganizationPaymentMethodAllowList?: (req: FastifyRequest) => Promise<string[] | null>;
   /** Feature 034 — resolves a method's storefront renderer key. */
   registry?: PaymentAdapterRegistry;
+  /** Feature 034 — applies adapter `validateUseOnStorefront` + registered-adapter filtering. */
+  eligibility?: PaymentMethodEligibilityService;
 }
 
 export interface PaymentMethodsAdminDeps {
@@ -58,6 +61,19 @@ export async function registerPaymentMethodsPublicRoutes(
         const allowSet = new Set(allowList);
         rows = rows.filter((m) => allowSet.has(m.id));
       }
+    }
+
+    // Feature 034 — adapter validateUseOnStorefront + registered-adapter filter.
+    // Sales-channel-assignment filtering is applied upstream once the storefront
+    // checkout passes the resolved channel; org/customer context is best-effort
+    // here (built-in validators do not depend on it).
+    if (deps.eligibility) {
+      rows = await deps.eligibility.filter(rows, {
+        salesChannelId: null,
+        organizationId: null,
+        customerAccountId: null,
+        surface: 'storefront',
+      });
     }
 
     return { data: rows.map((m) => serializePublic(m, deps)) };

@@ -224,6 +224,8 @@ export function commerceModule(options: OrdersModuleOptions) {
       options.eventBus as OrderEventBus,
       options.auditLogService,
       options.creditLimit,
+      undefined,
+      { paymentAdapters: paymentAdapterRegistry, orderStatusRegistry },
     );
     if (options.exposeCartService) options.exposeCartService(cartService);
 

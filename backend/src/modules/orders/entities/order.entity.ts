@@ -89,6 +89,8 @@ export class Order {
     code: string;
     name: string;
     kind: 'bank_transfer' | 'pickup' | 'credit_limit' | 'gateway';
+    /** Feature 034 — adapter registry key the order was placed with. */
+    adapter?: string;
   };
 
   @Property({ type: 'uuid', nullable: true })

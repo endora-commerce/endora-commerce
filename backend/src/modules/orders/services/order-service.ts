@@ -18,6 +18,8 @@ import { OrderItem } from '../entities/order-item.entity.js';
 import { Payment } from '../../payments/entities/payment.entity.js';
 import { Invoice } from '../../invoices/entities/invoice.entity.js';
 import { OrderAccessService } from './order-access-service.js';
+import type { PaymentAdapterRegistry } from '../../payment_methods/services/payment-adapter-registry.js';
+import type { OrderStatusRegistry } from '../../payment_methods/services/order-status-registry.port.js';
 
 /**
  * Narrow port consumed by the order-placement transaction. The credit_limits
@@ -83,14 +85,34 @@ export interface CustomerContext {
 export class OrderService {
   private readonly accessService: OrderAccessService;
 
+  private readonly paymentAdapters: PaymentAdapterRegistry | undefined;
+  private readonly orderStatusRegistry: OrderStatusRegistry | undefined;
+
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly events: OrderEventBus,
     private readonly auditLog?: AuditLogService,
     private readonly creditLimit?: CreditLimitPort,
     accessService?: OrderAccessService,
+    paymentDeps?: {
+      paymentAdapters?: PaymentAdapterRegistry;
+      orderStatusRegistry?: OrderStatusRegistry;
+    },
   ) {
     this.accessService = accessService ?? new OrderAccessService(emFactory);
+    this.paymentAdapters = paymentDeps?.paymentAdapters;
+    this.orderStatusRegistry = paymentDeps?.orderStatusRegistry;
+  }
+
+  /**
+   * Feature 034 — resolve a payment method's `statusOnPending` into a valid
+   * order status. Returns `undefined` (keep the entity default `new`) when the
+   * reference is empty or, with a registry wired, not a known order status.
+   */
+  private resolvePendingStatus(ref: string | undefined): Order['status'] | undefined {
+    if (!ref) return undefined;
+    if (this.orderStatusRegistry && !this.orderStatusRegistry.has(ref)) return undefined;
+    return ref as Order['status'];
   }
 
   async placeOrder(
@@ -328,7 +350,9 @@ export class OrderService {
       const taxRate = 0.23; // Polish VAT default — the real tax service picks per country+type in T131.
       const taxTotal = Math.round(subtotal * taxRate * 100) / 100;
       const deliveryTotal = Number(deliveryMethod.cost);
-      const total = Math.round((subtotal + taxTotal + deliveryTotal) * 100) / 100;
+      // Feature 034 — flat payment surcharge in the order currency (FR-005 / US2 AC2).
+      const paymentSurcharge = Number(paymentMethod.additionalPrice ?? '0');
+      const total = Math.round((subtotal + taxTotal + deliveryTotal + paymentSurcharge) * 100) / 100;
       const currency = deliveryMethod.currency;
 
       // Sales channel — use any active one; real resolution uses Cart ↔ Channel in US2 T136.
@@ -365,7 +389,14 @@ export class OrderService {
           code: paymentMethod.code,
           name: this.anyValue(paymentMethod.name),
           kind: paymentMethod.kind,
+          adapter: paymentMethod.adapter,
         },
+        // Feature 034 — the method's statusOnPending drives the initial order
+        // status (validated against the OrderStatusRegistry when wired; falls
+        // back to the entity default 'new' otherwise).
+        ...(this.resolvePendingStatus(paymentMethod.statusOnPending)
+          ? { status: this.resolvePendingStatus(paymentMethod.statusOnPending)! }
+          : {}),
         subtotal: subtotal.toFixed(2),
         taxTotal: taxTotal.toFixed(2),
         deliveryTotal: deliveryTotal.toFixed(2),
@@ -430,6 +461,20 @@ export class OrderService {
         currency,
       });
       await tx.persistAndFlush(payment);
+
+      // Feature 034 — invoke the adapter's storefront_order_created handler
+      // (FR-021). Threading the returned nextAction into the place-order
+      // response is a follow-up; the bundled offline adapters are
+      // side-effect-free here and credit_limit reserves inline below.
+      const adapter = this.paymentAdapters?.get(paymentMethod.adapter);
+      if (adapter) {
+        await adapter.onStorefrontOrderCreated({
+          orderId: order.id,
+          paymentId: payment.id,
+          amount: total,
+          currency,
+        });
+      }
 
       // Reserve credit limit when this order pays via the credit_limit driver.
       // Reservation runs INSIDE the order-placement transaction so a failure
@@ -521,7 +566,7 @@ export class OrderService {
           objectType: 'order',
           objectId: order.id,
           stateBefore: null,
-          stateAfter: { total: total.toFixed(2), currency, status: 'new' },
+          stateAfter: { total: total.toFixed(2), currency, status: order.status },
         });
       }
 
