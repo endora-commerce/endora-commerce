@@ -42,6 +42,7 @@ import { PaymentMethod } from '../modules/payment_methods/entities/payment-metho
 import { Order } from '../modules/orders/entities/order.entity.js';
 import { OrderItem } from '../modules/orders/entities/order-item.entity.js';
 import { Payment } from '../modules/payments/entities/payment.entity.js';
+import { Shipment } from '../modules/shipments/entities/shipment.entity.js';
 import { Invoice } from '../modules/invoices/entities/invoice.entity.js';
 import { OrganizationInvitation } from '../modules/organizations/entities/organization-invitation.entity.js';
 import { AdminUser } from '../modules/admin_users/entities/admin-user.entity.js';
@@ -174,6 +175,7 @@ export const ALL_ENTITIES = [
   Order,
   OrderItem,
   Payment,
+  Shipment,
   Invoice,
   // organization invitations (US3)
   OrganizationInvitation,

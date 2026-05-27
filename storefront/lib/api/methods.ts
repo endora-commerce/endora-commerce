@@ -12,6 +12,9 @@ export interface DeliveryMethodSummary {
   name: Record<string, string>;
   cost: { amount: number; currency: string };
   status: 'active' | 'inactive';
+  // Feature 035 — shipping adapter framework fields.
+  adapter: string;
+  rendererKey: string | null;
 }
 
 export interface PaymentMethodSummary {

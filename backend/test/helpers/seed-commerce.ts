@@ -47,6 +47,8 @@ export async function seedUs2Commerce(em: EntityManager): Promise<void> {
     name: { 'en-US': 'In-person pickup', 'pl-PL': 'Odbiór osobisty' },
     cost: '0.00',
     currency: 'PLN',
+    // Feature 035 — shipping adapter backing this delivery method.
+    adapter: 'personal_pickup',
   });
   const payment = em.create(PaymentMethod, {
     id: SEED_PAYMENT_METHOD_ID,

@@ -1,5 +1,6 @@
 import type { MailerSendInput } from '../../email/services/mailer.js';
 import { resolvePaymentEmailRenderer } from '../../payments/services/payment-email-renderer.js';
+import { resolveShippingEmailRenderer } from '../../shipments/services/shipping-email-renderer.js';
 
 /**
  * Order-confirmation e-mail (feature 034). Sent after a successful checkout.
@@ -33,6 +34,8 @@ export interface BuildOrderConfirmationEmailInput {
     };
     /** Adapter's e-mail renderer key (adapter.renderers.email), resolved by the caller. */
     paymentRendererKey: string | null;
+    /** Shipping adapter's e-mail renderer key (feature 035), resolved by the caller. */
+    shippingRendererKey?: string | null;
     subtotal: string;
     taxTotal: string;
     discountTotal: string;
@@ -80,6 +83,14 @@ export function buildOrderConfirmationEmail(
     currency,
   });
 
+  // Feature 035 — render the shipping line through the shipping-email renderer
+  // registry (adapter renderer or platform default), mirroring the payment line.
+  const shippingLine = resolveShippingEmailRenderer(order.shippingRendererKey ?? null)({
+    name: order.deliveryMethodSnapshot.name,
+    cost: Number(order.deliveryTotal),
+    currency,
+  });
+
   const summary = [
     `  Subtotal: ${money(order.subtotal, currency)}`,
     `  Tax: ${money(order.taxTotal, currency)}`,
@@ -105,7 +116,7 @@ export function buildOrderConfirmationEmail(
     `Products:`,
     ...productLines,
     ``,
-    `Delivery method: ${order.deliveryMethodSnapshot.name} — ${money(order.deliveryTotal, currency)}`,
+    `Delivery method: ${shippingLine}`,
     `Payment method: ${paymentLine}`,
     ...discountSection,
     ``,

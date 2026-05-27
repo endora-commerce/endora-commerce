@@ -556,6 +556,8 @@ async function main(): Promise<void> {
     name: { 'en-US': 'In-person pickup', 'pl-PL': 'Odbior osobisty' },
     cost: '0',
     currency: 'PLN',
+    // Feature 035 — shipping adapter backing this delivery method.
+    adapter: 'personal_pickup',
   });
   await em.persistAndFlush(pickup);
 

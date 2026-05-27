@@ -26,11 +26,23 @@ interface AdminDeliveryMethod {
   name: Record<string, string>;
   cost: { amount: number; currency: string };
   status: 'active' | 'inactive';
+  // Feature 035 — shipping adapter framework fields.
+  adapter: string;
+  statusOnSuccess: string;
+  statusOnFailure: string;
+  salesChannelIds: string[];
+  rendererKey: string | null;
+}
+
+interface OrderStatusOption {
+  code: string;
+  label: string;
 }
 
 export function DeliveryMethodsPage(): ReactNode {
   const t = useTranslation('core');
   const [rows, setRows] = useState<AdminDeliveryMethod[]>([]);
+  const [orderStatuses, setOrderStatuses] = useState<OrderStatusOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -39,10 +51,15 @@ export function DeliveryMethodsPage(): ReactNode {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get<{ data: AdminDeliveryMethod[] }>(
-        '/api/v1/admin/delivery-methods',
-      );
-      setRows(res.data);
+      const [methods, statuses] = await Promise.all([
+        apiClient.get<{ data: AdminDeliveryMethod[] }>('/api/v1/admin/delivery-methods'),
+        // Shared endpoint owned by the payment-methods admin routes (feature 035).
+        apiClient
+          .get<{ data: OrderStatusOption[] }>('/api/v1/admin/order-statuses')
+          .catch(() => ({ data: [] as OrderStatusOption[] })),
+      ]);
+      setRows(methods.data);
+      setOrderStatuses(statuses.data);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
     } finally {
@@ -62,6 +79,8 @@ export function DeliveryMethodsPage(): ReactNode {
       cost: number;
       currency: string;
       status: 'active' | 'inactive';
+      statusOnSuccess: string;
+      statusOnFailure: string;
     }): Promise<void> => {
       const name: Record<string, string> = {};
       if (input.nameEn) name['en-US'] = input.nameEn;
@@ -75,6 +94,8 @@ export function DeliveryMethodsPage(): ReactNode {
             cost: input.cost,
             currency: input.currency,
             status: input.status,
+            ...(input.statusOnSuccess ? { statusOnSuccess: input.statusOnSuccess } : {}),
+            ...(input.statusOnFailure ? { statusOnFailure: input.statusOnFailure } : {}),
           },
         );
         setInfo(t('legacyMethods.messages.saved', { code: input.code }));
@@ -122,7 +143,7 @@ export function DeliveryMethodsPage(): ReactNode {
           <CardTitle>{t('legacyMethods.formTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
-          <UpsertForm onSubmit={handleUpsert} />
+          <UpsertForm onSubmit={handleUpsert} orderStatuses={orderStatuses} />
         </CardContent>
       </Card>
 
@@ -138,7 +159,9 @@ export function DeliveryMethodsPage(): ReactNode {
                 <TableRow>
                   <TableHead>{t('legacyMethods.columns.code')}</TableHead>
                   <TableHead>{t('legacyMethods.columns.name')}</TableHead>
+                  <TableHead>Adapter</TableHead>
                   <TableHead>{t('legacyMethods.columns.cost')}</TableHead>
+                  <TableHead>On success / failure</TableHead>
                   <TableHead>{t('legacyMethods.columns.status')}</TableHead>
                   <TableHead />
                 </TableRow>
@@ -150,8 +173,14 @@ export function DeliveryMethodsPage(): ReactNode {
                       <code className="font-mono text-xs">{r.code}</code>
                     </TableCell>
                     <TableCell>{r.name['en-US'] ?? Object.values(r.name)[0]}</TableCell>
+                    <TableCell>
+                      <code className="font-mono text-xs">{r.adapter}</code>
+                    </TableCell>
                     <TableCell className="tabular-nums">
                       {r.cost.amount.toFixed(2)} {r.cost.currency}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {r.statusOnSuccess} / {r.statusOnFailure}
                     </TableCell>
                     <TableCell>
                       <Badge variant={r.status === 'active' ? 'success' : 'secondary'}>
@@ -182,6 +211,7 @@ export function DeliveryMethodsPage(): ReactNode {
 
 function UpsertForm({
   onSubmit,
+  orderStatuses,
 }: {
   onSubmit: (input: {
     code: string;
@@ -190,7 +220,10 @@ function UpsertForm({
     cost: number;
     currency: string;
     status: 'active' | 'inactive';
+    statusOnSuccess: string;
+    statusOnFailure: string;
   }) => Promise<void>;
+  orderStatuses: OrderStatusOption[];
 }): ReactNode {
   const t = useTranslation('core');
   const [code, setCode] = useState('');
@@ -199,12 +232,23 @@ function UpsertForm({
   const [cost, setCost] = useState('0');
   const [currency, setCurrency] = useState('PLN');
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
+  const [statusOnSuccess, setStatusOnSuccess] = useState('');
+  const [statusOnFailure, setStatusOnFailure] = useState('');
   return (
     <form
       className="space-y-4"
       onSubmit={(e: FormEvent): void => {
         e.preventDefault();
-        void onSubmit({ code, nameEn, namePl, cost: Number(cost), currency, status });
+        void onSubmit({
+          code,
+          nameEn,
+          namePl,
+          cost: Number(cost),
+          currency,
+          status,
+          statusOnSuccess,
+          statusOnFailure,
+        });
       }}
     >
       <div className="grid gap-4 md:grid-cols-2">
@@ -254,6 +298,36 @@ function UpsertForm({
           >
             <option value="active">{t('legacyMethods.status.active')}</option>
             <option value="inactive">{t('legacyMethods.status.inactive')}</option>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="dsuccess">Order status on shipment success</Label>
+          <Select
+            id="dsuccess"
+            value={statusOnSuccess}
+            onChange={(e): void => setStatusOnSuccess(e.target.value)}
+          >
+            <option value="">(default: shipped)</option>
+            {orderStatuses.map((s) => (
+              <option key={s.code} value={s.code}>
+                {s.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="dfailure">Order status on shipment failure</Label>
+          <Select
+            id="dfailure"
+            value={statusOnFailure}
+            onChange={(e): void => setStatusOnFailure(e.target.value)}
+          >
+            <option value="">(default: in_fulfilment)</option>
+            {orderStatuses.map((s) => (
+              <option key={s.code} value={s.code}>
+                {s.label}
+              </option>
+            ))}
           </Select>
         </div>
       </div>
