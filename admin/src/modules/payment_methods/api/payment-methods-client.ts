@@ -16,6 +16,7 @@ export interface AdminPaymentMethod {
   statusOnSuccess: string;
   statusOnFailure: string;
   salesChannelIds: string[];
+  rendererKey: string | null;
 }
 
 export interface OrderStatusOption {

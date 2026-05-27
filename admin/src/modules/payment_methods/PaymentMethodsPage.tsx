@@ -23,6 +23,7 @@ import {
   type AdminPaymentMethod,
   type OrderStatusOption,
 } from './api/payment-methods-client';
+import { resolveAdminPaymentMethodRenderer } from './renderers/registry';
 
 const KINDS = ['bank_transfer', 'pickup', 'credit_limit', 'gateway'] as const;
 
@@ -143,7 +144,7 @@ export function PaymentMethodsPage(): ReactNode {
                     <TableCell>
                       <code className="font-mono text-xs">{r.code}</code>
                     </TableCell>
-                    <TableCell>{r.name['en-US'] ?? r.name.default ?? Object.values(r.name)[0]}</TableCell>
+                    <TableCell>{resolveAdminPaymentMethodRenderer(r.rendererKey)(r)}</TableCell>
                     <TableCell>
                       <code className="font-mono text-xs">{r.adapter}</code>
                       {r.additionalPrice > 0 ? (

@@ -264,5 +264,6 @@ async function serializeAdmin(m: PaymentMethod, deps: PaymentMethodsAdminDeps) {
     statusOnSuccess: m.statusOnSuccess,
     statusOnFailure: m.statusOnFailure,
     salesChannelIds: channels.map((c) => c.id),
+    rendererKey: deps.registry?.get(m.adapter)?.renderers?.admin ?? null,
   };
 }
