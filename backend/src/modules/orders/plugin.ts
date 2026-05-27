@@ -35,7 +35,7 @@ import {
   registerPaymentMethodsPublicRoutes,
   registerPaymentMethodsAdminRoutes,
 } from '../payment_methods/routes.js';
-import { PaymentAdapterRegistry } from '../payment_methods/services/payment-adapter-registry.js';
+import { paymentAdapterRegistry } from '../payment_methods/services/registry-singleton.js';
 import { EnumOrderStatusRegistry } from '../payment_methods/services/order-status-registry.port.js';
 import { builtInPaymentAdapters } from '../payments/adapters/built-in-adapters.js';
 import { ReceivePaymentHandler, type PaymentEventBus } from '../payments/services/receive-payment-handler.js';
@@ -213,13 +213,17 @@ export function commerceModule(options: OrdersModuleOptions) {
       cartAuditService,
       cartRecomputeCacheEarly,
     );
-    // Feature 034 — payment adapter framework. The registry is populated with
-    // the built-in adapters here; external payment-method modules register
-    // their own adapter from their lifecycle install hook (US7). The
-    // OrderStatusRegistry port resolves statusOn* references (enum-backed
-    // until the Orders module ships a configurable registry).
-    const paymentAdapterRegistry = new PaymentAdapterRegistry();
-    for (const adapter of builtInPaymentAdapters()) paymentAdapterRegistry.register(adapter);
+    // Feature 034 — payment adapter framework. Built-in adapters are populated
+    // into the process-wide singleton (registry-singleton.ts) idempotently, so
+    // external payment-method modules that registered their adapter from a
+    // lifecycle install hook share the same instance the live routes use. The
+    // OrderStatusRegistry port resolves statusOn* references (enum-backed until
+    // the Orders module ships a configurable registry).
+    for (const adapter of builtInPaymentAdapters()) {
+      if (!paymentAdapterRegistry.isRegistered(adapter.adapterKey)) {
+        paymentAdapterRegistry.register(adapter);
+      }
+    }
     const orderStatusRegistry = new EnumOrderStatusRegistry();
 
     const orderService = new OrderService(

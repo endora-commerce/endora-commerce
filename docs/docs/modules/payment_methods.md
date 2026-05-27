@@ -83,14 +83,20 @@ module's configurable registry later with no change here.
    `validateUse*` (return `true` if unconstrained), `onStorefrontOrderCreated`
    (return a `redirect` / `awaiting_transfer` / `none`), and
    `onReceivePayment` (map your PSP callback to `success` / `failure`).
-3. From the module's `installHook`, register the adapter and reconcile its
-   entry:
+3. From the module's `installHook`, register the adapter into the shared
+   singleton and reconcile its entry:
 
    ```ts
-   paymentAdapters.register(myAdapter);
-   await paymentMethodReconciler.ensureMethodForAdapter(myAdapter.adapterKey, {
-     code: 'p24', type: 'gateway', name: { default: 'Przelewy24' },
-   });
+   import { paymentAdapterRegistry } from '.../payment_methods/services/registry-singleton.js';
+   import { PaymentMethodReconciler } from '.../payment_methods/services/payment-method-reconciler.js';
+
+   export const installHook: ModuleInstallHook = async (ctx) => {
+     paymentAdapterRegistry.register(myAdapter);
+     await new PaymentMethodReconciler(() => ctx.em).ensureMethodForAdapter(
+       myAdapter.adapterKey,
+       { code: 'p24', type: 'gateway', name: { default: 'Przelewy24' } },
+     );
+   };
    ```
 
    `ensureMethodForAdapter` is idempotent and never clobbers admin edits.
@@ -99,11 +105,12 @@ module's configurable registry later with no change here.
 5. Enable the module → a configurable Payment Method appears at
    `/payment-methods`. No core change required.
 
-> **Wiring note:** the bundled adapters are registered by `commerceModule`. To
-> let an external module register from its `installHook`, the
-> `PaymentAdapterRegistry` + `PaymentMethodReconciler` must be exposed to the
-> lifecycle install context — a small composition follow-up tracked with the
-> remaining feature-034 tasks.
+The `paymentAdapterRegistry` is a **process-wide singleton**
+(`registry-singleton.ts`): the install-hook context cannot carry services, so
+the singleton is the explicit interface that lets an install hook register into
+the same instance `commerceModule` wires into the live eligibility, admin, and
+order-placement paths. An adapter registered on enable is recognised
+immediately — no core change.
 
 ## Per-Organization availability
 
