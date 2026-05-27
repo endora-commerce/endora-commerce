@@ -38,6 +38,9 @@ import {
 import { PaymentAdapterRegistry } from '../payment_methods/services/payment-adapter-registry.js';
 import { EnumOrderStatusRegistry } from '../payment_methods/services/order-status-registry.port.js';
 import { builtInPaymentAdapters } from '../payments/adapters/built-in-adapters.js';
+import { ReceivePaymentHandler, type PaymentEventBus } from '../payments/services/receive-payment-handler.js';
+import { PaymentService } from '../payments/services/payment-service.js';
+import { registerPaymentsRoutes } from '../payments/routes.js';
 import { registerInvoicesAdminRoutes } from '../invoices/routes.admin.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
@@ -327,6 +330,17 @@ export function commerceModule(options: OrdersModuleOptions) {
     await registerInvoicesAdminRoutes(app, {
       emFactory: options.emFactory,
       requireAdmin: options.requireAdmin,
+    });
+
+    // Feature 034 — payment lifecycle: receive_payment ingress, retry, history.
+    await registerPaymentsRoutes(app, {
+      requireAdmin: options.requireAdmin,
+      receiveHandler: new ReceivePaymentHandler(
+        options.emFactory,
+        orderStatusRegistry,
+        options.eventBus as PaymentEventBus,
+      ),
+      paymentService: new PaymentService(options.emFactory),
     });
 
     // Feature 027 US5 — abandonment-sweep worker. Constructed when the
