@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Trash2 } from 'lucide-react';
-import { ApiError, apiClient } from '@/lib/api-client';
+import { ApiError } from '@/lib/api-client';
+import {
+  deliveryMethodsClient,
+  type AdminDeliveryMethod,
+  type OrderStatusOption,
+} from './api/delivery-methods-client';
+import { resolveAdminDeliveryMethodRenderer } from './renderers/registry';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,25 +26,6 @@ import {
 } from '@/components/ui/table';
 import { CurrencyPicker } from '../dictionaries/components/CurrencyPicker';
 
-interface AdminDeliveryMethod {
-  id: string;
-  code: string;
-  name: Record<string, string>;
-  cost: { amount: number; currency: string };
-  status: 'active' | 'inactive';
-  // Feature 035 — shipping adapter framework fields.
-  adapter: string;
-  statusOnSuccess: string;
-  statusOnFailure: string;
-  salesChannelIds: string[];
-  rendererKey: string | null;
-}
-
-interface OrderStatusOption {
-  code: string;
-  label: string;
-}
-
 export function DeliveryMethodsPage(): ReactNode {
   const t = useTranslation('core');
   const [rows, setRows] = useState<AdminDeliveryMethod[]>([]);
@@ -52,14 +39,12 @@ export function DeliveryMethodsPage(): ReactNode {
     setError(null);
     try {
       const [methods, statuses] = await Promise.all([
-        apiClient.get<{ data: AdminDeliveryMethod[] }>('/api/v1/admin/delivery-methods'),
+        deliveryMethodsClient.list(),
         // Shared endpoint owned by the payment-methods admin routes (feature 035).
-        apiClient
-          .get<{ data: OrderStatusOption[] }>('/api/v1/admin/order-statuses')
-          .catch(() => ({ data: [] as OrderStatusOption[] })),
+        deliveryMethodsClient.orderStatuses().catch(() => [] as OrderStatusOption[]),
       ]);
-      setRows(methods.data);
-      setOrderStatuses(statuses.data);
+      setRows(methods);
+      setOrderStatuses(statuses);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
     } finally {
@@ -86,18 +71,15 @@ export function DeliveryMethodsPage(): ReactNode {
       if (input.nameEn) name['en-US'] = input.nameEn;
       if (input.namePl) name['pl-PL'] = input.namePl;
       try {
-        await apiClient.put<{ data: AdminDeliveryMethod }>(
-          `/api/v1/admin/delivery-methods/${encodeURIComponent(input.code)}`,
-          {
-            code: input.code,
-            name,
-            cost: input.cost,
-            currency: input.currency,
-            status: input.status,
-            ...(input.statusOnSuccess ? { statusOnSuccess: input.statusOnSuccess } : {}),
-            ...(input.statusOnFailure ? { statusOnFailure: input.statusOnFailure } : {}),
-          },
-        );
+        await deliveryMethodsClient.upsert(input.code, {
+          code: input.code,
+          name,
+          cost: input.cost,
+          currency: input.currency,
+          status: input.status,
+          ...(input.statusOnSuccess ? { statusOnSuccess: input.statusOnSuccess } : {}),
+          ...(input.statusOnFailure ? { statusOnFailure: input.statusOnFailure } : {}),
+        });
         setInfo(t('legacyMethods.messages.saved', { code: input.code }));
         await refresh();
       } catch (err) {
@@ -111,7 +93,7 @@ export function DeliveryMethodsPage(): ReactNode {
     async (id: string): Promise<void> => {
       if (!confirm(t('legacyMethods.delivery.deleteConfirm'))) return;
       try {
-        await apiClient.delete<void>(`/api/v1/admin/delivery-methods/${id}`);
+        await deliveryMethodsClient.remove(id);
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('legacyMethods.errors.delete'));
@@ -172,7 +154,7 @@ export function DeliveryMethodsPage(): ReactNode {
                     <TableCell>
                       <code className="font-mono text-xs">{r.code}</code>
                     </TableCell>
-                    <TableCell>{r.name['en-US'] ?? Object.values(r.name)[0]}</TableCell>
+                    <TableCell>{resolveAdminDeliveryMethodRenderer(r.rendererKey)(r)}</TableCell>
                     <TableCell>
                       <code className="font-mono text-xs">{r.adapter}</code>
                     </TableCell>
