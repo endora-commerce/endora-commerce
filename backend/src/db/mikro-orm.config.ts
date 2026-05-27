@@ -52,6 +52,7 @@ import { Migration047OrganizationsConsolidation } from '../modules/organizations
 import { Migration048AdminNotificationsInit } from '../modules/admin_notifications/migrations/048_admin_notifications_init.js';
 import { Migration049CustomerAccountsOrganizationOptional } from '../modules/customer_accounts/migrations/049_customer_accounts_organization_optional.js';
 import { Migration050CartsConsolidation } from '../modules/carts/migrations/050_carts_consolidation.js';
+import { Migration051PaymentMethodsAdapter } from '../modules/payment_methods/migrations/051_payment_methods_adapter.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -231,6 +232,10 @@ export default defineConfig({
       {
         name: 'Migration050CartsConsolidation',
         class: Migration050CartsConsolidation,
+      },
+      {
+        name: 'Migration051PaymentMethodsAdapter',
+        class: Migration051PaymentMethodsAdapter,
       },
     ],
     transactional: true,

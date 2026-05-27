@@ -96,11 +96,19 @@ export async function registerPaymentMethodsAdminRoutes(
         row.kind = body.kind;
         if (body.status !== undefined) row.status = body.status;
       } else {
+        // Feature 034: `adapter` defaults to `kind`; statusOn* seed the order
+        // lifecycle. T017 replaces this with the full adapter-aware schema
+        // (adapter / additionalPrice / statusOn* / sales channels) validated
+        // against the registry and OrderStatusRegistry.
         row = em.create(PaymentMethod, {
           code: request.params.code,
           name: body.name,
           kind: body.kind,
+          adapter: body.kind,
           status: body.status ?? 'active',
+          statusOnPending: 'new',
+          statusOnSuccess: 'confirmed',
+          statusOnFailure: 'cancelled',
         });
         isNew = true;
       }
