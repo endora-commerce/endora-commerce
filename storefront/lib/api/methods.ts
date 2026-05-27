@@ -20,6 +20,10 @@ export interface PaymentMethodSummary {
   name: Record<string, string>;
   kind: 'bank_transfer' | 'pickup' | 'credit_limit' | 'gateway';
   status: 'active' | 'inactive';
+  // Feature 034 — adapter framework fields.
+  adapter: string;
+  additionalPrice: number;
+  rendererKey: string | null;
 }
 
 export async function listDeliveryMethods(): Promise<DeliveryMethodSummary[]> {
