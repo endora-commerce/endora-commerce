@@ -1,6 +1,6 @@
 # b2b-platform Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-05-27
+Auto-generated from all feature plans. Last updated: 2026-05-28
 
 ## Active Technologies
 - TypeScript 5.x (strict mode) na Node.js LTS (≥ 22.17, jak w README po update foundation 001). + bez nowych runtime — wszystkie wymagane już są: (002-catalog-module)
@@ -57,6 +57,8 @@ Auto-generated from all feature plans. Last updated: 2026-05-27
 - PostgreSQL via MikroORM. **No new migration** — `orders.discount_total`, `orders.promotion_code`, `addresses`, `carts.applied_promotion_code` all already exist. (036-checkout)
 - TypeScript 5.x (strict) on Node.js ≥ 22.17. + Backend — Fastify, MikroORM (PostgreSQL), Zod, in-process EventBus, existing Promotions/Payment/Shipping adapter registries, and the **Settings module** (`SettingsService` + module-manifest settings) for the business-ID prefix/suffix. Storefront — Next.js (App Router, React Server Components + server actions), the existing Design System. **No new runtime dependency.** (036-checkout)
 - PostgreSQL via MikroORM. **One new migration** `053_orders_business_id.ts` (orders module — first migration for this module; next sequential after `052_shipping_methods_adapter_and_shipments.ts`): adds `orders.business_id varchar(128) NOT NULL UNIQUE`, creates the `orders_business_id_seq` sequence, and backfills existing rows. The discount columns (`orders.discount_total`, `orders.promotion_code`), `addresses`, and `carts.applied_promotion_code` already exist. (036-checkout)
+- TypeScript 5.x (strict) on Node.js ≥ 22.17. + Backend — Fastify, MikroORM (PostgreSQL driver), Zod (boundary validation, source-of-truth schemas in `@b2b/contracts`), in-process EventBus (not used by this feature; the audit row is a direct service call), existing `CartAuditService`. Storefront — Next.js (App Router, Server Components + server actions), the existing Design System (toast primitive). **No new runtime dependency.** (037-cart-merge-on-login)
+- PostgreSQL via MikroORM. **No new migration.** The `carts` table already carries `anonymous_cart_token varchar(64) UNIQUE NULL` and `customer_account_id uuid NULL` (per feature 027 migrations); `cart_audit_log` already accepts arbitrary `action` strings persisted as plain text (no enum constraint at the DB level). The new audit action `cart_merged_from_anon` is a contract-side string, not a schema change. (037-cart-merge-on-login)
 
 - TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x) + MikroORM (PostgreSQL driver) for persistence; Zod for boundary validation; Next.js for the storefront; React for the admin panel; Meilisearch client; Redis client (cache + BullMQ-class queue). Backend HTTP layer intentionally minimal (a small, well-known Node/TypeScript HTTP router; choice deferred to Phase 0 research with a bias toward the smallest dependency footprint compatible with TDD, Zod, and modular routing). (001-b2b-platform-foundation)
 
@@ -76,9 +78,9 @@ npm test && npm run lint
 TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x): Follow standard conventions
 
 ## Recent Changes
+- 037-cart-merge-on-login: Added TypeScript 5.x (strict) on Node.js ≥ 22.17. + Backend — Fastify, MikroORM (PostgreSQL driver), Zod (boundary validation, source-of-truth schemas in `@b2b/contracts`), in-process EventBus (not used by this feature; the audit row is a direct service call), existing `CartAuditService`. Storefront — Next.js (App Router, Server Components + server actions), the existing Design System (toast primitive). **No new runtime dependency.**
 - 036-checkout: Added TypeScript 5.x (strict) on Node.js ≥ 22.17. + Backend — Fastify, MikroORM (PostgreSQL), Zod, in-process EventBus, existing Promotions/Payment/Shipping adapter registries, and the **Settings module** (`SettingsService` + module-manifest settings) for the business-ID prefix/suffix. Storefront — Next.js (App Router, React Server Components + server actions), the existing Design System. **No new runtime dependency.**
 - 036-checkout: Added TypeScript 5.x (strict) on Node.js ≥ 22.17. + Backend — Fastify, MikroORM (PostgreSQL), Zod, in-process EventBus, existing Promotions/Payment/Shipping adapter registries. Storefront — Next.js (App Router, React Server Components + server actions), the existing Design System. **No new runtime dependency.**
-- 035-shipping-method: Added TypeScript 5.x (strict) on Node.js ≥ 22.17. + Fastify, MikroORM (PostgreSQL driver), Zod (boundary validation, source-of-truth schemas in `@b2b/contracts`), ioredis (event bus is in-process; Redis used by lifecycle locks/cache only), Next.js (storefront), React 19 + Vite + react-router-dom 7 (admin uses a direct Promise API client), Vitest. **No new runtime dependency.**
 
 
 <!-- MANUAL ADDITIONS START -->
