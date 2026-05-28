@@ -1,5 +1,6 @@
-import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { randomUUID } from 'crypto';
+import type { NextAction } from '@b2b/contracts';
 
 /**
  * Order — data-model.md § Domain 4.
@@ -16,6 +17,7 @@ import { randomUUID } from 'crypto';
 export class Order {
   [OptionalProps]?:
     | 'id'
+    | 'businessId'
     | 'createdAt'
     | 'updatedAt'
     | 'status'
@@ -28,6 +30,26 @@ export class Order {
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
+
+  /**
+   * Feature 036 — customer-facing business Order ID, distinct from `id`.
+   * Real orders are stamped by `OrderService.placeOrder` via the
+   * business-ID sequence + prefix/suffix settings. The placeholder default
+   * (mirroring `id`) keeps direct `em.create(Order, …)` fixtures unique
+   * without forcing every caller to pass it.
+   */
+  @Property({ type: 'string', length: 128 })
+  @Unique()
+  businessId: string = `ORD-${randomUUID()}`;
+
+  /**
+   * Virtual (not persisted): the payment next-action computed at placement
+   * (transfer details / gateway redirect / none). Set by `placeOrder` and
+   * surfaced in the place-order response so the Success Page can route the
+   * buyer. Order reads load it as `undefined` → serialized as `null`.
+   */
+  @Property({ type: 'json', persist: false })
+  nextAction?: NextAction | null;
 
   @Property({ type: 'uuid' })
   @Index()

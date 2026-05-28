@@ -6,6 +6,25 @@ import { apiGetAuthed, apiMutate } from './mutations';
  * supported: the buyer must be identified before checkout.
  */
 
+/**
+ * Payment next-action returned by the place-order response (feature 034/036).
+ * Drives Success-Page routing: nothing, bank-transfer details, or a redirect.
+ */
+export type NextAction =
+  | { kind: 'none' }
+  | {
+      kind: 'awaiting_transfer';
+      accountDetails: {
+        accountNumber: string;
+        accountHolder: string;
+        bankName: string;
+        amount: number;
+        currency: string;
+        reference: string;
+      };
+    }
+  | { kind: 'redirect_to_gateway'; url: string; expiresAt: string };
+
 export interface OrderItem {
   id: string;
   productId: string;
@@ -19,6 +38,8 @@ export interface OrderItem {
 
 export interface OrderSummary {
   id: string;
+  /** Feature 036 — customer-facing business Order ID (shown instead of `id`). */
+  businessId: string;
   organizationId: string;
   status: string;
   paymentStatus: string;
@@ -35,7 +56,7 @@ export interface OrderSummary {
   currency: string;
   customerNote: string | null;
   placedAt: string;
-  nextAction: { kind: string } | null;
+  nextAction: NextAction | null;
 }
 
 export interface PlaceOrderPayload {

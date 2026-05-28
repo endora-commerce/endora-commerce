@@ -54,6 +54,7 @@ import { Migration049CustomerAccountsOrganizationOptional } from '../modules/cus
 import { Migration050CartsConsolidation } from '../modules/carts/migrations/050_carts_consolidation.js';
 import { Migration051PaymentMethodsAdapter } from '../modules/payment_methods/migrations/051_payment_methods_adapter.js';
 import { Migration052ShippingMethodsAdapterAndShipments } from '../modules/delivery_methods/migrations/052_shipping_methods_adapter_and_shipments.js';
+import { Migration053OrdersBusinessId } from '../modules/orders/migrations/053_orders_business_id.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -241,6 +242,10 @@ export default defineConfig({
       {
         name: 'Migration052ShippingMethodsAdapterAndShipments',
         class: Migration052ShippingMethodsAdapterAndShipments,
+      },
+      {
+        name: 'Migration053OrdersBusinessId',
+        class: Migration053OrdersBusinessId,
       },
     ],
     transactional: true,

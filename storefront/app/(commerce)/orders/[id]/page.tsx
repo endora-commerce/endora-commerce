@@ -40,7 +40,7 @@ export default async function OrderConfirmationPage({
     <div className="b2b-auth" style={{ maxWidth: 720 }}>
       <h1>Thank you — order placed</h1>
       <p className="b2b-auth__success">
-        Order <strong>#{order.id.slice(0, 8)}</strong> has been received.
+        Order <strong>{order.businessId}</strong> has been received.
       </p>
 
       {order.nextAction?.kind === 'awaiting_transfer' ? (

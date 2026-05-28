@@ -24,6 +24,8 @@ export interface BuildOrderConfirmationEmailInput {
   to: string;
   order: {
     id: string;
+    /** Feature 036 — customer-facing business Order ID used in the e-mail. */
+    businessId: string;
     deliveryMethodSnapshot: { code: string; name: string; cost: number };
     paymentMethodSnapshot: {
       code: string;
@@ -111,7 +113,7 @@ export function buildOrderConfirmationEmail(
   const text = [
     `Thank you for your order.`,
     ``,
-    `Order: ${order.id}`,
+    `Order: ${order.businessId}`,
     ``,
     `Products:`,
     ...productLines,
@@ -133,7 +135,7 @@ export function buildOrderConfirmationEmail(
   return {
     messageId: `order_confirmation:${order.id}`,
     to: input.to,
-    subject: `Order confirmation ${order.id.slice(0, 8)}`,
+    subject: `Order confirmation ${order.businessId}`,
     text,
     meta: {
       kind: 'order_confirmation',

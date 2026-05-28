@@ -2,14 +2,22 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getSessionCookie, getAnonCartCookie, setAnonCartCookie } from '../../../lib/session';
-import { getCart, type CartCookieJar } from '../../../lib/api/cart';
-import { listAddresses } from '../../../lib/api/organization';
+import {
+  getCart,
+  applyCartCoupon,
+  clearCartCoupon,
+  type CartCookieJar,
+} from '../../../lib/api/cart';
+import { listAddresses, createAddress } from '../../../lib/api/organization';
 import { listDeliveryMethods, listPaymentMethods } from '../../../lib/api/methods';
 import { placeOrder } from '../../../lib/api/orders';
 import { getMyCreditLimit } from '../../../lib/api/credit-limit';
 import { CreditLimitWidget } from '../../../components/CreditLimitWidget';
 import { PaymentMethods } from '../../../components/checkout/PaymentMethods';
 import { ShippingMethods } from '../../../components/checkout/ShippingMethods';
+import { AddressSection } from '../../../components/checkout/AddressSection';
+import { CouponField } from '../../../components/checkout/CouponField';
+import { getServerContext } from '../../../lib/server-context';
 import { OrganizationModerationBanner } from '../../../components/OrganizationModerationBanner';
 import { StorefrontApiError } from '../../../lib/api/client';
 import { getMe } from '../../../lib/api/account';
@@ -28,13 +36,16 @@ import { getMe } from '../../../lib/api/account';
 export default async function CheckoutPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; couponError?: string }>;
 }): Promise<ReactNode> {
   const session = await getSessionCookie();
   if (!session) redirect('/login?next=/checkout');
 
   const params = await searchParams;
   const jar: CartCookieJar = await readJar();
+  // Feature 036 (T039) — resolve the active locale so checkout components
+  // can render their copy in PL/EN.
+  const { locale } = await getServerContext();
 
   const [cartResult, addresses, deliveryMethods, paymentMethodsRaw, creditLimit, me] =
     await Promise.all([
@@ -72,23 +83,10 @@ export default async function CheckoutPage({
     );
   }
 
+  // Feature 036 (US2) — the buyer may pick a saved address or enter a new one,
+  // so an empty saved-address book no longer blocks checkout.
   const deliveryAddrs = addresses.filter((a) => a.kind === 'delivery');
   const billingAddrs = addresses.filter((a) => a.kind === 'billing');
-
-  if (deliveryAddrs.length === 0 || billingAddrs.length === 0) {
-    return (
-      <div className="b2b-auth">
-        <h1>Checkout</h1>
-        <p className="b2b-auth__error">
-          You need at least one delivery and one billing address. Add them under{' '}
-          <Link href="/organization/addresses">Organization → Addresses</Link>.
-        </p>
-      </div>
-    );
-  }
-
-  const defaultDelivery = deliveryAddrs.find((a) => a.isDefault) ?? deliveryAddrs[0]!;
-  const defaultBilling = billingAddrs.find((a) => a.isDefault) ?? billingAddrs[0]!;
 
   return (
     <div className="b2b-auth" style={{ maxWidth: 720 }}>
@@ -100,36 +98,23 @@ export default async function CheckoutPage({
       {params.error ? <p className="b2b-auth__error">{params.error}</p> : null}
 
       <form action={submitAction} className="b2b-auth__form">
-        <fieldset className="b2b-auth__form" style={{ border: 0, padding: 0 }}>
-          <legend style={{ fontWeight: 600 }}>Delivery address</legend>
-          <select name="deliveryAddressId" defaultValue={defaultDelivery.id}>
-            {deliveryAddrs.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.recipientName} — {a.street}, {a.postalCode} {a.city}, {a.country}
-              </option>
-            ))}
-          </select>
-        </fieldset>
-
-        <fieldset className="b2b-auth__form" style={{ border: 0, padding: 0 }}>
-          <legend style={{ fontWeight: 600 }}>Billing address</legend>
-          <select name="billingAddressId" defaultValue={defaultBilling.id}>
-            {billingAddrs.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.recipientName} — {a.street}, {a.postalCode} {a.city}, {a.country}
-              </option>
-            ))}
-          </select>
-        </fieldset>
+        <AddressSection
+          deliveryAddresses={deliveryAddrs}
+          billingAddresses={billingAddrs}
+          locale={locale}
+        />
 
         <ShippingMethods methods={deliveryMethods} />
 
         <PaymentMethods methods={paymentMethods} currency={cart.subtotal.currency} />
 
-        <div className="b2b-auth__field">
-          <label htmlFor="promo">Promotion code (optional)</label>
-          <input id="promo" name="promotionCode" maxLength={64} placeholder=" " />
-        </div>
+        <CouponField
+          applied={cart.discount ?? null}
+          error={params.couponError ?? null}
+          applyAction={applyCouponAction}
+          clearAction={clearCouponAction}
+          locale={locale}
+        />
         <div className="b2b-auth__field">
           <label htmlFor="note">Note for the seller (optional)</label>
           <textarea id="note" name="customerNote" rows={3} maxLength={4000} placeholder=" " />
@@ -168,6 +153,28 @@ export default async function CheckoutPage({
                 {cart.subtotal.amount.toFixed(2)} {cart.subtotal.currency}
               </th>
             </tr>
+            {cart.discount ? (
+              <tr>
+                <th colSpan={2} scope="row" style={{ textAlign: 'right' }}>
+                  Discount ({cart.discount.code})
+                </th>
+                <th>
+                  −{cart.discount.amount.toFixed(2)} {cart.discount.currency}
+                </th>
+              </tr>
+            ) : null}
+            {cart.grandTotal ? (
+              <tr>
+                <th colSpan={2} scope="row" style={{ textAlign: 'right' }}>
+                  <strong>Total</strong>
+                </th>
+                <th>
+                  <strong>
+                    {cart.grandTotal.amount.toFixed(2)} {cart.grandTotal.currency}
+                  </strong>
+                </th>
+              </tr>
+            ) : null}
           </tbody>
         </table>
 
@@ -204,21 +211,100 @@ async function submitAction(formData: FormData): Promise<void> {
   const promo = (formData.get('promotionCode') as string | null) || undefined;
   const note = (formData.get('customerNote') as string | null) || undefined;
 
-  let orderId: string;
+  // Feature 036 (US2) — resolve a shipping/billing address: a saved id is used
+  // as-is; a newly entered address is created in the org address book first and
+  // referenced by its returned id.
+  const field = (name: string): string => ((formData.get(name) as string | null) ?? '').trim();
+  async function resolveAddress(kind: 'delivery' | 'billing', prefix: string): Promise<string> {
+    const savedId = field(`${prefix}AddressId`);
+    if (savedId) return savedId;
+    const created = await createAddress(session!, {
+      kind,
+      recipientName: field(`${prefix}_recipientName`),
+      street: field(`${prefix}_street`),
+      city: field(`${prefix}_city`),
+      postalCode: field(`${prefix}_postalCode`),
+      country: field(`${prefix}_country`),
+      ...(field(`${prefix}_phone`) ? { phone: field(`${prefix}_phone`) } : {}),
+    });
+    return created.id;
+  }
+
+  let order;
   try {
-    const order = await placeOrder(session, {
-      deliveryAddressId: (formData.get('deliveryAddressId') as string) ?? '',
-      billingAddressId: (formData.get('billingAddressId') as string) ?? '',
+    const deliveryAddressId = await resolveAddress('delivery', 'delivery');
+    const billingAddressId =
+      formData.get('billingSameAsShipping') != null
+        ? deliveryAddressId
+        : await resolveAddress('billing', 'billing');
+
+    order = await placeOrder(session, {
+      deliveryAddressId,
+      billingAddressId,
       deliveryMethodId: (formData.get('deliveryMethodId') as string) ?? '',
       paymentMethodId: (formData.get('paymentMethodId') as string) ?? '',
       ...(promo ? { promotionCode: promo } : {}),
       ...(note ? { customerNote: note } : {}),
     });
-    orderId = order.id;
   } catch (err) {
+    // Feature 036 (US4) — placement failed: the transaction rolled back, so the
+    // cart is intact. Send the buyer to the Failure Page with a reason-specific
+    // message and a "Try again" button (rather than re-rendering checkout).
     const message =
       err instanceof StorefrontApiError ? err.message : 'Could not place the order.';
-    redirect(`/checkout?error=${encodeURIComponent(message)}`);
+    redirect(`/checkout/failure?reason=${encodeURIComponent(message)}`);
   }
-  redirect(`/orders/${orderId}`);
+  // Feature 036 — a gateway method returns a redirect next-action; send the
+  // buyer to the gateway. Otherwise land on the Success Page, which shows the
+  // customer-facing business Order ID.
+  if (order.nextAction?.kind === 'redirect_to_gateway') {
+    redirect(order.nextAction.url);
+  }
+  redirect(`/checkout/success?id=${order.id}`);
+}
+
+/**
+ * Feature 036 (US3) — apply (or replace) a coupon on the cart, then re-render
+ * checkout so the discount is reflected in the summary before placing the
+ * order. The cart is the source of truth `placeOrder` reads. A rejected code
+ * round-trips back with a reason-specific message; totals stay unchanged.
+ */
+async function applyCouponAction(formData: FormData): Promise<void> {
+  'use server';
+  const jar = await readJar();
+  if (!jar.session && !jar.anon) redirect('/login?next=/checkout');
+  const code = ((formData.get('couponCode') as string | null) ?? '').trim();
+  if (!code) redirect('/checkout');
+  const result = await applyCartCoupon(jar, code);
+  if (result.outcome === 'rejected') {
+    redirect(`/checkout?couponError=${encodeURIComponent(couponRejectionMessage(result.reason))}`);
+  }
+  redirect('/checkout');
+}
+
+async function clearCouponAction(): Promise<void> {
+  'use server';
+  const jar = await readJar();
+  if (!jar.session && !jar.anon) redirect('/login?next=/checkout');
+  await clearCartCoupon(jar);
+  redirect('/checkout');
+}
+
+/** Map the typed coupon-rejection reasons to a localized buyer message. */
+function couponRejectionMessage(reason: string): string {
+  switch (reason) {
+    case 'invalid_code':
+    case 'coupon_format_invalid':
+      return 'This coupon code is invalid.';
+    case 'expired':
+      return 'This coupon has expired.';
+    case 'below_min_spend':
+      return 'Your cart does not meet this coupon’s minimum spend.';
+    case 'wrong_channel':
+    case 'wrong_customer_group':
+    case 'wrong_organization':
+      return 'This coupon is not available for your account.';
+    default:
+      return 'This coupon could not be applied.';
+  }
 }

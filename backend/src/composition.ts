@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
+// eslint-disable-next-line @typescript-eslint/naming-convention -- `Redis` is the class default-exported by ioredis; PascalCase is correct.
 import Redis from 'ioredis';
 import { CustomerAccount } from './modules/customer_accounts/entities/customer-account.entity.js';
 import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';
@@ -577,6 +578,32 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           return await settings.handle.settingsService.get(
             'carts.abandonment.notification_recipient',
             'default',
+            z.string(),
+          );
+        } catch {
+          return '';
+        }
+      },
+      // Feature 036 — business Order ID prefix/suffix, resolved per Sales
+      // Channel. Missing/out-of-scope settings resolve to '' (bare numeric ID).
+      resolveOrderBusinessIdPrefix: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'orders.business_id.prefix',
+            salesChannelId,
+            z.string(),
+          );
+        } catch {
+          return '';
+        }
+      },
+      resolveOrderBusinessIdSuffix: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'orders.business_id.suffix',
+            salesChannelId,
             z.string(),
           );
         } catch {

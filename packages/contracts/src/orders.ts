@@ -61,6 +61,13 @@ export type NextAction = z.infer<typeof nextActionSchema>;
 
 export const orderSchema = z.object({
   id: uuidSchema,
+  /**
+   * Customer-facing business Order ID (feature 036). Distinct from the
+   * database `id` (UUID): `${prefix}${sequence}${suffix}`, where prefix/suffix
+   * come from the `orders.business_id.*` settings. This is the identifier
+   * shown to the Customer; `id` stays internal.
+   */
+  businessId: z.string(),
   organizationId: uuidSchema,
   placedByCustomerAccountId: uuidSchema,
   placedOnBehalfByAdminUserId: uuidSchema.nullable(),

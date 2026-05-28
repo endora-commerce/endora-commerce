@@ -10,6 +10,7 @@ const input = () => ({
   to: 'buyer@example.com',
   order: {
     id: 'abcdef12-0000-4000-8000-000000000001',
+    businessId: 'ORD-1042',
     deliveryMethodSnapshot: { code: 'courier', name: 'Courier', cost: 12 },
     paymentMethodSnapshot: {
       code: 'cod',
@@ -73,6 +74,15 @@ describe('buildOrderConfirmationEmail', () => {
     expect(body).toContain('Jan Kowalski');
     expect(body).toContain('Billing address:');
     expect(body).toContain('Firma Sp. z o.o.');
+  });
+
+  it('identifies the order by its business Order ID (feature 036)', () => {
+    const mail = buildOrderConfirmationEmail(input());
+    // Subject + body reference the customer-facing business ID, not the UUID.
+    expect(mail.subject).toContain('ORD-1042');
+    expect(mail.text).toContain('Order: ORD-1042');
+    expect(mail.subject).not.toContain('abcdef12');
+    expect(mail.text).not.toContain('Order: abcdef12');
   });
 
   it('shows "none" when there is no discount', () => {

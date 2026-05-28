@@ -1,9 +1,27 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { LockMode } from '@mikro-orm/core';
-import { ERROR_CODES, type PlaceOrderRequest } from '@b2b/contracts';
+import {
+  ERROR_CODES,
+  type CartSnapshot,
+  type NextAction,
+  type PlaceOrderRequest,
+  type PromotionApplication,
+  type StartPaymentResult,
+} from '@b2b/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
+import type { BusinessIdGenerator } from './business-id-generator.js';
+
+/**
+ * Feature 036 (US3) — narrow port over the promotion engine, consumed to
+ * recompute the cart's coupon discount at placement and stamp it on the
+ * Order. `PromotionService.applyToCart` satisfies this structurally; injecting
+ * a port (not the service) keeps the modular boundary (Principle I).
+ */
+export interface PromotionPort {
+  applyToCart(snapshot: CartSnapshot): Promise<PromotionApplication>;
+}
 import { Organization } from '../../organizations/entities/organization.entity.js';
 import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { Address } from '../../addresses/entities/address.entity.js';
@@ -93,6 +111,10 @@ export class OrderService {
   private readonly orderStatusRegistry: OrderStatusRegistry | undefined;
   private readonly shippingAdapters: ShippingAdapterRegistry | undefined;
   private readonly mailer: Mailer | undefined;
+  /** Feature 036 — generates the customer-facing business Order ID. */
+  private readonly businessId: BusinessIdGenerator | undefined;
+  /** Feature 036 (US3) — recomputes the cart's coupon discount at placement. */
+  private readonly promotion: PromotionPort | undefined;
 
   constructor(
     private readonly emFactory: () => EntityManager,
@@ -105,6 +127,8 @@ export class OrderService {
       orderStatusRegistry?: OrderStatusRegistry;
       shippingAdapters?: ShippingAdapterRegistry;
       mailer?: Mailer;
+      businessId?: BusinessIdGenerator;
+      promotion?: PromotionPort;
     },
   ) {
     this.accessService = accessService ?? new OrderAccessService(emFactory);
@@ -112,6 +136,8 @@ export class OrderService {
     this.orderStatusRegistry = paymentDeps?.orderStatusRegistry;
     this.shippingAdapters = paymentDeps?.shippingAdapters;
     this.mailer = paymentDeps?.mailer;
+    this.businessId = paymentDeps?.businessId;
+    this.promotion = paymentDeps?.promotion;
   }
 
   /**
@@ -140,6 +166,7 @@ export class OrderService {
       to: customer.email,
       order: {
         id: order.id,
+        businessId: order.businessId,
         deliveryMethodSnapshot: order.deliveryMethodSnapshot,
         paymentMethodSnapshot: order.paymentMethodSnapshot,
         paymentRendererKey: rendererKey,
@@ -262,6 +289,45 @@ export class OrderService {
         ERROR_CODES.VALIDATION_FAILED,
         'The selected shipping method is not available for this order.',
       );
+    }
+  }
+
+  /**
+   * Feature 036 — map the payment adapter's `StartPaymentResult` (returned by
+   * `onStorefrontOrderCreated`) to the contract `NextAction` surfaced in the
+   * place-order response, so the Success Page can route the buyer. The offline
+   * bank-transfer adapter carries only an IBAN + reference; the richer
+   * `accountDetails` fields it does not supply are left empty (a real gateway
+   * adapter fills them).
+   */
+  private mapNextAction(
+    result: StartPaymentResult,
+    order: { total: number; currency: string; accountHolder?: string; bankName?: string },
+  ): NextAction {
+    switch (result.kind) {
+      case 'awaiting_transfer':
+        return {
+          kind: 'awaiting_transfer',
+          accountDetails: {
+            accountNumber: result.iban ?? '',
+            accountHolder: order.accountHolder ?? '',
+            bankName: order.bankName ?? '',
+            amount: order.total,
+            currency: order.currency,
+            reference: result.reference,
+          },
+        };
+      case 'redirect':
+        return {
+          kind: 'redirect_to_gateway',
+          url: result.url,
+          // The bundled adapters do not carry an expiry; default to +15 min so
+          // the response satisfies the contract. A real gateway adapter sets it.
+          expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+        };
+      case 'none':
+      default:
+        return { kind: 'none' };
     }
   }
 
@@ -509,16 +575,59 @@ export class OrderService {
       const deliveryTotal = Number(deliveryMethod.cost);
       // Feature 034 — flat payment surcharge in the order currency (FR-005 / US2 AC2).
       const paymentSurcharge = Number(paymentMethod.additionalPrice ?? '0');
-      const total = Math.round((subtotal + taxTotal + deliveryTotal + paymentSurcharge) * 100) / 100;
       const currency = deliveryMethod.currency;
+
+      // Feature 036 (US3) — recompute the cart's coupon discount through the
+      // promotion engine and stamp it on the Order so totals and the
+      // confirmation e-mail reflect it. The cart's applied coupon is the
+      // source of truth (set by the checkout coupon control before placement).
+      // Mirrors CartCouponService's snapshot construction. No-op when no
+      // promotion port is wired or the cart carries no coupon.
+      let discountTotal = 0;
+      let appliedPromotionCode: string | null = null;
+      if (this.promotion && cart.appliedPromotionCode) {
+        const snapshot: CartSnapshot = {
+          organizationId: ctx.organizationId,
+          customerGroupId: null,
+          currency,
+          lines: items.map((it) => ({
+            productId: it.productId,
+            variantId: it.variantId ?? null,
+            categoryIds: [],
+            quantity: it.quantity,
+            unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
+          })),
+          deliveryTotal,
+          promotionCode: cart.appliedPromotionCode,
+        };
+        const application = await this.promotion.applyToCart(snapshot);
+        if (application.discountTotal > 0) {
+          discountTotal = application.discountTotal;
+          appliedPromotionCode = cart.appliedPromotionCode;
+        }
+      }
+
+      const total =
+        Math.round(
+          (subtotal + taxTotal + deliveryTotal + paymentSurcharge - discountTotal) * 100,
+        ) / 100;
 
       // Sales channel — use any active one; real resolution uses Cart ↔ Channel in US2 T136.
       const channel = await tx.findOne(SalesChannel, { status: 'active' });
+
+      // Feature 036 — customer-facing business Order ID, generated from the
+      // monotonic sequence + the channel-scoped prefix/suffix settings. Falls
+      // back to the entity's placeholder default when the generator is not
+      // wired (legacy compositions / unit tests).
+      const businessId = this.businessId
+        ? await this.businessId.generate(tx, channel?.id ?? 'default')
+        : undefined;
 
       const order = tx.create(Order, {
         organizationId: ctx.organizationId,
         placedByCustomerAccountId: ctx.customerAccountId,
         salesChannelId: channel?.id ?? randomUUID(),
+        ...(businessId ? { businessId } : {}),
         deliveryAddress: {
           recipientName: delivery.recipientName,
           street: delivery.street,
@@ -558,6 +667,9 @@ export class OrderService {
         subtotal: subtotal.toFixed(2),
         taxTotal: taxTotal.toFixed(2),
         deliveryTotal: deliveryTotal.toFixed(2),
+        // Feature 036 (US3) — coupon discount recomputed above.
+        discountTotal: discountTotal.toFixed(2),
+        ...(appliedPromotionCode ? { promotionCode: appliedPromotionCode } : {}),
         total: total.toFixed(2),
         currency,
         ...(req.customerNote ? { customerNote: req.customerNote } : {}),
@@ -621,18 +733,20 @@ export class OrderService {
       await tx.persistAndFlush(payment);
 
       // Feature 034 — invoke the adapter's storefront_order_created handler
-      // (FR-021). Threading the returned nextAction into the place-order
-      // response is a follow-up; the bundled offline adapters are
-      // side-effect-free here and credit_limit reserves inline below.
+      // (FR-021). Feature 036 — capture the returned StartPaymentResult and map
+      // it to the response NextAction so the Success Page can route the buyer
+      // (transfer details / gateway redirect / nothing). The bundled offline
+      // adapters are side-effect-free here; credit_limit reserves inline below.
       const adapter = this.paymentAdapters?.get(paymentMethod.adapter);
-      if (adapter) {
-        await adapter.onStorefrontOrderCreated({
-          orderId: order.id,
-          paymentId: payment.id,
-          amount: total,
-          currency,
-        });
-      }
+      const startResult = adapter
+        ? await adapter.onStorefrontOrderCreated({
+            orderId: order.id,
+            paymentId: payment.id,
+            amount: total,
+            currency,
+          })
+        : ({ kind: 'none' } as const);
+      order.nextAction = this.mapNextAction(startResult, { total, currency });
 
       // Feature 035 (FR-020) — fire the shipping adapter's order_created hook.
       // Offline adapters are no-ops; a Shipment is opened later by the explicit

@@ -19,12 +19,15 @@ import { registerCartsOrganizationRoutes } from '../carts/routes.organization.js
 import type { PricingService } from '../price_lists/services/pricing-service.js';
 import type { PromotionService } from '../promotions/services/promotion-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
+// eslint-disable-next-line @typescript-eslint/naming-convention -- `Redis` is the class default-exported by ioredis; PascalCase is correct.
 import type Redis from 'ioredis';
+import type { Mailer } from '../email/services/mailer.js';
 import {
   OrderService,
   type CreditLimitPort,
   type OrderEventBus,
 } from './services/order-service.js';
+import { createBusinessIdGenerator } from './services/business-id-generator.js';
 import { registerCartRoutes } from '../carts/routes.js';
 import { registerOrderRoutes } from './routes.js';
 import {
@@ -72,7 +75,7 @@ export interface OrdersModuleOptions {
   /** Audit-log writer; OrderService stamps order.place_on_behalf rows on impersonated checkouts. */
   auditLogService?: AuditLogService;
   /** Feature 034 — mailer for the order-confirmation e-mail (best-effort, post-commit). */
-  mailer?: import('../email/services/mailer.js').Mailer;
+  mailer?: Mailer;
   /** Optional CreditLimit driver — wired by the credit_limits module composition root. */
   creditLimit?: CreditLimitPort;
   /**
@@ -196,6 +199,14 @@ export interface OrdersModuleOptions {
    * invocation; production scheduling is an operational concern.
    */
   exposeCartAbandonmentWorker?: (worker: CartAbandonmentWorker) => void;
+  /**
+   * Feature 036 — resolves the channel-scoped `orders.business_id.prefix`
+   * setting for the business Order ID. Wired by composition through
+   * SettingsService; failures/defaults resolve to ''. Omit ⇒ no prefix.
+   */
+  resolveOrderBusinessIdPrefix?: (salesChannelId: string) => Promise<string>;
+  /** Feature 036 — same for `orders.business_id.suffix`. */
+  resolveOrderBusinessIdSuffix?: (salesChannelId: string) => Promise<string>;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -250,6 +261,20 @@ export function commerceModule(options: OrdersModuleOptions) {
     const shippingOrderStatusRegistry = new ShippingEnumOrderStatusRegistry();
     const shippingEligibility = new ShippingMethodEligibilityService(shippingAdapterRegistry);
 
+    // Feature 036 — business Order ID generator. Adapts the composition-wired
+    // prefix/suffix resolver closures (SettingsService-backed) to the
+    // generator's settings port; the generator itself draws the sequence.
+    const businessIdGenerator = createBusinessIdGenerator(
+      options.resolveOrderBusinessIdPrefix || options.resolveOrderBusinessIdSuffix
+        ? {
+            resolvePrefix: (salesChannelId: string) =>
+              options.resolveOrderBusinessIdPrefix?.(salesChannelId) ?? Promise.resolve(''),
+            resolveSuffix: (salesChannelId: string) =>
+              options.resolveOrderBusinessIdSuffix?.(salesChannelId) ?? Promise.resolve(''),
+          }
+        : undefined,
+    );
+
     const orderService = new OrderService(
       options.emFactory,
       options.eventBus as OrderEventBus,
@@ -260,6 +285,11 @@ export function commerceModule(options: OrdersModuleOptions) {
         paymentAdapters: paymentAdapterRegistry,
         orderStatusRegistry,
         shippingAdapters: shippingAdapterRegistry,
+        businessId: businessIdGenerator,
+        // Feature 036 (US3) — PromotionService satisfies PromotionPort
+        // structurally; threaded so placeOrder stamps the cart's coupon
+        // discount onto the Order.
+        ...(options.promotionService ? { promotion: options.promotionService } : {}),
         ...(options.mailer ? { mailer: options.mailer } : {}),
       },
     );
