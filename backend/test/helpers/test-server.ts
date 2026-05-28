@@ -142,6 +142,12 @@ export interface BackendServerHandle {
     /** Feature 026 US4 — per-org allow-list service. */
     restrictionService: OrganizationRestrictionService;
   };
+  /**
+   * Feature 037 — direct handle on the CartService for tests that exercise
+   * `mergeAnonymousIntoCustomer` without going through the login route.
+   * Available once the commerce module finishes wiring (after `setupBackendServer`).
+   */
+  cartService: () => CartService | null;
 }
 
 const SEEDED_TABLES = [
@@ -662,11 +668,16 @@ export async function setupBackendServer(
           storefrontBaseUrl: 'http://localhost:3000',
           onLogin: async (ctx) => {
             if (cartService && ctx.anonymousCartToken && ctx.organizationId) {
-              await cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
-                customerAccountId: ctx.customerAccountId,
-                organizationId: ctx.organizationId,
-              });
+              const cartMerge = await cartService.mergeAnonymousIntoCustomer(
+                ctx.anonymousCartToken,
+                {
+                  customerAccountId: ctx.customerAccountId,
+                  organizationId: ctx.organizationId,
+                },
+              );
+              return { cartMerge };
             }
+            return {};
           },
         }),
       ];
@@ -1024,6 +1035,7 @@ export async function setupBackendServer(
       organizationContextService: null as unknown as OrganizationContextService,
       restrictionService: null as unknown as OrganizationRestrictionService,
     },
+    cartService: () => cartService,
   };
 }
 

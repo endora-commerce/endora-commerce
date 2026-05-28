@@ -695,8 +695,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
         : {}),
       onLogin: async (ctx) => {
+        let cartMerge: Awaited<
+          ReturnType<NonNullable<typeof cartService>['mergeAnonymousIntoCustomer']>
+        > | undefined;
         if (cartService && ctx.anonymousCartToken) {
-          await cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
+          cartMerge = await cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
             customerAccountId: ctx.customerAccountId,
             organizationId: ctx.organizationId,
           });
@@ -710,6 +713,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
             ctx.anonymousCompareToken,
           );
         }
+        return cartMerge ? { cartMerge } : {};
       },
     }),
     catalogModule({

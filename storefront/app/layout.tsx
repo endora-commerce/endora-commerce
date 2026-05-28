@@ -6,6 +6,7 @@ import { Hook } from '../components/Hook';
 import { Megamenu } from '../components/Megamenu/Megamenu';
 import { PwaRegister } from '../components/PwaRegister';
 import { RouteTransition } from '../components/RouteTransition';
+import { CartMergeToast } from '../components/CartMergeToast';
 import { CheckoutHeader } from '../components/checkout/CheckoutHeader';
 import { getActiveMegamenu } from '../lib/api/megamenu';
 import { getServerContext } from '../lib/server-context';
@@ -85,6 +86,11 @@ export default async function RootLayout({
               </>
             )}
             <main className="b2b-shell__main">
+              {/* Feature 037 — post-login cart-merge confirmation. The
+                  component reads-and-clears its own flash cookie, so it
+                  renders to `null` on every page except the one that
+                  immediately follows a successful merge. */}
+              <CartMergeToast />
               <Hook code="page.top" />
               <RouteTransition>{children}</RouteTransition>
               <Hook code="page.bottom" />
