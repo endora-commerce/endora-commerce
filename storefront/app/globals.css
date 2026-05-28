@@ -1714,6 +1714,17 @@ h3 { font-size: 16px; font-weight: 600; }
   gap: 8px;
   flex-wrap: wrap;
 }
+.industria-compare-toolbar__readonly {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  border: 1px solid var(--line);
+  color: var(--ink-500);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
 .industria-toggle-row {
   display: inline-flex;
   align-items: center;
