@@ -3,6 +3,7 @@ import { ProductGrid } from '../../../components/ProductGrid';
 import { FilterPanel } from '../../../components/FilterPanel';
 import { Pagination } from '../../../components/Pagination';
 import { Breadcrumbs } from '../../../components/Breadcrumbs';
+import { CatalogToolbar } from '../../../components/CatalogToolbar';
 import { listProducts, getFilters } from '../../../lib/api/catalog';
 import { getServerContext } from '../../../lib/server-context';
 import { tForLocale } from '../../../lib/i18n/messages';
@@ -44,6 +45,7 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
           filters={filters}
           selected={query.list.attributeFilters ?? {}}
           baseQuery={query.baseQuery}
+          basePath="/catalog"
           locale={locale}
         />
         <div>
@@ -53,20 +55,19 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
               <p>{products.data.length.toLocaleString('pl-PL')} produktów</p>
             </div>
           </div>
-          <div className="industria-toolbar">
-            <div className="industria-toolbar__left">
-              Pokazuję <strong>1–{products.data.length}</strong> wyników
-            </div>
-            <div className="industria-toolbar__right">
-              <select className="industria-select" name="sort" defaultValue={query.list.sort ?? 'relevance'}>
-                <option value="relevance">Sortuj: trafność</option>
-                <option value="-createdAt">Najnowsze</option>
-                <option value="name">Nazwa A–Z</option>
-                <option value="-name">Nazwa Z–A</option>
-              </select>
-            </div>
-          </div>
-          <ProductGrid products={products.data} locale={locale} columns={3} />
+          <CatalogToolbar
+            shown={products.data.length}
+            sort={query.list.sort ?? 'relevance'}
+            limit={query.list.limit ?? 24}
+            view={query.view}
+            baseQuery={query.baseQuery}
+          />
+          <ProductGrid
+            products={products.data}
+            locale={locale}
+            columns={3}
+            view={query.view}
+          />
           <Pagination
             basePath="/catalog"
             baseQuery={query.baseQuery}
@@ -85,14 +86,18 @@ function parseQuery(raw: Record<string, string | string[] | undefined>): {
     q?: string | undefined;
     cursor?: string | undefined;
     sort?: 'relevance' | '-createdAt' | 'name' | '-name' | undefined;
+    limit?: 24 | 48 | 96 | undefined;
     attributeFilters?: Record<string, string[]> | undefined;
   };
+  view: 'grid' | 'list';
   baseQuery: Record<string, string>;
 } {
   const baseQuery: Record<string, string> = {};
   const attributeFilters: Record<string, string[]> = {};
   let q: string | undefined;
   let sort: 'relevance' | '-createdAt' | 'name' | '-name' | undefined;
+  let limit: 24 | 48 | 96 | undefined;
+  let view: 'grid' | 'list' = 'grid';
   for (const [key, value] of Object.entries(raw)) {
     if (value === undefined) continue;
     if (key === 'q' && typeof value === 'string') {
@@ -107,6 +112,25 @@ function parseQuery(raw: Record<string, string | string[] | undefined>): {
       }
       continue;
     }
+    if (key === 'limit' && typeof value === 'string') {
+      const n = Number(value);
+      if (n === 24 || n === 48 || n === 96) {
+        limit = n;
+        baseQuery['limit'] = String(n);
+      }
+      continue;
+    }
+    if (key === 'view' && typeof value === 'string') {
+      if (value === 'list') {
+        view = 'list';
+        baseQuery['view'] = 'list';
+      }
+      continue;
+    }
+    if (key === 'cursor' && typeof value === 'string') {
+      baseQuery['cursor'] = value;
+      continue;
+    }
     const attrMatch = /^filter\[attr\.([^\]]+)\]$/.exec(key);
     if (attrMatch && attrMatch[1]) {
       const values = Array.isArray(value) ? value.map(String) : [String(value)];
@@ -117,8 +141,11 @@ function parseQuery(raw: Record<string, string | string[] | undefined>): {
     list: {
       ...(q !== undefined ? { q } : {}),
       ...(sort !== undefined ? { sort } : {}),
+      ...(limit !== undefined ? { limit } : {}),
+      ...(baseQuery['cursor'] !== undefined ? { cursor: baseQuery['cursor'] } : {}),
       ...(Object.keys(attributeFilters).length > 0 ? { attributeFilters } : {}),
     },
+    view,
     baseQuery,
   };
 }
