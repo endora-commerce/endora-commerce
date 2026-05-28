@@ -3,7 +3,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { loginCustomer } from '../../../lib/api/auth';
 import { StorefrontApiError } from '../../../lib/api/client';
-import { setSessionCookie } from '../../../lib/session';
+import { setCartMergeFlash, setSessionCookie } from '../../../lib/session';
 import { Hook } from '../../../components/Hook';
 
 /**
@@ -90,6 +90,16 @@ async function loginAction(formData: FormData): Promise<void> {
       redirect(`/login?error=${encodeURIComponent('Login did not return a session.')}`);
     }
     await setSessionCookie(result.sessionCookieValue);
+    // Feature 037 — when the login carried an anonymous cart and the
+    // backend's merge had an observable effect, write a short-lived flash
+    // cookie so the next page render can show the confirmation toast.
+    // `noop` outcomes deliberately skip the flash (FR-018).
+    if (
+      result.cartMerge?.outcome === 'adopted' ||
+      result.cartMerge?.outcome === 'merged'
+    ) {
+      await setCartMergeFlash(result.cartMerge.outcome);
+    }
   } catch (err) {
     const message =
       err instanceof StorefrontApiError ? err.message : 'Sign-in failed. Please try again.';

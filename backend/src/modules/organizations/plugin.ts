@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { CartMergeOutcome } from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
 import type { SessionService } from '../auth/services/session-service.js';
 import type { OrganizationModerationService } from './services/organization-moderation-service.js';
@@ -50,7 +51,10 @@ export interface OrganizationsModuleOptions {
    * Optional post-login hook — the commerce module uses this to merge
    * carts; the comparisons module uses it to adopt the customer's
    * anonymous Comparison (R-2). Each token is extracted from the request
-   * cookies if present and forwarded to the hook.
+   * cookies if present and forwarded to the hook. The optional
+   * `cartMerge` return field carries the outcome of the cart-merge step
+   * back to the login route so it can serialise the result for the
+   * storefront (feature 037-cart-merge-on-login).
    */
   onLogin?: (ctx: {
     customerAccountId: string;
@@ -59,7 +63,7 @@ export interface OrganizationsModuleOptions {
     anonymousCartToken?: string;
     /** `compare_token` cookie value, if the caller was building an anonymous comparison. */
     anonymousCompareToken?: string;
-  }) => Promise<void>;
+  }) => Promise<{ cartMerge?: CartMergeOutcome }>;
   /** Admin gate for /admin/organizations routes. */
   requireAdmin?: RequireAdminFactory;
   /** Mailer used to dispatch invitation + verification emails. Defaults to ConsoleMailer. */

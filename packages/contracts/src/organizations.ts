@@ -129,6 +129,55 @@ export const customerLoginRequestSchema = z.object({
   twoFactorCode: z.string().optional(),
 });
 
+/**
+ * Outcome of the anonymous-cart → customer-cart merge that runs inside the
+ * customer-login flow (feature 037-cart-merge-on-login).
+ *
+ * Internal shape — split between two `noop_*` variants so the audit /
+ * observability paths can distinguish "anon cart was empty" from "no anon
+ * cart was supplied". The HTTP-facing shape collapses both into a single
+ * `'noop'`; see `cartMergeOutcomePublicSchema` below.
+ */
+export const cartMergeOutcomeSchema = z.object({
+  outcome: z.enum(['adopted', 'merged', 'noop_empty', 'noop_no_anon']),
+  movedLineCount: z.number().int().min(0),
+  summedLineCount: z.number().int().min(0),
+  destinationCartId: uuidSchema,
+});
+export type CartMergeOutcome = z.infer<typeof cartMergeOutcomeSchema>;
+
+/**
+ * Public (HTTP) narrowing of `cartMergeOutcomeSchema`. The storefront only
+ * needs three buckets to decide whether to surface the merge-confirmation
+ * toast (`adopted | merged → toast`, `noop → silent`) and the destination
+ * cart id for the next cart read.
+ */
+export const cartMergeOutcomePublicSchema = z.object({
+  outcome: z.enum(['adopted', 'merged', 'noop']),
+  destinationCartId: uuidSchema,
+});
+export type CartMergeOutcomePublic = z.infer<typeof cartMergeOutcomePublicSchema>;
+
+/**
+ * Customer login response. The `cartMerge` field is populated when the
+ * login carries an anonymous-cart cookie; `null` when no anon cookie was
+ * supplied; `outcome: 'noop'` when the cookie was supplied but had no
+ * observable effect (no anon cart, or the anon cart was empty).
+ */
+export const customerLoginResponseSchema = z.object({
+  data: z.object({
+    customerAccount: z.object({
+      id: uuidSchema,
+      email: z.string().email(),
+      organizationId: uuidSchema.nullable(),
+      role: organizationRoleSchema,
+      twoFactorEnabled: z.boolean(),
+    }),
+    cartMerge: cartMergeOutcomePublicSchema.nullable().optional(),
+  }),
+});
+export type CustomerLoginResponse = z.infer<typeof customerLoginResponseSchema>;
+
 export const changePasswordRequestSchema = z.object({
   currentPassword: z.string(),
   newPassword: z.string().min(12).max(256),

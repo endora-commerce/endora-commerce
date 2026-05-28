@@ -1,3 +1,4 @@
+import type { CartMergeOutcomePublic } from '@b2b/contracts';
 import { apiMutate } from './mutations';
 import type { RequestContext } from './client';
 
@@ -61,7 +62,7 @@ export interface LoginCustomerPayload {
   twoFactorCode?: string;
 }
 
-export interface LoginCustomerResult {
+interface LoginCustomerResponseData {
   customerAccount: {
     id: string;
     email: string;
@@ -69,15 +70,28 @@ export interface LoginCustomerResult {
     role: string;
     twoFactorEnabled: boolean;
   };
+  /**
+   * Result of the anonymous-cart → customer-cart merge that ran inside
+   * this login (feature 037-cart-merge-on-login). `null` / absent when
+   * the request carried no `b2b_cart_anon` cookie; `outcome: 'noop'`
+   * when the cookie was supplied but had no observable effect.
+   */
+  cartMerge?: CartMergeOutcomePublic | null;
+}
+
+export interface LoginCustomerResult {
+  customerAccount: LoginCustomerResponseData['customerAccount'];
   /** Raw `b2b_session` cookie value the storefront should persist. */
   sessionCookieValue: string | null;
+  /** Outcome of the cart-merge step, or `null` when the request carried no anon cart. */
+  cartMerge: CartMergeOutcomePublic | null;
 }
 
 export async function loginCustomer(
   payload: LoginCustomerPayload,
   ctx?: RequestContext,
 ): Promise<LoginCustomerResult> {
-  const result = await apiMutate<LoginCustomerResult['customerAccount']>({
+  const result = await apiMutate<LoginCustomerResponseData>({
     method: 'POST',
     path: '/api/v1/auth/customer/login',
     body: payload,
@@ -85,7 +99,11 @@ export async function loginCustomer(
   });
   // The session cookie comes back in Set-Cookie; the storefront persists it via setSessionCookie.
   const cookieValue = pickSessionCookie(result.setCookie);
-  return { customerAccount: result.data!, sessionCookieValue: cookieValue };
+  return {
+    customerAccount: result.data!.customerAccount,
+    sessionCookieValue: cookieValue,
+    cartMerge: result.data!.cartMerge ?? null,
+  };
 }
 
 export async function logoutCustomer(sessionCookie: string | null): Promise<void> {
