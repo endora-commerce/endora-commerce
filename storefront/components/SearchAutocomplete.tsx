@@ -55,6 +55,14 @@ export interface SearchAutocompleteProps {
    */
   seeAllResultsLabel: string;
   unavailableLabel: string;
+  /**
+   * When true, render the keyboard-shortcut hint (`⌘K` on macOS,
+   * `Ctrl K` elsewhere) inside the search frame and bind a global
+   * `Cmd/Ctrl+K` handler that focuses the input. Hydration-only —
+   * the SSR markup always paints `⌘K`, and the client swaps it after
+   * platform detection if needed.
+   */
+  showKeyboardHint?: boolean;
 }
 
 export function SearchAutocomplete(props: SearchAutocompleteProps): ReactNode {
@@ -63,6 +71,12 @@ export function SearchAutocomplete(props: SearchAutocompleteProps): ReactNode {
   const [unavailable, setUnavailable] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number>(-1);
   const [open, setOpen] = useState(false);
+  /**
+   * Platform-aware modifier label for the keyboard hint. Initial value
+   * matches the SSR-rendered `⌘K` so hydration stays stable; the
+   * effect below corrects it to `Ctrl K` on non-Apple platforms.
+   */
+  const [modifierLabel, setModifierLabel] = useState<'⌘K' | 'Ctrl K'>('⌘K');
   const containerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -140,6 +154,36 @@ export function SearchAutocomplete(props: SearchAutocompleteProps): ReactNode {
     return () => document.removeEventListener('mousedown', handle);
   }, []);
 
+  // Platform detection + global Cmd/Ctrl+K shortcut to focus the search.
+  // Active only when the caller opted into the keyboard hint UI, since
+  // a non-visible binding would surprise users (no discoverable cue).
+  useEffect(() => {
+    if (!props.showKeyboardHint) return undefined;
+    // Browsers still expose `navigator.platform`; the newer
+    // `userAgentData.platform` is Chromium-only. Fall back to UA string.
+    const platform =
+      typeof navigator === 'undefined'
+        ? ''
+        : navigator.platform || navigator.userAgent;
+    const isApple = /Mac|iPhone|iPad|iPod/i.test(platform);
+    setModifierLabel(isApple ? '⌘K' : 'Ctrl K');
+
+    function onKey(e: globalThis.KeyboardEvent): void {
+      if (e.repeat) return;
+      if (e.key.toLowerCase() !== 'k') return;
+      const usesMeta = isApple ? e.metaKey : e.ctrlKey;
+      if (!usesMeta) return;
+      e.preventDefault();
+      const input = inputRef.current;
+      if (!input) return;
+      input.focus();
+      input.select();
+      setOpen(true);
+    }
+    document.addEventListener('keydown', onKey);
+    return (): void => document.removeEventListener('keydown', onKey);
+  }, [props.showKeyboardHint]);
+
   const showPopup = useMemo<boolean>(() => {
     if (!open) return false;
     if (unavailable) return true;
@@ -190,7 +234,14 @@ export function SearchAutocomplete(props: SearchAutocompleteProps): ReactNode {
         aria-expanded={showPopup}
         autoComplete="off"
       />
-      <button type="submit">{props.searchActionLabel}</button>
+      {props.showKeyboardHint ? (
+        <kbd className="industria-search__kbd" aria-hidden="true">
+          {modifierLabel}
+        </kbd>
+      ) : null}
+      <button type="submit" className="industria-search__cta">
+        {props.searchActionLabel}
+      </button>
       {showPopup ? (
         <ul
           className="b2b-search-autocomplete__popup"
