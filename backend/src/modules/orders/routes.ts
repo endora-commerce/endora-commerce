@@ -204,6 +204,7 @@ async function serializeOrder(em: EntityManager, order: Order): Promise<Record<s
   const items = await em.find(OrderItem, { orderId: order.id });
   return {
     id: order.id,
+    businessId: order.businessId,
     organizationId: order.organizationId,
     placedByCustomerAccountId: order.placedByCustomerAccountId,
     placedOnBehalfByAdminUserId: order.placedOnBehalfByAdminUserId ?? null,
@@ -244,6 +245,9 @@ async function serializeOrder(em: EntityManager, order: Order): Promise<Record<s
     currency: order.currency,
     customerNote: order.customerNote ?? null,
     placedAt: order.placedAt.toISOString(),
-    nextAction: { kind: 'awaiting_transfer' as const },
+    // Feature 036 — real payment next-action captured at placement (transfer
+    // details / gateway redirect / none). Order reads (GET/list) load it as
+    // undefined → null.
+    nextAction: order.nextAction ?? null,
   };
 }

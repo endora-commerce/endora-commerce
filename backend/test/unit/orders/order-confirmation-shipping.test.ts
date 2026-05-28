@@ -11,6 +11,7 @@ function input(shippingRendererKey: string | null) {
     to: 'buyer@example.com',
     order: {
       id: 'order-123',
+      businessId: 'ORD-123',
       deliveryMethodSnapshot: { code: 'courier', name: 'Courier', cost: 15 },
       paymentMethodSnapshot: { code: 'bt', name: 'Bank transfer', kind: 'bank_transfer' },
       paymentRendererKey: null,

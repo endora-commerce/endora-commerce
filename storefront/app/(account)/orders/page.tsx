@@ -46,7 +46,7 @@ export default async function OrdersListPage(): Promise<ReactNode> {
           {orders.map((o) => (
             <tr key={o.id}>
               <td>{new Date(o.placedAt).toLocaleDateString()}</td>
-              <td>{o.id.slice(0, 8)}</td>
+              <td>{o.businessId}</td>
               <td>{o.status}</td>
               <td>{o.paymentStatus}</td>
               <td>
