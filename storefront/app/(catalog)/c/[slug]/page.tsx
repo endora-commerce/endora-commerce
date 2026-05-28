@@ -4,6 +4,7 @@ import { Breadcrumbs } from '../../../../components/Breadcrumbs';
 import { FilterPanel } from '../../../../components/FilterPanel';
 import { ProductGrid } from '../../../../components/ProductGrid';
 import { Pagination } from '../../../../components/Pagination';
+import { CatalogToolbar } from '../../../../components/CatalogToolbar';
 import { Hook } from '../../../../components/Hook';
 import {
   getCategoryTree,
@@ -34,15 +35,16 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
   const node = findCategory(tree, slug);
   if (!node) notFound();
 
+  const parsed = parseChromeQuery(sp);
   const attributeFilters = collectAttributeFilters(sp);
-  const baseQuery: Record<string, string> = {};
-  if (typeof sp['sort'] === 'string') baseQuery['sort'] = sp['sort'];
 
   const products = await listProducts(
     {
       categorySlug: slug,
       ...(Object.keys(attributeFilters).length > 0 ? { attributeFilters } : {}),
-      ...(typeof sp['cursor'] === 'string' ? { cursor: sp['cursor'] } : {}),
+      ...(parsed.sort ? { sort: parsed.sort } : {}),
+      ...(parsed.limit ? { limit: parsed.limit } : {}),
+      ...(parsed.cursor ? { cursor: parsed.cursor } : {}),
     },
     ctx,
   );
@@ -61,7 +63,8 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
         <FilterPanel
           filters={filters}
           selected={attributeFilters}
-          baseQuery={baseQuery}
+          baseQuery={parsed.baseQuery}
+          basePath={`/c/${node.slug}`}
           locale={locale}
         />
         <div>
@@ -71,10 +74,22 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
               <p>{node.productCount.toLocaleString('pl-PL')} produktów</p>
             </div>
           </div>
-          <ProductGrid products={products.data} locale={locale} columns={3} />
+          <CatalogToolbar
+            shown={products.data.length}
+            sort={parsed.sort ?? 'relevance'}
+            limit={parsed.limit ?? 24}
+            view={parsed.view}
+            baseQuery={parsed.baseQuery}
+          />
+          <ProductGrid
+            products={products.data}
+            locale={locale}
+            columns={3}
+            view={parsed.view}
+          />
           <Pagination
             basePath={`/c/${node.slug}`}
-            baseQuery={baseQuery}
+            baseQuery={parsed.baseQuery}
             nextCursor={products.pagination.nextCursor}
             hasMore={products.pagination.hasMore}
             locale={locale}
@@ -107,4 +122,47 @@ function collectAttributeFilters(
     }
   }
   return out;
+}
+
+function parseChromeQuery(raw: Record<string, string | string[] | undefined>): {
+  sort?: 'relevance' | '-createdAt' | 'name' | '-name';
+  limit?: 24 | 48 | 96;
+  cursor?: string;
+  view: 'grid' | 'list';
+  baseQuery: Record<string, string>;
+} {
+  const baseQuery: Record<string, string> = {};
+  let sort: 'relevance' | '-createdAt' | 'name' | '-name' | undefined;
+  let limit: 24 | 48 | 96 | undefined;
+  let cursor: string | undefined;
+  let view: 'grid' | 'list' = 'grid';
+  if (typeof raw['sort'] === 'string') {
+    const v = raw['sort'];
+    if (v === 'relevance' || v === '-createdAt' || v === 'name' || v === '-name') {
+      sort = v;
+      baseQuery['sort'] = v;
+    }
+  }
+  if (typeof raw['limit'] === 'string') {
+    const n = Number(raw['limit']);
+    if (n === 24 || n === 48 || n === 96) {
+      limit = n;
+      baseQuery['limit'] = String(n);
+    }
+  }
+  if (typeof raw['view'] === 'string' && raw['view'] === 'list') {
+    view = 'list';
+    baseQuery['view'] = 'list';
+  }
+  if (typeof raw['cursor'] === 'string') {
+    cursor = raw['cursor'];
+    baseQuery['cursor'] = cursor;
+  }
+  return {
+    ...(sort !== undefined ? { sort } : {}),
+    ...(limit !== undefined ? { limit } : {}),
+    ...(cursor !== undefined ? { cursor } : {}),
+    view,
+    baseQuery,
+  };
 }
