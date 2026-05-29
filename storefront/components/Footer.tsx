@@ -40,10 +40,10 @@ export function Footer(props: {
           <div className="industria-footer__col">
             <h5>Sklep</h5>
             <a href="/catalog">Katalog</a>
-            <a href="/c/lozyska">Łożyska</a>
-            <a href="/c/napedy">Napędy i przekładnie</a>
-            <a href="/c/automatyka">Automatyka</a>
-            <a href="/c/elektryka">Elektryka</a>
+            <a href="/c/fasteners">Łączniki</a>
+            <a href="/c/tools">Narzędzia</a>
+            <a href="/c/electronics">Elektronika</a>
+            <a href="/c/safety">BHP</a>
             <a href="/quick-order">Quick Order</a>
           </div>
 
