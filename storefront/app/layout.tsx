@@ -3,7 +3,6 @@ import { headers } from 'next/headers';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import { Hook } from '../components/Hook';
-import { Megamenu } from '../components/Megamenu/Megamenu';
 import { PwaRegister } from '../components/PwaRegister';
 import { RouteTransition } from '../components/RouteTransition';
 import { CartMergeToast } from '../components/CartMergeToast';
@@ -80,8 +79,12 @@ export default async function RootLayout({
             ) : (
               <>
                 <Hook code="header.top" />
-                <Header config={config} locale={locale} cartItemCount={cartItemCount} />
-                <Megamenu megamenu={megamenu} />
+                <Header
+                  config={config}
+                  locale={locale}
+                  cartItemCount={cartItemCount}
+                  megamenu={megamenu}
+                />
                 <Hook code="header.bottom" />
               </>
             )}

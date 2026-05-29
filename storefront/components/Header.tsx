@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import type { I18nConfigResponse } from '@b2b/contracts';
+import type { I18nConfigResponse, ResolvedMegamenu } from '@b2b/contracts';
 import { tForLocale } from '../lib/i18n/messages';
+import { CategoriesMega } from './Megamenu/CategoriesMega';
 import { CompareCounterLink } from './CompareToggle';
 import { CartCounterBadge } from './CartCounterBadge';
 import { SearchAutocomplete } from './SearchAutocomplete';
@@ -25,6 +26,8 @@ export function Header(props: {
   salesChannelCode?: string;
   /** Feature 027 — buyer's cart line count for the icon-btn badge. */
   cartItemCount?: number;
+  /** Feature 015 — resolved megamenu powering the "Wszystkie kategorie" panel. */
+  megamenu?: ResolvedMegamenu | null;
 }): ReactNode {
   const t = tForLocale(props.locale);
   const apiBaseUrl =
@@ -127,16 +130,10 @@ export function Header(props: {
 
       <nav className="industria-nav" aria-label="Primary">
         <div className="container industria-nav__inner">
-          <Link href="/catalog" className="industria-nav__btn">
-            <MenuIcon /> Wszystkie kategorie <ChevDownIcon />
-          </Link>
-          <span className="industria-nav__sep" aria-hidden="true" />
-          <Link href="/c/lozyska" className="industria-nav__btn">Łożyska</Link>
-          <Link href="/c/napedy" className="industria-nav__btn">Napędy</Link>
-          <Link href="/c/automatyka" className="industria-nav__btn">Automatyka</Link>
-          <Link href="/c/elektryka" className="industria-nav__btn">Elektryka</Link>
-          <Link href="/c/pneumatyka" className="industria-nav__btn">Pneumatyka</Link>
-          <Link href="/c/narzedzia" className="industria-nav__btn">Narzędzia</Link>
+          {/* Data-driven "Wszystkie kategorie" trigger + mega panel
+              (seeded "Main navigation"). Replaces the old static link and
+              the hardcoded per-category links. */}
+          <CategoriesMega megamenu={props.megamenu ?? null} />
           <div className="industria-nav__right">
             <span className="industria-nav__pill" role="status">
               <span className="industria-nav__pill__dot" aria-hidden="true" />
@@ -269,16 +266,6 @@ function BellIcon(): ReactNode {
       <path d="M13.73 21a2 2 0 0 1-3.46 0" />
     </>,
     19,
-  );
-}
-function MenuIcon(): ReactNode {
-  return svg(
-    <>
-      <line x1="3" y1="12" x2="21" y2="12" />
-      <line x1="3" y1="6" x2="21" y2="6" />
-      <line x1="3" y1="18" x2="21" y2="18" />
-    </>,
-    15,
   );
 }
 function ChevDownIcon(): ReactNode {

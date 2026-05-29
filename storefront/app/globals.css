@@ -593,6 +593,100 @@ h3 { font-size: 16px; font-weight: 600; }
 .industria-nav__btn--primary:hover { background: var(--ink-800); color: #fff; }
 
 /* ------------------------------------------------------------------ */
+/* Megamenu — full-width dropdown panel under the "Wszystkie kategorie" */
+/* trigger (ported from the Industria storefront-ui design spec).         */
+/* ------------------------------------------------------------------ */
+.industria-mega-wrap {
+  display: inline-flex;
+  align-items: stretch;
+}
+.industria-mega {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
+  padding: 28px 0;
+  display: none;
+  z-index: 40;
+}
+.industria-mega.is-open { display: block; }
+.industria-mega__grid {
+  display: grid;
+  grid-template-columns: 220px 1fr 280px;
+  gap: 32px;
+}
+.industria-mega__col { min-width: 0; }
+.industria-mega__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.industria-mega__list a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--ink-700);
+  transition: background 0.1s;
+}
+.industria-mega__list a:hover,
+.industria-mega__list a[aria-current="true"] {
+  background: var(--surface-alt);
+  color: var(--brand-700);
+}
+.industria-mega__list a span {
+  color: var(--ink-300);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.industria-mega__heading {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  margin: 0 12px 10px;
+}
+.industria-mega__cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+.industria-mega__promo {
+  background: var(--surface-alt);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.industria-mega__promo h4 { margin: 0; font-size: 14px; }
+.industria-mega__promo p { margin: 0; font-size: 12px; color: var(--ink-500); }
+.industria-mega__promo__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--brand-700);
+  font-weight: 500;
+  font-size: 12px;
+}
+/* Below the nav's desktop breakpoint the panel collapses; the trigger
+   stays as a plain link to the catalog. */
+@media (max-width: 920px) {
+  .industria-mega { display: none !important; }
+  .industria-mega__grid { grid-template-columns: 1fr; }
+}
+
+/* ------------------------------------------------------------------ */
 /* Breadcrumbs                                                            */
 /* ------------------------------------------------------------------ */
 .industria-breadcrumbs {

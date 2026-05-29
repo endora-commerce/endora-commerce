@@ -828,7 +828,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           'select slug from categories where id = ? limit 1',
           [categoryId],
         )) as Array<{ slug: string }>;
-        return rows[0]?.slug ? `/catalog/${rows[0].slug}` : null;
+        return rows[0]?.slug ? `/c/${rows[0].slug}` : null;
       },
       resolveCmsPageUrl: async (pageId) => {
         const rows = (await em().getConnection().execute(
