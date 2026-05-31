@@ -65,9 +65,15 @@ export class Order {
   @Property({ type: 'uuid' })
   salesChannelId!: string;
 
-  @Property({ type: 'string', length: 32 })
+  /**
+   * Configurable lifecycle status code (feature 038). Was a fixed enum union;
+   * the authoritative status is now a code validated in-service against the
+   * admin-configurable `order_statuses` set. Defaults to the initial status
+   * `new`.
+   */
+  @Property({ type: 'string', length: 64 })
   @Index()
-  status: 'new' | 'confirmed' | 'in_fulfilment' | 'shipped' | 'completed' | 'cancelled' = 'new';
+  status: string = 'new';
 
   @Property({ type: 'string', length: 32 })
   @Index()

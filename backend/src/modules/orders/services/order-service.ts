@@ -1012,7 +1012,9 @@ export class OrderService {
   }
 
   private isValidTransition(from: Order['status'], to: Order['status']): boolean {
-    const graph: Record<Order['status'], Order['status'][]> = {
+    // Legacy fixed graph retained on the OrderService path until the admin
+    // status route is rewired through OrderTransitionService (feature 038).
+    const graph: Record<string, string[]> = {
       new: ['confirmed', 'cancelled'],
       confirmed: ['in_fulfilment', 'cancelled'],
       in_fulfilment: ['shipped'],
@@ -1020,7 +1022,7 @@ export class OrderService {
       completed: [],
       cancelled: [],
     };
-    return graph[from].includes(to);
+    return (graph[from] ?? []).includes(to);
   }
 
   private anyValue(blob: Record<string, string>): string {

@@ -55,6 +55,9 @@ import { Migration050CartsConsolidation } from '../modules/carts/migrations/050_
 import { Migration051PaymentMethodsAdapter } from '../modules/payment_methods/migrations/051_payment_methods_adapter.js';
 import { Migration052ShippingMethodsAdapterAndShipments } from '../modules/delivery_methods/migrations/052_shipping_methods_adapter_and_shipments.js';
 import { Migration053OrdersBusinessId } from '../modules/orders/migrations/053_orders_business_id.js';
+import { Migration054OrdersStatusModel } from '../modules/orders/migrations/054_orders_status_model.js';
+import { Migration055OrderCommentsAndSavedViews } from '../modules/orders/migrations/055_order_comments_and_saved_views.js';
+import { Migration056OrgOrderConfirmationEmails } from '../modules/organizations/migrations/056_org_order_confirmation_emails.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -246,6 +249,18 @@ export default defineConfig({
       {
         name: 'Migration053OrdersBusinessId',
         class: Migration053OrdersBusinessId,
+      },
+      {
+        name: 'Migration054OrdersStatusModel',
+        class: Migration054OrdersStatusModel,
+      },
+      {
+        name: 'Migration055OrderCommentsAndSavedViews',
+        class: Migration055OrderCommentsAndSavedViews,
+      },
+      {
+        name: 'Migration056OrgOrderConfirmationEmails',
+        class: Migration056OrgOrderConfirmationEmails,
       },
     ],
     transactional: true,

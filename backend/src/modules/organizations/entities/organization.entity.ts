@@ -60,6 +60,7 @@ export class Organization {
     | 'approvedByAdminUserId'
     | 'requiresCartApproval'
     | 'nameSearch'
+    | 'orderConfirmationEmails'
     | 'version';
 
   @PrimaryKey({ type: 'uuid' })
@@ -101,6 +102,14 @@ export class Organization {
     postalCode: string;
     country: string;
   };
+
+  /**
+   * Feature 038 (US4) — additional email addresses that also receive an order
+   * confirmation for every order placed by a Customer of this Organization.
+   * Read by the orders module through OrganizationConfirmationEmailsPort.
+   */
+  @Property({ type: 'json' })
+  orderConfirmationEmails: string[] = [];
 
   // ── feature 026: moderation + VAT validation tracking ───────────────────
 
