@@ -29,6 +29,9 @@ import {
 } from './services/order-service.js';
 import { OrderStatusGraphService } from './services/order-status-graph-service.js';
 import { OrderTransitionService } from './services/order-transition-service.js';
+import { OrderListService } from './services/order-list-service.js';
+import { OrderListViewService } from './services/order-list-view-service.js';
+import { OrderExportService } from './services/order-export-service.js';
 import { createBusinessIdGenerator } from './services/business-id-generator.js';
 import { registerCartRoutes } from '../carts/routes.js';
 import { registerOrderRoutes } from './routes.js';
@@ -315,6 +318,10 @@ export function commerceModule(options: OrdersModuleOptions) {
         }
       },
     );
+    // Feature 038 US2 — orders list query, saved views, CSV export.
+    const orderListService = new OrderListService(options.emFactory, orderStatusGraphService);
+    const orderListViewService = new OrderListViewService(options.emFactory);
+    const orderExportService = new OrderExportService(orderListService);
 
     const cartUpsellService = new CartUpsellService(options.emFactory);
     const cartCouponService = options.promotionService
@@ -373,6 +380,9 @@ export function commerceModule(options: OrdersModuleOptions) {
       orderService,
       orderStatusGraphService,
       orderTransitionService,
+      orderListService,
+      orderListViewService,
+      orderExportService,
       emFactory: options.emFactory,
       requireCustomer: options.requireCustomer,
       requireAdmin: options.requireAdmin,

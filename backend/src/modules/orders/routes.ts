@@ -1,11 +1,16 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   adminOrderPaymentStatusTransitionSchema,
+  adminOrdersListQuerySchema,
   adminOrderStatusTransitionSchema,
+  bulkOrderStatusRequestSchema,
+  bulkPrintInvoicesRequestSchema,
+  createOrderSavedViewRequestSchema,
   createOrderStatusRequestSchema,
   ERROR_CODES,
   placeOrderRequestSchema,
   setOrderTransitionsRequestSchema,
+  updateOrderSavedViewRequestSchema,
   updateOrderStatusRequestSchema,
 } from '@b2b/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
@@ -13,11 +18,14 @@ import { HttpError } from '../../http/error-envelope.js';
 import type { OrderService } from './services/order-service.js';
 import type { OrderStatusGraphService } from './services/order-status-graph-service.js';
 import type { OrderTransitionService } from './services/order-transition-service.js';
+import type { OrderListService, OrderListScope } from './services/order-list-service.js';
+import type { OrderListViewService } from './services/order-list-view-service.js';
+import type { OrderExportService } from './services/order-export-service.js';
 import { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
 import { Invoice } from '../invoices/entities/invoice.entity.js';
 import { Asset } from '../assets_library/entities/asset.entity.js';
-import { buildMinimalInvoicePdf } from '../invoices/services/invoice-pdf.js';
+import { buildBulkInvoicesPdf, buildMinimalInvoicePdf } from '../invoices/services/invoice-pdf.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import { OrganizationCannotTransactError } from '../organizations/services/organization-context-service.js';
 
@@ -26,6 +34,10 @@ export interface OrdersDeps {
   /** Feature 038 — configurable lifecycle: status-graph CRUD + transition engine. */
   orderStatusGraphService: OrderStatusGraphService;
   orderTransitionService: OrderTransitionService;
+  /** Feature 038 US2 — orders list query, saved views, CSV export. */
+  orderListService: OrderListService;
+  orderListViewService: OrderListViewService;
+  orderExportService: OrderExportService;
   emFactory: () => EntityManager;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   requireAdmin: RequireAdminFactory;
@@ -147,26 +159,144 @@ export async function registerOrderRoutes(
   );
 
   // --- Admin surface ----------------------------------------------------
+
+  // Resolve the sales-rep org scope (feature 026 US6). `null` ⇒ no scoping
+  // (platform admin sees all).
+  const resolveListScope = async (request: FastifyRequest): Promise<OrderListScope | undefined> => {
+    if (!deps.resolveAdminOrdersScope) return undefined;
+    const scope = await deps.resolveAdminOrdersScope(request);
+    return scope.allowAll ? undefined : { allowedOrganizationIds: scope.allowedOrganizationIds };
+  };
+  const isPlatformAdmin = async (request: FastifyRequest): Promise<boolean> => {
+    if (!deps.resolveAdminOrdersScope) return true;
+    return (await deps.resolveAdminOrdersScope(request)).allowAll;
+  };
+
   app.get(
     '/api/v1/admin/orders',
-    { preHandler: requireAdmin('orders:read') },
+    { preHandler: requireAdmin('orders:read'), schema: { querystring: adminOrdersListQuerySchema } },
     async (request) => {
-      let orders = await orderService.listAll();
-      // Feature 026 US6 — sales-rep scope: filter to orgs the rep owns.
-      if (deps.resolveAdminOrdersScope) {
-        const scope = await deps.resolveAdminOrdersScope(request);
-        if (!scope.allowAll) {
-          const allowed = new Set(scope.allowedOrganizationIds);
-          orders = orders.filter((o) => allowed.has(o.organizationId));
-        }
-      }
-      const em = emFactory();
+      const query = adminOrdersListQuerySchema.parse(request.query);
+      const scope = await resolveListScope(request);
+      const result = await deps.orderListService.list(query, scope);
       return {
-        data: await Promise.all(orders.map((o) => serializeOrder(em, o))),
-        pagination: { cursor: null, hasMore: false, limit: 50 },
+        data: result.rows,
+        pagination: { page: query.page, pageSize: query.pageSize, total: result.total },
+        counts: result.counts,
       };
     },
   );
+
+  app.get(
+    '/api/v1/admin/orders/export',
+    { preHandler: requireAdmin('orders:read'), schema: { querystring: adminOrdersListQuerySchema } },
+    async (request, reply) => {
+      const query = adminOrdersListQuerySchema.parse(request.query);
+      const scope = await resolveListScope(request);
+      const { csv, rowCount, truncated } = await deps.orderExportService.exportCsv(query, scope);
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header('content-disposition', 'attachment; filename="orders.csv"');
+      reply.header('x-export-row-count', String(rowCount));
+      if (truncated) reply.header('x-export-truncated', 'true');
+      return reply.send(csv);
+    },
+  );
+
+  app.post(
+    '/api/v1/admin/orders/bulk/status',
+    { preHandler: requireAdmin('orders:write'), schema: { body: bulkOrderStatusRequestSchema } },
+    async (request) => {
+      const body = bulkOrderStatusRequestSchema.parse(request.body);
+      const adminUserId = resolveAdminUserId(request);
+      const actor = adminUserId
+        ? ({ kind: 'admin', adminUserId } as const)
+        : ({ kind: 'system', source: 'checkout' } as const);
+      const changed: string[] = [];
+      const skipped: Array<{ orderId: string; reason: 'invalid_transition' | 'terminal' | 'not_found' }> = [];
+      for (const orderId of body.orderIds) {
+        try {
+          await deps.orderTransitionService.apply(orderId, body.toStatusCode, actor, body.reason ?? null);
+          changed.push(orderId);
+        } catch (err) {
+          skipped.push({ orderId, reason: await classifySkip(err, orderId) });
+        }
+      }
+      return { data: { changed, skipped } };
+    },
+  );
+
+  app.post(
+    '/api/v1/admin/orders/bulk/print-invoices',
+    { preHandler: requireAdmin('orders:read'), schema: { body: bulkPrintInvoicesRequestSchema } },
+    async (request, reply) => {
+      const body = bulkPrintInvoicesRequestSchema.parse(request.body);
+      const em = emFactory();
+      const invoices = await em.find(Invoice, { orderId: { $in: body.orderIds } });
+      const pdf = buildBulkInvoicesPdf(
+        invoices.map((i) => ({ invoiceNumber: i.number, total: i.total, currency: i.currency })),
+      );
+      reply.header('content-type', 'application/pdf');
+      reply.header('content-disposition', 'attachment; filename="invoices.pdf"');
+      return reply.send(pdf);
+    },
+  );
+
+  // --- Saved list views (feature 038 US2) -------------------------------
+  app.get('/api/v1/admin/orders/list-views', { preHandler: requireAdmin('orders:read') }, async (request) => {
+    const adminUserId = resolveAdminUserId(request) ?? '';
+    const views = await deps.orderListViewService.listFor(adminUserId);
+    return { data: views.map(serializeSavedView) };
+  });
+
+  app.post(
+    '/api/v1/admin/orders/list-views',
+    { preHandler: requireAdmin('orders:read'), schema: { body: createOrderSavedViewRequestSchema } },
+    async (request, reply) => {
+      const body = createOrderSavedViewRequestSchema.parse(request.body);
+      const adminUserId = resolveAdminUserId(request) ?? '';
+      const view = await deps.orderListViewService.create(adminUserId, body);
+      reply.code(201);
+      return { data: serializeSavedView(view) };
+    },
+  );
+
+  app.patch<{ Params: { id: string } }>(
+    '/api/v1/admin/orders/list-views/:id',
+    { preHandler: requireAdmin('orders:read'), schema: { body: updateOrderSavedViewRequestSchema } },
+    async (request) => {
+      const body = updateOrderSavedViewRequestSchema.parse(request.body);
+      const adminUserId = resolveAdminUserId(request) ?? '';
+      const view = await deps.orderListViewService.update(
+        request.params.id,
+        adminUserId,
+        await isPlatformAdmin(request),
+        body,
+      );
+      return { data: serializeSavedView(view) };
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/v1/admin/orders/list-views/:id',
+    { preHandler: requireAdmin('orders:read') },
+    async (request) => {
+      const adminUserId = resolveAdminUserId(request) ?? '';
+      await deps.orderListViewService.remove(request.params.id, adminUserId, await isPlatformAdmin(request));
+      return { data: { deleted: request.params.id } };
+    },
+  );
+
+  /** Classify why a bulk transition was skipped for one order. */
+  async function classifySkip(
+    err: unknown,
+    orderId: string,
+  ): Promise<'invalid_transition' | 'terminal' | 'not_found'> {
+    if (err instanceof HttpError && err.code === ERROR_CODES.ORDER_NOT_FOUND) return 'not_found';
+    const order = await emFactory().findOne(Order, { id: orderId });
+    if (!order) return 'not_found';
+    const graph = await deps.orderStatusGraphService.loadGraph();
+    return graph.isTerminal(order.status) ? 'terminal' : 'invalid_transition';
+  }
 
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/orders/:id',
@@ -280,6 +410,24 @@ export async function registerOrderRoutes(
       return { data: await serializeOrder(emFactory(), order) };
     },
   );
+}
+
+function serializeSavedView(v: {
+  id: string;
+  name: string;
+  shared: boolean;
+  ownerAdminUserId: string;
+  filters: Record<string, unknown>;
+  sort: { field: string; dir: 'asc' | 'desc' };
+}): Record<string, unknown> {
+  return {
+    id: v.id,
+    name: v.name,
+    shared: v.shared,
+    ownerAdminUserId: v.ownerAdminUserId,
+    filters: v.filters,
+    sort: v.sort,
+  };
 }
 
 /** Resolve the acting admin user id from the production or test actor. */
