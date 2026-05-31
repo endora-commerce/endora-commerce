@@ -51,8 +51,8 @@ export class DeliveryMethodReconciler {
       cost: defaults.cost ?? '0',
       currency: defaults.currency ?? 'PLN',
       status: defaults.status ?? 'active',
-      statusOnSuccess: defaults.statusOnSuccess ?? 'shipped',
-      statusOnFailure: defaults.statusOnFailure ?? 'in_fulfilment',
+      statusOnSuccess: defaults.statusOnSuccess ?? 'shipment_sent',
+      statusOnFailure: defaults.statusOnFailure ?? 'processing',
     });
     await em.persistAndFlush(row);
 

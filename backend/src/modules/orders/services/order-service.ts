@@ -903,41 +903,6 @@ export class OrderService {
     return em.find(Order, {}, { orderBy: { placedAt: 'desc' } });
   }
 
-  async transitionStatus(orderId: string, to: Order['status']): Promise<Order> {
-    const em = this.emFactory();
-    const order = await em.findOne(Order, { id: orderId });
-    if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
-    if (!this.isValidTransition(order.status, to)) {
-      throw new HttpError(
-        409,
-        ERROR_CODES.INVALID_TRANSITION,
-        `Cannot transition from "${order.status}" to "${to}".`,
-      );
-    }
-    const from = order.status;
-    order.status = to;
-    await em.flush();
-    this.events.emit('order.status_changed.v1', {
-      eventId: randomUUID(),
-      occurredAt: new Date().toISOString(),
-      orderId: order.id,
-      from,
-      to,
-    });
-    // Cancellation releases the credit-limit reservation (T211)
-    // and the per-warehouse stock allocations (US7 / T080).
-    if (to === 'cancelled') {
-      if (this.creditLimit) {
-        await this.creditLimit.releaseByOrder({
-          orderId: order.id,
-          reason: 'order_cancelled',
-        });
-      }
-      await this.releaseAllocations(order.id);
-    }
-    return order;
-  }
-
   /**
    * US7 / T080 — release every stock_allocations row tied to the order
    * (decrementing each affected stock_levels.reserved counter) and
@@ -1009,20 +974,6 @@ export class OrderService {
       });
     }
     return order;
-  }
-
-  private isValidTransition(from: Order['status'], to: Order['status']): boolean {
-    // Legacy fixed graph retained on the OrderService path until the admin
-    // status route is rewired through OrderTransitionService (feature 038).
-    const graph: Record<string, string[]> = {
-      new: ['confirmed', 'cancelled'],
-      confirmed: ['in_fulfilment', 'cancelled'],
-      in_fulfilment: ['shipped'],
-      shipped: ['completed'],
-      completed: [],
-      cancelled: [],
-    };
-    return (graph[from] ?? []).includes(to);
   }
 
   private anyValue(blob: Record<string, string>): string {

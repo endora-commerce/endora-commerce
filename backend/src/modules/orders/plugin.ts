@@ -27,6 +27,8 @@ import {
   type CreditLimitPort,
   type OrderEventBus,
 } from './services/order-service.js';
+import { OrderStatusGraphService } from './services/order-status-graph-service.js';
+import { OrderTransitionService } from './services/order-transition-service.js';
 import { createBusinessIdGenerator } from './services/business-id-generator.js';
 import { registerCartRoutes } from '../carts/routes.js';
 import { registerOrderRoutes } from './routes.js';
@@ -295,6 +297,25 @@ export function commerceModule(options: OrdersModuleOptions) {
     );
     if (options.exposeCartService) options.exposeCartService(cartService);
 
+    // Feature 038 — configurable lifecycle. The transition engine validates
+    // against the DB-backed graph, runs veto guards, and emits the templated
+    // status events. Cancellation side-effects (release stock allocations +
+    // credit-limit reservation) are applied through the side-effects hook.
+    const orderStatusGraphService = new OrderStatusGraphService(options.emFactory);
+    const orderTransitionService = new OrderTransitionService(
+      options.emFactory,
+      options.eventBus,
+      orderStatusGraphService,
+      async ({ order, to }) => {
+        if (to === 'cancelled') {
+          if (options.creditLimit) {
+            await options.creditLimit.releaseByOrder({ orderId: order.id, reason: 'order_cancelled' });
+          }
+          await orderService.releaseAllocations(order.id);
+        }
+      },
+    );
+
     const cartUpsellService = new CartUpsellService(options.emFactory);
     const cartCouponService = options.promotionService
       ? new CartCouponService(
@@ -350,6 +371,8 @@ export function commerceModule(options: OrdersModuleOptions) {
     });
     await registerOrderRoutes(app, {
       orderService,
+      orderStatusGraphService,
+      orderTransitionService,
       emFactory: options.emFactory,
       requireCustomer: options.requireCustomer,
       requireAdmin: options.requireAdmin,

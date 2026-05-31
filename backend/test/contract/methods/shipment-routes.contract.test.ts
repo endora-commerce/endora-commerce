@@ -23,8 +23,8 @@ async function seedOrder(em: EntityManager): Promise<string> {
     cost: '15.00',
     currency: 'PLN',
     status: 'active',
-    statusOnSuccess: 'shipped',
-    statusOnFailure: 'in_fulfilment',
+    statusOnSuccess: 'shipment_sent',
+    statusOnFailure: 'processing',
   });
   await em.persistAndFlush(method);
   const order = em.create(Order, {
@@ -37,7 +37,7 @@ async function seedOrder(em: EntityManager): Promise<string> {
     deliveryMethodSnapshot: { code: method.code, name: 'SR', cost: 15 },
     paymentMethodId: randomUUID(),
     paymentMethodSnapshot: { code: 'bt', name: 'BT', kind: 'bank_transfer' },
-    status: 'confirmed',
+    status: 'paid',
     subtotal: '100.00',
     taxTotal: '23.00',
     deliveryTotal: '15.00',
@@ -89,7 +89,7 @@ describe('Shipment routes', () => {
     expect(receive.statusCode).toBe(200);
     const result = (receive.json() as { data: { status: string; orderStatus: string } }).data;
     expect(result.status).toBe('success');
-    expect(result.orderStatus).toBe('shipped');
+    expect(result.orderStatus).toBe('shipment_sent');
 
     const retry = await h.app.inject({
       method: 'POST',

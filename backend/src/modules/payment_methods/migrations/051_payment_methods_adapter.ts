@@ -40,7 +40,7 @@ export class Migration051PaymentMethodsAdapter extends Migration {
     // Backfill: adapter mirrors the existing kind; statuses get seed defaults.
     this.addSql(`update "payment_methods" set "adapter" = "kind" where "adapter" is null;`);
     this.addSql(`update "payment_methods" set "status_on_pending" = 'new' where "status_on_pending" is null;`);
-    this.addSql(`update "payment_methods" set "status_on_success" = 'confirmed' where "status_on_success" is null;`);
+    this.addSql(`update "payment_methods" set "status_on_success" = 'paid' where "status_on_success" is null;`);
     this.addSql(`update "payment_methods" set "status_on_failure" = 'cancelled' where "status_on_failure" is null;`);
     this.addSql(`
       alter table "payment_methods"

@@ -45,6 +45,7 @@ describe('order status lifecycle (feature 038)', () => {
       deliveryTotal: '0.00',
       total: '100.00',
       currency: 'PLN',
+      placedAt: new Date(),
     });
     await em.persistAndFlush(order);
     return order;

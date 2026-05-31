@@ -31,8 +31,8 @@ async function seedOrder(
     cost: '15.00',
     currency: 'PLN',
     status: 'active',
-    statusOnSuccess: opts.statusOnSuccess ?? 'shipped',
-    statusOnFailure: opts.statusOnFailure ?? 'in_fulfilment',
+    statusOnSuccess: opts.statusOnSuccess ?? 'shipment_sent',
+    statusOnFailure: opts.statusOnFailure ?? 'processing',
   });
   await em.persistAndFlush(method);
 
@@ -46,7 +46,7 @@ async function seedOrder(
     deliveryMethodSnapshot: { code: method.code, name: 'RS', cost: 15 },
     paymentMethodId: randomUUID(),
     paymentMethodSnapshot: { code: 'bt', name: 'BT', kind: 'bank_transfer' },
-    status: 'confirmed',
+    status: 'paid',
     subtotal: '100.00',
     taxTotal: '23.00',
     deliveryTotal: '15.00',
@@ -92,7 +92,7 @@ describe('Shipment lifecycle: createShipment + receive_shipment + retry', () => 
       providerDetails: { trackingNumber: 'TRK1' },
     });
     expect(res.status).toBe('success');
-    expect(res.orderStatus).toBe('shipped');
+    expect(res.orderStatus).toBe('shipment_sent');
 
     const em = h.em();
     const reloaded = await em.findOne(Shipment, { id: shipment.id });
@@ -100,7 +100,7 @@ describe('Shipment lifecycle: createShipment + receive_shipment + retry', () => 
     expect(reloaded!.externalReference).toBe('TRK1');
     expect(reloaded!.providerDetails).toMatchObject({ trackingNumber: 'TRK1' });
     const reloadedOrder = await em.findOne(Order, { id: order.id });
-    expect(reloadedOrder!.status).toBe('shipped');
+    expect(reloadedOrder!.status).toBe('shipment_sent');
   });
 
   it('receive_shipment failure → Shipment failure + order statusOnFailure', async () => {
@@ -121,7 +121,7 @@ describe('Shipment lifecycle: createShipment + receive_shipment + retry', () => 
     expect(reloaded!.status).toBe('failure');
     expect(reloaded!.failureReason).toBe('carrier rejected');
     const reloadedOrder = await em.findOne(Order, { id: order.id });
-    expect(reloadedOrder!.status).toBe('in_fulfilment');
+    expect(reloadedOrder!.status).toBe('processing');
   });
 
   it('is idempotent on repeated success and rejects failure after success', async () => {
@@ -164,6 +164,6 @@ describe('Shipment lifecycle: createShipment + receive_shipment + retry', () => 
     const res = await handler.receive({ shipmentId: shipment.id, outcome: 'success' });
     expect(res.status).toBe('success');
     const reloadedOrder = await h.em().findOne(Order, { id: order.id });
-    expect(reloadedOrder!.status).toBe('shipped');
+    expect(reloadedOrder!.status).toBe('shipment_sent');
   });
 });

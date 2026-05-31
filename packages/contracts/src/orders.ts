@@ -3,7 +3,6 @@ import {
   addressSnapshotSchema,
   isoDateTimeSchema,
   multilingualStringSchema,
-  orderStatusSchema,
   paymentStatusSchema,
   uuidSchema,
 } from './common.js';
@@ -12,6 +11,17 @@ import {
  * Orders module contracts — Source of truth per Principle V.
  * See specs/001-b2b-platform-foundation/contracts/orders.contract.md.
  */
+
+/**
+ * Configurable order status code (feature 038). Was a fixed enum
+ * (`orderStatusSchema`); with the data-driven lifecycle the authoritative
+ * status is a code validated in-service against the configured `order_statuses`
+ * set.
+ */
+export const orderStatusCodeSchema = z
+  .string()
+  .regex(/^[a-z][a-z0-9_]*$/, 'status code must be snake_case')
+  .max(64);
 
 // --- Resource types --------------------------------------------------------
 
@@ -73,7 +83,7 @@ export const orderSchema = z.object({
   placedByCustomerAccountId: uuidSchema,
   placedOnBehalfByAdminUserId: uuidSchema.nullable(),
   salesChannelId: uuidSchema,
-  status: orderStatusSchema,
+  status: orderStatusCodeSchema,
   paymentStatus: paymentStatusSchema,
   deliveryAddress: addressSnapshotSchema,
   billingAddress: addressSnapshotSchema,
@@ -118,7 +128,7 @@ export const placeOrderRequestSchema = z.object({
 export type PlaceOrderRequest = z.infer<typeof placeOrderRequestSchema>;
 
 export const adminOrderStatusTransitionSchema = z.object({
-  to: orderStatusSchema,
+  to: orderStatusCodeSchema,
   reason: z.string().optional(),
 });
 
@@ -141,16 +151,6 @@ export const adminOrderShippedRequestSchema = z.object({
 // ===========================================================================
 // Feature 038 — Orders module (configurable lifecycle + admin operations)
 // ===========================================================================
-
-/**
- * Configurable order status code. Was a fixed enum (`orderStatusSchema`);
- * with the data-driven lifecycle (feature 038) the authoritative status is a
- * code validated in-service against the configured `order_statuses` set.
- */
-export const orderStatusCodeSchema = z
-  .string()
-  .regex(/^[a-z][a-z0-9_]*$/, 'status code must be snake_case')
-  .max(64);
 
 // --- Status configuration --------------------------------------------------
 

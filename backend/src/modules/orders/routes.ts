@@ -2,12 +2,17 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   adminOrderPaymentStatusTransitionSchema,
   adminOrderStatusTransitionSchema,
+  createOrderStatusRequestSchema,
   ERROR_CODES,
   placeOrderRequestSchema,
+  setOrderTransitionsRequestSchema,
+  updateOrderStatusRequestSchema,
 } from '@b2b/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
 import type { OrderService } from './services/order-service.js';
+import type { OrderStatusGraphService } from './services/order-status-graph-service.js';
+import type { OrderTransitionService } from './services/order-transition-service.js';
 import { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
 import { Invoice } from '../invoices/entities/invoice.entity.js';
@@ -18,6 +23,9 @@ import { OrganizationCannotTransactError } from '../organizations/services/organ
 
 export interface OrdersDeps {
   orderService: OrderService;
+  /** Feature 038 — configurable lifecycle: status-graph CRUD + transition engine. */
+  orderStatusGraphService: OrderStatusGraphService;
+  orderTransitionService: OrderTransitionService;
   emFactory: () => EntityManager;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   requireAdmin: RequireAdminFactory;
@@ -181,8 +189,82 @@ export async function registerOrderRoutes(
     },
     async (request) => {
       const body = adminOrderStatusTransitionSchema.parse(request.body);
-      const order = await orderService.transitionStatus(request.params.id, body.to);
+      const adminUserId = resolveAdminUserId(request);
+      const order = await deps.orderTransitionService.apply(
+        request.params.id,
+        body.to,
+        adminUserId ? { kind: 'admin', adminUserId } : { kind: 'system', source: 'checkout' },
+        body.reason ?? null,
+      );
       return { data: await serializeOrder(emFactory(), order) };
+    },
+  );
+
+  // --- Configurable lifecycle: status graph CRUD (feature 038 US1) -------
+  app.get(
+    '/api/v1/admin/orders/statuses',
+    { preHandler: requireAdmin('orders:read') },
+    async () => {
+      const graph = await deps.orderStatusGraphService.listGraph();
+      return {
+        data: {
+          statuses: graph.statuses.map((s) => ({
+            code: s.code,
+            name: s.name,
+            isInitial: s.isInitial,
+            isTerminal: s.isTerminal,
+            isSystem: s.isSystem,
+            weight: s.weight,
+            inUseCount: s.inUseCount,
+          })),
+          transitions: graph.transitions.map((t) => ({
+            fromStatusCode: t.fromStatusCode,
+            toStatusCode: t.toStatusCode,
+            isSystem: t.isSystem,
+          })),
+        },
+      };
+    },
+  );
+
+  app.post(
+    '/api/v1/admin/orders/statuses',
+    { preHandler: requireAdmin('orders:write'), schema: { body: createOrderStatusRequestSchema } },
+    async (request, reply) => {
+      const body = createOrderStatusRequestSchema.parse(request.body);
+      await deps.orderStatusGraphService.createStatus(body);
+      reply.code(201);
+      return { data: { code: body.code } };
+    },
+  );
+
+  app.patch<{ Params: { code: string } }>(
+    '/api/v1/admin/orders/statuses/:code',
+    { preHandler: requireAdmin('orders:write'), schema: { body: updateOrderStatusRequestSchema } },
+    async (request) => {
+      const body = updateOrderStatusRequestSchema.parse(request.body);
+      await deps.orderStatusGraphService.updateStatus(request.params.code, body);
+      return { data: { code: request.params.code } };
+    },
+  );
+
+  app.delete<{ Params: { code: string } }>(
+    '/api/v1/admin/orders/statuses/:code',
+    { preHandler: requireAdmin('orders:write') },
+    async (request) => {
+      await deps.orderStatusGraphService.deleteStatus(request.params.code);
+      return { data: { deleted: request.params.code } };
+    },
+  );
+
+  app.put(
+    '/api/v1/admin/orders/transitions',
+    { preHandler: requireAdmin('orders:write'), schema: { body: setOrderTransitionsRequestSchema } },
+    async (request) => {
+      const body = setOrderTransitionsRequestSchema.parse(request.body);
+      await deps.orderStatusGraphService.setTransitions(body);
+      const graph = await deps.orderStatusGraphService.listGraph();
+      return { data: { transitions: graph.transitions } };
     },
   );
 
@@ -198,6 +280,15 @@ export async function registerOrderRoutes(
       return { data: await serializeOrder(emFactory(), order) };
     },
   );
+}
+
+/** Resolve the acting admin user id from the production or test actor. */
+function resolveAdminUserId(req: FastifyRequest): string | null {
+  const prodActor = (req as { actor?: { kind?: string; adminUserId?: string } }).actor;
+  if (prodActor?.kind === 'admin' && prodActor.adminUserId) return prodActor.adminUserId;
+  const testActor = (req as { testActor?: { kind?: string; adminUserId?: string } }).testActor;
+  if (testActor?.kind === 'admin' && testActor.adminUserId) return testActor.adminUserId;
+  return null;
 }
 
 async function serializeOrder(em: EntityManager, order: Order): Promise<Record<string, unknown>> {

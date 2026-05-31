@@ -35,8 +35,8 @@ export class Migration052ShippingMethodsAdapterAndShipments extends Migration {
     this.addSql(`
       alter table "delivery_methods"
         add column "adapter" varchar(64) not null default '',
-        add column "status_on_success" varchar(64) not null default 'shipped',
-        add column "status_on_failure" varchar(64) not null default 'in_fulfilment';
+        add column "status_on_success" varchar(64) not null default 'shipment_sent',
+        add column "status_on_failure" varchar(64) not null default 'processing';
     `);
     // Backfill existing rows: adapter mirrors the existing code.
     this.addSql(`update "delivery_methods" set "adapter" = "code" where "adapter" = '';`);

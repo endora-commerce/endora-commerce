@@ -86,8 +86,8 @@ export class OrderStatusGraphService {
   async createStatus(input: {
     code: string;
     name: Record<string, string>;
-    isTerminal?: boolean;
-    weight?: number;
+    isTerminal?: boolean | undefined;
+    weight?: number | undefined;
   }): Promise<void> {
     const em = this.emFactory();
     const existing = await em.findOne(OrderStatus, { code: input.code });
@@ -114,7 +114,11 @@ export class OrderStatusGraphService {
 
   async updateStatus(
     code: string,
-    patch: { name?: Record<string, string>; isTerminal?: boolean; weight?: number },
+    patch: {
+      name?: Record<string, string> | undefined;
+      isTerminal?: boolean | undefined;
+      weight?: number | undefined;
+    },
   ): Promise<void> {
     const em = this.emFactory();
     const status = await em.findOne(OrderStatus, { code });
@@ -164,8 +168,8 @@ export class OrderStatusGraphService {
   }
 
   async setTransitions(input: {
-    add?: Array<{ fromStatusCode: string; toStatusCode: string }>;
-    remove?: Array<{ fromStatusCode: string; toStatusCode: string }>;
+    add?: Array<{ fromStatusCode: string; toStatusCode: string }> | undefined;
+    remove?: Array<{ fromStatusCode: string; toStatusCode: string }> | undefined;
   }): Promise<void> {
     const em = this.emFactory();
     const graph = await this.loadGraph();

@@ -9,17 +9,27 @@ describe('EnumOrderStatusRegistry', () => {
 
   it('lists the order-status enum as code+label options', () => {
     const codes = reg.list().map((o) => o.code);
-    expect(codes).toEqual(['new', 'confirmed', 'in_fulfilment', 'shipped', 'completed', 'cancelled']);
-    expect(reg.list().find((o) => o.code === 'in_fulfilment')?.label).toBe('In Fulfilment');
+    expect(codes).toEqual([
+      'new',
+      'pending',
+      'paid',
+      'processing',
+      'shipment_ready',
+      'shipment_sent',
+      'completed',
+      'on_hold',
+      'cancelled',
+    ]);
+    expect(reg.list().find((o) => o.code === 'shipment_sent')?.label).toBe('Shipment Sent');
   });
 
   it('has() reflects membership', () => {
-    expect(reg.has('confirmed')).toBe(true);
-    expect(reg.has('paid')).toBe(false); // payment-process status, not an order status
+    expect(reg.has('paid')).toBe(true);
+    expect(reg.has('confirmed')).toBe(false); // legacy code, no longer in the default set
   });
 
   it('assertValid throws on an unknown status', () => {
-    expect(() => reg.assertValid('confirmed')).not.toThrow();
+    expect(() => reg.assertValid('paid')).not.toThrow();
     expect(() => reg.assertValid('bogus')).toThrowError(OrderStatusRegistryError);
   });
 });

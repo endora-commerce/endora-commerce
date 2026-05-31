@@ -47,13 +47,22 @@ export const addressSnapshotSchema = z.object({
 });
 export type AddressSnapshot = z.infer<typeof addressSnapshotSchema>;
 
-/** Order lifecycle statuses (FR-014). */
+/**
+ * Default order lifecycle statuses (feature 038). The lifecycle is now
+ * admin-configurable; this enum is the seeded default set and the fallback the
+ * `EnumOrderStatusRegistry` validates payment/shipping `statusOn*` references
+ * against. Runtime-added statuses are validated against the configurable graph,
+ * not this enum.
+ */
 export const orderStatusSchema = z.enum([
   'new',
-  'confirmed',
-  'in_fulfilment',
-  'shipped',
+  'pending',
+  'paid',
+  'processing',
+  'shipment_ready',
+  'shipment_sent',
   'completed',
+  'on_hold',
   'cancelled',
 ]);
 export type OrderStatus = z.infer<typeof orderStatusSchema>;

@@ -54,7 +54,7 @@ export class PaymentMethodReconciler {
       status: defaults.status ?? 'active',
       additionalPrice: defaults.additionalPrice ?? '0',
       statusOnPending: defaults.statusOnPending ?? 'new',
-      statusOnSuccess: defaults.statusOnSuccess ?? 'confirmed',
+      statusOnSuccess: defaults.statusOnSuccess ?? 'paid',
       statusOnFailure: defaults.statusOnFailure ?? 'cancelled',
     });
     await em.persistAndFlush(row);
