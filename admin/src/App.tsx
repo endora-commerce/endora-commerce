@@ -47,6 +47,7 @@ import { OrganizationsList } from './modules/organizations/OrganizationsList.js'
 import { OrganizationDetail } from './modules/organizations/OrganizationDetail.js';
 import { OrdersList } from './modules/orders/OrdersList.js';
 import { OrderDetail } from './modules/orders/OrderDetail.js';
+import { OrderStatusConfigPage } from './modules/orders/OrderStatusConfigPage.js';
 import { CartsList } from './modules/carts/CartsList.js';
 import { CartDetail } from './modules/carts/CartDetail.js';
 import { InvoicesList } from './modules/invoices/InvoicesList.js';
@@ -132,6 +133,7 @@ export function App(): ReactNode {
         <Route path="/organizations" element={<OrganizationsList />} />
         <Route path="/organizations/:id" element={<OrganizationDetail />} />
         <Route path="/orders" element={<OrdersList />} />
+        <Route path="/orders/statuses" element={<OrderStatusConfigPage />} />
         <Route path="/orders/:id" element={<OrderDetail />} />
         <Route path="/carts" element={<CartsList />} />
         <Route path="/carts/:id" element={<CartDetail />} />

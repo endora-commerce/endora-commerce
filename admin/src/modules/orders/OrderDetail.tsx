@@ -49,14 +49,30 @@ interface OrderDetail {
   placedAt: string;
 }
 
-const ORDER_STATUSES = [
-  'new',
-  'confirmed',
-  'in_fulfilment',
-  'shipped',
-  'completed',
-  'cancelled',
-] as const;
+interface StatusDef {
+  code: string;
+  name: Record<string, string>;
+  isTerminal: boolean;
+}
+interface StatusGraph {
+  statuses: StatusDef[];
+  transitions: Array<{ fromStatusCode: string; toStatusCode: string }>;
+}
+
+function statusName(graph: StatusGraph | null, code: string): string {
+  const s = graph?.statuses.find((x) => x.code === code);
+  if (!s) return code;
+  return s.name['en'] ?? Object.values(s.name)[0] ?? code;
+}
+
+/** Current status plus the statuses reachable from it (valid next transitions). */
+function statusOptions(graph: StatusGraph | null, current: string): string[] {
+  if (!graph) return [current];
+  const targets = graph.transitions
+    .filter((tr) => tr.fromStatusCode === current)
+    .map((tr) => tr.toStatusCode);
+  return [current, ...targets.filter((c, i) => targets.indexOf(c) === i)];
+}
 
 const PAYMENT_STATUSES = ['awaiting_payment', 'paid', 'deferred', 'refunded'] as const;
 
@@ -64,6 +80,7 @@ export function OrderDetail(): ReactNode {
   const t = useTranslation('core');
   const { id = '' } = useParams<{ id: string }>();
   const [order, setOrder] = useState<OrderDetail | null>(null);
+  const [graph, setGraph] = useState<StatusGraph | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -89,17 +106,26 @@ export function OrderDetail(): ReactNode {
     void refresh();
   }, [refresh]);
 
+  // Load the configurable status graph so the selector offers only valid
+  // next transitions (feature 038 US1).
+  useEffect(() => {
+    void apiClient
+      .get<{ data: StatusGraph }>('/api/v1/admin/orders/statuses')
+      .then((res) => setGraph(res.data))
+      .catch(() => setGraph(null));
+  }, []);
+
   const handleStatus = useCallback(
     async (to: string): Promise<void> => {
       try {
         await apiClient.post<{ data: OrderDetail }>(`/api/v1/admin/orders/${id}/status`, { to });
-        setInfo(t('orderDetail.messages.orderMoved', { status: t(`orderDetail.orderStatus.${to}`) }));
+        setInfo(t('orderDetail.messages.orderMoved', { status: statusName(graph, to) }));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.errors.statusChange'));
       }
     },
-    [id, refresh],
+    [id, refresh, graph, t],
   );
 
   const handlePaymentStatus = useCallback(
@@ -180,11 +206,13 @@ export function OrderDetail(): ReactNode {
               <Select
                 id="ostat"
                 value={order.status}
-                onChange={(e): void => void handleStatus(e.target.value)}
+                onChange={(e): void => {
+                  if (e.target.value !== order.status) void handleStatus(e.target.value);
+                }}
               >
-                {ORDER_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {t(`orderDetail.orderStatus.${s}`)}
+                {statusOptions(graph, order.status).map((code) => (
+                  <option key={code} value={code}>
+                    {statusName(graph, code)}
                   </option>
                 ))}
               </Select>
