@@ -174,6 +174,50 @@ export async function upsertQuickOrderPreference(
   return res.data!;
 }
 
+export interface QuickOrderOneClickEligibility {
+  enabled: boolean;
+  reason?: 'setting_disabled' | 'missing_defaults' | 'ineligible_default' | null;
+}
+
+export interface QuickOrderNextAction {
+  kind: 'redirect_to_gateway' | 'awaiting_transfer' | 'none';
+  url?: string;
+}
+
+export interface QuickOrderOneClickResult {
+  order: { id: string; businessId: string; status: string; total: number; currency: string };
+  nextAction: QuickOrderNextAction | null;
+}
+
+/** Whether the one-click-buy button should show for the current buyer. */
+export async function getOneClickEligibility(
+  sessionCookie: string,
+  productId: string,
+): Promise<QuickOrderOneClickEligibility> {
+  return apiGetAuthed<QuickOrderOneClickEligibility>({
+    path: `/api/v1/quick-order/one-click/eligibility?productId=${encodeURIComponent(productId)}`,
+    sessionCookie,
+  });
+}
+
+/** Place a one-click order from the buyer's defaults; returns order + nextAction. */
+export async function placeOneClickOrder(
+  sessionCookie: string,
+  input: { productId: string; variantId?: string | null; quantity?: number },
+): Promise<QuickOrderOneClickResult> {
+  const res = await apiMutate<QuickOrderOneClickResult>({
+    method: 'POST',
+    path: '/api/v1/quick-order/one-click',
+    body: {
+      productId: input.productId,
+      ...(input.variantId ? { variantId: input.variantId } : {}),
+      ...(input.quantity ? { quantity: input.quantity } : {}),
+    },
+    sessionCookie,
+  });
+  return res.data!;
+}
+
 export async function searchProducts(
   sessionCookie: string,
   q: string,
