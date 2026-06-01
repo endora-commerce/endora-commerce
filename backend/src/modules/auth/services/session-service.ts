@@ -105,6 +105,21 @@ export class SessionService {
     await this.redis.del(REDIS_KEY_PREFIX + sessionId);
   }
 
+  /**
+   * Revoke every active session for a Customer — used when an account is
+   * blocked or soft-deleted so it loses access promptly (feature 040,
+   * FR-016/SC-002). Clears both the Postgres rows and their Redis caches.
+   */
+  async destroyAllForCustomer(customerAccountId: string): Promise<void> {
+    const em = this.emFactory();
+    const sessions = await em.find(Session, { customerAccountId });
+    if (sessions.length === 0) return;
+    for (const session of sessions) {
+      await this.redis.del(REDIS_KEY_PREFIX + session.id);
+    }
+    await em.removeAndFlush(sessions);
+  }
+
   private async cache(session: Session): Promise<void> {
     const ttl = Math.max(1, Math.floor((session.expiresAt.getTime() - Date.now()) / 1_000));
     const payload = {
