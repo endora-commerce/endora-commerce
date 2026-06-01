@@ -137,3 +137,20 @@ export async function reorderOrder(sessionCookie: string, id: string): Promise<R
   });
   return result.data!;
 }
+
+/**
+ * Order again as a Quote Request (feature 039 / US4). Reuses the existing
+ * clone-to-quote path (feature 038 US7).
+ */
+export async function cloneOrderToQuote(
+  sessionCookie: string,
+  id: string,
+): Promise<{ quoteRequestId: string }> {
+  const result = await apiMutate<{ quoteRequestId: string }>({
+    method: 'POST',
+    path: `/api/v1/orders/${id}/clone-to-quote`,
+    body: {},
+    sessionCookie,
+  });
+  return result.data!;
+}
