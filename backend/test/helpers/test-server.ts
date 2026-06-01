@@ -23,6 +23,7 @@ import { adminNotificationsModule } from '../../src/modules/admin_notifications/
 import { OrganizationModerationService } from '../../src/modules/organizations/services/organization-moderation-service.js';
 import { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
 import { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
+import { SalesRepAssignmentService } from '../../src/modules/organizations/services/sales-rep-assignment-service.js';
 import { OrganizationEffectivePriceListsService } from '../../src/modules/organizations/services/organization-effective-pricelists-service.js';
 import { OrganizationTaxIdValidationService } from '../../src/modules/organizations/services/organization-tax-id-validation-service.js';
 import type {
@@ -317,6 +318,7 @@ export async function setupBackendServer(
   // Mirrors the composition.ts pattern: production wiring reads
   // `request.actor`; the test harness uses `request.testActor`.
   const sharedRestrictionService = new OrganizationRestrictionService(em);
+  const sharedSalesRepAssignment = new SalesRepAssignmentService(em);
   const buildOrgAllowListResolver = (
     kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
   ) => async (request: FastifyRequest): Promise<string[] | null> => {
@@ -1010,7 +1012,11 @@ export async function setupBackendServer(
       const role = adminUser?.adminRoleId
         ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
         : null;
-      return { adminUserId, isPlatformAdmin: role?.code !== 'sales_representative' };
+      const isPlatformAdmin = role?.code !== 'sales_representative';
+      const allowedOrganizationIds = isPlatformAdmin
+        ? []
+        : await sharedSalesRepAssignment.listAssignedOrganizationIds(adminUserId);
+      return { adminUserId, isPlatformAdmin, allowedOrganizationIds };
     },
   });
   modules.push(customers.plugin);

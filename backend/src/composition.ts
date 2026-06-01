@@ -1131,12 +1131,21 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       if (actor.kind !== 'admin') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
       }
-      const roleRow = (await em().getKnex().raw(
+      const knex = em().getKnex();
+      const roleRow = (await knex.raw(
         `select ar."code" as code from "admin_users" au left join "admin_roles" ar on ar."id" = au."admin_role_id" where au."id" = ?`,
         [actor.adminUserId],
       )) as { rows: Array<{ code: string | null }> };
-      const roleCode = roleRow.rows[0]?.code ?? null;
-      return { adminUserId: actor.adminUserId, isPlatformAdmin: roleCode !== 'sales_representative' };
+      const isPlatformAdmin = (roleRow.rows[0]?.code ?? null) !== 'sales_representative';
+      let allowedOrganizationIds: string[] = [];
+      if (!isPlatformAdmin) {
+        const rows = (await knex.raw(
+          `select "organization_id" from "organization_sales_rep_assignments" where "admin_user_id" = ?`,
+          [actor.adminUserId],
+        )) as { rows: Array<{ organization_id: string }> };
+        allowedOrganizationIds = rows.rows.map((r) => r.organization_id);
+      }
+      return { adminUserId: actor.adminUserId, isPlatformAdmin, allowedOrganizationIds };
     },
   });
   modules.push(customers.plugin);

@@ -14,6 +14,7 @@ import { CustomerAddressService } from './services/customer-address-service.js';
 import { CustomerDefaultsService } from './services/customer-defaults-service.js';
 import { CustomerAuthorityService } from './services/customer-authority-service.js';
 import { CustomerModerationService } from './services/customer-moderation-service.js';
+import { CustomerAdminQueryService } from './services/customer-admin-query-service.js';
 import { registerCustomersRegisterRoutes } from './routes.register.js';
 import {
   registerCustomersSelfRoutes,
@@ -96,6 +97,10 @@ export function customersModule(options: CustomersModuleOptions): {
     options.sessionService,
     options.auditLogService,
   );
+  const queryService = new CustomerAdminQueryService(
+    options.emFactory,
+    customerDefaultsService,
+  );
 
   const plugin: ModulePlugin = async (app) => {
     await registerCustomersRegisterRoutes(app, { registrationService });
@@ -113,6 +118,7 @@ export function customersModule(options: CustomersModuleOptions): {
       requireAdmin: options.requireAdmin,
       resolveModerationActor: options.resolveModerationActor,
       moderationService,
+      queryService,
       impersonationService,
     });
   };
