@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
+  adminAddOrderCommentRequestSchema,
   adminOrderPaymentStatusTransitionSchema,
   adminOrdersListQuerySchema,
   adminOrderStatusTransitionSchema,
@@ -7,6 +8,7 @@ import {
   bulkPrintInvoicesRequestSchema,
   createOrderSavedViewRequestSchema,
   createOrderStatusRequestSchema,
+  customerAddOrderCommentRequestSchema,
   ERROR_CODES,
   placeOrderRequestSchema,
   setOrderTransitionsRequestSchema,
@@ -21,6 +23,8 @@ import type { OrderTransitionService } from './services/order-transition-service
 import type { OrderListService, OrderListScope } from './services/order-list-service.js';
 import type { OrderListViewService } from './services/order-list-view-service.js';
 import type { OrderExportService } from './services/order-export-service.js';
+import type { OrderCommentService } from './services/order-comment-service.js';
+import type { OrderComment } from './entities/order-comment.entity.js';
 import { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
 import { Invoice } from '../invoices/entities/invoice.entity.js';
@@ -38,6 +42,8 @@ export interface OrdersDeps {
   orderListService: OrderListService;
   orderListViewService: OrderListViewService;
   orderExportService: OrderExportService;
+  /** Feature 038 US5 — order comments. */
+  orderCommentService: OrderCommentService;
   emFactory: () => EntityManager;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   requireAdmin: RequireAdminFactory;
@@ -410,6 +416,72 @@ export async function registerOrderRoutes(
       return { data: await serializeOrder(emFactory(), order) };
     },
   );
+
+  // --- Order comments (feature 038 US5) ---------------------------------
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/orders/:id/comments',
+    { preHandler: requireAdmin('orders:read') },
+    async (request) => {
+      const comments = await deps.orderCommentService.listForAdmin(request.params.id);
+      return { data: comments.map(serializeComment) };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/orders/:id/comments',
+    { preHandler: requireAdmin('orders:write'), schema: { body: adminAddOrderCommentRequestSchema } },
+    async (request, reply) => {
+      const body = adminAddOrderCommentRequestSchema.parse(request.body);
+      const comment = await deps.orderCommentService.addByAdmin(
+        request.params.id,
+        resolveAdminUserId(request),
+        body,
+      );
+      reply.code(201);
+      return { data: serializeComment(comment) };
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/orders/:id/comments',
+    { preHandler: requireCustomer },
+    async (request) => {
+      const ctx = resolveCustomerContext(request);
+      await orderService.getById(request.params.id, ctx); // authorizes visibility (404 if out of scope)
+      const comments = await deps.orderCommentService.listForCustomer(request.params.id);
+      return { data: comments.map(serializeComment) };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/orders/:id/comments',
+    { preHandler: requireCustomer, schema: { body: customerAddOrderCommentRequestSchema } },
+    async (request, reply) => {
+      const body = customerAddOrderCommentRequestSchema.parse(request.body);
+      const ctx = resolveCustomerContext(request);
+      await orderService.getById(request.params.id, ctx); // authorizes ownership
+      const comment = await deps.orderCommentService.addByCustomer(
+        request.params.id,
+        ctx.customerAccountId,
+        body,
+      );
+      reply.code(201);
+      return { data: serializeComment(comment) };
+    },
+  );
+}
+
+function serializeComment(c: OrderComment): Record<string, unknown> {
+  return {
+    id: c.id,
+    orderId: c.orderId,
+    authorAdminUserId: c.authorAdminUserId ?? null,
+    authorCustomerAccountId: c.authorCustomerAccountId ?? null,
+    body: c.body,
+    isCustomerVisible: c.isCustomerVisible,
+    notifyCustomer: c.notifyCustomer,
+    createdAt: c.createdAt.toISOString(),
+  };
 }
 
 function serializeSavedView(v: {
