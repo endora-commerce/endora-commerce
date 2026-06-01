@@ -51,6 +51,7 @@
   "orderCreate.field.product": "ID produktu",
   "orderCreate.field.quantity": "Ilość",
   "orderStatusConfig.title": "Statusy zamówień",
+  "orderStatusConfig.field.defaultName": "Domyślna nazwa",
   "orderStatusConfig.description": "Skonfiguruj cykl życia statusów zamówień i dozwolone przejścia",
   "orderStatusConfig.statuses": "Statusy",
   "orderStatusConfig.transitions": "Przejścia",

@@ -51,6 +51,7 @@
   "orderCreate.field.product": "Product ID",
   "orderCreate.field.quantity": "Quantity",
   "orderStatusConfig.title": "Order statuses",
+  "orderStatusConfig.field.defaultName": "Default name",
   "orderStatusConfig.description": "Configure the order status lifecycle and allowed transitions",
   "orderStatusConfig.statuses": "Statuses",
   "orderStatusConfig.transitions": "Transitions",

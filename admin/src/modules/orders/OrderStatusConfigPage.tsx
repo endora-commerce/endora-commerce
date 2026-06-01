@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { dictionaryClient } from '@/modules/dictionaries/client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +22,7 @@ import {
 interface StatusDef {
   code: string;
   name: Record<string, string>;
+  defaultName: string;
   isInitial: boolean;
   isTerminal: boolean;
   isSystem: boolean;
@@ -36,29 +38,50 @@ interface StatusGraph {
   statuses: StatusDef[];
   transitions: TransitionDef[];
 }
+interface ActiveLanguage {
+  code: string;
+  label: string;
+}
 
+/** Resolve the admin-facing label: default name → English → first → code. */
 function statusLabel(s: StatusDef): string {
-  return s.name['en'] ?? Object.values(s.name)[0] ?? s.code;
+  return s.defaultName || s.name['en'] || Object.values(s.name)[0] || s.code;
 }
 
 export function OrderStatusConfigPage(): ReactNode {
   const t = useTranslation('core');
   const [graph, setGraph] = useState<StatusGraph | null>(null);
+  const [languages, setLanguages] = useState<ActiveLanguage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Add-status form.
   const [newCode, setNewCode] = useState('');
-  const [newName, setNewName] = useState('');
+  const [newDefaultName, setNewDefaultName] = useState('');
+  const [newNames, setNewNames] = useState<Record<string, string>>({});
   const [newTerminal, setNewTerminal] = useState(false);
   const [transFrom, setTransFrom] = useState('');
   const [transTo, setTransTo] = useState('');
+
+  // Inline edit of an existing status's names.
+  const [editCode, setEditCode] = useState<string | null>(null);
+  const [editDefaultName, setEditDefaultName] = useState('');
+  const [editNames, setEditNames] = useState<Record<string, string>>({});
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get<{ data: StatusGraph }>('/api/v1/admin/orders/statuses');
-      setGraph(res.data);
+      const [graphRes, langRes] = await Promise.all([
+        apiClient.get<{ data: StatusGraph }>('/api/v1/admin/orders/statuses'),
+        dictionaryClient.listLanguages({ pageSize: 100 }).catch(() => ({ data: [] })),
+      ]);
+      setGraph(graphRes.data);
+      setLanguages(
+        (langRes.data as Array<{ code: string; label: string; isActive: boolean }>)
+          .filter((l) => l.isActive)
+          .map((l) => ({ code: l.code, label: l.label })),
+      );
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
     } finally {
@@ -83,17 +106,42 @@ export function OrderStatusConfigPage(): ReactNode {
     [load],
   );
 
+  /** Drop empty per-language entries before sending. */
+  const cleanNames = (names: Record<string, string>): Record<string, string> =>
+    Object.fromEntries(Object.entries(names).filter(([, v]) => v.trim().length > 0));
+
   const addStatus = (): void => {
     if (!newCode.trim()) return;
+    const defaultName = newDefaultName.trim() || newCode.trim();
     void run(async () => {
       await apiClient.post('/api/v1/admin/orders/statuses', {
         code: newCode.trim(),
-        name: { en: newName.trim() || newCode.trim() },
+        name: cleanNames(newNames),
+        defaultName,
         isTerminal: newTerminal,
       });
       setNewCode('');
-      setNewName('');
+      setNewDefaultName('');
+      setNewNames({});
       setNewTerminal(false);
+    });
+  };
+
+  const startEdit = (s: StatusDef): void => {
+    setEditCode(s.code);
+    setEditDefaultName(s.defaultName);
+    setEditNames({ ...s.name });
+  };
+
+  const saveEdit = (code: string): void => {
+    const defaultName = editDefaultName.trim();
+    if (!defaultName) return;
+    void run(async () => {
+      await apiClient.patch(`/api/v1/admin/orders/statuses/${code}`, {
+        name: cleanNames(editNames),
+        defaultName,
+      });
+      setEditCode(null);
     });
   };
 
@@ -163,11 +211,52 @@ export function OrderStatusConfigPage(): ReactNode {
             <TableBody>
               {statuses.map((s) => {
                 const locked = s.isSystem || s.isInitial || s.inUseCount > 0;
+                const isEditing = editCode === s.code;
                 return (
                   <TableRow key={s.code}>
-                    <TableCell className="font-mono text-xs">{s.code}</TableCell>
-                    <TableCell>{statusLabel(s)}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell className="font-mono text-xs align-top">{s.code}</TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <div className="space-y-2">
+                          <div className="space-y-1">
+                            <Label htmlFor={`dn-${s.code}`}>
+                              {t('orderStatusConfig.field.defaultName')}
+                            </Label>
+                            <input
+                              id={`dn-${s.code}`}
+                              className="h-8 w-full rounded-md border px-2 text-sm"
+                              value={editDefaultName}
+                              onChange={(e): void => setEditDefaultName(e.target.value)}
+                            />
+                          </div>
+                          {languages.map((lang) => (
+                            <div key={lang.code} className="space-y-1">
+                              <Label htmlFor={`n-${s.code}-${lang.code}`}>{lang.label}</Label>
+                              <input
+                                id={`n-${s.code}-${lang.code}`}
+                                className="h-8 w-full rounded-md border px-2 text-sm"
+                                value={editNames[lang.code] ?? ''}
+                                placeholder={s.defaultName}
+                                onChange={(e): void =>
+                                  setEditNames((prev) => ({ ...prev, [lang.code]: e.target.value }))
+                                }
+                              />
+                            </div>
+                          ))}
+                          <div className="flex gap-2 pt-1">
+                            <Button size="sm" onClick={(): void => saveEdit(s.code)}>
+                              {t('common.action.save')}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={(): void => setEditCode(null)}>
+                              {t('common.action.cancel')}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        statusLabel(s)
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground align-top">
                       {[
                         s.isInitial ? t('orderStatusConfig.flag.initial') : null,
                         s.isTerminal ? t('orderStatusConfig.flag.terminal') : null,
@@ -176,8 +265,16 @@ export function OrderStatusConfigPage(): ReactNode {
                         .filter(Boolean)
                         .join(', ')}
                     </TableCell>
-                    <TableCell className="tabular-nums">{s.inUseCount}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="tabular-nums align-top">{s.inUseCount}</TableCell>
+                    <TableCell className="text-right align-top">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`edit-${s.code}`}
+                        onClick={(): void => startEdit(s)}
+                      >
+                        <Pencil />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -206,14 +303,27 @@ export function OrderStatusConfigPage(): ReactNode {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="newName">{t('orderStatusConfig.col.name')}</Label>
+              <Label htmlFor="newDefaultName">{t('orderStatusConfig.field.defaultName')}</Label>
               <input
-                id="newName"
+                id="newDefaultName"
                 className="h-9 rounded-md border px-3 text-sm"
-                value={newName}
-                onChange={(e): void => setNewName(e.target.value)}
+                value={newDefaultName}
+                onChange={(e): void => setNewDefaultName(e.target.value)}
               />
             </div>
+            {languages.map((lang) => (
+              <div key={lang.code} className="space-y-1">
+                <Label htmlFor={`newName-${lang.code}`}>{lang.label}</Label>
+                <input
+                  id={`newName-${lang.code}`}
+                  className="h-9 rounded-md border px-3 text-sm"
+                  value={newNames[lang.code] ?? ''}
+                  onChange={(e): void =>
+                    setNewNames((prev) => ({ ...prev, [lang.code]: e.target.value }))
+                  }
+                />
+              </div>
+            ))}
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
