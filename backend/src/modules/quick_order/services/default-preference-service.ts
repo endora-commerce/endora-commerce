@@ -11,6 +11,7 @@ import { CustomerAccount } from '../../customer_accounts/entities/customer-accou
 import { PaymentMethod } from '../../payment_methods/entities/payment-method.entity.js';
 import { DeliveryMethod } from '../../delivery_methods/entities/delivery-method.entity.js';
 import { Address } from '../../addresses/entities/address.entity.js';
+import { CustomerAddress } from '../../customers/entities/customer-address.entity.js';
 import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import type { OrganizationRestrictionService } from '../../organizations/services/organization-restriction-service.js';
 import { QuickOrderDefaultPreference } from '../entities/quick-order-default-preference.entity.js';
@@ -141,10 +142,10 @@ export class DefaultPreferenceService {
       this.isDeliveryEligible(em, id, allow?.deliveryMethodIds ?? []),
     );
     const billing = await this.keepIf(resolved.billing, (id) =>
-      this.isAddressEligible(em, id, organizationId),
+      this.isAddressEligible(em, id, organizationId, customerAccountId),
     );
     const shipping = await this.keepIf(resolved.shipping, (id) =>
-      this.isAddressEligible(em, id, organizationId),
+      this.isAddressEligible(em, id, organizationId, customerAccountId),
     );
 
     return {
@@ -193,10 +194,25 @@ export class DefaultPreferenceService {
     em: EntityManager,
     id: string,
     organizationId: string | null,
+    customerAccountId: string,
   ): Promise<boolean> {
-    const address = await em.findOne(Address, { id });
-    if (!address || address.deletedAt) return false;
-    return organizationId !== null && address.organizationId === organizationId;
+    // Org-shared address belonging to the customer's organization.
+    const orgAddress = await em.findOne(Address, { id });
+    if (
+      orgAddress &&
+      !orgAddress.deletedAt &&
+      organizationId !== null &&
+      orgAddress.organizationId === organizationId
+    ) {
+      return true;
+    }
+    // Feature 040 — personal address owned by the customer.
+    const personal = await em.findOne(CustomerAddress, { id });
+    return (
+      personal != null &&
+      !personal.deletedAt &&
+      personal.customerAccountId === customerAccountId
+    );
   }
 
   private async customerOrganizationId(em: EntityManager, customerAccountId: string): Promise<string | null> {

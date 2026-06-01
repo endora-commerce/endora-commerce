@@ -46,7 +46,12 @@ export class ImpersonationService {
     /** Raw admin session cookie value — must be preserved as the shadow. */
     adminSessionCookieValue: string;
     customerAccountId: string;
-    organizationId: string;
+    /**
+     * Feature 040 — optional: standalone (org-less) customers have no
+     * Organization. When provided it scopes the target lookup; when omitted
+     * the target is found by id alone.
+     */
+    organizationId?: string | null;
     reason?: string;
     ip?: string;
     userAgent?: string;
@@ -60,7 +65,7 @@ export class ImpersonationService {
     }
     const target = await em.findOne(CustomerAccount, {
       id: input.customerAccountId,
-      organizationId: input.organizationId,
+      ...(input.organizationId != null ? { organizationId: input.organizationId } : {}),
       deletedAt: null,
     });
     if (!target) {
@@ -75,7 +80,7 @@ export class ImpersonationService {
       objectType: 'customer_account',
       objectId: target.id,
       stateBefore: null,
-      stateAfter: { reason: input.reason ?? null, organizationId: input.organizationId },
+      stateAfter: { reason: input.reason ?? null, organizationId: input.organizationId ?? null },
       ...(input.ip !== undefined ? { ipAddress: input.ip } : {}),
       ...(input.userAgent !== undefined ? { userAgent: input.userAgent } : {}),
       ...(input.requestId !== undefined ? { requestId: input.requestId } : {}),

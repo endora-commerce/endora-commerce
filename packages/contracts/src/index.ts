@@ -15,6 +15,7 @@ export * from './common.js';
 export * from './catalog.js';
 export * from './quote-requests.js';
 export * from './organizations.js';
+export * from './customers.js';
 export * from './carts.js';
 export * from './orders.js';
 export * from './price-lists.js';

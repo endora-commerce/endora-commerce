@@ -170,6 +170,12 @@ export interface OrdersModuleOptions {
    */
   exposeOrderService?: (service: OrderService) => void;
   /**
+   * Feature 040 — late-bind the OrderListService back to composition so the
+   * customers module can list a single Customer's orders (self-service
+   * history + admin customer-detail panel) without importing orders' internals.
+   */
+  exposeOrderListService?: (service: OrderListService) => void;
+  /**
    * Feature 027 US3 — port that appends a Shopping List's lines to the
    * buyer's cart. Wired by composition to ShoppingListService.convertToCart.
    */
@@ -369,6 +375,7 @@ export function commerceModule(options: OrdersModuleOptions) {
     );
     // Feature 038 US2 — orders list query, saved views, CSV export.
     const orderListService = new OrderListService(options.emFactory, orderStatusGraphService);
+    if (options.exposeOrderListService) options.exposeOrderListService(orderListService);
     const orderListViewService = new OrderListViewService(options.emFactory);
     const orderExportService = new OrderExportService(orderListService);
     const orderCommentService = new OrderCommentService(

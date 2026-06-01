@@ -26,6 +26,7 @@ import { QuoteRequestItem } from '../modules/quote_requests/entities/quote-reque
 import { Organization } from '../modules/organizations/entities/organization.entity.js';
 import { CustomerAccount } from '../modules/customer_accounts/entities/customer-account.entity.js';
 import { Address } from '../modules/addresses/entities/address.entity.js';
+import { CustomerAddress } from '../modules/customers/entities/customer-address.entity.js';
 import { EmailVerificationToken } from '../modules/organizations/entities/email-verification-token.entity.js';
 import { OrganizationTaxIdValidation } from '../modules/organizations/entities/organization-tax-id-validation.entity.js';
 import { OrganizationPaymentMethodLink } from '../modules/organizations/entities/organization-payment-method-link.entity.js';
@@ -169,6 +170,7 @@ export const ALL_ENTITIES = [
   Organization,
   CustomerAccount,
   Address,
+  CustomerAddress,
   EmailVerificationToken,
   // carts + commerce
   Cart,

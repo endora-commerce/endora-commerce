@@ -44,17 +44,28 @@ export default async function AccountLayout({
       ) : null}
       <aside className="b2b-account__nav" aria-label="Account">
         <strong>{me.customerAccount.firstName} {me.customerAccount.lastName}</strong>
-        <span className="muted">{me.organization.name}</span>
+        {me.organization ? <span className="muted">{me.organization.name}</span> : null}
         <Link href="/account">Profile</Link>
-        <Link href="/account/orders">Orders</Link>
-        <Link href="/quote-requests">Quote requests</Link>
-        <Link href="/shopping-lists">Shopping lists</Link>
-        <Link href="/quick-order">Quick order</Link>
+        <Link href="/addresses">My addresses</Link>
         <Link href="/account/password">Change password</Link>
         <Link href="/account/two-factor">Two-factor</Link>
-        <Link href="/organization">Organization</Link>
-        <Link href="/organization/addresses">Addresses</Link>
-        {isAdmin ? <Link href="/organization/members">Members</Link> : null}
+        {/*
+          Order placement, RFQ submission, shopping lists, and quick order all
+          require an Organization (the backend 422s for org-less callers), so
+          these features — and the Organization pages — are shown only to
+          org-bound customers (feature 040, FR-003).
+        */}
+        {me.organization ? (
+          <>
+            <Link href="/account/orders">Orders</Link>
+            <Link href="/quote-requests">Quote requests</Link>
+            <Link href="/shopping-lists">Shopping lists</Link>
+            <Link href="/quick-order">Quick order</Link>
+            <Link href="/organization">Organization</Link>
+            <Link href="/organization/addresses">Org addresses</Link>
+            {isAdmin ? <Link href="/organization/members">Members</Link> : null}
+          </>
+        ) : null}
         <form action={logoutAction}>
           <button type="submit" className="b2b-account__logout">
             Sign out

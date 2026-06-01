@@ -113,6 +113,8 @@
   "appShell.nav.taxes": "Podatki",
   "appShell.nav.deliveryMethods": "Metody dostawy",
   "appShell.nav.paymentMethods": "Metody płatności",
+  "appShell.nav.customers": "Klienci",
+  "appShell.nav.customersOnline": "Klienci online",
   "appShell.nav.organizations": "Organizacje",
   "appShell.nav.creditLimits": "Limity kredytowe",
   "appShell.nav.comparisons": "Porównania",
