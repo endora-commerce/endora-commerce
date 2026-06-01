@@ -47,6 +47,7 @@ interface OrgDetail {
   status: 'pending_verification' | 'active' | 'blocked' | 'rejected';
   vatStatus: 'vat_payer' | 'vat_exempt' | 'reverse_charge';
   registeredAddress: { street: string; city: string; postalCode: string; country: string };
+  orderConfirmationEmails?: string[];
   members: OrgMember[];
   version?: number;
   blockedReason?: string | null;
@@ -122,6 +123,7 @@ export function OrganizationDetail(): ReactNode {
       status?: string;
       vatStatus?: string;
       name?: string;
+      orderConfirmationEmails?: string[];
       expectedUpdatedAt?: string;
     }): Promise<void> => {
       if (!org?.updatedAt) return;
@@ -344,6 +346,32 @@ export function OrganizationDetail(): ReactNode {
                 </option>
               ))}
             </Select>
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="orderConfEmails">{t('organizations.detail.orderConfirmationEmails')}</Label>
+            <textarea
+              id="orderConfEmails"
+              aria-label="order-confirmation-emails"
+              className="min-h-20 w-full rounded-md border p-2 text-sm"
+              defaultValue={(org.orderConfirmationEmails ?? []).join('\n')}
+              placeholder={'ops@example.com\nsales@example.com'}
+              onBlur={(e): void => {
+                const emails = e.target.value
+                  .split(/[\n,]/)
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+                const current = org.orderConfirmationEmails ?? [];
+                if (emails.join('|') !== current.join('|')) {
+                  void handlePatch({
+                    orderConfirmationEmails: emails,
+                    ...(org.updatedAt !== undefined ? { expectedUpdatedAt: org.updatedAt } : {}),
+                  });
+                }
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t('organizations.detail.orderConfirmationEmailsHint')}
+            </p>
           </div>
         </CardContent>
       </Card>
