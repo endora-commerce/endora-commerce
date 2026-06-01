@@ -3,6 +3,7 @@ import {
   blockCustomerRequestSchema,
   startImpersonationRequestSchema,
   assignOrganizationRequestSchema,
+  assignCustomerGroupRequestSchema,
   customerAddressInputSchema,
   validateCustomerVatRequestSchema,
 } from '@b2b/contracts';
@@ -246,6 +247,23 @@ export async function registerCustomersAdminRoutes(
       const actor = await resolveModerationActor(request);
       const customer = await deps.orgAssignmentService.unassign(request.params.id, actor);
       return { data: { id: customer.id, organizationId: customer.organizationId ?? null } };
+    },
+  );
+
+  // ── Customer group (US6) ────────────────────────────────────────────────
+
+  app.put<{ Params: { id: string } }>(
+    '/api/v1/admin/customers/:id/customer-group',
+    { preHandler: requireAdmin('customers:manage'), schema: { body: assignCustomerGroupRequestSchema } },
+    async (request) => {
+      const actor = await resolveModerationActor(request);
+      const body = assignCustomerGroupRequestSchema.parse(request.body);
+      const customer = await deps.orgAssignmentService.setCustomerGroup(
+        request.params.id,
+        body.customerGroupId,
+        actor,
+      );
+      return { data: { id: customer.id, customerGroupId: customer.customerGroupId ?? null } };
     },
   );
 

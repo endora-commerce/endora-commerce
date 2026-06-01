@@ -95,6 +95,31 @@ export class CustomerOrgAssignmentService {
     return customer;
   }
 
+  /** Sets (or clears) the customer's direct customer-group (feature 040, US6). */
+  async setCustomerGroup(
+    customerAccountId: string,
+    customerGroupId: string | null,
+    actor: ModerationActor,
+  ): Promise<CustomerAccount> {
+    const em = this.emFactory();
+    const customer = await this.loadActive(em, customerAccountId);
+    await this.assertAuthorized(actor, customer.organizationId ?? null);
+
+    const before = { customerGroupId: customer.customerGroupId ?? null };
+    customer.customerGroupId = customerGroupId;
+    await em.flush();
+
+    await this.auditLog.record({
+      actorAdminUserId: actor.adminUserId,
+      action: 'customer_account.group_assigned',
+      objectType: 'customer_account',
+      objectId: customer.id,
+      stateBefore: before,
+      stateAfter: { customerGroupId },
+    });
+    return customer;
+  }
+
   private async loadActive(em: EntityManager, id: string): Promise<CustomerAccount> {
     const customer = await em.findOne(CustomerAccount, { id, deletedAt: null });
     if (!customer) {
