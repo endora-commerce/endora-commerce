@@ -637,6 +637,19 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           return [];
         }
       },
+      // Feature 038 US3 / FR-035 — minimum order value per scope (0 = none).
+      resolveMinOrderValue: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'orders.min_order_value',
+            salesChannelId,
+            z.number(),
+          );
+        } catch {
+          return 0;
+        }
+      },
       getRfqService: () => quoteRequests?.handle().rfqService ?? null,
       appendShoppingListToCart: async (input) => {
         if (!shoppingListService) {

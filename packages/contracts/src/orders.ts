@@ -306,8 +306,9 @@ export const adminCreateOrderRequestSchema = z.object({
   items: z.array(adminCreateOrderItemSchema).min(1),
   deliveryMethodId: uuidSchema,
   paymentMethodId: uuidSchema,
-  deliveryAddress: addressSnapshotSchema,
-  billingAddress: addressSnapshotSchema,
+  /** The customer's saved addresses to use for this order (US3). */
+  deliveryAddressId: uuidSchema,
+  billingAddressId: uuidSchema,
   customerNote: z.string().max(4000).optional(),
   comment: z
     .object({

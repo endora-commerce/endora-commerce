@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   adminAddOrderCommentRequestSchema,
+  adminCreateOrderRequestSchema,
   adminOrderPaymentStatusTransitionSchema,
   adminOrdersListQuerySchema,
   adminOrderStatusTransitionSchema,
@@ -27,6 +28,7 @@ import type { OrderCommentService } from './services/order-comment-service.js';
 import type { OrderComment } from './entities/order-comment.entity.js';
 import type { OrderReorderService } from './services/order-reorder-service.js';
 import type { OrderCloneToQuoteService } from './services/order-clone-to-quote-service.js';
+import type { OrderCreationAdminService } from './services/order-creation-admin-service.js';
 import { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
 import { Invoice } from '../invoices/entities/invoice.entity.js';
@@ -50,6 +52,8 @@ export interface OrdersDeps {
   orderReorderService: OrderReorderService;
   /** Feature 038 US7 — clone an order into a Quote Request. */
   orderCloneToQuoteService: OrderCloneToQuoteService;
+  /** Feature 038 US3 — create an order on behalf of a customer. */
+  orderCreationAdminService: OrderCreationAdminService;
   emFactory: () => EntityManager;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   requireAdmin: RequireAdminFactory;
@@ -309,6 +313,18 @@ export async function registerOrderRoutes(
     const graph = await deps.orderStatusGraphService.loadGraph();
     return graph.isTerminal(order.status) ? 'terminal' : 'invalid_transition';
   }
+
+  // Create an order on behalf of a customer (feature 038 US3).
+  app.post(
+    '/api/v1/admin/orders',
+    { preHandler: requireAdmin('orders:write'), schema: { body: adminCreateOrderRequestSchema } },
+    async (request, reply) => {
+      const body = adminCreateOrderRequestSchema.parse(request.body);
+      const order = await deps.orderCreationAdminService.create(resolveAdminUserId(request), body);
+      reply.code(201);
+      return { data: await serializeOrder(emFactory(), order) };
+    },
+  );
 
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/orders/:id',

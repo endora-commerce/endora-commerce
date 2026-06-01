@@ -36,6 +36,7 @@ import { OrderCommentService } from './services/order-comment-service.js';
 import { OrderReorderService } from './services/order-reorder-service.js';
 import { OrderCloneToQuoteService } from './services/order-clone-to-quote-service.js';
 import { OrderConfirmationService } from './services/order-confirmation-service.js';
+import { OrderCreationAdminService } from './services/order-creation-admin-service.js';
 import type { OrganizationConfirmationEmailsPort } from './ports/organization-confirmation-emails.port.js';
 import { Organization } from '../organizations/entities/organization.entity.js';
 import { createBusinessIdGenerator } from './services/business-id-generator.js';
@@ -222,6 +223,8 @@ export interface OrdersModuleOptions {
   resolveReorderEnabled?: (salesChannelId: string) => Promise<boolean>;
   /** Feature 038 US4 — resolves `orders.confirmation_recipients` per Sales Channel. Omit ⇒ none. */
   resolveOrderConfirmationRecipients?: (salesChannelId: string) => Promise<string[]>;
+  /** Feature 038 US3/FR-035 — resolves `orders.min_order_value` per Sales Channel. Omit ⇒ no minimum. */
+  resolveMinOrderValue?: (salesChannelId: string) => Promise<number>;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -315,6 +318,7 @@ export function commerceModule(options: OrdersModuleOptions) {
         businessId: businessIdGenerator,
         confirmationRecipients: (input) =>
           orderConfirmationService.resolveAdditional(input.organizationId, input.salesChannelId),
+        ...(options.resolveMinOrderValue ? { resolveMinOrderValue: options.resolveMinOrderValue } : {}),
         // Feature 036 (US3) — PromotionService satisfies PromotionPort
         // structurally; threaded so placeOrder stamps the cart's coupon
         // discount onto the Order.
@@ -359,6 +363,12 @@ export function commerceModule(options: OrdersModuleOptions) {
     const orderCloneToQuoteService = new OrderCloneToQuoteService(
       options.emFactory,
       () => options.getRfqService?.() ?? null,
+    );
+    const orderCreationAdminService = new OrderCreationAdminService(
+      options.emFactory,
+      cartService,
+      orderService,
+      options.mailer,
     );
 
     const cartUpsellService = new CartUpsellService(options.emFactory);
@@ -424,6 +434,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       orderCommentService,
       orderReorderService,
       orderCloneToQuoteService,
+      orderCreationAdminService,
       emFactory: options.emFactory,
       requireCustomer: options.requireCustomer,
       requireAdmin: options.requireAdmin,

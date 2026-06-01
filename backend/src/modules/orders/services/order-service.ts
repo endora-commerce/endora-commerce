@@ -140,6 +140,7 @@ export class OrderService {
         organizationId: string;
         salesChannelId: string;
       }) => Promise<string[]>;
+      resolveMinOrderValue?: (salesChannelId: string) => Promise<number>;
     },
   ) {
     this.accessService = accessService ?? new OrderAccessService(emFactory);
@@ -150,7 +151,14 @@ export class OrderService {
     this.businessId = paymentDeps?.businessId;
     this.promotion = paymentDeps?.promotion;
     this.confirmationRecipients = paymentDeps?.confirmationRecipients;
+    this.resolveMinOrderValue = paymentDeps?.resolveMinOrderValue;
   }
+
+  /**
+   * Feature 038 (US3/FR-035) — resolves the minimum order value for a sales
+   * channel (0 = no minimum). Gates both Checkout and admin order creation.
+   */
+  private readonly resolveMinOrderValue: ((salesChannelId: string) => Promise<number>) | undefined;
 
   /**
    * Feature 034 — order-confirmation e-mail, dispatched post-commit (best
@@ -389,6 +397,23 @@ export class OrderService {
       const items = cart ? await tx.find(CartItem, { cartId: cart.id }) : [];
       if (!cart || items.length === 0) {
         throw new HttpError(409, ERROR_CODES.CART_EMPTY, 'Cart is empty.');
+      }
+
+      // Feature 038 (FR-035) — minimum order value gate (Checkout + admin
+      // create both reach here). 0 ⇒ no minimum; resolver failures ⇒ no gate.
+      if (this.resolveMinOrderValue) {
+        const min = await this.resolveMinOrderValue(req.salesChannelId ?? '').catch(() => 0);
+        if (min > 0) {
+          const cartSubtotal = items.reduce((sum, it) => sum + Number(it.unitPrice) * it.quantity, 0);
+          if (cartSubtotal < min) {
+            throw new HttpError(
+              422,
+              ERROR_CODES.VALIDATION_FAILED,
+              `Order total ${cartSubtotal.toFixed(2)} is below the minimum ${min.toFixed(2)} for this sales channel.`,
+              { code: 'order_below_minimum', minimum: min, subtotal: cartSubtotal },
+            );
+          }
+        }
       }
 
       const [delivery, billing] = await Promise.all([
