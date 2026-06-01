@@ -13,6 +13,10 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   dependencies: [],
   i18n: { bundlesDir: 'i18n' },
+  permissions: [
+    { code: 'cms.read', label: 'View CMS content' },
+    { code: 'cms.write', label: 'Edit CMS content' },
+  ],
   actions: [
     {
       id: 'new-page',

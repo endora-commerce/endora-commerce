@@ -13,6 +13,10 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   dependencies: ['cms'],
   i18n: { bundlesDir: 'i18n' },
+  permissions: [
+    { code: 'megamenu.read', label: 'View megamenu configuration' },
+    { code: 'megamenu.write', label: 'Edit megamenu configuration' },
+  ],
   actions: [
     {
       id: 'edit-megamenu',

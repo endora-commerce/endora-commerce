@@ -256,6 +256,9 @@ export const ERROR_CODES = {
   // Catalog (feature 022 — Products Bulk Edit)
   BULK_TOO_LARGE: 'BULK_TOO_LARGE',
   ATTRIBUTE_NOT_MASS_EDITABLE: 'ATTRIBUTE_NOT_MASS_EDITABLE',
+
+  // Catalog (feature 033 — Products collection selection)
+  SELECTION_TOO_LARGE: 'SELECTION_TOO_LARGE',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];

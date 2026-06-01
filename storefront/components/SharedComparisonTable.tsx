@@ -1,22 +1,28 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type {
   ComparisonAttributeRow,
   ComparisonDisplayMode,
   ComparisonSharedView,
 } from '@b2b/contracts';
 import { ComparisonApiError, getSharedComparison } from '../lib/api/comparisons';
-import { CompareModeSwitcher } from './CompareModeSwitcher';
 
 /**
  * `<SharedComparisonTable>` — feature 007 / US2 / T043.
  *
- * Read-only recipient view of a Comparison. Shape mirrors
- * `<ComparisonTable>` for the always-on row + body rows but omits every
- * mutation control: no Remove, no Delete, no Add to cart. Mode
- * switching is session-local — the recipient cannot persist a mode
- * change to someone else's Comparison.
+ * Read-only recipient view of a Comparison. Shares the Industria
+ * markup with `<ComparisonTable>` so the layout is visually identical,
+ * minus every mutation affordance (no Remove, no Delete, no Add to
+ * cart, no PDF export, no share-link copy). Mode switching is
+ * session-local — the recipient cannot persist a mode change to
+ * someone else's Comparison.
+ *
+ * Display-mode contract mirrors the owner table: the persisted value
+ * from the owner is honoured initially, then the recipient can toggle
+ * "Pokaż tylko różnice" locally (mapping to `'differences' | 'all'`),
+ * plus a client-side "Ukryj puste" filter that drops rows where every
+ * cell is null.
  */
 export function SharedComparisonTable(props: { token: string }): ReactNode {
   const [state, setState] = useState<
@@ -26,9 +32,11 @@ export function SharedComparisonTable(props: { token: string }): ReactNode {
     | { kind: 'ready'; view: ComparisonSharedView; viewerIsOwner: boolean }
   >({ kind: 'loading' });
 
-  // Recipient's session-local mode override; null = honour the owner's
-  // persisted mode from `view.displayMode`.
+  // Local-only overrides. `localMode` is null until the recipient
+  // touches the differences toggle — until then we honour the owner's
+  // persisted mode.
   const [localMode, setLocalMode] = useState<ComparisonDisplayMode | null>(null);
+  const [hideEmpty, setHideEmpty] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,7 +53,7 @@ export function SharedComparisonTable(props: { token: string }): ReactNode {
         if (cancelled) return;
         setState({
           kind: 'error',
-          message: err instanceof ComparisonApiError ? err.message : 'Failed to load.',
+          message: err instanceof ComparisonApiError ? err.message : 'Nie udało się załadować porównania.',
         });
       });
     return () => {
@@ -53,40 +61,85 @@ export function SharedComparisonTable(props: { token: string }): ReactNode {
     };
   }, [props.token]);
 
-  if (state.kind === 'loading') return <p className="muted">Loading…</p>;
+  const activeMode: ComparisonDisplayMode =
+    state.kind === 'ready' ? (localMode ?? state.view.displayMode) : 'all';
+
+  const visibleRows = useMemo<ComparisonAttributeRow[]>(() => {
+    if (state.kind !== 'ready') return [];
+    let rows = filterRowsByMode(state.view.comparableAttributes, activeMode);
+    if (hideEmpty) {
+      rows = rows.filter((r) => r.values.some((v) => v !== null && v !== ''));
+    }
+    return rows;
+  }, [state, activeMode, hideEmpty]);
+
+  if (state.kind === 'loading') return <p className="muted">Ładowanie…</p>;
   if (state.kind === 'error') return <div className="alert alert--error">{state.message}</div>;
   if (state.kind === 'gone') {
     return (
-      <p className="muted">
-        This comparison no longer exists. The original creator may have deleted it.
-      </p>
+      <div className="industria-compare-page">
+        <p className="muted">
+          Ta porównywarka już nie istnieje — autor mógł ją usunąć.
+        </p>
+      </div>
     );
   }
 
   const { view } = state;
-  const activeMode: ComparisonDisplayMode = localMode ?? view.displayMode;
-  const visibleRows = filterRowsByMode(view.comparableAttributes, activeMode);
+  if (view.products.length === 0) {
+    return (
+      <div className="industria-compare-page">
+        <p className="muted">Porównywarka jest pusta.</p>
+      </div>
+    );
+  }
+
+  const showOnlyDifferences = activeMode === 'differences';
 
   return (
-    <>
-      <div className="toolbar">
-        <CompareModeSwitcher value={activeMode} onChange={setLocalMode} />
+    <div className="industria-compare-page">
+      <div className="industria-compare-toolbar">
+        <div className="industria-compare-toolbar__left">
+          <Switch
+            checked={showOnlyDifferences}
+            onChange={(next): void => setLocalMode(next ? 'differences' : 'all')}
+            label="Pokaż tylko różnice"
+          />
+          <Switch
+            checked={hideEmpty}
+            onChange={setHideEmpty}
+            label="Ukryj puste"
+          />
+        </div>
+        <div className="industria-compare-toolbar__right">
+          <span className="industria-compare-toolbar__readonly" role="status">
+            Widok udostępniony · tylko do odczytu
+          </span>
+        </div>
       </div>
-      <div className="b2b-compare">
-        <table className="b2b-compare__table">
+
+      <div className="industria-compare-table">
+        <table>
           <thead>
             <tr>
-              <th></th>
+              <th aria-hidden="true" />
               {view.products.map((p) => (
                 <th key={p.id}>
-                  <a href={`/p/${p.slug}`}>
-                    {p.primaryAssetUrl ? (
-                      <img src={p.primaryAssetUrl} alt={localised(p.name)} loading="lazy" />
-                    ) : null}
-                    <div>{localised(p.name)}</div>
-                  </a>
-                  <div className="b2b-compare__price">
-                    {p.price ? `${p.price.amount} ${p.price.currency}` : '—'}
+                  <div className="industria-cmp-card">
+                    <div className="industria-cmp-card__media">
+                      {p.primaryAssetUrl ? (
+                        <img src={p.primaryAssetUrl} alt={localised(p.name)} loading="lazy" />
+                      ) : (
+                        <PlaceholderGlyph />
+                      )}
+                    </div>
+                    <div className="industria-cmp-card__sku">{p.sku}</div>
+                    <a href={`/p/${p.slug}`} className="industria-cmp-card__name">
+                      {localised(p.name)}
+                    </a>
+                    <div className="industria-cmp-card__price">
+                      {p.price ? `${p.price.amount} ${p.price.currency}` : '—'}
+                    </div>
                   </div>
                 </th>
               ))}
@@ -96,26 +149,59 @@ export function SharedComparisonTable(props: { token: string }): ReactNode {
             {visibleRows.length === 0 ? (
               <tr>
                 <td colSpan={view.products.length + 1} className="muted">
-                  No attribute rows match the current display mode.
+                  {hideEmpty
+                    ? 'Wszystkie wiersze są puste dla wybranych produktów — wyłącz „Ukryj puste”, aby zobaczyć atrybuty z brakującymi wartościami.'
+                    : 'Brak atrybutów spełniających aktualne filtry.'}
                 </td>
               </tr>
             ) : (
               visibleRows.map((row) => (
-                <tr
-                  key={row.key}
-                  className={`b2b-compare__row b2b-compare__row--${row.rowClass}`}
-                >
+                <tr key={row.key}>
                   <th scope="row">{localised(row.label)}</th>
                   {row.values.map((v, idx) => (
-                    <td key={`${row.key}-${idx}`}>{v === null ? '—' : v}</td>
+                    <td key={`${row.key}-${idx}`}>{v ?? '—'}</td>
                   ))}
                 </tr>
               ))
             )}
+            <tr className="industria-compare-table__action-row">
+              <th scope="row">Akcja</th>
+              {view.products.map((p) => (
+                <td key={p.id}>
+                  <div className="industria-compare-table__actions">
+                    <a href={`/p/${p.slug}`} className="btn btn--outline btn--sm">
+                      Karta produktu
+                    </a>
+                  </div>
+                </td>
+              ))}
+            </tr>
           </tbody>
         </table>
       </div>
-    </>
+    </div>
+  );
+}
+
+function Switch(props: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  label: string;
+}): ReactNode {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={props.checked}
+      onClick={(): void => props.onChange(!props.checked)}
+      className="industria-toggle-row"
+    >
+      <span
+        className={`industria-switch${props.checked ? ' is-on' : ''}`}
+        aria-hidden="true"
+      />
+      <span>{props.label}</span>
+    </button>
   );
 }
 
@@ -123,11 +209,37 @@ function filterRowsByMode(
   rows: ComparisonAttributeRow[],
   mode: ComparisonDisplayMode,
 ): ComparisonAttributeRow[] {
-  if (mode === 'all') return rows;
+  if (mode === 'differences') return rows.filter((r) => r.rowClass === 'different');
   if (mode === 'common') return rows.filter((r) => r.rowClass === 'common');
-  return rows.filter((r) => r.rowClass === 'different');
+  return rows;
 }
 
 function localised(value: Record<string, string>): string {
-  return value['en-US'] ?? value['en'] ?? Object.values(value)[0] ?? '';
+  return (
+    value['pl-PL'] ??
+    value['pl'] ??
+    value['en-US'] ??
+    value['en'] ??
+    Object.values(value)[0] ??
+    ''
+  );
+}
+
+function PlaceholderGlyph(): ReactNode {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.2}
+      aria-hidden="true"
+      focusable="false"
+      className="industria-cmp-card__placeholder"
+    >
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="9" cy="9" r="1.5" />
+      <path d="M21 15l-5-5L7 19" />
+    </svg>
+  );
 }

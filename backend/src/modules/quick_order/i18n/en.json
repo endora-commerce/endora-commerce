@@ -1,0 +1,5 @@
+{
+  "module.name": "Quick Order",
+  "settings.oneClickBuyEnabled.label": "One-click buy enabled",
+  "settings.importMaxRows.label": "Import row limit"
+}

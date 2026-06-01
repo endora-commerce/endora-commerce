@@ -13,4 +13,11 @@ export const manifest = defineModuleManifest({
     'enable / disable / status across every domain module.',
   version: '1.0.0',
   dependencies: [],
+  permissions: [
+    {
+      code: 'platform.modules.read',
+      module: 'module_lifecycle',
+      label: 'View module lifecycle status',
+    },
+  ],
 });

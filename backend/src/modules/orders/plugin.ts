@@ -19,12 +19,28 @@ import { registerCartsOrganizationRoutes } from '../carts/routes.organization.js
 import type { PricingService } from '../price_lists/services/pricing-service.js';
 import type { PromotionService } from '../promotions/services/promotion-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
+// eslint-disable-next-line @typescript-eslint/naming-convention -- `Redis` is the class default-exported by ioredis; PascalCase is correct.
 import type Redis from 'ioredis';
+import type { Mailer } from '../email/services/mailer.js';
 import {
   OrderService,
   type CreditLimitPort,
   type OrderEventBus,
 } from './services/order-service.js';
+import { OrderStatusGraphService } from './services/order-status-graph-service.js';
+import { OrderTransitionService } from './services/order-transition-service.js';
+import { OrderListService } from './services/order-list-service.js';
+import { OrderListViewService } from './services/order-list-view-service.js';
+import { OrderExportService } from './services/order-export-service.js';
+import { OrderCommentService } from './services/order-comment-service.js';
+import { OrderReorderService } from './services/order-reorder-service.js';
+import { OrderCloneToQuoteService } from './services/order-clone-to-quote-service.js';
+import { OrderConfirmationService } from './services/order-confirmation-service.js';
+import { OrderCreationAdminService } from './services/order-creation-admin-service.js';
+import type { OrganizationConfirmationEmailsPort } from './ports/organization-confirmation-emails.port.js';
+import type { FulfilmentStrategy } from '@b2b/contracts';
+import { Organization } from '../organizations/entities/organization.entity.js';
+import { createBusinessIdGenerator } from './services/business-id-generator.js';
 import { registerCartRoutes } from '../carts/routes.js';
 import { registerOrderRoutes } from './routes.js';
 import {
@@ -35,6 +51,21 @@ import {
   registerPaymentMethodsPublicRoutes,
   registerPaymentMethodsAdminRoutes,
 } from '../payment_methods/routes.js';
+import { paymentAdapterRegistry } from '../payment_methods/services/registry-singleton.js';
+import { EnumOrderStatusRegistry } from '../payment_methods/services/order-status-registry.port.js';
+import { builtInPaymentAdapters } from '../payments/adapters/built-in-adapters.js';
+import { ReceivePaymentHandler, type PaymentEventBus } from '../payments/services/receive-payment-handler.js';
+import { PaymentService } from '../payments/services/payment-service.js';
+import { registerPaymentsRoutes } from '../payments/routes.js';
+// Feature 035 — shipping-method adapter framework + shipment lifecycle.
+import { shippingAdapterRegistry } from '../delivery_methods/services/registry-singleton.js';
+import { EnumOrderStatusRegistry as ShippingEnumOrderStatusRegistry } from '../delivery_methods/services/order-status-registry.port.js';
+import { ShippingMethodEligibilityService } from '../delivery_methods/services/shipping-method-eligibility.js';
+import { builtInShippingAdapters } from '../delivery_methods/adapters/built-in-adapters.js';
+import { ShipmentService } from '../shipments/services/shipment-service.js';
+import { ReceiveShipmentHandler } from '../shipments/services/receive-shipment-handler.js';
+import type { ShippingEventBus } from '../shipments/services/events.js';
+import { registerShipmentsRoutes } from '../shipments/routes.js';
 import { registerInvoicesAdminRoutes } from '../invoices/routes.admin.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
@@ -56,6 +87,8 @@ export interface OrdersModuleOptions {
   };
   /** Audit-log writer; OrderService stamps order.place_on_behalf rows on impersonated checkouts. */
   auditLogService?: AuditLogService;
+  /** Feature 034 — mailer for the order-confirmation e-mail (best-effort, post-commit). */
+  mailer?: Mailer;
   /** Optional CreditLimit driver — wired by the credit_limits module composition root. */
   creditLimit?: CreditLimitPort;
   /**
@@ -131,6 +164,12 @@ export interface OrdersModuleOptions {
    */
   getRfqService?: () => RfqService | null;
   /**
+   * Feature 039 — late-bind the OrderService back to composition so the
+   * quick_order module's one-click flow can reuse `placeOrder` without the
+   * orders module depending on quick_order.
+   */
+  exposeOrderService?: (service: OrderService) => void;
+  /**
    * Feature 027 US3 — port that appends a Shopping List's lines to the
    * buyer's cart. Wired by composition to ShoppingListService.convertToCart.
    */
@@ -179,6 +218,28 @@ export interface OrdersModuleOptions {
    * invocation; production scheduling is an operational concern.
    */
   exposeCartAbandonmentWorker?: (worker: CartAbandonmentWorker) => void;
+  /**
+   * Feature 036 — resolves the channel-scoped `orders.business_id.prefix`
+   * setting for the business Order ID. Wired by composition through
+   * SettingsService; failures/defaults resolve to ''. Omit ⇒ no prefix.
+   */
+  resolveOrderBusinessIdPrefix?: (salesChannelId: string) => Promise<string>;
+  /** Feature 036 — same for `orders.business_id.suffix`. */
+  resolveOrderBusinessIdSuffix?: (salesChannelId: string) => Promise<string>;
+  /** Feature 038 US6 — resolves `orders.reorder_enabled` per Sales Channel. Omit ⇒ enabled. */
+  resolveReorderEnabled?: (salesChannelId: string) => Promise<boolean>;
+  /** Feature 038 US4 — resolves `orders.confirmation_recipients` per Sales Channel. Omit ⇒ none. */
+  resolveOrderConfirmationRecipients?: (salesChannelId: string) => Promise<string[]>;
+  /** Feature 038 US3/FR-035 — resolves `orders.min_order_value` per Sales Channel. Omit ⇒ no minimum. */
+  resolveMinOrderValue?: (salesChannelId: string) => Promise<number>;
+  /**
+   * Sales-channel layer of the fulfilment-strategy precedence chain — resolves
+   * `inventory.fulfilment_strategy` (+ its warehouse order) per Sales Channel
+   * via the Settings module. Omit ⇒ order placement falls back to
+   * `default_first` / `[]`.
+   */
+  resolveChannelFulfilmentStrategy?: (salesChannelId: string) => Promise<FulfilmentStrategy>;
+  resolveChannelFulfilmentWarehouseOrder?: (salesChannelId: string) => Promise<string[]>;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -207,13 +268,129 @@ export function commerceModule(options: OrdersModuleOptions) {
       cartAuditService,
       cartRecomputeCacheEarly,
     );
+    // Feature 034 — payment adapter framework. Built-in adapters are populated
+    // into the process-wide singleton (registry-singleton.ts) idempotently, so
+    // external payment-method modules that registered their adapter from a
+    // lifecycle install hook share the same instance the live routes use. The
+    // OrderStatusRegistry port resolves statusOn* references (enum-backed until
+    // the Orders module ships a configurable registry).
+    for (const adapter of builtInPaymentAdapters()) {
+      if (!paymentAdapterRegistry.isRegistered(adapter.adapterKey)) {
+        paymentAdapterRegistry.register(adapter);
+      }
+    }
+    const orderStatusRegistry = new EnumOrderStatusRegistry();
+
+    // Feature 035 — shipping-method adapter framework. Built-in offline adapters
+    // are populated into the process-wide singleton idempotently, so external
+    // shipping-method modules that registered their adapter from a lifecycle
+    // install hook share the same instance the live routes use. The shipping
+    // OrderStatusRegistry resolves statusOnSuccess/Failure references.
+    for (const adapter of builtInShippingAdapters()) {
+      if (!shippingAdapterRegistry.isRegistered(adapter.adapterKey)) {
+        shippingAdapterRegistry.register(adapter);
+      }
+    }
+    const shippingOrderStatusRegistry = new ShippingEnumOrderStatusRegistry();
+    const shippingEligibility = new ShippingMethodEligibilityService(shippingAdapterRegistry);
+
+    // Feature 036 — business Order ID generator. Adapts the composition-wired
+    // prefix/suffix resolver closures (SettingsService-backed) to the
+    // generator's settings port; the generator itself draws the sequence.
+    const businessIdGenerator = createBusinessIdGenerator(
+      options.resolveOrderBusinessIdPrefix || options.resolveOrderBusinessIdSuffix
+        ? {
+            resolvePrefix: (salesChannelId: string) =>
+              options.resolveOrderBusinessIdPrefix?.(salesChannelId) ?? Promise.resolve(''),
+            resolveSuffix: (salesChannelId: string) =>
+              options.resolveOrderBusinessIdSuffix?.(salesChannelId) ?? Promise.resolve(''),
+          }
+        : undefined,
+    );
+
+    // Feature 038 US4 — additional confirmation recipients (per-org + scope).
+    const orgConfirmationEmailsPort: OrganizationConfirmationEmailsPort = {
+      getConfirmationEmails: async (organizationId: string) => {
+        const org = await options.emFactory().findOne(Organization, { id: organizationId });
+        return org?.orderConfirmationEmails ?? [];
+      },
+    };
+    const orderConfirmationService = new OrderConfirmationService(
+      orgConfirmationEmailsPort,
+      options.resolveOrderConfirmationRecipients,
+    );
+
     const orderService = new OrderService(
       options.emFactory,
       options.eventBus as OrderEventBus,
       options.auditLogService,
       options.creditLimit,
+      undefined,
+      {
+        paymentAdapters: paymentAdapterRegistry,
+        orderStatusRegistry,
+        shippingAdapters: shippingAdapterRegistry,
+        businessId: businessIdGenerator,
+        confirmationRecipients: (input) =>
+          orderConfirmationService.resolveAdditional(input.organizationId, input.salesChannelId),
+        ...(options.resolveMinOrderValue ? { resolveMinOrderValue: options.resolveMinOrderValue } : {}),
+        ...(options.resolveChannelFulfilmentStrategy
+          ? { resolveChannelFulfilmentStrategy: options.resolveChannelFulfilmentStrategy }
+          : {}),
+        ...(options.resolveChannelFulfilmentWarehouseOrder
+          ? { resolveChannelFulfilmentWarehouseOrder: options.resolveChannelFulfilmentWarehouseOrder }
+          : {}),
+        // Feature 036 (US3) — PromotionService satisfies PromotionPort
+        // structurally; threaded so placeOrder stamps the cart's coupon
+        // discount onto the Order.
+        ...(options.promotionService ? { promotion: options.promotionService } : {}),
+        ...(options.mailer ? { mailer: options.mailer } : {}),
+      },
     );
     if (options.exposeCartService) options.exposeCartService(cartService);
+
+    // Feature 038 — configurable lifecycle. The transition engine validates
+    // against the DB-backed graph, runs veto guards, and emits the templated
+    // status events. Cancellation side-effects (release stock allocations +
+    // credit-limit reservation) are applied through the side-effects hook.
+    const orderStatusGraphService = new OrderStatusGraphService(options.emFactory);
+    const orderTransitionService = new OrderTransitionService(
+      options.emFactory,
+      options.eventBus,
+      orderStatusGraphService,
+      async ({ order, to }) => {
+        if (to === 'cancelled') {
+          if (options.creditLimit) {
+            await options.creditLimit.releaseByOrder({ orderId: order.id, reason: 'order_cancelled' });
+          }
+          await orderService.releaseAllocations(order.id);
+        }
+      },
+    );
+    // Feature 038 US2 — orders list query, saved views, CSV export.
+    const orderListService = new OrderListService(options.emFactory, orderStatusGraphService);
+    const orderListViewService = new OrderListViewService(options.emFactory);
+    const orderExportService = new OrderExportService(orderListService);
+    const orderCommentService = new OrderCommentService(
+      options.emFactory,
+      orderStatusGraphService,
+      options.mailer,
+    );
+    const orderReorderService = new OrderReorderService(
+      options.emFactory,
+      options.resolveReorderEnabled,
+      options.mailer,
+    );
+    const orderCloneToQuoteService = new OrderCloneToQuoteService(
+      options.emFactory,
+      () => options.getRfqService?.() ?? null,
+    );
+    const orderCreationAdminService = new OrderCreationAdminService(
+      options.emFactory,
+      cartService,
+      orderService,
+      options.mailer,
+    );
 
     const cartUpsellService = new CartUpsellService(options.emFactory);
     const cartCouponService = options.promotionService
@@ -268,8 +445,19 @@ export function commerceModule(options: OrdersModuleOptions) {
         ? { appendShoppingListToCart: options.appendShoppingListToCart }
         : {}),
     });
+    if (options.exposeOrderService) options.exposeOrderService(orderService);
+
     await registerOrderRoutes(app, {
       orderService,
+      orderStatusGraphService,
+      orderTransitionService,
+      orderListService,
+      orderListViewService,
+      orderExportService,
+      orderCommentService,
+      orderReorderService,
+      orderCloneToQuoteService,
+      orderCreationAdminService,
       emFactory: options.emFactory,
       requireCustomer: options.requireCustomer,
       requireAdmin: options.requireAdmin,
@@ -283,12 +471,15 @@ export function commerceModule(options: OrdersModuleOptions) {
     });
     await registerDeliveryMethodsPublicRoutes(app, {
       emFactory: options.emFactory,
+      registry: shippingAdapterRegistry,
+      eligibility: shippingEligibility,
       ...(options.resolveOrganizationDeliveryMethodAllowList
         ? { resolveOrganizationDeliveryMethodAllowList: options.resolveOrganizationDeliveryMethodAllowList }
         : {}),
     });
     await registerPaymentMethodsPublicRoutes(app, {
       emFactory: options.emFactory,
+      registry: paymentAdapterRegistry,
       ...(options.resolveOrganizationPaymentMethodAllowList
         ? { resolveOrganizationPaymentMethodAllowList: options.resolveOrganizationPaymentMethodAllowList }
         : {}),
@@ -296,6 +487,8 @@ export function commerceModule(options: OrdersModuleOptions) {
     await registerDeliveryMethodsAdminRoutes(app, {
       emFactory: options.emFactory,
       requireAdmin: options.requireAdmin,
+      registry: shippingAdapterRegistry,
+      orderStatusRegistry: shippingOrderStatusRegistry,
       ...(options.salesChannelMembership
         ? { salesChannelMembership: options.salesChannelMembership }
         : {}),
@@ -303,6 +496,8 @@ export function commerceModule(options: OrdersModuleOptions) {
     await registerPaymentMethodsAdminRoutes(app, {
       emFactory: options.emFactory,
       requireAdmin: options.requireAdmin,
+      registry: paymentAdapterRegistry,
+      orderStatusRegistry,
       ...(options.salesChannelMembership
         ? { salesChannelMembership: options.salesChannelMembership }
         : {}),
@@ -310,6 +505,33 @@ export function commerceModule(options: OrdersModuleOptions) {
     await registerInvoicesAdminRoutes(app, {
       emFactory: options.emFactory,
       requireAdmin: options.requireAdmin,
+    });
+
+    // Feature 034 — payment lifecycle: receive_payment ingress, retry, history.
+    await registerPaymentsRoutes(app, {
+      requireAdmin: options.requireAdmin,
+      receiveHandler: new ReceivePaymentHandler(
+        options.emFactory,
+        orderStatusRegistry,
+        options.eventBus as PaymentEventBus,
+      ),
+      paymentService: new PaymentService(options.emFactory),
+    });
+
+    // Feature 035 — shipment lifecycle: shipment_created, receive_shipment,
+    // retry, history.
+    await registerShipmentsRoutes(app, {
+      requireAdmin: options.requireAdmin,
+      receiveHandler: new ReceiveShipmentHandler(
+        options.emFactory,
+        shippingOrderStatusRegistry,
+        options.eventBus as ShippingEventBus,
+      ),
+      shipmentService: new ShipmentService(
+        options.emFactory,
+        shippingAdapterRegistry,
+        options.eventBus as ShippingEventBus,
+      ),
     });
 
     // Feature 027 US5 — abandonment-sweep worker. Constructed when the

@@ -3,6 +3,7 @@ import {
   assignAttributesRequestSchema,
   batchByIdProductsRequestSchema,
   bulkUpdateProductsRequestSchema,
+  resolveProductIdsRequestSchema,
   createAttributeRequestSchema,
   createAttributeSetRequestSchema,
   createCategoryRequestSchema,
@@ -396,6 +397,25 @@ export async function registerCatalogAdminRoutes(
     },
   );
 
+  app.post(
+    '/api/v1/admin/catalog/products/resolve-ids',
+    {
+      preHandler: requireAdmin('catalog:read'),
+      schema: { body: resolveProductIdsRequestSchema },
+    },
+    async (request) => {
+      const body = resolveProductIdsRequestSchema.parse(request.body);
+      const includeArchived = body.includeArchived ?? true;
+      const result = await adminService.resolveProductIds({
+        includeArchived,
+        ...(body.status ? { status: body.status } : {}),
+        ...(body.type ? { type: body.type } : {}),
+        ...(body.q ? { q: body.q } : {}),
+      });
+      return { data: result };
+    },
+  );
+
   app.get<{
     Params: { id: string };
     Querystring: {
@@ -408,7 +428,8 @@ export async function registerCatalogAdminRoutes(
     { preHandler: requireAdmin('catalog:read') },
     async (request) => {
       const product = await adminService.getProductById(request.params.id);
-      const base = serializeAdminProduct(product);
+      const categoryIds = await adminService.getProductCategoryIds(request.params.id);
+      const base = { ...serializeAdminProduct(product), categoryIds };
       const channelIdRaw = request.query.channelId;
       const languageCodeRaw = request.query.languageCode;
       const includeOverridesMap =
@@ -1577,6 +1598,8 @@ function serializeAdminAttribute(
     isVisibleOnProductPage: a.isVisibleOnProductPage,
     // Feature 022 — gates appearance in the Products Bulk Edit dialog.
     massEditable: a.massEditable,
+    // Feature 039 — gates participation in Quick Order search.
+    quickSearchable: a.quickSearchable,
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
   };

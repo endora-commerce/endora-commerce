@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { CartMergeOutcome } from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
 import type { SessionService } from '../auth/services/session-service.js';
 import type { OrganizationModerationService } from './services/organization-moderation-service.js';
@@ -26,6 +27,7 @@ import { OrganizationContextService } from './services/organization-context-serv
 import { registerMembersRoutes } from './routes.members.js';
 import { registerOrganizationsAdminRoutes } from './routes.admin.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminAnyFactory } from '../../http/require-admin-any.js';
 import type { DictionaryValidator } from '@b2b/contracts';
 
 /**
@@ -50,7 +52,10 @@ export interface OrganizationsModuleOptions {
    * Optional post-login hook — the commerce module uses this to merge
    * carts; the comparisons module uses it to adopt the customer's
    * anonymous Comparison (R-2). Each token is extracted from the request
-   * cookies if present and forwarded to the hook.
+   * cookies if present and forwarded to the hook. The optional
+   * `cartMerge` return field carries the outcome of the cart-merge step
+   * back to the login route so it can serialise the result for the
+   * storefront (feature 037-cart-merge-on-login).
    */
   onLogin?: (ctx: {
     customerAccountId: string;
@@ -59,9 +64,11 @@ export interface OrganizationsModuleOptions {
     anonymousCartToken?: string;
     /** `compare_token` cookie value, if the caller was building an anonymous comparison. */
     anonymousCompareToken?: string;
-  }) => Promise<void>;
+  }) => Promise<{ cartMerge?: CartMergeOutcome }>;
   /** Admin gate for /admin/organizations routes. */
   requireAdmin?: RequireAdminFactory;
+  /** Read-only org routes accept `customers:read` OR `customers:manage`. */
+  requireAdminAny?: RequireAdminAnyFactory;
   /** Mailer used to dispatch invitation + verification emails. Defaults to ConsoleMailer. */
   mailer?: Mailer;
   /** Storefront base URL for the invitation accept link. */
@@ -169,9 +176,13 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       if (!options.auditLogService) {
         throw new Error('organizationsModule: auditLogService is required when requireAdmin is set');
       }
+      if (!options.requireAdminAny) {
+        throw new Error('organizationsModule: requireAdminAny is required when requireAdmin is set');
+      }
       await registerOrganizationsAdminRoutes(app, {
         emFactory: options.emFactory,
         requireAdmin: options.requireAdmin,
+        requireAdminAny: options.requireAdminAny,
         invitationService,
         roleService,
         auditLogService: options.auditLogService,

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Trash2 } from 'lucide-react';
-import { ApiError, apiClient } from '@/lib/api-client';
+import { ApiError } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,20 +18,19 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-
-interface AdminPaymentMethod {
-  id: string;
-  code: string;
-  name: Record<string, string>;
-  kind: 'bank_transfer' | 'pickup' | 'credit_limit' | 'gateway';
-  status: 'active' | 'inactive';
-}
+import {
+  paymentMethodsClient,
+  type AdminPaymentMethod,
+  type OrderStatusOption,
+} from './api/payment-methods-client';
+import { resolveAdminPaymentMethodRenderer } from './renderers/registry';
 
 const KINDS = ['bank_transfer', 'pickup', 'credit_limit', 'gateway'] as const;
 
 export function PaymentMethodsPage(): ReactNode {
   const t = useTranslation('core');
   const [rows, setRows] = useState<AdminPaymentMethod[]>([]);
+  const [orderStatuses, setOrderStatuses] = useState<OrderStatusOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -40,10 +39,12 @@ export function PaymentMethodsPage(): ReactNode {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get<{ data: AdminPaymentMethod[] }>(
-        '/api/v1/admin/payment-methods',
-      );
-      setRows(res.data);
+      const [methods, statuses] = await Promise.all([
+        paymentMethodsClient.list(),
+        paymentMethodsClient.orderStatuses(),
+      ]);
+      setRows(methods);
+      setOrderStatuses(statuses);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
     } finally {
@@ -56,46 +57,41 @@ export function PaymentMethodsPage(): ReactNode {
   }, [refresh]);
 
   const handleUpsert = useCallback(
-    async (input: {
-      code: string;
-      nameEn: string;
-      namePl: string;
-      kind: AdminPaymentMethod['kind'];
-      status: 'active' | 'inactive';
-    }): Promise<void> => {
+    async (input: UpsertFormValue): Promise<void> => {
       const name: Record<string, string> = {};
       if (input.nameEn) name['en-US'] = input.nameEn;
       if (input.namePl) name['pl-PL'] = input.namePl;
       try {
-        await apiClient.put<{ data: AdminPaymentMethod }>(
-          `/api/v1/admin/payment-methods/${encodeURIComponent(input.code)}`,
-          {
-            code: input.code,
-            name,
-            kind: input.kind,
-            status: input.status,
-          },
-        );
+        await paymentMethodsClient.upsert(input.code, {
+          code: input.code,
+          name,
+          kind: input.kind,
+          additionalPrice: Number.isFinite(input.additionalPrice) ? input.additionalPrice : 0,
+          status: input.status,
+          ...(input.statusOnPending ? { statusOnPending: input.statusOnPending } : {}),
+          ...(input.statusOnSuccess ? { statusOnSuccess: input.statusOnSuccess } : {}),
+          ...(input.statusOnFailure ? { statusOnFailure: input.statusOnFailure } : {}),
+        });
         setInfo(t('legacyMethods.messages.saved', { code: input.code }));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('legacyMethods.errors.save'));
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
       if (!confirm(t('legacyMethods.payment.deleteConfirm'))) return;
       try {
-        await apiClient.delete<void>(`/api/v1/admin/payment-methods/${id}`);
+        await paymentMethodsClient.remove(id);
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('legacyMethods.errors.delete'));
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   return (
@@ -121,7 +117,7 @@ export function PaymentMethodsPage(): ReactNode {
           <CardTitle>{t('legacyMethods.formTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
-          <UpsertForm onSubmit={handleUpsert} />
+          <UpsertForm onSubmit={handleUpsert} orderStatuses={orderStatuses} />
         </CardContent>
       </Card>
 
@@ -137,7 +133,7 @@ export function PaymentMethodsPage(): ReactNode {
                 <TableRow>
                   <TableHead>{t('legacyMethods.columns.code')}</TableHead>
                   <TableHead>{t('legacyMethods.columns.name')}</TableHead>
-                  <TableHead>{t('legacyMethods.columns.kind')}</TableHead>
+                  <TableHead>{t('legacyMethods.columns.adapter')}</TableHead>
                   <TableHead>{t('legacyMethods.columns.status')}</TableHead>
                   <TableHead />
                 </TableRow>
@@ -148,8 +144,13 @@ export function PaymentMethodsPage(): ReactNode {
                     <TableCell>
                       <code className="font-mono text-xs">{r.code}</code>
                     </TableCell>
-                    <TableCell>{r.name['en-US'] ?? Object.values(r.name)[0]}</TableCell>
-                    <TableCell>{t(`legacyMethods.payment.kind.${r.kind}`)}</TableCell>
+                    <TableCell>{resolveAdminPaymentMethodRenderer(r.rendererKey)(r)}</TableCell>
+                    <TableCell>
+                      <code className="font-mono text-xs">{r.adapter}</code>
+                      {r.additionalPrice > 0 ? (
+                        <span className="text-muted-foreground"> (+{r.additionalPrice})</span>
+                      ) : null}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={r.status === 'active' ? 'success' : 'secondary'}>
                         {t(`legacyMethods.status.${r.status}`)}
@@ -177,40 +178,77 @@ export function PaymentMethodsPage(): ReactNode {
   );
 }
 
+interface UpsertFormValue {
+  code: string;
+  nameEn: string;
+  namePl: string;
+  kind: AdminPaymentMethod['kind'];
+  additionalPrice: number;
+  status: 'active' | 'inactive';
+  statusOnPending: string;
+  statusOnSuccess: string;
+  statusOnFailure: string;
+}
+
 function UpsertForm({
   onSubmit,
+  orderStatuses,
 }: {
-  onSubmit: (input: {
-    code: string;
-    nameEn: string;
-    namePl: string;
-    kind: AdminPaymentMethod['kind'];
-    status: 'active' | 'inactive';
-  }) => Promise<void>;
+  onSubmit: (input: UpsertFormValue) => Promise<void>;
+  orderStatuses: OrderStatusOption[];
 }): ReactNode {
   const t = useTranslation('core');
   const [code, setCode] = useState('');
   const [nameEn, setNameEn] = useState('');
   const [namePl, setNamePl] = useState('');
   const [kind, setKind] = useState<AdminPaymentMethod['kind']>('bank_transfer');
+  const [additionalPrice, setAdditionalPrice] = useState('0');
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
+  const [statusOnPending, setStatusOnPending] = useState('');
+  const [statusOnSuccess, setStatusOnSuccess] = useState('');
+  const [statusOnFailure, setStatusOnFailure] = useState('');
+
+  const statusSelect = (
+    id: string,
+    label: string,
+    value: string,
+    setValue: (v: string) => void,
+  ): ReactNode => (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Select id={id} value={value} onChange={(e): void => setValue(e.target.value)}>
+        <option value="">—</option>
+        {orderStatuses.map((s) => (
+          <option key={s.code} value={s.code}>
+            {s.label}
+          </option>
+        ))}
+      </Select>
+    </div>
+  );
+
   return (
     <form
       className="space-y-4"
       onSubmit={(e: FormEvent): void => {
         e.preventDefault();
-        void onSubmit({ code, nameEn, namePl, kind, status });
+        void onSubmit({
+          code,
+          nameEn,
+          namePl,
+          kind,
+          additionalPrice: Number(additionalPrice),
+          status,
+          statusOnPending,
+          statusOnSuccess,
+          statusOnFailure,
+        });
       }}
     >
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="pmcode">{t('legacyMethods.fields.code')}</Label>
-          <Input
-            id="pmcode"
-            value={code}
-            onChange={(e): void => setCode(e.target.value)}
-            required
-          />
+          <Input id="pmcode" value={code} onChange={(e): void => setCode(e.target.value)} required />
         </div>
         <div className="space-y-2">
           <Label htmlFor="pmkind">{t('legacyMethods.fields.kind')}</Label>
@@ -228,18 +266,21 @@ function UpsertForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="pmnameen">{t('legacyMethods.fields.nameEn')}</Label>
-          <Input
-            id="pmnameen"
-            value={nameEn}
-            onChange={(e): void => setNameEn(e.target.value)}
-          />
+          <Input id="pmnameen" value={nameEn} onChange={(e): void => setNameEn(e.target.value)} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="pmnamepl">{t('legacyMethods.fields.namePl')}</Label>
+          <Input id="pmnamepl" value={namePl} onChange={(e): void => setNamePl(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="pmprice">{t('legacyMethods.fields.additionalPrice')}</Label>
           <Input
-            id="pmnamepl"
-            value={namePl}
-            onChange={(e): void => setNamePl(e.target.value)}
+            id="pmprice"
+            type="number"
+            min="0"
+            step="0.01"
+            value={additionalPrice}
+            onChange={(e): void => setAdditionalPrice(e.target.value)}
           />
         </div>
         <div className="space-y-2">
@@ -253,6 +294,9 @@ function UpsertForm({
             <option value="inactive">{t('legacyMethods.status.inactive')}</option>
           </Select>
         </div>
+        {statusSelect('pmsop', t('legacyMethods.fields.statusOnPending'), statusOnPending, setStatusOnPending)}
+        {statusSelect('pmsos', t('legacyMethods.fields.statusOnSuccess'), statusOnSuccess, setStatusOnSuccess)}
+        {statusSelect('pmsof', t('legacyMethods.fields.statusOnFailure'), statusOnFailure, setStatusOnFailure)}
       </div>
       <Button type="submit">{t('common.action.save')}</Button>
     </form>

@@ -4,11 +4,11 @@ import {
   updateAdminUserRequestSchema,
   updateAdminUserSelfRequestSchema,
   upsertAdminRoleRequestSchema,
-  PERMISSION_CATALOGUE,
 } from '@b2b/contracts';
 import type { AdminUserService } from './services/admin-user-service.js';
 import type { AdminRoleService } from '../admin_roles/services/admin-role-service.js';
 import type { PermissionService } from '../admin_roles/services/permission-service.js';
+import type { PermissionCatalogueService } from '../admin_roles/services/permission-catalogue.service.js';
 import type { AdminUser } from './entities/admin-user.entity.js';
 import type { AdminRole } from '../admin_roles/entities/admin-role.entity.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
@@ -22,6 +22,7 @@ import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 export interface AdminUsersAdminDeps {
   adminUserService: AdminUserService;
   adminRoleService: AdminRoleService;
+  permissionCatalogueService: PermissionCatalogueService;
   permissionService: PermissionService;
   requireAdmin: RequireAdminFactory;
   /** Resolves the current admin's id — reads `request.actor` in production
@@ -36,6 +37,7 @@ export async function registerAdminUsersAdminRoutes(
   const {
     adminUserService,
     adminRoleService,
+    permissionCatalogueService,
     permissionService,
     requireAdmin,
     resolveAdminContext,
@@ -88,7 +90,7 @@ export async function registerAdminUsersAdminRoutes(
   app.get(
     '/api/v1/admin/permissions',
     { preHandler: requireAdmin('admin_users:manage') },
-    async () => ({ data: PERMISSION_CATALOGUE }),
+    async () => ({ data: permissionCatalogueService.listAssignable() }),
   );
 
   // --- Admin users -----------------------------------------------------------

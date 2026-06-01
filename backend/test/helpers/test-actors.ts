@@ -103,6 +103,19 @@ export const ADMIN_COOKIES: Record<string, { adminUserId: string }> = {
   'stub-content-manager-session': {
     adminUserId: '00000000-0000-4000-8000-0000000000b4',
   },
+  // Feature 026 — scoped-role contract tests.
+  'stub-settings-viewer-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000d1',
+  },
+  'stub-channel-viewer-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000d2',
+  },
+  'stub-content-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000d3',
+  },
+  'stub-assets-reader-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000d4',
+  },
 };
 
 declare module 'fastify' {
@@ -179,6 +192,26 @@ export function registerTestAuth(app: FastifyInstance, deps: TestAuthDeps): void
     }
     request.testActor = { kind: 'anonymous' };
   });
+}
+
+export function requireTestAdminAny(
+  permissionService: PermissionService,
+): (codes: readonly string[]) => ReturnType<RequireAdminFactory> {
+  return (codes) => async (request) => {
+    if (request.testActor?.kind !== 'admin') {
+      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+    }
+    for (const code of codes) {
+      if (await permissionService.hasPermission(request.testActor.adminUserId, code)) {
+        return;
+      }
+    }
+    throw new HttpError(
+      403,
+      ERROR_CODES.FORBIDDEN,
+      `Missing permission: one of ${codes.join(', ')}.`,
+    );
+  };
 }
 
 export function requireTestAdmin(permissionService?: PermissionService): RequireAdminFactory {

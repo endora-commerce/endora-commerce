@@ -33,6 +33,10 @@ export const paymentSchema = z.object({
   currency: z.string().length(3),
   paidAt: isoDateTimeSchema.nullable(),
   externalReference: z.string().nullable(),
+  // Feature 034 — payment-process detail captured by the adapter on receive_payment.
+  providerDetails: z.record(z.string(), z.unknown()).nullable().optional(),
+  failureReason: z.string().nullable().optional(),
+  attemptNo: z.number().int().positive().default(1),
 });
 export type Payment = z.infer<typeof paymentSchema>;
 

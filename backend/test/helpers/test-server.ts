@@ -7,6 +7,10 @@ import { EventBus } from '../../src/events/bus.js';
 import { SessionService } from '../../src/modules/auth/services/session-service.js';
 import { AuditLogService } from '../../src/modules/audit_logs/services/audit-log-service.js';
 import { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
+import { PermissionCatalogueService } from '../../src/modules/admin_roles/services/permission-catalogue.service.js';
+import { AdminRoleService } from '../../src/modules/admin_roles/services/admin-role-service.js';
+import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-manifests.js';
+import { registryCache } from '../../src/modules/_lifecycle/services/registry-cache.js';
 import { catalogModule } from '../../src/modules/catalog/plugin.js';
 import { quoteRequestsModule } from '../../src/modules/quote_requests/plugin.js';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
@@ -75,6 +79,7 @@ import { seedTestAdmins } from './seed-admins.js';
 import {
   registerTestAuth,
   requireTestAdmin,
+  requireTestAdminAny,
   requireTestCustomer,
   TEST_ADMIN_ID,
   TEST_CUSTOMER_ID,
@@ -109,6 +114,7 @@ export interface BackendServerHandle {
   sessionService: SessionService;
   auditLogService: AuditLogService;
   permissionService: PermissionService;
+  permissionCatalogueService: PermissionCatalogueService;
   /** Feature 004 — exposes the universal getter and cache invalidator for tests. */
   settings: ReturnType<typeof settingsModule>['handle'];
   /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
@@ -142,6 +148,12 @@ export interface BackendServerHandle {
     /** Feature 026 US4 — per-org allow-list service. */
     restrictionService: OrganizationRestrictionService;
   };
+  /**
+   * Feature 037 — direct handle on the CartService for tests that exercise
+   * `mergeAnonymousIntoCustomer` without going through the login route.
+   * Available once the commerce module finishes wiring (after `setupBackendServer`).
+   */
+  cartService: () => CartService | null;
 }
 
 const SEEDED_TABLES = [
@@ -242,6 +254,11 @@ export async function setupBackendServer(
   const sessionService = new SessionService(em, redis);
   const auditLogService = new AuditLogService(em);
   const permissionService = new PermissionService(em);
+  const permissionCatalogueService = new PermissionCatalogueService({
+    registryEntries: REGISTERED_MANIFESTS,
+  });
+  const adminRoleService = new AdminRoleService(em, permissionCatalogueService);
+  const requireAdminAny = requireTestAdminAny(permissionService);
 
   const conn = orm.em.getConnection();
   await conn.execute(`truncate table ${SEEDED_TABLES.map((t) => `"${t}"`).join(', ')} cascade`);
@@ -298,6 +315,8 @@ export async function setupBackendServer(
   // organizations can merge anonymous baskets after sign-in.
   let cartService: CartService | null = null;
   let shoppingListServiceRef: import('../../src/modules/shopping_lists/services/shopping-list-service.js').ShoppingListService | null = null;
+  // Feature 039 — late-bound OrderService for the quick_order one-click flow.
+  let orderServiceForOneClick: import('../../src/modules/orders/services/order-service.js').OrderService | null = null;
   let handleFeature026: BackendServerHandle['organizations'] | null = null;
 
   // Feature 026 US4 — restriction service + per-request allow-list resolvers.
@@ -366,6 +385,8 @@ export async function setupBackendServer(
     sessionService,
     auditLogService,
     permissionService,
+    permissionCatalogueService,
+    adminRoleService,
     requireAdmin: requireTestAdmin(permissionService),
     resolveAdminContext: (request) => ({
       adminUserId:
@@ -523,6 +544,10 @@ export async function setupBackendServer(
       promotionService: promotions.handle.promotionService,
       redis,
       getRfqService: () => quoteRequests?.handle().rfqService ?? null,
+      // Feature 039 — expose OrderService for the quick_order one-click flow.
+      exposeOrderService: (svc) => {
+        orderServiceForOneClick = svc;
+      },
       resolveCartActor: (request) => {
         if (request.testActor?.kind === 'customer') {
           return {
@@ -650,6 +675,7 @@ export async function setupBackendServer(
           sessionService,
           requireCustomer: requireTestCustomer(),
           requireAdmin: requireTestAdmin(permissionService),
+          requireAdminAny,
           resolveCustomerContext: customerResolver,
           auditLogService,
           moderationService,
@@ -662,11 +688,16 @@ export async function setupBackendServer(
           storefrontBaseUrl: 'http://localhost:3000',
           onLogin: async (ctx) => {
             if (cartService && ctx.anonymousCartToken && ctx.organizationId) {
-              await cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
-                customerAccountId: ctx.customerAccountId,
-                organizationId: ctx.organizationId,
-              });
+              const cartMerge = await cartService.mergeAnonymousIntoCustomer(
+                ctx.anonymousCartToken,
+                {
+                  customerAccountId: ctx.customerAccountId,
+                  organizationId: ctx.organizationId,
+                },
+              );
+              return { cartMerge };
             }
+            return {};
           },
         }),
       ];
@@ -948,6 +979,29 @@ export async function setupBackendServer(
       exposeShoppingListService: (svc) => {
         shoppingListServiceRef = svc;
       },
+      // Feature 039 — register the admin on-behalf quick-order routes and
+      // the default-preferences routes.
+      requireAdmin: requireTestAdmin(permissionService),
+      auditLog: auditLogService,
+      organizationRestriction: sharedRestrictionService,
+      resolveAdminContext: (request) => ({
+        adminUserId:
+          request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+      }),
+      // Feature 039 — one-click buy wiring.
+      getOrderService: () => orderServiceForOneClick,
+      resolveOneClickEnabled: async (salesChannelId) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'quick_order.one_click_buy_enabled',
+            salesChannelId,
+            z.boolean(),
+          );
+        } catch {
+          return false;
+        }
+      },
     }),
   );
 
@@ -994,6 +1048,7 @@ export async function setupBackendServer(
       },
     },
   });
+  permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
   await app.ready();
 
   return {
@@ -1005,6 +1060,7 @@ export async function setupBackendServer(
     sessionService,
     auditLogService,
     permissionService,
+    permissionCatalogueService,
     settings: settings.handle,
     salesChannels: salesChannels.handle,
     search: search.handle,
@@ -1024,6 +1080,7 @@ export async function setupBackendServer(
       organizationContextService: null as unknown as OrganizationContextService,
       restrictionService: null as unknown as OrganizationRestrictionService,
     },
+    cartService: () => cartService,
   };
 }
 

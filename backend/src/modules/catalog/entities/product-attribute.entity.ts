@@ -52,7 +52,8 @@ export class ProductAttribute {
     | 'isVisibleOnProductPage'
     | 'channelScoped'
     | 'languageScoped'
-    | 'massEditable';
+    | 'massEditable'
+    | 'quickSearchable';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -94,6 +95,10 @@ export class ProductAttribute {
 
   @Property({ type: 'boolean' })
   isComparable: boolean = false;
+
+  /** Feature 039 — values participate in Quick Order search (independent of isSearchable). */
+  @Property({ type: 'boolean' })
+  quickSearchable: boolean = false;
 
   /** FR-013 — enforced at product save time when the attribute is in the assigned set. */
   @Property({ type: 'boolean' })

@@ -12,6 +12,9 @@ export interface DeliveryMethodSummary {
   name: Record<string, string>;
   cost: { amount: number; currency: string };
   status: 'active' | 'inactive';
+  // Feature 035 — shipping adapter framework fields.
+  adapter: string;
+  rendererKey: string | null;
 }
 
 export interface PaymentMethodSummary {
@@ -20,6 +23,10 @@ export interface PaymentMethodSummary {
   name: Record<string, string>;
   kind: 'bank_transfer' | 'pickup' | 'credit_limit' | 'gateway';
   status: 'active' | 'inactive';
+  // Feature 034 — adapter framework fields.
+  adapter: string;
+  additionalPrice: number;
+  rendererKey: string | null;
 }
 
 export async function listDeliveryMethods(): Promise<DeliveryMethodSummary[]> {

@@ -33,6 +33,7 @@ import { OrganizationDeliveryMethodLink } from '../modules/organizations/entitie
 import { OrganizationWarehouseLink } from '../modules/organizations/entities/organization-warehouse-link.entity.js';
 import { AdminNotification } from '../modules/admin_notifications/entities/admin-notification.entity.js';
 import { AdminNotificationRead } from '../modules/admin_notifications/entities/admin-notification-read.entity.js';
+import { QuickOrderDefaultPreference } from '../modules/quick_order/entities/quick-order-default-preference.entity.js';
 import { Cart } from '../modules/carts/entities/cart.entity.js';
 import { CartItem } from '../modules/carts/entities/cart-item.entity.js';
 import { CartAuditEntry } from '../modules/carts/entities/cart-audit-entry.entity.js';
@@ -41,7 +42,12 @@ import { DeliveryMethod } from '../modules/delivery_methods/entities/delivery-me
 import { PaymentMethod } from '../modules/payment_methods/entities/payment-method.entity.js';
 import { Order } from '../modules/orders/entities/order.entity.js';
 import { OrderItem } from '../modules/orders/entities/order-item.entity.js';
+import { OrderStatus } from '../modules/orders/entities/order-status.entity.js';
+import { OrderStatusTransition } from '../modules/orders/entities/order-status-transition.entity.js';
+import { OrderComment } from '../modules/orders/entities/order-comment.entity.js';
+import { OrderListSavedView } from '../modules/orders/entities/order-list-saved-view.entity.js';
 import { Payment } from '../modules/payments/entities/payment.entity.js';
+import { Shipment } from '../modules/shipments/entities/shipment.entity.js';
 import { Invoice } from '../modules/invoices/entities/invoice.entity.js';
 import { OrganizationInvitation } from '../modules/organizations/entities/organization-invitation.entity.js';
 import { AdminUser } from '../modules/admin_users/entities/admin-user.entity.js';
@@ -173,7 +179,12 @@ export const ALL_ENTITIES = [
   PaymentMethod,
   Order,
   OrderItem,
+  OrderStatus,
+  OrderStatusTransition,
+  OrderComment,
+  OrderListSavedView,
   Payment,
+  Shipment,
   Invoice,
   // organization invitations (US3)
   OrganizationInvitation,
@@ -271,4 +282,6 @@ export const ALL_ENTITIES = [
   // admin notifications "bell" surface (feature 026)
   AdminNotification,
   AdminNotificationRead,
+  // quick-order default ordering preferences (feature 039)
+  QuickOrderDefaultPreference,
 ] as const;

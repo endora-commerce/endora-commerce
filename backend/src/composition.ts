@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
+// eslint-disable-next-line @typescript-eslint/naming-convention -- `Redis` is the class default-exported by ioredis; PascalCase is correct.
 import Redis from 'ioredis';
 import { CustomerAccount } from './modules/customer_accounts/entities/customer-account.entity.js';
 import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';
@@ -14,6 +15,13 @@ import { authPlugin } from './modules/auth/plugin.js';
 import { SessionService } from './modules/auth/services/session-service.js';
 import { AuditLogService } from './modules/audit_logs/services/audit-log-service.js';
 import { PermissionService } from './modules/admin_roles/services/permission-service.js';
+import { PermissionCatalogueService } from './modules/admin_roles/services/permission-catalogue.service.js';
+import { AdminRoleService } from './modules/admin_roles/services/admin-role-service.js';
+import { createRequireAdminAny } from './http/require-admin-any.js';
+import {
+  registryCache,
+  STATE_CHANGED_CHANNEL,
+} from './modules/_lifecycle/services/registry-cache.js';
 import { catalogModule } from './modules/catalog/plugin.js';
 import { quoteRequestsModule } from './modules/quote_requests/plugin.js';
 import { organizationsModule } from './modules/organizations/plugin.js';
@@ -36,6 +44,8 @@ import { ConsoleMailer } from './modules/email/services/mailer.js';
 import { resolveSmtpUrlFromEnv } from './modules/email/resolve-smtp-url.js';
 import { SmtpMailer } from './modules/email/services/smtp-mailer.js';
 import { commerceModule } from './modules/orders/plugin.js';
+import type { OrderService } from './modules/orders/services/order-service.js';
+import { QUICK_ORDER_SETTING_CODES } from './modules/quick_order/manifest.js';
 import { adminModule } from './modules/admin_users/plugin.js';
 import { inventoryModule } from './modules/inventory/plugin.js';
 import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
@@ -124,6 +134,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const sessionService = new SessionService(em, redis);
   const auditLogService = new AuditLogService(em);
   const permissionService = new PermissionService(em);
+  const permissionCatalogueService = new PermissionCatalogueService({
+    registryEntries: REGISTERED_MANIFESTS,
+  });
+  const adminRoleService = new AdminRoleService(em, permissionCatalogueService);
 
   const eventBus = new EventBus();
 
@@ -151,6 +165,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         );
       }
     };
+
+  const requireAdminAny = createRequireAdminAny(permissionService);
 
   /**
    * Resolver for routes that require an authenticated Customer **with** an
@@ -220,6 +236,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     sessionService,
     auditLogService,
     permissionService,
+    permissionCatalogueService,
+    adminRoleService,
     requireAdmin,
     resolveAdminContext: adminContextResolver,
   });
@@ -365,6 +383,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   let cartService: CartService | null = null;
   let shoppingListService: ShoppingListService | null = null;
+  // Feature 039 — late-bound OrderService for the quick_order one-click flow.
+  let orderServiceForOneClick: OrderService | null = null;
 
   const organizationsSmtpUrl = resolveSmtpUrlFromEnv();
   const organizationsMailer = organizationsSmtpUrl
@@ -549,6 +569,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       emFactory: em,
       eventBus,
       auditLogService,
+      mailer: organizationsMailer,
       creditLimit: creditLimits.handle.creditLimitService,
       requireCustomer,
       requireAdmin,
@@ -582,7 +603,110 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           return '';
         }
       },
+      // Feature 036 — business Order ID prefix/suffix, resolved per Sales
+      // Channel. Missing/out-of-scope settings resolve to '' (bare numeric ID).
+      resolveOrderBusinessIdPrefix: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'orders.business_id.prefix',
+            salesChannelId,
+            z.string(),
+          );
+        } catch {
+          return '';
+        }
+      },
+      resolveOrderBusinessIdSuffix: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'orders.business_id.suffix',
+            salesChannelId,
+            z.string(),
+          );
+        } catch {
+          return '';
+        }
+      },
+      // Feature 038 US6 — reorder enable flag, resolved per Sales Channel.
+      // Missing/out-of-scope settings resolve to enabled (the default).
+      resolveReorderEnabled: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'orders.reorder_enabled',
+            salesChannelId,
+            z.boolean(),
+          );
+        } catch {
+          return true;
+        }
+      },
+      // Feature 038 US4 — additional order-confirmation recipients per scope.
+      resolveOrderConfirmationRecipients: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'orders.confirmation_recipients',
+            salesChannelId,
+            z.array(z.string()),
+          );
+        } catch {
+          return [];
+        }
+      },
+      // Feature 038 US3 / FR-035 — minimum order value per scope (0 = none).
+      resolveMinOrderValue: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'orders.min_order_value',
+            salesChannelId,
+            z.number(),
+          );
+        } catch {
+          return 0;
+        }
+      },
+      // Sales-channel layer of the fulfilment-strategy precedence chain — the
+      // SettingsService collapses per-channel value → global value → manifest
+      // default ('default_first'). Failures degrade to that same default.
+      resolveChannelFulfilmentStrategy: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'inventory.fulfilment_strategy',
+            salesChannelId,
+            z.enum([
+              'any',
+              'default_first',
+              'lowest_stock_first',
+              'highest_stock_first',
+              'defined_order',
+            ]),
+          );
+        } catch {
+          return 'default_first';
+        }
+      },
+      resolveChannelFulfilmentWarehouseOrder: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'inventory.fulfilment_strategy_warehouse_order',
+            salesChannelId,
+            z.array(z.string()),
+          );
+        } catch {
+          return [];
+        }
+      },
       getRfqService: () => quoteRequests?.handle().rfqService ?? null,
+      // Feature 039 — expose OrderService for the quick_order one-click flow.
+      exposeOrderService: (svc) => {
+        orderServiceForOneClick = svc;
+      },
       appendShoppingListToCart: async (input) => {
         if (!shoppingListService) {
           throw new Error('shopping_lists module not initialized');
@@ -655,6 +779,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       sessionService,
       requireCustomer,
       requireAdmin,
+      requireAdminAny,
       resolveCustomerContext: customerResolver,
       mailer: organizationsMailer,
       auditLogService,
@@ -667,8 +792,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
         : {}),
       onLogin: async (ctx) => {
+        let cartMerge: Awaited<
+          ReturnType<NonNullable<typeof cartService>['mergeAnonymousIntoCustomer']>
+        > | undefined;
         if (cartService && ctx.anonymousCartToken) {
-          await cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
+          cartMerge = await cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
             customerAccountId: ctx.customerAccountId,
             organizationId: ctx.organizationId,
           });
@@ -682,6 +810,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
             ctx.anonymousCompareToken,
           );
         }
+        return cartMerge ? { cartMerge } : {};
       },
     }),
     catalogModule({
@@ -796,7 +925,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           'select slug from categories where id = ? limit 1',
           [categoryId],
         )) as Array<{ slug: string }>;
-        return rows[0]?.slug ? `/catalog/${rows[0].slug}` : null;
+        return rows[0]?.slug ? `/c/${rows[0].slug}` : null;
       },
       resolveCmsPageUrl: async (pageId) => {
         const rows = (await em().getConnection().execute(
@@ -1004,6 +1133,28 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       exposeShoppingListService: (svc) => {
         shoppingListService = svc;
       },
+      // Feature 039 — resolve the quick-order import row cap from settings,
+      // register the admin on-behalf quick-order routes, and wire the
+      // default-preferences routes (audit + org allow-list eligibility).
+      settingsService: settings.handle.settingsService,
+      requireAdmin,
+      auditLog: auditLogService,
+      organizationRestriction: organizationRestrictionService,
+      resolveAdminContext: adminContextResolver,
+      // Feature 039 — one-click buy: lazy OrderService + the enabled setting.
+      getOrderService: () => orderServiceForOneClick,
+      resolveOneClickEnabled: async (salesChannelId) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            QUICK_ORDER_SETTING_CODES.ONE_CLICK_BUY_ENABLED,
+            salesChannelId,
+            z.boolean(),
+          );
+        } catch {
+          return false;
+        }
+      },
     }),
   );
 
@@ -1067,6 +1218,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     })),
   );
   lifecycleRef = lifecycle;
+
+  permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
+  redisSubscriber.on('message', (channel) => {
+    if (channel === STATE_CHANGED_CHANNEL) {
+      permissionCatalogueService.invalidate();
+    }
+  });
 
   modules.push(lifecycle.plugin);
   modules.push(adminI18n.plugin);

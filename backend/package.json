@@ -58,6 +58,7 @@
     "@mikro-orm/postgresql": "^6.6.13",
     "argon2": "^0.44.0",
     "bullmq": "^5.76.1",
+    "exceljs": "^4.4.0",
     "fastify": "^5.8.5",
     "fastify-plugin": "^5.1.0",
     "file-type": "^22.0.1",

@@ -41,18 +41,23 @@ describe('Feature 032 — delete guards', () => {
 
   it('blocks delete when cart_items reference the product', async () => {
     const productId = await createProduct('DEL-CART-BLOCK-001');
-    const cart = h.em().create(Cart, {
+    // h.em() returns a fresh fork per call — use one instance, and flush the
+    // cart before its item (CartItem.cartId is a scalar, so the FK insert
+    // order isn't inferred).
+    const em = h.em();
+    const cart = em.create(Cart, {
       anonymousCartToken: `del-block-${productId.slice(0, 8)}`,
       status: 'active',
     });
-    h.em().create(CartItem, {
+    await em.flush();
+    em.create(CartItem, {
       cartId: cart.id,
       productId,
       quantity: 1,
       unitPrice: '10.00',
       currency: 'PLN',
     });
-    await h.em().flush();
+    await em.flush();
 
     const del = await h.app.inject({
       method: 'DELETE',

@@ -33,6 +33,10 @@ export const manifest = defineModuleManifest({
   dependencies: [],
   settings,
   i18n: { bundlesDir: 'i18n' },
+  permissions: [
+    { code: 'settings:read', label: 'View settings' },
+    { code: 'settings:write', label: 'Edit settings' },
+  ],
   actions: [
     {
       id: 'open-settings',

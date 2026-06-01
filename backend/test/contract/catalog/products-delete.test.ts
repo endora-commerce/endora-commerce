@@ -3,7 +3,6 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { OrderItem } from '../../../src/modules/orders/entities/order-item.entity.js';
 import {
-  seedUs2Commerce,
   SEED_DELIVERY_METHOD_ID,
   SEED_PAYMENT_METHOD_ID,
 } from '../../helpers/seed-commerce.js';
@@ -70,9 +69,14 @@ describe('Feature 032 — DELETE /admin/catalog/products/:id', () => {
   });
 
   it('returns PRODUCT_DELETE_BLOCKED when order_items reference the product', async () => {
-    await seedUs2Commerce(h.em());
+    // Commerce fixtures (delivery/payment methods, addresses, stock) are already
+    // seeded by setupBackendServer → seedUs2Commerce; re-seeding here would
+    // duplicate the fixed-PK payment method (merge with the orders/payments work).
     const id = await createProduct('DEL-BLOCK-001');
-    const order = h.em().create(Order, {
+    // h.em() returns a fresh fork per call — use one instance so the Order and
+    // its OrderItem are persisted together in a single unit of work.
+    const em = h.em();
+    const order = em.create(Order, {
       organizationId: TEST_ORGANIZATION_ID,
       placedByCustomerAccountId: TEST_CUSTOMER_ID,
       salesChannelId: '00000000-0000-4000-8000-0000000000c1',
@@ -103,7 +107,11 @@ describe('Feature 032 — DELETE /admin/catalog/products/:id', () => {
       currency: 'PLN',
       placedAt: new Date(),
     });
-    h.em().create(OrderItem, {
+    // Flush the order first: OrderItem.orderId is a scalar (not a mapped
+    // relation), so the FK insert order isn't inferred — persist the parent
+    // before the line to satisfy order_items_order_fk.
+    await em.flush();
+    em.create(OrderItem, {
       orderId: order.id,
       productId: id,
       productSnapshot: { sku: 'DEL-BLOCK-001', name: 'Blocked', primaryAssetUrl: null },
@@ -112,7 +120,7 @@ describe('Feature 032 — DELETE /admin/catalog/products/:id', () => {
       taxRate: '0.23',
       lineTotal: '10.00',
     });
-    await h.em().flush();
+    await em.flush();
 
     const del = await h.app.inject({
       method: 'DELETE',

@@ -68,11 +68,11 @@ export function CompareAddToCartButton(props: {
     <>
       <button
         type="button"
-        className="btn btn--small"
+        className="btn btn--dark btn--sm"
         disabled={busy || props.disabled}
         onClick={(): void => void onClick()}
       >
-        {success ? '✓ Added' : busy ? 'Adding…' : 'Add to cart'}
+        {success ? '✓ Dodano' : busy ? 'Dodawanie…' : 'Dodaj do koszyka'}
       </button>
       {error ? <div className="b2b-compare__cart-error">{error}</div> : null}
     </>

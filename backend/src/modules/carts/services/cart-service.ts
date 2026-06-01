@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, type CartMergeOutcome } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
@@ -395,13 +396,60 @@ export class CartService {
     return cart;
   }
 
-  /** Merge anonymous cart items into the customer's cart at login time. */
-  async mergeAnonymousIntoCustomer(anonymousToken: string, ctx: CustomerContext): Promise<void> {
+  /**
+   * Merge an anonymous cart's items into the customer's cart at login
+   * time (feature 037-cart-merge-on-login).
+   *
+   * Returns a `CartMergeOutcome` diagnostic the caller (the login route
+   * via the `onLogin` hook) uses to surface the result to the storefront
+   * and to decide whether to clear the stale `b2b_cart_anon` cookie.
+   * See specs/037-cart-merge-on-login/contracts/cart-merge.md § 3.
+   *
+   * State matrix:
+   *   - `adopted`        — the customer had no active cart; the anon
+   *     cart's lines were placed onto a freshly-created destination.
+   *   - `merged`         — the customer already had an active cart and
+   *     ≥ 1 anon line was moved or summed into it.
+   *   - `noop_empty`     — the anon cart was found but carried no items;
+   *     the source row is still flipped to `completed` + detokenised
+   *     (cleanup), no audit row is written.
+   *   - `noop_no_anon`   — no cart for the supplied token; no DB change.
+   *
+   * Coupons on the source cart are NOT carried to the destination
+   * (R-05 / FR-010 — the destination's existing `appliedPromotionCode`
+   * is preserved verbatim).
+   */
+  async mergeAnonymousIntoCustomer(
+    anonymousToken: string,
+    ctx: CustomerContext,
+  ): Promise<CartMergeOutcome> {
     const em = this.emFactory();
+    // Look up the source first so the noop_no_anon branch can skip the
+    // destination-cart creation. Per the spec, the diagnostic still
+    // includes a destinationCartId so the storefront has a stable id to
+    // re-read its cart from on next render.
     const anon = await em.findOne(Cart, { anonymousCartToken: anonymousToken, status: 'active' });
-    if (!anon) return;
-    const customerCart = await this.#getOrCreateForCustomerOn(em, ctx);
+    if (!anon) {
+      const destForNoop = await this.#getOrCreateForCustomerOn(em, ctx);
+      return {
+        outcome: 'noop_no_anon',
+        movedLineCount: 0,
+        summedLineCount: 0,
+        destinationCartId: destForNoop.id,
+      };
+    }
 
+    // Detect "the customer's destination cart was newly created right now":
+    // peek for an existing active cart row BEFORE calling the get-or-create
+    // helper. If absent and the source has items, we will return `adopted`.
+    const preExistingDest = await em.findOne(Cart, {
+      customerAccountId: ctx.customerAccountId,
+      status: 'active',
+    });
+    const customerCart = preExistingDest ?? (await this.#getOrCreateForCustomerOn(em, ctx));
+
+    let movedLineCount = 0;
+    let summedLineCount = 0;
     const anonItems = await em.find(CartItem, { cartId: anon.id });
     for (const item of anonItems) {
       const existing = await em.findOne(CartItem, {
@@ -411,17 +459,56 @@ export class CartService {
       });
       if (existing) {
         existing.quantity += item.quantity;
+        summedLineCount += 1;
       } else {
         item.cartId = customerCart.id;
+        movedLineCount += 1;
       }
     }
-    // Merge complete — mark the source anonymous cart as `completed` (it
-    // produced a target authenticated cart; treating it as `abandoned`
-    // would falsely flag it for the abandonment-notification sweep when
-    // a non-empty merge actually took place). See feature 027 §R10.
+
+    // Merge complete — mark the source anonymous cart as `completed` even
+    // when the merge was a noop_empty (it never produced anything down-
+    // stream, but leaving it `active` would let the abandonment sweep
+    // pick it up later, and leaving the token live would let a second
+    // login try to re-merge an already-consumed source). Treating it as
+    // `abandoned` would falsely flag it for the abandonment-notification
+    // sweep. See feature 027 §R10.
     anon.status = 'completed';
     anon.anonymousCartToken = null;
+
+    const isNoopEmpty = movedLineCount + summedLineCount === 0;
+    const outcome: CartMergeOutcome['outcome'] = isNoopEmpty
+      ? 'noop_empty'
+      : preExistingDest
+        ? 'merged'
+        : 'adopted';
+
+    // Audit only on observable state-changes on the destination cart
+    // (R-08). noop_empty and noop_no_anon are not destination-state
+    // changes and are observable in the application log instead.
+    if ((outcome === 'adopted' || outcome === 'merged') && this.auditService) {
+      const sourceAnonTokenHash = createHash('sha256').update(anonymousToken).digest('hex');
+      await this.auditService.record({
+        cartId: customerCart.id,
+        actorType: 'system',
+        action: 'cart_merged_from_anon',
+        metadata: {
+          sourceAnonTokenHash,
+          outcome,
+          movedLineCount,
+          summedLineCount,
+        },
+      });
+    }
+
     await em.flush();
+
+    return {
+      outcome,
+      movedLineCount,
+      summedLineCount,
+      destinationCartId: customerCart.id,
+    };
   }
 
   async clearForCustomer(ctx: CustomerContext): Promise<void> {

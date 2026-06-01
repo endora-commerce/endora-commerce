@@ -47,12 +47,18 @@ export async function seedUs2Commerce(em: EntityManager): Promise<void> {
     name: { 'en-US': 'In-person pickup', 'pl-PL': 'Odbiór osobisty' },
     cost: '0.00',
     currency: 'PLN',
+    // Feature 035 — shipping adapter backing this delivery method.
+    adapter: 'personal_pickup',
   });
   const payment = em.create(PaymentMethod, {
     id: SEED_PAYMENT_METHOD_ID,
     code: 'bank_transfer',
     name: { 'en-US': 'Bank transfer', 'pl-PL': 'Przelew bankowy' },
     kind: 'bank_transfer',
+    adapter: 'bank_transfer',
+    statusOnPending: 'new',
+    statusOnSuccess: 'paid',
+    statusOnFailure: 'cancelled',
   });
   await em.persistAndFlush([delivery, payment]);
 
@@ -219,7 +225,7 @@ export async function seedShippedOrder(em: EntityManager): Promise<void> {
     organizationId: TEST_ORGANIZATION_ID,
     placedByCustomerAccountId: TEST_CUSTOMER_ID,
     salesChannelId: '00000000-0000-4000-8000-0000000000c1',
-    status: 'shipped',
+    status: 'shipment_sent',
     paymentStatus: 'paid',
     deliveryAddress: {
       recipientName: 'Stub', street: 'ul. Odbioru 1', city: 'Warszawa',
@@ -251,7 +257,7 @@ export async function seedOrdersForInvoiceTests(em: EntityManager): Promise<void
       organizationId: TEST_ORGANIZATION_ID,
       placedByCustomerAccountId: TEST_CUSTOMER_ID,
       salesChannelId: '00000000-0000-4000-8000-0000000000c1',
-      status: 'confirmed',
+      status: 'paid',
       paymentStatus: 'paid',
       deliveryAddress: {
         recipientName: 'Stub', street: 'ul. Odbioru 1', city: 'Warszawa',
