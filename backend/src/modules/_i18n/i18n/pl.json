@@ -32,6 +32,7 @@
   "appShell.topbar.help": "Pomoc",
   "appShell.nav.home": "Strona główna",
   "appShell.nav.orders": "Zamówienia",
+  "appShell.nav.quickOrder": "Szybkie zamówienie",
   "appShell.nav.quoteRequests": "Zapytania ofertowe",
   "appShell.nav.invoices": "Faktury",
   "appShell.nav.products": "Produkty",
