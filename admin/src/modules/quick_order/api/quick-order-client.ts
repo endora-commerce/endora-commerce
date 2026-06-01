@@ -77,3 +77,43 @@ export async function adminQuickOrderBuild(input: {
   );
   return res.data;
 }
+
+export type PreferenceScope = 'organization' | 'customer';
+
+export interface QuickOrderPreference {
+  scope: PreferenceScope;
+  scopeId: string;
+  defaultPaymentMethodId: string | null;
+  defaultDeliveryMethodId: string | null;
+  defaultBillingAddressId: string | null;
+  defaultShippingAddressId: string | null;
+}
+
+export interface QuickOrderPreferenceUpsert {
+  scope: PreferenceScope;
+  scopeId: string;
+  defaultPaymentMethodId?: string | null;
+  defaultDeliveryMethodId?: string | null;
+  defaultBillingAddressId?: string | null;
+  defaultShippingAddressId?: string | null;
+}
+
+export async function adminGetPreference(
+  scope: PreferenceScope,
+  scopeId: string,
+): Promise<QuickOrderPreference | null> {
+  const res = await apiClient.get<Envelope<QuickOrderPreference | null>>(
+    `/api/v1/admin/quick-order/preferences?scope=${scope}&scopeId=${encodeURIComponent(scopeId)}`,
+  );
+  return res.data;
+}
+
+export async function adminUpsertPreference(
+  body: QuickOrderPreferenceUpsert,
+): Promise<QuickOrderPreference> {
+  const res = await apiClient.put<Envelope<QuickOrderPreference>>(
+    '/api/v1/admin/quick-order/preferences',
+    body,
+  );
+  return res.data;
+}

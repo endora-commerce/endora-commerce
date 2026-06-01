@@ -33,6 +33,7 @@
   "appShell.nav.home": "Home",
   "appShell.nav.orders": "Orders",
   "appShell.nav.quickOrder": "Quick order",
+  "appShell.nav.defaultPreferences": "Default preferences",
   "appShell.nav.quoteRequests": "Quote requests",
   "appShell.nav.invoices": "Invoices",
   "appShell.nav.products": "Products",

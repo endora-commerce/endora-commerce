@@ -1083,6 +1083,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireAdmin,
       auditLog: auditLogService,
       organizationRestriction: organizationRestrictionService,
+      resolveAdminContext: adminContextResolver,
     }),
   );
 

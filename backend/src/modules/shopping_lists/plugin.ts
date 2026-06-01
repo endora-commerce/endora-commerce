@@ -13,6 +13,7 @@ import { registerShoppingListRoutes } from './routes.js';
 import { registerQuickOrderRoutes } from '../quick_order/routes.js';
 import { registerQuickOrderAdminRoutes } from '../quick_order/routes.admin.js';
 import { registerQuickOrderPreferenceRoutes } from '../quick_order/routes.preferences.js';
+import { registerQuickOrderPreferenceAdminRoutes } from '../quick_order/routes.preferences.admin.js';
 import { DefaultPreferenceService } from '../quick_order/services/default-preference-service.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
@@ -66,6 +67,8 @@ export interface ShoppingListsModuleOptions {
    */
   auditLog?: AuditLogService;
   organizationRestriction?: OrganizationRestrictionService;
+  /** Resolves the acting admin user id for the admin preference routes. */
+  resolveAdminContext?: (req: FastifyRequest) => { adminUserId: string };
 }
 
 export function shoppingListsModule(options: ShoppingListsModuleOptions) {
@@ -130,6 +133,14 @@ export function shoppingListsModule(options: ShoppingListsModuleOptions) {
         requireCustomer: options.requireCustomer,
         resolveCustomerContext: options.resolveCustomerContext,
       });
+      if (options.requireAdmin && options.resolveAdminContext) {
+        await registerQuickOrderPreferenceAdminRoutes(app, {
+          service: preferenceService,
+          emFactory: options.emFactory,
+          requireAdmin: options.requireAdmin,
+          resolveAdminContext: options.resolveAdminContext,
+        });
+      }
     }
   };
 }

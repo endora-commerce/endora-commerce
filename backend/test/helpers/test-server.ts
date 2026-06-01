@@ -964,6 +964,10 @@ export async function setupBackendServer(
       requireAdmin: requireTestAdmin(permissionService),
       auditLog: auditLogService,
       organizationRestriction: sharedRestrictionService,
+      resolveAdminContext: (request) => ({
+        adminUserId:
+          request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+      }),
     }),
   );
 

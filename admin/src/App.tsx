@@ -50,6 +50,7 @@ import { OrderDetail } from './modules/orders/OrderDetail.js';
 import { OrderStatusConfigPage } from './modules/orders/OrderStatusConfigPage.js';
 import { OrderCreatePage } from './modules/orders/OrderCreatePage.js';
 import { QuickOrderOnBehalfPage } from './modules/quick_order/QuickOrderOnBehalfPage.js';
+import { DefaultPreferencesPage } from './modules/quick_order/DefaultPreferencesPage.js';
 import { CartsList } from './modules/carts/CartsList.js';
 import { CartDetail } from './modules/carts/CartDetail.js';
 import { InvoicesList } from './modules/invoices/InvoicesList.js';
@@ -137,6 +138,7 @@ export function App(): ReactNode {
         <Route path="/orders" element={<OrdersList />} />
         <Route path="/orders/new" element={<OrderCreatePage />} />
         <Route path="/orders/quick-order" element={<QuickOrderOnBehalfPage />} />
+        <Route path="/orders/default-preferences" element={<DefaultPreferencesPage />} />
         <Route path="/orders/statuses" element={<OrderStatusConfigPage />} />
         <Route path="/orders/:id" element={<OrderDetail />} />
         <Route path="/carts" element={<CartsList />} />
