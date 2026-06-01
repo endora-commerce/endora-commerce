@@ -1127,6 +1127,36 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     organizationRestrictionService,
     requireAdmin,
     vatValidator: new ViesClient(),
+    mailer: organizationsMailer,
+    storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
+    resolveDeletionRetentionDays: async () => {
+      try {
+        const { z } = await import('zod');
+        const channel = await salesChannels.handle.resolver.getSystemDefault();
+        if (!channel) return 365;
+        return await settings.handle.settingsService.get(
+          CUSTOMERS_SETTING_CODES.DELETION_RETENTION_DAYS,
+          channel.id,
+          z.number(),
+        );
+      } catch {
+        return 365;
+      }
+    },
+    resolvePresenceFreshnessMinutes: async () => {
+      try {
+        const { z } = await import('zod');
+        const channel = await salesChannels.handle.resolver.getSystemDefault();
+        if (!channel) return 10;
+        return await settings.handle.settingsService.get(
+          CUSTOMERS_SETTING_CODES.PRESENCE_FRESHNESS_MINUTES,
+          channel.id,
+          z.number(),
+        );
+      } catch {
+        return 10;
+      }
+    },
     resolveModerationActor: async (request) => {
       const actor = request.actor;
       if (actor.kind !== 'admin') {

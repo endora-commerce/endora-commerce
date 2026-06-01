@@ -1005,6 +1005,10 @@ export async function setupBackendServer(
     auditLogService,
     organizationRestrictionService: sharedRestrictionService,
     requireAdmin: requireTestAdmin(permissionService),
+    mailer: new ConsoleMailer(),
+    storefrontBaseUrl: 'http://localhost:3000',
+    resolveDeletionRetentionDays: async () => 365,
+    resolvePresenceFreshnessMinutes: async () => 10,
     vatValidator: {
       provider: 'vies' as const,
       validate: async (input: { taxId: string; countryCode?: string | undefined }) => ({

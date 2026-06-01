@@ -11,7 +11,12 @@ import { SESSION_COOKIE_NAME } from '../auth/plugin.js';
 import type { CustomerModerationService } from './services/customer-moderation-service.js';
 import type { CustomerAdminQueryService } from './services/customer-admin-query-service.js';
 import type { CustomerOrgAssignmentService } from './services/customer-org-assignment-service.js';
+import type { CustomerDeletionService } from './services/customer-deletion-service.js';
+import type { CustomerPresenceService } from './services/customer-presence-service.js';
 import type { CustomerAddressService } from './services/customer-address-service.js';
+import type { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
+import type { Mailer } from '../email/services/mailer.js';
+import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import {
   serializeCustomerAddress,
   serializeOrganizationAddress,
@@ -71,6 +76,12 @@ export interface CustomersAdminDeps {
   rfqService: RfqService;
   vatValidator: VatValidator;
   impersonationService: ImpersonationService;
+  deletionService: CustomerDeletionService;
+  presenceService: CustomerPresenceService;
+  passwordResetService: PasswordResetService;
+  mailer: Mailer;
+  auditLogService: AuditLogService;
+  storefrontBaseUrl: string;
 }
 
 export async function registerCustomersAdminRoutes(
@@ -371,6 +382,75 @@ export async function registerCustomersAdminRoutes(
     async (request) => {
       await resolveModerationActor(request);
       return { data: await deps.cartQueryService.listForCustomer(request.params.id) };
+    },
+  );
+
+  // ── Online customers (US7) ──────────────────────────────────────────────
+
+  app.get(
+    '/api/v1/admin/customers/online',
+    { preHandler: requireAdmin('customers:read') },
+    async (request) => {
+      await resolveModerationActor(request);
+      return { data: await deps.presenceService.listOnline() };
+    },
+  );
+
+  // ── Password reset (US7) ────────────────────────────────────────────────
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/customers/:id/password-reset',
+    { preHandler: requireAdmin('customers:manage') },
+    async (request, reply) => {
+      const actor = await resolveModerationActor(request);
+      const customer = await deps
+        .emFactory()
+        .findOne(CustomerAccount, { id: request.params.id, deletedAt: null });
+      if (!customer) {
+        reply.code(404);
+        return { error: { code: 'CUSTOMER_NOT_FOUND', message: 'Customer not found.' } };
+      }
+      const { rawToken } = await deps.passwordResetService.requestReset(customer.email);
+      if (rawToken) {
+        const link = `${deps.storefrontBaseUrl}/reset-password?token=${rawToken}`;
+        await deps.mailer.send({
+          messageId: `admin-pwd-reset.${customer.id}.${rawToken.slice(0, 8)}`,
+          to: customer.email,
+          subject: 'Set a new password',
+          text: `An administrator started a password reset for your account. Set a new password here: ${link}`,
+        });
+      }
+      await deps.auditLogService.record({
+        actorAdminUserId: actor.adminUserId,
+        action: 'customer_account.password_reset_requested',
+        objectType: 'customer_account',
+        objectId: customer.id,
+        stateBefore: null,
+        stateAfter: null,
+      });
+      return { data: { ok: true } };
+    },
+  );
+
+  // ── Soft-delete + restore (US7) ─────────────────────────────────────────
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/v1/admin/customers/:id',
+    { preHandler: requireAdmin('customers:manage') },
+    async (request) => {
+      const actor = await resolveModerationActor(request);
+      const customer = await deps.deletionService.softDelete(request.params.id, actor);
+      return { data: { id: customer.id, deleted: customer.deletedAt != null } };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/customers/:id/restore',
+    { preHandler: requireAdmin('customers:manage') },
+    async (request) => {
+      const actor = await resolveModerationActor(request);
+      const customer = await deps.deletionService.restore(request.params.id, actor);
+      return { data: { id: customer.id, deleted: customer.deletedAt != null } };
     },
   );
 }

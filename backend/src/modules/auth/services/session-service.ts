@@ -51,6 +51,9 @@ export class SessionService {
     const session = em.create(Session, {
       tokenHash,
       expiresAt,
+      // Feature 040 — stamp activity at creation so a freshly-authenticated
+      // customer shows up in the admin "online" view immediately.
+      lastSeenAt: new Date(),
       ...(input.customerAccountId !== undefined ? { customerAccountId: input.customerAccountId } : {}),
       ...(input.adminUserId !== undefined ? { adminUserId: input.adminUserId } : {}),
       ...(input.impersonatorAdminUserId !== undefined
@@ -118,6 +121,33 @@ export class SessionService {
       await this.redis.del(REDIS_KEY_PREFIX + session.id);
     }
     await em.removeAndFlush(sessions);
+  }
+
+  /**
+   * Feature 040 — stamp activity, throttled to at most once per minute per
+   * session (Redis marker) to avoid write amplification on every request.
+   */
+  async touchLastSeen(sessionId: string): Promise<void> {
+    const marker = `seen:${sessionId}`;
+    const set = await this.redis.set(marker, '1', 'EX', 60, 'NX');
+    if (set === null) return; // touched within the last minute
+    const em = this.emFactory();
+    await em.nativeUpdate(Session, { id: sessionId }, { lastSeenAt: new Date() });
+  }
+
+  /**
+   * Feature 040 — distinct customer ids whose session was active within the
+   * freshness window, for the admin "online customers" view.
+   */
+  async listRecentlyActiveCustomers(windowMinutes: number): Promise<string[]> {
+    const em = this.emFactory();
+    const cutoff = new Date(Date.now() - windowMinutes * 60 * 1000);
+    const rows = await em.find(
+      Session,
+      { customerAccountId: { $ne: null }, lastSeenAt: { $gte: cutoff } },
+      { fields: ['customerAccountId'] },
+    );
+    return [...new Set(rows.map((r) => r.customerAccountId).filter((x): x is string => !!x))];
   }
 
   private async cache(session: Session): Promise<void> {

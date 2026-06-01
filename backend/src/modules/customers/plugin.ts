@@ -16,8 +16,13 @@ import { CustomerAuthorityService } from './services/customer-authority-service.
 import { CustomerModerationService } from './services/customer-moderation-service.js';
 import { CustomerAdminQueryService } from './services/customer-admin-query-service.js';
 import { CustomerOrgAssignmentService } from './services/customer-org-assignment-service.js';
+import { CustomerDeletionService } from './services/customer-deletion-service.js';
+import { CustomerPresenceService } from './services/customer-presence-service.js';
 import { CartQueryService } from '../carts/services/cart-query-service.js';
+import { AnonymizationSweepWorker } from './workers/anonymization-sweep-worker.js';
+import { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
 import type { VatValidator } from '../organizations/services/vat-validator-port.js';
+import type { Mailer } from '../email/services/mailer.js';
 import { registerCustomersRegisterRoutes } from './routes.register.js';
 import {
   registerCustomersSelfRoutes,
@@ -54,10 +59,18 @@ export interface CustomersModuleOptions {
   resolveModerationActor: ResolveModerationActor;
   /** VAT/NIP validator port (VIES / Biała lista in production). */
   vatValidator: VatValidator;
+  mailer: Mailer;
+  /** Base URL for the storefront set-password link in reset emails. */
+  storefrontBaseUrl: string;
+  /** Reads `customers.deletion_retention_days`. */
+  resolveDeletionRetentionDays: () => Promise<number>;
+  /** Reads `customers.presence_freshness_minutes`. */
+  resolvePresenceFreshnessMinutes: () => Promise<number>;
 }
 
 export interface CustomersModuleHandle {
   registrationService: CustomerRegistrationService;
+  anonymizationSweepWorker: AnonymizationSweepWorker;
 }
 
 export function customersModule(options: CustomersModuleOptions): {
@@ -112,6 +125,28 @@ export function customersModule(options: CustomersModuleOptions): {
     options.auditLogService,
   );
   const cartQueryService = new CartQueryService(options.emFactory);
+  const deletionService = new CustomerDeletionService(
+    options.emFactory,
+    authorityService,
+    options.auditLogService,
+    {
+      destroyAllForCustomer: (customerAccountId) =>
+        options.sessionService.destroyAllForCustomer(customerAccountId),
+    },
+  );
+  const presenceService = new CustomerPresenceService(
+    options.emFactory,
+    {
+      listRecentlyActiveCustomers: (windowMinutes) =>
+        options.sessionService.listRecentlyActiveCustomers(windowMinutes),
+    },
+    options.resolvePresenceFreshnessMinutes,
+  );
+  const passwordResetService = new PasswordResetService(options.emFactory);
+  const anonymizationSweepWorker = new AnonymizationSweepWorker(
+    deletionService,
+    options.resolveDeletionRetentionDays,
+  );
 
   const plugin: ModulePlugin = async (app) => {
     await registerCustomersRegisterRoutes(app, { registrationService });
@@ -138,8 +173,17 @@ export function customersModule(options: CustomersModuleOptions): {
       rfqService: options.rfqService,
       vatValidator: options.vatValidator,
       impersonationService,
+      deletionService,
+      presenceService,
+      passwordResetService,
+      mailer: options.mailer,
+      auditLogService: options.auditLogService,
+      storefrontBaseUrl: options.storefrontBaseUrl,
     });
   };
 
-  return { plugin, handle: () => ({ registrationService }) };
+  return {
+    plugin,
+    handle: () => ({ registrationService, anonymizationSweepWorker }),
+  };
 }
