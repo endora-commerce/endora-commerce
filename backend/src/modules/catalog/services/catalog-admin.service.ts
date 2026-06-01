@@ -749,6 +749,7 @@ export class CatalogAdminService {
       filterPosition: req.filterPosition ?? 0,
       isVisibleOnProductPage: req.isVisibleOnProductPage ?? false,
       massEditable: req.massEditable ?? false,
+      quickSearchable: req.quickSearchable ?? false,
     });
     try {
       await em.persistAndFlush(attr);
@@ -849,6 +850,9 @@ export class CatalogAdminService {
     }
     if (req.massEditable !== undefined) {
       attr.massEditable = req.massEditable;
+    }
+    if (req.quickSearchable !== undefined) {
+      attr.quickSearchable = req.quickSearchable;
     }
     if (req.type !== undefined) {
       // Feature 002 — patching `type` re-derives valueType + displayAsSlider.
@@ -1007,10 +1011,9 @@ export class CatalogAdminService {
     const maxSelectionSize = Number(process.env['CATALOG_MAX_RESOLVE_IDS'] ?? 10_000);
     const em = this.emFactory();
     const trimmedQ = options.q?.trim();
+    const knex = em.getKnex();
 
-    const applyListFilters = (
-      qb: import('knex').Knex.QueryBuilder,
-    ): import('knex').Knex.QueryBuilder => {
+    const applyListFilters = (qb: ReturnType<typeof knex>): ReturnType<typeof knex> => {
       if (options.status) {
         qb.where('status', options.status);
       } else if (!options.includeArchived) {
@@ -1031,7 +1034,6 @@ export class CatalogAdminService {
       return qb;
     };
 
-    const knex = em.getKnex();
     const countRow = (await applyListFilters(knex('products'))
       .clone()
       .count<{ count: string | number }>('* as count')
@@ -1063,6 +1065,16 @@ export class CatalogAdminService {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
     return product;
+  }
+
+  /** Category membership ids for admin product editor (feature 031). */
+  async getProductCategoryIds(productId: string): Promise<string[]> {
+    const em = this.emFactory();
+    const rows = (await em.getConnection().execute(
+      `select category_id from product_categories where product_id = ?`,
+      [productId],
+    )) as Array<{ category_id: string }>;
+    return rows.map((r) => r.category_id);
   }
 
   /**

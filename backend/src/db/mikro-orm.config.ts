@@ -52,6 +52,16 @@ import { Migration047OrganizationsConsolidation } from '../modules/organizations
 import { Migration048AdminNotificationsInit } from '../modules/admin_notifications/migrations/048_admin_notifications_init.js';
 import { Migration049CustomerAccountsOrganizationOptional } from '../modules/customer_accounts/migrations/049_customer_accounts_organization_optional.js';
 import { Migration050CartsConsolidation } from '../modules/carts/migrations/050_carts_consolidation.js';
+import { Migration051PaymentMethodsAdapter } from '../modules/payment_methods/migrations/051_payment_methods_adapter.js';
+import { Migration052ShippingMethodsAdapterAndShipments } from '../modules/delivery_methods/migrations/052_shipping_methods_adapter_and_shipments.js';
+import { Migration053OrdersBusinessId } from '../modules/orders/migrations/053_orders_business_id.js';
+import { Migration054OrdersStatusModel } from '../modules/orders/migrations/054_orders_status_model.js';
+import { Migration055OrderCommentsAndSavedViews } from '../modules/orders/migrations/055_order_comments_and_saved_views.js';
+import { Migration056OrgOrderConfirmationEmails } from '../modules/organizations/migrations/056_org_order_confirmation_emails.js';
+import { Migration057QuickOrderDefaultPreferences } from '../modules/quick_order/migrations/057_quick_order_default_preferences.js';
+import { Migration058AttributeQuickSearchable } from '../modules/catalog/migrations/058_attribute_quick_searchable.js';
+import { Migration059OrderStatusDefaultName } from '../modules/orders/migrations/059_order_status_default_name.js';
+import { Migration060OrgFulfilmentStrategy } from '../modules/organizations/migrations/060_org_fulfilment_strategy.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -231,6 +241,46 @@ export default defineConfig({
       {
         name: 'Migration050CartsConsolidation',
         class: Migration050CartsConsolidation,
+      },
+      {
+        name: 'Migration051PaymentMethodsAdapter',
+        class: Migration051PaymentMethodsAdapter,
+      },
+      {
+        name: 'Migration052ShippingMethodsAdapterAndShipments',
+        class: Migration052ShippingMethodsAdapterAndShipments,
+      },
+      {
+        name: 'Migration053OrdersBusinessId',
+        class: Migration053OrdersBusinessId,
+      },
+      {
+        name: 'Migration054OrdersStatusModel',
+        class: Migration054OrdersStatusModel,
+      },
+      {
+        name: 'Migration055OrderCommentsAndSavedViews',
+        class: Migration055OrderCommentsAndSavedViews,
+      },
+      {
+        name: 'Migration056OrgOrderConfirmationEmails',
+        class: Migration056OrgOrderConfirmationEmails,
+      },
+      {
+        name: 'Migration057QuickOrderDefaultPreferences',
+        class: Migration057QuickOrderDefaultPreferences,
+      },
+      {
+        name: 'Migration058AttributeQuickSearchable',
+        class: Migration058AttributeQuickSearchable,
+      },
+      {
+        name: 'Migration059OrderStatusDefaultName',
+        class: Migration059OrderStatusDefaultName,
+      },
+      {
+        name: 'Migration060OrgFulfilmentStrategy',
+        class: Migration060OrgFulfilmentStrategy,
       },
     ],
     transactional: true,

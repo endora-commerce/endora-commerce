@@ -60,6 +60,9 @@ export class Organization {
     | 'approvedByAdminUserId'
     | 'requiresCartApproval'
     | 'nameSearch'
+    | 'orderConfirmationEmails'
+    | 'fulfilmentStrategy'
+    | 'fulfilmentStrategyWarehouseOrder'
     | 'version';
 
   @PrimaryKey({ type: 'uuid' })
@@ -102,6 +105,14 @@ export class Organization {
     country: string;
   };
 
+  /**
+   * Feature 038 (US4) — additional email addresses that also receive an order
+   * confirmation for every order placed by a Customer of this Organization.
+   * Read by the orders module through OrganizationConfirmationEmailsPort.
+   */
+  @Property({ type: 'json' })
+  orderConfirmationEmails: string[] = [];
+
   // ── feature 026: moderation + VAT validation tracking ───────────────────
 
   @Property({ type: 'datetime', nullable: true })
@@ -140,6 +151,25 @@ export class Organization {
    */
   @Property({ type: 'boolean' })
   requiresCartApproval: boolean = false;
+
+  /**
+   * Organization-level override of the warehouse-picking (fulfilment) strategy
+   * applied when reserving stock at order placement (precedence: Product →
+   * Organization → Sales Channel setting → platform default). `null` ⇒ inherit.
+   * Mirrors the per-product columns on `Product`. When `defined_order`,
+   * `fulfilmentStrategyWarehouseOrder` carries the ordered warehouse-id walk.
+   */
+  @Property({ type: 'string', length: 32, nullable: true })
+  fulfilmentStrategy?:
+    | 'any'
+    | 'default_first'
+    | 'lowest_stock_first'
+    | 'highest_stock_first'
+    | 'defined_order'
+    | null;
+
+  @Property({ type: 'json', nullable: true })
+  fulfilmentStrategyWarehouseOrder?: string[] | null;
 
   /**
    * Lowercased + diacritic-stripped copy of `name`. Kept in sync by the

@@ -87,11 +87,20 @@ export function CompareToggle(props: { productId: string }): ReactNode {
 }
 
 /**
- * Header pill showing the current Comparison size with a link to
- * `/compare`. Hidden when the size is 0. Refreshes on mount and on the
- * `b2b:compare:changed` custom event the toggle dispatches.
+ * Header icon-button linking to `/compare` with a numeric badge showing
+ * the current Comparison size. Always rendered (matches the Industria
+ * design's icon-row); the badge appears only when size > 0. Refreshes
+ * on mount and on the `b2b:compare:changed` event the toggle dispatches.
+ *
+ * `label` and `ariaLabel` come in as already-translated strings so this
+ * client component stays free of i18n boundaries.
  */
-export function CompareCounterLink(props: { href: string }): ReactNode {
+export function CompareCounterLink(props: {
+  href: string;
+  ariaLabel: string;
+  /** Inline SVG passed in from the server-rendered header. */
+  icon: ReactNode;
+}): ReactNode {
   const [size, setSize] = useState(0);
 
   useEffect(() => {
@@ -113,10 +122,15 @@ export function CompareCounterLink(props: { href: string }): ReactNode {
     };
   }, []);
 
-  if (size === 0) return null;
+  const label = size > 0 ? `${props.ariaLabel} · ${size}` : props.ariaLabel;
   return (
-    <a href={props.href} className="b2b-compare-counter">
-      Compare ({size})
+    <a href={props.href} className="icon-btn" aria-label={label}>
+      {props.icon}
+      {size > 0 ? (
+        <span className="icon-btn__count" aria-hidden="true">
+          {size > 99 ? '99+' : size}
+        </span>
+      ) : null}
     </a>
   );
 }

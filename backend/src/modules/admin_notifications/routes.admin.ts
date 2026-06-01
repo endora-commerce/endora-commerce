@@ -1,7 +1,24 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
+
+/**
+ * Resolve the acting admin's id. Production decorates `request.actor` via the
+ * auth plugin; the test harness decorates `request.testActor` — both shapes
+ * are checked (the `admin:read` gate has already run).
+ */
+function resolveAdminUserId(request: FastifyRequest): string {
+  const r = request as FastifyRequest & {
+    actor?: { kind: string; adminUserId?: string };
+    testActor?: { kind: string; adminUserId?: string };
+  };
+  const actor = r.testActor?.kind === 'admin' ? r.testActor : r.actor;
+  if (!actor || actor.kind !== 'admin' || !actor.adminUserId) {
+    throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+  }
+  return actor.adminUserId;
+}
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { AdminNotificationService } from './services/admin-notification-service.js';
 import { NotificationNotFoundError } from './services/admin-notification-service.js';
@@ -32,13 +49,10 @@ export async function registerAdminNotificationsRoutes(
   const gate = requireAdmin('admin:read');
 
   app.get('/api/v1/admin/notifications', { preHandler: gate }, async (request) => {
-    const actor = request.actor;
-    if (actor.kind !== 'admin') {
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-    }
+    const adminUserId = resolveAdminUserId(request);
     const query = listQuerySchema.parse(request.query);
     const page = await adminNotificationService.listForAdmin({
-      adminUserId: actor.adminUserId,
+      adminUserId,
       unread: query.unread,
       limit: query.limit,
       cursor: query.cursor ?? null,
@@ -65,12 +79,9 @@ export async function registerAdminNotificationsRoutes(
     '/api/v1/admin/notifications/:id/read',
     { preHandler: gate },
     async (request, reply) => {
-      const actor = request.actor;
-      if (actor.kind !== 'admin') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-      }
+      const adminUserId = resolveAdminUserId(request);
       try {
-        await adminNotificationService.markRead(request.params.id, actor.adminUserId);
+        await adminNotificationService.markRead(request.params.id, adminUserId);
       } catch (err) {
         if (err instanceof NotificationNotFoundError) {
           throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Notification not found.');
@@ -82,11 +93,8 @@ export async function registerAdminNotificationsRoutes(
   );
 
   app.post('/api/v1/admin/notifications/mark-all-read', { preHandler: gate }, async (request) => {
-    const actor = request.actor;
-    if (actor.kind !== 'admin') {
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-    }
-    const markedCount = await adminNotificationService.markAllRead(actor.adminUserId);
+    const adminUserId = resolveAdminUserId(request);
+    const markedCount = await adminNotificationService.markAllRead(adminUserId);
     return { markedCount };
   });
 }

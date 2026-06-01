@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { listMyOrders } from '../../../lib/api/orders';
+import { listMyOrders, resolveOrderStatusLabel } from '../../../lib/api/orders';
 import { getSessionCookie } from '../../../lib/session';
+import { getServerContext } from '../../../lib/server-context';
 
 /**
  * Orders list (T159 / FR-053). Backend's `GET /orders` already enforces
@@ -15,6 +16,7 @@ export default async function OrdersListPage(): Promise<ReactNode> {
   const session = await getSessionCookie();
   if (!session) redirect('/login?next=/account/orders');
   const orders = await listMyOrders(session);
+  const { locale } = await getServerContext();
 
   if (orders.length === 0) {
     return (
@@ -46,8 +48,8 @@ export default async function OrdersListPage(): Promise<ReactNode> {
           {orders.map((o) => (
             <tr key={o.id}>
               <td>{new Date(o.placedAt).toLocaleDateString()}</td>
-              <td>{o.id.slice(0, 8)}</td>
-              <td>{o.status}</td>
+              <td>{o.businessId}</td>
+              <td>{resolveOrderStatusLabel(o, locale)}</td>
               <td>{o.paymentStatus}</td>
               <td>
                 {o.total.toFixed(2)} {o.currency}

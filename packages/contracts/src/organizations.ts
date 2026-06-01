@@ -5,6 +5,7 @@ import {
   organizationRoleSchema,
   uuidSchema,
 } from './common.js';
+import { fulfilmentStrategySchema } from './inventory.js';
 
 /**
  * Organizations, customer accounts, addresses, invitations — Source of truth
@@ -50,6 +51,14 @@ export const organizationSchema = z.object({
     recipientName: z.string().optional(),
     phone: z.string().optional(),
   }),
+  /**
+   * Organization-level override of the warehouse-picking (fulfilment) strategy
+   * used to reserve stock at order placement. `null` ⇒ inherit (sales-channel
+   * setting → platform default). When the strategy is `defined_order`,
+   * `fulfilmentStrategyWarehouseOrder` carries the ordered warehouse-id walk.
+   */
+  fulfilmentStrategy: fulfilmentStrategySchema.nullable().optional(),
+  fulfilmentStrategyWarehouseOrder: z.array(uuidSchema).nullable().optional(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
@@ -129,6 +138,55 @@ export const customerLoginRequestSchema = z.object({
   twoFactorCode: z.string().optional(),
 });
 
+/**
+ * Outcome of the anonymous-cart → customer-cart merge that runs inside the
+ * customer-login flow (feature 037-cart-merge-on-login).
+ *
+ * Internal shape — split between two `noop_*` variants so the audit /
+ * observability paths can distinguish "anon cart was empty" from "no anon
+ * cart was supplied". The HTTP-facing shape collapses both into a single
+ * `'noop'`; see `cartMergeOutcomePublicSchema` below.
+ */
+export const cartMergeOutcomeSchema = z.object({
+  outcome: z.enum(['adopted', 'merged', 'noop_empty', 'noop_no_anon']),
+  movedLineCount: z.number().int().min(0),
+  summedLineCount: z.number().int().min(0),
+  destinationCartId: uuidSchema,
+});
+export type CartMergeOutcome = z.infer<typeof cartMergeOutcomeSchema>;
+
+/**
+ * Public (HTTP) narrowing of `cartMergeOutcomeSchema`. The storefront only
+ * needs three buckets to decide whether to surface the merge-confirmation
+ * toast (`adopted | merged → toast`, `noop → silent`) and the destination
+ * cart id for the next cart read.
+ */
+export const cartMergeOutcomePublicSchema = z.object({
+  outcome: z.enum(['adopted', 'merged', 'noop']),
+  destinationCartId: uuidSchema,
+});
+export type CartMergeOutcomePublic = z.infer<typeof cartMergeOutcomePublicSchema>;
+
+/**
+ * Customer login response. The `cartMerge` field is populated when the
+ * login carries an anonymous-cart cookie; `null` when no anon cookie was
+ * supplied; `outcome: 'noop'` when the cookie was supplied but had no
+ * observable effect (no anon cart, or the anon cart was empty).
+ */
+export const customerLoginResponseSchema = z.object({
+  data: z.object({
+    customerAccount: z.object({
+      id: uuidSchema,
+      email: z.string().email(),
+      organizationId: uuidSchema.nullable(),
+      role: organizationRoleSchema,
+      twoFactorEnabled: z.boolean(),
+    }),
+    cartMerge: cartMergeOutcomePublicSchema.nullable().optional(),
+  }),
+});
+export type CustomerLoginResponse = z.infer<typeof customerLoginResponseSchema>;
+
 export const changePasswordRequestSchema = z.object({
   currentPassword: z.string(),
   newPassword: z.string().min(12).max(256),
@@ -169,6 +227,15 @@ export const adminPatchOrganizationRequestSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   vatStatus: vatStatusSchema.optional(),
   status: organizationStatusSchema.optional(),
+  /** Feature 038 (US4) — additional emails CC'd on this org's order confirmations. */
+  orderConfirmationEmails: z.array(z.string()).optional(),
+  /**
+   * Organization-level fulfilment-strategy override. `null` clears the
+   * override (inherit channel setting → platform default). `defined_order`
+   * pairs with `fulfilmentStrategyWarehouseOrder` (ordered warehouse ids).
+   */
+  fulfilmentStrategy: fulfilmentStrategySchema.nullable().optional(),
+  fulfilmentStrategyWarehouseOrder: z.array(uuidSchema).nullable().optional(),
   expectedUpdatedAt: z.string().optional(),
 });
 

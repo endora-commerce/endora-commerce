@@ -43,7 +43,11 @@ describe('Storefront preflight + payment-method allow-list (feature 026 US4)', (
         code: `test-us4-${Date.now()}`,
         name: { en: 'US4 Test Method' },
         kind: 'bank_transfer',
+        adapter: 'bank_transfer',
         status: 'active',
+        statusOnPending: 'new',
+        statusOnSuccess: 'paid',
+        statusOnFailure: 'cancelled',
       });
       await em.persistAndFlush(extra);
       paymentMethodIds.push(extra.id);

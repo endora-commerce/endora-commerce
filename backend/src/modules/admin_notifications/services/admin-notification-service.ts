@@ -100,14 +100,16 @@ export class AdminNotificationService {
 
     const cursor = input.cursor ? this.parseCursor(input.cursor) : null;
     const whereParts: string[] = [];
-    // Knex `raw()` expects `?` placeholders (not PostgreSQL `$1`), in SQL top-to-bottom order.
-    const bindings: (string | number | boolean | null)[] = [input.adminUserId];
+    // knex `raw` uses positional `?` placeholders (converted to $1..$n for pg
+    // in textual order). The SELECT's isRead `?` is textually first, so its
+    // binding is prepended when the final params array is assembled below.
+    const whereParams: (string | number | boolean | null)[] = [];
 
     // Visible to this admin: their personal rows OR broadcasts.
     whereParts.push(
       `(n."audience" = 'all_admins' or (n."audience" = 'admin_user' and n."target_admin_user_id" = ?))`,
     );
-    bindings.push(input.adminUserId);
+    whereParams.push(input.adminUserId);
 
     whereParts.push(`n."archived_at" is null`);
 
@@ -122,13 +124,13 @@ export class AdminNotificationService {
               ))
         )`,
       );
-      bindings.push(input.adminUserId);
+      whereParams.push(input.adminUserId);
     }
 
     if (cursor) {
       whereParts.push(`(n."created_at", n."id") < (?, ?)`);
-      bindings.push(cursor.createdAt.toISOString());
-      bindings.push(cursor.id);
+      whereParams.push(cursor.createdAt.toISOString());
+      whereParams.push(cursor.id);
     }
 
     const sql = `
@@ -157,8 +159,11 @@ export class AdminNotificationService {
       limit ${limit + 1};
     `;
 
+    // The isRead CASE placeholder appears in the SELECT (textually before the
+    // WHERE), so its binding (adminUserId) comes first.
+    const params = [input.adminUserId, ...whereParams];
     const knex = em.getConnection().getKnex();
-    const rows = (await knex.raw(sql, bindings)).rows as RawNotificationRow[];
+    const rows = (await knex.raw(sql, params)).rows as RawNotificationRow[];
 
     const hasMore = rows.length > limit;
     const visibleRows = hasMore ? rows.slice(0, limit) : rows;

@@ -11,6 +11,13 @@ import { Select } from '@/components/ui/select';
 import { DisplayModeOverrideRow } from '../price_lists/DisplayModeOverrideRow';
 import { AssetPicker } from '@/modules/assets_library/components/AssetPicker';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useTranslationContext } from '@/i18n/TranslationProvider';
+import {
+  adminLanguageToLocale,
+  buildCategoryTree,
+  flattenCategoryTree,
+  pickCategoryDisplayName,
+} from '@/components/category-tree-picker/category-tree-utils';
 import {
   Table,
   TableBody,
@@ -29,14 +36,12 @@ interface AdminCategory {
   mainImageAssetId?: string | null;
 }
 
-interface TreeNode {
-  category: AdminCategory;
-  depth: number;
-  children: TreeNode[];
-}
-
 export function CategoriesTree(): ReactNode {
   const t = useTranslation('catalog');
+  const { language } = useTranslationContext();
+  const locale = adminLanguageToLocale(language);
+  const label = (name: Record<string, string>, slug: string): string =>
+    pickCategoryDisplayName(name, slug, locale);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +68,7 @@ export function CategoriesTree(): ReactNode {
     void refresh();
   }, [refresh]);
 
-  const tree = useMemo(() => buildTree(categories), [categories]);
+  const tree = useMemo(() => buildCategoryTree(categories), [categories]);
 
   const handleCreate = useCallback(
     async (input: {
@@ -123,7 +128,7 @@ export function CategoriesTree(): ReactNode {
 
   const handleDelete = useCallback(
     async (cat: AdminCategory): Promise<void> => {
-      if (!confirm(t('categories.deleteConfirm', { name: pickName(cat.name) }))) return;
+      if (!confirm(t('categories.deleteConfirm', { name: label(cat.name, cat.slug) }))) return;
       try {
         await apiClient.delete<void>(`/api/v1/admin/catalog/categories/${cat.id}`);
         setInfo(t('categories.success.delete'));
@@ -185,7 +190,7 @@ export function CategoriesTree(): ReactNode {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {flatten(tree).map(({ category: c, depth }) => (
+                {flattenCategoryTree(tree).map(({ category: c, depth }) => (
                   <Fragment key={c.id}>
                     <TableRow>
                       <TableCell style={{ paddingLeft: depth * 24 + 8 }}>
@@ -197,7 +202,7 @@ export function CategoriesTree(): ReactNode {
                             onSubmit={(input): void => void handleUpdate(c.id, input)}
                           />
                         ) : (
-                          <span className="font-medium">{pickName(c.name)}</span>
+                          <span className="font-medium">{label(c.name, c.slug)}</span>
                         )}
                       </TableCell>
                       <TableCell className="font-mono text-xs">{c.slug}</TableCell>
@@ -260,7 +265,7 @@ export function CategoriesTree(): ReactNode {
                       <TableRow>
                         <TableCell colSpan={4} style={{ paddingLeft: depth * 24 + 32 }}>
                           <CreateForm
-                            parentLabel={pickName(c.name)}
+                            parentLabel={label(c.name, c.slug)}
                             onCancel={(): void => setCreateUnderId(null)}
                             onSubmit={(input): void =>
                               void handleCreate({ parentCategoryId: c.id, ...input })
@@ -386,7 +391,7 @@ function EditForm({
               .filter((c) => c.id !== category.id)
               .map((c) => (
                 <option key={c.id} value={c.id}>
-                  {pickName(c.name)} ({c.slug})
+                  {label(c.name, c.slug)} ({c.slug})
                 </option>
               ))}
           </Select>
@@ -418,35 +423,6 @@ function EditForm({
       </div>
     </form>
   );
-}
-
-function buildTree(rows: AdminCategory[]): TreeNode[] {
-  const byParent = new Map<string | null, AdminCategory[]>();
-  for (const r of rows) {
-    const k = r.parentCategoryId;
-    const arr = byParent.get(k) ?? [];
-    arr.push(r);
-    byParent.set(k, arr);
-  }
-  function build(parentId: string | null, depth: number): TreeNode[] {
-    return (byParent.get(parentId) ?? [])
-      .sort((a, b) => a.sortOrder - b.sortOrder || a.slug.localeCompare(b.slug))
-      .map((c) => ({ category: c, depth, children: build(c.id, depth + 1) }));
-  }
-  return build(null, 0);
-}
-
-function flatten(nodes: TreeNode[]): TreeNode[] {
-  const out: TreeNode[] = [];
-  for (const n of nodes) {
-    out.push(n);
-    out.push(...flatten(n.children));
-  }
-  return out;
-}
-
-function pickName(name: Record<string, string>): string {
-  return name['en-US'] ?? Object.values(name)[0] ?? '';
 }
 
 // — Feature 013 / US5 — inline Library picker for the Category main image.

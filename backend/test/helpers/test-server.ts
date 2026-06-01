@@ -142,6 +142,12 @@ export interface BackendServerHandle {
     /** Feature 026 US4 — per-org allow-list service. */
     restrictionService: OrganizationRestrictionService;
   };
+  /**
+   * Feature 037 — direct handle on the CartService for tests that exercise
+   * `mergeAnonymousIntoCustomer` without going through the login route.
+   * Available once the commerce module finishes wiring (after `setupBackendServer`).
+   */
+  cartService: () => CartService | null;
 }
 
 const SEEDED_TABLES = [
@@ -298,6 +304,8 @@ export async function setupBackendServer(
   // organizations can merge anonymous baskets after sign-in.
   let cartService: CartService | null = null;
   let shoppingListServiceRef: import('../../src/modules/shopping_lists/services/shopping-list-service.js').ShoppingListService | null = null;
+  // Feature 039 — late-bound OrderService for the quick_order one-click flow.
+  let orderServiceForOneClick: import('../../src/modules/orders/services/order-service.js').OrderService | null = null;
   let handleFeature026: BackendServerHandle['organizations'] | null = null;
 
   // Feature 026 US4 — restriction service + per-request allow-list resolvers.
@@ -523,6 +531,10 @@ export async function setupBackendServer(
       promotionService: promotions.handle.promotionService,
       redis,
       getRfqService: () => quoteRequests?.handle().rfqService ?? null,
+      // Feature 039 — expose OrderService for the quick_order one-click flow.
+      exposeOrderService: (svc) => {
+        orderServiceForOneClick = svc;
+      },
       resolveCartActor: (request) => {
         if (request.testActor?.kind === 'customer') {
           return {
@@ -662,11 +674,16 @@ export async function setupBackendServer(
           storefrontBaseUrl: 'http://localhost:3000',
           onLogin: async (ctx) => {
             if (cartService && ctx.anonymousCartToken && ctx.organizationId) {
-              await cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
-                customerAccountId: ctx.customerAccountId,
-                organizationId: ctx.organizationId,
-              });
+              const cartMerge = await cartService.mergeAnonymousIntoCustomer(
+                ctx.anonymousCartToken,
+                {
+                  customerAccountId: ctx.customerAccountId,
+                  organizationId: ctx.organizationId,
+                },
+              );
+              return { cartMerge };
             }
+            return {};
           },
         }),
       ];
@@ -948,6 +965,29 @@ export async function setupBackendServer(
       exposeShoppingListService: (svc) => {
         shoppingListServiceRef = svc;
       },
+      // Feature 039 — register the admin on-behalf quick-order routes and
+      // the default-preferences routes.
+      requireAdmin: requireTestAdmin(permissionService),
+      auditLog: auditLogService,
+      organizationRestriction: sharedRestrictionService,
+      resolveAdminContext: (request) => ({
+        adminUserId:
+          request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+      }),
+      // Feature 039 — one-click buy wiring.
+      getOrderService: () => orderServiceForOneClick,
+      resolveOneClickEnabled: async (salesChannelId) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'quick_order.one_click_buy_enabled',
+            salesChannelId,
+            z.boolean(),
+          );
+        } catch {
+          return false;
+        }
+      },
     }),
   );
 
@@ -1024,6 +1064,7 @@ export async function setupBackendServer(
       organizationContextService: null as unknown as OrganizationContextService,
       restrictionService: null as unknown as OrganizationRestrictionService,
     },
+    cartService: () => cartService,
   };
 }
 

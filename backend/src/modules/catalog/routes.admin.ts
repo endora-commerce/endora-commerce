@@ -426,7 +426,8 @@ export async function registerCatalogAdminRoutes(
     { preHandler: requireAdmin('catalog:read') },
     async (request) => {
       const product = await adminService.getProductById(request.params.id);
-      const base = serializeAdminProduct(product);
+      const categoryIds = await adminService.getProductCategoryIds(request.params.id);
+      const base = { ...serializeAdminProduct(product), categoryIds };
       const channelIdRaw = request.query.channelId;
       const languageCodeRaw = request.query.languageCode;
       const includeOverridesMap =
@@ -1595,6 +1596,8 @@ function serializeAdminAttribute(
     isVisibleOnProductPage: a.isVisibleOnProductPage,
     // Feature 022 — gates appearance in the Products Bulk Edit dialog.
     massEditable: a.massEditable,
+    // Feature 039 — gates participation in Quick Order search.
+    quickSearchable: a.quickSearchable,
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
   };

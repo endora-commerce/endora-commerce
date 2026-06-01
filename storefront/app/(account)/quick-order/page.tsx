@@ -1,21 +1,27 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { importQuickOrderCsv } from '../../../lib/api/quick-order';
-import { addCartItem } from '../../../lib/api/cart';
-import { getAnonCartCookie, getSessionCookie, setAnonCartCookie } from '../../../lib/session';
+import {
+  buildQuickOrder,
+  importQuickOrderCsv,
+  importQuickOrderFile,
+  searchProducts,
+  type QuickOrderImportResponse,
+} from '../../../lib/api/quick-order';
+import { getSessionCookie } from '../../../lib/session';
 import { StorefrontApiError } from '../../../lib/api/client';
+import { FileDropzone } from '../../../components/FileDropzone';
 
 /**
- * Quick order (T205 / FR-031). Two-step flow:
- *   1. Paste CSV with `sku,quantity` headers; the importer returns
- *      recognized + rejected partitions.
- *   2. The page server-renders the partition; the buyer reviews,
- *      then clicks "Add all to cart" which loops the recognized rows
- *      through the cart endpoint.
+ * Quick order (feature 039 / US1). Two-step flow:
+ *   1. Paste a CSV with `sku,quantity` headers (plus optional variant
+ *      attribute columns) OR drag-drop a CSV / Excel file; the importer
+ *      returns recognized + rejected partitions and a summary.
+ *   2. The page server-renders the partition; the buyer reviews, then
+ *      chooses to build a Cart or a Quote Request from the recognized rows.
  *
- * The CSV preview lives in the URL (base64) on the second step so the
- * page is fully server-rendered without client state.
+ * The preview lives in the URL (base64) on the second step so the page is
+ * fully server-rendered; only the dropzone is a small client component.
  */
 
 interface PreviewState {
@@ -24,46 +30,69 @@ interface PreviewState {
     sku: string;
     productId: string;
     variantId: string | null;
+    resolvedVariantSku?: string | null;
     quantity: number;
+    mergedFromLines?: number[];
   }>;
   rejected: Array<{ line: number; raw: string; reason: string }>;
+  summary: { recognizedCount: number; rejectedCount: number; mergedCount: number; truncated: boolean };
 }
 
 export default async function QuickOrderPage({
   searchParams,
 }: {
-  searchParams: Promise<{ preview?: string; error?: string; cartAdded?: string }>;
+  searchParams: Promise<{
+    preview?: string;
+    error?: string;
+    built?: string;
+    rfq?: string;
+    q?: string;
+  }>;
 }): Promise<ReactNode> {
   const session = await getSessionCookie();
   if (!session) redirect('/login?next=/account/quick-order');
   const sp = await searchParams;
 
   const preview = sp.preview ? decodePreview(sp.preview) : null;
+  const searchQuery = sp.q?.trim() ?? '';
+  const searchResults = searchQuery
+    ? await searchProducts(session, searchQuery).catch(() => [])
+    : [];
 
   return (
     <>
       <h2>Quick order</h2>
       <p className="b2b-auth__hint">
-        Paste a CSV with <code>sku,quantity</code> headers. We&apos;ll show you which rows match
-        a real product before anything is added to your cart.
+        Paste a CSV with <code>sku,quantity</code> headers (extra columns set variant attributes),
+        or drag-drop a CSV / Excel file. We&apos;ll show you which rows match a real product before
+        anything is added.
       </p>
 
       {sp.error ? <p className="b2b-auth__error">{sp.error}</p> : null}
-      {sp.cartAdded ? (
+      {sp.built === 'cart' ? (
         <p className="b2b-auth__success">
-          Added {sp.cartAdded} item(s) to your cart.{' '}
-          <Link href="/cart">Open cart</Link>.
+          Cart built from your import. <Link href="/cart">Open cart</Link> ·{' '}
+          <Link href="/checkout">Go to checkout</Link>.
+        </p>
+      ) : null}
+      {sp.built === 'quote' ? (
+        <p className="b2b-auth__success">
+          Quote request created{sp.rfq ? ` (#${sp.rfq})` : ''}.{' '}
+          <Link href="/account/quote-requests">View quote requests</Link>.
         </p>
       ) : null}
 
       <form action={importAction} className="b2b-auth__form">
+        <FileDropzone filenameField="quickOrderFilename" contentField="quickOrderFileContent" />
+      </form>
+
+      <form action={importAction} className="b2b-auth__form">
         <div className="b2b-auth__field">
-          <label htmlFor="csv">CSV</label>
+          <label htmlFor="csv">…or paste CSV</label>
           <textarea
             id="csv"
             name="csv"
             rows={8}
-            required
             placeholder={'sku,quantity\nEXAMPLE-SIMPLE-001,10\nEXAMPLE-BLUE-002,5'}
             style={{ fontFamily: 'monospace' }}
           />
@@ -72,6 +101,71 @@ export default async function QuickOrderPage({
           <button type="submit">Preview</button>
         </div>
       </form>
+
+      <h3>Find products</h3>
+      <p className="b2b-auth__hint">
+        Search by SKU, name, or a quick-searchable attribute and add items to your order.
+      </p>
+      <form action={searchAction} className="b2b-auth__form">
+        {preview ? <input type="hidden" name="preview" value={encodePreview(preview)} /> : null}
+        <div className="b2b-auth__field">
+          <input type="search" name="q" defaultValue={searchQuery} placeholder="Search products…" />
+        </div>
+        <div className="b2b-auth__actions">
+          <button type="submit">Search</button>
+        </div>
+      </form>
+
+      {searchQuery ? (
+        <table className="b2b-account__table">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Name</th>
+              <th>Qty</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {searchResults.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="muted">
+                  No products matched &quot;{searchQuery}&quot;.
+                </td>
+              </tr>
+            ) : (
+              searchResults.map((r) => (
+                <tr key={r.productId}>
+                  <td>{r.sku}</td>
+                  <td>{r.name}</td>
+                  <td>
+                    <form action={addSearchResultAction} id={`add-${r.productId}`}>
+                      {preview ? (
+                        <input type="hidden" name="preview" value={encodePreview(preview)} />
+                      ) : null}
+                      <input type="hidden" name="q" value={searchQuery} />
+                      <input type="hidden" name="productId" value={r.productId} />
+                      <input type="hidden" name="sku" value={r.sku} />
+                      <input
+                        type="number"
+                        name="quantity"
+                        min={1}
+                        defaultValue={1}
+                        style={{ width: 64 }}
+                      />
+                    </form>
+                  </td>
+                  <td>
+                    <button type="submit" form={`add-${r.productId}`}>
+                      Add
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      ) : null}
 
       {preview ? <PreviewPanel preview={preview} /> : null}
     </>
@@ -82,16 +176,26 @@ function PreviewPanel({ preview }: { preview: PreviewState }): ReactNode {
   return (
     <>
       <h3>Preview</h3>
+      {preview.summary.truncated ? (
+        <p className="b2b-auth__error">
+          The file exceeded the import row limit — extra rows were rejected.
+        </p>
+      ) : null}
+      {preview.summary.mergedCount > 0 ? (
+        <p className="muted">{preview.summary.mergedCount} duplicate row(s) merged (quantities summed).</p>
+      ) : null}
+
       {preview.recognized.length > 0 ? (
         <>
           <p className="b2b-auth__success">
-            {preview.recognized.length} row(s) recognised — ready to add to cart.
+            {preview.recognized.length} row(s) recognised — choose how to proceed.
           </p>
           <table className="b2b-account__table">
             <thead>
               <tr>
                 <th>Line</th>
                 <th>SKU</th>
+                <th>Variant</th>
                 <th>Quantity</th>
               </tr>
             </thead>
@@ -100,6 +204,7 @@ function PreviewPanel({ preview }: { preview: PreviewState }): ReactNode {
                 <tr key={r.line}>
                   <td>{r.line}</td>
                   <td>{r.sku}</td>
+                  <td>{r.resolvedVariantSku ?? '—'}</td>
                   <td>{r.quantity}</td>
                 </tr>
               ))}
@@ -108,7 +213,12 @@ function PreviewPanel({ preview }: { preview: PreviewState }): ReactNode {
           <form action={confirmAction}>
             <input type="hidden" name="preview" value={encodePreview(preview)} />
             <div className="b2b-auth__actions">
-              <button type="submit">Add all to cart</button>
+              <button type="submit" name="target" value="cart">
+                Add all to cart
+              </button>
+              <button type="submit" name="target" value="quote_request">
+                Send as quote request
+              </button>
             </div>
           </form>
         </>
@@ -145,15 +255,64 @@ function PreviewPanel({ preview }: { preview: PreviewState }): ReactNode {
   );
 }
 
+async function searchAction(formData: FormData): Promise<void> {
+  'use server';
+  const q = ((formData.get('q') as string) ?? '').trim();
+  const previewBlob = (formData.get('preview') as string) ?? '';
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  if (previewBlob) params.set('preview', previewBlob);
+  redirect(`/quick-order?${params.toString()}`);
+}
+
+async function addSearchResultAction(formData: FormData): Promise<void> {
+  'use server';
+  const session = await getSessionCookie();
+  if (!session) redirect('/login');
+
+  const productId = (formData.get('productId') as string) ?? '';
+  const sku = (formData.get('sku') as string) ?? '';
+  const q = ((formData.get('q') as string) ?? '').trim();
+  const quantity = Math.max(1, Number.parseInt((formData.get('quantity') as string) ?? '1', 10) || 1);
+
+  const preview: PreviewState = decodePreview((formData.get('preview') as string) ?? '') ?? {
+    recognized: [],
+    rejected: [],
+    summary: { recognizedCount: 0, rejectedCount: 0, mergedCount: 0, truncated: false },
+  };
+
+  // If the product is already in the list, bump its quantity; else append.
+  const existing = preview.recognized.find((r) => r.productId === productId && !r.variantId);
+  if (existing) {
+    existing.quantity += quantity;
+  } else {
+    const nextLine = preview.recognized.reduce((max, r) => Math.max(max, r.line), 0) + 1;
+    preview.recognized.push({ line: nextLine, sku, productId, variantId: null, quantity });
+  }
+  preview.summary = { ...preview.summary, recognizedCount: preview.recognized.length };
+
+  const params = new URLSearchParams();
+  params.set('preview', encodePreview(preview));
+  if (q) params.set('q', q);
+  redirect(`/quick-order?${params.toString()}`);
+}
+
 async function importAction(formData: FormData): Promise<void> {
   'use server';
   const session = await getSessionCookie();
   if (!session) redirect('/login');
+
   const csv = ((formData.get('csv') as string) ?? '').trim();
-  if (!csv) redirect('/quick-order?error=CSV+is+empty.');
-  let preview: PreviewState;
+  const filename = ((formData.get('quickOrderFilename') as string) ?? '').trim();
+  const fileContent = ((formData.get('quickOrderFileContent') as string) ?? '').trim();
+
+  if (!csv && !fileContent) redirect('/quick-order?error=Provide+a+file+or+paste+CSV.');
+
+  let preview: QuickOrderImportResponse;
   try {
-    preview = await importQuickOrderCsv(session, csv);
+    preview = fileContent
+      ? await importQuickOrderFile(session, filename || 'upload.csv', fileContent)
+      : await importQuickOrderCsv(session, csv);
   } catch (err) {
     const message = err instanceof StorefrontApiError ? err.message : 'Import failed.';
     redirect(`/quick-order?error=${encodeURIComponent(message)}`);
@@ -165,31 +324,33 @@ async function confirmAction(formData: FormData): Promise<void> {
   'use server';
   const session = await getSessionCookie();
   if (!session) redirect('/login');
-  const previewBlob = (formData.get('preview') as string) ?? '';
-  const preview = decodePreview(previewBlob);
+
+  const target = (formData.get('target') as string) === 'quote_request' ? 'quote_request' : 'cart';
+  const preview = decodePreview((formData.get('preview') as string) ?? '');
   if (!preview || preview.recognized.length === 0) {
-    redirect('/quick-order?error=Nothing+to+add.');
+    redirect('/quick-order?error=Nothing+to+build.');
   }
-  let added = 0;
+
+  let rfqId: string | undefined;
   try {
-    const anon = await getAnonCartCookie();
-    for (const row of preview!.recognized) {
-      const result = await addCartItem(
-        { session, ...(anon ? { anon } : {}) },
-        {
-          productId: row.productId,
-          ...(row.variantId ? { variantId: row.variantId } : {}),
-          quantity: row.quantity,
-        },
-      );
-      if (result.newAnonCookie) await setAnonCartCookie(result.newAnonCookie);
-      added += 1;
-    }
+    const result = await buildQuickOrder(
+      session,
+      target,
+      preview!.recognized.map((r) => ({
+        productId: r.productId,
+        variantId: r.variantId,
+        quantity: r.quantity,
+      })),
+    );
+    rfqId = result.quoteRequestId;
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.message : 'Add to cart failed.';
+    const message = err instanceof StorefrontApiError ? err.message : 'Build failed.';
     redirect(`/quick-order?error=${encodeURIComponent(message)}`);
   }
-  redirect(`/quick-order?cartAdded=${added}`);
+  if (target === 'quote_request') {
+    redirect(`/quick-order?built=quote${rfqId ? `&rfq=${encodeURIComponent(rfqId)}` : ''}`);
+  }
+  redirect('/quick-order?built=cart');
 }
 
 function encodePreview(preview: PreviewState): string {

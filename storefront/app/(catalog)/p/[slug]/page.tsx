@@ -30,6 +30,10 @@ import {
   setAnonCartCookie,
 } from '../../../../lib/session';
 import { cookies } from 'next/headers';
+import {
+  getOneClickEligibility,
+  placeOneClickOrder,
+} from '../../../../lib/api/quick-order';
 import { getServerContext } from '../../../../lib/server-context';
 import { tForLocale } from '../../../../lib/i18n/messages';
 import { StorefrontApiError } from '../../../../lib/api/client';
@@ -108,6 +112,14 @@ export default async function ProductPage({
   ]);
   const customerEmail = await readCustomerEmail();
   const isQuoteOnly = resolvedPrice?.displayMode === 'none';
+  // Feature 039 (US5) — one-click buy is offered only to a logged-in buyer who
+  // is eligible (setting enabled for the channel + all four valid defaults).
+  const oneClickSession = await getSessionCookie();
+  const oneClickEnabled = oneClickSession
+    ? await getOneClickEligibility(oneClickSession, product.id)
+        .then((e) => e.enabled)
+        .catch(() => false)
+    : false;
   // Resolve the optional variant the buyer selected via `?variant=<sku>`
   // to its UUID so the Add-to-cart form posts the right variantId.
   const selectedVariantId =
@@ -197,6 +209,17 @@ export default async function ProductPage({
                       />
                       <button type="submit" className="b2b-cta">
                         {t('product.addToCart')}
+                      </button>
+                    </form>
+                  ) : null}
+                  {oneClickEnabled && product.price ? (
+                    <form action={oneClickAction} style={{ display: 'inline-flex', gap: 8 }}>
+                      <input type="hidden" name="productId" value={product.id} />
+                      {selectedVariantId ? (
+                        <input type="hidden" name="variantId" value={selectedVariantId} />
+                      ) : null}
+                      <button type="submit" className="b2b-cta">
+                        Buy in one click
                       </button>
                     </form>
                   ) : null}
@@ -348,6 +371,36 @@ async function readCartJar(): Promise<CartCookieJar> {
  * call (without it the redirect lands on `/cart` with no jar and the
  * full GET returns an empty cart), then redirects to `/cart`.
  */
+/**
+ * One-click buy server action (feature 039 / US5). Places the order from the
+ * buyer's defaults and routes by the payment `nextAction`: a gateway redirect
+ * goes to the payment URL; otherwise (bank transfer / no payment step) we land
+ * on the order/success page.
+ */
+async function oneClickAction(formData: FormData): Promise<void> {
+  'use server';
+  const session = await getSessionCookie();
+  if (!session) redirect('/login');
+  const productId = ((formData.get('productId') as string) ?? '').trim();
+  const variantId = ((formData.get('variantId') as string) ?? '').trim();
+  if (!productId) redirect('/cart?error=missing-product');
+
+  let result;
+  try {
+    result = await placeOneClickOrder(session, {
+      productId,
+      ...(variantId ? { variantId } : {}),
+    });
+  } catch (err) {
+    const message = err instanceof StorefrontApiError ? err.message : 'Could not place the order.';
+    redirect(`/cart?error=${encodeURIComponent(message)}`);
+  }
+  if (result!.nextAction?.kind === 'redirect_to_gateway' && result!.nextAction.url) {
+    redirect(result!.nextAction.url);
+  }
+  redirect(`/orders/${result!.order.id}`);
+}
+
 async function addToCartAction(formData: FormData): Promise<void> {
   'use server';
   const productId = ((formData.get('productId') as string) ?? '').trim();

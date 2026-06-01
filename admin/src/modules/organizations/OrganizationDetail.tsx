@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import type { FulfilmentStrategy, Warehouse } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { FulfilmentStrategyPanel } from './panels/FulfilmentStrategyPanel';
 import { formatDateTime } from '@/lib/format';
 import { OrganizationSalesRepsTab } from './OrganizationSalesRepsTab';
 import { ModerationActionsPanel } from './panels/ModerationActionsPanel';
@@ -47,6 +49,9 @@ interface OrgDetail {
   status: 'pending_verification' | 'active' | 'blocked' | 'rejected';
   vatStatus: 'vat_payer' | 'vat_exempt' | 'reverse_charge';
   registeredAddress: { street: string; city: string; postalCode: string; country: string };
+  orderConfirmationEmails?: string[];
+  fulfilmentStrategy?: FulfilmentStrategy | null;
+  fulfilmentStrategyWarehouseOrder?: string[] | null;
   members: OrgMember[];
   version?: number;
   blockedReason?: string | null;
@@ -71,6 +76,7 @@ export function OrganizationDetail(): ReactNode {
   const t = useTranslation('core');
   const { id = '' } = useParams<{ id: string }>();
   const [org, setOrg] = useState<OrgDetail | null>(null);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -109,6 +115,15 @@ export function OrganizationDetail(): ReactNode {
     void refresh();
   }, [refresh]);
 
+  // Active warehouses feed the org-level fulfilment-strategy picker's
+  // defined-order list. Best-effort; failure leaves the list empty.
+  useEffect(() => {
+    apiClient
+      .get<{ items: Warehouse[] }>('/api/v1/admin/warehouses?activeOnly=true&pageSize=200')
+      .then((res) => setWarehouses(res.items))
+      .catch(() => setWarehouses([]));
+  }, []);
+
   useEffect(() => {
     if (editMember) {
       setEditFirst(editMember.firstName);
@@ -122,6 +137,9 @@ export function OrganizationDetail(): ReactNode {
       status?: string;
       vatStatus?: string;
       name?: string;
+      orderConfirmationEmails?: string[];
+      fulfilmentStrategy?: FulfilmentStrategy | null;
+      fulfilmentStrategyWarehouseOrder?: string[] | null;
       expectedUpdatedAt?: string;
     }): Promise<void> => {
       if (!org?.updatedAt) return;
@@ -344,6 +362,32 @@ export function OrganizationDetail(): ReactNode {
                 </option>
               ))}
             </Select>
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="orderConfEmails">{t('organizations.detail.orderConfirmationEmails')}</Label>
+            <textarea
+              id="orderConfEmails"
+              aria-label="order-confirmation-emails"
+              className="min-h-20 w-full rounded-md border p-2 text-sm"
+              defaultValue={(org.orderConfirmationEmails ?? []).join('\n')}
+              placeholder={'ops@example.com\nsales@example.com'}
+              onBlur={(e): void => {
+                const emails = e.target.value
+                  .split(/[\n,]/)
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+                const current = org.orderConfirmationEmails ?? [];
+                if (emails.join('|') !== current.join('|')) {
+                  void handlePatch({
+                    orderConfirmationEmails: emails,
+                    ...(org.updatedAt !== undefined ? { expectedUpdatedAt: org.updatedAt } : {}),
+                  });
+                }
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t('organizations.detail.orderConfirmationEmailsHint')}
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -613,6 +657,26 @@ export function OrganizationDetail(): ReactNode {
             validatedAt: org.vatValidation?.validatedAt ?? null,
           }}
           onChanged={refresh}
+        />
+      </div>
+
+      {/* Org-level warehouse-picking (fulfilment) strategy override. */}
+      <div className="mt-4">
+        <FulfilmentStrategyPanel
+          key={org.updatedAt ?? org.id}
+          initial={{
+            strategy: org.fulfilmentStrategy ?? null,
+            warehouseOrder: org.fulfilmentStrategyWarehouseOrder ?? [],
+          }}
+          warehouses={warehouses.map((w) => ({ id: w.id, code: w.code, name: w.name }))}
+          onSave={(value): Promise<void> =>
+            handlePatch({
+              fulfilmentStrategy: value.strategy,
+              fulfilmentStrategyWarehouseOrder:
+                value.strategy === 'defined_order' ? value.warehouseOrder : null,
+              ...(org.updatedAt !== undefined ? { expectedUpdatedAt: org.updatedAt } : {}),
+            })
+          }
         />
       </div>
 

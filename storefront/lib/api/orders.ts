@@ -6,6 +6,36 @@ import { apiGetAuthed, apiMutate } from './mutations';
  * supported: the buyer must be identified before checkout.
  */
 
+/**
+ * Payment next-action returned by the place-order response (feature 034/036).
+ * Drives Success-Page routing: nothing, bank-transfer details, or a redirect.
+ */
+export type NextAction =
+  | { kind: 'none' }
+  | {
+      kind: 'awaiting_transfer';
+      accountDetails: {
+        accountNumber: string;
+        accountHolder: string;
+        bankName: string;
+        amount: number;
+        currency: string;
+        reference: string;
+      };
+    }
+  | { kind: 'redirect_to_gateway'; url: string; expiresAt: string };
+
+/**
+ * Resolve an order's status label for the active locale (feature 039):
+ * statusName[locale] → statusDefaultName → raw status code.
+ */
+export function resolveOrderStatusLabel(
+  order: { status: string; statusName?: Record<string, string>; statusDefaultName?: string },
+  locale: string,
+): string {
+  return order.statusName?.[locale] ?? order.statusDefaultName ?? order.status;
+}
+
 export interface OrderItem {
   id: string;
   productId: string;
@@ -19,8 +49,13 @@ export interface OrderItem {
 
 export interface OrderSummary {
   id: string;
+  /** Feature 036 — customer-facing business Order ID (shown instead of `id`). */
+  businessId: string;
   organizationId: string;
   status: string;
+  /** Feature 039 — localized status labels; resolve via resolveOrderStatusLabel. */
+  statusName?: Record<string, string>;
+  statusDefaultName?: string;
   paymentStatus: string;
   deliveryAddress: Record<string, string>;
   billingAddress: Record<string, string>;
@@ -35,7 +70,7 @@ export interface OrderSummary {
   currency: string;
   customerNote: string | null;
   placedAt: string;
-  nextAction: { kind: string } | null;
+  nextAction: NextAction | null;
 }
 
 export interface PlaceOrderPayload {
@@ -67,4 +102,69 @@ export async function listMyOrders(sessionCookie: string): Promise<OrderSummary[
 
 export async function getMyOrder(sessionCookie: string, id: string): Promise<OrderSummary> {
   return apiGetAuthed<OrderSummary>({ path: `/api/v1/orders/${id}`, sessionCookie });
+}
+
+// --- Feature 038 ----------------------------------------------------------
+
+export interface OrderComment {
+  id: string;
+  body: string;
+  isCustomerVisible: boolean;
+  authorCustomerAccountId: string | null;
+  authorAdminUserId: string | null;
+  createdAt: string;
+}
+
+/** Customer-visible comments on an order (US5). */
+export async function listOrderComments(sessionCookie: string, id: string): Promise<OrderComment[]> {
+  return apiGetAuthed<OrderComment[]>({ path: `/api/v1/orders/${id}/comments`, sessionCookie });
+}
+
+/** Add a customer comment to an order (US5). */
+export async function addOrderComment(
+  sessionCookie: string,
+  id: string,
+  body: string,
+): Promise<OrderComment> {
+  const result = await apiMutate<OrderComment>({
+    method: 'POST',
+    path: `/api/v1/orders/${id}/comments`,
+    body: { body },
+    sessionCookie,
+  });
+  return result.data!;
+}
+
+export interface ReorderResult {
+  cartId: string;
+  checkoutUrl: string;
+  unavailableItems: Array<{ productId: string; variantId?: string | null; reason: string }>;
+}
+
+/** Reorder a past order — rebuilds the cart and returns the checkout URL (US6). */
+export async function reorderOrder(sessionCookie: string, id: string): Promise<ReorderResult> {
+  const result = await apiMutate<ReorderResult>({
+    method: 'POST',
+    path: `/api/v1/orders/${id}/reorder`,
+    body: {},
+    sessionCookie,
+  });
+  return result.data!;
+}
+
+/**
+ * Order again as a Quote Request (feature 039 / US4). Reuses the existing
+ * clone-to-quote path (feature 038 US7).
+ */
+export async function cloneOrderToQuote(
+  sessionCookie: string,
+  id: string,
+): Promise<{ quoteRequestId: string }> {
+  const result = await apiMutate<{ quoteRequestId: string }>({
+    method: 'POST',
+    path: `/api/v1/orders/${id}/clone-to-quote`,
+    body: {},
+    sessionCookie,
+  });
+  return result.data!;
 }

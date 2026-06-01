@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { X } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { CategoryTreePicker } from '@/components/category-tree-picker';
 import { useTranslation } from '@/i18n/useTranslation';
 
 /**
@@ -40,8 +41,10 @@ interface SalesChannel {
 
 interface AdminCategory {
   id: string;
+  parentCategoryId: string | null;
   slug: string;
   name: Record<string, string>;
+  sortOrder: number;
 }
 
 interface BulkUpdateResultRow {
@@ -366,12 +369,9 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
                 disabled={!touchCategories}
                 t={t}
               />
-              <MultiSelect
-                options={categories.map((c) => ({
-                  id: c.id,
-                  label: c.name['en-US'] ?? c.name['pl-PL'] ?? c.slug,
-                }))}
-                selected={categoryIds}
+              <CategoryTreePicker
+                categories={categories}
+                selectedIds={categoryIds}
                 onChange={setCategoryIds}
                 disabled={!touchCategories}
               />

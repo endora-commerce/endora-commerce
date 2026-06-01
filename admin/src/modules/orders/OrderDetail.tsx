@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, FileDown } from 'lucide-react';
+import { ArrowLeft, FileDown, FileText, RotateCcw } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -49,21 +49,52 @@ interface OrderDetail {
   placedAt: string;
 }
 
-const ORDER_STATUSES = [
-  'new',
-  'confirmed',
-  'in_fulfilment',
-  'shipped',
-  'completed',
-  'cancelled',
-] as const;
+interface StatusDef {
+  code: string;
+  name: Record<string, string>;
+  isTerminal: boolean;
+}
+interface StatusGraph {
+  statuses: StatusDef[];
+  transitions: Array<{ fromStatusCode: string; toStatusCode: string }>;
+}
+
+function statusName(graph: StatusGraph | null, code: string): string {
+  const s = graph?.statuses.find((x) => x.code === code);
+  if (!s) return code;
+  return s.name['en'] ?? Object.values(s.name)[0] ?? code;
+}
+
+/** Current status plus the statuses reachable from it (valid next transitions). */
+function statusOptions(graph: StatusGraph | null, current: string): string[] {
+  if (!graph) return [current];
+  const targets = graph.transitions
+    .filter((tr) => tr.fromStatusCode === current)
+    .map((tr) => tr.toStatusCode);
+  return [current, ...targets.filter((c, i) => targets.indexOf(c) === i)];
+}
 
 const PAYMENT_STATUSES = ['awaiting_payment', 'paid', 'deferred', 'refunded'] as const;
+
+interface OrderCommentRow {
+  id: string;
+  body: string;
+  isCustomerVisible: boolean;
+  notifyCustomer: boolean;
+  authorAdminUserId: string | null;
+  authorCustomerAccountId: string | null;
+  createdAt: string;
+}
 
 export function OrderDetail(): ReactNode {
   const t = useTranslation('core');
   const { id = '' } = useParams<{ id: string }>();
   const [order, setOrder] = useState<OrderDetail | null>(null);
+  const [graph, setGraph] = useState<StatusGraph | null>(null);
+  const [comments, setComments] = useState<OrderCommentRow[]>([]);
+  const [commentBody, setCommentBody] = useState('');
+  const [commentVisible, setCommentVisible] = useState(true);
+  const [commentNotify, setCommentNotify] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -89,17 +120,80 @@ export function OrderDetail(): ReactNode {
     void refresh();
   }, [refresh]);
 
+  // Load the configurable status graph so the selector offers only valid
+  // next transitions (feature 038 US1).
+  useEffect(() => {
+    void apiClient
+      .get<{ data: StatusGraph }>('/api/v1/admin/orders/statuses')
+      .then((res) => setGraph(res.data))
+      .catch(() => setGraph(null));
+  }, []);
+
+  const loadComments = useCallback(async (): Promise<void> => {
+    try {
+      const res = await apiClient.get<{ data: OrderCommentRow[] }>(`/api/v1/admin/orders/${id}/comments`);
+      setComments(res.data);
+    } catch {
+      setComments([]);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    void loadComments();
+  }, [loadComments]);
+
+  const handleAddComment = useCallback(async (): Promise<void> => {
+    if (!commentBody.trim()) return;
+    try {
+      await apiClient.post(`/api/v1/admin/orders/${id}/comments`, {
+        body: commentBody.trim(),
+        isCustomerVisible: commentVisible,
+        notifyCustomer: commentNotify,
+      });
+      setCommentBody('');
+      await loadComments();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.comments.error'));
+    }
+  }, [id, commentBody, commentVisible, commentNotify, loadComments, t]);
+
+  const handleReorder = useCallback(async (): Promise<void> => {
+    try {
+      const res = await apiClient.post<{ data: { unavailableItems: unknown[] } }>(
+        `/api/v1/admin/orders/${id}/reorder`,
+        {},
+      );
+      const unavailable = res.data.unavailableItems.length;
+      setInfo(
+        unavailable > 0
+          ? t('orderDetail.reorder.doneWithSkips', { count: unavailable })
+          : t('orderDetail.reorder.done'),
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.reorder.error'));
+    }
+  }, [id, t]);
+
+  const handleCloneToQuote = useCallback(async (): Promise<void> => {
+    try {
+      await apiClient.post(`/api/v1/admin/orders/${id}/clone-to-quote`, {});
+      setInfo(t('orderDetail.cloneToQuote.done'));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.cloneToQuote.error'));
+    }
+  }, [id, t]);
+
   const handleStatus = useCallback(
     async (to: string): Promise<void> => {
       try {
         await apiClient.post<{ data: OrderDetail }>(`/api/v1/admin/orders/${id}/status`, { to });
-        setInfo(t('orderDetail.messages.orderMoved', { status: t(`orderDetail.orderStatus.${to}`) }));
+        setInfo(t('orderDetail.messages.orderMoved', { status: statusName(graph, to) }));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.errors.statusChange'));
       }
     },
-    [id, refresh],
+    [id, refresh, graph, t],
   );
 
   const handlePaymentStatus = useCallback(
@@ -144,6 +238,14 @@ export function OrderDetail(): ReactNode {
                 {t('common.action.back')}
               </Link>
             </Button>
+            <Button variant="outline" onClick={(): void => void handleReorder()}>
+              <RotateCcw />
+              {t('orderDetail.reorder.action')}
+            </Button>
+            <Button variant="outline" onClick={(): void => void handleCloneToQuote()}>
+              <FileText />
+              {t('orderDetail.cloneToQuote.action')}
+            </Button>
             <Button asChild variant="outline">
               <a
                 href={`${import.meta.env['VITE_API_BASE_URL'] ?? ''}/api/v1/orders/${order.id}/invoice`}
@@ -180,11 +282,13 @@ export function OrderDetail(): ReactNode {
               <Select
                 id="ostat"
                 value={order.status}
-                onChange={(e): void => void handleStatus(e.target.value)}
+                onChange={(e): void => {
+                  if (e.target.value !== order.status) void handleStatus(e.target.value);
+                }}
               >
-                {ORDER_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {t(`orderDetail.orderStatus.${s}`)}
+                {statusOptions(graph, order.status).map((code) => (
+                  <option key={code} value={code}>
+                    {statusName(graph, code)}
                   </option>
                 ))}
               </Select>
@@ -202,6 +306,66 @@ export function OrderDetail(): ReactNode {
                   </option>
                 ))}
               </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>{t('orderDetail.sections.comments')}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {comments.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t('orderDetail.comments.empty')}</p>
+          ) : (
+            <ul className="space-y-2">
+              {comments.map((c) => (
+                <li key={c.id} className="rounded-md border p-3 text-sm" data-testid="order-comment">
+                  <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>{formatDateTime(c.createdAt)}</span>
+                    {c.authorCustomerAccountId ? (
+                      <span>{t('orderDetail.comments.byCustomer')}</span>
+                    ) : (
+                      <span>{t('orderDetail.comments.byStaff')}</span>
+                    )}
+                    {!c.isCustomerVisible ? (
+                      <span className="rounded bg-muted px-1.5 py-0.5">{t('orderDetail.comments.internal')}</span>
+                    ) : null}
+                  </div>
+                  <p>{c.body}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="space-y-2 border-t pt-3">
+            <textarea
+              aria-label="comment-body"
+              className="min-h-20 w-full rounded-md border p-2 text-sm"
+              value={commentBody}
+              onChange={(e): void => setCommentBody(e.target.value)}
+              placeholder={t('orderDetail.comments.placeholder')}
+            />
+            <div className="flex flex-wrap items-center gap-4">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={commentVisible}
+                  onChange={(e): void => setCommentVisible(e.target.checked)}
+                />
+                {t('orderDetail.comments.customerVisible')}
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={commentNotify}
+                  onChange={(e): void => setCommentNotify(e.target.checked)}
+                />
+                {t('orderDetail.comments.notify')}
+              </label>
+              <Button size="sm" disabled={!commentBody.trim()} onClick={(): void => void handleAddComment()}>
+                {t('orderDetail.comments.add')}
+              </Button>
             </div>
           </div>
         </CardContent>
