@@ -49,11 +49,11 @@ export class DeliveryMethod {
 
   /** Order-status reference applied when shipment generation succeeds. */
   @Property({ type: 'string', length: 64 })
-  statusOnSuccess: string = 'shipped';
+  statusOnSuccess: string = 'shipment_sent';
 
   /** Order-status reference applied when shipment generation fails. */
   @Property({ type: 'string', length: 64 })
-  statusOnFailure: string = 'in_fulfilment';
+  statusOnFailure: string = 'processing';
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

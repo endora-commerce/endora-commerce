@@ -98,6 +98,8 @@ const NAV: NavSection[] = [
     labelKey: 'appShell.section.sales',
     items: [
       { to: '/orders', labelKey: 'appShell.nav.orders', icon: ClipboardCheck },
+      { to: '/orders/new', labelKey: 'appShell.nav.newOrder', icon: ClipboardCheck },
+      { to: '/orders/statuses', labelKey: 'appShell.nav.orderStatuses', icon: ClipboardCheck },
       { to: '/quote-requests', labelKey: 'appShell.nav.quoteRequests', icon: FileText },
       { to: '/invoices', labelKey: 'appShell.nav.invoices', icon: Receipt },
     ],

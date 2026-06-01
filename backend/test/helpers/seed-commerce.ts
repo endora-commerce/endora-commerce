@@ -57,7 +57,7 @@ export async function seedUs2Commerce(em: EntityManager): Promise<void> {
     kind: 'bank_transfer',
     adapter: 'bank_transfer',
     statusOnPending: 'new',
-    statusOnSuccess: 'confirmed',
+    statusOnSuccess: 'paid',
     statusOnFailure: 'cancelled',
   });
   await em.persistAndFlush([delivery, payment]);
@@ -225,7 +225,7 @@ export async function seedShippedOrder(em: EntityManager): Promise<void> {
     organizationId: TEST_ORGANIZATION_ID,
     placedByCustomerAccountId: TEST_CUSTOMER_ID,
     salesChannelId: '00000000-0000-4000-8000-0000000000c1',
-    status: 'shipped',
+    status: 'shipment_sent',
     paymentStatus: 'paid',
     deliveryAddress: {
       recipientName: 'Stub', street: 'ul. Odbioru 1', city: 'Warszawa',
@@ -257,7 +257,7 @@ export async function seedOrdersForInvoiceTests(em: EntityManager): Promise<void
       organizationId: TEST_ORGANIZATION_ID,
       placedByCustomerAccountId: TEST_CUSTOMER_ID,
       salesChannelId: '00000000-0000-4000-8000-0000000000c1',
-      status: 'confirmed',
+      status: 'paid',
       paymentStatus: 'paid',
       deliveryAddress: {
         recipientName: 'Stub', street: 'ul. Odbioru 1', city: 'Warszawa',

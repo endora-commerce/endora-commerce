@@ -41,6 +41,10 @@ import { DeliveryMethod } from '../modules/delivery_methods/entities/delivery-me
 import { PaymentMethod } from '../modules/payment_methods/entities/payment-method.entity.js';
 import { Order } from '../modules/orders/entities/order.entity.js';
 import { OrderItem } from '../modules/orders/entities/order-item.entity.js';
+import { OrderStatus } from '../modules/orders/entities/order-status.entity.js';
+import { OrderStatusTransition } from '../modules/orders/entities/order-status-transition.entity.js';
+import { OrderComment } from '../modules/orders/entities/order-comment.entity.js';
+import { OrderListSavedView } from '../modules/orders/entities/order-list-saved-view.entity.js';
 import { Payment } from '../modules/payments/entities/payment.entity.js';
 import { Shipment } from '../modules/shipments/entities/shipment.entity.js';
 import { Invoice } from '../modules/invoices/entities/invoice.entity.js';
@@ -174,6 +178,10 @@ export const ALL_ENTITIES = [
   PaymentMethod,
   Order,
   OrderItem,
+  OrderStatus,
+  OrderStatusTransition,
+  OrderComment,
+  OrderListSavedView,
   Payment,
   Shipment,
   Invoice,

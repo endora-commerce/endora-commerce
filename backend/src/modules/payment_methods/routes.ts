@@ -152,7 +152,7 @@ export async function registerPaymentMethodsAdminRoutes(
           status: body.status ?? 'active',
           additionalPrice: (body.additionalPrice ?? 0).toFixed(2),
           statusOnPending: body.statusOnPending ?? 'new',
-          statusOnSuccess: body.statusOnSuccess ?? 'confirmed',
+          statusOnSuccess: body.statusOnSuccess ?? 'paid',
           statusOnFailure: body.statusOnFailure ?? 'cancelled',
         });
         isNew = true;

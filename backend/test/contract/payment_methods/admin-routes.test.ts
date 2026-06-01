@@ -34,7 +34,7 @@ describe('Admin payment-methods (adapter-aware)', () => {
         adapter: 'bank_transfer',
         additionalPrice: 4.5,
         statusOnPending: 'new',
-        statusOnSuccess: 'confirmed',
+        statusOnSuccess: 'paid',
         statusOnFailure: 'cancelled',
       },
     });
@@ -42,7 +42,7 @@ describe('Admin payment-methods (adapter-aware)', () => {
     const created = (put.json() as { data: Record<string, unknown> }).data;
     expect(created.adapter).toBe('bank_transfer');
     expect(created.additionalPrice).toBeCloseTo(4.5);
-    expect(created.statusOnSuccess).toBe('confirmed');
+    expect(created.statusOnSuccess).toBe('paid');
 
     const list = await h.app.inject({
       method: 'GET',
@@ -83,6 +83,6 @@ describe('Admin payment-methods (adapter-aware)', () => {
     expect(res.statusCode).toBe(200);
     const codes = (res.json() as { data: Array<{ code: string }> }).data.map((o) => o.code);
     expect(codes).toContain('new');
-    expect(codes).toContain('confirmed');
+    expect(codes).toContain('paid');
   });
 });

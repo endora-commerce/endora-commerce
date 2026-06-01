@@ -115,6 +115,13 @@ export class OrderService {
   private readonly businessId: BusinessIdGenerator | undefined;
   /** Feature 036 (US3) — recomputes the cart's coupon discount at placement. */
   private readonly promotion: PromotionPort | undefined;
+  /**
+   * Feature 038 (US4) — resolves the additional confirmation recipients (per-org
+   * + Settings-scoped) for an order. Optional; omit ⇒ only the customer is sent.
+   */
+  private readonly confirmationRecipients:
+    | ((input: { organizationId: string; salesChannelId: string }) => Promise<string[]>)
+    | undefined;
 
   constructor(
     private readonly emFactory: () => EntityManager,
@@ -129,6 +136,11 @@ export class OrderService {
       mailer?: Mailer;
       businessId?: BusinessIdGenerator;
       promotion?: PromotionPort;
+      confirmationRecipients?: (input: {
+        organizationId: string;
+        salesChannelId: string;
+      }) => Promise<string[]>;
+      resolveMinOrderValue?: (salesChannelId: string) => Promise<number>;
     },
   ) {
     this.accessService = accessService ?? new OrderAccessService(emFactory);
@@ -138,7 +150,15 @@ export class OrderService {
     this.mailer = paymentDeps?.mailer;
     this.businessId = paymentDeps?.businessId;
     this.promotion = paymentDeps?.promotion;
+    this.confirmationRecipients = paymentDeps?.confirmationRecipients;
+    this.resolveMinOrderValue = paymentDeps?.resolveMinOrderValue;
   }
+
+  /**
+   * Feature 038 (US3/FR-035) — resolves the minimum order value for a sales
+   * channel (0 = no minimum). Gates both Checkout and admin order creation.
+   */
+  private readonly resolveMinOrderValue: ((salesChannelId: string) => Promise<number>) | undefined;
 
   /**
    * Feature 034 — order-confirmation e-mail, dispatched post-commit (best
@@ -189,6 +209,29 @@ export class OrderService {
       })),
     });
     await this.mailer.send(message);
+
+    // Feature 038 (US4) — CC the per-organization + Settings-scoped recipients.
+    // Each send is independent and best-effort: a bad recipient is recorded by
+    // the mailer but never blocks placement or the other recipients.
+    if (this.confirmationRecipients) {
+      let extra: string[] = [];
+      try {
+        extra = await this.confirmationRecipients({
+          organizationId: order.organizationId,
+          salesChannelId: order.salesChannelId,
+        });
+      } catch {
+        extra = [];
+      }
+      for (const recipient of extra) {
+        if (recipient.toLowerCase() === customer.email.toLowerCase()) continue;
+        try {
+          await this.mailer.send({ ...message, to: recipient, messageId: `${message.messageId}:${recipient}` });
+        } catch {
+          // best-effort per recipient
+        }
+      }
+    }
   }
 
   /**
@@ -354,6 +397,23 @@ export class OrderService {
       const items = cart ? await tx.find(CartItem, { cartId: cart.id }) : [];
       if (!cart || items.length === 0) {
         throw new HttpError(409, ERROR_CODES.CART_EMPTY, 'Cart is empty.');
+      }
+
+      // Feature 038 (FR-035) — minimum order value gate (Checkout + admin
+      // create both reach here). 0 ⇒ no minimum; resolver failures ⇒ no gate.
+      if (this.resolveMinOrderValue) {
+        const min = await this.resolveMinOrderValue(req.salesChannelId ?? '').catch(() => 0);
+        if (min > 0) {
+          const cartSubtotal = items.reduce((sum, it) => sum + Number(it.unitPrice) * it.quantity, 0);
+          if (cartSubtotal < min) {
+            throw new HttpError(
+              422,
+              ERROR_CODES.VALIDATION_FAILED,
+              `Order total ${cartSubtotal.toFixed(2)} is below the minimum ${min.toFixed(2)} for this sales channel.`,
+              { code: 'order_below_minimum', minimum: min, subtotal: cartSubtotal },
+            );
+          }
+        }
       }
 
       const [delivery, billing] = await Promise.all([
@@ -903,41 +963,6 @@ export class OrderService {
     return em.find(Order, {}, { orderBy: { placedAt: 'desc' } });
   }
 
-  async transitionStatus(orderId: string, to: Order['status']): Promise<Order> {
-    const em = this.emFactory();
-    const order = await em.findOne(Order, { id: orderId });
-    if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
-    if (!this.isValidTransition(order.status, to)) {
-      throw new HttpError(
-        409,
-        ERROR_CODES.INVALID_TRANSITION,
-        `Cannot transition from "${order.status}" to "${to}".`,
-      );
-    }
-    const from = order.status;
-    order.status = to;
-    await em.flush();
-    this.events.emit('order.status_changed.v1', {
-      eventId: randomUUID(),
-      occurredAt: new Date().toISOString(),
-      orderId: order.id,
-      from,
-      to,
-    });
-    // Cancellation releases the credit-limit reservation (T211)
-    // and the per-warehouse stock allocations (US7 / T080).
-    if (to === 'cancelled') {
-      if (this.creditLimit) {
-        await this.creditLimit.releaseByOrder({
-          orderId: order.id,
-          reason: 'order_cancelled',
-        });
-      }
-      await this.releaseAllocations(order.id);
-    }
-    return order;
-  }
-
   /**
    * US7 / T080 — release every stock_allocations row tied to the order
    * (decrementing each affected stock_levels.reserved counter) and
@@ -1009,18 +1034,6 @@ export class OrderService {
       });
     }
     return order;
-  }
-
-  private isValidTransition(from: Order['status'], to: Order['status']): boolean {
-    const graph: Record<Order['status'], Order['status'][]> = {
-      new: ['confirmed', 'cancelled'],
-      confirmed: ['in_fulfilment', 'cancelled'],
-      in_fulfilment: ['shipped'],
-      shipped: ['completed'],
-      completed: [],
-      cancelled: [],
-    };
-    return graph[from].includes(to);
   }
 
   private anyValue(blob: Record<string, string>): string {

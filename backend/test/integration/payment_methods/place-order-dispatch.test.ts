@@ -24,7 +24,7 @@ describe('placeOrder — payment-method adapter dispatch', () => {
     const em = h.em();
     const method = await em.findOne(PaymentMethod, { id: SEED_PAYMENT_METHOD_ID });
     method!.additionalPrice = '5.00';
-    method!.statusOnPending = 'confirmed';
+    method!.statusOnPending = 'pending';
     await em.persistAndFlush(method!);
   });
 
@@ -57,7 +57,7 @@ describe('placeOrder — payment-method adapter dispatch', () => {
     }).data;
 
     // statusOnPending applied
-    expect(order.status).toBe('confirmed');
+    expect(order.status).toBe('pending');
     // additionalPrice folded into the total
     expect(order.total).toBeCloseTo(order.subtotal + order.taxTotal + order.deliveryTotal + 5);
 

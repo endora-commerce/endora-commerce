@@ -218,6 +218,8 @@ export const adminPatchOrganizationRequestSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   vatStatus: vatStatusSchema.optional(),
   status: organizationStatusSchema.optional(),
+  /** Feature 038 (US4) — additional emails CC'd on this org's order confirmations. */
+  orderConfirmationEmails: z.array(z.string()).optional(),
   expectedUpdatedAt: z.string().optional(),
 });
 

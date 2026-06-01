@@ -610,6 +610,46 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           return '';
         }
       },
+      // Feature 038 US6 — reorder enable flag, resolved per Sales Channel.
+      // Missing/out-of-scope settings resolve to enabled (the default).
+      resolveReorderEnabled: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'orders.reorder_enabled',
+            salesChannelId,
+            z.boolean(),
+          );
+        } catch {
+          return true;
+        }
+      },
+      // Feature 038 US4 — additional order-confirmation recipients per scope.
+      resolveOrderConfirmationRecipients: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'orders.confirmation_recipients',
+            salesChannelId,
+            z.array(z.string()),
+          );
+        } catch {
+          return [];
+        }
+      },
+      // Feature 038 US3 / FR-035 — minimum order value per scope (0 = none).
+      resolveMinOrderValue: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'orders.min_order_value',
+            salesChannelId,
+            z.number(),
+          );
+        } catch {
+          return 0;
+        }
+      },
       getRfqService: () => quoteRequests?.handle().rfqService ?? null,
       appendShoppingListToCart: async (input) => {
         if (!shoppingListService) {

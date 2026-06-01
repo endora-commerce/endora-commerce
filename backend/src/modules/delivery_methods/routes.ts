@@ -151,8 +151,8 @@ export async function registerDeliveryMethodsAdminRoutes(
           currency: body.currency,
           adapter,
           status: body.status ?? 'active',
-          statusOnSuccess: body.statusOnSuccess ?? 'shipped',
-          statusOnFailure: body.statusOnFailure ?? 'in_fulfilment',
+          statusOnSuccess: body.statusOnSuccess ?? 'shipment_sent',
+          statusOnFailure: body.statusOnFailure ?? 'processing',
         });
         isNew = true;
       }

@@ -1,7 +1,13 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { getMyOrder } from '../../../../lib/api/orders';
+import {
+  addOrderComment,
+  getMyOrder,
+  listOrderComments,
+  reorderOrder,
+  type OrderComment,
+} from '../../../../lib/api/orders';
 import { getSessionCookie } from '../../../../lib/session';
 import { StorefrontApiError } from '../../../../lib/api/client';
 
@@ -35,6 +41,17 @@ export default async function OrderConfirmationPage({
     }
     throw err;
   }
+
+  let comments: OrderComment[] = [];
+  try {
+    comments = await listOrderComments(session, id);
+  } catch {
+    comments = [];
+  }
+
+  // Terminal orders close commenting; a pending payment surfaces a Pay CTA.
+  const isTerminal = order.status === 'completed' || order.status === 'cancelled';
+  const awaitingPayment = !isTerminal && order.paymentStatus === 'awaiting_payment';
 
   return (
     <div className="b2b-auth" style={{ maxWidth: 720 }}>
@@ -140,9 +157,84 @@ export default async function OrderConfirmationPage({
         </tfoot>
       </table>
 
+      {awaitingPayment ? (
+        <p className="b2b-auth__hint">
+          This order is awaiting payment.{' '}
+          {order.nextAction?.kind === 'awaiting_transfer'
+            ? 'Use the bank-transfer details above to pay.'
+            : 'Complete payment to proceed.'}
+        </p>
+      ) : null}
+
+      <h2>Reorder</h2>
+      <form action={reorderAction}>
+        <input type="hidden" name="id" value={order.id} />
+        <button type="submit" className="b2b-button">
+          Reorder these items
+        </button>
+      </form>
+
+      <h2>Comments</h2>
+      {comments.length === 0 ? (
+        <p className="b2b-auth__hint">No comments yet.</p>
+      ) : (
+        <ul className="b2b-account__comments">
+          {comments.map((c) => (
+            <li key={c.id}>
+              <small>{new Date(c.createdAt).toLocaleString()}</small>
+              <p>{c.body}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+      {isTerminal ? (
+        <p className="b2b-auth__hint">Commenting is closed for this order.</p>
+      ) : (
+        <form action={addCommentAction}>
+          <input type="hidden" name="id" value={order.id} />
+          <textarea name="body" required aria-label="Add a comment" rows={3} />
+          <button type="submit" className="b2b-button">
+            Add comment
+          </button>
+        </form>
+      )}
+
       <p className="b2b-auth__hint">
         <Link href="/account/orders">See all orders</Link>
       </p>
     </div>
   );
+}
+
+async function addCommentAction(formData: FormData): Promise<void> {
+  'use server';
+  const session = await getSessionCookie();
+  if (!session) redirect('/login');
+  const id = (formData.get('id') as string) ?? '';
+  const body = ((formData.get('body') as string) ?? '').trim();
+  if (body) {
+    try {
+      await addOrderComment(session, id, body);
+    } catch (err) {
+      const message = err instanceof StorefrontApiError ? err.message : 'Could not add comment.';
+      redirect(`/orders/${id}?error=${encodeURIComponent(message)}`);
+    }
+  }
+  redirect(`/orders/${id}`);
+}
+
+async function reorderAction(formData: FormData): Promise<void> {
+  'use server';
+  const session = await getSessionCookie();
+  if (!session) redirect('/login');
+  const id = (formData.get('id') as string) ?? '';
+  let target = '/cart';
+  try {
+    const result = await reorderOrder(session, id);
+    target = result.checkoutUrl || '/cart';
+  } catch (err) {
+    const message = err instanceof StorefrontApiError ? err.message : 'Could not reorder.';
+    redirect(`/orders/${id}?error=${encodeURIComponent(message)}`);
+  }
+  redirect(target);
 }

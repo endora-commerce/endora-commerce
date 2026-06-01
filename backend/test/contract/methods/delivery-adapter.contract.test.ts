@@ -35,8 +35,8 @@ describe('Delivery-method adapter framework — routes', () => {
     const seeded = rows.find((r) => r.code === 'in_person_pickup');
     expect(seeded).toBeDefined();
     expect(seeded!.adapter).toBe('personal_pickup');
-    expect(seeded!.statusOnSuccess).toBe('shipped');
-    expect(seeded!.statusOnFailure).toBe('in_fulfilment');
+    expect(seeded!.statusOnSuccess).toBe('shipment_sent');
+    expect(seeded!.statusOnFailure).toBe('processing');
     expect(seeded).toHaveProperty('rendererKey');
   });
 
@@ -93,7 +93,7 @@ describe('Delivery-method adapter framework — routes', () => {
         cost: 0,
         currency: 'PLN',
         statusOnSuccess: 'completed',
-        statusOnFailure: 'in_fulfilment',
+        statusOnFailure: 'processing',
       },
     });
     expect(res.statusCode).toBe(200);

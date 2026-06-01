@@ -46,7 +46,7 @@ describe('Storefront preflight + payment-method allow-list (feature 026 US4)', (
         adapter: 'bank_transfer',
         status: 'active',
         statusOnPending: 'new',
-        statusOnSuccess: 'confirmed',
+        statusOnSuccess: 'paid',
         statusOnFailure: 'cancelled',
       });
       await em.persistAndFlush(extra);

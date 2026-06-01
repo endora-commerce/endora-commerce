@@ -89,3 +89,51 @@ export async function listMyOrders(sessionCookie: string): Promise<OrderSummary[
 export async function getMyOrder(sessionCookie: string, id: string): Promise<OrderSummary> {
   return apiGetAuthed<OrderSummary>({ path: `/api/v1/orders/${id}`, sessionCookie });
 }
+
+// --- Feature 038 ----------------------------------------------------------
+
+export interface OrderComment {
+  id: string;
+  body: string;
+  isCustomerVisible: boolean;
+  authorCustomerAccountId: string | null;
+  authorAdminUserId: string | null;
+  createdAt: string;
+}
+
+/** Customer-visible comments on an order (US5). */
+export async function listOrderComments(sessionCookie: string, id: string): Promise<OrderComment[]> {
+  return apiGetAuthed<OrderComment[]>({ path: `/api/v1/orders/${id}/comments`, sessionCookie });
+}
+
+/** Add a customer comment to an order (US5). */
+export async function addOrderComment(
+  sessionCookie: string,
+  id: string,
+  body: string,
+): Promise<OrderComment> {
+  const result = await apiMutate<OrderComment>({
+    method: 'POST',
+    path: `/api/v1/orders/${id}/comments`,
+    body: { body },
+    sessionCookie,
+  });
+  return result.data!;
+}
+
+export interface ReorderResult {
+  cartId: string;
+  checkoutUrl: string;
+  unavailableItems: Array<{ productId: string; variantId?: string | null; reason: string }>;
+}
+
+/** Reorder a past order — rebuilds the cart and returns the checkout URL (US6). */
+export async function reorderOrder(sessionCookie: string, id: string): Promise<ReorderResult> {
+  const result = await apiMutate<ReorderResult>({
+    method: 'POST',
+    path: `/api/v1/orders/${id}/reorder`,
+    body: {},
+    sessionCookie,
+  });
+  return result.data!;
+}

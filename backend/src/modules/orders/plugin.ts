@@ -27,6 +27,18 @@ import {
   type CreditLimitPort,
   type OrderEventBus,
 } from './services/order-service.js';
+import { OrderStatusGraphService } from './services/order-status-graph-service.js';
+import { OrderTransitionService } from './services/order-transition-service.js';
+import { OrderListService } from './services/order-list-service.js';
+import { OrderListViewService } from './services/order-list-view-service.js';
+import { OrderExportService } from './services/order-export-service.js';
+import { OrderCommentService } from './services/order-comment-service.js';
+import { OrderReorderService } from './services/order-reorder-service.js';
+import { OrderCloneToQuoteService } from './services/order-clone-to-quote-service.js';
+import { OrderConfirmationService } from './services/order-confirmation-service.js';
+import { OrderCreationAdminService } from './services/order-creation-admin-service.js';
+import type { OrganizationConfirmationEmailsPort } from './ports/organization-confirmation-emails.port.js';
+import { Organization } from '../organizations/entities/organization.entity.js';
 import { createBusinessIdGenerator } from './services/business-id-generator.js';
 import { registerCartRoutes } from '../carts/routes.js';
 import { registerOrderRoutes } from './routes.js';
@@ -207,6 +219,12 @@ export interface OrdersModuleOptions {
   resolveOrderBusinessIdPrefix?: (salesChannelId: string) => Promise<string>;
   /** Feature 036 — same for `orders.business_id.suffix`. */
   resolveOrderBusinessIdSuffix?: (salesChannelId: string) => Promise<string>;
+  /** Feature 038 US6 — resolves `orders.reorder_enabled` per Sales Channel. Omit ⇒ enabled. */
+  resolveReorderEnabled?: (salesChannelId: string) => Promise<boolean>;
+  /** Feature 038 US4 — resolves `orders.confirmation_recipients` per Sales Channel. Omit ⇒ none. */
+  resolveOrderConfirmationRecipients?: (salesChannelId: string) => Promise<string[]>;
+  /** Feature 038 US3/FR-035 — resolves `orders.min_order_value` per Sales Channel. Omit ⇒ no minimum. */
+  resolveMinOrderValue?: (salesChannelId: string) => Promise<number>;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -275,6 +293,18 @@ export function commerceModule(options: OrdersModuleOptions) {
         : undefined,
     );
 
+    // Feature 038 US4 — additional confirmation recipients (per-org + scope).
+    const orgConfirmationEmailsPort: OrganizationConfirmationEmailsPort = {
+      getConfirmationEmails: async (organizationId: string) => {
+        const org = await options.emFactory().findOne(Organization, { id: organizationId });
+        return org?.orderConfirmationEmails ?? [];
+      },
+    };
+    const orderConfirmationService = new OrderConfirmationService(
+      orgConfirmationEmailsPort,
+      options.resolveOrderConfirmationRecipients,
+    );
+
     const orderService = new OrderService(
       options.emFactory,
       options.eventBus as OrderEventBus,
@@ -286,6 +316,9 @@ export function commerceModule(options: OrdersModuleOptions) {
         orderStatusRegistry,
         shippingAdapters: shippingAdapterRegistry,
         businessId: businessIdGenerator,
+        confirmationRecipients: (input) =>
+          orderConfirmationService.resolveAdditional(input.organizationId, input.salesChannelId),
+        ...(options.resolveMinOrderValue ? { resolveMinOrderValue: options.resolveMinOrderValue } : {}),
         // Feature 036 (US3) — PromotionService satisfies PromotionPort
         // structurally; threaded so placeOrder stamps the cart's coupon
         // discount onto the Order.
@@ -294,6 +327,49 @@ export function commerceModule(options: OrdersModuleOptions) {
       },
     );
     if (options.exposeCartService) options.exposeCartService(cartService);
+
+    // Feature 038 — configurable lifecycle. The transition engine validates
+    // against the DB-backed graph, runs veto guards, and emits the templated
+    // status events. Cancellation side-effects (release stock allocations +
+    // credit-limit reservation) are applied through the side-effects hook.
+    const orderStatusGraphService = new OrderStatusGraphService(options.emFactory);
+    const orderTransitionService = new OrderTransitionService(
+      options.emFactory,
+      options.eventBus,
+      orderStatusGraphService,
+      async ({ order, to }) => {
+        if (to === 'cancelled') {
+          if (options.creditLimit) {
+            await options.creditLimit.releaseByOrder({ orderId: order.id, reason: 'order_cancelled' });
+          }
+          await orderService.releaseAllocations(order.id);
+        }
+      },
+    );
+    // Feature 038 US2 — orders list query, saved views, CSV export.
+    const orderListService = new OrderListService(options.emFactory, orderStatusGraphService);
+    const orderListViewService = new OrderListViewService(options.emFactory);
+    const orderExportService = new OrderExportService(orderListService);
+    const orderCommentService = new OrderCommentService(
+      options.emFactory,
+      orderStatusGraphService,
+      options.mailer,
+    );
+    const orderReorderService = new OrderReorderService(
+      options.emFactory,
+      options.resolveReorderEnabled,
+      options.mailer,
+    );
+    const orderCloneToQuoteService = new OrderCloneToQuoteService(
+      options.emFactory,
+      () => options.getRfqService?.() ?? null,
+    );
+    const orderCreationAdminService = new OrderCreationAdminService(
+      options.emFactory,
+      cartService,
+      orderService,
+      options.mailer,
+    );
 
     const cartUpsellService = new CartUpsellService(options.emFactory);
     const cartCouponService = options.promotionService
@@ -350,6 +426,15 @@ export function commerceModule(options: OrdersModuleOptions) {
     });
     await registerOrderRoutes(app, {
       orderService,
+      orderStatusGraphService,
+      orderTransitionService,
+      orderListService,
+      orderListViewService,
+      orderExportService,
+      orderCommentService,
+      orderReorderService,
+      orderCloneToQuoteService,
+      orderCreationAdminService,
       emFactory: options.emFactory,
       requireCustomer: options.requireCustomer,
       requireAdmin: options.requireAdmin,

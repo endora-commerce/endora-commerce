@@ -13,19 +13,19 @@ describe('EnumOrderStatusRegistry (shipping)', () => {
 
   it('lists the seed order statuses with humanized labels', () => {
     const codes = reg.list().map((o) => o.code);
-    expect(codes).toContain('shipped');
-    expect(codes).toContain('in_fulfilment');
-    const inFulfilment = reg.list().find((o) => o.code === 'in_fulfilment');
-    expect(inFulfilment?.label).toBe('In Fulfilment');
+    expect(codes).toContain('shipment_sent');
+    expect(codes).toContain('processing');
+    const shipmentSent = reg.list().find((o) => o.code === 'shipment_sent');
+    expect(shipmentSent?.label).toBe('Shipment Sent');
   });
 
   it('has() reflects membership', () => {
-    expect(reg.has('shipped')).toBe(true);
+    expect(reg.has('shipment_sent')).toBe(true);
     expect(reg.has('nonsense')).toBe(false);
   });
 
   it('assertValid throws OrderStatusRegistryError for an unknown status', () => {
-    expect(() => reg.assertValid('shipped')).not.toThrow();
+    expect(() => reg.assertValid('shipment_sent')).not.toThrow();
     expect(() => reg.assertValid('nonsense')).toThrow(OrderStatusRegistryError);
   });
 });

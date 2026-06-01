@@ -17,14 +17,16 @@ import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { InvitationService } from './services/invitation-service.js';
 import type { RoleService } from '../customer_accounts/services/role-service.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type {
+  OrganizationModerationService} from './services/organization-moderation-service.js';
 import {
-  OrganizationModerationService,
   OrganizationNotFoundError,
   OrganizationStatusGuardError,
   OrganizationVersionMismatchError,
 } from './services/organization-moderation-service.js';
+import type {
+  OrganizationRestrictionService} from './services/organization-restriction-service.js';
 import {
-  OrganizationRestrictionService,
   OrganizationVersionMismatchError as RestrictionVersionMismatchError,
 } from './services/organization-restriction-service.js';
 import type { OrganizationEffectivePriceListsService } from './services/organization-effective-pricelists-service.js';
@@ -183,6 +185,7 @@ export async function registerOrganizationsAdminRoutes(
       if (body.name !== undefined) org.name = body.name;
       if (body.vatStatus !== undefined) org.vatStatus = body.vatStatus;
       if (body.status !== undefined) org.status = body.status;
+      if (body.orderConfirmationEmails !== undefined) org.orderConfirmationEmails = body.orderConfirmationEmails;
       await em.flush();
       await audit(
         request,
@@ -648,6 +651,7 @@ function serializeOrg(o: Organization): Record<string, unknown> {
     status: o.status,
     vatStatus: o.vatStatus,
     registeredAddress: o.registeredAddress,
+    orderConfirmationEmails: o.orderConfirmationEmails ?? [],
     version: o.version,
     blockedReason: o.blockedReason ?? null,
     blockedAt: o.blockedAt?.toISOString() ?? null,

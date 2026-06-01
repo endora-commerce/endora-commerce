@@ -6,6 +6,8 @@ import { Shipment } from '../entities/shipment.entity.js';
 import { Order } from '../../orders/entities/order.entity.js';
 import { DeliveryMethod } from '../../delivery_methods/entities/delivery-method.entity.js';
 import type { OrderStatusRegistry } from '../../delivery_methods/services/order-status-registry.port.js';
+import { emitOrderStatusAfter } from '../../orders/events/order-status-events.js';
+import type { EventBus } from '../../../events/bus.js';
 import type { ShippingEventBus } from './events.js';
 
 export interface ReceiveShipmentResult {
@@ -58,6 +60,7 @@ export class ReceiveShipmentHandler {
 
       const order = await tx.findOne(Order, { id: shipment.orderId });
       const method = await tx.findOne(DeliveryMethod, { id: shipment.deliveryMethodId });
+      const orderStatusBefore = order?.status ?? null;
 
       if (input.outcome === 'success') {
         shipment.status = 'success';
@@ -80,6 +83,10 @@ export class ReceiveShipmentHandler {
         idempotent: false,
         emit: true,
         adapter: method?.adapter ?? shipment.deliveryMethodId,
+        orderStatusBefore,
+        orderStatusAfter: order?.status ?? null,
+        organizationId: order?.organizationId ?? null,
+        salesChannelId: order?.salesChannelId ?? null,
       };
     });
 
@@ -102,6 +109,25 @@ export class ReceiveShipmentHandler {
           adapter: (result as { adapter?: string }).adapter ?? '',
           failureReason: result.shipment.failureReason ?? null,
           attemptNo: result.shipment.attemptNo,
+        });
+      }
+
+      // Feature 038 (T026) — emit the templated order status `.after` events for
+      // the system-driven (shipment) transition. Authoritative (no graph/veto).
+      const r = result as {
+        orderStatusBefore: string | null;
+        orderStatusAfter: string | null;
+        organizationId: string | null;
+        salesChannelId: string | null;
+      };
+      if (r.orderStatusBefore && r.orderStatusAfter && r.organizationId && r.salesChannelId) {
+        emitOrderStatusAfter(this.events as unknown as EventBus, {
+          orderId: result.shipment.orderId,
+          organizationId: r.organizationId,
+          salesChannelId: r.salesChannelId,
+          from: r.orderStatusBefore,
+          to: r.orderStatusAfter,
+          actor: { kind: 'system', source: 'shipment' },
         });
       }
     }

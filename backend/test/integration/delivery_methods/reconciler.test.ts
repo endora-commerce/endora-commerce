@@ -32,8 +32,8 @@ describe('DeliveryMethodReconciler.ensureMethodForAdapter', () => {
     });
 
     expect(row.adapter).toBe('my_carrier');
-    expect(row.statusOnSuccess).toBe('shipped');
-    expect(row.statusOnFailure).toBe('in_fulfilment');
+    expect(row.statusOnSuccess).toBe('shipment_sent');
+    expect(row.statusOnFailure).toBe('processing');
 
     const persisted = await h.em().findOne(DeliveryMethod, { code });
     expect(persisted?.adapter).toBe('my_carrier');

@@ -35,7 +35,7 @@ describe('PaymentMethodReconciler.ensureMethodForAdapter', () => {
     expect(row.adapter).toBe('my_adapter');
     expect(row.kind).toBe('gateway');
     expect(row.statusOnPending).toBe('new');
-    expect(row.statusOnSuccess).toBe('confirmed');
+    expect(row.statusOnSuccess).toBe('paid');
     expect(row.statusOnFailure).toBe('cancelled');
 
     const persisted = await h.em().findOne(PaymentMethod, { code });

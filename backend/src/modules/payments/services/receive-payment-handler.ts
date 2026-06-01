@@ -5,6 +5,7 @@ import type { EventBase, EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Payment } from '../entities/payment.entity.js';
 import { Order } from '../../orders/entities/order.entity.js';
+import { emitOrderStatusAfter } from '../../orders/events/order-status-events.js';
 import { PaymentMethod } from '../../payment_methods/entities/payment-method.entity.js';
 import type { OrderStatusRegistry } from '../../payment_methods/services/order-status-registry.port.js';
 
@@ -72,6 +73,7 @@ export class ReceivePaymentHandler {
 
       const order = await tx.findOne(Order, { id: payment.orderId });
       const method = await tx.findOne(PaymentMethod, { id: payment.paymentMethodId });
+      const orderStatusBefore = order?.status ?? null;
 
       if (input.outcome === 'success') {
         payment.status = 'paid';
@@ -98,6 +100,10 @@ export class ReceivePaymentHandler {
         idempotent: false,
         emit: true,
         adapter: method?.adapter ?? payment.paymentMethodId,
+        orderStatusBefore,
+        orderStatusAfter: order?.status ?? null,
+        organizationId: order?.organizationId ?? null,
+        salesChannelId: order?.salesChannelId ?? null,
       };
     });
 
@@ -120,6 +126,26 @@ export class ReceivePaymentHandler {
           adapter: (result as { adapter?: string }).adapter ?? '',
           failureReason: result.payment.failureReason ?? null,
           attemptNo: result.payment.attemptNo,
+        });
+      }
+
+      // Feature 038 (T026) — emit the templated order status `.after` events for
+      // the system-driven transition so cross-module subscribers react to
+      // payment-driven status changes too. Authoritative (no graph/veto).
+      const r = result as {
+        orderStatusBefore: string | null;
+        orderStatusAfter: string | null;
+        organizationId: string | null;
+        salesChannelId: string | null;
+      };
+      if (r.orderStatusBefore && r.orderStatusAfter && r.organizationId && r.salesChannelId) {
+        emitOrderStatusAfter(this.events as unknown as EventBus, {
+          orderId: result.payment.orderId,
+          organizationId: r.organizationId,
+          salesChannelId: r.salesChannelId,
+          from: r.orderStatusBefore,
+          to: r.orderStatusAfter,
+          actor: { kind: 'system', source: 'payment' },
         });
       }
     }

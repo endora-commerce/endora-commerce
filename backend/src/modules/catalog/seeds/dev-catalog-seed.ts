@@ -646,7 +646,7 @@ async function main(): Promise<void> {
     kind: 'bank_transfer',
     adapter: 'bank_transfer',
     statusOnPending: 'new',
-    statusOnSuccess: 'confirmed',
+    statusOnSuccess: 'paid',
     statusOnFailure: 'cancelled',
   });
   await em.persistAndFlush(bankTransfer);
