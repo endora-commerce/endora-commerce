@@ -130,6 +130,50 @@ export async function getResolvedQuickOrderDefaults(
   });
 }
 
+export interface QuickOrderPreference {
+  scope: 'organization' | 'customer';
+  scopeId: string;
+  defaultPaymentMethodId: string | null;
+  defaultDeliveryMethodId: string | null;
+  defaultBillingAddressId: string | null;
+  defaultShippingAddressId: string | null;
+}
+
+export interface QuickOrderPreferenceUpsert {
+  scope: 'organization' | 'customer';
+  scopeId: string;
+  defaultPaymentMethodId?: string | null;
+  defaultDeliveryMethodId?: string | null;
+  defaultBillingAddressId?: string | null;
+  defaultShippingAddressId?: string | null;
+}
+
+/** Read the raw stored preference row for a scope the caller may access. */
+export async function getQuickOrderPreference(
+  sessionCookie: string,
+  scope: 'organization' | 'customer',
+  scopeId: string,
+): Promise<QuickOrderPreference | null> {
+  return apiGetAuthed<QuickOrderPreference | null>({
+    path: `/api/v1/quick-order/preferences?scope=${scope}&scopeId=${encodeURIComponent(scopeId)}`,
+    sessionCookie,
+  });
+}
+
+/** Upsert a scope's default ordering preferences. */
+export async function upsertQuickOrderPreference(
+  sessionCookie: string,
+  body: QuickOrderPreferenceUpsert,
+): Promise<QuickOrderPreference> {
+  const res = await apiMutate<QuickOrderPreference>({
+    method: 'PUT',
+    path: '/api/v1/quick-order/preferences',
+    body,
+    sessionCookie,
+  });
+  return res.data!;
+}
+
 export async function searchProducts(
   sessionCookie: string,
   q: string,
