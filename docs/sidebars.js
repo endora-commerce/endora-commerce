@@ -70,6 +70,7 @@ const sidebars = {
         'modules/credit_limits',
         'modules/currencies',
         'modules/customer_accounts',
+        'modules/customers',
         'modules/delivery_methods',
         {
           type: 'category',
