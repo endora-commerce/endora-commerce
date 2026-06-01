@@ -6,7 +6,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { Order } from '../entities/order.entity.js';
 import type { OrderStatusGraphService } from './order-status-graph-service.js';
 import {
-  orderStatusAfterEventNames,
+  emitOrderStatusAfter,
   orderStatusBeforeEventNames,
   OrderTransitionVetoError,
   type OrderStatusActor,
@@ -117,16 +117,15 @@ export class OrderTransitionService {
     if (this.sideEffects) await this.sideEffects({ order, from, to });
 
     // --- after: fire-and-forget on the bus (isolated) ------------------------
-    this.events.emit('order.status_changed.v1', {
-      eventId: randomUUID(),
-      occurredAt: new Date().toISOString(),
+    emitOrderStatusAfter(this.events, {
       orderId: order.id,
+      organizationId: order.organizationId,
+      salesChannelId: order.salesChannelId,
       from,
       to,
-    } as OrderStatusEvent);
-    for (const name of orderStatusAfterEventNames(from, to)) {
-      this.events.emit(name, event);
-    }
+      actor,
+      reason: reason ?? null,
+    });
 
     return order;
   }

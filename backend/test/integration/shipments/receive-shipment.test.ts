@@ -155,6 +155,26 @@ describe('Shipment lifecycle: createShipment + receive_shipment + retry', () => 
     expect(all.map((s) => s.attemptNo)).toEqual([1, 2]);
   });
 
+  it('emits the templated order status .after events on the auto-transition (T026)', async () => {
+    const { EventBus } = await import('../../../src/events/bus.js');
+    const bus = new EventBus();
+    const fired: string[] = [];
+    bus.on('order.status.to_shipment_sent.after', () => void fired.push('to'));
+    bus.on('order.status.from_paid_to_shipment_sent.after', () => void fired.push('fromTo'));
+    bus.on('order.status_changed.v1', () => void fired.push('coarse'));
+
+    const { order } = await seedOrder(h.em()); // seeded in 'paid'; statusOnSuccess = 'shipment_sent'
+    const service = new ShipmentService(h.em, registry);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic bus accepts any string event at runtime
+    const handler = new ReceiveShipmentHandler(h.em, statusRegistry, bus as any);
+    const shipment = await service.createShipment(order.id);
+    await handler.receive({ shipmentId: shipment.id, outcome: 'success' });
+
+    expect(fired).toContain('to');
+    expect(fired).toContain('fromTo');
+    expect(fired).toContain('coarse');
+  });
+
   it('reconciles a late receive even when the adapter is de-registered', async () => {
     const { order } = await seedOrder(h.em(), { adapter: 'removed_carrier' });
     const service = new ShipmentService(h.em, registry);

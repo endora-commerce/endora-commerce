@@ -15,7 +15,8 @@
  * `<x>` / `<y>` are the snake_case status codes.
  */
 
-import type { EventBase } from '../../../events/bus.js';
+import { randomUUID } from 'crypto';
+import type { EventBase, EventBus } from '../../../events/bus.js';
 
 export type OrderStatusEventKind = 'fromToBefore' | 'fromBefore' | 'fromToAfter' | 'toAfter';
 
@@ -67,6 +68,39 @@ export function orderStatusAfterEventNames(from: string, to: string): string[] {
     orderStatusEventName('fromToAfter', { from, to }),
     orderStatusEventName('toAfter', { to }),
   ];
+}
+
+/**
+ * Emit the post-commit status events for a transition X→Y: the coarse
+ * `order.status_changed.v1` plus the two templated `.after` events. Used by
+ * `OrderTransitionService` (admin/manual transitions) and by the payment /
+ * shipment receive-handlers for system-driven auto-transitions (which are
+ * authoritative and bypass the graph's before-guards). No-op when from === to.
+ */
+export function emitOrderStatusAfter(
+  events: EventBus,
+  p: {
+    orderId: string;
+    organizationId: string;
+    salesChannelId: string;
+    from: string;
+    to: string;
+    actor: OrderStatusActor;
+    reason?: string | null;
+  },
+): void {
+  if (p.from === p.to) return;
+  const base = { eventId: randomUUID(), occurredAt: new Date().toISOString() };
+  const event: OrderStatusEvent = { ...base, ...p, reason: p.reason ?? null };
+  events.emit('order.status_changed.v1', {
+    ...base,
+    orderId: p.orderId,
+    from: p.from,
+    to: p.to,
+  } as OrderStatusEvent);
+  for (const name of orderStatusAfterEventNames(p.from, p.to)) {
+    events.emit(name, event);
+  }
 }
 
 /**
