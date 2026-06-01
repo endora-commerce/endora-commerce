@@ -106,6 +106,43 @@ export async function loginCustomer(
   };
 }
 
+export interface RegisterStandaloneCustomerPayload {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  acceptedTermsVersion: string;
+}
+
+export interface RegisterStandaloneCustomerResult {
+  customerAccount: { id: string; email: string; organizationId: string | null };
+  /** Auto-login session cookie value (the backend logs the new account straight in). */
+  sessionCookieValue: string | null;
+}
+
+/**
+ * Feature 040 — standalone (org-less) customer registration. Gated server-side
+ * by the `customers.allow_registration_without_organization` setting; the
+ * backend returns 403 REGISTRATION_REQUIRES_ORGANIZATION when disabled.
+ */
+export async function registerStandaloneCustomer(
+  payload: RegisterStandaloneCustomerPayload,
+  ctx?: RequestContext,
+): Promise<RegisterStandaloneCustomerResult> {
+  const result = await apiMutate<{
+    customerAccount: { id: string; email: string; organizationId: string | null };
+  }>({
+    method: 'POST',
+    path: '/api/v1/customers/register',
+    body: payload,
+    ...(ctx ? { ctx } : {}),
+  });
+  return {
+    customerAccount: result.data!.customerAccount,
+    sessionCookieValue: pickSessionCookie(result.setCookie),
+  };
+}
+
 export async function logoutCustomer(sessionCookie: string | null): Promise<void> {
   if (!sessionCookie) return;
   await apiMutate<null>({
