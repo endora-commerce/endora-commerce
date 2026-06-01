@@ -200,6 +200,8 @@
   "inventoryTab.column.onHand": "On hand",
   "inventoryTab.column.newValue": "New value",
   "inventoryTab.lowStock.title": "Low-stock threshold",
+  "inventoryTab.fulfilment.title": "Fulfilment strategy",
+  "inventoryTab.fulfilment.saved": "Fulfilment strategy saved.",
   "inventoryTab.lowStock.help": "Cumulative on-hand at or below this value flags the product as low-stock. Leave empty to fall back to the warehouse default or the global threshold.",
   "inventoryTab.lowStock.placeholder": "Inherit from warehouse / global",
   "inventoryTab.lowStock.save": "Save threshold",

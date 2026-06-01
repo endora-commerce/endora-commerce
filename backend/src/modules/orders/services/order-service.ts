@@ -4,6 +4,7 @@ import { LockMode } from '@mikro-orm/core';
 import {
   ERROR_CODES,
   type CartSnapshot,
+  type FulfilmentStrategy,
   type NextAction,
   type PlaceOrderRequest,
   type PromotionApplication,
@@ -141,6 +142,8 @@ export class OrderService {
         salesChannelId: string;
       }) => Promise<string[]>;
       resolveMinOrderValue?: (salesChannelId: string) => Promise<number>;
+      resolveChannelFulfilmentStrategy?: (salesChannelId: string) => Promise<FulfilmentStrategy>;
+      resolveChannelFulfilmentWarehouseOrder?: (salesChannelId: string) => Promise<string[]>;
     },
   ) {
     this.accessService = accessService ?? new OrderAccessService(emFactory);
@@ -152,7 +155,24 @@ export class OrderService {
     this.promotion = paymentDeps?.promotion;
     this.confirmationRecipients = paymentDeps?.confirmationRecipients;
     this.resolveMinOrderValue = paymentDeps?.resolveMinOrderValue;
+    this.resolveChannelFulfilmentStrategy = paymentDeps?.resolveChannelFulfilmentStrategy;
+    this.resolveChannelFulfilmentWarehouseOrder =
+      paymentDeps?.resolveChannelFulfilmentWarehouseOrder;
   }
+
+  /**
+   * Sales-channel layer of the fulfilment-strategy precedence chain. Resolves
+   * `inventory.fulfilment_strategy` (+ its warehouse order) for a channel via
+   * the Settings module, which itself collapses per-channel value → global
+   * value → manifest default. Optional; when unwired the order-service falls
+   * back to `default_first` / `[]`.
+   */
+  private readonly resolveChannelFulfilmentStrategy:
+    | ((salesChannelId: string) => Promise<FulfilmentStrategy>)
+    | undefined;
+  private readonly resolveChannelFulfilmentWarehouseOrder:
+    | ((salesChannelId: string) => Promise<string[]>)
+    | undefined;
 
   /**
    * Feature 038 (US3/FR-035) — resolves the minimum order value for a sales
@@ -463,9 +483,36 @@ export class OrderService {
       const { resolveAllocations } = await import(
         '../../inventory/services/fulfilment-strategy-resolver.js'
       );
+      const { resolveEffectiveFulfilmentStrategy } = await import(
+        '../../inventory/services/effective-fulfilment-strategy.js'
+      );
 
-      const channelForStock = await tx.findOne(SalesChannel, { status: 'active' });
+      // Resolve the order's sales channel once. Prefer the channel carried on
+      // the request (Checkout / admin create); fall back to the first active
+      // channel for legacy callers that don't pass one. Used for candidate
+      // warehouses, the channel-level fulfilment setting, and the stamped
+      // order channel below, so all three agree.
+      const orderChannel = req.salesChannelId
+        ? ((await tx.findOne(SalesChannel, { id: req.salesChannelId })) ??
+          (await tx.findOne(SalesChannel, { status: 'active' })))
+        : await tx.findOne(SalesChannel, { status: 'active' });
+      const channelForStock = orderChannel;
       const knexForStock = tx.getKnex();
+
+      // Sales-channel + platform-default layer of the fulfilment-strategy
+      // precedence chain, resolved once (org + product layers are applied
+      // per-line below). Resolver failures degrade to the manifest default.
+      const channelStrategyId = channelForStock?.id ?? req.salesChannelId ?? '';
+      const channelDefault = {
+        strategy: this.resolveChannelFulfilmentStrategy
+          ? await this.resolveChannelFulfilmentStrategy(channelStrategyId).catch(
+              () => 'default_first' as FulfilmentStrategy,
+            )
+          : ('default_first' as FulfilmentStrategy),
+        warehouseOrder: this.resolveChannelFulfilmentWarehouseOrder
+          ? await this.resolveChannelFulfilmentWarehouseOrder(channelStrategyId).catch(() => [])
+          : [],
+      };
 
       // Candidate warehouses for the channel — joined with the warehouses
       // table so we can carry the code (used by lex tie-breaks in the
@@ -564,13 +611,18 @@ export class OrderService {
           });
         }
 
-        const strategy = (flags?.fulfilmentStrategy ?? 'default_first') as
-          | 'any'
-          | 'default_first'
-          | 'lowest_stock_first'
-          | 'highest_stock_first'
-          | 'defined_order';
-        const warehouseOrder = flags?.fulfilmentStrategyWarehouseOrder ?? [];
+        // Precedence: Product → Organization → Sales Channel → platform default.
+        const { strategy, warehouseOrder } = resolveEffectiveFulfilmentStrategy(
+          {
+            strategy: flags?.fulfilmentStrategy ?? null,
+            warehouseOrder: flags?.fulfilmentStrategyWarehouseOrder ?? null,
+          },
+          {
+            strategy: org.fulfilmentStrategy ?? null,
+            warehouseOrder: org.fulfilmentStrategyWarehouseOrder ?? null,
+          },
+          channelDefault,
+        );
 
         const outcome = resolveAllocations({
           quantity: item.quantity,
@@ -672,8 +724,10 @@ export class OrderService {
           (subtotal + taxTotal + deliveryTotal + paymentSurcharge - discountTotal) * 100,
         ) / 100;
 
-      // Sales channel — use any active one; real resolution uses Cart ↔ Channel in US2 T136.
-      const channel = await tx.findOne(SalesChannel, { status: 'active' });
+      // Sales channel — resolved once above (request channel preferred, first
+      // active as fallback) so the stamped channel matches the one used for
+      // stock candidates and the channel-level fulfilment setting.
+      const channel = orderChannel;
 
       // Feature 036 — customer-facing business Order ID, generated from the
       // monotonic sequence + the channel-scoped prefix/suffix settings. Falls

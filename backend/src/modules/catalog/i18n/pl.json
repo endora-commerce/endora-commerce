@@ -200,6 +200,8 @@
   "inventoryTab.column.onHand": "Na stanie",
   "inventoryTab.column.newValue": "Nowa wartość",
   "inventoryTab.lowStock.title": "Próg niskiego stanu",
+  "inventoryTab.fulfilment.title": "Strategia realizacji",
+  "inventoryTab.fulfilment.saved": "Strategia realizacji zapisana.",
   "inventoryTab.lowStock.help": "Łączny stan magazynowy mniejszy lub równy tej wartości oznacza produkt jako niski stan. Pozostaw puste, aby skorzystać z domyślnej wartości magazynu lub progu globalnego.",
   "inventoryTab.lowStock.placeholder": "Dziedzicz z magazynu / globalnego",
   "inventoryTab.lowStock.save": "Zapisz próg",
