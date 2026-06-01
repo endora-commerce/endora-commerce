@@ -34,7 +34,9 @@ export async function registerQuickOrderRoutes(
     { preHandler: requireCustomer, schema: { body: quickOrderImportRequestSchema } },
     async (request) => {
       const body = quickOrderImportRequestSchema.parse(request.body);
-      const result = await importer.import(body.csv);
+      // Interim: the legacy CSV path is preserved here; the file (.xlsx) +
+      // build pipeline is wired in a follow-up task (feature 039 T019).
+      const result = await importer.import(body.csv ?? '');
       return { data: result };
     },
   );

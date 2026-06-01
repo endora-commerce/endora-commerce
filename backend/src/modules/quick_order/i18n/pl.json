@@ -1,0 +1,5 @@
+{
+  "module.name": "Szybkie zamówienia",
+  "settings.oneClickBuyEnabled.label": "Zakup jednym kliknięciem włączony",
+  "settings.importMaxRows.label": "Limit wierszy importu"
+}
