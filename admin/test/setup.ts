@@ -2,6 +2,15 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, beforeEach, vi } from 'vitest';
 
+// jsdom does not implement scrollIntoView; components that call it (e.g. the
+// organization picker's active-option scroll) would throw under test. Polyfill
+// it globally so tests don't depend on call ordering across files.
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function scrollIntoView(): void {
+    /* no-op in jsdom */
+  };
+}
+
 // `globals: false` in the base vitest config means Testing Library's
 // auto-cleanup isn't registered. Do it explicitly so each test gets a
 // fresh DOM and findBy* queries don't collide with leftovers.
