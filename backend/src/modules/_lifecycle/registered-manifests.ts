@@ -39,6 +39,7 @@ import { manifest as cartsManifest } from '../carts/manifest.js';
 import { manifest as creditLimitsManifest } from '../credit_limits/manifest.js';
 import { manifest as currenciesManifest } from '../currencies/manifest.js';
 import { manifest as customerAccountsManifest } from '../customer_accounts/manifest.js';
+import { manifest as customersManifest } from '../customers/manifest.js';
 import { manifest as deliveryMethodsManifest } from '../delivery_methods/manifest.js';
 import { manifest as emailManifest } from '../email/manifest.js';
 import { manifest as healthChecksManifest } from '../health_checks/manifest.js';
@@ -129,6 +130,7 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   { manifest: creditLimitsManifest, filePath: pathFor('credit_limits') },
   { manifest: currenciesManifest, filePath: pathFor('currencies') },
   { manifest: customerAccountsManifest, filePath: pathFor('customer_accounts') },
+  { manifest: customersManifest, filePath: pathFor('customers') },
   { manifest: deliveryMethodsManifest, filePath: pathFor('delivery_methods') },
   { manifest: emailManifest, filePath: pathFor('email') },
   { manifest: healthChecksManifest, filePath: pathFor('health_checks') },

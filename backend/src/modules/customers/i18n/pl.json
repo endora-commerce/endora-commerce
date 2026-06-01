@@ -1,0 +1,6 @@
+{
+  "actions.openCustomers.label": "Klienci",
+  "actions.openCustomers.description": "Przeglądaj i zarządzaj kontami klientów",
+  "actions.onlineCustomers.label": "Klienci online",
+  "actions.onlineCustomers.description": "Zobacz, którzy klienci są teraz online"
+}
