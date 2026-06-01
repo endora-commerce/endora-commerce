@@ -80,8 +80,31 @@ export const manifest = defineModuleManifest({
   id: 'orders',
   name: 'Orders',
   description: 'Order placement, lifecycle, and history.',
-  version: '1.2.0',
+  version: '1.3.0',
   dependencies: ['settings'],
   settings,
   i18n: { bundlesDir: 'i18n' },
+  // Feature 038 — admin search/command-palette actions.
+  actions: [
+    {
+      id: 'open-orders',
+      labelKey: 'actions.openOrders.label',
+      descriptionKey: 'actions.openOrders.description',
+      icon: 'ShoppingCart',
+      targetRoute: '/orders',
+      requiredPermission: 'orders:read',
+      keywords: ['orders', 'sales', 'zamówienia', 'sprzedaż'],
+      weight: 220,
+    },
+    {
+      id: 'order-statuses',
+      labelKey: 'actions.orderStatusConfig.label',
+      descriptionKey: 'actions.orderStatusConfig.description',
+      icon: 'Settings',
+      targetRoute: '/orders/statuses',
+      requiredPermission: 'orders:write',
+      keywords: ['order status', 'lifecycle', 'statusy', 'cykl życia'],
+      weight: 225,
+    },
+  ],
 });
