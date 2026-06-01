@@ -8,6 +8,7 @@ import type { OrganizationRestrictionService } from '../organizations/services/o
 import { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
 import { DefaultPreferenceService } from '../quick_order/services/default-preference-service.js';
 import { SalesRepAssignmentService } from '../organizations/services/sales-rep-assignment-service.js';
+import { ImpersonationService } from '../admin_users/services/impersonation-service.js';
 import { CustomerRegistrationService } from './services/customer-registration-service.js';
 import { CustomerAddressService } from './services/customer-address-service.js';
 import { CustomerDefaultsService } from './services/customer-defaults-service.js';
@@ -90,6 +91,11 @@ export function customersModule(options: CustomersModuleOptions): {
         options.sessionService.destroyAllForCustomer(customerAccountId),
     },
   );
+  const impersonationService = new ImpersonationService(
+    options.emFactory,
+    options.sessionService,
+    options.auditLogService,
+  );
 
   const plugin: ModulePlugin = async (app) => {
     await registerCustomersRegisterRoutes(app, { registrationService });
@@ -107,6 +113,7 @@ export function customersModule(options: CustomersModuleOptions): {
       requireAdmin: options.requireAdmin,
       resolveModerationActor: options.resolveModerationActor,
       moderationService,
+      impersonationService,
     });
   };
 
