@@ -610,6 +610,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           return '';
         }
       },
+      // Feature 038 US6 — reorder enable flag, resolved per Sales Channel.
+      // Missing/out-of-scope settings resolve to enabled (the default).
+      resolveReorderEnabled: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'orders.reorder_enabled',
+            salesChannelId,
+            z.boolean(),
+          );
+        } catch {
+          return true;
+        }
+      },
       getRfqService: () => quoteRequests?.handle().rfqService ?? null,
       appendShoppingListToCart: async (input) => {
         if (!shoppingListService) {

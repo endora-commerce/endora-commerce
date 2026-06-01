@@ -25,6 +25,7 @@ import type { OrderListViewService } from './services/order-list-view-service.js
 import type { OrderExportService } from './services/order-export-service.js';
 import type { OrderCommentService } from './services/order-comment-service.js';
 import type { OrderComment } from './entities/order-comment.entity.js';
+import type { OrderReorderService } from './services/order-reorder-service.js';
 import { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
 import { Invoice } from '../invoices/entities/invoice.entity.js';
@@ -44,6 +45,8 @@ export interface OrdersDeps {
   orderExportService: OrderExportService;
   /** Feature 038 US5 — order comments. */
   orderCommentService: OrderCommentService;
+  /** Feature 038 US6 — reorder. */
+  orderReorderService: OrderReorderService;
   emFactory: () => EntityManager;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   requireAdmin: RequireAdminFactory;
@@ -467,6 +470,36 @@ export async function registerOrderRoutes(
       );
       reply.code(201);
       return { data: serializeComment(comment) };
+    },
+  );
+
+  // --- Reorder (feature 038 US6) ----------------------------------------
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/orders/:id/reorder',
+    { preHandler: requireCustomer },
+    async (request) => {
+      const ctx = resolveCustomerContext(request);
+      await orderService.getById(request.params.id, ctx); // authorize ownership/scope
+      const result = await deps.orderReorderService.reorder(request.params.id, {
+        customerAccountId: ctx.customerAccountId,
+        organizationId: ctx.organizationId,
+      });
+      return { data: result };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/orders/:id/reorder',
+    { preHandler: requireAdmin('orders:write') },
+    async (request) => {
+      const order = await emFactory().findOne(Order, { id: request.params.id });
+      if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
+      const result = await deps.orderReorderService.reorder(
+        request.params.id,
+        { customerAccountId: order.placedByCustomerAccountId, organizationId: order.organizationId },
+        { notifyCustomer: true },
+      );
+      return { data: { cartId: result.cartId, unavailableItems: result.unavailableItems } };
     },
   );
 }

@@ -33,6 +33,7 @@ import { OrderListService } from './services/order-list-service.js';
 import { OrderListViewService } from './services/order-list-view-service.js';
 import { OrderExportService } from './services/order-export-service.js';
 import { OrderCommentService } from './services/order-comment-service.js';
+import { OrderReorderService } from './services/order-reorder-service.js';
 import { createBusinessIdGenerator } from './services/business-id-generator.js';
 import { registerCartRoutes } from '../carts/routes.js';
 import { registerOrderRoutes } from './routes.js';
@@ -213,6 +214,8 @@ export interface OrdersModuleOptions {
   resolveOrderBusinessIdPrefix?: (salesChannelId: string) => Promise<string>;
   /** Feature 036 — same for `orders.business_id.suffix`. */
   resolveOrderBusinessIdSuffix?: (salesChannelId: string) => Promise<string>;
+  /** Feature 038 US6 — resolves `orders.reorder_enabled` per Sales Channel. Omit ⇒ enabled. */
+  resolveReorderEnabled?: (salesChannelId: string) => Promise<boolean>;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -328,6 +331,11 @@ export function commerceModule(options: OrdersModuleOptions) {
       orderStatusGraphService,
       options.mailer,
     );
+    const orderReorderService = new OrderReorderService(
+      options.emFactory,
+      options.resolveReorderEnabled,
+      options.mailer,
+    );
 
     const cartUpsellService = new CartUpsellService(options.emFactory);
     const cartCouponService = options.promotionService
@@ -390,6 +398,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       orderListViewService,
       orderExportService,
       orderCommentService,
+      orderReorderService,
       emFactory: options.emFactory,
       requireCustomer: options.requireCustomer,
       requireAdmin: options.requireAdmin,
