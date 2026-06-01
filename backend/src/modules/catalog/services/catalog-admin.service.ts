@@ -996,6 +996,68 @@ export class CatalogAdminService {
     return { items, page, pageSize, total, counts };
   }
 
+  /**
+   * Feature 033 — return all product ids matching list filters (no pagination).
+   * Reuses the same filter semantics as {@link listProducts}.
+   */
+  async resolveProductIds(
+    options: {
+      includeArchived?: boolean;
+      status?: 'active' | 'draft' | 'archived';
+      type?: 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
+      q?: string;
+    } = {},
+  ): Promise<{ productIds: string[]; total: number }> {
+    const maxSelectionSize = Number(process.env['CATALOG_MAX_RESOLVE_IDS'] ?? 10_000);
+    const em = this.emFactory();
+    const trimmedQ = options.q?.trim();
+    const knex = em.getKnex();
+
+    const applyListFilters = (qb: ReturnType<typeof knex>): ReturnType<typeof knex> => {
+      if (options.status) {
+        qb.where('status', options.status);
+      } else if (!options.includeArchived) {
+        qb.whereNot('status', 'archived');
+      }
+      if (options.type) {
+        qb.where('type', options.type);
+      }
+      if (trimmedQ) {
+        const needle = `%${trimmedQ.toLowerCase()}%`;
+        qb.andWhere((inner) => {
+          inner
+            .whereRaw('LOWER("sku") LIKE ?', [needle])
+            .orWhereRaw('LOWER("slug") LIKE ?', [needle])
+            .orWhereRaw('LOWER("name"::text) LIKE ?', [needle]);
+        });
+      }
+      return qb;
+    };
+
+    const countRow = (await applyListFilters(knex('products'))
+      .clone()
+      .count<{ count: string | number }>('* as count')
+      .first()) as { count: string | number } | undefined;
+    const total = Number(countRow?.count ?? 0);
+
+    if (total > maxSelectionSize) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.SELECTION_TOO_LARGE,
+        `Selection matches ${total} products; max ${maxSelectionSize}.`,
+        { total, maxSelectionSize },
+      );
+    }
+
+    const idRows = (await applyListFilters(knex('products'))
+      .clone()
+      .orderBy('created_at', 'desc')
+      .select<Array<{ id: string }>>('id')) as Array<{ id: string }>;
+
+    const productIds = idRows.map((r) => r.id);
+    return { productIds, total: productIds.length };
+  }
+
   async getProductById(id: string): Promise<Product> {
     const em = this.emFactory();
     const product = await em.findOne(Product, { id });

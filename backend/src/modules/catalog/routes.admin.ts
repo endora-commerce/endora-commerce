@@ -3,6 +3,7 @@ import {
   assignAttributesRequestSchema,
   batchByIdProductsRequestSchema,
   bulkUpdateProductsRequestSchema,
+  resolveProductIdsRequestSchema,
   createAttributeRequestSchema,
   createAttributeSetRequestSchema,
   createCategoryRequestSchema,
@@ -391,6 +392,25 @@ export async function registerCatalogAdminRoutes(
         },
         counts: result.counts,
       };
+    },
+  );
+
+  app.post(
+    '/api/v1/admin/catalog/products/resolve-ids',
+    {
+      preHandler: requireAdmin('catalog:read'),
+      schema: { body: resolveProductIdsRequestSchema },
+    },
+    async (request) => {
+      const body = resolveProductIdsRequestSchema.parse(request.body);
+      const includeArchived = body.includeArchived ?? true;
+      const result = await adminService.resolveProductIds({
+        includeArchived,
+        ...(body.status ? { status: body.status } : {}),
+        ...(body.type ? { type: body.type } : {}),
+        ...(body.q ? { q: body.q } : {}),
+      });
+      return { data: result };
     },
   );
 
