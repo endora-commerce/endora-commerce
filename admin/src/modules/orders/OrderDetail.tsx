@@ -76,11 +76,25 @@ function statusOptions(graph: StatusGraph | null, current: string): string[] {
 
 const PAYMENT_STATUSES = ['awaiting_payment', 'paid', 'deferred', 'refunded'] as const;
 
+interface OrderCommentRow {
+  id: string;
+  body: string;
+  isCustomerVisible: boolean;
+  notifyCustomer: boolean;
+  authorAdminUserId: string | null;
+  authorCustomerAccountId: string | null;
+  createdAt: string;
+}
+
 export function OrderDetail(): ReactNode {
   const t = useTranslation('core');
   const { id = '' } = useParams<{ id: string }>();
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [graph, setGraph] = useState<StatusGraph | null>(null);
+  const [comments, setComments] = useState<OrderCommentRow[]>([]);
+  const [commentBody, setCommentBody] = useState('');
+  const [commentVisible, setCommentVisible] = useState(true);
+  const [commentNotify, setCommentNotify] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -114,6 +128,34 @@ export function OrderDetail(): ReactNode {
       .then((res) => setGraph(res.data))
       .catch(() => setGraph(null));
   }, []);
+
+  const loadComments = useCallback(async (): Promise<void> => {
+    try {
+      const res = await apiClient.get<{ data: OrderCommentRow[] }>(`/api/v1/admin/orders/${id}/comments`);
+      setComments(res.data);
+    } catch {
+      setComments([]);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    void loadComments();
+  }, [loadComments]);
+
+  const handleAddComment = useCallback(async (): Promise<void> => {
+    if (!commentBody.trim()) return;
+    try {
+      await apiClient.post(`/api/v1/admin/orders/${id}/comments`, {
+        body: commentBody.trim(),
+        isCustomerVisible: commentVisible,
+        notifyCustomer: commentNotify,
+      });
+      setCommentBody('');
+      await loadComments();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.comments.error'));
+    }
+  }, [id, commentBody, commentVisible, commentNotify, loadComments, t]);
 
   const handleStatus = useCallback(
     async (to: string): Promise<void> => {
@@ -230,6 +272,66 @@ export function OrderDetail(): ReactNode {
                   </option>
                 ))}
               </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>{t('orderDetail.sections.comments')}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {comments.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t('orderDetail.comments.empty')}</p>
+          ) : (
+            <ul className="space-y-2">
+              {comments.map((c) => (
+                <li key={c.id} className="rounded-md border p-3 text-sm" data-testid="order-comment">
+                  <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>{formatDateTime(c.createdAt)}</span>
+                    {c.authorCustomerAccountId ? (
+                      <span>{t('orderDetail.comments.byCustomer')}</span>
+                    ) : (
+                      <span>{t('orderDetail.comments.byStaff')}</span>
+                    )}
+                    {!c.isCustomerVisible ? (
+                      <span className="rounded bg-muted px-1.5 py-0.5">{t('orderDetail.comments.internal')}</span>
+                    ) : null}
+                  </div>
+                  <p>{c.body}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="space-y-2 border-t pt-3">
+            <textarea
+              aria-label="comment-body"
+              className="min-h-20 w-full rounded-md border p-2 text-sm"
+              value={commentBody}
+              onChange={(e): void => setCommentBody(e.target.value)}
+              placeholder={t('orderDetail.comments.placeholder')}
+            />
+            <div className="flex flex-wrap items-center gap-4">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={commentVisible}
+                  onChange={(e): void => setCommentVisible(e.target.checked)}
+                />
+                {t('orderDetail.comments.customerVisible')}
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={commentNotify}
+                  onChange={(e): void => setCommentNotify(e.target.checked)}
+                />
+                {t('orderDetail.comments.notify')}
+              </label>
+              <Button size="sm" disabled={!commentBody.trim()} onClick={(): void => void handleAddComment()}>
+                {t('orderDetail.comments.add')}
+              </Button>
             </div>
           </div>
         </CardContent>
