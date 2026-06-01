@@ -26,6 +26,7 @@ import type { OrderExportService } from './services/order-export-service.js';
 import type { OrderCommentService } from './services/order-comment-service.js';
 import type { OrderComment } from './entities/order-comment.entity.js';
 import type { OrderReorderService } from './services/order-reorder-service.js';
+import type { OrderCloneToQuoteService } from './services/order-clone-to-quote-service.js';
 import { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
 import { Invoice } from '../invoices/entities/invoice.entity.js';
@@ -47,6 +48,8 @@ export interface OrdersDeps {
   orderCommentService: OrderCommentService;
   /** Feature 038 US6 — reorder. */
   orderReorderService: OrderReorderService;
+  /** Feature 038 US7 — clone an order into a Quote Request. */
+  orderCloneToQuoteService: OrderCloneToQuoteService;
   emFactory: () => EntityManager;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   requireAdmin: RequireAdminFactory;
@@ -500,6 +503,35 @@ export async function registerOrderRoutes(
         { notifyCustomer: true },
       );
       return { data: { cartId: result.cartId, unavailableItems: result.unavailableItems } };
+    },
+  );
+
+  // --- Clone to quote request (feature 038 US7) -------------------------
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/orders/:id/clone-to-quote',
+    { preHandler: requireAdmin('orders:write') },
+    async (request) => {
+      const order = await emFactory().findOne(Order, { id: request.params.id });
+      if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
+      const result = await deps.orderCloneToQuoteService.clone(request.params.id, {
+        customerAccountId: order.placedByCustomerAccountId,
+        organizationId: order.organizationId,
+      });
+      return { data: result };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/orders/:id/clone-to-quote',
+    { preHandler: requireCustomer },
+    async (request) => {
+      const ctx = resolveCustomerContext(request);
+      await orderService.getById(request.params.id, ctx); // authorize ownership
+      const result = await deps.orderCloneToQuoteService.clone(request.params.id, {
+        customerAccountId: ctx.customerAccountId,
+        organizationId: ctx.organizationId,
+      });
+      return { data: result };
     },
   );
 }

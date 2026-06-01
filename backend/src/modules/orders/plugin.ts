@@ -34,6 +34,7 @@ import { OrderListViewService } from './services/order-list-view-service.js';
 import { OrderExportService } from './services/order-export-service.js';
 import { OrderCommentService } from './services/order-comment-service.js';
 import { OrderReorderService } from './services/order-reorder-service.js';
+import { OrderCloneToQuoteService } from './services/order-clone-to-quote-service.js';
 import { createBusinessIdGenerator } from './services/business-id-generator.js';
 import { registerCartRoutes } from '../carts/routes.js';
 import { registerOrderRoutes } from './routes.js';
@@ -336,6 +337,10 @@ export function commerceModule(options: OrdersModuleOptions) {
       options.resolveReorderEnabled,
       options.mailer,
     );
+    const orderCloneToQuoteService = new OrderCloneToQuoteService(
+      options.emFactory,
+      () => options.getRfqService?.() ?? null,
+    );
 
     const cartUpsellService = new CartUpsellService(options.emFactory);
     const cartCouponService = options.promotionService
@@ -399,6 +404,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       orderExportService,
       orderCommentService,
       orderReorderService,
+      orderCloneToQuoteService,
       emFactory: options.emFactory,
       requireCustomer: options.requireCustomer,
       requireAdmin: options.requireAdmin,
