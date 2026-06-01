@@ -4,7 +4,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import type { CartService } from '../../carts/services/cart-service.js';
 import type { Mailer } from '../../email/services/mailer.js';
-import { Order } from '../entities/order.entity.js';
+import type { Order } from '../entities/order.entity.js';
 import { OrderComment } from '../entities/order-comment.entity.js';
 import type { OrderService } from './order-service.js';
 import { buildAdminCreatedOrderEmail } from '../email-templates/admin-created-order.js';

@@ -17,14 +17,16 @@ import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { InvitationService } from './services/invitation-service.js';
 import type { RoleService } from '../customer_accounts/services/role-service.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type {
+  OrganizationModerationService} from './services/organization-moderation-service.js';
 import {
-  OrganizationModerationService,
   OrganizationNotFoundError,
   OrganizationStatusGuardError,
   OrganizationVersionMismatchError,
 } from './services/organization-moderation-service.js';
+import type {
+  OrganizationRestrictionService} from './services/organization-restriction-service.js';
 import {
-  OrganizationRestrictionService,
   OrganizationVersionMismatchError as RestrictionVersionMismatchError,
 } from './services/organization-restriction-service.js';
 import type { OrganizationEffectivePriceListsService } from './services/organization-effective-pricelists-service.js';
