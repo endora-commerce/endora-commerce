@@ -5,6 +5,7 @@ import {
   buildQuickOrder,
   importQuickOrderCsv,
   importQuickOrderFile,
+  searchProducts,
   type QuickOrderImportResponse,
 } from '../../../lib/api/quick-order';
 import { getSessionCookie } from '../../../lib/session';
@@ -45,6 +46,7 @@ export default async function QuickOrderPage({
     error?: string;
     built?: string;
     rfq?: string;
+    q?: string;
   }>;
 }): Promise<ReactNode> {
   const session = await getSessionCookie();
@@ -52,6 +54,10 @@ export default async function QuickOrderPage({
   const sp = await searchParams;
 
   const preview = sp.preview ? decodePreview(sp.preview) : null;
+  const searchQuery = sp.q?.trim() ?? '';
+  const searchResults = searchQuery
+    ? await searchProducts(session, searchQuery).catch(() => [])
+    : [];
 
   return (
     <>
@@ -95,6 +101,71 @@ export default async function QuickOrderPage({
           <button type="submit">Preview</button>
         </div>
       </form>
+
+      <h3>Find products</h3>
+      <p className="b2b-auth__hint">
+        Search by SKU, name, or a quick-searchable attribute and add items to your order.
+      </p>
+      <form action={searchAction} className="b2b-auth__form">
+        {preview ? <input type="hidden" name="preview" value={encodePreview(preview)} /> : null}
+        <div className="b2b-auth__field">
+          <input type="search" name="q" defaultValue={searchQuery} placeholder="Search products…" />
+        </div>
+        <div className="b2b-auth__actions">
+          <button type="submit">Search</button>
+        </div>
+      </form>
+
+      {searchQuery ? (
+        <table className="b2b-account__table">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Name</th>
+              <th>Qty</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {searchResults.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="muted">
+                  No products matched &quot;{searchQuery}&quot;.
+                </td>
+              </tr>
+            ) : (
+              searchResults.map((r) => (
+                <tr key={r.productId}>
+                  <td>{r.sku}</td>
+                  <td>{r.name}</td>
+                  <td>
+                    <form action={addSearchResultAction} id={`add-${r.productId}`}>
+                      {preview ? (
+                        <input type="hidden" name="preview" value={encodePreview(preview)} />
+                      ) : null}
+                      <input type="hidden" name="q" value={searchQuery} />
+                      <input type="hidden" name="productId" value={r.productId} />
+                      <input type="hidden" name="sku" value={r.sku} />
+                      <input
+                        type="number"
+                        name="quantity"
+                        min={1}
+                        defaultValue={1}
+                        style={{ width: 64 }}
+                      />
+                    </form>
+                  </td>
+                  <td>
+                    <button type="submit" form={`add-${r.productId}`}>
+                      Add
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      ) : null}
 
       {preview ? <PreviewPanel preview={preview} /> : null}
     </>
@@ -182,6 +253,48 @@ function PreviewPanel({ preview }: { preview: PreviewState }): ReactNode {
       ) : null}
     </>
   );
+}
+
+async function searchAction(formData: FormData): Promise<void> {
+  'use server';
+  const q = ((formData.get('q') as string) ?? '').trim();
+  const previewBlob = (formData.get('preview') as string) ?? '';
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  if (previewBlob) params.set('preview', previewBlob);
+  redirect(`/quick-order?${params.toString()}`);
+}
+
+async function addSearchResultAction(formData: FormData): Promise<void> {
+  'use server';
+  const session = await getSessionCookie();
+  if (!session) redirect('/login');
+
+  const productId = (formData.get('productId') as string) ?? '';
+  const sku = (formData.get('sku') as string) ?? '';
+  const q = ((formData.get('q') as string) ?? '').trim();
+  const quantity = Math.max(1, Number.parseInt((formData.get('quantity') as string) ?? '1', 10) || 1);
+
+  const preview: PreviewState = decodePreview((formData.get('preview') as string) ?? '') ?? {
+    recognized: [],
+    rejected: [],
+    summary: { recognizedCount: 0, rejectedCount: 0, mergedCount: 0, truncated: false },
+  };
+
+  // If the product is already in the list, bump its quantity; else append.
+  const existing = preview.recognized.find((r) => r.productId === productId && !r.variantId);
+  if (existing) {
+    existing.quantity += quantity;
+  } else {
+    const nextLine = preview.recognized.reduce((max, r) => Math.max(max, r.line), 0) + 1;
+    preview.recognized.push({ line: nextLine, sku, productId, variantId: null, quantity });
+  }
+  preview.summary = { ...preview.summary, recognizedCount: preview.recognized.length };
+
+  const params = new URLSearchParams();
+  params.set('preview', encodePreview(preview));
+  if (q) params.set('q', q);
+  redirect(`/quick-order?${params.toString()}`);
 }
 
 async function importAction(formData: FormData): Promise<void> {
