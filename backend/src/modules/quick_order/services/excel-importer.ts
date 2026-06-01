@@ -1,4 +1,4 @@
-import ExcelJS from 'exceljs';
+import exceljs from 'exceljs';
 import { rowsFromTable, type ParseOutcome } from './import-rows.js';
 
 /**
@@ -10,7 +10,7 @@ import { rowsFromTable, type ParseOutcome } from './import-rows.js';
  * import pipeline only ever sees normalized rows.
  */
 export async function parseXlsxRows(content: Buffer): Promise<ParseOutcome> {
-  const workbook = new ExcelJS.Workbook();
+  const workbook = new exceljs.Workbook();
   // Hand exceljs a plain ArrayBuffer slice: @types/node now types Buffer as
   // the generic `Buffer<ArrayBufferLike>`, which is not assignable to the
   // `Buffer<ArrayBuffer>` exceljs's bundled typings expect.
@@ -23,7 +23,7 @@ export async function parseXlsxRows(content: Buffer): Promise<ParseOutcome> {
   if (!worksheet) return { headerOk: false, rows: [] };
 
   // exceljs rows + cells are 1-based; row.values[0] is unused.
-  const cellText = (cell: ExcelJS.Cell | undefined): string => {
+  const cellText = (cell: exceljs.Cell | undefined): string => {
     if (!cell) return '';
     const text = cell.text;
     return typeof text === 'string' ? text.trim() : String(cell.value ?? '').trim();

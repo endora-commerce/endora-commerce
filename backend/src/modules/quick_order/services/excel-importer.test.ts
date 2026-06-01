@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import ExcelJS from 'exceljs';
+import exceljs from 'exceljs';
 import { parseXlsxRows } from './excel-importer.js';
 
 async function buildXlsx(rows: Array<Array<string | number>>): Promise<Buffer> {
-  const workbook = new ExcelJS.Workbook();
+  const workbook = new exceljs.Workbook();
   const sheet = workbook.addWorksheet('Sheet1');
   for (const row of rows) sheet.addRow(row);
   const arrayBuffer = await workbook.xlsx.writeBuffer();

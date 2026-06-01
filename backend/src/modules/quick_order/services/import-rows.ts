@@ -71,7 +71,18 @@ export function rowsFromTable(
   const skuIdx = normalizedHeader.indexOf('sku');
   const qtyIdx = normalizedHeader.indexOf('quantity');
   if (skuIdx === -1 || qtyIdx === -1) {
-    return { headerOk: false, rows: [] };
+    // No usable header — surface every data row so the pipeline can reject
+    // each as `malformed_row` (preserves the line numbers for the UI).
+    return {
+      headerOk: false,
+      rows: dataRows.map(({ rowNumber, raw }) => ({
+        rowNumber,
+        raw,
+        sku: '',
+        quantityRaw: '',
+        attributes: {},
+      })),
+    };
   }
 
   const attributeColumns = normalizedHeader

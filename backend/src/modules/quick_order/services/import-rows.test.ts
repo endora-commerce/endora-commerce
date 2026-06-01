@@ -12,8 +12,11 @@ describe('parseCsvLine', () => {
 });
 
 describe('parseCsvRows', () => {
-  it('returns headerOk=false when sku/quantity headers are missing', () => {
-    expect(parseCsvRows('foo,bar\n1,2')).toEqual({ headerOk: false, rows: [] });
+  it('returns headerOk=false but preserves data rows when sku/quantity headers are missing', () => {
+    expect(parseCsvRows('foo,bar\n1,2')).toEqual({
+      headerOk: false,
+      rows: [{ rowNumber: 2, raw: '1,2', sku: '', quantityRaw: '', attributes: {} }],
+    });
   });
 
   it('returns headerOk=false for empty input', () => {
