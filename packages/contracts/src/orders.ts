@@ -84,6 +84,9 @@ export const orderSchema = z.object({
   placedOnBehalfByAdminUserId: uuidSchema.nullable(),
   salesChannelId: uuidSchema,
   status: orderStatusCodeSchema,
+  /** Localized status labels; resolve statusName[language] → statusDefaultName → status. */
+  statusName: multilingualStringSchema.optional(),
+  statusDefaultName: z.string().optional(),
   paymentStatus: paymentStatusSchema,
   deliveryAddress: addressSnapshotSchema,
   billingAddress: addressSnapshotSchema,

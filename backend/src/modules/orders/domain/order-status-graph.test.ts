@@ -5,8 +5,25 @@ import {
   materializeUniversalTransitions,
   OrderStatusConfigError,
   OrderStatusGraph,
+  resolveOrderStatusName,
   type OrderStatusDef,
 } from './order-status-graph.js';
+
+describe('resolveOrderStatusName', () => {
+  const def = { code: 'paid', name: { en: 'Paid', pl: 'Zapłacone' }, defaultName: 'Paid' };
+
+  it('returns the translation for the active language', () => {
+    expect(resolveOrderStatusName(def, 'pl')).toBe('Zapłacone');
+  });
+
+  it('falls back to the default name when the language is missing', () => {
+    expect(resolveOrderStatusName(def, 'de')).toBe('Paid');
+  });
+
+  it('falls back to the code when neither a translation nor a default name exists', () => {
+    expect(resolveOrderStatusName({ code: 'x', name: {}, defaultName: '' }, 'pl')).toBe('x');
+  });
+});
 
 describe('OrderStatusGraph — default seed', () => {
   const graph = buildDefaultGraph();

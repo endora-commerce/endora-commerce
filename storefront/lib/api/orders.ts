@@ -25,6 +25,17 @@ export type NextAction =
     }
   | { kind: 'redirect_to_gateway'; url: string; expiresAt: string };
 
+/**
+ * Resolve an order's status label for the active locale (feature 039):
+ * statusName[locale] → statusDefaultName → raw status code.
+ */
+export function resolveOrderStatusLabel(
+  order: { status: string; statusName?: Record<string, string>; statusDefaultName?: string },
+  locale: string,
+): string {
+  return order.statusName?.[locale] ?? order.statusDefaultName ?? order.status;
+}
+
 export interface OrderItem {
   id: string;
   productId: string;
@@ -42,6 +53,9 @@ export interface OrderSummary {
   businessId: string;
   organizationId: string;
   status: string;
+  /** Feature 039 — localized status labels; resolve via resolveOrderStatusLabel. */
+  statusName?: Record<string, string>;
+  statusDefaultName?: string;
   paymentStatus: string;
   deliveryAddress: Record<string, string>;
   billingAddress: Record<string, string>;

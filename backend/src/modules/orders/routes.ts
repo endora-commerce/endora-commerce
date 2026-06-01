@@ -20,6 +20,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
 import type { OrderService } from './services/order-service.js';
 import type { OrderStatusGraphService } from './services/order-status-graph-service.js';
+import { OrderStatus } from './entities/order-status.entity.js';
 import type { OrderTransitionService } from './services/order-transition-service.js';
 import type { OrderListService, OrderListScope } from './services/order-list-service.js';
 import type { OrderListViewService } from './services/order-list-view-service.js';
@@ -595,6 +596,10 @@ function resolveAdminUserId(req: FastifyRequest): string | null {
 
 async function serializeOrder(em: EntityManager, order: Order): Promise<Record<string, unknown>> {
   const items = await em.find(OrderItem, { orderId: order.id });
+  // Status label payload (feature 039 follow-up): the localized name map + the
+  // language-independent default name, so any client resolves
+  // name[language] → defaultName → code in the viewer's language.
+  const statusDef = await em.findOne(OrderStatus, { code: order.status });
   return {
     id: order.id,
     businessId: order.businessId,
@@ -603,6 +608,8 @@ async function serializeOrder(em: EntityManager, order: Order): Promise<Record<s
     placedOnBehalfByAdminUserId: order.placedOnBehalfByAdminUserId ?? null,
     salesChannelId: order.salesChannelId,
     status: order.status,
+    statusName: statusDef?.name ?? {},
+    statusDefaultName: statusDef?.defaultName ?? order.status,
     paymentStatus: order.paymentStatus,
     deliveryAddress: order.deliveryAddress,
     billingAddress: order.billingAddress,

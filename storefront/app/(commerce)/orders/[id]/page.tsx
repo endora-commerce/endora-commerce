@@ -7,9 +7,11 @@ import {
   getMyOrder,
   listOrderComments,
   reorderOrder,
+  resolveOrderStatusLabel,
   type OrderComment,
 } from '../../../../lib/api/orders';
 import { getSessionCookie } from '../../../../lib/session';
+import { getServerContext } from '../../../../lib/server-context';
 import { StorefrontApiError } from '../../../../lib/api/client';
 
 /**
@@ -50,6 +52,7 @@ export default async function OrderConfirmationPage({
     comments = [];
   }
 
+  const { locale } = await getServerContext();
   // Terminal orders close commenting; a pending payment surfaces a Pay CTA.
   const isTerminal = order.status === 'completed' || order.status === 'cancelled';
   const awaitingPayment = !isTerminal && order.paymentStatus === 'awaiting_payment';
@@ -73,7 +76,7 @@ export default async function OrderConfirmationPage({
         <tbody>
           <tr>
             <th scope="row">Order status</th>
-            <td>{order.status}</td>
+            <td>{resolveOrderStatusLabel(order, locale)}</td>
           </tr>
           <tr>
             <th scope="row">Payment status</th>
