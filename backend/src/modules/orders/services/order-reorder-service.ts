@@ -62,7 +62,7 @@ export class OrderReorderService {
     const items = await em.find(OrderItem, { orderId });
     const productIds = [...new Set(items.map((it) => it.productId))];
     const products = await em.find(Product, { id: { $in: productIds } });
-    const available = new Map(products.filter((p) => p.status !== 'archived' && !p.deletedAt).map((p) => [p.id, p]));
+    const available = new Map(products.filter((p) => p.status !== 'inactive' && !p.deletedAt).map((p) => [p.id, p]));
 
     const unavailableItems: ReorderUnavailableItem[] = [];
     const reorderable = items.filter((it) => {

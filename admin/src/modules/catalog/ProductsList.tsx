@@ -39,14 +39,14 @@ interface AdminProduct {
   sku: string;
   slug: string;
   type: string;
-  status: 'draft' | 'active' | 'archived' | 'inactive';
+  status: 'draft' | 'active' | 'inactive';
   name: Record<string, string>;
   visibility: string;
   attributeValues: Record<string, unknown>;
   updatedAt: string;
 }
 
-type StatusFilter = 'all' | 'active' | 'draft' | 'archived';
+type StatusFilter = 'all' | 'active' | 'draft' | 'inactive';
 type StockFilter = 'all' | 'low' | 'out';
 type TypeFilter = 'all' | 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
 type SelectionMode = 'none' | 'page' | 'collection';
@@ -77,7 +77,7 @@ const STOCK_CYCLE: StockFilter[] = ['all', 'low', 'out'];
 interface ProductsResponse {
   data: AdminProduct[];
   pagination: { page: number; pageSize: number; total: number };
-  counts: { all: number; active: number; draft: number; archived: number };
+  counts: { all: number; active: number; draft: number; inactive: number };
 }
 
 export function ProductsList(): ReactNode {
@@ -85,8 +85,8 @@ export function ProductsList(): ReactNode {
   const navigate = useNavigate();
   const [rows, setRows] = useState<AdminProduct[]>([]);
   const [total, setTotal] = useState(0);
-  const [counts, setCounts] = useState<{ all: number; active: number; draft: number; archived: number }>(
-    { all: 0, active: 0, draft: 0, archived: 0 },
+  const [counts, setCounts] = useState<{ all: number; active: number; draft: number; inactive: number }>(
+    { all: 0, active: 0, draft: 0, inactive: 0 },
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +96,7 @@ export function ProductsList(): ReactNode {
   const [stockFilter, setStockFilter] = useState<StockFilter>('all');
   const [selection, setSelection] = useState<ProductListSelection>(emptySelection);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [bulkEditProductIds, setBulkEditProductIds] = useState<string[]>([]);
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [resolvingSelection, setResolvingSelection] = useState(false);
@@ -288,6 +289,38 @@ export function ProductsList(): ReactNode {
     }
   };
 
+  const handleBulkDelete = (): void => {
+    if (deleting || selectedCount === 0) return;
+    if (!confirm(t('productsList.bulk.deleteConfirm', { count: selectedCount }))) return;
+
+    setDeleting(true);
+    setError(null);
+    // Resolve the full selection (page or "all matching" collection scope —
+    // feature 033) before deleting; collect per-item failures (feature 032).
+    void runWithResolvedIds(async (ids) => {
+      const failed: Array<{ id: string; message: string }> = [];
+      for (const id of ids) {
+        try {
+          await apiClient.delete<void>(`/api/v1/admin/catalog/products/${id}`);
+        } catch (err) {
+          const message =
+            err instanceof ApiError
+              ? err.envelope.error.message
+              : t('productsList.bulk.deleteFailed');
+          failed.push({ id, message });
+        }
+      }
+      if (failed.length > 0) {
+        setError(failed.map((f) => f.message).join(' · '));
+      } else {
+        clearSelection();
+      }
+      await refresh();
+    }).finally(() => {
+      setDeleting(false);
+    });
+  };
+
   return (
     <div className="b2b-page b2b-page--wide">
       <div className="b2b-page-head">
@@ -336,7 +369,7 @@ export function ProductsList(): ReactNode {
             <Tab id="all" label={t('productsList.tab.all')} count={counts.all} active={statusFilter} onChange={setStatusFilter} />
             <Tab id="active" label={t('productsList.tab.active')} count={counts.active} active={statusFilter} onChange={setStatusFilter} />
             <Tab id="draft" label={t('productsList.tab.draft')} count={counts.draft} active={statusFilter} onChange={setStatusFilter} />
-            <Tab id="archived" label={t('productsList.tab.archived')} count={counts.archived} active={statusFilter} onChange={setStatusFilter} />
+            <Tab id="inactive" label={t('productsList.tab.inactive')} count={counts.inactive} active={statusFilter} onChange={setStatusFilter} />
           </div>
           </div>
         </div>
@@ -469,18 +502,10 @@ export function ProductsList(): ReactNode {
               <button
                 type="button"
                 className="b2b-btn b2b-btn--danger"
-                disabled={resolvingSelection}
-                onClick={(): void => {
-                  void runWithResolvedIds(async (ids) => {
-                    for (const id of ids) {
-                      await apiClient.delete(`/api/v1/admin/catalog/products/${id}`);
-                    }
-                    void refresh();
-                    clearSelection();
-                  });
-                }}
+                disabled={deleting || resolvingSelection}
+                onClick={handleBulkDelete}
               >
-                <Trash2 size={13} /> {t('productsList.bulk.delete')}
+                <Trash2 size={13} /> {deleting ? '…' : t('productsList.bulk.delete')}
               </button>
             </div>
             <button
@@ -708,10 +733,9 @@ function StatusPill({ status }: { status: AdminProduct['status'] }): ReactNode {
   const map: Record<AdminProduct['status'], { cls: string; label: string }> = {
     active: { cls: 'b2b-badge--success', label: 'Active' },
     draft: { cls: 'b2b-badge--warn', label: 'Draft' },
-    archived: { cls: '', label: 'Archived' },
     inactive: { cls: '', label: 'Inactive' },
-  };
-  const v = map[status] ?? { cls: '', label: status };
+  } as const;
+  const v = map[status];
   return <span className={cn('b2b-badge', 'b2b-badge--dot', v.cls)}>{v.label}</span>;
 }
 

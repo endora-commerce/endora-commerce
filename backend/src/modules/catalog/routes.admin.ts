@@ -247,7 +247,7 @@ export async function registerCatalogAdminRoutes(
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
       const auditCtx = deps.resolveAdminAuditContext?.(request);
-      await adminService.archiveProduct(
+      await adminService.deleteProduct(
         request.params.id,
         auditCtx
           ? {
@@ -358,9 +358,11 @@ export async function registerCatalogAdminRoutes(
       const includeArchived = q['includeArchived'] === '1' || q['includeArchived'] === 'true';
       const statusRaw = q['status'];
       const status =
-        statusRaw === 'active' || statusRaw === 'draft' || statusRaw === 'archived'
+        statusRaw === 'active' || statusRaw === 'draft' || statusRaw === 'inactive'
           ? statusRaw
-          : undefined;
+          : statusRaw === 'archived'
+            ? 'inactive'
+            : undefined;
       const typeRaw = q['type'];
       const type =
         typeRaw === 'simple' ||

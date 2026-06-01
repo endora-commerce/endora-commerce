@@ -46,6 +46,7 @@
   "state.missing": "missing",
   "state.system": "system",
   "status.archived": "archived",
+  "status.inactive": "inactive",
   "status.draft": "draft",
   "status.published": "published",
   "categoryEditor.assetPlaceholder": "00000000-0000-...",

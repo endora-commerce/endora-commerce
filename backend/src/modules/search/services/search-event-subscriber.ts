@@ -16,6 +16,7 @@ import { SEARCH_SETTING_CODES } from '../manifest.js';
  *   - `product.created.v1`  → upsertProduct
  *   - `product.updated.v1`  → upsertProduct
  *   - `product.archived.v1` → deleteProduct
+ *   - `product.deleted.v1`  → deleteProduct
  *   - `attribute.updated.v1` → refreshAttributeSettings
  *
  * Feature 006 / T027 also attaches the LLM-augmented-search reactor:
@@ -38,6 +39,7 @@ interface CatalogEvents extends Record<string, EventBase> {
   'product.created.v1': EventBase & { productId: string; sku: string };
   'product.updated.v1': EventBase & { productId: string; changedFields: string[] };
   'product.archived.v1': EventBase & { productId: string };
+  'product.deleted.v1': EventBase & { productId: string };
   'attribute.updated.v1': EventBase & {
     key: string;
     isSearchable: boolean;
@@ -111,6 +113,15 @@ export class SearchEventSubscriber {
           await indexer.deleteProduct(emFactory(), payload.productId);
         } catch (err) {
           log(err, 'product.archived.v1');
+        }
+      }),
+    );
+    this.unsubscribers.push(
+      eventBus.on('product.deleted.v1', async (payload) => {
+        try {
+          await indexer.deleteProduct(emFactory(), payload.productId);
+        } catch (err) {
+          log(err, 'product.deleted.v1');
         }
       }),
     );

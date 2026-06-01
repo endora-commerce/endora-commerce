@@ -252,7 +252,7 @@ export class ShoppingListService {
         skipped.push({ itemId: item.id, productId: item.productId, reason: 'product_not_found' });
         continue;
       }
-      if (product.status === 'archived' || product.deletedAt) {
+      if (product.status === 'inactive' || product.deletedAt) {
         skipped.push({ itemId: item.id, productId: item.productId, reason: 'product_archived' });
         continue;
       }

@@ -31,7 +31,7 @@ describe('QuickOrderImportPipeline', () => {
   it('recognizes valid rows and rejects unknown / archived / bad-qty / missing-sku rows', async () => {
     const pipeline = new QuickOrderImportPipeline(
       lookupOf({
-        products: [ACTIVE('p1', 'ABC'), { id: 'p2', sku: 'OLD', status: 'archived', deletedAt: null }],
+        products: [ACTIVE('p1', 'ABC'), { id: 'p2', sku: 'OLD', status: 'inactive', deletedAt: null }],
       }),
     );
     const csv = ['sku,quantity', 'ABC,2', 'NOPE,1', 'OLD,1', 'ABC,0', ',3'].join('\n');

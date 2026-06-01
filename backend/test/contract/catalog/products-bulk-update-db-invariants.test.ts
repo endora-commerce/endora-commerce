@@ -116,7 +116,7 @@ describe('Feature 022 — POST /products/bulk-update (DB-level invariants)', () 
       url: '/api/v1/admin/catalog/products/bulk-update',
       payload: {
         productIds: [a, b],
-        fields: { status: 'archived' },
+        fields: { status: 'inactive' },
       },
       cookies: adminCookie,
     });
@@ -124,7 +124,7 @@ describe('Feature 022 — POST /products/bulk-update (DB-level invariants)', () 
 
     for (const id of [a, b]) {
       const row = await readProductStatusRow(id);
-      expect(row.status).toBe('archived');
+      expect(row.status).toBe('inactive');
       expect(row.archivedAt).not.toBeNull();
       expect(new Date(row.archivedAt!).getTime()).toBeGreaterThanOrEqual(before);
     }

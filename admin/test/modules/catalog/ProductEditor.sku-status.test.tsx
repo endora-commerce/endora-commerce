@@ -128,6 +128,14 @@ describe('ProductEditor — SKU and status save (feature 025)', () => {
     expect(body['status']).toBe('active');
   });
 
+  it('status select offers inactive (not archived)', async () => {
+    renderEditor();
+    const statusSelect = await screen.findByLabelText('productEditor.field.status');
+    const options = Array.from(statusSelect.querySelectorAll('option')).map((o) => o.value);
+    expect(options).toContain('inactive');
+    expect(options).not.toContain('archived');
+  });
+
   it('surfaces sku_in_use error from the API', async () => {
     const user = userEvent.setup();
     patchSpy.mockRejectedValueOnce(

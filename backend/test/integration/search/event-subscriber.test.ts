@@ -102,7 +102,7 @@ describe('SearchEventSubscriber — incremental index updates', () => {
   it('product.archived.v1 removes the document from every channel index', async () => {
     const em = h.em();
     const product = await em.findOneOrFail(Product, { sku: 'EVT-CREATED-001' });
-    product.status = 'archived';
+    product.status = 'inactive';
     product.archivedAt = new Date();
     await em.flush();
 

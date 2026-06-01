@@ -17,6 +17,7 @@ export const RECENT_ACTIVITY_ACTIONS = [
   'product.create',
   'product.update',
   'product.archive',
+  'product.delete',
   'product.unarchive',
   'product.bulk_update',
   // inventory

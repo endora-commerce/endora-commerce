@@ -11,7 +11,7 @@ interface AdminProduct {
   id: string;
   sku: string;
   slug: string;
-  status: 'draft' | 'active' | 'archived';
+  status: 'draft' | 'active' | 'inactive';
   name: Record<string, string>;
 }
 
@@ -103,12 +103,12 @@ export function RelatedProductsPicker({
           <div className="mt-2 flex flex-col gap-2">
             {value.map((id, idx) => {
               const product = productsById.get(id);
-              const archived = product?.status === 'archived';
+              const inactive = product?.status === 'inactive';
               return (
                 <div
                   key={id}
                   className={`flex items-center gap-2 rounded border px-2 py-1 text-sm ${
-                    !product || archived ? 'opacity-60' : ''
+                    !product || inactive ? 'opacity-60' : ''
                   }`}
                 >
                   <span className="flex-1 font-medium">
@@ -117,9 +117,9 @@ export function RelatedProductsPicker({
                   <Badge variant="outline" className="font-mono text-[10px]">
                     {product?.sku ?? id.slice(0, 8)}
                   </Badge>
-                  {archived ? (
+                  {inactive ? (
                     <Badge variant="outline" className="text-[10px]">
-                      {t('status.archived')}
+                      {t('status.inactive')}
                     </Badge>
                   ) : null}
                   {!product ? (

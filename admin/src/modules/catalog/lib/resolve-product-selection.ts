@@ -1,7 +1,7 @@
 import { apiClient } from '@/lib/api-client';
 
 export interface ListFilterSnapshot {
-  status: 'all' | 'active' | 'draft' | 'archived';
+  status: 'all' | 'active' | 'draft' | 'inactive';
   type: 'all' | 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
   q: string;
 }

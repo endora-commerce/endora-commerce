@@ -231,8 +231,8 @@ export class CatalogQueryService {
     if (!product || product.deletedAt) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
-    if (product.status === 'archived') {
-      throw new HttpError(410, ERROR_CODES.PRODUCT_ARCHIVED, 'Product is archived.');
+    if (product.status === 'inactive') {
+      throw new HttpError(410, ERROR_CODES.PRODUCT_ARCHIVED, 'Product is inactive.');
     }
 
     // Visibility — if the product is not associated with the requested channel,

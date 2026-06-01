@@ -15,6 +15,8 @@ Auto-generated from all feature plans. Last updated: 2026-05-26
 - No schema change. `admin_roles.permissions` JSONB unchanged. Catalogue is computed in-process (optional short-lived cache invalidated on `b2b:module:state-changed`). (026-admin-roles-permissions)
 - TypeScript 5.x strict; Node.js LTS ≥ 22.17 (per `admin/package.json` engines). Browser target: evergreen mobile Safari/Chrome (admin Vite SPA). + Existing stack only — React 19, Vite 7, react-router-dom 7, Tailwind CSS 4 (`@tailwindcss/vite`), shadcn/Radix primitives, `lucide-react`, `@b2b/api-client`, `@b2b/contracts`, `@measured/puck` (CMS editors). **No new runtime dependency.** (029-admin-mobile-ui)
 - N/A — no database, cache, or schema changes. All state is client-side (drawer open, viewport tier, existing `localStorage` rail preference). (029-admin-mobile-ui)
+- TypeScript 5.x strict on Node.js LTS ≥ 22.17 (backend + admin), per README and `backend/package.json` engines. + Existing stack — Fastify, MikroORM, Zod, Vitest, ioredis/event bus (search reindex), React 19 + Vite (admin). **No new runtime dependency.** (032-product-lifecycle)
+- PostgreSQL — `products.status` is `varchar(16)` (not a PG enum); migrate `archived` → `inactive`. Reuse `products.deleted_at` for deletion; keep `archived_at` as withdrawal timestamp when status becomes `inactive`. (032-product-lifecycle)
 - TypeScript 5.x strict on Node.js LTS ≥ 22.17 (backend + admin), per `README` and `backend/package.json` engines. + Existing stack — Fastify, MikroORM, Zod, Vitest (backend); React 19 + Vite (admin). **No new runtime dependency.** (033-products-collection-select)
 - PostgreSQL — read-only `SELECT id` on `products`; no schema change. (033-products-collection-select)
 
@@ -36,6 +38,7 @@ npm test && npm run lint
 TypeScript 5.x strict, Node.js LTS per root `README` (≥ 22.x).: Follow standard conventions
 
 ## Recent Changes
+- 032-product-lifecycle: Added TypeScript 5.x strict on Node.js LTS ≥ 22.17 (backend + admin), per README and `backend/package.json` engines. + Existing stack — Fastify, MikroORM, Zod, Vitest, ioredis/event bus (search reindex), React 19 + Vite (admin). **No new runtime dependency.**
 - 026-admin-roles-permissions: Added TypeScript 5.x strict on Node.js LTS ≥ 22.17 (backend, contracts, admin), per `backend/package.json` engines and README. + Existing stack only — Fastify, MikroORM (PostgreSQL driver), Zod, ioredis (module enabled-set cache + pub/sub from feature 018), Vite, React 19, react-router-dom 7. **No new runtime dependency.**
 - 033-products-collection-select: Added TypeScript 5.x strict on Node.js LTS ≥ 22.17 (backend + admin), per `README` and `backend/package.json` engines. + Existing stack — Fastify, MikroORM, Zod, Vitest (backend); React 19 + Vite (admin). **No new runtime dependency.**
 - 029-admin-mobile-ui: Added TypeScript 5.x strict; Node.js LTS ≥ 22.17 (per `admin/package.json` engines). Browser target: evergreen mobile Safari/Chrome (admin Vite SPA). + Existing stack only — React 19, Vite 7, react-router-dom 7, Tailwind CSS 4 (`@tailwindcss/vite`), shadcn/Radix primitives, `lucide-react`, `@b2b/api-client`, `@b2b/contracts`, `@measured/puck` (CMS editors). **No new runtime dependency.**

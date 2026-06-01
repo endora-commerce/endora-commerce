@@ -52,7 +52,9 @@ interface ResolvedLine {
 }
 
 function isPurchasable(product: ProductLike): boolean {
-  return product.status !== 'archived' && !product.deletedAt;
+  // Feature 032 renamed the withdrawn product status `archived` → `inactive`.
+  // The `product_archived` rejection reason code is kept for contract stability.
+  return product.status !== 'inactive' && !product.deletedAt;
 }
 
 /**

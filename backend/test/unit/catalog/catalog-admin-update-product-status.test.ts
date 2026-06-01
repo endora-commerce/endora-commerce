@@ -14,6 +14,7 @@ import {
  *
  * Tests run through the HTTP layer because the cross-field semantics
  * around `archivedAt` are encoded in `CatalogAdminService.updateProduct`
+ * (feature 032: `inactive` replaces `archived`)
  * and the simplest fixture is the existing PATCH route.
  */
 describe('Feature 022 — updateProduct.status cross-field rule', () => {
@@ -48,31 +49,30 @@ describe('Feature 022 — updateProduct.status cross-field rule', () => {
     return (res.json() as { data: { id: string } }).data.id;
   }
 
-  it('PATCH { status: "archived" } sets archivedAt to a fresh timestamp', async () => {
-    const id = await createProduct('STATUS-ARCH-001');
+  it('PATCH { status: "inactive" } sets archivedAt to a fresh timestamp', async () => {
+    const id = await createProduct('STATUS-INACT-001');
     const before = Date.now();
     const res = await h.app.inject({
       method: 'PATCH',
       url: `/api/v1/admin/catalog/products/${id}`,
-      payload: { status: 'archived' },
+      payload: { status: 'inactive' },
       cookies: adminCookie,
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
       data: { status: string; archivedAt: string | null };
     };
-    expect(body.data.status).toBe('archived');
+    expect(body.data.status).toBe('inactive');
     expect(body.data.archivedAt).not.toBeNull();
     expect(new Date(body.data.archivedAt!).getTime()).toBeGreaterThanOrEqual(before);
   });
 
-  it('PATCH { status: "active" } on an archived product clears archivedAt', async () => {
+  it('PATCH { status: "active" } on an inactive product clears archivedAt', async () => {
     const id = await createProduct('STATUS-REACT-001');
-    // First archive it.
     const archive = await h.app.inject({
       method: 'PATCH',
       url: `/api/v1/admin/catalog/products/${id}`,
-      payload: { status: 'archived' },
+      payload: { status: 'inactive' },
       cookies: adminCookie,
     });
     expect(archive.statusCode).toBe(200);
