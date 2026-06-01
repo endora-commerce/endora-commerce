@@ -35,6 +35,9 @@ import { OrderExportService } from './services/order-export-service.js';
 import { OrderCommentService } from './services/order-comment-service.js';
 import { OrderReorderService } from './services/order-reorder-service.js';
 import { OrderCloneToQuoteService } from './services/order-clone-to-quote-service.js';
+import { OrderConfirmationService } from './services/order-confirmation-service.js';
+import type { OrganizationConfirmationEmailsPort } from './ports/organization-confirmation-emails.port.js';
+import { Organization } from '../organizations/entities/organization.entity.js';
 import { createBusinessIdGenerator } from './services/business-id-generator.js';
 import { registerCartRoutes } from '../carts/routes.js';
 import { registerOrderRoutes } from './routes.js';
@@ -217,6 +220,8 @@ export interface OrdersModuleOptions {
   resolveOrderBusinessIdSuffix?: (salesChannelId: string) => Promise<string>;
   /** Feature 038 US6 — resolves `orders.reorder_enabled` per Sales Channel. Omit ⇒ enabled. */
   resolveReorderEnabled?: (salesChannelId: string) => Promise<boolean>;
+  /** Feature 038 US4 — resolves `orders.confirmation_recipients` per Sales Channel. Omit ⇒ none. */
+  resolveOrderConfirmationRecipients?: (salesChannelId: string) => Promise<string[]>;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -285,6 +290,18 @@ export function commerceModule(options: OrdersModuleOptions) {
         : undefined,
     );
 
+    // Feature 038 US4 — additional confirmation recipients (per-org + scope).
+    const orgConfirmationEmailsPort: OrganizationConfirmationEmailsPort = {
+      getConfirmationEmails: async (organizationId: string) => {
+        const org = await options.emFactory().findOne(Organization, { id: organizationId });
+        return org?.orderConfirmationEmails ?? [];
+      },
+    };
+    const orderConfirmationService = new OrderConfirmationService(
+      orgConfirmationEmailsPort,
+      options.resolveOrderConfirmationRecipients,
+    );
+
     const orderService = new OrderService(
       options.emFactory,
       options.eventBus as OrderEventBus,
@@ -296,6 +313,8 @@ export function commerceModule(options: OrdersModuleOptions) {
         orderStatusRegistry,
         shippingAdapters: shippingAdapterRegistry,
         businessId: businessIdGenerator,
+        confirmationRecipients: (input) =>
+          orderConfirmationService.resolveAdditional(input.organizationId, input.salesChannelId),
         // Feature 036 (US3) — PromotionService satisfies PromotionPort
         // structurally; threaded so placeOrder stamps the cart's coupon
         // discount onto the Order.

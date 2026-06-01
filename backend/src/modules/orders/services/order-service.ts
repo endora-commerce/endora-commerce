@@ -115,6 +115,13 @@ export class OrderService {
   private readonly businessId: BusinessIdGenerator | undefined;
   /** Feature 036 (US3) — recomputes the cart's coupon discount at placement. */
   private readonly promotion: PromotionPort | undefined;
+  /**
+   * Feature 038 (US4) — resolves the additional confirmation recipients (per-org
+   * + Settings-scoped) for an order. Optional; omit ⇒ only the customer is sent.
+   */
+  private readonly confirmationRecipients:
+    | ((input: { organizationId: string; salesChannelId: string }) => Promise<string[]>)
+    | undefined;
 
   constructor(
     private readonly emFactory: () => EntityManager,
@@ -129,6 +136,10 @@ export class OrderService {
       mailer?: Mailer;
       businessId?: BusinessIdGenerator;
       promotion?: PromotionPort;
+      confirmationRecipients?: (input: {
+        organizationId: string;
+        salesChannelId: string;
+      }) => Promise<string[]>;
     },
   ) {
     this.accessService = accessService ?? new OrderAccessService(emFactory);
@@ -138,6 +149,7 @@ export class OrderService {
     this.mailer = paymentDeps?.mailer;
     this.businessId = paymentDeps?.businessId;
     this.promotion = paymentDeps?.promotion;
+    this.confirmationRecipients = paymentDeps?.confirmationRecipients;
   }
 
   /**
@@ -189,6 +201,29 @@ export class OrderService {
       })),
     });
     await this.mailer.send(message);
+
+    // Feature 038 (US4) — CC the per-organization + Settings-scoped recipients.
+    // Each send is independent and best-effort: a bad recipient is recorded by
+    // the mailer but never blocks placement or the other recipients.
+    if (this.confirmationRecipients) {
+      let extra: string[] = [];
+      try {
+        extra = await this.confirmationRecipients({
+          organizationId: order.organizationId,
+          salesChannelId: order.salesChannelId,
+        });
+      } catch {
+        extra = [];
+      }
+      for (const recipient of extra) {
+        if (recipient.toLowerCase() === customer.email.toLowerCase()) continue;
+        try {
+          await this.mailer.send({ ...message, to: recipient, messageId: `${message.messageId}:${recipient}` });
+        } catch {
+          // best-effort per recipient
+        }
+      }
+    }
   }
 
   /**

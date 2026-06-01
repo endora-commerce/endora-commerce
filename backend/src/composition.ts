@@ -624,6 +624,19 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           return true;
         }
       },
+      // Feature 038 US4 — additional order-confirmation recipients per scope.
+      resolveOrderConfirmationRecipients: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'orders.confirmation_recipients',
+            salesChannelId,
+            z.array(z.string()),
+          );
+        } catch {
+          return [];
+        }
+      },
       getRfqService: () => quoteRequests?.handle().rfqService ?? null,
       appendShoppingListToCart: async (input) => {
         if (!shoppingListService) {
