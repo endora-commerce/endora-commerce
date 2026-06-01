@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, type CartMergeOutcome } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
@@ -7,6 +8,10 @@ import { Product } from '../../catalog/entities/product.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import type { PricingService } from '../../price_lists/services/pricing-service.js';
+import type { CartApprovalService } from './cart-approval-service.js';
+import type { CartAuditService } from './cart-audit-service.js';
+import type { CartRecomputeCache } from './cart-recompute-cache.js';
+import type { DisplayMode } from '@b2b/contracts';
 
 /**
  * CartService (T125).
@@ -26,8 +31,20 @@ export interface AnonymousContext {
 
 export interface CustomerContext {
   customerAccountId: string;
-  organizationId: string;
+  /**
+   * Feature 026 US2 — null for guest-style Customer accounts that have no
+   * Organization. Carts already persist `organization_id` nullable, so the
+   * service handles either case (no-org carts fall back to platform-default
+   * prices via PricingService).
+   */
+  organizationId: string | null;
 }
+
+/**
+ * Cart-line hard cap (feature 027 FR-001 / spec edge case "Cart contents
+ * cap"). The 201st distinct line is refused with HTTP 422.
+ */
+export const CART_MAX_LINES = 200;
 
 export class CartService {
   /**
@@ -45,10 +62,31 @@ export class CartService {
    * therefore won't apply on the cart line until cart-side channel
    * tracking lands.
    */
+  /**
+   * `approvalService` and `auditService` are optional — when wired
+   * (production composition), any buyer-driven mutation on an
+   * `approved` cart re-arms approval to `pending` and a typed audit
+   * row is landed (line_added / line_qty_changed / line_removed).
+   * Foundation tests and legacy test rigs that don't wire either still
+   * construct the service without them; both hooks no-op when absent.
+   */
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly pricingService?: PricingService,
+    private readonly approvalService?: CartApprovalService,
+    private readonly auditService?: CartAuditService,
+    private readonly recomputeCache?: CartRecomputeCache,
   ) {}
+
+  /** Invalidate the per-cart price-recompute cache on every cart-side write. */
+  async #invalidateRecomputeCache(cartId: string): Promise<void> {
+    if (!this.recomputeCache) return;
+    try {
+      await this.recomputeCache.invalidate(cartId);
+    } catch {
+      // Cache invalidation is best-effort — never block a write.
+    }
+  }
 
   async getOrCreateForCustomer(ctx: CustomerContext): Promise<Cart> {
     const em = this.emFactory();
@@ -121,8 +159,20 @@ export class CartService {
     });
     if (existing) {
       existing.quantity += input.quantity;
+      cart.lastActivityAt = new Date();
       await em.flush();
     } else {
+      // Feature 027 FR-001: enforce the 200-line cap on the 201st distinct
+      // (productId, variantId) pair. Foundation duplicate-summation above
+      // does not trigger the cap.
+      const currentLineCount = await em.count(CartItem, { cartId: cart.id });
+      if (currentLineCount >= CART_MAX_LINES) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.CART_LINE_CAP_EXCEEDED,
+          'cart_line_cap_exceeded',
+        );
+      }
       const resolved = await this.#resolveLineUnitPrice(em, {
         product,
         organizationId: actor.customer?.organizationId ?? null,
@@ -152,8 +202,32 @@ export class CartService {
             )).toFixed(2),
         currency: resolved?.currency ?? 'PLN',
       });
-      await em.persistAndFlush(item);
+      em.persist(item);
+      cart.lastActivityAt = new Date();
+      await em.flush();
     }
+
+    if (this.approvalService && actor.customer) {
+      await this.approvalService.maybeReArm(cart, {
+        customerAccountId: actor.customer.customerAccountId,
+      });
+    }
+
+    if (this.auditService) {
+      await this.auditService.record({
+        cartId: cart.id,
+        actorType: actor.customer ? 'customer' : 'system',
+        ...(actor.customer ? { actorId: actor.customer.customerAccountId } : {}),
+        action: 'line_added',
+        metadata: {
+          productId: input.productId,
+          ...(input.variantId ? { variantId: input.variantId } : {}),
+          quantity: input.quantity,
+        },
+      });
+    }
+
+    await this.#invalidateRecomputeCache(cart.id);
 
     const items = await em.find(CartItem, { cartId: cart.id });
     return { cart, items };
@@ -178,7 +252,7 @@ export class CartService {
     amount: string;
     currency: string;
     priceListId: string;
-    displayMode: import('@b2b/contracts').DisplayMode;
+    displayMode: DisplayMode;
   } | null> {
     if (!this.pricingService) return null;
     try {
@@ -220,12 +294,34 @@ export class CartService {
     if (!cart) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Cart not found.');
     this.#assertOwnership(cart, actor);
 
+    const oldQuantity = item.quantity;
     if (quantity <= 0) {
-      await em.removeAndFlush(item);
+      em.remove(item);
     } else {
       item.quantity = quantity;
-      await em.flush();
     }
+    cart.lastActivityAt = new Date();
+    await em.flush();
+    if (this.approvalService && actor.customer) {
+      await this.approvalService.maybeReArm(cart, {
+        customerAccountId: actor.customer.customerAccountId,
+      });
+    }
+    if (this.auditService) {
+      await this.auditService.record({
+        cartId: cart.id,
+        actorType: actor.customer ? 'customer' : 'system',
+        ...(actor.customer ? { actorId: actor.customer.customerAccountId } : {}),
+        action: quantity <= 0 ? 'line_removed' : 'line_qty_changed',
+        metadata: {
+          productId: item.productId,
+          ...(item.variantId ? { variantId: item.variantId } : {}),
+          oldQuantity,
+          newQuantity: quantity,
+        },
+      });
+    }
+    await this.#invalidateRecomputeCache(cart.id);
     const items = await em.find(CartItem, { cartId: cart.id });
     return { cart, items };
   }
@@ -240,18 +336,120 @@ export class CartService {
     const cart = await em.findOne(Cart, { id: item.cartId });
     if (!cart) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Cart not found.');
     this.#assertOwnership(cart, actor);
-    await em.removeAndFlush(item);
+    const removedProductId = item.productId;
+    const removedVariantId = item.variantId ?? null;
+    const removedQuantity = item.quantity;
+    em.remove(item);
+    cart.lastActivityAt = new Date();
+    await em.flush();
+    if (this.approvalService && actor.customer) {
+      await this.approvalService.maybeReArm(cart, {
+        customerAccountId: actor.customer.customerAccountId,
+      });
+    }
+    if (this.auditService) {
+      await this.auditService.record({
+        cartId: cart.id,
+        actorType: actor.customer ? 'customer' : 'system',
+        ...(actor.customer ? { actorId: actor.customer.customerAccountId } : {}),
+        action: 'line_removed',
+        metadata: {
+          productId: removedProductId,
+          ...(removedVariantId ? { variantId: removedVariantId } : {}),
+          quantity: removedQuantity,
+        },
+      });
+    }
+    await this.#invalidateRecomputeCache(cart.id);
     const items = await em.find(CartItem, { cartId: cart.id });
     return { cart, items };
   }
 
-  /** Merge anonymous cart items into the customer's cart at login time. */
-  async mergeAnonymousIntoCustomer(anonymousToken: string, ctx: CustomerContext): Promise<void> {
+  /**
+   * Explicit "this buyer just opened the cart page" ping (feature 027 §R4 /
+   * FR-032). Bumps `last_activity_at` and, if the cart had transitioned to
+   * `abandoned`, brings it back to `active` and clears
+   * `abandonment_notified_at` so the next abandonment cycle can notify
+   * again. No-op on a missing cart.
+   */
+  async touch(actor: { customer?: CustomerContext; anonymousToken?: string }): Promise<Cart | null> {
     const em = this.emFactory();
-    const anon = await em.findOne(Cart, { anonymousCartToken: anonymousToken, status: 'active' });
-    if (!anon) return;
-    const customerCart = await this.#getOrCreateForCustomerOn(em, ctx);
+    let cart: Cart | null = null;
+    if (actor.customer) {
+      cart = await em.findOne(Cart, {
+        customerAccountId: actor.customer.customerAccountId,
+        status: { $in: ['active', 'abandoned'] },
+      });
+    } else if (actor.anonymousToken) {
+      cart = await em.findOne(Cart, {
+        anonymousCartToken: actor.anonymousToken,
+        status: { $in: ['active', 'abandoned'] },
+      });
+    }
+    if (!cart) return null;
+    cart.lastActivityAt = new Date();
+    if (cart.status === 'abandoned') {
+      cart.status = 'active';
+      cart.abandonmentNotifiedAt = null;
+    }
+    await em.flush();
+    return cart;
+  }
 
+  /**
+   * Merge an anonymous cart's items into the customer's cart at login
+   * time (feature 037-cart-merge-on-login).
+   *
+   * Returns a `CartMergeOutcome` diagnostic the caller (the login route
+   * via the `onLogin` hook) uses to surface the result to the storefront
+   * and to decide whether to clear the stale `b2b_cart_anon` cookie.
+   * See specs/037-cart-merge-on-login/contracts/cart-merge.md § 3.
+   *
+   * State matrix:
+   *   - `adopted`        — the customer had no active cart; the anon
+   *     cart's lines were placed onto a freshly-created destination.
+   *   - `merged`         — the customer already had an active cart and
+   *     ≥ 1 anon line was moved or summed into it.
+   *   - `noop_empty`     — the anon cart was found but carried no items;
+   *     the source row is still flipped to `completed` + detokenised
+   *     (cleanup), no audit row is written.
+   *   - `noop_no_anon`   — no cart for the supplied token; no DB change.
+   *
+   * Coupons on the source cart are NOT carried to the destination
+   * (R-05 / FR-010 — the destination's existing `appliedPromotionCode`
+   * is preserved verbatim).
+   */
+  async mergeAnonymousIntoCustomer(
+    anonymousToken: string,
+    ctx: CustomerContext,
+  ): Promise<CartMergeOutcome> {
+    const em = this.emFactory();
+    // Look up the source first so the noop_no_anon branch can skip the
+    // destination-cart creation. Per the spec, the diagnostic still
+    // includes a destinationCartId so the storefront has a stable id to
+    // re-read its cart from on next render.
+    const anon = await em.findOne(Cart, { anonymousCartToken: anonymousToken, status: 'active' });
+    if (!anon) {
+      const destForNoop = await this.#getOrCreateForCustomerOn(em, ctx);
+      return {
+        outcome: 'noop_no_anon',
+        movedLineCount: 0,
+        summedLineCount: 0,
+        destinationCartId: destForNoop.id,
+      };
+    }
+
+    // Detect "the customer's destination cart was newly created right now":
+    // peek for an existing active cart row BEFORE calling the get-or-create
+    // helper. If absent and the source has items, we will return `adopted`.
+    const preExistingDest = await em.findOne(Cart, {
+      customerAccountId: ctx.customerAccountId,
+      status: 'active',
+    });
+    const customerCart = preExistingDest ?? (await this.#getOrCreateForCustomerOn(em, ctx));
+
+    let movedLineCount = 0;
+    let summedLineCount = 0;
     const anonItems = await em.find(CartItem, { cartId: anon.id });
     for (const item of anonItems) {
       const existing = await em.findOne(CartItem, {
@@ -261,13 +459,56 @@ export class CartService {
       });
       if (existing) {
         existing.quantity += item.quantity;
+        summedLineCount += 1;
       } else {
         item.cartId = customerCart.id;
+        movedLineCount += 1;
       }
     }
-    anon.status = 'abandoned';
+
+    // Merge complete — mark the source anonymous cart as `completed` even
+    // when the merge was a noop_empty (it never produced anything down-
+    // stream, but leaving it `active` would let the abandonment sweep
+    // pick it up later, and leaving the token live would let a second
+    // login try to re-merge an already-consumed source). Treating it as
+    // `abandoned` would falsely flag it for the abandonment-notification
+    // sweep. See feature 027 §R10.
+    anon.status = 'completed';
     anon.anonymousCartToken = null;
+
+    const isNoopEmpty = movedLineCount + summedLineCount === 0;
+    const outcome: CartMergeOutcome['outcome'] = isNoopEmpty
+      ? 'noop_empty'
+      : preExistingDest
+        ? 'merged'
+        : 'adopted';
+
+    // Audit only on observable state-changes on the destination cart
+    // (R-08). noop_empty and noop_no_anon are not destination-state
+    // changes and are observable in the application log instead.
+    if ((outcome === 'adopted' || outcome === 'merged') && this.auditService) {
+      const sourceAnonTokenHash = createHash('sha256').update(anonymousToken).digest('hex');
+      await this.auditService.record({
+        cartId: customerCart.id,
+        actorType: 'system',
+        action: 'cart_merged_from_anon',
+        metadata: {
+          sourceAnonTokenHash,
+          outcome,
+          movedLineCount,
+          summedLineCount,
+        },
+      });
+    }
+
     await em.flush();
+
+    return {
+      outcome,
+      movedLineCount,
+      summedLineCount,
+      destinationCartId: customerCart.id,
+    };
   }
 
   async clearForCustomer(ctx: CustomerContext): Promise<void> {
@@ -278,7 +519,7 @@ export class CartService {
     });
     if (!cart) return;
     await em.nativeDelete(CartItem, { cartId: cart.id });
-    cart.status = 'converted';
+    cart.status = 'completed';
     await em.flush();
   }
 

@@ -212,6 +212,15 @@ export class CatalogAdminService {
           `sku_in_use { conflictingProductId: ${conflict.id}, conflictingSku: ${trimmed} }`,
         );
       }
+      // Feature 025 — SKUs share a global namespace with variants (see createVariant).
+      const variantConflict = await em.findOne(ProductVariant, { sku: trimmed });
+      if (variantConflict) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          `sku_in_use { conflictingVariantId: ${variantConflict.id}, conflictingSku: ${trimmed} }`,
+        );
+      }
       product.sku = trimmed;
       changedFields.push('sku');
     }
@@ -740,6 +749,7 @@ export class CatalogAdminService {
       filterPosition: req.filterPosition ?? 0,
       isVisibleOnProductPage: req.isVisibleOnProductPage ?? false,
       massEditable: req.massEditable ?? false,
+      quickSearchable: req.quickSearchable ?? false,
     });
     try {
       await em.persistAndFlush(attr);
@@ -840,6 +850,9 @@ export class CatalogAdminService {
     }
     if (req.massEditable !== undefined) {
       attr.massEditable = req.massEditable;
+    }
+    if (req.quickSearchable !== undefined) {
+      attr.quickSearchable = req.quickSearchable;
     }
     if (req.type !== undefined) {
       // Feature 002 — patching `type` re-derives valueType + displayAsSlider.
@@ -983,6 +996,68 @@ export class CatalogAdminService {
     return { items, page, pageSize, total, counts };
   }
 
+  /**
+   * Feature 033 — return all product ids matching list filters (no pagination).
+   * Reuses the same filter semantics as {@link listProducts}.
+   */
+  async resolveProductIds(
+    options: {
+      includeArchived?: boolean;
+      status?: 'active' | 'draft' | 'archived';
+      type?: 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
+      q?: string;
+    } = {},
+  ): Promise<{ productIds: string[]; total: number }> {
+    const maxSelectionSize = Number(process.env['CATALOG_MAX_RESOLVE_IDS'] ?? 10_000);
+    const em = this.emFactory();
+    const trimmedQ = options.q?.trim();
+    const knex = em.getKnex();
+
+    const applyListFilters = (qb: ReturnType<typeof knex>): ReturnType<typeof knex> => {
+      if (options.status) {
+        qb.where('status', options.status);
+      } else if (!options.includeArchived) {
+        qb.whereNot('status', 'archived');
+      }
+      if (options.type) {
+        qb.where('type', options.type);
+      }
+      if (trimmedQ) {
+        const needle = `%${trimmedQ.toLowerCase()}%`;
+        qb.andWhere((inner) => {
+          inner
+            .whereRaw('LOWER("sku") LIKE ?', [needle])
+            .orWhereRaw('LOWER("slug") LIKE ?', [needle])
+            .orWhereRaw('LOWER("name"::text) LIKE ?', [needle]);
+        });
+      }
+      return qb;
+    };
+
+    const countRow = (await applyListFilters(knex('products'))
+      .clone()
+      .count<{ count: string | number }>('* as count')
+      .first()) as { count: string | number } | undefined;
+    const total = Number(countRow?.count ?? 0);
+
+    if (total > maxSelectionSize) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.SELECTION_TOO_LARGE,
+        `Selection matches ${total} products; max ${maxSelectionSize}.`,
+        { total, maxSelectionSize },
+      );
+    }
+
+    const idRows = (await applyListFilters(knex('products'))
+      .clone()
+      .orderBy('created_at', 'desc')
+      .select<Array<{ id: string }>>('id')) as Array<{ id: string }>;
+
+    const productIds = idRows.map((r) => r.id);
+    return { productIds, total: productIds.length };
+  }
+
   async getProductById(id: string): Promise<Product> {
     const em = this.emFactory();
     const product = await em.findOne(Product, { id });
@@ -990,6 +1065,16 @@ export class CatalogAdminService {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
     return product;
+  }
+
+  /** Category membership ids for admin product editor (feature 031). */
+  async getProductCategoryIds(productId: string): Promise<string[]> {
+    const em = this.emFactory();
+    const rows = (await em.getConnection().execute(
+      `select category_id from product_categories where product_id = ?`,
+      [productId],
+    )) as Array<{ category_id: string }>;
+    return rows.map((r) => r.category_id);
   }
 
   /**

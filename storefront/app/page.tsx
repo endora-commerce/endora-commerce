@@ -221,12 +221,12 @@ export default async function HomePage(): Promise<ReactNode> {
 }
 
 const FALLBACK_CATEGORIES = [
-  { slug: 'lozyska', name: 'Łożyska', count: 4218 },
-  { slug: 'napedy', name: 'Napędy i przekładnie', count: 2851 },
-  { slug: 'automatyka', name: 'Automatyka', count: 6104 },
-  { slug: 'elektryka', name: 'Elektryka przemysłowa', count: 5293 },
-  { slug: 'pneumatyka', name: 'Pneumatyka i hydraulika', count: 3162 },
-  { slug: 'narzedzia', name: 'Narzędzia i mocowania', count: 1947 },
+  { slug: 'fasteners', name: 'Łączniki', count: 4218 },
+  { slug: 'tools', name: 'Narzędzia', count: 2851 },
+  { slug: 'electronics', name: 'Elektronika', count: 6104 },
+  { slug: 'safety', name: 'BHP', count: 5293 },
+  { slug: 'screws', name: 'Wkręty', count: 3162 },
+  { slug: 'bolts', name: 'Śruby', count: 1947 },
 ];
 
 const GLYPH_KEYS = ['bearing', 'gear', 'plc', 'spark', 'valve', 'wrench'] as const;

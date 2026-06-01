@@ -128,7 +128,7 @@ export function LanguagePicker(): ReactNode {
         <span aria-hidden="true" style={{ fontSize: 14, lineHeight: 1 }}>
           {flagFor(language)}
         </span>
-        <span>{language.toUpperCase()}</span>
+        <span className="b2b-lang-picker__label">{language.toUpperCase()}</span>
         <ChevronDown size={14} aria-hidden="true" />
       </button>
       {open && (

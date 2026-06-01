@@ -24,6 +24,9 @@ import { Category } from '../entities/category.entity.js';
 import { ProductAttribute } from '../entities/product-attribute.entity.js';
 import { AttributeSetAttribute } from '../entities/attribute-set-attribute.entity.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { Megamenu } from '../../megamenu/entities/megamenu.entity.js';
+import { MegamenuItem } from '../../megamenu/entities/megamenu-item.entity.js';
+import { MegamenuBinding } from '../../megamenu/entities/megamenu-binding.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { AdminUser } from '../../admin_users/entities/admin-user.entity.js';
@@ -92,6 +95,9 @@ async function main(): Promise<void> {
       product_attributes,
       products,
       assets,
+      megamenu_bindings,
+      megamenu_items,
+      megamenus,
       categories,
       sales_channels,
       customer_accounts,
@@ -170,6 +176,79 @@ async function main(): Promise<void> {
     );
   }
   await em.persistAndFlush(leaves);
+
+  // --- Megamenu (feature 015) -----------------------------------------
+  // A predefined navigation that mirrors the seeded category tree so the
+  // storefront <Megamenu> component renders real, clickable links out of
+  // the box (top level = the 4 sections, children = their leaf
+  // categories). Bound active for every (channel, language) pair so the
+  // resolver always finds a menu regardless of which scope the storefront
+  // requests. Labels carry pl-PL + en-US.
+  const menuLabels: Record<string, Record<string, string>> = {
+    fasteners: { 'pl-PL': 'Łączniki', 'en-US': 'Fasteners' },
+    tools: { 'pl-PL': 'Narzędzia', 'en-US': 'Tools' },
+    electronics: { 'pl-PL': 'Elektronika', 'en-US': 'Electronics' },
+    safety: { 'pl-PL': 'BHP', 'en-US': 'Safety equipment' },
+    screws: { 'pl-PL': 'Wkręty', 'en-US': 'Screws' },
+    bolts: { 'pl-PL': 'Śruby', 'en-US': 'Bolts' },
+    wrenches: { 'pl-PL': 'Klucze', 'en-US': 'Wrenches' },
+    drills: { 'pl-PL': 'Wiertła', 'en-US': 'Drills' },
+    cables: { 'pl-PL': 'Kable', 'en-US': 'Cables' },
+    sensors: { 'pl-PL': 'Czujniki', 'en-US': 'Sensors' },
+    gloves: { 'pl-PL': 'Rękawice', 'en-US': 'Gloves' },
+    helmets: { 'pl-PL': 'Kaski', 'en-US': 'Helmets' },
+  };
+  const labelFor = (slug: string, fallback: string): Record<string, string> =>
+    menuLabels[slug] ?? { 'en-US': fallback };
+
+  const mainMenu = em.create(Megamenu, {
+    name: 'Main navigation',
+    description: 'Predefined dev megamenu — mirrors the seeded category tree.',
+  });
+  await em.persistAndFlush(mainMenu);
+
+  const topItems = sections.map((section, idx) =>
+    em.create(MegamenuItem, {
+      megamenuId: mainMenu.id,
+      parentId: null,
+      position: idx,
+      kind: 'category-link',
+      labels: labelFor(section.slug, section.name['en-US'] ?? section.slug),
+      target: { categoryId: section.id },
+    }),
+  );
+  await em.persistAndFlush(topItems);
+
+  const childItems: MegamenuItem[] = [];
+  sections.forEach((section, sectionIdx) => {
+    const parentItem = topItems[sectionIdx]!;
+    const childLeaves = leaves.filter((l) => l.parentCategoryId === section.id);
+    childLeaves.forEach((leaf, leafIdx) => {
+      childItems.push(
+        em.create(MegamenuItem, {
+          megamenuId: mainMenu.id,
+          parentId: parentItem.id,
+          position: leafIdx,
+          kind: 'category-link',
+          labels: labelFor(leaf.slug, leaf.name['en-US'] ?? leaf.slug),
+          target: { categoryId: leaf.id },
+        }),
+      );
+    });
+  });
+  await em.persistAndFlush(childItems);
+
+  for (const ch of [retail, b2bVip]) {
+    for (const language of ['pl-PL', 'en-US']) {
+      em.create(MegamenuBinding, {
+        megamenuId: mainMenu.id,
+        salesChannelId: ch.id,
+        language,
+        active: true,
+      });
+    }
+  }
+  await em.flush();
 
   // --- Product attributes ---------------------------------------------
   const attrColor = em.create(ProductAttribute, {
@@ -556,6 +635,8 @@ async function main(): Promise<void> {
     name: { 'en-US': 'In-person pickup', 'pl-PL': 'Odbior osobisty' },
     cost: '0',
     currency: 'PLN',
+    // Feature 035 — shipping adapter backing this delivery method.
+    adapter: 'personal_pickup',
   });
   await em.persistAndFlush(pickup);
 
@@ -563,6 +644,10 @@ async function main(): Promise<void> {
     code: 'bank_transfer',
     name: { 'en-US': 'Bank transfer', 'pl-PL': 'Przelew bankowy' },
     kind: 'bank_transfer',
+    adapter: 'bank_transfer',
+    statusOnPending: 'new',
+    statusOnSuccess: 'paid',
+    statusOnFailure: 'cancelled',
   });
   await em.persistAndFlush(bankTransfer);
 
@@ -662,6 +747,7 @@ async function main(): Promise<void> {
   console.log('');
   console.log(`Products       : ${PRODUCT_COUNT}`);
   console.log(`Categories     : ${1 + sections.length + leaves.length} nodes`);
+  console.log(`Megamenu       : "Main navigation" (${topItems.length} top, ${childItems.length} sub), active on all channels`);
   console.log(`Sales Channels : pl_retail (public), pl_b2b_vip (logged-in only)`);
   console.log(`Warehouses     : default (system), pl-krk (Magazyn Kraków)`);
   console.log(`Price Lists    : default_pln (${PRODUCT_COUNT} items, default)`);

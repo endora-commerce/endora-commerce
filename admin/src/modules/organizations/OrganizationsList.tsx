@@ -4,39 +4,26 @@ import { ArrowRight } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { OrganizationStatusBadge } from '@/components/organization-picker';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { ResponsiveTable } from '@/components/ResponsiveTable';
 import { useTranslation } from '@/i18n/useTranslation';
 
 interface AdminOrganization {
   id: string;
   name: string;
   taxId: string;
-  status: 'pending_verification' | 'active' | 'suspended';
+  status: 'pending_verification' | 'active' | 'blocked' | 'rejected';
   vatStatus: 'vat_payer' | 'vat_exempt' | 'reverse_charge';
   createdAt: string;
 }
 
-const STATUSES = ['pending_verification', 'active', 'suspended'] as const;
-
-const STATUS_VARIANT: Record<AdminOrganization['status'], 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
-  pending_verification: 'warning',
-  active: 'success',
-  suspended: 'destructive',
-};
+const STATUSES = ['pending_verification', 'active', 'blocked', 'rejected'] as const;
 
 export function OrganizationsList(): ReactNode {
   const t = useTranslation('core');
@@ -112,39 +99,46 @@ export function OrganizationsList(): ReactNode {
           ) : rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('organizations.empty')}</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('organizations.column.name')}</TableHead>
-                  <TableHead>{t('organizations.column.taxId')}</TableHead>
-                  <TableHead>{t('organizations.column.status')}</TableHead>
-                  <TableHead>{t('organizations.column.vat')}</TableHead>
-                  <TableHead>{t('organizations.column.registered')}</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((o) => (
-                  <TableRow key={o.id}>
-                    <TableCell className="font-medium">{o.name}</TableCell>
-                    <TableCell className="font-mono text-xs">{o.taxId}</TableCell>
-                    <TableCell>
-                      <Badge variant={STATUS_VARIANT[o.status]}>{o.status}</Badge>
-                    </TableCell>
-                    <TableCell>{o.vatStatus}</TableCell>
-                    <TableCell>{formatDateTime(o.createdAt)}</TableCell>
-                    <TableCell>
-                      <Button asChild variant="outline" size="sm">
-                        <Link to={`/organizations/${o.id}`}>
-                          {t('organizations.action.open')}
-                          <ArrowRight />
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <ResponsiveTable
+              data={rows}
+              keyExtractor={(o) => o.id}
+              columns={[
+                {
+                  id: 'name',
+                  header: t('organizations.column.name'),
+                  primary: true,
+                  render: (o) => <span className="font-medium">{o.name}</span>,
+                  meta: (o) => (
+                    <span className="font-mono text-xs text-muted-foreground">{o.taxId}</span>
+                  ),
+                },
+                {
+                  id: 'status',
+                  header: t('organizations.column.status'),
+                  render: (o) => <OrganizationStatusBadge status={o.status} />,
+                },
+                {
+                  id: 'vat',
+                  header: t('organizations.column.vat'),
+                  hideOnMobile: true,
+                  render: (o) => o.vatStatus,
+                },
+                {
+                  id: 'registered',
+                  header: t('organizations.column.registered'),
+                  hideOnMobile: true,
+                  render: (o) => formatDateTime(o.createdAt),
+                },
+              ]}
+              renderActions={(o) => (
+                <Button asChild variant="outline" size="sm" className="min-h-11">
+                  <Link to={`/organizations/${o.id}`}>
+                    {t('organizations.action.open')}
+                    <ArrowRight />
+                  </Link>
+                </Button>
+              )}
+            />
           )}
         </CardContent>
       </Card>

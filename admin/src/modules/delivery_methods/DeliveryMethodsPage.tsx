@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Trash2 } from 'lucide-react';
-import { ApiError, apiClient } from '@/lib/api-client';
+import { ApiError } from '@/lib/api-client';
+import {
+  deliveryMethodsClient,
+  type AdminDeliveryMethod,
+  type OrderStatusOption,
+} from './api/delivery-methods-client';
+import { resolveAdminDeliveryMethodRenderer } from './renderers/registry';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,17 +26,10 @@ import {
 } from '@/components/ui/table';
 import { CurrencyPicker } from '../dictionaries/components/CurrencyPicker';
 
-interface AdminDeliveryMethod {
-  id: string;
-  code: string;
-  name: Record<string, string>;
-  cost: { amount: number; currency: string };
-  status: 'active' | 'inactive';
-}
-
 export function DeliveryMethodsPage(): ReactNode {
   const t = useTranslation('core');
   const [rows, setRows] = useState<AdminDeliveryMethod[]>([]);
+  const [orderStatuses, setOrderStatuses] = useState<OrderStatusOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -39,10 +38,13 @@ export function DeliveryMethodsPage(): ReactNode {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get<{ data: AdminDeliveryMethod[] }>(
-        '/api/v1/admin/delivery-methods',
-      );
-      setRows(res.data);
+      const [methods, statuses] = await Promise.all([
+        deliveryMethodsClient.list(),
+        // Shared endpoint owned by the payment-methods admin routes (feature 035).
+        deliveryMethodsClient.orderStatuses().catch(() => [] as OrderStatusOption[]),
+      ]);
+      setRows(methods);
+      setOrderStatuses(statuses);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
     } finally {
@@ -62,21 +64,22 @@ export function DeliveryMethodsPage(): ReactNode {
       cost: number;
       currency: string;
       status: 'active' | 'inactive';
+      statusOnSuccess: string;
+      statusOnFailure: string;
     }): Promise<void> => {
       const name: Record<string, string> = {};
       if (input.nameEn) name['en-US'] = input.nameEn;
       if (input.namePl) name['pl-PL'] = input.namePl;
       try {
-        await apiClient.put<{ data: AdminDeliveryMethod }>(
-          `/api/v1/admin/delivery-methods/${encodeURIComponent(input.code)}`,
-          {
-            code: input.code,
-            name,
-            cost: input.cost,
-            currency: input.currency,
-            status: input.status,
-          },
-        );
+        await deliveryMethodsClient.upsert(input.code, {
+          code: input.code,
+          name,
+          cost: input.cost,
+          currency: input.currency,
+          status: input.status,
+          ...(input.statusOnSuccess ? { statusOnSuccess: input.statusOnSuccess } : {}),
+          ...(input.statusOnFailure ? { statusOnFailure: input.statusOnFailure } : {}),
+        });
         setInfo(t('legacyMethods.messages.saved', { code: input.code }));
         await refresh();
       } catch (err) {
@@ -90,7 +93,7 @@ export function DeliveryMethodsPage(): ReactNode {
     async (id: string): Promise<void> => {
       if (!confirm(t('legacyMethods.delivery.deleteConfirm'))) return;
       try {
-        await apiClient.delete<void>(`/api/v1/admin/delivery-methods/${id}`);
+        await deliveryMethodsClient.remove(id);
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('legacyMethods.errors.delete'));
@@ -122,7 +125,7 @@ export function DeliveryMethodsPage(): ReactNode {
           <CardTitle>{t('legacyMethods.formTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
-          <UpsertForm onSubmit={handleUpsert} />
+          <UpsertForm onSubmit={handleUpsert} orderStatuses={orderStatuses} />
         </CardContent>
       </Card>
 
@@ -138,7 +141,9 @@ export function DeliveryMethodsPage(): ReactNode {
                 <TableRow>
                   <TableHead>{t('legacyMethods.columns.code')}</TableHead>
                   <TableHead>{t('legacyMethods.columns.name')}</TableHead>
+                  <TableHead>Adapter</TableHead>
                   <TableHead>{t('legacyMethods.columns.cost')}</TableHead>
+                  <TableHead>On success / failure</TableHead>
                   <TableHead>{t('legacyMethods.columns.status')}</TableHead>
                   <TableHead />
                 </TableRow>
@@ -149,9 +154,15 @@ export function DeliveryMethodsPage(): ReactNode {
                     <TableCell>
                       <code className="font-mono text-xs">{r.code}</code>
                     </TableCell>
-                    <TableCell>{r.name['en-US'] ?? Object.values(r.name)[0]}</TableCell>
+                    <TableCell>{resolveAdminDeliveryMethodRenderer(r.rendererKey)(r)}</TableCell>
+                    <TableCell>
+                      <code className="font-mono text-xs">{r.adapter}</code>
+                    </TableCell>
                     <TableCell className="tabular-nums">
                       {r.cost.amount.toFixed(2)} {r.cost.currency}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {r.statusOnSuccess} / {r.statusOnFailure}
                     </TableCell>
                     <TableCell>
                       <Badge variant={r.status === 'active' ? 'success' : 'secondary'}>
@@ -182,6 +193,7 @@ export function DeliveryMethodsPage(): ReactNode {
 
 function UpsertForm({
   onSubmit,
+  orderStatuses,
 }: {
   onSubmit: (input: {
     code: string;
@@ -190,7 +202,10 @@ function UpsertForm({
     cost: number;
     currency: string;
     status: 'active' | 'inactive';
+    statusOnSuccess: string;
+    statusOnFailure: string;
   }) => Promise<void>;
+  orderStatuses: OrderStatusOption[];
 }): ReactNode {
   const t = useTranslation('core');
   const [code, setCode] = useState('');
@@ -199,12 +214,23 @@ function UpsertForm({
   const [cost, setCost] = useState('0');
   const [currency, setCurrency] = useState('PLN');
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
+  const [statusOnSuccess, setStatusOnSuccess] = useState('');
+  const [statusOnFailure, setStatusOnFailure] = useState('');
   return (
     <form
       className="space-y-4"
       onSubmit={(e: FormEvent): void => {
         e.preventDefault();
-        void onSubmit({ code, nameEn, namePl, cost: Number(cost), currency, status });
+        void onSubmit({
+          code,
+          nameEn,
+          namePl,
+          cost: Number(cost),
+          currency,
+          status,
+          statusOnSuccess,
+          statusOnFailure,
+        });
       }}
     >
       <div className="grid gap-4 md:grid-cols-2">
@@ -254,6 +280,36 @@ function UpsertForm({
           >
             <option value="active">{t('legacyMethods.status.active')}</option>
             <option value="inactive">{t('legacyMethods.status.inactive')}</option>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="dsuccess">Order status on shipment success</Label>
+          <Select
+            id="dsuccess"
+            value={statusOnSuccess}
+            onChange={(e): void => setStatusOnSuccess(e.target.value)}
+          >
+            <option value="">(default: shipped)</option>
+            {orderStatuses.map((s) => (
+              <option key={s.code} value={s.code}>
+                {s.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="dfailure">Order status on shipment failure</Label>
+          <Select
+            id="dfailure"
+            value={statusOnFailure}
+            onChange={(e): void => setStatusOnFailure(e.target.value)}
+          >
+            <option value="">(default: in_fulfilment)</option>
+            {orderStatuses.map((s) => (
+              <option key={s.code} value={s.code}>
+                {s.label}
+              </option>
+            ))}
           </Select>
         </div>
       </div>

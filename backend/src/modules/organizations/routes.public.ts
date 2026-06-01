@@ -5,6 +5,8 @@ import {
   passwordResetConfirmSchema,
   passwordResetRequestSchema,
   registerOrganizationRequestSchema,
+  type CartMergeOutcome,
+  type CartMergeOutcomePublic,
 } from '@b2b/contracts';
 import type { RegistrationService } from './services/registration-service.js';
 import type { EmailVerificationService } from './services/email-verification-service.js';
@@ -43,10 +45,11 @@ export interface OrganizationsPublicDeps {
    */
   onLogin?: (ctx: {
     customerAccountId: string;
-    organizationId: string;
+    /** Null for no-org Customer accounts (feature 026 US2). */
+    organizationId: string | null;
     anonymousCartToken?: string;
     anonymousCompareToken?: string;
-  }) => Promise<void>;
+  }) => Promise<{ cartMerge?: CartMergeOutcome }>;
   /** Dispatches verification email after registration. */
   mailer: Mailer;
   /** Storefront URL for verify link in the email body. */
@@ -129,19 +132,46 @@ export async function registerOrganizationsPublicRoutes(
       });
       setSessionCookie(reply, result.sessionCookieValue, result.sessionExpiresAt);
       // Merge any anonymous cart the caller was carrying into the authenticated
-      // cart (R-09, T125).
+      // cart (feature 027 R-09 / feature 037-cart-merge-on-login). The hook is
+      // best-effort: a thrown error MUST NOT break login (037 FR-007/FR-008).
+      let cartMerge: CartMergeOutcome | undefined;
       if (deps.onLogin) {
         const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
         const anon = cookies?.['b2b_cart_anon'];
         const compareAnon = cookies?.['compare_token'];
-        await deps.onLogin({
-          customerAccountId: result.customerAccount.id,
-          organizationId: result.customerAccount.organizationId,
-          ...(anon ? { anonymousCartToken: anon } : {}),
-          ...(compareAnon ? { anonymousCompareToken: compareAnon } : {}),
-        });
+        try {
+          const hookResult = await deps.onLogin({
+            customerAccountId: result.customerAccount.id,
+            organizationId: result.customerAccount.organizationId ?? null,
+            ...(anon ? { anonymousCartToken: anon } : {}),
+            ...(compareAnon ? { anonymousCompareToken: compareAnon } : {}),
+          });
+          cartMerge = hookResult.cartMerge;
+        } catch (err) {
+          request.log.error(
+            {
+              err,
+              customerAccountId: result.customerAccount.id,
+              hadAnonToken: Boolean(anon),
+            },
+            'cart_merge_on_login_failed',
+          );
+        }
       }
-      return { data: { customerAccount: serializeCustomerAccount(result.customerAccount) } };
+      // Clear the stale anon-cart cookie when the source token has been
+      // consumed (adopted/merged) or pointed at an empty cart (noop_empty).
+      // Failure and noop_no_anon both leave the cookie alone — failure so the
+      // buyer can retry on the next login, noop_no_anon because there was
+      // nothing to clear in the first place. See spec R-06.
+      if (cartMerge && cartMerge.outcome !== 'noop_no_anon') {
+        reply.clearCookie('b2b_cart_anon', { path: '/' });
+      }
+      return {
+        data: {
+          customerAccount: serializeCustomerAccount(result.customerAccount),
+          ...(cartMerge ? { cartMerge: narrowCartMergeForHttp(cartMerge) } : {}),
+        },
+      };
     },
   );
 
@@ -231,7 +261,7 @@ function serializeOrganization(o: {
 
 function serializeCustomerAccount(c: {
   id: string;
-  organizationId: string;
+  organizationId?: string | null;
   email: string;
   firstName: string;
   lastName: string;
@@ -243,7 +273,7 @@ function serializeCustomerAccount(c: {
 }) {
   return {
     id: c.id,
-    organizationId: c.organizationId,
+    organizationId: c.organizationId ?? null,
     email: c.email,
     firstName: c.firstName,
     lastName: c.lastName,
@@ -253,4 +283,18 @@ function serializeCustomerAccount(c: {
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
   };
+}
+
+/**
+ * Collapse the internal `CartMergeOutcome` (with the two `noop_*` variants
+ * and the line-count diagnostics) into the storefront-facing shape that
+ * exposes only `outcome ∈ {adopted, merged, noop}` and the destination
+ * cart id. See specs/037-cart-merge-on-login/contracts/cart-merge.md § 1.
+ */
+function narrowCartMergeForHttp(internal: CartMergeOutcome): CartMergeOutcomePublic {
+  const outcome =
+    internal.outcome === 'noop_empty' || internal.outcome === 'noop_no_anon'
+      ? 'noop'
+      : internal.outcome;
+  return { outcome, destinationCartId: internal.destinationCartId };
 }

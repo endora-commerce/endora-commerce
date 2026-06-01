@@ -5,8 +5,11 @@ import {
   acceptRevisionSchema,
   rejectRevisionSchema,
   resubmitQuoteRequestSchema,
+  ERROR_CODES,
 } from '@b2b/contracts';
 import type { RfqService, CustomerContext } from './services/rfq-service.js';
+import { HttpError } from '../../http/error-envelope.js';
+import { OrganizationCannotTransactError } from '../organizations/services/organization-context-service.js';
 
 export type RequireCustomerGuard = (
   req: FastifyRequest,
@@ -21,6 +24,11 @@ export interface QuoteRequestsCustomerDeps {
   rfqService: RfqService;
   requireCustomer: RequireCustomerGuard;
   resolveCustomerContext: CustomerContextResolver;
+  /**
+   * Optional gate — refuses submission when the Customer's Organization
+   * is not `active` (feature 026 US1 / US3).
+   */
+  assertOrganizationCanTransact?: (organizationId: string) => Promise<void>;
 }
 
 function parseIfMatch(request: FastifyRequest): number | null {
@@ -40,6 +48,24 @@ export async function registerQuoteRequestsCustomerRoutes(
   deps: QuoteRequestsCustomerDeps,
 ): Promise<void> {
   const { rfqService, requireCustomer, resolveCustomerContext } = deps;
+  const { assertOrganizationCanTransact } = deps;
+
+  const guardCanTransact = async (organizationId: string): Promise<void> => {
+    if (!assertOrganizationCanTransact) return;
+    try {
+      await assertOrganizationCanTransact(organizationId);
+    } catch (err) {
+      if (err instanceof OrganizationCannotTransactError) {
+        throw new HttpError(
+          423,
+          ERROR_CODES.FORBIDDEN,
+          'Your Organization cannot submit Quote Requests in its current status.',
+          { code: 'organization_cannot_transact', status: err.status },
+        );
+      }
+      throw err;
+    }
+  };
 
   // GET /api/v1/quote-requests — list visible Quote Requests for the caller
   app.get('/api/v1/quote-requests', { preHandler: requireCustomer }, async (request) => {
@@ -69,6 +95,7 @@ export async function registerQuoteRequestsCustomerRoutes(
     { preHandler: requireCustomer, schema: { body: createQuoteRequestSchema } },
     async (request, reply) => {
       const ctx = await resolveCustomerContext(request);
+      await guardCanTransact(ctx.organizationId);
       const body = createQuoteRequestSchema.parse(request.body);
       const rfq = await rfqService.createForCustomer(ctx, body);
       setEtag(reply, rfq.version);

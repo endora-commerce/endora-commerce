@@ -34,28 +34,35 @@ function collectFromSource(source: string, codes: Set<string>): void {
   const literalRe = /requireAdmin\??\.\s*\(\s*['"]([^'"]+)['"]/g;
   let m: RegExpExecArray | null;
   while ((m = literalRe.exec(source)) !== null) {
-    codes.add(m[1]);
+    const code = m[1];
+    if (code) codes.add(code);
   }
 
   const anyArrayRe = /requireAdminAny\(\s*\[([^\]]+)\]/g;
   while ((m = anyArrayRe.exec(source)) !== null) {
     const inner = m[1];
+    if (!inner) continue;
     const itemRe = /['"]([^'"]+)['"]/g;
     let item: RegExpExecArray | null;
     while ((item = itemRe.exec(inner)) !== null) {
-      codes.add(item[1]);
+      const code = item[1];
+      if (code) codes.add(code);
     }
   }
 
   const constMap = new Map<string, string>();
   const constRe = /(?:const|let)\s+(\w+)\s*=\s*['"]([a-z][\w.:]+)['"]/g;
   while ((m = constRe.exec(source)) !== null) {
-    constMap.set(m[1], m[2]);
+    const name = m[1];
+    const value = m[2];
+    if (name && value) constMap.set(name, value);
   }
 
   const varRe = /requireAdmin\??\.\s*\(\s*(\w+)\s*\)/g;
   while ((m = varRe.exec(source)) !== null) {
-    const resolved = constMap.get(m[1]);
+    const name = m[1];
+    if (!name) continue;
+    const resolved = constMap.get(name);
     if (resolved) codes.add(resolved);
   }
 }

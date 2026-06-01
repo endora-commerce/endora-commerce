@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
+// eslint-disable-next-line @typescript-eslint/naming-convention -- `Redis` is the class default-exported by ioredis; PascalCase is correct.
 import Redis from 'ioredis';
 import { CustomerAccount } from './modules/customer_accounts/entities/customer-account.entity.js';
 import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';
@@ -24,10 +25,27 @@ import {
 import { catalogModule } from './modules/catalog/plugin.js';
 import { quoteRequestsModule } from './modules/quote_requests/plugin.js';
 import { organizationsModule } from './modules/organizations/plugin.js';
+import { adminNotificationsModule } from './modules/admin_notifications/plugin.js';
+import { OrganizationModerationService } from './modules/organizations/services/organization-moderation-service.js';
+import { OrganizationRestrictionService } from './modules/organizations/services/organization-restriction-service.js';
+import { OrganizationEffectivePriceListsService } from './modules/organizations/services/organization-effective-pricelists-service.js';
+import { OrganizationTaxIdValidationService } from './modules/organizations/services/organization-tax-id-validation-service.js';
+import { ViesClient } from './modules/organizations/integrations/vies-client.js';
+import { MinisterstwoFinansowClient } from './modules/organizations/integrations/ministerstwo-finansow-client.js';
+import type { OrganizationEventBus } from './modules/organizations/services/registration-service.js';
+import { OrgRegistrationNotifier } from './modules/organizations/services/org-registration-notifier.js';
+import { OrganizationContextService } from './modules/organizations/services/organization-context-service.js';
+import {
+  moderationModeSchema,
+  notificationRecipientsSchema,
+} from './modules/organizations/schemas/settings.js';
+import { ORGANIZATIONS_SETTING_CODES } from './modules/organizations/manifest.js';
 import { ConsoleMailer } from './modules/email/services/mailer.js';
 import { resolveSmtpUrlFromEnv } from './modules/email/resolve-smtp-url.js';
 import { SmtpMailer } from './modules/email/services/smtp-mailer.js';
 import { commerceModule } from './modules/orders/plugin.js';
+import type { OrderService } from './modules/orders/services/order-service.js';
+import { QUICK_ORDER_SETTING_CODES } from './modules/quick_order/manifest.js';
 import { adminModule } from './modules/admin_users/plugin.js';
 import { inventoryModule } from './modules/inventory/plugin.js';
 import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
@@ -73,6 +91,7 @@ import { WarehouseChannelReconciler } from './modules/inventory/services/warehou
 import { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
 import type { CartService } from './modules/carts/services/cart-service.js';
+import type { ShoppingListService } from './modules/shopping_lists/services/shopping-list-service.js';
 
 /**
  * Production composition root.
@@ -149,6 +168,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   const requireAdminAny = createRequireAdminAny(permissionService);
 
+  /**
+   * Resolver for routes that require an authenticated Customer **with** an
+   * Organization. Feature 026 US2 introduces no-org Customer accounts;
+   * routes that read price lists, credit limit, addresses, or place orders
+   * still need an Organization, so this resolver throws 422 when one is
+   * missing. Routes that genuinely work without an Organization (cart-add,
+   * browsing, profile-read) use `resolveCartActor` or read `request.actor`
+   * directly.
+   */
   const customerResolver = (
     request: FastifyRequest,
   ): {
@@ -158,6 +186,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   } => {
     if (request.actor.kind !== 'customer') {
       throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+    }
+    if (!request.actor.organizationId) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.VALIDATION_FAILED,
+        'This action requires an Organization attached to your account.',
+        { code: 'organization_required' },
+      );
     }
     return {
       customerAccountId: request.actor.customerAccountId,
@@ -305,6 +341,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     salesChannelMembership: salesChannels.handle.membershipService,
     catalogQueryService: catalogQueryServiceForPromotions,
     dictionaryValidator: dictionaries.handle.validator,
+    // Feature 026 US5 — org-targeted promotions only fire for active Organizations.
+    resolveOrganizationStatus: async (orgId) => {
+      const row = (await em().getKnex()
+        .raw(`select "status" from "organizations" where "id" = ? and "deleted_at" is null`, [orgId])) as { rows: Array<{ status: string }> };
+      return row.rows[0]?.status ?? null;
+    },
   });
 
   // Settings module is constructed up here (rather than further down) so its
@@ -340,6 +382,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
 
   let cartService: CartService | null = null;
+  let shoppingListService: ShoppingListService | null = null;
+  // Feature 039 — late-bound OrderService for the quick_order one-click flow.
+  let orderServiceForOneClick: OrderService | null = null;
 
   const organizationsSmtpUrl = resolveSmtpUrlFromEnv();
   const organizationsMailer = organizationsSmtpUrl
@@ -352,6 +397,160 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // closure captures the binding, not its value, so the late assignment
   // is safe at request time.
   let comparisonAdoption: ((customerAccountId: string, anonymousToken: string) => Promise<void>) | null = null;
+
+  // ── Feature 026 — Organizations moderation lifecycle ────────────────────
+  //
+  // Builds the admin_notifications sub-module + the moderation service +
+  // the registration notifier, subscribes both to organization.registered.v1,
+  // and exposes the resulting transaction gate (assertOrganizationCanTransact)
+  // for the carts / orders / quote_requests modules.
+
+  const adminNotifications = adminNotificationsModule({
+    emFactory: em,
+    requireAdmin,
+  });
+
+  const platformSettingsChannelId = process.env['ORGANIZATIONS_SETTINGS_CHANNEL_ID'] ?? 'default';
+
+  const resolveModerationMode = async (): Promise<'auto' | 'manual'> => {
+    try {
+      return await settings.handle.settingsService.get(
+        ORGANIZATIONS_SETTING_CODES.MODERATION_MODE,
+        platformSettingsChannelId,
+        moderationModeSchema,
+      );
+    } catch {
+      // Setting not seeded / out-of-scope for the channel — degrade safely
+      // to the most restrictive option so brand-new installs never grant
+      // unverified Organizations transaction rights by accident.
+      return 'manual';
+    }
+  };
+
+  const resolveRegistrationRecipients = async (): Promise<string[]> => {
+    try {
+      return await settings.handle.settingsService.get(
+        ORGANIZATIONS_SETTING_CODES.NEW_REGISTRATION_RECIPIENTS,
+        platformSettingsChannelId,
+        notificationRecipientsSchema,
+      );
+    } catch {
+      return [];
+    }
+  };
+
+  const organizationModerationService = new OrganizationModerationService(
+    em,
+    auditLogService,
+    eventBus as unknown as OrganizationEventBus,
+    organizationsMailer,
+    resolveModerationMode,
+  );
+
+  const orgRegistrationNotifier = new OrgRegistrationNotifier({
+    emFactory: em,
+    adminNotificationService: adminNotifications.handle.adminNotificationService,
+    mailer: organizationsMailer,
+    resolveRecipients: resolveRegistrationRecipients,
+  });
+
+  const organizationContextService = new OrganizationContextService(em);
+  const organizationRestrictionService = new OrganizationRestrictionService(em);
+
+  /**
+   * Feature 026 US6 — admin orders/RFQ visibility scope. Sales-rep admins
+   * see only orders/RFQs from organizations they own; any other admin
+   * (platform admin, content manager, etc.) sees everything.
+   */
+  const resolveAdminOrdersScope = async (
+    request: FastifyRequest,
+  ): Promise<{ allowAll: true } | { allowAll: false; allowedOrganizationIds: string[] }> => {
+    const actor = (request as { actor?: { kind: string; adminUserId?: string } }).actor;
+    if (!actor || actor.kind !== 'admin' || !actor.adminUserId) {
+      return { allowAll: true };
+    }
+    const knex = em().getKnex();
+    const roleRow = (await knex.raw(
+      `select ar."code" as code from "admin_users" au left join "admin_roles" ar on ar."id" = au."admin_role_id" where au."id" = ?`,
+      [actor.adminUserId],
+    )) as { rows: Array<{ code: string | null }> };
+    const roleCode = roleRow.rows[0]?.code ?? null;
+    if (roleCode !== 'sales_representative') {
+      return { allowAll: true };
+    }
+    const assignments = (await knex.raw(
+      `select "organization_id" from "organization_sales_rep_assignments" where "admin_user_id" = ?`,
+      [actor.adminUserId],
+    )) as { rows: Array<{ organization_id: string }> };
+    return {
+      allowAll: false,
+      allowedOrganizationIds: assignments.rows.map((r) => r.organization_id),
+    };
+  };
+
+  /**
+   * Builds per-request resolvers that fetch the caller's Organization
+   * allow-list for one of the three restriction kinds. Anonymous requests
+   * and no-org Customers return `null` (no filter applied; platform defaults).
+   * Production wiring resolves the actor via `request.actor`; the test
+   * harness uses `request.testActor` — both shapes are checked.
+   */
+  const buildOrgAllowListResolver = (
+    kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
+  ) => async (request: FastifyRequest): Promise<string[] | null> => {
+    const r = request as FastifyRequest & {
+      testActor?: { kind: string; organizationId?: string | null };
+      actor?: { kind: string; organizationId?: string | null };
+    };
+    const orgId =
+      (r.testActor?.kind === 'customer' && r.testActor.organizationId) ||
+      (r.actor?.kind === 'customer' && r.actor.organizationId) ||
+      null;
+    if (!orgId) return null;
+    try {
+      const lists = await organizationRestrictionService.readAllowLists(orgId);
+      return lists[kind];
+    } catch {
+      // Org not found / soft-deleted — degrade to "no restriction".
+      return null;
+    }
+  };
+
+  const resolveOrganizationPaymentMethodAllowList = buildOrgAllowListResolver('paymentMethodIds');
+  const resolveOrganizationDeliveryMethodAllowList = buildOrgAllowListResolver('deliveryMethodIds');
+  const resolveOrganizationWarehouseAllowList = buildOrgAllowListResolver('warehouseIds');
+
+  const organizationEffectivePriceListsService = new OrganizationEffectivePriceListsService({
+    emFactory: em,
+    resolveDefaultSalesChannelId: async () => {
+      const channel = await salesChannels.handle.resolver.getSystemDefault();
+      return channel?.id ?? 'default';
+    },
+  });
+
+  // Feature 026 US7 — tax-ID validation. The two real clients hit VIES +
+  // Ministerstwo Finansów. Both degrade safely on outage; the service
+  // persists a record regardless of outcome and never throws upstream.
+  const organizationTaxIdValidationService = new OrganizationTaxIdValidationService({
+    emFactory: em,
+    vies: new ViesClient(),
+    mfPl: new MinisterstwoFinansowClient(),
+  });
+  const assertOrganizationCanTransact = async (organizationId: string): Promise<void> => {
+    await organizationContextService.assertCanTransact(organizationId);
+  };
+
+  // Subscribe the two reactors to the registration event. Failures inside
+  // either reactor never poison the registration itself — the EventBus
+  // catches handler throws and logs them.
+  eventBus.on('organization.registered.v1', async (payload) => {
+    const orgId = (payload as unknown as { organizationId: string }).organizationId;
+    await orgRegistrationNotifier.handleRegistered(orgId);
+  });
+  eventBus.on('organization.registered.v1', async (payload) => {
+    const orgId = (payload as unknown as { organizationId: string }).organizationId;
+    await organizationModerationService.handleNewlyRegistered(orgId);
+  });
 
   const modules: ModulePlugin[] = [
     authModulePlugin,
@@ -370,12 +569,168 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       emFactory: em,
       eventBus,
       auditLogService,
+      mailer: organizationsMailer,
       creditLimit: creditLimits.handle.creditLimitService,
       requireCustomer,
       requireAdmin,
       resolveCustomerContext: customerResolver,
       salesChannelMembership: salesChannels.handle.membershipService,
       pricingService: priceLists.handle.pricingService,
+      promotionService: promotions.handle.promotionService,
+      redis,
+      // Feature 027 US5 — abandonment-sweep resolvers + dispatcher.
+      resolveCartAbandonmentInactivityMinutes: async () => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'carts.abandonment.inactivity_minutes',
+            'default',
+            z.number().int().nonnegative(),
+          );
+        } catch {
+          return 0;
+        }
+      },
+      resolveCartAbandonmentNotificationRecipient: async () => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'carts.abandonment.notification_recipient',
+            'default',
+            z.string(),
+          );
+        } catch {
+          return '';
+        }
+      },
+      // Feature 036 — business Order ID prefix/suffix, resolved per Sales
+      // Channel. Missing/out-of-scope settings resolve to '' (bare numeric ID).
+      resolveOrderBusinessIdPrefix: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'orders.business_id.prefix',
+            salesChannelId,
+            z.string(),
+          );
+        } catch {
+          return '';
+        }
+      },
+      resolveOrderBusinessIdSuffix: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'orders.business_id.suffix',
+            salesChannelId,
+            z.string(),
+          );
+        } catch {
+          return '';
+        }
+      },
+      // Feature 038 US6 — reorder enable flag, resolved per Sales Channel.
+      // Missing/out-of-scope settings resolve to enabled (the default).
+      resolveReorderEnabled: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'orders.reorder_enabled',
+            salesChannelId,
+            z.boolean(),
+          );
+        } catch {
+          return true;
+        }
+      },
+      // Feature 038 US4 — additional order-confirmation recipients per scope.
+      resolveOrderConfirmationRecipients: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'orders.confirmation_recipients',
+            salesChannelId,
+            z.array(z.string()),
+          );
+        } catch {
+          return [];
+        }
+      },
+      // Feature 038 US3 / FR-035 — minimum order value per scope (0 = none).
+      resolveMinOrderValue: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'orders.min_order_value',
+            salesChannelId,
+            z.number(),
+          );
+        } catch {
+          return 0;
+        }
+      },
+      // Sales-channel layer of the fulfilment-strategy precedence chain — the
+      // SettingsService collapses per-channel value → global value → manifest
+      // default ('default_first'). Failures degrade to that same default.
+      resolveChannelFulfilmentStrategy: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'inventory.fulfilment_strategy',
+            salesChannelId,
+            z.enum([
+              'any',
+              'default_first',
+              'lowest_stock_first',
+              'highest_stock_first',
+              'defined_order',
+            ]),
+          );
+        } catch {
+          return 'default_first';
+        }
+      },
+      resolveChannelFulfilmentWarehouseOrder: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'inventory.fulfilment_strategy_warehouse_order',
+            salesChannelId,
+            z.array(z.string()),
+          );
+        } catch {
+          return [];
+        }
+      },
+      getRfqService: () => quoteRequests?.handle().rfqService ?? null,
+      // Feature 039 — expose OrderService for the quick_order one-click flow.
+      exposeOrderService: (svc) => {
+        orderServiceForOneClick = svc;
+      },
+      appendShoppingListToCart: async (input) => {
+        if (!shoppingListService) {
+          throw new Error('shopping_lists module not initialized');
+        }
+        const res = await shoppingListService.convertToCart(
+          {
+            customerAccountId: input.customerAccountId,
+            organizationId: input.organizationId ?? '',
+          },
+          input.shoppingListId,
+          undefined,
+        );
+        // Map ShoppingListService.convertToCart's shape onto the carts
+        // module's uniform return shape across the three conversions.
+        return {
+          cartId: '',
+          appendedLineCount: res.added,
+          droppedLines: res.skipped.map((it) => ({
+            productId: it.productId,
+            productName: it.productId,
+            reason: 'not_purchasable',
+          })),
+        };
+      },
       resolveCartActor: (request) => {
         if (request.actor.kind === 'customer') {
           return {
@@ -393,6 +748,30 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       exposeCartService: (cs) => {
         cartService = cs;
       },
+      assertOrganizationCanTransact,
+      resolveOrganizationPaymentMethodAllowList,
+      resolveOrganizationDeliveryMethodAllowList,
+      resolveAdminOrdersScope,
+      // Feature 027 — `Save to shopping list` bridge. Late-bound via
+      // closure so the shopping_lists module (constructed below) can
+      // inject the real service after this point.
+      pushLineToShoppingList: async (input) => {
+        if (!shoppingListService) {
+          throw new Error('shopping_lists module not initialized');
+        }
+        await shoppingListService.addItem(
+          {
+            customerAccountId: input.customerAccountId,
+            organizationId: input.organizationId ?? '',
+          },
+          input.shoppingListId,
+          {
+            productId: input.productId,
+            ...(input.variantId ? { variantId: input.variantId } : {}),
+            quantity: input.quantity,
+          },
+        );
+      },
     }),
     organizationsModule({
       emFactory: em,
@@ -404,13 +783,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCustomerContext: customerResolver,
       mailer: organizationsMailer,
       auditLogService,
+      moderationService: organizationModerationService,
+      restrictionService: organizationRestrictionService,
+      effectivePriceListsService: organizationEffectivePriceListsService,
+      taxIdValidationService: organizationTaxIdValidationService,
       dictionaryValidator: dictionaries.handle.validator,
       ...(process.env['STOREFRONT_BASE_URL']
         ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
         : {}),
       onLogin: async (ctx) => {
+        let cartMerge: Awaited<
+          ReturnType<NonNullable<typeof cartService>['mergeAnonymousIntoCustomer']>
+        > | undefined;
         if (cartService && ctx.anonymousCartToken) {
-          await cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
+          cartMerge = await cartService.mergeAnonymousIntoCustomer(ctx.anonymousCartToken, {
             customerAccountId: ctx.customerAccountId,
             organizationId: ctx.organizationId,
           });
@@ -424,6 +810,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
             ctx.anonymousCompareToken,
           );
         }
+        return cartMerge ? { cartMerge } : {};
       },
     }),
     catalogModule({
@@ -463,6 +850,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         }
         return { actorAdminUserId: actor.adminUserId };
       },
+      resolveOrganizationWarehouseAllowList,
     }),
   ];
 
@@ -537,7 +925,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           'select slug from categories where id = ? limit 1',
           [categoryId],
         )) as Array<{ slug: string }>;
-        return rows[0]?.slug ? `/catalog/${rows[0].slug}` : null;
+        return rows[0]?.slug ? `/c/${rows[0].slug}` : null;
       },
       resolveCmsPageUrl: async (pageId) => {
         const rows = (await em().getConnection().execute(
@@ -629,6 +1017,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
   modules.push(search.plugin);
 
+  // Feature 026 — Admin notifications bell. The plugin only mounts read
+  // routes; writes happen via the handle (consumed above by the
+  // OrgRegistrationNotifier and by future modules that emit notifications).
+  modules.push(adminNotifications.plugin);
+
   // Feature 007 — Comparisons module. US1 wires the customer-facing CRUD
   // endpoints; US2/US4/US5 extend the plugin with share, PDF, and admin
   // routes respectively. Reads catalog through CatalogQueryService (the
@@ -661,6 +1054,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveCustomerContext: async (request) => {
       if (request.actor.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+      }
+      if (!request.actor.organizationId) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.VALIDATION_FAILED,
+          'Quote Requests require an Organization attached to your account.',
+          { code: 'organization_required' },
+        );
       }
       const account = await em().findOne(CustomerAccount, {
         id: request.actor.customerAccountId,
@@ -715,6 +1116,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return true;
       }
     },
+    assertOrganizationCanTransact,
   });
   modules.push(quoteRequests.register);
 
@@ -726,6 +1128,33 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       rfqService: quoteRequests.handle().rfqService,
       requireCustomer,
       resolveCustomerContext: customerResolver,
+      // Feature 027 — late-bind the service for the carts module's
+      // save-to-list bridge (commerceModule's pushLineToShoppingList).
+      exposeShoppingListService: (svc) => {
+        shoppingListService = svc;
+      },
+      // Feature 039 — resolve the quick-order import row cap from settings,
+      // register the admin on-behalf quick-order routes, and wire the
+      // default-preferences routes (audit + org allow-list eligibility).
+      settingsService: settings.handle.settingsService,
+      requireAdmin,
+      auditLog: auditLogService,
+      organizationRestriction: organizationRestrictionService,
+      resolveAdminContext: adminContextResolver,
+      // Feature 039 — one-click buy: lazy OrderService + the enabled setting.
+      getOrderService: () => orderServiceForOneClick,
+      resolveOneClickEnabled: async (salesChannelId) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            QUICK_ORDER_SETTING_CODES.ONE_CLICK_BUY_ENABLED,
+            salesChannelId,
+            z.boolean(),
+          );
+        } catch {
+          return false;
+        }
+      },
     }),
   );
 

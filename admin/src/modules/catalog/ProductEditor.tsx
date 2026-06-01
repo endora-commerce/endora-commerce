@@ -28,12 +28,14 @@ import { ApiError, apiClient } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';
 import { AssetPicker } from '@/modules/assets_library/components/AssetPicker';
 import type { AssetSummary, AssetDetail } from '@/modules/assets_library/api/assets-library-client';
+import { StickyFormActions } from '@/components/StickyFormActions';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { CategoryTreePicker } from '@/components/category-tree-picker';
 import { cn } from '@/lib/utils';
 import {
   Table,
@@ -76,6 +78,7 @@ interface AdminProduct {
   visibility: 'public' | 'logged_in_only' | 'organization_restricted';
   attributeValues: Record<string, unknown>;
   attributeSetId: string;
+  categoryIds?: string[];
 }
 
 interface AdminAttributeSet {
@@ -87,8 +90,10 @@ interface AdminAttributeSet {
 
 interface AdminCategory {
   id: string;
+  parentCategoryId: string | null;
   name: Record<string, string>;
   slug: string;
+  sortOrder: number;
 }
 
 export function ProductEditor(): ReactNode {
@@ -156,6 +161,7 @@ export function ProductEditor(): ReactNode {
         const price = (p.attributeValues['defaultPrice'] as number | undefined) ?? null;
         setDefaultPrice(price != null ? String(price) : '');
         setAttributeSetId(p.attributeSetId);
+        setCategoryIds(p.categoryIds ?? []);
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
@@ -218,6 +224,8 @@ export function ProductEditor(): ReactNode {
             apiClient.patch<{ data: AdminProduct }>(
               `/api/v1/admin/catalog/products/${id}`,
               {
+                sku: sku.trim(),
+                status,
                 name: trimmedName,
                 description: trimmedDescription,
                 categoryIds,
@@ -235,7 +243,7 @@ export function ProductEditor(): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
       }
     },
-    [isNew, id, sku, type, name, description, categoryIds, defaultPrice, visibility, navigate, refresh],
+    [isNew, id, sku, status, type, name, description, categoryIds, defaultPrice, visibility, navigate, refresh],
   );
 
   const handleArchive = useCallback(async (): Promise<void> => {
@@ -267,15 +275,6 @@ export function ProductEditor(): ReactNode {
       setDuplicating(false);
     }
   }, [id, duplicating, navigate]);
-
-  const categoryOptions = useMemo(
-    () =>
-      categories.map((c) => ({
-        id: c.id,
-        label: `${c.name['en-US'] ?? c.slug} (${c.slug})`,
-      })),
-    [categories],
-  );
 
   if (loading)
     return (
@@ -329,7 +328,7 @@ export function ProductEditor(): ReactNode {
             </div>
           ) : null}
         </div>
-        <div className="b2b-page-head__actions">
+        <StickyFormActions className="b2b-page-head__actions">
           {!isNew ? (
             <>
               <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm">
@@ -361,7 +360,7 @@ export function ProductEditor(): ReactNode {
           >
             <Save size={14} /> Save
           </button>
-        </div>
+        </StickyFormActions>
       </div>
 
       {error ? (
@@ -376,7 +375,8 @@ export function ProductEditor(): ReactNode {
       ) : null}
 
       <div className="b2b-card">
-        <div style={{ padding: '4px 4px 0' }}>
+        <div style={{ padding: '4px 4px 0', overflow: 'hidden' }}>
+          <div className="b2b-tabs-scroll">
           <div className="b2b-tabs" role="tablist">
             {visibleTabs.map((t) => (
               <button
@@ -391,6 +391,7 @@ export function ProductEditor(): ReactNode {
                 {t.label}
               </button>
             ))}
+          </div>
           </div>
         </div>
 
@@ -433,7 +434,6 @@ export function ProductEditor(): ReactNode {
                         id="sku"
                         value={sku}
                         onChange={(e): void => setSku(e.target.value)}
-                        disabled={!isNew}
                         required
                       />
                     </div>
@@ -498,7 +498,13 @@ export function ProductEditor(): ReactNode {
                     </div>
                     <div>
                       <Label htmlFor="pstatus">{t('productEditor.field.status')}</Label>
-                      <Select id="pstatus" value={status} disabled>
+                      <Select
+                        id="pstatus"
+                        value={status}
+                        onChange={(e): void =>
+                          setStatus(e.target.value as AdminProduct['status'])
+                        }
+                      >
                         {STATUSES.map((s) => (
                           <option key={s} value={s}>
                             {s}
@@ -573,22 +579,12 @@ export function ProductEditor(): ReactNode {
 
                 <div>
                   <div className="b2b-label">{t('productEditor.section.categories')}</div>
-                  <Select
-                    multiple
-                    value={categoryIds}
-                    onChange={(e): void => {
-                      const next: string[] = [];
-                      for (const opt of e.target.selectedOptions) next.push(opt.value);
-                      setCategoryIds(next);
-                    }}
-                    className="min-h-32"
-                  >
-                    {categoryOptions.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </Select>
+                  <CategoryTreePicker
+                    categories={categories}
+                    selectedIds={categoryIds}
+                    onChange={setCategoryIds}
+                    loading={loading}
+                  />
                   <p className="b2b-help">{t('productEditor.section.categories.help')}</p>
                 </div>
               </div>

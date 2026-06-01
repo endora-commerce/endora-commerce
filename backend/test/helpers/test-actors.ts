@@ -30,7 +30,8 @@ export const TEST_ADMIN_ID = '00000000-0000-4000-8000-0000000000b1';
 export interface TestCustomerActor {
   kind: 'customer';
   customerAccountId: string;
-  organizationId: string;
+  /** Null for no-org Customer accounts (feature 026 US2). */
+  organizationId: string | null;
   impersonatorAdminUserId: string | null;
 }
 
@@ -84,7 +85,11 @@ const CUSTOMER_COOKIES: Record<string, { customerAccountId: string; organization
   },
 };
 
-const ADMIN_COOKIES: Record<string, { adminUserId: string }> = {
+/**
+ * Stub admin cookies. Exported so tests can register new sales-rep
+ * scenarios at runtime (feature 026 US6).
+ */
+export const ADMIN_COOKIES: Record<string, { adminUserId: string }> = {
   'stub-admin-session': { adminUserId: TEST_ADMIN_ID },
   // Restricted admin (T181 permissions test) — only `orders:read` permission.
   'stub-restricted-admin-session': {
@@ -153,7 +158,7 @@ export function registerTestAuth(app: FastifyInstance, deps: TestAuthDeps): void
             request.testActor = {
               kind: 'customer',
               customerAccountId: customer.id,
-              organizationId: customer.organizationId,
+              organizationId: customer.organizationId ?? null,
               impersonatorAdminUserId: resolved.session.impersonatorAdminUserId ?? null,
             };
             return;

@@ -12,6 +12,15 @@ import { cookies } from 'next/headers';
 
 const SESSION_COOKIE = 'b2b_session';
 const ANON_CART_COOKIE = 'b2b_cart_anon';
+const CART_MERGE_FLASH_COOKIE = 'b2b_cart_merge_flash';
+
+/**
+ * Feature 037-cart-merge-on-login — buyer-facing outcomes that warrant a
+ * post-login confirmation toast. The internal `noop_*` variants and the
+ * line-count diagnostics never travel through this cookie; only the
+ * observable outcome does.
+ */
+export type CartMergeFlashOutcome = 'adopted' | 'merged';
 
 /** Read the storefront `b2b_session` cookie, or null if anonymous. */
 export async function getSessionCookie(): Promise<string | null> {
@@ -52,4 +61,38 @@ export async function setAnonCartCookie(value: string): Promise<void> {
     sameSite: 'lax',
     secure: process.env['NODE_ENV'] === 'production',
   });
+}
+
+/**
+ * Flash-cookie writer used by the login server action after a successful
+ * cart-merge. The next authenticated page render reads-and-clears the
+ * cookie via `readAndClearCartMergeFlash` and shows a confirmation
+ * toast. Lifetime is 30 seconds — long enough to survive the redirect,
+ * short enough that a dropped render does not leave the toast latent for
+ * tomorrow's session.
+ */
+export async function setCartMergeFlash(outcome: CartMergeFlashOutcome): Promise<void> {
+  const jar = await cookies();
+  jar.set(CART_MERGE_FLASH_COOKIE, outcome, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env['NODE_ENV'] === 'production',
+    maxAge: 30,
+  });
+}
+
+/**
+ * Read-and-clear the cart-merge flash cookie. Returns the outcome on the
+ * single render that follows the login, then deletes the cookie so the
+ * toast never appears twice.
+ */
+export async function readAndClearCartMergeFlash(): Promise<CartMergeFlashOutcome | null> {
+  const jar = await cookies();
+  const value = jar.get(CART_MERGE_FLASH_COOKIE)?.value ?? null;
+  if (value === 'adopted' || value === 'merged') {
+    jar.delete(CART_MERGE_FLASH_COOKIE);
+    return value;
+  }
+  return null;
 }

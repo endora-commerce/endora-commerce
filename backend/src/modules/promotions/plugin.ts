@@ -20,6 +20,13 @@ export interface PromotionsModuleOptions {
    */
   catalogQueryService?: CatalogQueryService;
   dictionaryValidator?: DictionaryValidator;
+  /**
+   * Feature 026 US5 — Resolver returning the current `status` of an
+   * Organization. When wired, org-targeted promotions only apply if the
+   * Organization is `active`. Defaults to "skip" the gate when omitted
+   * (legacy composition).
+   */
+  resolveOrganizationStatus?: (orgId: string) => Promise<string | null>;
 }
 
 export interface PromotionsModuleHandle {
@@ -35,6 +42,8 @@ export function promotionsModule(options: PromotionsModuleOptions): {
     options.salesChannelMembership,
     options.catalogQueryService,
     options.dictionaryValidator,
+    undefined, // auditLogger — default console
+    options.resolveOrganizationStatus,
   );
   return {
     handle: { promotionService },

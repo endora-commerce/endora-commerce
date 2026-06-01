@@ -16,8 +16,13 @@ export type ActorAnonymous = { kind: 'anonymous' };
 export type ActorCustomer = {
   kind: 'customer';
   customerAccountId: string;
-  /** Resolved fresh from the CustomerAccount when the auth plugin has an emFactory. */
-  organizationId: string;
+  /**
+   * Resolved fresh from the CustomerAccount when the auth plugin has an
+   * emFactory. Nullable post-feature-026 — guest-style Customer accounts
+   * have no Organization and fall back to platform defaults. Order
+   * placement and RFQ submission still require a non-null organizationId.
+   */
+  organizationId: string | null;
   /** Non-null when the request is a Supplier employee acting on behalf of a Customer. */
   impersonatorAdminUserId: string | null;
   session: Session;

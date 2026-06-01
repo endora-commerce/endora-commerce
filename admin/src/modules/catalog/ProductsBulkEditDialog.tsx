@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { X } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { CategoryTreePicker } from '@/components/category-tree-picker';
 import { useTranslation } from '@/i18n/useTranslation';
 
 /**
@@ -40,8 +41,10 @@ interface SalesChannel {
 
 interface AdminCategory {
   id: string;
+  parentCategoryId: string | null;
   slug: string;
   name: Record<string, string>;
+  sortOrder: number;
 }
 
 interface BulkUpdateResultRow {
@@ -62,6 +65,8 @@ interface BulkUpdateResponse {
 
 export interface ProductsBulkEditDialogProps {
   productIds: string[];
+  /** Feature 033 — whether ids came from page-only or full filtered collection. */
+  selectionScope?: 'page' | 'collection';
   onClose: () => void;
   /** Invoked after a successful apply so the parent can refresh the list. */
   onApplied?: () => void;
@@ -90,7 +95,7 @@ const PANEL_STYLE: CSSProperties = {
 
 export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): ReactNode {
   const t = useTranslation('catalog');
-  const { productIds, onClose, onApplied } = props;
+  const { productIds, selectionScope, onClose, onApplied } = props;
 
   // Touched flags — a field is sent to the backend only when its touched
   // flag is true. Default values are placeholders that are NOT sent.
@@ -249,8 +254,17 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
             borderBottom: '1px solid var(--border, #e5e7eb)',
           }}
         >
-          <div style={{ fontSize: 15, fontWeight: 600 }}>
-            {t('productsList.bulkEdit.title', { count: productIds.length })}
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>
+              {t('productsList.bulkEdit.title', { count: productIds.length })}
+            </div>
+            {selectionScope ? (
+              <div className="b2b-muted" style={{ fontSize: 12, marginTop: 2 }}>
+                {selectionScope === 'collection'
+                  ? t('productsList.selection.scopeCollection')
+                  : t('productsList.selection.scopePage')}
+              </div>
+            ) : null}
           </div>
           <button
             type="button"
@@ -355,12 +369,9 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
                 disabled={!touchCategories}
                 t={t}
               />
-              <MultiSelect
-                options={categories.map((c) => ({
-                  id: c.id,
-                  label: c.name['en-US'] ?? c.name['pl-PL'] ?? c.slug,
-                }))}
-                selected={categoryIds}
+              <CategoryTreePicker
+                categories={categories}
+                selectedIds={categoryIds}
                 onChange={setCategoryIds}
                 disabled={!touchCategories}
               />

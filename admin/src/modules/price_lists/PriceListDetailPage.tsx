@@ -306,11 +306,13 @@ export function PriceListDetailPage(): ReactNode {
       ) : null}
 
       <div className="b2b-card">
-        <div style={{ padding: '4px 4px 0' }}>
-          <div className="b2b-tabs" role="tablist">
-            <TabBtn id="details" label={t('priceLists.detail.tab.details')} icon={<Cog size={14} />} active={tab} onChange={setTab} />
-            <TabBtn id="products" label={t('priceLists.detail.tab.products')} icon={<Layers size={14} />} active={tab} onChange={setTab} />
-            <TabBtn id="rule" label={t('priceLists.detail.tab.rule')} icon={<Filter size={14} />} active={tab} onChange={setTab} />
+        <div style={{ padding: '4px 4px 0', overflow: 'hidden' }}>
+          <div className="b2b-tabs-scroll">
+            <div className="b2b-tabs" role="tablist">
+              <TabBtn id="details" label={t('priceLists.detail.tab.details')} icon={<Cog size={14} />} active={tab} onChange={setTab} />
+              <TabBtn id="products" label={t('priceLists.detail.tab.products')} icon={<Layers size={14} />} active={tab} onChange={setTab} />
+              <TabBtn id="rule" label={t('priceLists.detail.tab.rule')} icon={<Filter size={14} />} active={tab} onChange={setTab} />
+            </div>
           </div>
         </div>
 

@@ -24,7 +24,7 @@ describe('InvitationService dispatches invitation email', () => {
   beforeAll(async () => {
     h = await setupBackendServer();
     admin = await h.em().findOneOrFail(CustomerAccount, { role: 'organization_admin' });
-    organization = await h.em().findOneOrFail(Organization, { id: admin.organizationId });
+    organization = await h.em().findOneOrFail(Organization, { id: admin.organizationId! });
   });
 
   afterAll(async () => {

@@ -55,6 +55,12 @@ const BUNDLE_KEYS = [
   'productsList.bulkEdit.summary.failed',
   'productsList.bulkEdit.summary.total',
   'productsList.bulkEdit.empty',
+  'categoryTreePicker.filter.placeholder',
+  'categoryTreePicker.aria.treeLabel',
+  'categoryTreePicker.expand',
+  'categoryTreePicker.collapse',
+  'categoryTreePicker.empty.noCategories',
+  'categoryTreePicker.empty.noMatches',
 ];
 
 const BUNDLE = passthroughBundle('catalog', BUNDLE_KEYS);
@@ -266,5 +272,64 @@ describe('ProductsBulkEditDialog — interaction', () => {
     // Untouched warranty_years must NOT leak into the request body.
     const av = body.fields.attributeValues as Record<string, unknown>;
     expect(av.warranty_years).toBeUndefined();
+  });
+
+  it('Categories tree selection is sent in bulk POST (feature 031)', async () => {
+    const CAT_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    getSpy.mockImplementation((path: string) => {
+      if (path.includes('attributes/by-flag')) {
+        return Promise.resolve({ data: { items: [] } });
+      }
+      if (path.includes('sales-channels')) {
+        return Promise.resolve({ data: [] });
+      }
+      if (path.includes('catalog/categories')) {
+        return Promise.resolve({
+          data: [
+            {
+              id: CAT_ID,
+              parentCategoryId: null,
+              name: { 'en-US': 'Bulk Cat' },
+              slug: 'bulk-cat',
+              sortOrder: 1,
+            },
+          ],
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+    postSpy.mockResolvedValueOnce({
+      data: {
+        bulkOperationId: 'op-cat',
+        summary: { succeeded: 1, skipped: 0, failed: 0, total: 1 },
+        results: [{ productId: 'p1', status: 'succeeded' }],
+      },
+    });
+
+    renderWithI18n(
+      <ProductsBulkEditDialog productIds={['p1']} onClose={vi.fn()} />,
+      BUNDLE,
+    );
+
+    const user = userEvent.setup();
+    const categoriesLabel = await screen.findByText(
+      'productsList.bulkEdit.section.categories',
+    );
+    const touchCheckbox = categoriesLabel
+      .closest('label')!
+      .querySelector('input[type="checkbox"]') as HTMLInputElement;
+    await user.click(touchCheckbox);
+
+    await user.click(screen.getByRole('checkbox', { name: 'Bulk Cat' }));
+
+    await user.click(
+      screen.getByRole('button', { name: 'productsList.bulkEdit.action.apply' }),
+    );
+
+    await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+    const body = postSpy.mock.calls[0]![1] as {
+      fields: { categories?: { mode: string; categoryIds: string[] } };
+    };
+    expect(body.fields.categories).toEqual({ mode: 'add', categoryIds: [CAT_ID] });
   });
 });

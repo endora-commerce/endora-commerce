@@ -32,7 +32,7 @@ describe('OrderAccessService.scopedWhere', () => {
     });
     const where = await svc.scopedWhere({
       customerAccountId: admin.id,
-      organizationId: admin.organizationId,
+      organizationId: admin.organizationId!,
     });
     expect(where).toEqual({ organizationId: admin.organizationId });
   });
@@ -43,10 +43,10 @@ describe('OrderAccessService.scopedWhere', () => {
     });
     const where = await svc.scopedWhere({
       customerAccountId: regular.id,
-      organizationId: regular.organizationId,
+      organizationId: regular.organizationId!,
     });
     expect(where).toEqual({
-      organizationId: regular.organizationId,
+      organizationId: regular.organizationId!,
       placedByCustomerAccountId: regular.id,
     });
   });
@@ -58,14 +58,14 @@ describe('OrderAccessService.scopedWhere', () => {
     const where = await svc.scopedWhere(
       {
         customerAccountId: admin.id,
-        organizationId: admin.organizationId,
+        organizationId: admin.organizationId!,
       },
       { id: 'order-123', status: 'new' },
     );
     expect(where).toEqual({
       id: 'order-123',
       status: 'new',
-      organizationId: admin.organizationId,
+      organizationId: admin.organizationId!,
     });
   });
 });

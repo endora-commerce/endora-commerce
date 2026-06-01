@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, GripVertical, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { TouchReorderButtons } from '@/components/TouchReorderButtons';
 import type { CmsBlockSummary, CmsHookDetail, CmsHookSummary } from '@b2b/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -267,11 +268,19 @@ export function HookBlockAttachmentsPanel({
                     <Badge variant="outline">{attachment.position}</Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
+                    <div className="flex justify-end gap-1 items-center">
+                      <TouchReorderButtons
+                        disabled={saving}
+                        onMoveUp={() => void persistOrder(move(attachments, index, index - 1))}
+                        onMoveDown={() => void persistOrder(move(attachments, index, index + 1))}
+                        disableUp={index === 0}
+                        disableDown={index === attachments.length - 1}
+                      />
                       <Button
                         type="button"
                         size="icon"
                         variant="ghost"
+                        className="b2b-reorder-desktop-only"
                         title={t('hookAttachments.moveUp')}
                         disabled={saving || index === 0}
                         onClick={() => void persistOrder(move(attachments, index, index - 1))}
@@ -282,6 +291,7 @@ export function HookBlockAttachmentsPanel({
                         type="button"
                         size="icon"
                         variant="ghost"
+                        className="b2b-reorder-desktop-only"
                         title={t('hookAttachments.moveDown')}
                         disabled={saving || index === attachments.length - 1}
                         onClick={() => void persistOrder(move(attachments, index, index + 1))}
