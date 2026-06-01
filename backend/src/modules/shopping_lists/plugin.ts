@@ -14,7 +14,10 @@ import { registerQuickOrderRoutes } from '../quick_order/routes.js';
 import { registerQuickOrderAdminRoutes } from '../quick_order/routes.admin.js';
 import { registerQuickOrderPreferenceRoutes } from '../quick_order/routes.preferences.js';
 import { registerQuickOrderPreferenceAdminRoutes } from '../quick_order/routes.preferences.admin.js';
+import { registerQuickOrderOneClickRoutes } from '../quick_order/routes.one-click.js';
 import { DefaultPreferenceService } from '../quick_order/services/default-preference-service.js';
+import { OneClickService } from '../quick_order/services/one-click-service.js';
+import type { OrderService } from '../orders/services/order-service.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
@@ -69,6 +72,14 @@ export interface ShoppingListsModuleOptions {
   organizationRestriction?: OrganizationRestrictionService;
   /** Resolves the acting admin user id for the admin preference routes. */
   resolveAdminContext?: (req: FastifyRequest) => { adminUserId: string };
+  /**
+   * Feature 039 (US5) — one-click buy. `getOrderService` is a lazy accessor
+   * (OrderService is built by commerceModule); `resolveOneClickEnabled` reads
+   * the per-channel setting. When both (plus auditLog) are present the
+   * one-click routes are registered.
+   */
+  getOrderService?: () => OrderService | null;
+  resolveOneClickEnabled?: (salesChannelId: string) => Promise<boolean>;
 }
 
 export function shoppingListsModule(options: ShoppingListsModuleOptions) {
@@ -139,6 +150,20 @@ export function shoppingListsModule(options: ShoppingListsModuleOptions) {
           emFactory: options.emFactory,
           requireAdmin: options.requireAdmin,
           resolveAdminContext: options.resolveAdminContext,
+        });
+      }
+
+      if (options.getOrderService && options.resolveOneClickEnabled) {
+        const oneClickService = new OneClickService(
+          preferenceService,
+          cartService,
+          options.getOrderService,
+          options.resolveOneClickEnabled,
+        );
+        await registerQuickOrderOneClickRoutes(app, {
+          service: oneClickService,
+          requireCustomer: options.requireCustomer,
+          resolveCustomerContext: options.resolveCustomerContext,
         });
       }
     }

@@ -37,6 +37,8 @@ import { ConsoleMailer } from './modules/email/services/mailer.js';
 import { resolveSmtpUrlFromEnv } from './modules/email/resolve-smtp-url.js';
 import { SmtpMailer } from './modules/email/services/smtp-mailer.js';
 import { commerceModule } from './modules/orders/plugin.js';
+import type { OrderService } from './modules/orders/services/order-service.js';
+import { QUICK_ORDER_SETTING_CODES } from './modules/quick_order/manifest.js';
 import { adminModule } from './modules/admin_users/plugin.js';
 import { inventoryModule } from './modules/inventory/plugin.js';
 import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
@@ -366,6 +368,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   let cartService: CartService | null = null;
   let shoppingListService: ShoppingListService | null = null;
+  // Feature 039 — late-bound OrderService for the quick_order one-click flow.
+  let orderServiceForOneClick: OrderService | null = null;
 
   const organizationsSmtpUrl = resolveSmtpUrlFromEnv();
   const organizationsMailer = organizationsSmtpUrl
@@ -651,6 +655,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         }
       },
       getRfqService: () => quoteRequests?.handle().rfqService ?? null,
+      // Feature 039 — expose OrderService for the quick_order one-click flow.
+      exposeOrderService: (svc) => {
+        orderServiceForOneClick = svc;
+      },
       appendShoppingListToCart: async (input) => {
         if (!shoppingListService) {
           throw new Error('shopping_lists module not initialized');
@@ -1084,6 +1092,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       auditLog: auditLogService,
       organizationRestriction: organizationRestrictionService,
       resolveAdminContext: adminContextResolver,
+      // Feature 039 — one-click buy: lazy OrderService + the enabled setting.
+      getOrderService: () => orderServiceForOneClick,
+      resolveOneClickEnabled: async (salesChannelId) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            QUICK_ORDER_SETTING_CODES.ONE_CLICK_BUY_ENABLED,
+            salesChannelId,
+            z.boolean(),
+          );
+        } catch {
+          return false;
+        }
+      },
     }),
   );
 

@@ -304,6 +304,8 @@ export async function setupBackendServer(
   // organizations can merge anonymous baskets after sign-in.
   let cartService: CartService | null = null;
   let shoppingListServiceRef: import('../../src/modules/shopping_lists/services/shopping-list-service.js').ShoppingListService | null = null;
+  // Feature 039 — late-bound OrderService for the quick_order one-click flow.
+  let orderServiceForOneClick: import('../../src/modules/orders/services/order-service.js').OrderService | null = null;
   let handleFeature026: BackendServerHandle['organizations'] | null = null;
 
   // Feature 026 US4 — restriction service + per-request allow-list resolvers.
@@ -529,6 +531,10 @@ export async function setupBackendServer(
       promotionService: promotions.handle.promotionService,
       redis,
       getRfqService: () => quoteRequests?.handle().rfqService ?? null,
+      // Feature 039 — expose OrderService for the quick_order one-click flow.
+      exposeOrderService: (svc) => {
+        orderServiceForOneClick = svc;
+      },
       resolveCartActor: (request) => {
         if (request.testActor?.kind === 'customer') {
           return {
@@ -968,6 +974,20 @@ export async function setupBackendServer(
         adminUserId:
           request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
       }),
+      // Feature 039 — one-click buy wiring.
+      getOrderService: () => orderServiceForOneClick,
+      resolveOneClickEnabled: async (salesChannelId) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'quick_order.one_click_buy_enabled',
+            salesChannelId,
+            z.boolean(),
+          );
+        } catch {
+          return false;
+        }
+      },
     }),
   );
 
