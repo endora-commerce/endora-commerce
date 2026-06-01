@@ -1076,6 +1076,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       exposeShoppingListService: (svc) => {
         shoppingListService = svc;
       },
+      // Feature 039 — resolve the quick-order import row cap from settings.
+      settingsService: settings.handle.settingsService,
     }),
   );
 

@@ -1,42 +1,88 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
+  quickOrderBuildRequestSchema,
   quickOrderImportRequestSchema,
   quickOrderSearchQuerySchema,
 } from '@b2b/contracts';
 import { Product } from '../catalog/entities/product.entity.js';
-import type { QuickOrderCsvImporter } from './services/csv-importer.js';
+import type { QuickOrderImportPipeline } from './services/import-pipeline.js';
+import type { QuickOrderBuildService } from './services/quick-order-build-service.js';
+import { parseCsvRows } from './services/import-rows.js';
+import { parseXlsxRows } from './services/excel-importer.js';
 
 /**
- * Quick-order routes (T204 / FR-031).
- *   - POST /quick-order/import  parses CSV → recognised + rejected rows
+ * Quick-order routes (feature 039).
+ *   - POST /quick-order/import  parses CSV / .xlsx → recognised + rejected rows
+ *   - POST /quick-order/build   recognised rows → Cart or Quote Request
  *   - GET  /quick-order/search  type-ahead by SKU prefix or name (active rows)
  *
- * Requires an authenticated customer session: the import doesn't
- * mutate the cart yet (the storefront drives the second step), but
- * SKU-to-product disclosure is gated to logged-in buyers per FR-009.
+ * Requires an authenticated customer session: SKU-to-product disclosure and
+ * cart / RFQ mutation are gated to logged-in buyers.
  */
 
 export interface QuickOrderRoutesDeps {
-  importer: QuickOrderCsvImporter;
+  pipeline: QuickOrderImportPipeline;
+  buildService: QuickOrderBuildService;
   emFactory: () => EntityManager;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
+  resolveCustomerContext: (req: FastifyRequest) => {
+    customerAccountId: string;
+    organizationId: string;
+  };
+  /** Reads the `quick_order.import_max_rows` setting (falls back internally). */
+  resolveImportMaxRows: () => Promise<number>;
+}
+
+function isXlsxFilename(filename: string): boolean {
+  return filename.toLowerCase().endsWith('.xlsx');
 }
 
 export async function registerQuickOrderRoutes(
   app: FastifyInstance,
   deps: QuickOrderRoutesDeps,
 ): Promise<void> {
-  const { importer, emFactory, requireCustomer } = deps;
+  const { pipeline, buildService, emFactory, requireCustomer, resolveCustomerContext } = deps;
 
   app.post(
     '/api/v1/quick-order/import',
     { preHandler: requireCustomer, schema: { body: quickOrderImportRequestSchema } },
     async (request) => {
       const body = quickOrderImportRequestSchema.parse(request.body);
-      // Interim: the legacy CSV path is preserved here; the file (.xlsx) +
-      // build pipeline is wired in a follow-up task (feature 039 T019).
-      const result = await importer.import(body.csv ?? '');
+      const maxRows = await deps.resolveImportMaxRows();
+
+      let parse;
+      if (body.file) {
+        const buffer = Buffer.from(body.file.contentBase64, 'base64');
+        parse = isXlsxFilename(body.file.filename)
+          ? await parseXlsxRows(buffer)
+          : parseCsvRows(buffer.toString('utf8'));
+      } else {
+        parse = parseCsvRows(body.csv ?? '');
+      }
+
+      const result = await pipeline.run(parse, { maxRows });
+      return { data: result };
+    },
+  );
+
+  app.post(
+    '/api/v1/quick-order/build',
+    { preHandler: requireCustomer, schema: { body: quickOrderBuildRequestSchema } },
+    async (request) => {
+      const body = quickOrderBuildRequestSchema.parse(request.body);
+      const ctx = resolveCustomerContext(request);
+      const result = await buildService.build(
+        { customerAccountId: ctx.customerAccountId, organizationId: ctx.organizationId },
+        {
+          target: body.target,
+          items: body.items.map((item) => ({
+            productId: item.productId,
+            variantId: item.variantId ?? null,
+            quantity: item.quantity,
+          })),
+        },
+      );
       return { data: result };
     },
   );

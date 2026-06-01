@@ -1,19 +1,28 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { z } from 'zod';
+import { QUICK_ORDER_SETTING_CODES } from '../quick_order/manifest.js';
 import { CartService } from '../carts/services/cart-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
+import type { SettingsService } from '../settings/services/settings.service.js';
 import { ShoppingListService } from './services/shopping-list-service.js';
-import { QuickOrderCsvImporter } from '../quick_order/services/csv-importer.js';
+import { QuickOrderImportPipeline } from '../quick_order/services/import-pipeline.js';
+import { MikroOrmCatalogLookup } from '../quick_order/services/catalog-lookup.js';
+import { QuickOrderBuildService } from '../quick_order/services/quick-order-build-service.js';
 import { registerShoppingListRoutes } from './routes.js';
 import { registerQuickOrderRoutes } from '../quick_order/routes.js';
 
+/** Default import row cap when no settings service is wired (matches the
+ *  `quick_order.import_max_rows` manifest default). */
+const DEFAULT_IMPORT_MAX_ROWS = 2000;
+
 /**
- * Composition root for the shopping_lists + quick_order modules (US5).
+ * Composition root for the shopping_lists + quick_order modules.
  *
- * `rfqService` is injected (built by the quote_requests module) so the
- * shopping-list "convert to RFQ" flow uses the same one-call
- * `createForCustomer` API as the storefront, with revisions, events,
- * and notifications wired in (feature 008).
+ * `rfqService` is injected (built by the quote_requests module) so both the
+ * shopping-list "convert to RFQ" flow and the quick-order "build → quote
+ * request" flow use the same one-call `createForCustomer` API, with
+ * revisions, events, and notifications wired in (feature 008).
  */
 
 export interface ShoppingListsModuleOptions {
@@ -31,6 +40,14 @@ export interface ShoppingListsModuleOptions {
    * service, not via direct entity access).
    */
   exposeShoppingListService?: (service: ShoppingListService) => void;
+  /**
+   * Feature 039 — settings service used to read the
+   * `quick_order.import_max_rows` cap. Optional; falls back to the manifest
+   * default when omitted (e.g. minimal test harnesses).
+   */
+  settingsService?: SettingsService;
+  /** Sales-channel id used to resolve the import-cap setting. */
+  settingsChannelId?: string;
 }
 
 export function shoppingListsModule(options: ShoppingListsModuleOptions) {
@@ -42,7 +59,23 @@ export function shoppingListsModule(options: ShoppingListsModuleOptions) {
       options.rfqService,
     );
     if (options.exposeShoppingListService) options.exposeShoppingListService(shoppingListService);
-    const csvImporter = new QuickOrderCsvImporter(options.emFactory);
+
+    const pipeline = new QuickOrderImportPipeline(new MikroOrmCatalogLookup(options.emFactory));
+    const buildService = new QuickOrderBuildService(cartService, options.rfqService);
+
+    const resolveImportMaxRows = async (): Promise<number> => {
+      const { settingsService, settingsChannelId } = options;
+      if (!settingsService) return DEFAULT_IMPORT_MAX_ROWS;
+      try {
+        return await settingsService.get(
+          QUICK_ORDER_SETTING_CODES.IMPORT_MAX_ROWS,
+          settingsChannelId ?? 'default',
+          z.number().int().positive(),
+        );
+      } catch {
+        return DEFAULT_IMPORT_MAX_ROWS;
+      }
+    };
 
     await registerShoppingListRoutes(app, {
       service: shoppingListService,
@@ -51,9 +84,12 @@ export function shoppingListsModule(options: ShoppingListsModuleOptions) {
       resolveCustomerContext: options.resolveCustomerContext,
     });
     await registerQuickOrderRoutes(app, {
-      importer: csvImporter,
+      pipeline,
+      buildService,
       emFactory: options.emFactory,
       requireCustomer: options.requireCustomer,
+      resolveCustomerContext: options.resolveCustomerContext,
+      resolveImportMaxRows,
     });
   };
 }
