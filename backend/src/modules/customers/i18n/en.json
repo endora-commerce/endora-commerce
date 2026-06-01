@@ -48,5 +48,16 @@
   "online.error": "Could not load online customers.",
   "online.loading": "Loading…",
   "online.empty": "No customers are currently online.",
-  "online.column.lastSeen": "Last seen"
+  "online.column.lastSeen": "Last seen",
+
+  "detail.panel.loading": "Loading…",
+  "detail.panel.error": "Could not load this section.",
+  "detail.orders.title": "Orders",
+  "detail.orders.empty": "No orders.",
+  "detail.rfqs.title": "Quote requests",
+  "detail.rfqs.empty": "No quote requests.",
+  "detail.carts.title": "Carts",
+  "detail.carts.items": "items",
+  "detail.carts.noCurrent": "No active cart.",
+  "detail.carts.empty": "No carts."
 }

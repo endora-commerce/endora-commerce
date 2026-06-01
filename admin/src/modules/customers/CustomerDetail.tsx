@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { useTranslation } from '@/i18n/useTranslation';
+import { OrdersPanel, QuoteRequestsPanel, CartsPanel } from './panels/HistoryPanels';
 
 interface AdminCustomerDetail {
   id: string;
@@ -188,6 +189,10 @@ export function CustomerDetail(): ReactNode {
           )}
         </CardContent>
       </Card>
+
+      <OrdersPanel customerId={id} />
+      <QuoteRequestsPanel customerId={id} />
+      <CartsPanel customerId={id} />
     </>
   );
 }

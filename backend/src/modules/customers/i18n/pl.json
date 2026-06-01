@@ -48,5 +48,16 @@
   "online.error": "Nie udało się wczytać klientów online.",
   "online.loading": "Wczytywanie…",
   "online.empty": "Żaden klient nie jest teraz online.",
-  "online.column.lastSeen": "Ostatnio widziany"
+  "online.column.lastSeen": "Ostatnio widziany",
+
+  "detail.panel.loading": "Wczytywanie…",
+  "detail.panel.error": "Nie udało się wczytać tej sekcji.",
+  "detail.orders.title": "Zamówienia",
+  "detail.orders.empty": "Brak zamówień.",
+  "detail.rfqs.title": "Zapytania ofertowe",
+  "detail.rfqs.empty": "Brak zapytań ofertowych.",
+  "detail.carts.title": "Koszyki",
+  "detail.carts.items": "pozycji",
+  "detail.carts.noCurrent": "Brak aktywnego koszyka.",
+  "detail.carts.empty": "Brak koszyków."
 }
