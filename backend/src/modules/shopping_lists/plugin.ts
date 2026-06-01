@@ -12,6 +12,10 @@ import { QuickOrderBuildService } from '../quick_order/services/quick-order-buil
 import { registerShoppingListRoutes } from './routes.js';
 import { registerQuickOrderRoutes } from '../quick_order/routes.js';
 import { registerQuickOrderAdminRoutes } from '../quick_order/routes.admin.js';
+import { registerQuickOrderPreferenceRoutes } from '../quick_order/routes.preferences.js';
+import { DefaultPreferenceService } from '../quick_order/services/default-preference-service.js';
+import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
 /** Default import row cap when no settings service is wired (matches the
@@ -55,6 +59,13 @@ export interface ShoppingListsModuleOptions {
    * (`/api/v1/admin/quick-order/*`) are registered, guarded by `orders:write`.
    */
   requireAdmin?: RequireAdminFactory;
+  /**
+   * Feature 039 (US2) — when supplied, the default-preferences routes are
+   * registered. `organizationRestriction` is used for the eligibility
+   * re-check; omit it to treat all methods as org-allowed.
+   */
+  auditLog?: AuditLogService;
+  organizationRestriction?: OrganizationRestrictionService;
 }
 
 export function shoppingListsModule(options: ShoppingListsModuleOptions) {
@@ -104,6 +115,20 @@ export function shoppingListsModule(options: ShoppingListsModuleOptions) {
         buildService,
         requireAdmin: options.requireAdmin,
         resolveImportMaxRows,
+      });
+    }
+
+    if (options.auditLog) {
+      const preferenceService = new DefaultPreferenceService(
+        options.emFactory,
+        options.auditLog,
+        options.organizationRestriction,
+      );
+      await registerQuickOrderPreferenceRoutes(app, {
+        service: preferenceService,
+        emFactory: options.emFactory,
+        requireCustomer: options.requireCustomer,
+        resolveCustomerContext: options.resolveCustomerContext,
       });
     }
   };

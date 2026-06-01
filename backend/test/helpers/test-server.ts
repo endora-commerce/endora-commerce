@@ -959,8 +959,11 @@ export async function setupBackendServer(
       exposeShoppingListService: (svc) => {
         shoppingListServiceRef = svc;
       },
-      // Feature 039 — register the admin on-behalf quick-order routes.
+      // Feature 039 — register the admin on-behalf quick-order routes and
+      // the default-preferences routes.
       requireAdmin: requireTestAdmin(permissionService),
+      auditLog: auditLogService,
+      organizationRestriction: sharedRestrictionService,
     }),
   );
 

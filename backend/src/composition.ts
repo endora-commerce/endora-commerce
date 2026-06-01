@@ -1077,9 +1077,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         shoppingListService = svc;
       },
       // Feature 039 — resolve the quick-order import row cap from settings,
-      // and register the admin on-behalf quick-order routes.
+      // register the admin on-behalf quick-order routes, and wire the
+      // default-preferences routes (audit + org allow-list eligibility).
       settingsService: settings.handle.settingsService,
       requireAdmin,
+      auditLog: auditLogService,
+      organizationRestriction: organizationRestrictionService,
     }),
   );
 
