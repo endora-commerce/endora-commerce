@@ -50,7 +50,7 @@ describe('Admin order status configuration', () => {
       method: 'POST',
       url: '/api/v1/admin/orders/statuses',
       ...admin,
-      payload: { code, name: { en: 'QA hold' }, weight: 35 },
+      payload: { code, name: { en: 'QA hold' }, defaultName: 'QA hold', weight: 35 },
     });
     expect(create.statusCode).toBe(201);
 

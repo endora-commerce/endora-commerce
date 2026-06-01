@@ -157,6 +157,8 @@ export const adminOrderShippedRequestSchema = z.object({
 export const orderStatusDefSchema = z.object({
   code: orderStatusCodeSchema,
   name: multilingualStringSchema,
+  /** Language-independent fallback used when the active language is missing from `name`. */
+  defaultName: z.string(),
   isInitial: z.boolean(),
   isTerminal: z.boolean(),
   isSystem: z.boolean(),
@@ -182,6 +184,7 @@ export type OrderStatusGraphResponse = z.infer<typeof orderStatusGraphResponseSc
 export const createOrderStatusRequestSchema = z.object({
   code: orderStatusCodeSchema,
   name: multilingualStringSchema,
+  defaultName: z.string().min(1),
   isTerminal: z.boolean().optional(),
   weight: z.number().int().optional(),
 });
@@ -189,6 +192,7 @@ export type CreateOrderStatusRequest = z.infer<typeof createOrderStatusRequestSc
 
 export const updateOrderStatusRequestSchema = z.object({
   name: multilingualStringSchema.optional(),
+  defaultName: z.string().min(1).optional(),
   isTerminal: z.boolean().optional(),
   weight: z.number().int().optional(),
 });

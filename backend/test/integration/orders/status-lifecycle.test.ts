@@ -80,7 +80,7 @@ describe('order status lifecycle (feature 038)', () => {
     it('creates a custom status with universal edges, then deletes it', async () => {
       const svc = new OrderStatusGraphService(h.em);
       const code = `await_stock_${Date.now()}`;
-      await svc.createStatus({ code, name: { en: 'Await stock' }, weight: 45 });
+      await svc.createStatus({ code, name: { en: 'Await stock' }, defaultName: 'Await stock', weight: 45 });
       let graph = await svc.loadGraph();
       expect(graph.has(code)).toBe(true);
       // Universal edges: any non-terminal → on_hold/cancelled, on_hold → any.

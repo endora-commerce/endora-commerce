@@ -369,6 +369,7 @@ export async function registerOrderRoutes(
           statuses: graph.statuses.map((s) => ({
             code: s.code,
             name: s.name,
+            defaultName: s.defaultName,
             isInitial: s.isInitial,
             isTerminal: s.isTerminal,
             isSystem: s.isSystem,
