@@ -1576,6 +1576,8 @@ function serializeAdminAttribute(
     isVisibleOnProductPage: a.isVisibleOnProductPage,
     // Feature 022 — gates appearance in the Products Bulk Edit dialog.
     massEditable: a.massEditable,
+    // Feature 039 — gates participation in Quick Order search.
+    quickSearchable: a.quickSearchable,
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
   };

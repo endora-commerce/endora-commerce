@@ -56,6 +56,8 @@ interface AdminAttribute {
   isVisibleOnProductPage: boolean;
   /** Feature 022 — gates appearance in the Products Bulk Edit dialog. */
   massEditable: boolean;
+  /** Feature 039 — gates participation in Quick Order search. */
+  quickSearchable: boolean;
 }
 
 export function AttributesManager(): ReactNode {
@@ -154,6 +156,7 @@ export function AttributesManager(): ReactNode {
         isVisibleOnProductPage?: boolean;
         labelDefault?: string;
         massEditable?: boolean;
+        quickSearchable?: boolean;
       },
     ): Promise<void> => {
       try {
@@ -216,6 +219,7 @@ export function AttributesManager(): ReactNode {
                   <TableHead>{t('attributes.column.variantAxis')}</TableHead>
                   <TableHead>{t('attributes.column.comparable')}</TableHead>
                   <TableHead>{t('attributes.column.massEditable')}</TableHead>
+                  <TableHead>{t('attributes.column.quickSearchable')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -268,6 +272,14 @@ export function AttributesManager(): ReactNode {
                         checked={a.massEditable}
                         onChange={(e): void =>
                           void handleToggle(a, { massEditable: e.target.checked })
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Checkbox
+                        checked={a.quickSearchable}
+                        onChange={(e): void =>
+                          void handleToggle(a, { quickSearchable: e.target.checked })
                         }
                       />
                     </TableCell>

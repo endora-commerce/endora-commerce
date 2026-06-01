@@ -749,6 +749,7 @@ export class CatalogAdminService {
       filterPosition: req.filterPosition ?? 0,
       isVisibleOnProductPage: req.isVisibleOnProductPage ?? false,
       massEditable: req.massEditable ?? false,
+      quickSearchable: req.quickSearchable ?? false,
     });
     try {
       await em.persistAndFlush(attr);
@@ -849,6 +850,9 @@ export class CatalogAdminService {
     }
     if (req.massEditable !== undefined) {
       attr.massEditable = req.massEditable;
+    }
+    if (req.quickSearchable !== undefined) {
+      attr.quickSearchable = req.quickSearchable;
     }
     if (req.type !== undefined) {
       // Feature 002 — patching `type` re-derives valueType + displayAsSlider.

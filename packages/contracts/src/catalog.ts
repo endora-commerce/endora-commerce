@@ -681,6 +681,8 @@ const baseCreateAttributeObject = z.object({
    * operators opt each attribute in explicitly.
    */
   massEditable: z.boolean().optional(),
+  /** Feature 039 — values participate in Quick Order search. Default false. */
+  quickSearchable: z.boolean().optional(),
   /**
    * Feature 012 — rich option list for select / enum / multiselect types.
    * When supplied alongside the legacy `enumValues`, this wins. The
@@ -754,6 +756,8 @@ export const updateAttributeRequestSchema = z
     languageScoped: z.boolean().optional(),
     /** Feature 022 (products bulk edit) — toggles bulk-editability. */
     massEditable: z.boolean().optional(),
+    /** Feature 039 — values participate in Quick Order search. */
+    quickSearchable: z.boolean().optional(),
   })
   .strict()
   .refine(
