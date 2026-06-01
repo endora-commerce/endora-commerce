@@ -1000,6 +1000,8 @@ export async function setupBackendServer(
       return orderListServiceForCustomers;
     },
     rfqService: quoteRequests.handle().rfqService,
+    auditLogService,
+    organizationRestrictionService: sharedRestrictionService,
   });
   modules.push(customers.plugin);
 

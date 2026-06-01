@@ -3,8 +3,13 @@ import type { ModulePlugin } from '../../http/server.js';
 import type { SessionService } from '../auth/services/session-service.js';
 import type { OrderListService } from '../orders/services/order-list-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
+import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
 import { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
+import { DefaultPreferenceService } from '../quick_order/services/default-preference-service.js';
 import { CustomerRegistrationService } from './services/customer-registration-service.js';
+import { CustomerAddressService } from './services/customer-address-service.js';
+import { CustomerDefaultsService } from './services/customer-defaults-service.js';
 import { registerCustomersRegisterRoutes } from './routes.register.js';
 import {
   registerCustomersSelfRoutes,
@@ -29,6 +34,9 @@ export interface CustomersModuleOptions {
   /** Lazy — OrderListService is bound during the orders plugin registration. */
   getOrderListService: () => OrderListService;
   rfqService: RfqService;
+  auditLogService: AuditLogService;
+  /** Org allow-list port for default-preference eligibility (optional). */
+  organizationRestrictionService?: OrganizationRestrictionService;
 }
 
 export interface CustomersModuleHandle {
@@ -49,6 +57,17 @@ export function customersModule(options: CustomersModuleOptions): {
     resolveAllowRegistrationWithoutOrganization:
       options.resolveAllowRegistrationWithoutOrganization,
   });
+  const customerAddressService = new CustomerAddressService(options.emFactory);
+  const defaultPreferenceService = new DefaultPreferenceService(
+    options.emFactory,
+    options.auditLogService,
+    options.organizationRestrictionService,
+  );
+  const customerDefaultsService = new CustomerDefaultsService(
+    options.emFactory,
+    defaultPreferenceService,
+    customerAddressService,
+  );
 
   const plugin: ModulePlugin = async (app) => {
     await registerCustomersRegisterRoutes(app, { registrationService });
@@ -59,6 +78,8 @@ export function customersModule(options: CustomersModuleOptions): {
       customerAuthService,
       getOrderListService: options.getOrderListService,
       rfqService: options.rfqService,
+      customerAddressService,
+      customerDefaultsService,
     });
   };
 

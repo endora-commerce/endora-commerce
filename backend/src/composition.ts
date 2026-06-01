@@ -1123,6 +1123,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       return orderListServiceForCustomers;
     },
     rfqService: quoteRequests.handle().rfqService,
+    auditLogService,
+    organizationRestrictionService,
   });
   modules.push(customers.plugin);
 

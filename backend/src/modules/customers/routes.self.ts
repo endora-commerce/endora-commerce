@@ -1,11 +1,22 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { changePasswordRequestSchema, ERROR_CODES } from '@b2b/contracts';
+import {
+  changePasswordRequestSchema,
+  customerAddressInputSchema,
+  updateCustomerDefaultsRequestSchema,
+  ERROR_CODES,
+} from '@b2b/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
 import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
 import type { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
 import type { OrderListService } from '../orders/services/order-list-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
+import type { CustomerAddressService } from './services/customer-address-service.js';
+import type { CustomerDefaultsService } from './services/customer-defaults-service.js';
+import {
+  serializeCustomerAddress,
+  serializeOrganizationAddress,
+} from './serializers.js';
 
 /**
  * Customer self-service routes (feature 040, US1). Each endpoint is scoped to
@@ -44,6 +55,8 @@ export interface CustomersSelfDeps {
    */
   getOrderListService: () => OrderListService;
   rfqService: RfqService;
+  customerAddressService: CustomerAddressService;
+  customerDefaultsService: CustomerDefaultsService;
 }
 
 export async function registerCustomersSelfRoutes(
@@ -52,6 +65,7 @@ export async function registerCustomersSelfRoutes(
 ): Promise<void> {
   const { emFactory, requireCustomer, customerAuthService, resolveCustomerActor } = deps;
   const { getOrderListService, rfqService } = deps;
+  const { customerAddressService, customerDefaultsService } = deps;
 
   // GET /api/v1/me/customer — own profile
   app.get(
@@ -140,6 +154,131 @@ export async function registerCustomersSelfRoutes(
         isOrgAdmin: false,
       });
       return { data };
+    },
+  );
+
+  // ── Address book (US2) ──────────────────────────────────────────────────
+
+  // GET /api/v1/me/customer/addresses — personal + org-shared
+  app.get(
+    '/api/v1/me/customer/addresses',
+    { preHandler: requireCustomer },
+    async (request) => {
+      const actor = resolveCustomerActor(request);
+      const personal = await customerAddressService.listPersonal(actor.customerAccountId);
+      const organization =
+        actor.organizationId === null
+          ? []
+          : await customerAddressService.listOrganizationAddresses(actor.organizationId);
+      return {
+        data: {
+          personal: personal.map(serializeCustomerAddress),
+          organization: organization.map(serializeOrganizationAddress),
+        },
+      };
+    },
+  );
+
+  // POST /api/v1/me/customer/addresses
+  app.post(
+    '/api/v1/me/customer/addresses',
+    { preHandler: requireCustomer, schema: { body: customerAddressInputSchema } },
+    async (request, reply) => {
+      const actor = resolveCustomerActor(request);
+      const body = customerAddressInputSchema.parse(request.body);
+      const created = await customerAddressService.create(actor.customerAccountId, {
+        kind: body.kind,
+        recipientName: body.recipientName,
+        street: body.street,
+        city: body.city,
+        postalCode: body.postalCode,
+        country: body.country,
+        phone: body.phone,
+        isDefault: body.isDefault,
+      });
+      reply.code(201);
+      return { data: serializeCustomerAddress(created) };
+    },
+  );
+
+  // PATCH /api/v1/me/customer/addresses/:addressId
+  app.patch<{ Params: { addressId: string } }>(
+    '/api/v1/me/customer/addresses/:addressId',
+    { preHandler: requireCustomer, schema: { body: customerAddressInputSchema.partial() } },
+    async (request) => {
+      const actor = resolveCustomerActor(request);
+      const body = customerAddressInputSchema.partial().parse(request.body);
+      const updated = await customerAddressService.update(
+        actor.customerAccountId,
+        request.params.addressId,
+        body,
+      );
+      return { data: serializeCustomerAddress(updated) };
+    },
+  );
+
+  // PUT /api/v1/me/customer/addresses/:addressId/default
+  app.put<{ Params: { addressId: string } }>(
+    '/api/v1/me/customer/addresses/:addressId/default',
+    { preHandler: requireCustomer },
+    async (request) => {
+      const actor = resolveCustomerActor(request);
+      const updated = await customerAddressService.setDefault(
+        actor.customerAccountId,
+        request.params.addressId,
+      );
+      return { data: serializeCustomerAddress(updated) };
+    },
+  );
+
+  // DELETE /api/v1/me/customer/addresses/:addressId
+  app.delete<{ Params: { addressId: string } }>(
+    '/api/v1/me/customer/addresses/:addressId',
+    { preHandler: requireCustomer },
+    async (request, reply) => {
+      const actor = resolveCustomerActor(request);
+      await customerAddressService.delete(actor.customerAccountId, request.params.addressId);
+      reply.code(204);
+      return null;
+    },
+  );
+
+  // ── Default payment / delivery method + addresses (US2) ──────────────────
+
+  // GET /api/v1/me/customer/defaults
+  app.get(
+    '/api/v1/me/customer/defaults',
+    { preHandler: requireCustomer },
+    async (request) => {
+      const actor = resolveCustomerActor(request);
+      return { data: await customerDefaultsService.getForCustomer(actor.customerAccountId) };
+    },
+  );
+
+  // PUT /api/v1/me/customer/defaults
+  app.put(
+    '/api/v1/me/customer/defaults',
+    { preHandler: requireCustomer, schema: { body: updateCustomerDefaultsRequestSchema } },
+    async (request) => {
+      const actor = resolveCustomerActor(request);
+      const body = updateCustomerDefaultsRequestSchema.parse(request.body);
+      const updated = await customerDefaultsService.setForCustomer(
+        actor.customerAccountId,
+        {
+          paymentMethodId: body.paymentMethodId,
+          deliveryMethodId: body.deliveryMethodId,
+          billingAddressId: body.billingAddressId,
+          shippingAddressId: body.shippingAddressId,
+        },
+        {
+          customerAccountId: actor.customerAccountId,
+          ...(typeof request.headers['user-agent'] === 'string'
+            ? { userAgent: request.headers['user-agent'] }
+            : {}),
+          ipAddress: request.ip,
+        },
+      );
+      return { data: updated };
     },
   );
 }

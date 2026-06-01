@@ -23,6 +23,17 @@ export interface CustomerAddressInputView {
   isDefault?: boolean | undefined;
 }
 
+/** Mutable fields on update — `kind` is immutable once created. */
+export interface CustomerAddressPatch {
+  recipientName?: string | undefined;
+  street?: string | undefined;
+  city?: string | undefined;
+  postalCode?: string | undefined;
+  country?: string | undefined;
+  phone?: string | undefined;
+  isDefault?: boolean | undefined;
+}
+
 export class CustomerAddressService {
   constructor(private readonly emFactory: () => EntityManager) {}
 
@@ -83,7 +94,7 @@ export class CustomerAddressService {
   async update(
     customerAccountId: string,
     addressId: string,
-    patch: Partial<CustomerAddressInputView>,
+    patch: CustomerAddressPatch,
   ): Promise<CustomerAddress> {
     const em = this.emFactory();
     return em.transactional(async (txEm) => {
