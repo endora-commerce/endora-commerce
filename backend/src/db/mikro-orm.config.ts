@@ -59,6 +59,7 @@ import { Migration054OrdersStatusModel } from '../modules/orders/migrations/054_
 import { Migration055OrderCommentsAndSavedViews } from '../modules/orders/migrations/055_order_comments_and_saved_views.js';
 import { Migration056OrgOrderConfirmationEmails } from '../modules/organizations/migrations/056_org_order_confirmation_emails.js';
 import { Migration057QuickOrderDefaultPreferences } from '../modules/quick_order/migrations/057_quick_order_default_preferences.js';
+import { Migration058AttributeQuickSearchable } from '../modules/catalog/migrations/058_attribute_quick_searchable.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -266,6 +267,10 @@ export default defineConfig({
       {
         name: 'Migration057QuickOrderDefaultPreferences',
         class: Migration057QuickOrderDefaultPreferences,
+      },
+      {
+        name: 'Migration058AttributeQuickSearchable',
+        class: Migration058AttributeQuickSearchable,
       },
     ],
     transactional: true,

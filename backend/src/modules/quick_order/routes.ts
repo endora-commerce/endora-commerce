@@ -6,6 +6,7 @@ import {
   quickOrderSearchQuerySchema,
 } from '@b2b/contracts';
 import { Product } from '../catalog/entities/product.entity.js';
+import { ProductAttribute } from '../catalog/entities/product-attribute.entity.js';
 import type { QuickOrderImportPipeline } from './services/import-pipeline.js';
 import type { QuickOrderBuildService } from './services/quick-order-build-service.js';
 import { parseImportRequest } from './services/import-from-request.js';
@@ -76,24 +77,60 @@ export async function registerQuickOrderRoutes(
     const query = quickOrderSearchQuerySchema.parse(request.query ?? {});
     const em = emFactory();
     const needle = `%${query.q}%`;
-    // SKU + slug ILIKE is enough for MVP type-ahead; Meilisearch covers
-    // full-text matches against the multilingual name JSONB blob.
-    const rows = await em.find(
-      Product,
-      {
-        status: 'active',
-        $or: [{ sku: { $ilike: needle } }, { slug: { $ilike: needle } }],
-      },
-      { limit: query.limit, orderBy: { sku: 'asc' } },
-    );
+    const ql = query.q.toLowerCase();
+
+    // Quick search matches SKU, name, and values of `quick_searchable`
+    // attributes only (FR-011 / FR-013). Name + attribute matching needs JSONB
+    // text operators, so the candidate ids are resolved with knex, then loaded.
+    const quickKeys = (
+      await em.find(ProductAttribute, { quickSearchable: true }, { fields: ['key'] })
+    ).map((a) => a.key);
+
+    const knex = em.getKnex();
+    const idRows = (await knex('products as p')
+      .select('p.id')
+      .where('p.status', 'active')
+      .andWhere((b) => {
+        void b
+          .whereRaw('p.sku ILIKE ?', [needle])
+          .orWhereRaw('p.slug ILIKE ?', [needle])
+          .orWhereRaw('p.name::text ILIKE ?', [needle]);
+        for (const key of quickKeys) {
+          void b.orWhereRaw('p.attribute_values->>? ILIKE ?', [key, needle]);
+        }
+      })
+      .orderBy('p.sku', 'asc')
+      .limit(query.limit)) as Array<{ id: string }>;
+
+    const ids = idRows.map((r) => r.id);
+    if (ids.length === 0) return { data: [] };
+    const products = await em.find(Product, { id: { $in: ids } });
+    const byId = new Map(products.map((p) => [p.id, p]));
+
+    const matchedOnFor = (p: Product): Array<'sku' | 'name' | 'attribute'> => {
+      const matched: Array<'sku' | 'name' | 'attribute'> = [];
+      if (p.sku.toLowerCase().includes(ql)) matched.push('sku');
+      if (Object.values(p.name).some((n) => String(n).toLowerCase().includes(ql))) {
+        matched.push('name');
+      }
+      if (quickKeys.some((k) => String(p.attributeValues[k] ?? '').toLowerCase().includes(ql))) {
+        matched.push('attribute');
+      }
+      return matched;
+    };
+
     return {
-      data: rows.map((p) => ({
-        productId: p.id,
-        sku: p.sku,
-        name: p.name['en-US'] ?? Object.values(p.name)[0] ?? p.sku,
-        slug: p.slug,
-        status: p.status,
-      })),
+      data: ids
+        .map((id) => byId.get(id))
+        .filter((p): p is Product => Boolean(p))
+        .map((p) => ({
+          productId: p.id,
+          sku: p.sku,
+          name: p.name['en-US'] ?? Object.values(p.name)[0] ?? p.sku,
+          slug: p.slug,
+          status: p.status,
+          matchedOn: matchedOnFor(p),
+        })),
     };
   });
 }
