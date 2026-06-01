@@ -12,6 +12,7 @@ export default async function OrganizationPage(): Promise<ReactNode> {
   if (!session) redirect('/login');
   const me = await getMe(session);
   const o = me.organization;
+  if (!o) redirect('/account');
   return (
     <>
       <h2>{o.name}</h2>

@@ -52,7 +52,7 @@ export default async function AccountProfilePage(): Promise<ReactNode> {
           </tr>
           <tr>
             <th scope="row">Organization</th>
-            <td>{me.organization.name}</td>
+            <td>{me.organization?.name ?? '—'}</td>
           </tr>
         </tbody>
       </table>

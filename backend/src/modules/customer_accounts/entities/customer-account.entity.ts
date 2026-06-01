@@ -20,7 +20,15 @@ export class CustomerAccount {
     | 'twoFactorSecret'
     | 'twoFactorConfirmedAt'
     | 'lastLoginAt'
-    | 'deletedAt';
+    | 'deletedAt'
+    | 'customerGroupId'
+    | 'blockedAt'
+    | 'blockReason'
+    | 'blockSource'
+    | 'blockedByAdminUserId'
+    | 'blockedByCustomerAccountId'
+    | 'deletionRequestedByAdminUserId'
+    | 'anonymizedAt';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -74,4 +82,45 @@ export class CustomerAccount {
 
   @Property({ type: 'datetime', nullable: true })
   deletedAt?: Date | null;
+
+  // ── Feature 040 (Customers) lifecycle extensions ────────────────────────
+
+  /**
+   * Direct customer→customer-group membership (FR-022). Independent of the
+   * Organization's group: the effective pricing group is
+   * `customerGroupId ?? organization.customerGroupId`. FK to `customer_groups`
+   * (owned by price_lists), ON DELETE SET NULL.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  @Index()
+  customerGroupId?: string | null;
+
+  /** Non-null ⇒ the account is blocked and login is denied (FR-012/FR-016). */
+  @Property({ type: 'datetime', nullable: true })
+  @Index()
+  blockedAt?: Date | null;
+
+  @Property({ type: 'text', nullable: true })
+  blockReason?: string | null;
+
+  /** Who applied the block — drives unblock authority (FR-013/FR-015). */
+  @Property({ type: 'string', length: 16, nullable: true })
+  blockSource?: 'staff' | 'org_owner' | null;
+
+  @Property({ type: 'uuid', nullable: true })
+  blockedByAdminUserId?: string | null;
+
+  @Property({ type: 'uuid', nullable: true })
+  blockedByCustomerAccountId?: string | null;
+
+  /** Admin who soft-deleted the account (paired with `deletedAt`, FR-039). */
+  @Property({ type: 'uuid', nullable: true })
+  deletionRequestedByAdminUserId?: string | null;
+
+  /**
+   * Non-null ⇒ PII has been irreversibly scrubbed by the anonymization sweep
+   * after the retention window; restore is no longer possible (FR-040).
+   */
+  @Property({ type: 'datetime', nullable: true })
+  anonymizedAt?: Date | null;
 }

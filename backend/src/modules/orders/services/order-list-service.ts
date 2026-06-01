@@ -9,6 +9,12 @@ export interface OrderListQuery {
   status?: string | undefined;
   salesChannelId?: string | undefined;
   organizationId?: string | undefined;
+  /**
+   * Feature 040 — restrict to a single Customer's own orders. Used by the
+   * customer self-service history and the admin customer-detail orders panel.
+   * Aggregates across sales channels when `salesChannelId` is omitted.
+   */
+  placedByCustomerAccountId?: string | undefined;
   q?: string | undefined;
   placedFrom?: string | undefined;
   placedTo?: string | undefined;
@@ -63,6 +69,9 @@ export class OrderListService {
     const base: FilterQuery<Order> = {};
     if (scope) base.organizationId = { $in: scope.allowedOrganizationIds };
     if (query.organizationId) base.organizationId = query.organizationId;
+    if (query.placedByCustomerAccountId) {
+      base.placedByCustomerAccountId = query.placedByCustomerAccountId;
+    }
     if (query.salesChannelId) base.salesChannelId = query.salesChannelId;
     if (query.placedFrom || query.placedTo) {
       base.placedAt = {

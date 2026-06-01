@@ -13,6 +13,9 @@ import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-ma
 import { registryCache } from '../../src/modules/_lifecycle/services/registry-cache.js';
 import { catalogModule } from '../../src/modules/catalog/plugin.js';
 import { quoteRequestsModule } from '../../src/modules/quote_requests/plugin.js';
+import { customersModule } from '../../src/modules/customers/plugin.js';
+import { ERROR_CODES } from '@b2b/contracts';
+import { HttpError } from '../../src/http/error-envelope.js';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { AdminUser } from '../../src/modules/admin_users/entities/admin-user.entity.js';
 import { AdminUserService } from '../../src/modules/admin_users/services/admin-user-service.js';
@@ -24,6 +27,7 @@ import { adminNotificationsModule } from '../../src/modules/admin_notifications/
 import { OrganizationModerationService } from '../../src/modules/organizations/services/organization-moderation-service.js';
 import { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
 import { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
+import { SalesRepAssignmentService } from '../../src/modules/organizations/services/sales-rep-assignment-service.js';
 import { OrganizationEffectivePriceListsService } from '../../src/modules/organizations/services/organization-effective-pricelists-service.js';
 import { OrganizationTaxIdValidationService } from '../../src/modules/organizations/services/organization-tax-id-validation-service.js';
 import type {
@@ -317,12 +321,15 @@ export async function setupBackendServer(
   let shoppingListServiceRef: import('../../src/modules/shopping_lists/services/shopping-list-service.js').ShoppingListService | null = null;
   // Feature 039 — late-bound OrderService for the quick_order one-click flow.
   let orderServiceForOneClick: import('../../src/modules/orders/services/order-service.js').OrderService | null = null;
+  // Feature 040 — late-bound OrderListService for the customers module.
+  let orderListServiceForCustomers: import('../../src/modules/orders/services/order-list-service.js').OrderListService | null = null;
   let handleFeature026: BackendServerHandle['organizations'] | null = null;
 
   // Feature 026 US4 — restriction service + per-request allow-list resolvers.
   // Mirrors the composition.ts pattern: production wiring reads
   // `request.actor`; the test harness uses `request.testActor`.
   const sharedRestrictionService = new OrganizationRestrictionService(em);
+  const sharedSalesRepAssignment = new SalesRepAssignmentService(em);
   const buildOrgAllowListResolver = (
     kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
   ) => async (request: FastifyRequest): Promise<string[] | null> => {
@@ -547,6 +554,10 @@ export async function setupBackendServer(
       // Feature 039 — expose OrderService for the quick_order one-click flow.
       exposeOrderService: (svc) => {
         orderServiceForOneClick = svc;
+      },
+      // Feature 040 — expose OrderListService for the customers module.
+      exposeOrderListService: (svc) => {
+        orderListServiceForCustomers = svc;
       },
       resolveCartActor: (request) => {
         if (request.testActor?.kind === 'customer') {
@@ -969,6 +980,76 @@ export async function setupBackendServer(
     resolveBoolSetting: async () => true,
   });
   modules.push(quoteRequests.register);
+
+  // Feature 040 — Customers module (mirrors composition.ts wiring).
+  const customers = customersModule({
+    emFactory: em,
+    sessionService,
+    requireCustomer: requireTestCustomer(),
+    resolveCustomerActor: (request) => {
+      if (request.testActor?.kind !== 'customer') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+      }
+      return {
+        customerAccountId: request.testActor.customerAccountId,
+        organizationId: request.testActor.organizationId ?? null,
+      };
+    },
+    resolveAllowRegistrationWithoutOrganization: async () => {
+      try {
+        const { z } = await import('zod');
+        const channel = await salesChannels.handle.resolver.getSystemDefault();
+        if (!channel) return false;
+        return await settings.handle.settingsService.get(
+          'customers.allow_registration_without_organization',
+          channel.id,
+          z.boolean(),
+        );
+      } catch {
+        return false;
+      }
+    },
+    getOrderListService: () => {
+      if (!orderListServiceForCustomers) {
+        throw new Error('OrderListService not yet bound');
+      }
+      return orderListServiceForCustomers;
+    },
+    rfqService: quoteRequests.handle().rfqService,
+    auditLogService,
+    organizationRestrictionService: sharedRestrictionService,
+    requireAdmin: requireTestAdmin(permissionService),
+    mailer: new ConsoleMailer(),
+    storefrontBaseUrl: 'http://localhost:3000',
+    resolveDeletionRetentionDays: async () => 365,
+    resolvePresenceFreshnessMinutes: async () => 10,
+    vatValidator: {
+      provider: 'vies' as const,
+      validate: async (input: { taxId: string; countryCode?: string | undefined }) => ({
+        outcome:
+          input.taxId === 'PL0000000099'
+            ? ('validated' as const)
+            : ('unverified' as const),
+        legalName: input.taxId === 'PL0000000099' ? 'Test Organization' : null,
+        address: null,
+        errorKind: null,
+      }),
+    },
+    resolveModerationActor: async (request) => {
+      const adminUserId =
+        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID;
+      const adminUser = await em().findOne(AdminUser, { id: adminUserId });
+      const role = adminUser?.adminRoleId
+        ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
+        : null;
+      const isPlatformAdmin = role?.code !== 'sales_representative';
+      const allowedOrganizationIds = isPlatformAdmin
+        ? []
+        : await sharedSalesRepAssignment.listAssignedOrganizationIds(adminUserId);
+      return { adminUserId, isPlatformAdmin, allowedOrganizationIds };
+    },
+  });
+  modules.push(customers.plugin);
 
   modules.push(
     shoppingListsModule({

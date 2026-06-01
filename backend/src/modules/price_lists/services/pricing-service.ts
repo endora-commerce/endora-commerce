@@ -72,6 +72,13 @@ export class PricingService {
     context: {
       quantity: number;
       organization?: Organization | null;
+      /**
+       * Feature 040 — a customer's DIRECT customer-group membership, which
+       * overrides the Organization's group when set (R6). Callers that know the
+       * acting customer resolve it as `customer.customerGroupId`; when omitted,
+       * the Organization's group is used (unchanged behavior).
+       */
+      customerGroupId?: string | null;
       salesChannel: SalesChannel;
       currencyCode?: string;
     };
@@ -100,7 +107,7 @@ export class PricingService {
       currencyCode,
       salesChannelId: context.salesChannel.id,
       organizationId: context.organization?.id ?? null,
-      customerGroupId: context.organization?.customerGroupId ?? null,
+      customerGroupId: context.customerGroupId ?? context.organization?.customerGroupId ?? null,
     };
     const cached = this.cache?.get(cacheKey);
     if (cached) return cached;
@@ -114,7 +121,7 @@ export class PricingService {
       );
     const ctx: ResolutionContext = {
       organizationId: context.organization?.id ?? null,
-      customerGroupId: context.organization?.customerGroupId ?? null,
+      customerGroupId: context.customerGroupId ?? context.organization?.customerGroupId ?? null,
       salesChannelId: context.salesChannel.id,
       currencyCode,
       productCategoryIds: new Set(productCategoryRows.map((r) => r.category_id)),
@@ -211,6 +218,8 @@ export class PricingService {
     context: {
       quantity: number;
       organization?: Organization | null;
+      /** Feature 040 — customer's direct group overrides the org's (R6). */
+      customerGroupId?: string | null;
       salesChannel: SalesChannel;
       currencyCode?: string;
     };

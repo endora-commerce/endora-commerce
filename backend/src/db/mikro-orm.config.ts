@@ -63,6 +63,8 @@ import { Migration057QuickOrderDefaultPreferences } from '../modules/quick_order
 import { Migration058AttributeQuickSearchable } from '../modules/catalog/migrations/058_attribute_quick_searchable.js';
 import { Migration059OrderStatusDefaultName } from '../modules/orders/migrations/059_order_status_default_name.js';
 import { Migration060OrgFulfilmentStrategy } from '../modules/organizations/migrations/060_org_fulfilment_strategy.js';
+import { Migration061CustomerAccountsLifecycle } from '../modules/customer_accounts/migrations/061_customer_accounts_lifecycle.js';
+import { Migration062CustomerAddressesInit } from '../modules/customers/migrations/062_customer_addresses_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -286,6 +288,14 @@ export default defineConfig({
       {
         name: 'Migration060OrgFulfilmentStrategy',
         class: Migration060OrgFulfilmentStrategy,
+      },
+      {
+        name: 'Migration061CustomerAccountsLifecycle',
+        class: Migration061CustomerAccountsLifecycle,
+      },
+      {
+        name: 'Migration062CustomerAddressesInit',
+        class: Migration062CustomerAddressesInit,
       },
     ],
     transactional: true,

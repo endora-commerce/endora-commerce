@@ -150,6 +150,18 @@ const NAV: NavSection[] = [
     labelKey: 'appShell.section.customers',
     items: [
       {
+        to: '/customers',
+        labelKey: 'appShell.nav.customers',
+        icon: Users,
+        requiredPermission: 'customers:read',
+      },
+      {
+        to: '/customers/online',
+        labelKey: 'appShell.nav.customersOnline',
+        icon: Users,
+        requiredPermission: 'customers:read',
+      },
+      {
         to: '/organizations',
         labelKey: 'appShell.nav.organizations',
         icon: Building2,

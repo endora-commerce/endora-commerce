@@ -38,6 +38,15 @@ export class CustomerAuthService {
     if (customer.deletedAt) {
       throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Invalid email or password.');
     }
+    // Feature 040 — a blocked account cannot log in (FR-012/FR-016). The
+    // distinct error lets the storefront show a clear "account blocked" message.
+    if (customer.blockedAt) {
+      throw new HttpError(
+        403,
+        ERROR_CODES.ACCOUNT_BLOCKED,
+        'This account has been blocked. Please contact support.',
+      );
+    }
     const ok = await verifyPassword(customer.passwordHash, input.password);
     if (!ok) {
       throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Invalid email or password.');

@@ -44,6 +44,9 @@ import { ConsoleMailer } from './modules/email/services/mailer.js';
 import { resolveSmtpUrlFromEnv } from './modules/email/resolve-smtp-url.js';
 import { SmtpMailer } from './modules/email/services/smtp-mailer.js';
 import { commerceModule } from './modules/orders/plugin.js';
+import type { OrderListService } from './modules/orders/services/order-list-service.js';
+import { customersModule } from './modules/customers/plugin.js';
+import { CUSTOMERS_SETTING_CODES } from './modules/customers/manifest.js';
 import type { OrderService } from './modules/orders/services/order-service.js';
 import { QUICK_ORDER_SETTING_CODES } from './modules/quick_order/manifest.js';
 import { adminModule } from './modules/admin_users/plugin.js';
@@ -385,6 +388,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   let shoppingListService: ShoppingListService | null = null;
   // Feature 039 — late-bound OrderService for the quick_order one-click flow.
   let orderServiceForOneClick: OrderService | null = null;
+  // Feature 040 — late-bound OrderListService for the customers module's
+  // self-service + admin order-history panels.
+  let orderListServiceForCustomers: OrderListService | null = null;
 
   const organizationsSmtpUrl = resolveSmtpUrlFromEnv();
   const organizationsMailer = organizationsSmtpUrl
@@ -706,6 +712,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // Feature 039 — expose OrderService for the quick_order one-click flow.
       exposeOrderService: (svc) => {
         orderServiceForOneClick = svc;
+      },
+      // Feature 040 — expose OrderListService for the customers module.
+      exposeOrderListService: (svc) => {
+        orderListServiceForCustomers = svc;
       },
       appendShoppingListToCart: async (input) => {
         if (!shoppingListService) {
@@ -1119,6 +1129,106 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     assertOrganizationCanTransact,
   });
   modules.push(quoteRequests.register);
+
+  // Feature 040 — Customers module. Built after orders + quote_requests so it
+  // can reach the OrderListService (late-bound) and the RfqService for the
+  // self-service order / RFQ history endpoints.
+  const customers = customersModule({
+    emFactory: em,
+    sessionService,
+    requireCustomer,
+    resolveCustomerActor: (request) => {
+      if (request.actor.kind !== 'customer') {
+        throw new HttpError(
+          401,
+          ERROR_CODES.UNAUTHORIZED,
+          'Customer session required.',
+        );
+      }
+      return {
+        customerAccountId: request.actor.customerAccountId,
+        organizationId: request.actor.organizationId ?? null,
+      };
+    },
+    resolveAllowRegistrationWithoutOrganization: async () => {
+      try {
+        const { z } = await import('zod');
+        const channel = await salesChannels.handle.resolver.getSystemDefault();
+        if (!channel) return false;
+        return await settings.handle.settingsService.get(
+          CUSTOMERS_SETTING_CODES.ALLOW_REGISTRATION_WITHOUT_ORGANIZATION,
+          channel.id,
+          z.boolean(),
+        );
+      } catch {
+        // Setting not seeded / out-of-scope — default closed (org required).
+        return false;
+      }
+    },
+    getOrderListService: () => {
+      if (!orderListServiceForCustomers) {
+        throw new Error('OrderListService not yet bound');
+      }
+      return orderListServiceForCustomers;
+    },
+    rfqService: quoteRequests.handle().rfqService,
+    auditLogService,
+    organizationRestrictionService,
+    requireAdmin,
+    vatValidator: new ViesClient(),
+    mailer: organizationsMailer,
+    storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
+    resolveDeletionRetentionDays: async () => {
+      try {
+        const { z } = await import('zod');
+        const channel = await salesChannels.handle.resolver.getSystemDefault();
+        if (!channel) return 365;
+        return await settings.handle.settingsService.get(
+          CUSTOMERS_SETTING_CODES.DELETION_RETENTION_DAYS,
+          channel.id,
+          z.number(),
+        );
+      } catch {
+        return 365;
+      }
+    },
+    resolvePresenceFreshnessMinutes: async () => {
+      try {
+        const { z } = await import('zod');
+        const channel = await salesChannels.handle.resolver.getSystemDefault();
+        if (!channel) return 10;
+        return await settings.handle.settingsService.get(
+          CUSTOMERS_SETTING_CODES.PRESENCE_FRESHNESS_MINUTES,
+          channel.id,
+          z.number(),
+        );
+      } catch {
+        return 10;
+      }
+    },
+    resolveModerationActor: async (request) => {
+      const actor = request.actor;
+      if (actor.kind !== 'admin') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+      }
+      const knex = em().getKnex();
+      const roleRow = (await knex.raw(
+        `select ar."code" as code from "admin_users" au left join "admin_roles" ar on ar."id" = au."admin_role_id" where au."id" = ?`,
+        [actor.adminUserId],
+      )) as { rows: Array<{ code: string | null }> };
+      const isPlatformAdmin = (roleRow.rows[0]?.code ?? null) !== 'sales_representative';
+      let allowedOrganizationIds: string[] = [];
+      if (!isPlatformAdmin) {
+        const rows = (await knex.raw(
+          `select "organization_id" from "organization_sales_rep_assignments" where "admin_user_id" = ?`,
+          [actor.adminUserId],
+        )) as { rows: Array<{ organization_id: string }> };
+        allowedOrganizationIds = rows.rows.map((r) => r.organization_id);
+      }
+      return { adminUserId: actor.adminUserId, isPlatformAdmin, allowedOrganizationIds };
+    },
+  });
+  modules.push(customers.plugin);
 
   // Shopping lists / quick order — depends on the RFQ service built above
   // so the "convert to RFQ" flow goes through the new createForCustomer API.
