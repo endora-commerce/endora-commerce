@@ -5,7 +5,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { SessionService } from '../../../src/modules/auth/services/session-service.js';
 import { CustomerRegistrationService } from '../../../src/modules/customers/services/customer-registration-service.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { HttpError } from '../../../src/http/error-envelope.js';
+import type { HttpError } from '../../../src/http/error-envelope.js';
 
 /**
  * Integration test for standalone (org-less) registration (feature 040, US1 /
