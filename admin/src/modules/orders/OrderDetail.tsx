@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, FileDown } from 'lucide-react';
+import { ArrowLeft, FileDown, FileText, RotateCcw } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -157,6 +157,32 @@ export function OrderDetail(): ReactNode {
     }
   }, [id, commentBody, commentVisible, commentNotify, loadComments, t]);
 
+  const handleReorder = useCallback(async (): Promise<void> => {
+    try {
+      const res = await apiClient.post<{ data: { unavailableItems: unknown[] } }>(
+        `/api/v1/admin/orders/${id}/reorder`,
+        {},
+      );
+      const unavailable = res.data.unavailableItems.length;
+      setInfo(
+        unavailable > 0
+          ? t('orderDetail.reorder.doneWithSkips', { count: unavailable })
+          : t('orderDetail.reorder.done'),
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.reorder.error'));
+    }
+  }, [id, t]);
+
+  const handleCloneToQuote = useCallback(async (): Promise<void> => {
+    try {
+      await apiClient.post(`/api/v1/admin/orders/${id}/clone-to-quote`, {});
+      setInfo(t('orderDetail.cloneToQuote.done'));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.cloneToQuote.error'));
+    }
+  }, [id, t]);
+
   const handleStatus = useCallback(
     async (to: string): Promise<void> => {
       try {
@@ -211,6 +237,14 @@ export function OrderDetail(): ReactNode {
                 <ArrowLeft />
                 {t('common.action.back')}
               </Link>
+            </Button>
+            <Button variant="outline" onClick={(): void => void handleReorder()}>
+              <RotateCcw />
+              {t('orderDetail.reorder.action')}
+            </Button>
+            <Button variant="outline" onClick={(): void => void handleCloneToQuote()}>
+              <FileText />
+              {t('orderDetail.cloneToQuote.action')}
             </Button>
             <Button asChild variant="outline">
               <a

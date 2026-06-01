@@ -49,6 +49,8 @@ const BUNDLE = passthroughBundle('core', [
   'orderDetail.comments.customerVisible',
   'orderDetail.comments.notify',
   'orderDetail.comments.internal',
+  'orderDetail.reorder.action',
+  'orderDetail.cloneToQuote.action',
 ]);
 
 beforeEach(() => {
@@ -103,5 +105,15 @@ describe('OrderDetail — comments', () => {
         notifyCustomer: true,
       }),
     );
+  });
+
+  it('reorder and clone-to-quote actions hit their endpoints', async () => {
+    postSpy.mockResolvedValue({ data: { unavailableItems: [], quoteRequestId: 'q1' } });
+    renderDetail();
+    await waitFor(() => expect(screen.getByText('orderDetail.reorder.action')).toBeInTheDocument());
+    await userEvent.click(screen.getByText('orderDetail.reorder.action'));
+    await waitFor(() => expect(postSpy).toHaveBeenCalledWith('/api/v1/admin/orders/o1/reorder', {}));
+    await userEvent.click(screen.getByText('orderDetail.cloneToQuote.action'));
+    await waitFor(() => expect(postSpy).toHaveBeenCalledWith('/api/v1/admin/orders/o1/clone-to-quote', {}));
   });
 });
