@@ -1002,6 +1002,16 @@ export async function setupBackendServer(
     rfqService: quoteRequests.handle().rfqService,
     auditLogService,
     organizationRestrictionService: sharedRestrictionService,
+    requireAdmin: requireTestAdmin(permissionService),
+    resolveModerationActor: async (request) => {
+      const adminUserId =
+        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID;
+      const adminUser = await em().findOne(AdminUser, { id: adminUserId });
+      const role = adminUser?.adminRoleId
+        ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
+        : null;
+      return { adminUserId, isPlatformAdmin: role?.code !== 'sales_representative' };
+    },
   });
   modules.push(customers.plugin);
 

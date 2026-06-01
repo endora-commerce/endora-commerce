@@ -1125,6 +1125,19 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     rfqService: quoteRequests.handle().rfqService,
     auditLogService,
     organizationRestrictionService,
+    requireAdmin,
+    resolveModerationActor: async (request) => {
+      const actor = request.actor;
+      if (actor.kind !== 'admin') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+      }
+      const roleRow = (await em().getKnex().raw(
+        `select ar."code" as code from "admin_users" au left join "admin_roles" ar on ar."id" = au."admin_role_id" where au."id" = ?`,
+        [actor.adminUserId],
+      )) as { rows: Array<{ code: string | null }> };
+      const roleCode = roleRow.rows[0]?.code ?? null;
+      return { adminUserId: actor.adminUserId, isPlatformAdmin: roleCode !== 'sales_representative' };
+    },
   });
   modules.push(customers.plugin);
 

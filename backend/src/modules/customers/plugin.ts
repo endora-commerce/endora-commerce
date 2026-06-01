@@ -7,15 +7,23 @@ import type { AuditLogService } from '../audit_logs/services/audit-log-service.j
 import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
 import { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
 import { DefaultPreferenceService } from '../quick_order/services/default-preference-service.js';
+import { SalesRepAssignmentService } from '../organizations/services/sales-rep-assignment-service.js';
 import { CustomerRegistrationService } from './services/customer-registration-service.js';
 import { CustomerAddressService } from './services/customer-address-service.js';
 import { CustomerDefaultsService } from './services/customer-defaults-service.js';
+import { CustomerAuthorityService } from './services/customer-authority-service.js';
+import { CustomerModerationService } from './services/customer-moderation-service.js';
 import { registerCustomersRegisterRoutes } from './routes.register.js';
 import {
   registerCustomersSelfRoutes,
   type RequireCustomerGuard,
   type ResolveCustomerActor,
 } from './routes.self.js';
+import {
+  registerCustomersAdminRoutes,
+  type RequireAdminGuard,
+  type ResolveModerationActor,
+} from './routes.admin.js';
 
 /**
  * Customers module composition root (feature 040).
@@ -37,6 +45,8 @@ export interface CustomersModuleOptions {
   auditLogService: AuditLogService;
   /** Org allow-list port for default-preference eligibility (optional). */
   organizationRestrictionService?: OrganizationRestrictionService;
+  requireAdmin: RequireAdminGuard;
+  resolveModerationActor: ResolveModerationActor;
 }
 
 export interface CustomersModuleHandle {
@@ -68,6 +78,18 @@ export function customersModule(options: CustomersModuleOptions): {
     defaultPreferenceService,
     customerAddressService,
   );
+  const authorityService = new CustomerAuthorityService(
+    new SalesRepAssignmentService(options.emFactory),
+  );
+  const moderationService = new CustomerModerationService(
+    options.emFactory,
+    authorityService,
+    options.auditLogService,
+    {
+      destroyAllForCustomer: (customerAccountId) =>
+        options.sessionService.destroyAllForCustomer(customerAccountId),
+    },
+  );
 
   const plugin: ModulePlugin = async (app) => {
     await registerCustomersRegisterRoutes(app, { registrationService });
@@ -80,6 +102,11 @@ export function customersModule(options: CustomersModuleOptions): {
       rfqService: options.rfqService,
       customerAddressService,
       customerDefaultsService,
+    });
+    await registerCustomersAdminRoutes(app, {
+      requireAdmin: options.requireAdmin,
+      resolveModerationActor: options.resolveModerationActor,
+      moderationService,
     });
   };
 
