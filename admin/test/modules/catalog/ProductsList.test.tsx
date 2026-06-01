@@ -12,6 +12,7 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
  */
 
 const getSpy = vi.fn();
+const deleteSpy = vi.fn();
 
 vi.mock('@/lib/api-client', async () => {
   const actual = await vi.importActual<typeof import('../../../src/lib/api-client')>(
@@ -24,7 +25,7 @@ vi.mock('@/lib/api-client', async () => {
       post: vi.fn(),
       put: vi.fn(),
       patch: vi.fn(),
-      delete: vi.fn(),
+      delete: (...args: unknown[]) => deleteSpy(...args),
     },
   };
 });
@@ -50,6 +51,8 @@ const BUNDLE = passthroughBundle('catalog', [
   'productsList.bulk.edit',
   'productsList.bulk.editPrice',
   'productsList.bulk.delete',
+  'productsList.bulk.deleteConfirm',
+  'productsList.bulk.deleteFailed',
   'productsList.column.product',
   'productsList.column.sku',
   'productsList.column.status',
@@ -70,7 +73,7 @@ const BUNDLE = passthroughBundle('catalog', [
   'productsList.tab.all',
   'productsList.tab.active',
   'productsList.tab.draft',
-  'productsList.tab.archived',
+  'productsList.tab.inactive',
   'productsList.error.load',
 ]);
 
@@ -89,9 +92,13 @@ const productRow = (id: string, sku: string, name: string): unknown => ({
 describe('ProductsList — streamlined selection toolbar (T041)', () => {
   beforeEach(() => {
     getSpy.mockReset();
+    deleteSpy.mockReset();
+    deleteSpy.mockResolvedValue(undefined);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
   });
 
@@ -99,7 +106,7 @@ describe('ProductsList — streamlined selection toolbar (T041)', () => {
     getSpy.mockResolvedValue({
       data: [productRow('00000000-0000-4000-8000-000000000a01', 'ROW-A', 'Row A widget')],
       pagination: { page: 0, pageSize: 25, total: 1 },
-      counts: { all: 1, active: 1, draft: 0, archived: 0 },
+      counts: { all: 1, active: 1, draft: 0, inactive: 0 },
     });
 
     renderWithI18n(
@@ -140,7 +147,7 @@ describe('ProductsList — streamlined selection toolbar (T041)', () => {
     getSpy.mockResolvedValue({
       data: [productRow('00000000-0000-4000-8000-000000000a02', 'ROW-B', 'Row B widget')],
       pagination: { page: 0, pageSize: 25, total: 1 },
-      counts: { all: 1, active: 1, draft: 0, archived: 0 },
+      counts: { all: 1, active: 1, draft: 0, inactive: 0 },
     });
 
     renderWithI18n(
@@ -166,5 +173,30 @@ describe('ProductsList — streamlined selection toolbar (T041)', () => {
     expect(
       editPriceBtn.compareDocumentPosition(deleteBtn) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it('Delete calls DELETE for each selected product after confirm', async () => {
+    const id = '00000000-0000-4000-8000-000000000a03';
+    getSpy.mockResolvedValue({
+      data: [productRow(id, 'ROW-C', 'Row C widget')],
+      pagination: { page: 0, pageSize: 25, total: 1 },
+      counts: { all: 1, active: 1, draft: 0, inactive: 0 },
+    });
+
+    renderWithI18n(
+      <MemoryRouter>
+        <ProductsList />
+      </MemoryRouter>,
+      BUNDLE,
+    );
+
+    await screen.findByText('Row C widget');
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole('checkbox')[1]!);
+    await user.click(await screen.findByText('productsList.bulk.delete'));
+
+    await waitFor(() => {
+      expect(deleteSpy).toHaveBeenCalledWith(`/api/v1/admin/catalog/products/${id}`);
+    });
   });
 });

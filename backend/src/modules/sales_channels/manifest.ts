@@ -39,6 +39,10 @@ export const manifest = defineModuleManifest({
   dependencies: ['settings'],
   settings,
   i18n: { bundlesDir: 'i18n' },
+  permissions: [
+    { code: 'sales_channels:read', label: 'View sales channels' },
+    { code: 'sales_channels:write', label: 'Manage sales channels' },
+  ],
   actions: [
     {
       id: 'new-sales-channel',

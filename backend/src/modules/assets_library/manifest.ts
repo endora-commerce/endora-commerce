@@ -113,6 +113,10 @@ export const manifest = defineModuleManifest({
   dependencies: [],
   settings,
   i18n: { bundlesDir: 'i18n' },
+  permissions: [
+    { code: 'assets.read', label: 'Browse assets library' },
+    { code: 'assets.write', label: 'Upload and manage assets' },
+  ],
 });
 
 /** Legacy export retained for backward compatibility. */

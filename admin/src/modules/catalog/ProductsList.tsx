@@ -23,6 +23,11 @@ import {
   X,
 } from 'lucide-react';
 import { ProductsBulkEditDialog } from './ProductsBulkEditDialog';
+import {
+  BULK_EDIT_MAX_BATCH_SIZE,
+  resolveProductSelection,
+  type ListFilterSnapshot,
+} from './lib/resolve-product-selection';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { PaginationFooter } from '@/components/PaginationFooter';
@@ -34,16 +39,28 @@ interface AdminProduct {
   sku: string;
   slug: string;
   type: string;
-  status: 'draft' | 'active' | 'archived';
+  status: 'draft' | 'active' | 'inactive';
   name: Record<string, string>;
   visibility: string;
   attributeValues: Record<string, unknown>;
   updatedAt: string;
 }
 
-type StatusFilter = 'all' | 'active' | 'draft' | 'archived';
+type StatusFilter = 'all' | 'active' | 'draft' | 'inactive';
 type StockFilter = 'all' | 'low' | 'out';
 type TypeFilter = 'all' | 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
+type SelectionMode = 'none' | 'page' | 'collection';
+
+interface ProductListSelection {
+  mode: SelectionMode;
+  pageIds: Set<string>;
+  collectionSnapshot: ListFilterSnapshot | null;
+  collectionTotal: number;
+}
+
+function emptySelection(): ProductListSelection {
+  return { mode: 'none', pageIds: new Set(), collectionSnapshot: null, collectionTotal: 0 };
+}
 
 const TYPE_CYCLE: TypeFilter[] = ['all', 'simple', 'configurable', 'grouped', 'bundle', 'virtual'];
 const STOCK_CYCLE: StockFilter[] = ['all', 'low', 'out'];
@@ -60,7 +77,7 @@ const STOCK_CYCLE: StockFilter[] = ['all', 'low', 'out'];
 interface ProductsResponse {
   data: AdminProduct[];
   pagination: { page: number; pageSize: number; total: number };
-  counts: { all: number; active: number; draft: number; archived: number };
+  counts: { all: number; active: number; draft: number; inactive: number };
 }
 
 export function ProductsList(): ReactNode {
@@ -68,8 +85,8 @@ export function ProductsList(): ReactNode {
   const navigate = useNavigate();
   const [rows, setRows] = useState<AdminProduct[]>([]);
   const [total, setTotal] = useState(0);
-  const [counts, setCounts] = useState<{ all: number; active: number; draft: number; archived: number }>(
-    { all: 0, active: 0, draft: 0, archived: 0 },
+  const [counts, setCounts] = useState<{ all: number; active: number; draft: number; inactive: number }>(
+    { all: 0, active: 0, draft: 0, inactive: 0 },
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,8 +94,12 @@ export function ProductsList(): ReactNode {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [stockFilter, setStockFilter] = useState<StockFilter>('all');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selection, setSelection] = useState<ProductListSelection>(emptySelection);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [bulkEditProductIds, setBulkEditProductIds] = useState<string[]>([]);
+  const [selectionError, setSelectionError] = useState<string | null>(null);
+  const [resolvingSelection, setResolvingSelection] = useState(false);
   const { pageSize, setPageSize } = usePageSizePreference('catalog-products');
   const [page, setPage] = useState(0);
 
@@ -126,6 +147,23 @@ export function ProductsList(): ReactNode {
     setPage(0);
   }, [statusFilter, typeFilter, debouncedQuery, pageSize]);
 
+  // Feature 033 — changing filters invalidates collection-wide selection (FR-006).
+  useEffect(() => {
+    setSelection(emptySelection());
+    setBulkEditOpen(false);
+    setBulkEditProductIds([]);
+    setSelectionError(null);
+  }, [statusFilter, typeFilter, debouncedQuery]);
+
+  const filterSnapshot = useCallback(
+    (): ListFilterSnapshot => ({
+      status: statusFilter,
+      type: typeFilter,
+      q: debouncedQuery,
+    }),
+    [statusFilter, typeFilter, debouncedQuery],
+  );
+
   // The stock chip remains a placeholder until the list payload carries
   // stock numbers — apply it client-side as a kill-switch so the UI stays
   // honest (returns 0 rows when "Out"/"Low" is picked).
@@ -134,22 +172,152 @@ export function ProductsList(): ReactNode {
     return rows;
   }, [rows, stockFilter]);
 
-  const allSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.id));
-  const someSelected = selected.size > 0 && !allSelected;
+  const selectedCount =
+    selection.mode === 'collection' ? selection.collectionTotal : selection.pageIds.size;
+
+  const isRowSelected = (id: string): boolean =>
+    selection.mode === 'collection' || selection.pageIds.has(id);
+
+  const allVisibleSelected =
+    filtered.length > 0 &&
+    (selection.mode === 'collection' ||
+      filtered.every((p) => selection.pageIds.has(p.id)));
+
+  const someVisibleSelected =
+    filtered.some((p) => isRowSelected(p.id)) && !allVisibleSelected;
+
+  const showSelectAllBanner =
+    filtered.length > 0 &&
+    total > filtered.length &&
+    selection.mode === 'page' &&
+    filtered.every((p) => selection.pageIds.has(p.id));
+
+  const clearSelection = (): void => {
+    setSelection(emptySelection());
+    setSelectionError(null);
+  };
 
   const toggleAll = (): void => {
-    if (allSelected) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(filtered.map((p) => p.id)));
+    if (selection.mode === 'collection' || allVisibleSelected) {
+      clearSelection();
+      return;
+    }
+    setSelection({
+      mode: 'page',
+      pageIds: new Set(filtered.map((p) => p.id)),
+      collectionSnapshot: null,
+      collectionTotal: 0,
+    });
+  };
+
+  const toggleOne = (id: string): void => {
+    setSelection((prev) => {
+      if (prev.mode === 'collection') {
+        const nextIds = new Set(filtered.map((p) => p.id));
+        nextIds.delete(id);
+        return {
+          mode: nextIds.size === 0 ? 'none' : 'page',
+          pageIds: nextIds,
+          collectionSnapshot: null,
+          collectionTotal: 0,
+        };
+      }
+      const nextIds = new Set(prev.pageIds);
+      if (nextIds.has(id)) nextIds.delete(id);
+      else nextIds.add(id);
+      return {
+        mode: nextIds.size === 0 ? 'none' : 'page',
+        pageIds: nextIds,
+        collectionSnapshot: null,
+        collectionTotal: 0,
+      };
+    });
+  };
+
+  const selectCollectionMode = (): void => {
+    setSelection({
+      mode: 'collection',
+      pageIds: new Set(),
+      collectionSnapshot: filterSnapshot(),
+      collectionTotal: total,
+    });
+  };
+
+  const resolveSelectedIds = async (): Promise<string[]> => {
+    if (selection.mode === 'collection' && selection.collectionSnapshot) {
+      const { productIds } = await resolveProductSelection(selection.collectionSnapshot);
+      return productIds;
+    }
+    return Array.from(selection.pageIds);
+  };
+
+  const openBulkEdit = async (): Promise<void> => {
+    setSelectionError(null);
+    setResolvingSelection(true);
+    try {
+      const ids = await resolveSelectedIds();
+      if (ids.length > BULK_EDIT_MAX_BATCH_SIZE) {
+        setSelectionError(
+          t('productsList.selection.bulkEditLimit', {
+            total: ids.length,
+            maxBatchSize: BULK_EDIT_MAX_BATCH_SIZE,
+          }),
+        );
+        return;
+      }
+      setBulkEditProductIds(ids);
+      setBulkEditOpen(true);
+    } catch {
+      setSelectionError(t('productsList.selection.resolveFailed'));
+    } finally {
+      setResolvingSelection(false);
     }
   };
-  const toggleOne = (id: string): void => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+
+  const runWithResolvedIds = async (
+    action: (ids: string[]) => Promise<void>,
+  ): Promise<void> => {
+    setSelectionError(null);
+    setResolvingSelection(true);
+    try {
+      const ids = await resolveSelectedIds();
+      await action(ids);
+    } catch {
+      setSelectionError(t('productsList.selection.resolveFailed'));
+    } finally {
+      setResolvingSelection(false);
+    }
+  };
+
+  const handleBulkDelete = (): void => {
+    if (deleting || selectedCount === 0) return;
+    if (!confirm(t('productsList.bulk.deleteConfirm', { count: selectedCount }))) return;
+
+    setDeleting(true);
+    setError(null);
+    // Resolve the full selection (page or "all matching" collection scope —
+    // feature 033) before deleting; collect per-item failures (feature 032).
+    void runWithResolvedIds(async (ids) => {
+      const failed: Array<{ id: string; message: string }> = [];
+      for (const id of ids) {
+        try {
+          await apiClient.delete<void>(`/api/v1/admin/catalog/products/${id}`);
+        } catch (err) {
+          const message =
+            err instanceof ApiError
+              ? err.envelope.error.message
+              : t('productsList.bulk.deleteFailed');
+          failed.push({ id, message });
+        }
+      }
+      if (failed.length > 0) {
+        setError(failed.map((f) => f.message).join(' · '));
+      } else {
+        clearSelection();
+      }
+      await refresh();
+    }).finally(() => {
+      setDeleting(false);
     });
   };
 
@@ -201,7 +369,7 @@ export function ProductsList(): ReactNode {
             <Tab id="all" label={t('productsList.tab.all')} count={counts.all} active={statusFilter} onChange={setStatusFilter} />
             <Tab id="active" label={t('productsList.tab.active')} count={counts.active} active={statusFilter} onChange={setStatusFilter} />
             <Tab id="draft" label={t('productsList.tab.draft')} count={counts.draft} active={statusFilter} onChange={setStatusFilter} />
-            <Tab id="archived" label={t('productsList.tab.archived')} count={counts.archived} active={statusFilter} onChange={setStatusFilter} />
+            <Tab id="inactive" label={t('productsList.tab.inactive')} count={counts.inactive} active={statusFilter} onChange={setStatusFilter} />
           </div>
           </div>
         </div>
@@ -252,51 +420,115 @@ export function ProductsList(): ReactNode {
           <Chip icon={<Store size={12} />} active={false} label={t('productsList.chip.channel')} onClick={(): void => {}} />
         </div>
 
-        {selected.size > 0 ? (
+        {showSelectAllBanner ? (
+          <div
+            style={{
+              padding: '8px 12px',
+              fontSize: 13,
+              background: 'var(--bg-subtle, #f6f6f7)',
+              borderBottom: '1px solid var(--border, #e5e7eb)',
+            }}
+          >
+            {t('productsList.selection.allPageSelected', { pageCount: filtered.length })}{' '}
+            <button
+              type="button"
+              data-testid="select-all-matching"
+              className="b2b-btn b2b-btn--ghost"
+              style={{ display: 'inline', height: 'auto', padding: 0, color: 'var(--primary-color)' }}
+              onClick={selectCollectionMode}
+            >
+              {t('productsList.selection.selectAllMatching', { total })}
+            </button>
+          </div>
+        ) : null}
+
+        {selectionError ? (
+          <div
+            style={{
+              padding: '8px 12px',
+              fontSize: 13,
+              color: 'var(--danger-soft-fg)',
+              background: 'var(--danger-soft)',
+              borderBottom: '1px solid hsl(8 80% 85%)',
+            }}
+          >
+            {selectionError}
+          </div>
+        ) : null}
+
+        {selectedCount > 0 ? (
           <div className="b2b-bulkbar">
             <input
               type="checkbox"
               className="b2b-cbx"
-              checked={allSelected}
+              checked={allVisibleSelected}
               ref={(el): void => {
-                if (el) el.indeterminate = someSelected;
+                if (el) el.indeterminate = someVisibleSelected;
               }}
               onChange={toggleAll}
             />
-            <span className="count">{t('productsList.bulk.selected', { count: selected.size })}</span>
+            <span className="count" data-testid="selection-summary">
+              {t('productsList.selection.selected', { count: selectedCount })}{' '}
+              {selection.mode === 'collection'
+                ? t('productsList.selection.scopeCollection')
+                : t('productsList.selection.scopePage')}
+            </span>
             <div className="actions">
               <button
                 type="button"
                 className="b2b-btn b2b-btn--primary"
-                onClick={(): void => setBulkEditOpen(true)}
+                disabled={resolvingSelection}
+                onClick={(): void => {
+                  void openBulkEdit();
+                }}
               >
-                <PenSquare size={13} /> {t('productsList.bulk.edit')}
+                <PenSquare size={13} />{' '}
+                {resolvingSelection
+                  ? t('productsList.selection.resolving')
+                  : t('productsList.bulk.edit')}
               </button>
-              <button type="button" className="b2b-btn">
+              <button
+                type="button"
+                className="b2b-btn"
+                disabled={resolvingSelection}
+                onClick={(): void => {
+                  void runWithResolvedIds(async () => {
+                    /* Edit price — placeholder until dedicated flow ships */
+                  });
+                }}
+              >
                 <CircleDollarSign size={13} /> {t('productsList.bulk.editPrice')}
               </button>
-              <button type="button" className="b2b-btn b2b-btn--danger">
-                <Trash2 size={13} /> {t('productsList.bulk.delete')}
+              <button
+                type="button"
+                className="b2b-btn b2b-btn--danger"
+                disabled={deleting || resolvingSelection}
+                onClick={handleBulkDelete}
+              >
+                <Trash2 size={13} /> {deleting ? '…' : t('productsList.bulk.delete')}
               </button>
             </div>
             <button
               type="button"
               className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
               style={{ color: '#fff' }}
-              onClick={(): void => setSelected(new Set())}
+              onClick={clearSelection}
             >
               <X size={14} />
             </button>
           </div>
         ) : null}
 
-        {bulkEditOpen && selected.size > 0 ? (
+        {bulkEditOpen && bulkEditProductIds.length > 0 ? (
           <ProductsBulkEditDialog
-            productIds={Array.from(selected)}
+            productIds={bulkEditProductIds}
+            selectionScope={selection.mode === 'collection' ? 'collection' : 'page'}
             onClose={(): void => setBulkEditOpen(false)}
             onApplied={(): void => {
               void refresh();
-              setSelected(new Set());
+              clearSelection();
+              setBulkEditOpen(false);
+              setBulkEditProductIds([]);
             }}
           />
         ) : null}
@@ -332,9 +564,9 @@ export function ProductsList(): ReactNode {
                     <input
                       type="checkbox"
                       className="b2b-cbx"
-                      checked={allSelected}
+                      checked={allVisibleSelected}
                       ref={(el): void => {
-                        if (el) el.indeterminate = someSelected;
+                        if (el) el.indeterminate = someVisibleSelected;
                       }}
                       onChange={toggleAll}
                     />
@@ -352,14 +584,14 @@ export function ProductsList(): ReactNode {
                 {filtered.map((r) => (
                   <tr
                     key={r.id}
-                    className={cn('is-clickable', selected.has(r.id) && 'is-selected')}
+                    className={cn('is-clickable', isRowSelected(r.id) && 'is-selected')}
                     onClick={(): void => { navigate(`/catalog/products/${r.id}`); }}
                   >
                     <td className="col-cb" onClick={(e): void => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         className="b2b-cbx"
-                        checked={selected.has(r.id)}
+                        checked={isRowSelected(r.id)}
                         onChange={(): void => toggleOne(r.id)}
                       />
                     </td>
@@ -498,10 +730,10 @@ function Chip(props: {
 }
 
 function StatusPill({ status }: { status: AdminProduct['status'] }): ReactNode {
-  const map = {
+  const map: Record<AdminProduct['status'], { cls: string; label: string }> = {
     active: { cls: 'b2b-badge--success', label: 'Active' },
     draft: { cls: 'b2b-badge--warn', label: 'Draft' },
-    archived: { cls: '', label: 'Archived' },
+    inactive: { cls: '', label: 'Inactive' },
   } as const;
   const v = map[status];
   return <span className={cn('b2b-badge', 'b2b-badge--dot', v.cls)}>{v.label}</span>;

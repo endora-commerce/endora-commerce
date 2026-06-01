@@ -46,6 +46,7 @@
   "state.missing": "brak",
   "state.system": "systemowa",
   "status.archived": "zarchiwizowany",
+  "status.inactive": "nieaktywny",
   "status.draft": "szkic",
   "status.published": "opublikowany",
   "categoryEditor.assetPlaceholder": "00000000-0000-...",

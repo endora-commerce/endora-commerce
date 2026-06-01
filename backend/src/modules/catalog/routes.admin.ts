@@ -3,6 +3,7 @@ import {
   assignAttributesRequestSchema,
   batchByIdProductsRequestSchema,
   bulkUpdateProductsRequestSchema,
+  resolveProductIdsRequestSchema,
   createAttributeRequestSchema,
   createAttributeSetRequestSchema,
   createCategoryRequestSchema,
@@ -246,7 +247,7 @@ export async function registerCatalogAdminRoutes(
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
       const auditCtx = deps.resolveAdminAuditContext?.(request);
-      await adminService.archiveProduct(
+      await adminService.deleteProduct(
         request.params.id,
         auditCtx
           ? {
@@ -357,9 +358,11 @@ export async function registerCatalogAdminRoutes(
       const includeArchived = q['includeArchived'] === '1' || q['includeArchived'] === 'true';
       const statusRaw = q['status'];
       const status =
-        statusRaw === 'active' || statusRaw === 'draft' || statusRaw === 'archived'
+        statusRaw === 'active' || statusRaw === 'draft' || statusRaw === 'inactive'
           ? statusRaw
-          : undefined;
+          : statusRaw === 'archived'
+            ? 'inactive'
+            : undefined;
       const typeRaw = q['type'];
       const type =
         typeRaw === 'simple' ||
@@ -391,6 +394,25 @@ export async function registerCatalogAdminRoutes(
         },
         counts: result.counts,
       };
+    },
+  );
+
+  app.post(
+    '/api/v1/admin/catalog/products/resolve-ids',
+    {
+      preHandler: requireAdmin('catalog:read'),
+      schema: { body: resolveProductIdsRequestSchema },
+    },
+    async (request) => {
+      const body = resolveProductIdsRequestSchema.parse(request.body);
+      const includeArchived = body.includeArchived ?? true;
+      const result = await adminService.resolveProductIds({
+        includeArchived,
+        ...(body.status ? { status: body.status } : {}),
+        ...(body.type ? { type: body.type } : {}),
+        ...(body.q ? { q: body.q } : {}),
+      });
+      return { data: result };
     },
   );
 

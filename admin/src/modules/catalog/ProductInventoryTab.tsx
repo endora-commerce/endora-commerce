@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { StockLevelRow, Warehouse } from '@b2b/contracts';
+import type { FulfilmentStrategy, StockLevelRow, Warehouse } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';
+import {
+  FulfilmentStrategyPicker,
+  type FulfilmentStrategyValue,
+} from '@/modules/inventory/components/FulfilmentStrategyPicker';
 
 interface RosterResponse {
   items: StockLevelRow[];
@@ -17,6 +21,8 @@ interface AdminProductResponse {
     id: string;
     lowStockThreshold: number | null;
     lowStockThresholdMode: 'cumulative' | 'per_warehouse';
+    fulfilmentStrategy: FulfilmentStrategy | null;
+    fulfilmentStrategyWarehouseOrder: string[] | null;
   };
 }
 
@@ -49,6 +55,11 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
   const [lowStockSaving, setLowStockSaving] = useState(false);
   const [mode, setMode] = useState<ThresholdMode>('cumulative');
   const [modeSaving, setModeSaving] = useState(false);
+  const [fulfilment, setFulfilment] = useState<FulfilmentStrategyValue>({
+    strategy: null,
+    warehouseOrder: [],
+  });
+  const [fulfilmentSaving, setFulfilmentSaving] = useState(false);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -86,6 +97,10 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
           : String(productRes.data.lowStockThreshold),
       );
       setMode(productRes.data.lowStockThresholdMode);
+      setFulfilment({
+        strategy: productRes.data.fulfilmentStrategy,
+        warehouseOrder: productRes.data.fulfilmentStrategyWarehouseOrder ?? [],
+      });
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load warehouses.');
     } finally {
@@ -122,6 +137,24 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
       );
     } finally {
       setModeSaving(false);
+    }
+  };
+
+  const handleSaveFulfilment = async (): Promise<void> => {
+    setFulfilmentSaving(true);
+    setError(null);
+    setInfo(null);
+    try {
+      await apiClient.patch(`/api/v1/admin/catalog/products/${productId}`, {
+        fulfilmentStrategy: fulfilment.strategy,
+        fulfilmentStrategyWarehouseOrder:
+          fulfilment.strategy === 'defined_order' ? fulfilment.warehouseOrder : null,
+      });
+      setInfo(t('inventoryTab.fulfilment.saved'));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : t('inventoryTab.error.save'));
+    } finally {
+      setFulfilmentSaving(false);
     }
   };
 
@@ -284,6 +317,31 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
               {t('inventoryTab.lowStock.perWarehouseHelp')}
             </div>
           )}
+        </div>
+      </div>
+
+      <div className="b2b-card">
+        <div className="b2b-card__head">
+          <h2>{t('inventoryTab.fulfilment.title')}</h2>
+        </div>
+        <div className="b2b-card__body">
+          <FulfilmentStrategyPicker
+            value={fulfilment}
+            onChange={setFulfilment}
+            warehouses={warehouses.map((w) => ({ id: w.id, code: w.code, name: w.name }))}
+            allowInherit
+            idPrefix={`product-${productId}`}
+          />
+          <div style={{ marginTop: 12 }}>
+            <button
+              type="button"
+              className="b2b-btn b2b-btn--primary b2b-btn--sm"
+              onClick={(): void => { void handleSaveFulfilment(); }}
+              disabled={fulfilmentSaving}
+            >
+              {fulfilmentSaving ? t('inventoryTab.lowStock.saving') : t('inventoryTab.lowStock.save')}
+            </button>
+          </div>
         </div>
       </div>
 

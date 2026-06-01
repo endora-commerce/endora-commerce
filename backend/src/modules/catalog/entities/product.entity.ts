@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 
 /**
  * Product — the central catalog object. Supports four `type`s (FR-002).
- * Soft-deleted via `deletedAt` (data-model.md cross-cutting section); archived
+ * Soft-deleted via `deletedAt` (data-model.md cross-cutting section); inactive
  * products still resolve from historical Orders, Invoices, RFQs, Shopping Lists
  * but are excluded from search/filters.
  *
@@ -48,7 +48,7 @@ export class Product {
 
   @Property({ type: 'string', length: 16 })
   @Index()
-  status: 'draft' | 'active' | 'archived' = 'draft';
+  status: 'draft' | 'active' | 'inactive' = 'draft';
 
   @Property({ type: 'json' })
   name!: Record<string, string>;

@@ -19,6 +19,7 @@ export interface CatalogEvents extends Record<string, EventBase> {
   'product.created.v1': EventBase & { productId: string; sku: string };
   'product.updated.v1': EventBase & { productId: string; changedFields: string[] };
   'product.archived.v1': EventBase & { productId: string };
+  'product.deleted.v1': EventBase & { productId: string };
   'attribute.updated.v1': EventBase & {
     attributeKey: string;
     isSearchable: boolean;
@@ -228,13 +229,11 @@ export class CatalogAdminService {
     if (req.description) { product.description = req.description; changedFields.push('description'); }
     if (req.stockMode !== undefined) { product.stockMode = req.stockMode; changedFields.push('stockMode'); }
     if (req.visibility) { product.visibility = req.visibility; changedFields.push('visibility'); }
-    // Feature 022 — status field. Cross-field rule: transitioning to
-    // 'archived' sets archivedAt; transitioning away from 'archived'
-    // clears it. Only push to changedFields when the value actually
-    // moved, so untouched-field invariant holds for no-op writes.
+    // Feature 022 / 032 — status field. Cross-field rule: transitioning to
+    // `inactive` sets archivedAt; transitioning away clears it.
     if (req.status !== undefined && req.status !== product.status) {
       product.status = req.status;
-      if (req.status === 'archived') {
+      if (req.status === 'inactive') {
         product.archivedAt = new Date();
       } else {
         product.archivedAt = null;
@@ -662,45 +661,78 @@ export class CatalogAdminService {
     return out;
   }
 
+  /**
+   * @deprecated Use `updateProduct` with `status: 'inactive'` instead.
+   * Kept for internal callers that still emit `product.archived.v1`.
+   */
   async archiveProduct(id: string, auditCtx?: AdminAuditContext): Promise<void> {
+    await this.updateProduct(id, { status: 'inactive' }, auditCtx);
+    this.events.emit('product.archived.v1', {
+      eventId: randomUUID(),
+      occurredAt: new Date().toISOString(),
+      productId: id,
+    });
+  }
+
+  async assertProductDeletable(em: EntityManager, productId: string): Promise<void> {
+    const knex = em.getKnex();
+    const orderRow = (await knex('order_items')
+      .where({ product_id: productId })
+      .count<{ count: string | number }>('* as count')
+      .first()) as { count: string | number } | undefined;
+    if (Number(orderRow?.count ?? 0) > 0) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.PRODUCT_DELETE_BLOCKED,
+        'Product cannot be deleted because it is referenced by order lines.',
+      );
+    }
+    const cartRow = (await knex('cart_items')
+      .where({ product_id: productId })
+      .count<{ count: string | number }>('* as count')
+      .first()) as { count: string | number } | undefined;
+    if (Number(cartRow?.count ?? 0) > 0) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.PRODUCT_DELETE_BLOCKED,
+        'Product cannot be deleted because it is referenced by cart lines.',
+      );
+    }
+  }
+
+  async deleteProduct(id: string, auditCtx?: AdminAuditContext): Promise<void> {
     const em = this.emFactory();
-    const product = await em.findOne(Product, { id });
+    const product = await em.findOne(Product, { id, deletedAt: null });
     if (!product) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
-    const previousStatus = product.status;
-    const previousArchivedAt = product.archivedAt ?? null;
-    product.status = 'archived';
-    product.archivedAt = new Date();
+    await this.assertProductDeletable(em, id);
+    const stateBefore = {
+      status: product.status,
+      sku: product.sku,
+      name: { ...product.name },
+      deletedAt: product.deletedAt ?? null,
+    };
+    product.deletedAt = new Date();
     await em.flush();
-    this.events.emit('product.archived.v1', {
+    this.events.emit('product.deleted.v1', {
       eventId: randomUUID(),
       occurredAt: new Date().toISOString(),
       productId: product.id,
     });
-    // Feature 024 — audit `product.archive` so the dashboard surfaces
-    // status transitions. Snapshots carry the SKU + name so the row
-    // renders meaningfully even after a hard-delete (FR-019).
     if (this.auditLog && auditCtx) {
       await this.auditLog.record({
         actorAdminUserId: auditCtx.actorAdminUserId,
         ...(auditCtx.impersonatedCustomerAccountId !== undefined
           ? { impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId }
           : {}),
-        action: 'product.archive',
+        action: 'product.delete',
         objectType: 'product',
         objectId: product.id,
-        stateBefore: {
-          status: previousStatus,
-          archivedAt: previousArchivedAt,
-          sku: product.sku,
-          name: { ...product.name },
-        },
+        stateBefore,
         stateAfter: {
-          status: product.status,
-          archivedAt: product.archivedAt,
-          sku: product.sku,
-          name: { ...product.name },
+          ...stateBefore,
+          deletedAt: product.deletedAt?.toISOString() ?? null,
         },
         ...(auditCtx.ipAddress !== undefined ? { ipAddress: auditCtx.ipAddress } : {}),
         ...(auditCtx.userAgent !== undefined ? { userAgent: auditCtx.userAgent } : {}),
@@ -896,7 +928,7 @@ export class CatalogAdminService {
   async listProducts(
     options: {
       includeArchived?: boolean;
-      status?: 'active' | 'draft' | 'archived';
+      status?: 'active' | 'draft' | 'inactive';
       type?: 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
       q?: string;
       page?: number;
@@ -907,20 +939,20 @@ export class CatalogAdminService {
     page: number;
     pageSize: number;
     total: number;
-    counts: { all: number; active: number; draft: number; archived: number };
+    counts: { all: number; active: number; draft: number; inactive: number };
   }> {
     const em = this.emFactory();
     const page = Math.max(0, options.page ?? 0);
     const pageSize = Math.min(Math.max(1, options.pageSize ?? 20), 500);
 
     // `status` overrides `includeArchived` — if the caller explicitly asks for
-    // a specific status (including 'archived'), we honour it; otherwise the
-    // legacy `includeArchived` flag controls whether archived rows appear.
-    const where: Record<string, unknown> = {};
+    // a specific status (including `inactive`), we honour it; otherwise the
+    // legacy `includeArchived` flag controls whether inactive rows appear.
+    const where: Record<string, unknown> = { deletedAt: null };
     if (options.status) {
       where['status'] = options.status;
     } else if (!options.includeArchived) {
-      where['status'] = { $ne: 'archived' };
+      where['status'] = { $ne: 'inactive' };
     }
     if (options.type) {
       where['type'] = options.type;
@@ -938,8 +970,9 @@ export class CatalogAdminService {
       const knex = em.getKnex();
       const needle = `%${trimmedQ.toLowerCase()}%`;
       const baseQuery = knex('products').where((qb) => {
+        qb.whereNull('deleted_at');
         if (options.status) qb.where('status', options.status);
-        else if (!options.includeArchived) qb.whereNot('status', 'archived');
+        else if (!options.includeArchived) qb.whereNot('status', 'inactive');
         if (options.type) qb.where('type', options.type);
         qb.andWhere((inner) => {
           inner
@@ -981,24 +1014,90 @@ export class CatalogAdminService {
     // which tab is currently active.
     const knex = em.getKnex();
     const countRows = (await knex('products')
+      .whereNull('deleted_at')
       .select('status')
       .count<{ status: string; count: string | number }[]>('* as count')
       .groupBy('status')) as Array<{ status: string; count: string | number }>;
-    const counts = { all: 0, active: 0, draft: 0, archived: 0 };
+    const counts = { all: 0, active: 0, draft: 0, inactive: 0 };
     for (const row of countRows) {
       const n = Number(row.count) || 0;
       counts.all += n;
       if (row.status === 'active') counts.active = n;
       else if (row.status === 'draft') counts.draft = n;
-      else if (row.status === 'archived') counts.archived = n;
+      else if (row.status === 'inactive') counts.inactive = n;
     }
 
     return { items, page, pageSize, total, counts };
   }
 
+  /**
+   * Feature 033 — return all product ids matching list filters (no pagination).
+   * Reuses the same filter semantics as {@link listProducts}.
+   */
+  async resolveProductIds(
+    options: {
+      includeArchived?: boolean;
+      status?: 'active' | 'draft' | 'inactive';
+      type?: 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
+      q?: string;
+    } = {},
+  ): Promise<{ productIds: string[]; total: number }> {
+    const maxSelectionSize = Number(process.env['CATALOG_MAX_RESOLVE_IDS'] ?? 10_000);
+    const em = this.emFactory();
+    const trimmedQ = options.q?.trim();
+    const knex = em.getKnex();
+
+    const applyListFilters = (qb: ReturnType<typeof knex>): ReturnType<typeof knex> => {
+      // Mirror listProducts: soft-deleted rows are never selectable, and the
+      // withdrawn status is `inactive` (feature 032 renamed `archived`).
+      qb.whereNull('deleted_at');
+      if (options.status) {
+        qb.where('status', options.status);
+      } else if (!options.includeArchived) {
+        qb.whereNot('status', 'inactive');
+      }
+      if (options.type) {
+        qb.where('type', options.type);
+      }
+      if (trimmedQ) {
+        const needle = `%${trimmedQ.toLowerCase()}%`;
+        qb.andWhere((inner) => {
+          inner
+            .whereRaw('LOWER("sku") LIKE ?', [needle])
+            .orWhereRaw('LOWER("slug") LIKE ?', [needle])
+            .orWhereRaw('LOWER("name"::text) LIKE ?', [needle]);
+        });
+      }
+      return qb;
+    };
+
+    const countRow = (await applyListFilters(knex('products'))
+      .clone()
+      .count<{ count: string | number }>('* as count')
+      .first()) as { count: string | number } | undefined;
+    const total = Number(countRow?.count ?? 0);
+
+    if (total > maxSelectionSize) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.SELECTION_TOO_LARGE,
+        `Selection matches ${total} products; max ${maxSelectionSize}.`,
+        { total, maxSelectionSize },
+      );
+    }
+
+    const idRows = (await applyListFilters(knex('products'))
+      .clone()
+      .orderBy('created_at', 'desc')
+      .select<Array<{ id: string }>>('id')) as Array<{ id: string }>;
+
+    const productIds = idRows.map((r) => r.id);
+    return { productIds, total: productIds.length };
+  }
+
   async getProductById(id: string): Promise<Product> {
     const em = this.emFactory();
-    const product = await em.findOne(Product, { id });
+    const product = await em.findOne(Product, { id, deletedAt: null });
     if (!product) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }

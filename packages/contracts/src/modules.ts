@@ -14,6 +14,7 @@
 import { z } from 'zod';
 import { ModuleSettingsManifestSchema } from './settings.js';
 import { ModuleActionsManifestSchema } from './admin-actions.js';
+import { modulePermissionDeclarationSchema } from './admin.js';
 
 // ---------------------------------------------------------------------------
 // Identifier / version regexes
@@ -81,6 +82,11 @@ export const ModuleManifestSchema = z.object({
    * Within-module id uniqueness is enforced by the schema.
    */
   actions: ModuleActionsManifestSchema.optional(),
+  /**
+   * Per-module admin permission codes merged into the assignable catalogue
+   * when the module is enabled (feature 026).
+   */
+  permissions: z.array(modulePermissionDeclarationSchema).optional(),
 });
 export type ModuleManifest = z.infer<typeof ModuleManifestSchema>;
 

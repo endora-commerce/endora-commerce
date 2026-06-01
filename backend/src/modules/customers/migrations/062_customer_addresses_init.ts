@@ -8,7 +8,7 @@ import { Migration } from '@mikro-orm/migrations';
  * addresses. "At most one default per (customer, kind)" is enforced by a
  * partial unique index, exactly like `addresses`.
  */
-export class Migration061CustomerAddressesInit extends Migration {
+export class Migration062CustomerAddressesInit extends Migration {
   override async up(): Promise<void> {
     this.addSql(`
       create table "customer_addresses" (

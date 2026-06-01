@@ -13,7 +13,7 @@ import { Migration } from '@mikro-orm/migrations';
  *
  * All columns are nullable; existing rows are unaffected.
  */
-export class Migration060CustomerAccountsLifecycle extends Migration {
+export class Migration061CustomerAccountsLifecycle extends Migration {
   override async up(): Promise<void> {
     this.addSql(`alter table "customer_accounts"
       add column "customer_group_id" uuid null,

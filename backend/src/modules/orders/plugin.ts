@@ -38,6 +38,7 @@ import { OrderCloneToQuoteService } from './services/order-clone-to-quote-servic
 import { OrderConfirmationService } from './services/order-confirmation-service.js';
 import { OrderCreationAdminService } from './services/order-creation-admin-service.js';
 import type { OrganizationConfirmationEmailsPort } from './ports/organization-confirmation-emails.port.js';
+import type { FulfilmentStrategy } from '@b2b/contracts';
 import { Organization } from '../organizations/entities/organization.entity.js';
 import { createBusinessIdGenerator } from './services/business-id-generator.js';
 import { registerCartRoutes } from '../carts/routes.js';
@@ -237,6 +238,14 @@ export interface OrdersModuleOptions {
   resolveOrderConfirmationRecipients?: (salesChannelId: string) => Promise<string[]>;
   /** Feature 038 US3/FR-035 — resolves `orders.min_order_value` per Sales Channel. Omit ⇒ no minimum. */
   resolveMinOrderValue?: (salesChannelId: string) => Promise<number>;
+  /**
+   * Sales-channel layer of the fulfilment-strategy precedence chain — resolves
+   * `inventory.fulfilment_strategy` (+ its warehouse order) per Sales Channel
+   * via the Settings module. Omit ⇒ order placement falls back to
+   * `default_first` / `[]`.
+   */
+  resolveChannelFulfilmentStrategy?: (salesChannelId: string) => Promise<FulfilmentStrategy>;
+  resolveChannelFulfilmentWarehouseOrder?: (salesChannelId: string) => Promise<string[]>;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -331,6 +340,12 @@ export function commerceModule(options: OrdersModuleOptions) {
         confirmationRecipients: (input) =>
           orderConfirmationService.resolveAdditional(input.organizationId, input.salesChannelId),
         ...(options.resolveMinOrderValue ? { resolveMinOrderValue: options.resolveMinOrderValue } : {}),
+        ...(options.resolveChannelFulfilmentStrategy
+          ? { resolveChannelFulfilmentStrategy: options.resolveChannelFulfilmentStrategy }
+          : {}),
+        ...(options.resolveChannelFulfilmentWarehouseOrder
+          ? { resolveChannelFulfilmentWarehouseOrder: options.resolveChannelFulfilmentWarehouseOrder }
+          : {}),
         // Feature 036 (US3) — PromotionService satisfies PromotionPort
         // structurally; threaded so placeOrder stamps the cart's coupon
         // discount onto the Order.

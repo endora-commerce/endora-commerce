@@ -30,8 +30,20 @@ export const productTypeSchema = z.enum([
 ]);
 export type ProductType = z.infer<typeof productTypeSchema>;
 
-export const productStatusSchema = z.enum(['draft', 'active', 'archived']);
+export const productStatusSchema = z.enum(['draft', 'active', 'inactive']);
 export type ProductStatus = z.infer<typeof productStatusSchema>;
+
+/** Maps legacy `archived` writes to `inactive` (feature 032). */
+export function coerceProductStatusWrite(
+  value: unknown,
+): 'draft' | 'active' | 'inactive' | unknown {
+  return value === 'archived' ? 'inactive' : value;
+}
+
+export const productStatusWriteSchema = z.preprocess(
+  coerceProductStatusWrite,
+  productStatusSchema,
+);
 
 export const stockModeSchema = z.enum(['categorical', 'numeric']);
 export type StockMode = z.infer<typeof stockModeSchema>;
@@ -424,7 +436,8 @@ const baseProductRequestObject = z.object({
   // Feature 022 — accepted by the single-product PATCH and the bulk
   // update endpoint. Cross-field rule on `archivedAt` is enforced in
   // the service layer (CatalogAdminService.updateProduct).
-  status: z.enum(['draft', 'active', 'archived']).optional(),
+  // Feature 032 — `archived` write alias → `inactive`.
+  status: productStatusWriteSchema.optional(),
   allowedOrganizationIds: z.array(uuidSchema).optional(),
   assetIds: z.array(uuidSchema).optional(),
   initialStock: z.number().int().nonnegative().optional(),
@@ -506,13 +519,35 @@ export const batchByIdProductsRequestSchema = z.object({
 export type BatchByIdProductsRequest = z.infer<typeof batchByIdProductsRequestSchema>;
 
 // ---------------------------------------------------------------------------
+// Feature 033 — Resolve product IDs by list filters (collection selection)
+// ---------------------------------------------------------------------------
+
+export const MAX_RESOLVE_SELECTION_SIZE = 10_000;
+
+export const resolveProductIdsRequestSchema = z.object({
+  status: productStatusSchema.optional(),
+  type: productTypeSchema.optional(),
+  q: z.string().trim().min(1).optional(),
+  includeArchived: z.boolean().optional(),
+});
+export type ResolveProductIdsRequest = z.infer<typeof resolveProductIdsRequestSchema>;
+
+export const resolveProductIdsResponseSchema = z.object({
+  data: z.object({
+    productIds: z.array(uuidSchema),
+    total: z.number().int().nonnegative(),
+  }),
+});
+export type ResolveProductIdsResponse = z.infer<typeof resolveProductIdsResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // Feature 022 — Products Bulk Edit
 // ---------------------------------------------------------------------------
 
 const bulkEditModeSchema = z.enum(['add', 'replace']);
 
 const bulkUpdateFieldsObject = z.object({
-  status: z.enum(['draft', 'active', 'archived']).optional(),
+  status: productStatusWriteSchema.optional(),
   visibility: productVisibilitySchema.optional(),
   salesChannels: z
     .object({

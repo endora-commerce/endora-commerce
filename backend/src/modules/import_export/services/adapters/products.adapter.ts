@@ -3,7 +3,7 @@ import { Product } from '../../../catalog/entities/product.entity.js';
 import type { ImportExportAdapter, ImportRowResult } from '../adapter.js';
 
 const PRODUCT_TYPES = new Set(['simple', 'configurable', 'grouped', 'bundle', 'virtual']);
-const PRODUCT_STATUSES = new Set(['draft', 'active', 'archived']);
+const PRODUCT_STATUSES = new Set(['draft', 'active', 'inactive', 'archived']);
 const PRODUCT_VISIBILITIES = new Set([
   'public',
   'logged_in_only',

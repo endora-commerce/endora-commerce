@@ -14,6 +14,7 @@ import { HttpError } from '../../http/error-envelope.js';
 import { Organization } from './entities/organization.entity.js';
 import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { RequireAdminAnyFactory } from '../../http/require-admin-any.js';
 import type { InvitationService } from './services/invitation-service.js';
 import type { RoleService } from '../customer_accounts/services/role-service.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
@@ -57,6 +58,7 @@ const listQuerySchema = z.object({
 export interface AdminOrgsDeps {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
+  requireAdminAny: RequireAdminAnyFactory;
   invitationService: InvitationService;
   roleService: RoleService;
   auditLogService: AuditLogService;
@@ -74,11 +76,20 @@ export async function registerOrganizationsAdminRoutes(
   app: FastifyInstance,
   deps: AdminOrgsDeps,
 ): Promise<void> {
-  const { requireAdmin, emFactory, invitationService, roleService, auditLogService } = deps;
+  const {
+    requireAdmin,
+    requireAdminAny,
+    emFactory,
+    invitationService,
+    roleService,
+    auditLogService,
+  } = deps;
   const moderationService = deps.moderationService;
   const restrictionService = deps.restrictionService;
   const effectivePriceListsService = deps.effectivePriceListsService;
   const taxIdValidationService = deps.taxIdValidationService;
+
+  const customersRead = requireAdminAny(['customers:read', 'customers:manage']);
 
   const audit = async (
     request: FastifyRequest,
@@ -115,7 +126,7 @@ export async function registerOrganizationsAdminRoutes(
 
   app.get(
     '/api/v1/admin/organizations',
-    { preHandler: requireAdmin('customers:manage') },
+    { preHandler: customersRead },
     async (request) => {
       const query = listQuerySchema.parse(request.query);
       const em = emFactory();
@@ -147,7 +158,7 @@ export async function registerOrganizationsAdminRoutes(
 
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/organizations/:id',
-    { preHandler: requireAdmin('customers:manage') },
+    { preHandler: customersRead },
     async (request) => {
       const em = emFactory();
       const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
@@ -186,6 +197,10 @@ export async function registerOrganizationsAdminRoutes(
       if (body.vatStatus !== undefined) org.vatStatus = body.vatStatus;
       if (body.status !== undefined) org.status = body.status;
       if (body.orderConfirmationEmails !== undefined) org.orderConfirmationEmails = body.orderConfirmationEmails;
+      if (body.fulfilmentStrategy !== undefined) org.fulfilmentStrategy = body.fulfilmentStrategy;
+      if (body.fulfilmentStrategyWarehouseOrder !== undefined) {
+        org.fulfilmentStrategyWarehouseOrder = body.fulfilmentStrategyWarehouseOrder;
+      }
       await em.flush();
       await audit(
         request,
@@ -652,6 +667,8 @@ function serializeOrg(o: Organization): Record<string, unknown> {
     vatStatus: o.vatStatus,
     registeredAddress: o.registeredAddress,
     orderConfirmationEmails: o.orderConfirmationEmails ?? [],
+    fulfilmentStrategy: o.fulfilmentStrategy ?? null,
+    fulfilmentStrategyWarehouseOrder: o.fulfilmentStrategyWarehouseOrder ?? null,
     version: o.version,
     blockedReason: o.blockedReason ?? null,
     blockedAt: o.blockedAt?.toISOString() ?? null,

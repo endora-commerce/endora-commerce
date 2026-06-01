@@ -47,7 +47,7 @@ describe('GET /api/v1/catalog/sitemap.xml', () => {
   it('excludes archived products from the public sitemap', async () => {
     const em = h.em();
     const product = await em.findOneOrFail(Product, { sku: 'EXAMPLE-SIMPLE-001' });
-    product.status = 'archived';
+    product.status = 'inactive';
     await em.flush();
 
     // Force a fresh build — the test fixture pins staleAfterMs=0.

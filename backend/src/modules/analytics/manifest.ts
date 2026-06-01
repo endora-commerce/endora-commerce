@@ -15,4 +15,5 @@ export const manifest = defineModuleManifest({
     'Server-side analytics aggregation and dashboard data feeds.',
   version: '1.0.0',
   dependencies: [],
+  permissions: [{ code: 'analytics:read', label: 'View analytics dashboards' }],
 });

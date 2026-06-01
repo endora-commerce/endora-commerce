@@ -5,6 +5,7 @@ import {
   organizationRoleSchema,
   uuidSchema,
 } from './common.js';
+import { fulfilmentStrategySchema } from './inventory.js';
 
 /**
  * Organizations, customer accounts, addresses, invitations — Source of truth
@@ -50,6 +51,14 @@ export const organizationSchema = z.object({
     recipientName: z.string().optional(),
     phone: z.string().optional(),
   }),
+  /**
+   * Organization-level override of the warehouse-picking (fulfilment) strategy
+   * used to reserve stock at order placement. `null` ⇒ inherit (sales-channel
+   * setting → platform default). When the strategy is `defined_order`,
+   * `fulfilmentStrategyWarehouseOrder` carries the ordered warehouse-id walk.
+   */
+  fulfilmentStrategy: fulfilmentStrategySchema.nullable().optional(),
+  fulfilmentStrategyWarehouseOrder: z.array(uuidSchema).nullable().optional(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
@@ -220,6 +229,13 @@ export const adminPatchOrganizationRequestSchema = z.object({
   status: organizationStatusSchema.optional(),
   /** Feature 038 (US4) — additional emails CC'd on this org's order confirmations. */
   orderConfirmationEmails: z.array(z.string()).optional(),
+  /**
+   * Organization-level fulfilment-strategy override. `null` clears the
+   * override (inherit channel setting → platform default). `defined_order`
+   * pairs with `fulfilmentStrategyWarehouseOrder` (ordered warehouse ids).
+   */
+  fulfilmentStrategy: fulfilmentStrategySchema.nullable().optional(),
+  fulfilmentStrategyWarehouseOrder: z.array(uuidSchema).nullable().optional(),
   expectedUpdatedAt: z.string().optional(),
 });
 

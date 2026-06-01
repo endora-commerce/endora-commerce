@@ -15,6 +15,13 @@ import { authPlugin } from './modules/auth/plugin.js';
 import { SessionService } from './modules/auth/services/session-service.js';
 import { AuditLogService } from './modules/audit_logs/services/audit-log-service.js';
 import { PermissionService } from './modules/admin_roles/services/permission-service.js';
+import { PermissionCatalogueService } from './modules/admin_roles/services/permission-catalogue.service.js';
+import { AdminRoleService } from './modules/admin_roles/services/admin-role-service.js';
+import { createRequireAdminAny } from './http/require-admin-any.js';
+import {
+  registryCache,
+  STATE_CHANGED_CHANNEL,
+} from './modules/_lifecycle/services/registry-cache.js';
 import { catalogModule } from './modules/catalog/plugin.js';
 import { quoteRequestsModule } from './modules/quote_requests/plugin.js';
 import { organizationsModule } from './modules/organizations/plugin.js';
@@ -130,6 +137,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const sessionService = new SessionService(em, redis);
   const auditLogService = new AuditLogService(em);
   const permissionService = new PermissionService(em);
+  const permissionCatalogueService = new PermissionCatalogueService({
+    registryEntries: REGISTERED_MANIFESTS,
+  });
+  const adminRoleService = new AdminRoleService(em, permissionCatalogueService);
 
   const eventBus = new EventBus();
 
@@ -157,6 +168,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         );
       }
     };
+
+  const requireAdminAny = createRequireAdminAny(permissionService);
 
   /**
    * Resolver for routes that require an authenticated Customer **with** an
@@ -226,6 +239,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     sessionService,
     auditLogService,
     permissionService,
+    permissionCatalogueService,
+    adminRoleService,
     requireAdmin,
     resolveAdminContext: adminContextResolver,
   });
@@ -660,6 +675,39 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           return 0;
         }
       },
+      // Sales-channel layer of the fulfilment-strategy precedence chain — the
+      // SettingsService collapses per-channel value → global value → manifest
+      // default ('default_first'). Failures degrade to that same default.
+      resolveChannelFulfilmentStrategy: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'inventory.fulfilment_strategy',
+            salesChannelId,
+            z.enum([
+              'any',
+              'default_first',
+              'lowest_stock_first',
+              'highest_stock_first',
+              'defined_order',
+            ]),
+          );
+        } catch {
+          return 'default_first';
+        }
+      },
+      resolveChannelFulfilmentWarehouseOrder: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'inventory.fulfilment_strategy_warehouse_order',
+            salesChannelId,
+            z.array(z.string()),
+          );
+        } catch {
+          return [];
+        }
+      },
       getRfqService: () => quoteRequests?.handle().rfqService ?? null,
       // Feature 039 — expose OrderService for the quick_order one-click flow.
       exposeOrderService: (svc) => {
@@ -741,6 +789,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       sessionService,
       requireCustomer,
       requireAdmin,
+      requireAdminAny,
       resolveCustomerContext: customerResolver,
       mailer: organizationsMailer,
       auditLogService,
@@ -1279,6 +1328,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     })),
   );
   lifecycleRef = lifecycle;
+
+  permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
+  redisSubscriber.on('message', (channel) => {
+    if (channel === STATE_CHANGED_CHANNEL) {
+      permissionCatalogueService.invalidate();
+    }
+  });
 
   modules.push(lifecycle.plugin);
   modules.push(adminI18n.plugin);

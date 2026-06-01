@@ -45,6 +45,7 @@ import { Migration040AdminI18nInit } from './migrations/040_admin_i18n_init.js';
 import { Migration041AdminActionsInit } from './migrations/041_admin_actions_init.js';
 import { Migration042SettingsGlobalValue } from './migrations/042_settings_global_value.js';
 import { Migration043AttributeMassEditable } from '../modules/catalog/migrations/043_attribute_mass_editable.js';
+import { Migration044ProductStatusInactive } from '../modules/catalog/migrations/044_product_status_inactive.js';
 import { Migration044ProductValueOverridesInit } from './migrations/044_product_value_overrides_init.js';
 import { Migration045WarehouseDefaultLowStockThreshold } from '../modules/inventory/migrations/045_warehouse_default_low_stock_threshold.js';
 import { Migration046PerWarehouseLowStockThresholds } from '../modules/inventory/migrations/046_per_warehouse_low_stock_thresholds.js';
@@ -61,8 +62,9 @@ import { Migration056OrgOrderConfirmationEmails } from '../modules/organizations
 import { Migration057QuickOrderDefaultPreferences } from '../modules/quick_order/migrations/057_quick_order_default_preferences.js';
 import { Migration058AttributeQuickSearchable } from '../modules/catalog/migrations/058_attribute_quick_searchable.js';
 import { Migration059OrderStatusDefaultName } from '../modules/orders/migrations/059_order_status_default_name.js';
-import { Migration060CustomerAccountsLifecycle } from '../modules/customer_accounts/migrations/060_customer_accounts_lifecycle.js';
-import { Migration061CustomerAddressesInit } from '../modules/customers/migrations/061_customer_addresses_init.js';
+import { Migration060OrgFulfilmentStrategy } from '../modules/organizations/migrations/060_org_fulfilment_strategy.js';
+import { Migration061CustomerAccountsLifecycle } from '../modules/customer_accounts/migrations/061_customer_accounts_lifecycle.js';
+import { Migration062CustomerAddressesInit } from '../modules/customers/migrations/062_customer_addresses_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -216,6 +218,10 @@ export default defineConfig({
         class: Migration043AttributeMassEditable,
       },
       {
+        name: 'Migration044ProductStatusInactive',
+        class: Migration044ProductStatusInactive,
+      },
+      {
         name: 'Migration044ProductValueOverridesInit',
         class: Migration044ProductValueOverridesInit,
       },
@@ -280,12 +286,16 @@ export default defineConfig({
         class: Migration059OrderStatusDefaultName,
       },
       {
-        name: 'Migration060CustomerAccountsLifecycle',
-        class: Migration060CustomerAccountsLifecycle,
+        name: 'Migration060OrgFulfilmentStrategy',
+        class: Migration060OrgFulfilmentStrategy,
       },
       {
-        name: 'Migration061CustomerAddressesInit',
-        class: Migration061CustomerAddressesInit,
+        name: 'Migration061CustomerAccountsLifecycle',
+        class: Migration061CustomerAccountsLifecycle,
+      },
+      {
+        name: 'Migration062CustomerAddressesInit',
+        class: Migration062CustomerAddressesInit,
       },
     ],
     transactional: true,

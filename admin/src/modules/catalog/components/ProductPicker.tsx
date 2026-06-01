@@ -31,7 +31,7 @@ interface AdminProductSummary {
   id: string;
   sku: string;
   slug: string;
-  status: 'draft' | 'active' | 'archived';
+  status: 'draft' | 'active' | 'inactive';
   name: Record<string, string>;
 }
 
