@@ -61,6 +61,7 @@ import { Migration056OrgOrderConfirmationEmails } from '../modules/organizations
 import { Migration057QuickOrderDefaultPreferences } from '../modules/quick_order/migrations/057_quick_order_default_preferences.js';
 import { Migration058AttributeQuickSearchable } from '../modules/catalog/migrations/058_attribute_quick_searchable.js';
 import { Migration059OrderStatusDefaultName } from '../modules/orders/migrations/059_order_status_default_name.js';
+import { Migration060OrgFulfilmentStrategy } from '../modules/organizations/migrations/060_org_fulfilment_strategy.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -276,6 +277,10 @@ export default defineConfig({
       {
         name: 'Migration059OrderStatusDefaultName',
         class: Migration059OrderStatusDefaultName,
+      },
+      {
+        name: 'Migration060OrgFulfilmentStrategy',
+        class: Migration060OrgFulfilmentStrategy,
       },
     ],
     transactional: true,

@@ -654,6 +654,39 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           return 0;
         }
       },
+      // Sales-channel layer of the fulfilment-strategy precedence chain — the
+      // SettingsService collapses per-channel value → global value → manifest
+      // default ('default_first'). Failures degrade to that same default.
+      resolveChannelFulfilmentStrategy: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'inventory.fulfilment_strategy',
+            salesChannelId,
+            z.enum([
+              'any',
+              'default_first',
+              'lowest_stock_first',
+              'highest_stock_first',
+              'defined_order',
+            ]),
+          );
+        } catch {
+          return 'default_first';
+        }
+      },
+      resolveChannelFulfilmentWarehouseOrder: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'inventory.fulfilment_strategy_warehouse_order',
+            salesChannelId,
+            z.array(z.string()),
+          );
+        } catch {
+          return [];
+        }
+      },
       getRfqService: () => quoteRequests?.handle().rfqService ?? null,
       // Feature 039 — expose OrderService for the quick_order one-click flow.
       exposeOrderService: (svc) => {

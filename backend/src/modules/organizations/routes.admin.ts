@@ -186,6 +186,10 @@ export async function registerOrganizationsAdminRoutes(
       if (body.vatStatus !== undefined) org.vatStatus = body.vatStatus;
       if (body.status !== undefined) org.status = body.status;
       if (body.orderConfirmationEmails !== undefined) org.orderConfirmationEmails = body.orderConfirmationEmails;
+      if (body.fulfilmentStrategy !== undefined) org.fulfilmentStrategy = body.fulfilmentStrategy;
+      if (body.fulfilmentStrategyWarehouseOrder !== undefined) {
+        org.fulfilmentStrategyWarehouseOrder = body.fulfilmentStrategyWarehouseOrder;
+      }
       await em.flush();
       await audit(
         request,
@@ -652,6 +656,8 @@ function serializeOrg(o: Organization): Record<string, unknown> {
     vatStatus: o.vatStatus,
     registeredAddress: o.registeredAddress,
     orderConfirmationEmails: o.orderConfirmationEmails ?? [],
+    fulfilmentStrategy: o.fulfilmentStrategy ?? null,
+    fulfilmentStrategyWarehouseOrder: o.fulfilmentStrategyWarehouseOrder ?? null,
     version: o.version,
     blockedReason: o.blockedReason ?? null,
     blockedAt: o.blockedAt?.toISOString() ?? null,
