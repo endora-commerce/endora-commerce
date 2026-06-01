@@ -9,6 +9,9 @@ import { AuditLogService } from '../../src/modules/audit_logs/services/audit-log
 import { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
 import { catalogModule } from '../../src/modules/catalog/plugin.js';
 import { quoteRequestsModule } from '../../src/modules/quote_requests/plugin.js';
+import { customersModule } from '../../src/modules/customers/plugin.js';
+import { ERROR_CODES } from '@b2b/contracts';
+import { HttpError } from '../../src/http/error-envelope.js';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { AdminUser } from '../../src/modules/admin_users/entities/admin-user.entity.js';
 import { AdminUserService } from '../../src/modules/admin_users/services/admin-user-service.js';
@@ -306,6 +309,8 @@ export async function setupBackendServer(
   let shoppingListServiceRef: import('../../src/modules/shopping_lists/services/shopping-list-service.js').ShoppingListService | null = null;
   // Feature 039 — late-bound OrderService for the quick_order one-click flow.
   let orderServiceForOneClick: import('../../src/modules/orders/services/order-service.js').OrderService | null = null;
+  // Feature 040 — late-bound OrderListService for the customers module.
+  let orderListServiceForCustomers: import('../../src/modules/orders/services/order-list-service.js').OrderListService | null = null;
   let handleFeature026: BackendServerHandle['organizations'] | null = null;
 
   // Feature 026 US4 — restriction service + per-request allow-list resolvers.
@@ -534,6 +539,10 @@ export async function setupBackendServer(
       // Feature 039 — expose OrderService for the quick_order one-click flow.
       exposeOrderService: (svc) => {
         orderServiceForOneClick = svc;
+      },
+      // Feature 040 — expose OrderListService for the customers module.
+      exposeOrderListService: (svc) => {
+        orderListServiceForCustomers = svc;
       },
       resolveCartActor: (request) => {
         if (request.testActor?.kind === 'customer') {
@@ -955,6 +964,44 @@ export async function setupBackendServer(
     resolveBoolSetting: async () => true,
   });
   modules.push(quoteRequests.register);
+
+  // Feature 040 — Customers module (mirrors composition.ts wiring).
+  const customers = customersModule({
+    emFactory: em,
+    sessionService,
+    requireCustomer: requireTestCustomer(),
+    resolveCustomerActor: (request) => {
+      if (request.testActor?.kind !== 'customer') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+      }
+      return {
+        customerAccountId: request.testActor.customerAccountId,
+        organizationId: request.testActor.organizationId ?? null,
+      };
+    },
+    resolveAllowRegistrationWithoutOrganization: async () => {
+      try {
+        const { z } = await import('zod');
+        const channel = await salesChannels.handle.resolver.getSystemDefault();
+        if (!channel) return false;
+        return await settings.handle.settingsService.get(
+          'customers.allow_registration_without_organization',
+          channel.id,
+          z.boolean(),
+        );
+      } catch {
+        return false;
+      }
+    },
+    getOrderListService: () => {
+      if (!orderListServiceForCustomers) {
+        throw new Error('OrderListService not yet bound');
+      }
+      return orderListServiceForCustomers;
+    },
+    rfqService: quoteRequests.handle().rfqService,
+  });
+  modules.push(customers.plugin);
 
   modules.push(
     shoppingListsModule({
