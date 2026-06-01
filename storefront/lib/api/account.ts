@@ -51,6 +51,25 @@ export interface MeResult {
   impersonation: { impersonatorAdminUserId: string } | null;
 }
 
+/**
+ * Feature 040 — org-optional profile for standalone (org-less) customers.
+ * The legacy `/api/v1/me` requires an Organization (422 otherwise); this
+ * lighter endpoint works for everyone.
+ */
+export interface MyCustomerProfile {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  organizationId: string | null;
+  customerGroupId: string | null;
+  twoFactorEnabled: boolean;
+}
+
+export async function getMyCustomerProfile(sessionCookie: string): Promise<MyCustomerProfile> {
+  return apiGetAuthed<MyCustomerProfile>({ path: '/api/v1/me/customer', sessionCookie });
+}
+
 export async function getMe(sessionCookie: string): Promise<MeResult> {
   return apiGetAuthed<MeResult>({ path: '/api/v1/me', sessionCookie });
 }
