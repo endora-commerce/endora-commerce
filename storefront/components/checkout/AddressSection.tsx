@@ -21,6 +21,18 @@ export interface AddressSectionProps {
   billingAddresses: AddressSummary[];
   /** Active storefront locale; resolves the PL/EN copy. */
   locale: string;
+  /** Feature 039 — resolved default shipping address to pre-select, if any. */
+  preferredShippingAddressId?: string | null;
+  /** Feature 039 — resolved default billing address to pre-select, if any. */
+  preferredBillingAddressId?: string | null;
+}
+
+function defaultAddressId(
+  addresses: AddressSummary[],
+  preferredId: string | null | undefined,
+): string | undefined {
+  if (preferredId && addresses.some((a) => a.id === preferredId)) return preferredId;
+  return addresses[0]?.id;
 }
 
 function label(a: AddressSummary): string {
@@ -74,15 +86,21 @@ export function AddressSection({
   deliveryAddresses,
   billingAddresses,
   locale,
+  preferredShippingAddressId,
+  preferredBillingAddressId,
 }: AddressSectionProps): React.ReactNode {
   const t = tForLocale(locale);
   const [shippingMode, setShippingMode] = useState<'saved' | 'new'>(
     deliveryAddresses.length > 0 ? 'saved' : 'new',
   );
-  const [billingSame, setBillingSame] = useState(true);
+  // When a distinct billing default is resolved, surface the billing block so
+  // the default actually applies (otherwise keep the "same as shipping" default).
+  const [billingSame, setBillingSame] = useState(!preferredBillingAddressId);
   const [billingMode, setBillingMode] = useState<'saved' | 'new'>(
     billingAddresses.length > 0 ? 'saved' : 'new',
   );
+  const deliveryDefaultId = defaultAddressId(deliveryAddresses, preferredShippingAddressId);
+  const billingDefaultId = defaultAddressId(billingAddresses, preferredBillingAddressId);
 
   return (
     <>
@@ -110,7 +128,7 @@ export function AddressSection({
         </label>
 
         {shippingMode === 'saved' && deliveryAddresses.length > 0 ? (
-          <select name="deliveryAddressId" defaultValue={deliveryAddresses[0]!.id}>
+          <select name="deliveryAddressId" defaultValue={deliveryDefaultId}>
             {deliveryAddresses.map((a) => (
               <option key={a.id} value={a.id}>
                 {label(a)}
@@ -157,7 +175,7 @@ export function AddressSection({
           </label>
 
           {billingMode === 'saved' && billingAddresses.length > 0 ? (
-            <select name="billingAddressId" defaultValue={billingAddresses[0]!.id}>
+            <select name="billingAddressId" defaultValue={billingDefaultId}>
               {billingAddresses.map((a) => (
                 <option key={a.id} value={a.id}>
                   {label(a)}

@@ -107,6 +107,29 @@ export async function buildQuickOrder(
   return res.data!;
 }
 
+export interface QuickOrderResolvedDefaults {
+  paymentMethodId: string | null;
+  deliveryMethodId: string | null;
+  billingAddressId: string | null;
+  shippingAddressId: string | null;
+  source: {
+    payment: 'customer' | 'organization' | null;
+    delivery: 'customer' | 'organization' | null;
+    billing: 'customer' | 'organization' | null;
+    shipping: 'customer' | 'organization' | null;
+  };
+}
+
+/** Resolved (effective) default ordering preferences for the current customer. */
+export async function getResolvedQuickOrderDefaults(
+  sessionCookie: string,
+): Promise<QuickOrderResolvedDefaults> {
+  return apiGetAuthed<QuickOrderResolvedDefaults>({
+    path: '/api/v1/quick-order/preferences/resolved',
+    sessionCookie,
+  });
+}
+
 export async function searchProducts(
   sessionCookie: string,
   q: string,
