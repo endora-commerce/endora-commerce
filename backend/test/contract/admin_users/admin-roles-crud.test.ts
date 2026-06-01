@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES, PERMISSION_CATALOGUE } from '@b2b/contracts';
+import { ERROR_CODES } from '@b2b/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -32,8 +32,11 @@ describe('Admin roles CRUD', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: Array<{ code: string; module: string }> };
-    expect(body.data.length).toBe(PERMISSION_CATALOGUE.length);
+    expect(body.data.length).toBe(29);
     expect(body.data.some((p) => p.code === 'orders:read')).toBe(true);
+    expect(body.data.some((p) => p.code === 'settings:read')).toBe(true);
+    expect(body.data.some((p) => p.code === 'cms.read')).toBe(true);
+    expect(body.data.some((p) => p.code === 'assets.read')).toBe(true);
   });
 
   it('upserts a role by code, then deletes it once unassigned', async () => {

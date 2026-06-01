@@ -15,6 +15,13 @@ import { authPlugin } from './modules/auth/plugin.js';
 import { SessionService } from './modules/auth/services/session-service.js';
 import { AuditLogService } from './modules/audit_logs/services/audit-log-service.js';
 import { PermissionService } from './modules/admin_roles/services/permission-service.js';
+import { PermissionCatalogueService } from './modules/admin_roles/services/permission-catalogue.service.js';
+import { AdminRoleService } from './modules/admin_roles/services/admin-role-service.js';
+import { createRequireAdminAny } from './http/require-admin-any.js';
+import {
+  registryCache,
+  STATE_CHANGED_CHANNEL,
+} from './modules/_lifecycle/services/registry-cache.js';
 import { catalogModule } from './modules/catalog/plugin.js';
 import { quoteRequestsModule } from './modules/quote_requests/plugin.js';
 import { organizationsModule } from './modules/organizations/plugin.js';
@@ -127,6 +134,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const sessionService = new SessionService(em, redis);
   const auditLogService = new AuditLogService(em);
   const permissionService = new PermissionService(em);
+  const permissionCatalogueService = new PermissionCatalogueService({
+    registryEntries: REGISTERED_MANIFESTS,
+  });
+  const adminRoleService = new AdminRoleService(em, permissionCatalogueService);
 
   const eventBus = new EventBus();
 
@@ -154,6 +165,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         );
       }
     };
+
+  const requireAdminAny = createRequireAdminAny(permissionService);
 
   /**
    * Resolver for routes that require an authenticated Customer **with** an
@@ -223,6 +236,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     sessionService,
     auditLogService,
     permissionService,
+    permissionCatalogueService,
+    adminRoleService,
     requireAdmin,
     resolveAdminContext: adminContextResolver,
   });
@@ -764,6 +779,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       sessionService,
       requireCustomer,
       requireAdmin,
+      requireAdminAny,
       resolveCustomerContext: customerResolver,
       mailer: organizationsMailer,
       auditLogService,
@@ -1202,6 +1218,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     })),
   );
   lifecycleRef = lifecycle;
+
+  permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
+  redisSubscriber.on('message', (channel) => {
+    if (channel === STATE_CHANGED_CHANNEL) {
+      permissionCatalogueService.invalidate();
+    }
+  });
 
   modules.push(lifecycle.plugin);
   modules.push(adminI18n.plugin);

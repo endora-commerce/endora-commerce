@@ -105,6 +105,23 @@ export const upsertAdminRoleRequestSchema = z.object({
 });
 export type UpsertAdminRoleRequest = z.infer<typeof upsertAdminRoleRequestSchema>;
 
+/** Optional per-module permission declaration on `ModuleManifest.permissions`. */
+export const modulePermissionDeclarationSchema = z.object({
+  code: z.string().min(1).max(120),
+  module: z.string().min(1).max(64).optional(),
+  label: z.string().min(1).max(160),
+  description: z.string().max(500).optional(),
+});
+export type ModulePermissionDeclaration = z.infer<typeof modulePermissionDeclarationSchema>;
+
+/** Row shape returned by `GET /admin/permissions`. */
+export const permissionCatalogueEntrySchema = z.object({
+  code: z.string().min(1).max(120),
+  module: z.string().min(1).max(64),
+  label: z.string().min(1).max(160),
+});
+export type PermissionCatalogueEntry = z.infer<typeof permissionCatalogueEntrySchema>;
+
 /**
  * Canonical permission catalogue exposed by `GET /admin/permissions`.
  * The matrix UI groups by `module`; the wildcard `*` is intentionally not

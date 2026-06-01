@@ -1,14 +1,16 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
-import { ERROR_CODES, PERMISSION_CATALOGUE } from '@b2b/contracts';
+import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { AdminRole } from '../entities/admin-role.entity.js';
 import { AdminUser } from '../../admin_users/entities/admin-user.entity.js';
+import type { PermissionCatalogueService } from './permission-catalogue.service.js';
 
 /**
  * AdminRoleService (T193). CRUD over AdminRole rows. Two invariants:
  *
- *   - permissions referenced in `permissions` MUST be in PERMISSION_CATALOGUE
+ *   - permissions referenced in `permissions` MUST be in the merged assignable
+ *     catalogue (`PermissionCatalogueService`)
  *     (the wildcard `*` is intentionally rejected here — it's bootstrap-only,
  *     applied via a seed, never from the UI).
  *   - a Role with assigned AdminUsers cannot be deleted (409); reassign or
@@ -47,7 +49,10 @@ export function _resetSystemRoleCodesForTests(): void {
 }
 
 export class AdminRoleService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly permissionCatalogue: PermissionCatalogueService,
+  ) {}
 
   /**
    * Register a role code as system-protected. Called by modules at
@@ -124,11 +129,14 @@ export class AdminRoleService {
   }
 
   #assertPermissionsKnown(permissions: string[]): void {
-    const known = new Set<string>(PERMISSION_CATALOGUE.map((p) => p.code));
-    for (const p of permissions) {
-      if (!known.has(p)) {
-        throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, `Unknown permission: ${p}`);
-      }
+    const known = new Set(this.permissionCatalogue.listAssignableCodes());
+    const invalid = permissions.filter((p) => !known.has(p));
+    if (invalid.length > 0) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.VALIDATION_FAILED,
+        `Unknown permission(s): ${invalid.join(', ')}`,
+      );
     }
   }
 }

@@ -37,4 +37,5 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   dependencies: [],
   i18n: { bundlesDir: 'i18n' },
+  permissions: [{ code: DICTIONARY_PERMISSIONS.WRITE, label: 'Manage dictionary registry' }],
 });

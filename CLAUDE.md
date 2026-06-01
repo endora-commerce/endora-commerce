@@ -91,4 +91,17 @@ TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x): Follow standard conventi
 
 Skip in commit messages trailer: "Co-Authored-By: Claude ..." or any other LLM/AI Agent.
 
+### New backend module — admin permissions (required)
+
+Every new module with admin routes gated by `requireAdmin(...)` **must** register its permission codes so they appear on `/admin-roles` and pass CI inventory.
+
+1. **`manifest.ts`** — `permissions: [{ code, label, module? }]` for every code this module owns.
+2. **`registered-manifests.ts`** — register the manifest once.
+3. **Routes** — `requireAdmin('…')` literals must match manifest `code` values exactly.
+4. **i18n** — `adminRoles.permission.<code>` in `_i18n/i18n/en.json` and `pl.json`.
+5. **AppShell** — `requiredPermission` on nav entries where applicable.
+6. **CI** — `pnpm --filter backend exec vitest run test/contract/admin_users/permission-inventory.test.ts` before PR.
+
+Do not duplicate shared codes from core `PERMISSION_CATALOGUE` (`packages/contracts/src/admin.ts`). Contract: `specs/026-admin-roles-permissions/contracts/module-manifest-permissions.md`.
+
 <!-- MANUAL ADDITIONS END -->
