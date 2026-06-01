@@ -32,6 +32,8 @@
   "appShell.topbar.help": "Pomoc",
   "appShell.nav.home": "Strona główna",
   "appShell.nav.orders": "Zamówienia",
+  "appShell.nav.newOrder": "Nowe zamówienie",
+  "appShell.nav.orderStatuses": "Statusy zamówień",
   "appShell.nav.quickOrder": "Szybkie zamówienie",
   "appShell.nav.defaultPreferences": "Domyślne preferencje",
   "orderCreate.title": "Utwórz zamówienie",

@@ -32,6 +32,8 @@
   "appShell.topbar.help": "Help",
   "appShell.nav.home": "Home",
   "appShell.nav.orders": "Orders",
+  "appShell.nav.newOrder": "New order",
+  "appShell.nav.orderStatuses": "Order statuses",
   "appShell.nav.quickOrder": "Quick order",
   "appShell.nav.defaultPreferences": "Default preferences",
   "orderCreate.title": "Create order",
