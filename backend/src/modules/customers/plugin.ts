@@ -15,6 +15,9 @@ import { CustomerDefaultsService } from './services/customer-defaults-service.js
 import { CustomerAuthorityService } from './services/customer-authority-service.js';
 import { CustomerModerationService } from './services/customer-moderation-service.js';
 import { CustomerAdminQueryService } from './services/customer-admin-query-service.js';
+import { CustomerOrgAssignmentService } from './services/customer-org-assignment-service.js';
+import { CartQueryService } from '../carts/services/cart-query-service.js';
+import type { VatValidator } from '../organizations/services/vat-validator-port.js';
 import { registerCustomersRegisterRoutes } from './routes.register.js';
 import {
   registerCustomersSelfRoutes,
@@ -49,6 +52,8 @@ export interface CustomersModuleOptions {
   organizationRestrictionService?: OrganizationRestrictionService;
   requireAdmin: RequireAdminGuard;
   resolveModerationActor: ResolveModerationActor;
+  /** VAT/NIP validator port (VIES / Biała lista in production). */
+  vatValidator: VatValidator;
 }
 
 export interface CustomersModuleHandle {
@@ -101,6 +106,12 @@ export function customersModule(options: CustomersModuleOptions): {
     options.emFactory,
     customerDefaultsService,
   );
+  const orgAssignmentService = new CustomerOrgAssignmentService(
+    options.emFactory,
+    authorityService,
+    options.auditLogService,
+  );
+  const cartQueryService = new CartQueryService(options.emFactory);
 
   const plugin: ModulePlugin = async (app) => {
     await registerCustomersRegisterRoutes(app, { registrationService });
@@ -115,10 +126,17 @@ export function customersModule(options: CustomersModuleOptions): {
       customerDefaultsService,
     });
     await registerCustomersAdminRoutes(app, {
+      emFactory: options.emFactory,
       requireAdmin: options.requireAdmin,
       resolveModerationActor: options.resolveModerationActor,
       moderationService,
       queryService,
+      orgAssignmentService,
+      addressService: customerAddressService,
+      cartQueryService,
+      getOrderListService: options.getOrderListService,
+      rfqService: options.rfqService,
+      vatValidator: options.vatValidator,
       impersonationService,
     });
   };

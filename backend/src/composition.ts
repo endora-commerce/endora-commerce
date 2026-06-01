@@ -1126,6 +1126,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     auditLogService,
     organizationRestrictionService,
     requireAdmin,
+    vatValidator: new ViesClient(),
     resolveModerationActor: async (request) => {
       const actor = request.actor;
       if (actor.kind !== 'admin') {

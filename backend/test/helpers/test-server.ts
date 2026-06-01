@@ -1005,6 +1005,18 @@ export async function setupBackendServer(
     auditLogService,
     organizationRestrictionService: sharedRestrictionService,
     requireAdmin: requireTestAdmin(permissionService),
+    vatValidator: {
+      provider: 'vies' as const,
+      validate: async (input: { taxId: string; countryCode?: string | undefined }) => ({
+        outcome:
+          input.taxId === 'PL0000000099'
+            ? ('validated' as const)
+            : ('unverified' as const),
+        legalName: input.taxId === 'PL0000000099' ? 'Test Organization' : null,
+        address: null,
+        errorKind: null,
+      }),
+    },
     resolveModerationActor: async (request) => {
       const adminUserId =
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID;

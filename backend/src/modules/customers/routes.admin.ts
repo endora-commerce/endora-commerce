@@ -1,9 +1,27 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { blockCustomerRequestSchema, startImpersonationRequestSchema } from '@b2b/contracts';
+import {
+  blockCustomerRequestSchema,
+  startImpersonationRequestSchema,
+  assignOrganizationRequestSchema,
+  customerAddressInputSchema,
+  validateCustomerVatRequestSchema,
+} from '@b2b/contracts';
 import { SESSION_COOKIE_NAME } from '../auth/plugin.js';
 import type { CustomerModerationService } from './services/customer-moderation-service.js';
 import type { CustomerAdminQueryService } from './services/customer-admin-query-service.js';
+import type { CustomerOrgAssignmentService } from './services/customer-org-assignment-service.js';
+import type { CustomerAddressService } from './services/customer-address-service.js';
+import {
+  serializeCustomerAddress,
+  serializeOrganizationAddress,
+} from './serializers.js';
 import type { ImpersonationService } from '../admin_users/services/impersonation-service.js';
+import type { CartQueryService } from '../carts/services/cart-query-service.js';
+import type { OrderListService } from '../orders/services/order-list-service.js';
+import type { RfqService } from '../quote_requests/services/rfq-service.js';
+import type { VatValidator } from '../organizations/services/vat-validator-port.js';
+import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
+import type { EntityManager } from '@mikro-orm/postgresql';
 
 const ADMIN_SHADOW_COOKIE = 'admin_shadow_session';
 
@@ -40,10 +58,17 @@ export type ResolveModerationActor = (
 }>;
 
 export interface CustomersAdminDeps {
+  emFactory: () => EntityManager;
   requireAdmin: RequireAdminGuard;
   resolveModerationActor: ResolveModerationActor;
   moderationService: CustomerModerationService;
   queryService: CustomerAdminQueryService;
+  orgAssignmentService: CustomerOrgAssignmentService;
+  addressService: CustomerAddressService;
+  cartQueryService: CartQueryService;
+  getOrderListService: () => OrderListService;
+  rfqService: RfqService;
+  vatValidator: VatValidator;
   impersonationService: ImpersonationService;
 }
 
@@ -194,6 +219,140 @@ export async function registerCustomersAdminRoutes(
           },
         },
       };
+    },
+  );
+
+  // ── Organization assignment (US5) ───────────────────────────────────────
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/customers/:id/organization',
+    { preHandler: requireAdmin('customers:manage'), schema: { body: assignOrganizationRequestSchema } },
+    async (request) => {
+      const actor = await resolveModerationActor(request);
+      const body = assignOrganizationRequestSchema.parse(request.body);
+      const customer = await deps.orgAssignmentService.assign(
+        request.params.id,
+        body.organizationId,
+        actor,
+      );
+      return { data: { id: customer.id, organizationId: customer.organizationId ?? null } };
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/v1/admin/customers/:id/organization',
+    { preHandler: requireAdmin('customers:manage') },
+    async (request) => {
+      const actor = await resolveModerationActor(request);
+      const customer = await deps.orgAssignmentService.unassign(request.params.id, actor);
+      return { data: { id: customer.id, organizationId: customer.organizationId ?? null } };
+    },
+  );
+
+  // ── Addresses (US5) ─────────────────────────────────────────────────────
+
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/customers/:id/addresses',
+    { preHandler: requireAdmin('customers:read') },
+    async (request) => {
+      await resolveModerationActor(request);
+      const customer = await deps.emFactory().findOne(CustomerAccount, { id: request.params.id });
+      const personal = await deps.addressService.listPersonal(request.params.id);
+      const organization =
+        customer?.organizationId == null
+          ? []
+          : await deps.addressService.listOrganizationAddresses(customer.organizationId);
+      return {
+        data: {
+          personal: personal.map(serializeCustomerAddress),
+          organization: organization.map(serializeOrganizationAddress),
+        },
+      };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/customers/:id/addresses',
+    { preHandler: requireAdmin('customers:manage'), schema: { body: customerAddressInputSchema } },
+    async (request, reply) => {
+      await resolveModerationActor(request);
+      const body = customerAddressInputSchema.parse(request.body);
+      const created = await deps.addressService.create(request.params.id, {
+        kind: body.kind,
+        recipientName: body.recipientName,
+        street: body.street,
+        city: body.city,
+        postalCode: body.postalCode,
+        country: body.country,
+        phone: body.phone,
+        isDefault: body.isDefault,
+      });
+      reply.code(201);
+      return { data: serializeCustomerAddress(created) };
+    },
+  );
+
+  // ── NIP / VAT validation (US5) ──────────────────────────────────────────
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/customers/:id/vat-validate',
+    { preHandler: requireAdmin('customers:manage'), schema: { body: validateCustomerVatRequestSchema } },
+    async (request) => {
+      await resolveModerationActor(request);
+      const body = validateCustomerVatRequestSchema.parse(request.body);
+      const result = await deps.vatValidator.validate({
+        taxId: body.taxId,
+        ...(body.countryCode !== undefined ? { countryCode: body.countryCode } : {}),
+      });
+      return {
+        data: {
+          outcome: result.outcome,
+          legalName: result.legalName,
+          address: result.address,
+        },
+      };
+    },
+  );
+
+  // ── Read-only history panels (US5) ──────────────────────────────────────
+
+  app.get<{ Params: { id: string }; Querystring: { page?: string; pageSize?: string } }>(
+    '/api/v1/admin/customers/:id/orders',
+    { preHandler: requireAdmin('customers:read') },
+    async (request) => {
+      await resolveModerationActor(request);
+      const page = Math.max(1, Number.parseInt(request.query.page ?? '1', 10) || 1);
+      const pageSize = Math.min(100, Math.max(1, Number.parseInt(request.query.pageSize ?? '20', 10) || 20));
+      const result = await deps.getOrderListService().list({
+        placedByCustomerAccountId: request.params.id,
+        page,
+        pageSize,
+      });
+      return { data: result.rows, meta: { page, pageSize, total: result.total } };
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/customers/:id/quote-requests',
+    { preHandler: requireAdmin('customers:read') },
+    async (request) => {
+      await resolveModerationActor(request);
+      const customer = await deps.emFactory().findOne(CustomerAccount, { id: request.params.id });
+      const data = await deps.rfqService.listForCustomer({
+        customerAccountId: request.params.id,
+        organizationId: customer?.organizationId ?? '',
+        isOrgAdmin: false,
+      });
+      return { data };
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/customers/:id/carts',
+    { preHandler: requireAdmin('customers:read') },
+    async (request) => {
+      await resolveModerationActor(request);
+      return { data: await deps.cartQueryService.listForCustomer(request.params.id) };
     },
   );
 }
