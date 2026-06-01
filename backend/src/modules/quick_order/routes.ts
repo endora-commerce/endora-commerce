@@ -8,8 +8,7 @@ import {
 import { Product } from '../catalog/entities/product.entity.js';
 import type { QuickOrderImportPipeline } from './services/import-pipeline.js';
 import type { QuickOrderBuildService } from './services/quick-order-build-service.js';
-import { parseCsvRows } from './services/import-rows.js';
-import { parseXlsxRows } from './services/excel-importer.js';
+import { parseImportRequest } from './services/import-from-request.js';
 
 /**
  * Quick-order routes (feature 039).
@@ -34,10 +33,6 @@ export interface QuickOrderRoutesDeps {
   resolveImportMaxRows: () => Promise<number>;
 }
 
-function isXlsxFilename(filename: string): boolean {
-  return filename.toLowerCase().endsWith('.xlsx');
-}
-
 export async function registerQuickOrderRoutes(
   app: FastifyInstance,
   deps: QuickOrderRoutesDeps,
@@ -50,17 +45,7 @@ export async function registerQuickOrderRoutes(
     async (request) => {
       const body = quickOrderImportRequestSchema.parse(request.body);
       const maxRows = await deps.resolveImportMaxRows();
-
-      let parse;
-      if (body.file) {
-        const buffer = Buffer.from(body.file.contentBase64, 'base64');
-        parse = isXlsxFilename(body.file.filename)
-          ? await parseXlsxRows(buffer)
-          : parseCsvRows(buffer.toString('utf8'));
-      } else {
-        parse = parseCsvRows(body.csv ?? '');
-      }
-
+      const parse = await parseImportRequest(body);
       const result = await pipeline.run(parse, { maxRows });
       return { data: result };
     },

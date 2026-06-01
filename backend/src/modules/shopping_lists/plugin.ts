@@ -11,6 +11,8 @@ import { MikroOrmCatalogLookup } from '../quick_order/services/catalog-lookup.js
 import { QuickOrderBuildService } from '../quick_order/services/quick-order-build-service.js';
 import { registerShoppingListRoutes } from './routes.js';
 import { registerQuickOrderRoutes } from '../quick_order/routes.js';
+import { registerQuickOrderAdminRoutes } from '../quick_order/routes.admin.js';
+import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
 /** Default import row cap when no settings service is wired (matches the
  *  `quick_order.import_max_rows` manifest default). */
@@ -48,6 +50,11 @@ export interface ShoppingListsModuleOptions {
   settingsService?: SettingsService;
   /** Sales-channel id used to resolve the import-cap setting. */
   settingsChannelId?: string;
+  /**
+   * Feature 039 — when supplied, the admin quick-order on-behalf routes
+   * (`/api/v1/admin/quick-order/*`) are registered, guarded by `orders:write`.
+   */
+  requireAdmin?: RequireAdminFactory;
 }
 
 export function shoppingListsModule(options: ShoppingListsModuleOptions) {
@@ -91,5 +98,13 @@ export function shoppingListsModule(options: ShoppingListsModuleOptions) {
       resolveCustomerContext: options.resolveCustomerContext,
       resolveImportMaxRows,
     });
+    if (options.requireAdmin) {
+      await registerQuickOrderAdminRoutes(app, {
+        pipeline,
+        buildService,
+        requireAdmin: options.requireAdmin,
+        resolveImportMaxRows,
+      });
+    }
   };
 }

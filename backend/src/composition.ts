@@ -1076,8 +1076,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       exposeShoppingListService: (svc) => {
         shoppingListService = svc;
       },
-      // Feature 039 — resolve the quick-order import row cap from settings.
+      // Feature 039 — resolve the quick-order import row cap from settings,
+      // and register the admin on-behalf quick-order routes.
       settingsService: settings.handle.settingsService,
+      requireAdmin,
     }),
   );
 
