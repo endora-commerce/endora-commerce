@@ -44,6 +44,8 @@ export const PAGES: { id: string; path: string }[] = [
   { id: 'login', path: '/login' },
   { id: 'register', path: '/register' },
   { id: 'blog', path: '/blog' },
-  { id: 'cms', path: process.env.VR_CMS_PATH ?? '/about' },
+  // CMS page is opt-in: only covered when a real seeded slug is provided, so the
+  // baseline never captures a 404 placeholder.
+  ...(process.env.VR_CMS_PATH ? [{ id: 'cms', path: process.env.VR_CMS_PATH }] : []),
   { id: 'offline', path: '/offline' },
 ];
