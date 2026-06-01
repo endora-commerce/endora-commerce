@@ -7,7 +7,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
 import { PageHeader } from '@/components/ui/page-header';
 import { useTranslation } from '@/i18n/useTranslation';
 import {
@@ -18,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { StatusTransitionGraph } from './StatusTransitionGraph';
 
 interface StatusDef {
   code: string;
@@ -60,8 +60,6 @@ export function OrderStatusConfigPage(): ReactNode {
   const [newDefaultName, setNewDefaultName] = useState('');
   const [newNames, setNewNames] = useState<Record<string, string>>({});
   const [newTerminal, setNewTerminal] = useState(false);
-  const [transFrom, setTransFrom] = useState('');
-  const [transTo, setTransTo] = useState('');
 
   // Inline edit of an existing status's names.
   const [editCode, setEditCode] = useState<string | null>(null);
@@ -149,15 +147,13 @@ export function OrderStatusConfigPage(): ReactNode {
     void run(() => apiClient.delete(`/api/v1/admin/orders/statuses/${code}`));
   };
 
-  const addTransition = (): void => {
-    if (!transFrom || !transTo || transFrom === transTo) return;
-    void run(async () => {
-      await apiClient.put('/api/v1/admin/orders/transitions', {
-        add: [{ fromStatusCode: transFrom, toStatusCode: transTo }],
-      });
-      setTransFrom('');
-      setTransTo('');
-    });
+  const addTransition = (from: string, to: string): void => {
+    if (!from || !to || from === to) return;
+    void run(() =>
+      apiClient.put('/api/v1/admin/orders/transitions', {
+        add: [{ fromStatusCode: from, toStatusCode: to }],
+      }),
+    );
   };
 
   const removeTransition = (from: string, to: string): void => {
@@ -345,63 +341,14 @@ export function OrderStatusConfigPage(): ReactNode {
           <CardTitle>{t('orderStatusConfig.transitions')}</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('orderStatusConfig.col.from')}</TableHead>
-                <TableHead>{t('orderStatusConfig.col.to')}</TableHead>
-                <TableHead aria-label="actions" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(graph?.transitions ?? []).map((tr) => (
-                <TableRow key={`${tr.fromStatusCode}->${tr.toStatusCode}`}>
-                  <TableCell className="font-mono text-xs">{tr.fromStatusCode}</TableCell>
-                  <TableCell className="font-mono text-xs">{tr.toStatusCode}</TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={tr.isSystem}
-                      aria-label={`remove-${tr.fromStatusCode}-${tr.toStatusCode}`}
-                      onClick={(): void => removeTransition(tr.fromStatusCode, tr.toStatusCode)}
-                    >
-                      <Trash2 />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-
-          <div className="mt-4 flex flex-wrap items-end gap-3 border-t pt-4">
-            <div className="space-y-1">
-              <Label htmlFor="transFrom">{t('orderStatusConfig.col.from')}</Label>
-              <Select id="transFrom" value={transFrom} onChange={(e): void => setTransFrom(e.target.value)}>
-                <option value="">—</option>
-                {statuses.map((s) => (
-                  <option key={s.code} value={s.code}>
-                    {s.code}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="transTo">{t('orderStatusConfig.col.to')}</Label>
-              <Select id="transTo" value={transTo} onChange={(e): void => setTransTo(e.target.value)}>
-                <option value="">—</option>
-                {statuses.map((s) => (
-                  <option key={s.code} value={s.code}>
-                    {s.code}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <Button onClick={addTransition} disabled={!transFrom || !transTo || transFrom === transTo}>
-              <Plus />
-              {t('orderStatusConfig.addTransition')}
-            </Button>
-          </div>
+          <StatusTransitionGraph
+            statuses={statuses}
+            transitions={graph?.transitions ?? []}
+            statusLabel={statusLabel}
+            onAdd={addTransition}
+            onRemove={removeTransition}
+            t={t}
+          />
         </CardContent>
       </Card>
     </>

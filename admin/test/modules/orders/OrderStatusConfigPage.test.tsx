@@ -9,6 +9,12 @@ const deleteSpy = vi.fn();
 const postSpy = vi.fn();
 const putSpy = vi.fn();
 
+// ECharts needs a real canvas; stub the wrapper so the page logic can be
+// tested in jsdom. Edge-click selection is exercised via the kept From/To form.
+vi.mock('@/components/charts/echart', () => ({
+  EChart: (): null => null,
+}));
+
 vi.mock('@/lib/api-client', async () => {
   const actual = await vi.importActual<typeof import('../../../src/lib/api-client')>(
     '@/lib/api-client',
@@ -86,10 +92,38 @@ describe('OrderStatusConfigPage', () => {
     expect(deleteSpy).toHaveBeenCalledWith('/api/v1/admin/orders/statuses/pending');
   });
 
-  it('cannot remove a system transition but the control exists for custom ones', async () => {
+  it('adds a new transition via the From/To form', async () => {
     renderPage();
-    await waitFor(() => expect(screen.getByLabelText('remove-new-pending')).toBeInTheDocument());
-    expect(screen.getByLabelText('remove-new-pending')).not.toBeDisabled();
-    expect(screen.getByLabelText('remove-new-cancelled')).toBeDisabled(); // system edge
+    await waitFor(() => expect(screen.getByLabelText('delete-new')).toBeInTheDocument());
+    await userEvent.selectOptions(
+      screen.getByLabelText('core.orderStatusConfig.col.from'),
+      'pending',
+    );
+    await userEvent.selectOptions(screen.getByLabelText('core.orderStatusConfig.col.to'), 'cancelled');
+    await userEvent.click(
+      screen.getByRole('button', { name: 'core.orderStatusConfig.addTransition' }),
+    );
+    expect(putSpy).toHaveBeenCalledWith('/api/v1/admin/orders/transitions', {
+      add: [{ fromStatusCode: 'pending', toStatusCode: 'cancelled' }],
+    });
+  });
+
+  it('does not re-add an already-existing transition', async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByLabelText('delete-new')).toBeInTheDocument());
+    await userEvent.selectOptions(screen.getByLabelText('core.orderStatusConfig.col.from'), 'new');
+    await userEvent.selectOptions(screen.getByLabelText('core.orderStatusConfig.col.to'), 'pending');
+    await userEvent.click(
+      screen.getByRole('button', { name: 'core.orderStatusConfig.addTransition' }),
+    );
+    expect(putSpy).not.toHaveBeenCalled();
+  });
+
+  it('exposes the graph connect-mode toggle', async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByLabelText('delete-new')).toBeInTheDocument());
+    expect(
+      screen.getByRole('button', { name: 'core.orderStatusConfig.graph.connectMode' }),
+    ).toBeInTheDocument();
   });
 });
