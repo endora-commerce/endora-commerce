@@ -3,12 +3,15 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
   addOrderComment,
+  cloneOrderToQuote,
   getMyOrder,
   listOrderComments,
   reorderOrder,
+  resolveOrderStatusLabel,
   type OrderComment,
 } from '../../../../lib/api/orders';
 import { getSessionCookie } from '../../../../lib/session';
+import { getServerContext } from '../../../../lib/server-context';
 import { StorefrontApiError } from '../../../../lib/api/client';
 
 /**
@@ -49,6 +52,7 @@ export default async function OrderConfirmationPage({
     comments = [];
   }
 
+  const { locale } = await getServerContext();
   // Terminal orders close commenting; a pending payment surfaces a Pay CTA.
   const isTerminal = order.status === 'completed' || order.status === 'cancelled';
   const awaitingPayment = !isTerminal && order.paymentStatus === 'awaiting_payment';
@@ -72,7 +76,7 @@ export default async function OrderConfirmationPage({
         <tbody>
           <tr>
             <th scope="row">Order status</th>
-            <td>{order.status}</td>
+            <td>{resolveOrderStatusLabel(order, locale)}</td>
           </tr>
           <tr>
             <th scope="row">Payment status</th>
@@ -166,11 +170,20 @@ export default async function OrderConfirmationPage({
         </p>
       ) : null}
 
-      <h2>Reorder</h2>
-      <form action={reorderAction}>
+      <h2>Order again</h2>
+      <p className="b2b-auth__hint">
+        Recreate this order&apos;s items at current prices — as a new cart, or as a quote request.
+      </p>
+      <form action={reorderAction} style={{ display: 'inline' }}>
         <input type="hidden" name="id" value={order.id} />
         <button type="submit" className="b2b-button">
-          Reorder these items
+          Order again → cart
+        </button>
+      </form>{' '}
+      <form action={reorderToQuoteAction} style={{ display: 'inline' }}>
+        <input type="hidden" name="id" value={order.id} />
+        <button type="submit" className="b2b-button">
+          Order again → quote request
         </button>
       </form>
 
@@ -237,4 +250,18 @@ async function reorderAction(formData: FormData): Promise<void> {
     redirect(`/orders/${id}?error=${encodeURIComponent(message)}`);
   }
   redirect(target);
+}
+
+async function reorderToQuoteAction(formData: FormData): Promise<void> {
+  'use server';
+  const session = await getSessionCookie();
+  if (!session) redirect('/login');
+  const id = (formData.get('id') as string) ?? '';
+  try {
+    await cloneOrderToQuote(session, id);
+  } catch (err) {
+    const message = err instanceof StorefrontApiError ? err.message : 'Could not create quote request.';
+    redirect(`/orders/${id}?error=${encodeURIComponent(message)}`);
+  }
+  redirect('/account/quote-requests');
 }

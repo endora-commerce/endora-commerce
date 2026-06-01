@@ -12,6 +12,7 @@ import { listAddresses, createAddress } from '../../../lib/api/organization';
 import { listDeliveryMethods, listPaymentMethods } from '../../../lib/api/methods';
 import { placeOrder } from '../../../lib/api/orders';
 import { getMyCreditLimit } from '../../../lib/api/credit-limit';
+import { getResolvedQuickOrderDefaults } from '../../../lib/api/quick-order';
 import { CreditLimitWidget } from '../../../components/CreditLimitWidget';
 import { PaymentMethods } from '../../../components/checkout/PaymentMethods';
 import { ShippingMethods } from '../../../components/checkout/ShippingMethods';
@@ -47,7 +48,7 @@ export default async function CheckoutPage({
   // can render their copy in PL/EN.
   const { locale } = await getServerContext();
 
-  const [cartResult, addresses, deliveryMethods, paymentMethodsRaw, creditLimit, me] =
+  const [cartResult, addresses, deliveryMethods, paymentMethodsRaw, creditLimit, me, defaults] =
     await Promise.all([
       getCart(jar),
       listAddresses(session),
@@ -55,6 +56,8 @@ export default async function CheckoutPage({
       listPaymentMethods(),
       getMyCreditLimit(session),
       getMe(session).catch(() => null),
+      // Feature 039 (US2) — resolved default ordering preferences to pre-select.
+      getResolvedQuickOrderDefaults(session).catch(() => null),
     ]);
   if (cartResult.newAnonCookie) await setAnonCartCookie(cartResult.newAnonCookie);
   const cart = cartResult.cart;
@@ -102,11 +105,17 @@ export default async function CheckoutPage({
           deliveryAddresses={deliveryAddrs}
           billingAddresses={billingAddrs}
           locale={locale}
+          preferredShippingAddressId={defaults?.shippingAddressId ?? null}
+          preferredBillingAddressId={defaults?.billingAddressId ?? null}
         />
 
-        <ShippingMethods methods={deliveryMethods} />
+        <ShippingMethods methods={deliveryMethods} preferredId={defaults?.deliveryMethodId ?? null} />
 
-        <PaymentMethods methods={paymentMethods} currency={cart.subtotal.currency} />
+        <PaymentMethods
+          methods={paymentMethods}
+          currency={cart.subtotal.currency}
+          preferredId={defaults?.paymentMethodId ?? null}
+        />
 
         <CouponField
           applied={cart.discount ?? null}

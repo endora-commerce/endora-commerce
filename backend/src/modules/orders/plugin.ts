@@ -163,6 +163,12 @@ export interface OrdersModuleOptions {
    */
   getRfqService?: () => RfqService | null;
   /**
+   * Feature 039 — late-bind the OrderService back to composition so the
+   * quick_order module's one-click flow can reuse `placeOrder` without the
+   * orders module depending on quick_order.
+   */
+  exposeOrderService?: (service: OrderService) => void;
+  /**
    * Feature 027 US3 — port that appends a Shopping List's lines to the
    * buyer's cart. Wired by composition to ShoppingListService.convertToCart.
    */
@@ -424,6 +430,8 @@ export function commerceModule(options: OrdersModuleOptions) {
         ? { appendShoppingListToCart: options.appendShoppingListToCart }
         : {}),
     });
+    if (options.exposeOrderService) options.exposeOrderService(orderService);
+
     await registerOrderRoutes(app, {
       orderService,
       orderStatusGraphService,

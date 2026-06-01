@@ -48,6 +48,7 @@
   "productsList.bulkEdit.error.bulk_too_large": "Zbyt duży wybór: {total}, maksymalnie {maxBatchSize} w jednej operacji.",
   "productsList.bulkEdit.empty": "Brak zmian — nic do zapisania.",
   "attributes.column.massEditable": "Edycja masowa",
+  "attributes.column.quickSearchable": "Szybkie wyszukiwanie",
   "attributes.flag.massEditable": "Włącz do okna „Edycja masowa” produktów",
   "attributesList.filter.massEditable": "Tylko masowo edytowalne",
   "productsList.empty.title": "Brak produktów pasujących do filtrów",

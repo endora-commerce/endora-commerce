@@ -11,10 +11,15 @@ import { resolvePaymentMethodRenderer } from '../../lib/payment-renderers/regist
 export function PaymentMethods({
   methods,
   currency,
+  preferredId,
 }: {
   methods: PaymentMethodSummary[];
   currency?: string | undefined;
+  /** Feature 039 — pre-select this method (the resolved default) when present. */
+  preferredId?: string | null;
 }): ReactNode {
+  const preferredIdx = preferredId ? methods.findIndex((m) => m.id === preferredId) : -1;
+  const selectedIdx = preferredIdx >= 0 ? preferredIdx : 0;
   return (
     <fieldset className="b2b-auth__form" style={{ border: 0, padding: 0 }}>
       <legend style={{ fontWeight: 600 }}>Payment method</legend>
@@ -25,7 +30,9 @@ export function PaymentMethods({
       ) : (
         methods.map((m, i) => {
           const Renderer = resolvePaymentMethodRenderer(m.rendererKey);
-          return <Renderer key={m.id} method={m} defaultChecked={i === 0} currency={currency} />;
+          return (
+            <Renderer key={m.id} method={m} defaultChecked={i === selectedIdx} currency={currency} />
+          );
         })
       )}
     </fieldset>

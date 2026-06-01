@@ -25,6 +25,17 @@ export type NextAction =
     }
   | { kind: 'redirect_to_gateway'; url: string; expiresAt: string };
 
+/**
+ * Resolve an order's status label for the active locale (feature 039):
+ * statusName[locale] → statusDefaultName → raw status code.
+ */
+export function resolveOrderStatusLabel(
+  order: { status: string; statusName?: Record<string, string>; statusDefaultName?: string },
+  locale: string,
+): string {
+  return order.statusName?.[locale] ?? order.statusDefaultName ?? order.status;
+}
+
 export interface OrderItem {
   id: string;
   productId: string;
@@ -42,6 +53,9 @@ export interface OrderSummary {
   businessId: string;
   organizationId: string;
   status: string;
+  /** Feature 039 — localized status labels; resolve via resolveOrderStatusLabel. */
+  statusName?: Record<string, string>;
+  statusDefaultName?: string;
   paymentStatus: string;
   deliveryAddress: Record<string, string>;
   billingAddress: Record<string, string>;
@@ -132,6 +146,23 @@ export async function reorderOrder(sessionCookie: string, id: string): Promise<R
   const result = await apiMutate<ReorderResult>({
     method: 'POST',
     path: `/api/v1/orders/${id}/reorder`,
+    body: {},
+    sessionCookie,
+  });
+  return result.data!;
+}
+
+/**
+ * Order again as a Quote Request (feature 039 / US4). Reuses the existing
+ * clone-to-quote path (feature 038 US7).
+ */
+export async function cloneOrderToQuote(
+  sessionCookie: string,
+  id: string,
+): Promise<{ quoteRequestId: string }> {
+  const result = await apiMutate<{ quoteRequestId: string }>({
+    method: 'POST',
+    path: `/api/v1/orders/${id}/clone-to-quote`,
     body: {},
     sessionCookie,
   });

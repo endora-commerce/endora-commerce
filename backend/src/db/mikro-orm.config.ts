@@ -58,6 +58,9 @@ import { Migration053OrdersBusinessId } from '../modules/orders/migrations/053_o
 import { Migration054OrdersStatusModel } from '../modules/orders/migrations/054_orders_status_model.js';
 import { Migration055OrderCommentsAndSavedViews } from '../modules/orders/migrations/055_order_comments_and_saved_views.js';
 import { Migration056OrgOrderConfirmationEmails } from '../modules/organizations/migrations/056_org_order_confirmation_emails.js';
+import { Migration057QuickOrderDefaultPreferences } from '../modules/quick_order/migrations/057_quick_order_default_preferences.js';
+import { Migration058AttributeQuickSearchable } from '../modules/catalog/migrations/058_attribute_quick_searchable.js';
+import { Migration059OrderStatusDefaultName } from '../modules/orders/migrations/059_order_status_default_name.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -261,6 +264,18 @@ export default defineConfig({
       {
         name: 'Migration056OrgOrderConfirmationEmails',
         class: Migration056OrgOrderConfirmationEmails,
+      },
+      {
+        name: 'Migration057QuickOrderDefaultPreferences',
+        class: Migration057QuickOrderDefaultPreferences,
+      },
+      {
+        name: 'Migration058AttributeQuickSearchable',
+        class: Migration058AttributeQuickSearchable,
+      },
+      {
+        name: 'Migration059OrderStatusDefaultName',
+        class: Migration059OrderStatusDefaultName,
       },
     ],
     transactional: true,

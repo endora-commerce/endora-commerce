@@ -48,6 +48,7 @@
   "productsList.bulkEdit.error.bulk_too_large": "Selection too large: {total} selected, {maxBatchSize} max per batch.",
   "productsList.bulkEdit.empty": "No fields modified — nothing to save.",
   "attributes.column.massEditable": "Mass-editable",
+  "attributes.column.quickSearchable": "Quick-searchable",
   "attributes.flag.massEditable": "Mass-editable (offered in the Products Bulk Edit dialog)",
   "attributesList.filter.massEditable": "Mass-editable only",
   "productsList.empty.title": "No products match these filters",

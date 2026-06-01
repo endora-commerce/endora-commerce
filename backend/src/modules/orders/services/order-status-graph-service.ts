@@ -86,6 +86,7 @@ export class OrderStatusGraphService {
   async createStatus(input: {
     code: string;
     name: Record<string, string>;
+    defaultName: string;
     isTerminal?: boolean | undefined;
     weight?: number | undefined;
   }): Promise<void> {
@@ -97,6 +98,7 @@ export class OrderStatusGraphService {
     const status = em.create(OrderStatus, {
       code: input.code,
       name: input.name,
+      defaultName: input.defaultName,
       isInitial: false,
       isTerminal: input.isTerminal ?? false,
       isSystem: false,
@@ -116,6 +118,7 @@ export class OrderStatusGraphService {
     code: string,
     patch: {
       name?: Record<string, string> | undefined;
+      defaultName?: string | undefined;
       isTerminal?: boolean | undefined;
       weight?: number | undefined;
     },
@@ -124,6 +127,7 @@ export class OrderStatusGraphService {
     const status = await em.findOne(OrderStatus, { code });
     if (!status) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Status "${code}" not found.`);
     if (patch.name !== undefined) status.name = patch.name;
+    if (patch.defaultName !== undefined) status.defaultName = patch.defaultName;
     if (patch.weight !== undefined) status.weight = patch.weight;
     if (patch.isTerminal !== undefined && patch.isTerminal !== status.isTerminal) {
       if (patch.isTerminal) {
@@ -250,6 +254,7 @@ function toStatusDef(s: OrderStatus): OrderStatusDef {
   return {
     code: s.code,
     name: s.name,
+    defaultName: s.defaultName,
     isInitial: s.isInitial,
     isTerminal: s.isTerminal,
     isSystem: s.isSystem,

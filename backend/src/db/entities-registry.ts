@@ -33,6 +33,7 @@ import { OrganizationDeliveryMethodLink } from '../modules/organizations/entitie
 import { OrganizationWarehouseLink } from '../modules/organizations/entities/organization-warehouse-link.entity.js';
 import { AdminNotification } from '../modules/admin_notifications/entities/admin-notification.entity.js';
 import { AdminNotificationRead } from '../modules/admin_notifications/entities/admin-notification-read.entity.js';
+import { QuickOrderDefaultPreference } from '../modules/quick_order/entities/quick-order-default-preference.entity.js';
 import { Cart } from '../modules/carts/entities/cart.entity.js';
 import { CartItem } from '../modules/carts/entities/cart-item.entity.js';
 import { CartAuditEntry } from '../modules/carts/entities/cart-audit-entry.entity.js';
@@ -281,4 +282,6 @@ export const ALL_ENTITIES = [
   // admin notifications "bell" surface (feature 026)
   AdminNotification,
   AdminNotificationRead,
+  // quick-order default ordering preferences (feature 039)
+  QuickOrderDefaultPreference,
 ] as const;

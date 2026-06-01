@@ -25,6 +25,10 @@ export class OrderStatus {
   @Property({ type: 'json' })
   name!: Record<string, string>;
 
+  /** Language-independent fallback when the active language is missing from `name`. */
+  @Property({ type: 'string', length: 120 })
+  defaultName!: string;
+
   @Property({ type: 'boolean' })
   isInitial: boolean = false;
 
