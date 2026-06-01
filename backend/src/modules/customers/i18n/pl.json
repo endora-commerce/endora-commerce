@@ -59,5 +59,23 @@
   "detail.carts.title": "Koszyki",
   "detail.carts.items": "pozycji",
   "detail.carts.noCurrent": "Brak aktywnego koszyka.",
-  "detail.carts.empty": "Brak koszyków."
+  "detail.carts.empty": "Brak koszyków.",
+
+  "detail.org.title": "Organizacja",
+  "detail.org.assignLabel": "Przypisz do organizacji",
+  "detail.org.assign": "Przypisz",
+  "detail.org.unassign": "Wypisz",
+  "detail.group.title": "Grupa klientów",
+  "detail.group.setLabel": "Ustaw grupę klientów",
+  "detail.group.set": "Ustaw",
+  "detail.group.clear": "Wyczyść grupę",
+  "detail.addresses.title": "Adresy",
+  "detail.addresses.empty": "Brak adresów osobistych.",
+  "detail.addresses.default": "domyślny",
+  "detail.addresses.recipient": "Odbiorca",
+  "detail.addresses.street": "Ulica",
+  "detail.addresses.city": "Miasto",
+  "detail.addresses.postal": "Kod pocztowy",
+  "detail.addresses.country": "Kraj",
+  "detail.addresses.add": "Dodaj adres"
 }

@@ -59,5 +59,23 @@
   "detail.carts.title": "Carts",
   "detail.carts.items": "items",
   "detail.carts.noCurrent": "No active cart.",
-  "detail.carts.empty": "No carts."
+  "detail.carts.empty": "No carts.",
+
+  "detail.org.title": "Organization",
+  "detail.org.assignLabel": "Assign to organization",
+  "detail.org.assign": "Assign",
+  "detail.org.unassign": "Unassign",
+  "detail.group.title": "Customer group",
+  "detail.group.setLabel": "Set customer group",
+  "detail.group.set": "Set",
+  "detail.group.clear": "Clear group",
+  "detail.addresses.title": "Addresses",
+  "detail.addresses.empty": "No personal addresses.",
+  "detail.addresses.default": "default",
+  "detail.addresses.recipient": "Recipient",
+  "detail.addresses.street": "Street",
+  "detail.addresses.city": "City",
+  "detail.addresses.postal": "Postal code",
+  "detail.addresses.country": "Country",
+  "detail.addresses.add": "Add address"
 }

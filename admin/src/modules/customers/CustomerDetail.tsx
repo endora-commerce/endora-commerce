@@ -9,6 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { useTranslation } from '@/i18n/useTranslation';
 import { OrdersPanel, QuoteRequestsPanel, CartsPanel } from './panels/HistoryPanels';
+import {
+  OrganizationAssignmentPanel,
+  CustomerGroupPanel,
+  AddressesPanel,
+} from './panels/ManagementPanels';
 
 interface AdminCustomerDetail {
   id: string;
@@ -189,6 +194,10 @@ export function CustomerDetail(): ReactNode {
           )}
         </CardContent>
       </Card>
+
+      <OrganizationAssignmentPanel customerId={id} organizationId={c.organizationId} onChanged={(): void => void refresh()} />
+      <CustomerGroupPanel customerId={id} customerGroupId={c.customerGroupId} onChanged={(): void => void refresh()} />
+      <AddressesPanel customerId={id} onChanged={(): void => void refresh()} />
 
       <OrdersPanel customerId={id} />
       <QuoteRequestsPanel customerId={id} />
