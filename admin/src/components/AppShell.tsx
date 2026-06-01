@@ -144,6 +144,8 @@ const NAV: NavSection[] = [
     key: 'customers',
     labelKey: 'appShell.section.customers',
     items: [
+      { to: '/customers', labelKey: 'appShell.nav.customers', icon: Users },
+      { to: '/customers/online', labelKey: 'appShell.nav.customersOnline', icon: Users },
       { to: '/organizations', labelKey: 'appShell.nav.organizations', icon: Building2 },
       { to: '/credit-limits', labelKey: 'appShell.nav.creditLimits', icon: CreditCard },
       { to: '/comparisons', labelKey: 'appShell.nav.comparisons', icon: Scale },

@@ -95,6 +95,8 @@
   "appShell.nav.taxes": "Taxes",
   "appShell.nav.deliveryMethods": "Delivery methods",
   "appShell.nav.paymentMethods": "Payment methods",
+  "appShell.nav.customers": "Customers",
+  "appShell.nav.customersOnline": "Online customers",
   "appShell.nav.organizations": "Organizations",
   "appShell.nav.creditLimits": "Credit limits",
   "appShell.nav.comparisons": "Comparisons",
