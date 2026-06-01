@@ -23,6 +23,15 @@ export interface OrganizationsCustomerDeps {
     organizationId: string;
     impersonatorAdminUserId?: string | null;
   };
+  /**
+   * Feature 040 — org-OPTIONAL resolver for GET /me, so standalone (org-less)
+   * customers can load their profile (organizationId null) instead of 422.
+   */
+  resolveCustomerActorOptionalOrg: (req: FastifyRequest) => {
+    customerAccountId: string;
+    organizationId: string | null;
+    impersonatorAdminUserId?: string | null;
+  };
   /** Read-only EntityManager factory for the GET /me endpoint. */
   emFactory: () => EntityManager;
 }
@@ -45,20 +54,21 @@ export async function registerOrganizationsCustomerRoutes(
     '/api/v1/me',
     { preHandler: requireCustomer },
     async (request) => {
-      const ctx = resolveCustomerContext(request);
+      const ctx = deps.resolveCustomerActorOptionalOrg(request);
       const em = deps.emFactory();
-      const [customer, organization] = await Promise.all([
-        em.findOne(CustomerAccount, { id: ctx.customerAccountId }),
-        em.findOne(Organization, { id: ctx.organizationId }),
-      ]);
-      if (!customer || !organization) {
+      const customer = await em.findOne(CustomerAccount, { id: ctx.customerAccountId });
+      if (!customer) {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
       }
+      // Feature 040 — org-less customers resolve to organization: null.
+      const organization = ctx.organizationId
+        ? await em.findOne(Organization, { id: ctx.organizationId })
+        : null;
       const impersonatorAdminUserId = ctx.impersonatorAdminUserId ?? null;
       return {
         data: {
           customerAccount: serializeCustomer(customer),
-          organization: serializeOrganization(organization),
+          organization: organization ? serializeOrganization(organization) : null,
           impersonation: impersonatorAdminUserId
             ? { impersonatorAdminUserId }
             : null,

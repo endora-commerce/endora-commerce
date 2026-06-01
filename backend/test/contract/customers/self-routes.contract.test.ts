@@ -73,6 +73,20 @@ describe('Customer self-service routes (US1)', () => {
     expect(res.statusCode).toBe(401);
   });
 
+  it('GET /api/v1/me returns organization: null for a standalone customer (org-optional)', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/me',
+      cookies: { b2b_session: sessionCookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as {
+      data: { customerAccount: { organizationId: string | null }; organization: unknown | null };
+    };
+    expect(body.data.organization).toBeNull();
+    expect(body.data.customerAccount.organizationId ?? null).toBeNull();
+  });
+
   it('GET /api/v1/me/customer/orders returns an (empty) paginated list', async () => {
     const res = await h.app.inject({
       method: 'GET',

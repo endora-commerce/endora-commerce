@@ -22,6 +22,7 @@ export default async function OrganizationCartsPage(): Promise<ReactNode> {
   const session = await getSessionCookie();
   if (!session) redirect('/login');
   const me = await getMe(session);
+  if (!me.organization) redirect('/account');
   if (me.customerAccount.role !== 'organization_admin') {
     return (
       <>

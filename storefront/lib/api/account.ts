@@ -7,7 +7,8 @@ import { apiGetAuthed, apiMutate } from './mutations';
 
 export interface CurrentCustomer {
   id: string;
-  organizationId: string;
+  /** Null for standalone (org-less) customers (feature 040). */
+  organizationId: string | null;
   email: string;
   firstName: string;
   lastName: string;
@@ -46,7 +47,8 @@ export interface CurrentOrganization {
 
 export interface MeResult {
   customerAccount: CurrentCustomer;
-  organization: CurrentOrganization;
+  /** Null for standalone (org-less) customers (feature 040). */
+  organization: CurrentOrganization | null;
   /** Non-null when the current session is an Admin impersonating this customer. */
   impersonation: { impersonatorAdminUserId: string } | null;
 }

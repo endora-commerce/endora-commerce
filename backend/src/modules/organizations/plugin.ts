@@ -145,6 +145,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       totpEnrolmentService,
       requireCustomer: options.requireCustomer,
       resolveCustomerContext: options.resolveCustomerContext,
+      resolveCustomerActorOptionalOrg: resolveOptionalOrgContext,
       emFactory: options.emFactory,
     });
     if (options.restrictionService) {
@@ -201,21 +202,37 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
  */
 function resolveOptionalOrgContext(
   request: FastifyRequest,
-): { customerAccountId: string; organizationId: string | null } {
+): {
+  customerAccountId: string;
+  organizationId: string | null;
+  impersonatorAdminUserId?: string | null;
+} {
   const r = request as FastifyRequest & {
-    testActor?: { kind: string; customerAccountId?: string; organizationId?: string | null };
-    actor?: { kind: string; customerAccountId?: string; organizationId?: string | null };
+    testActor?: {
+      kind: string;
+      customerAccountId?: string;
+      organizationId?: string | null;
+      impersonatorAdminUserId?: string | null;
+    };
+    actor?: {
+      kind: string;
+      customerAccountId?: string;
+      organizationId?: string | null;
+      impersonatorAdminUserId?: string | null;
+    };
   };
   if (r.testActor?.kind === 'customer' && r.testActor.customerAccountId) {
     return {
       customerAccountId: r.testActor.customerAccountId,
       organizationId: r.testActor.organizationId ?? null,
+      impersonatorAdminUserId: r.testActor.impersonatorAdminUserId ?? null,
     };
   }
   if (r.actor?.kind === 'customer' && r.actor.customerAccountId) {
     return {
       customerAccountId: r.actor.customerAccountId,
       organizationId: r.actor.organizationId ?? null,
+      impersonatorAdminUserId: r.actor.impersonatorAdminUserId ?? null,
     };
   }
   throw new Error(
