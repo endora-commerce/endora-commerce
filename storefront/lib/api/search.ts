@@ -116,7 +116,6 @@ export async function recordPhrase(opts: RecordPhraseOptions): Promise<void> {
       cache: 'no-store',
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.warn(
       JSON.stringify({
         level: 'warn',
