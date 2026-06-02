@@ -22,47 +22,29 @@ export function CreditLimitWidget(props: CreditLimitWidgetProps): ReactNode {
       : 0;
 
   return (
-    <section
-      className="b2b-credit-widget"
-      style={{
-        background: 'var(--b2b-color-surface, #fff)',
-        border: '1px solid var(--b2b-color-border, #e5e5e5)',
-        borderRadius: 'var(--b2b-radius, 8px)',
-        padding: 'var(--b2b-spacing, 16px)',
-      }}
-    >
-      <h3 style={{ margin: '0 0 8px', fontSize: '1rem' }}>Credit limit</h3>
-      <p style={{ margin: '0 0 8px' }}>
+    <section className="rounded-md border border-line bg-surface p-[16px]">
+      <h3 className="m-0 mb-2 text-[1rem]">Credit limit</h3>
+      <p className="m-0 mb-2">
         <strong>
           {limit.availableAmount.toFixed(2)} {limit.currency}
         </strong>{' '}
         available of{' '}
         {limit.grantedAmount.toFixed(2)} {limit.currency}
         {' · '}
-        <span className="muted">
+        <span className="text-muted">
           {reservedSum.toFixed(2)} {limit.currency} reserved across{' '}
           {limit.activeReservations.length} order(s)
         </span>
       </p>
-      <div
-        aria-hidden="true"
-        style={{
-          height: 6,
-          background: 'var(--b2b-color-bg, #fafafa)',
-          borderRadius: 3,
-          overflow: 'hidden',
-        }}
-      >
+      <div aria-hidden="true" className="h-[6px] overflow-hidden rounded-[3px] bg-surface-alt">
         <div
-          style={{
-            width: `${fillPct}%`,
-            height: '100%',
-            background: fillPct > 90 ? 'var(--b2b-color-danger, #b91c1c)' : 'var(--b2b-color-accent, #1d4ed8)',
-          }}
+          // Width + colour are data-driven (utilisation) — kept inline/conditional.
+          className={`h-full ${fillPct > 90 ? 'bg-bad' : 'bg-accent'}`}
+          style={{ width: `${fillPct}%` }}
         />
       </div>
       {props.showReservations && limit.activeReservations.length > 0 ? (
-        <table className="b2b-account__table" style={{ marginTop: 12 }}>
+        <table className="b2b-account__table mt-3">
           <thead>
             <tr>
               <th>Order</th>

@@ -23,26 +23,17 @@ interface MiniCartBadgeProps {
 
 export function MiniCartBadge({ itemCount, label, ariaLabel }: MiniCartBadgeProps): ReactNode {
   return (
-    <Link href="/cart" className="industria-icon-link" aria-label={ariaLabel}>
+    <Link
+      href="/cart"
+      className="inline-flex items-center gap-1.5 text-fg-soft hover:text-fg"
+      aria-label={ariaLabel}
+    >
       <CartIcon />
       <span>{label}</span>
       {itemCount > 0 ? (
         <span
-          className="industria-icon-link__badge"
+          className="ml-1 inline-block min-w-[1.25em] rounded-full bg-[#cc0000] px-[0.4em] py-[0.1em] text-center text-[0.75rem] font-semibold leading-none text-white"
           aria-label={`${itemCount} items in cart`}
-          style={{
-            display: 'inline-block',
-            minWidth: '1.25em',
-            padding: '0.1em 0.4em',
-            marginLeft: '0.25em',
-            background: '#cc0000',
-            color: 'white',
-            borderRadius: '999px',
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            textAlign: 'center',
-            lineHeight: 1,
-          }}
         >
           {itemCount}
         </span>
