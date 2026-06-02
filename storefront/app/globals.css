@@ -19,6 +19,7 @@
  * therefore no visual diff. Migrating markup to utilities happens incrementally; the
  * border-utility compatibility shim is added alongside the first border migration.
  */
+@layer theme, base, components, utilities;
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css' layer(utilities);
 
@@ -226,41 +227,33 @@ h3 { font-size: 16px; font-weight: 600; }
 /* ------------------------------------------------------------------ */
 /* Buttons                                                              */
 /* ------------------------------------------------------------------ */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 14px;
-  border: 1px solid transparent;
-  border-radius: var(--r-md);
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease,
-    box-shadow 0.18s ease, transform 0.12s ease;
-  background: var(--surface);
-  color: var(--ink-900);
-  border-color: var(--line);
-  will-change: transform;
+/* .btn migrated to Tailwind via @apply (feature 041). Class API unchanged so the
+   ~17 call sites keep `btn btn--primary` etc.; styling is now utility-driven. */
+@layer components {
+  .btn {
+    @apply inline-flex items-center gap-2 whitespace-nowrap rounded-md border border-line
+      bg-surface px-[14px] py-[9px] text-[13px] font-medium text-[color:var(--ink-900)]
+      transition-[background-color,border-color,color,box-shadow,transform] duration-150 will-change-transform;
+  }
+  .btn:hover { @apply border-line-strong -translate-y-px shadow-sm; }
+  .btn:active { @apply translate-y-0 shadow-none; }
+  .btn:focus-visible { @apply outline-2 outline-offset-2 outline-[color:var(--brand-600)]; }
+
+  .btn--primary { @apply border-accent bg-accent text-white; }
+  .btn--primary:hover { @apply border-[color:var(--brand-600)] bg-[color:var(--brand-600)]; }
+
+  .btn--dark { @apply border-[color:var(--ink-900)] bg-[color:var(--ink-900)] text-white; }
+  .btn--dark:hover { @apply border-[color:var(--ink-800)] bg-[color:var(--ink-800)]; }
+
+  .btn--outline { @apply border-line-strong bg-transparent text-[color:var(--ink-900)]; }
+
+  .btn--ghost { @apply border-transparent bg-transparent text-[color:var(--ink-700)]; }
+  .btn--ghost:hover { @apply bg-surface-alt; }
+
+  .btn--lg { @apply px-[18px] py-[12px] text-[14px]; }
+  .btn--sm { @apply px-[10px] py-[6px] text-[12px]; }
+  .btn--block { @apply w-full justify-center; }
 }
-.btn:hover { border-color: var(--line-strong); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
-.btn:active { transform: translateY(0); box-shadow: none; }
-.btn:focus-visible { outline: 2px solid var(--brand-600); outline-offset: 2px; }
-
-.btn--primary { background: var(--brand-700); color: #fff; border-color: var(--brand-700); }
-.btn--primary:hover { background: var(--brand-600); border-color: var(--brand-600); }
-
-.btn--dark { background: var(--ink-900); color: #fff; border-color: var(--ink-900); }
-.btn--dark:hover { background: var(--ink-800); border-color: var(--ink-800); }
-
-.btn--outline { background: transparent; color: var(--ink-900); border-color: var(--line-strong); }
-
-.btn--ghost { background: transparent; color: var(--ink-700); border-color: transparent; }
-.btn--ghost:hover { background: var(--surface-alt); }
-
-.btn--lg { padding: 12px 18px; font-size: 14px; }
-.btn--sm { padding: 6px 10px; font-size: 12px; }
-.btn--block { width: 100%; justify-content: center; }
 
 .icon-btn {
   display: inline-flex;
