@@ -448,75 +448,24 @@ h3 { font-size: 16px; font-weight: 600; }
   .industria-badge--sale { @apply absolute left-[10px] top-[10px] z-[1] bg-[#dc2626] text-white; }
 }
 
-.b2b-pricing-block {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+/* .b2b-pricing-block* (BaseSalePriceBlock — card/PDP price display) → @apply (feature 041) */
+@layer components {
+  .b2b-pricing-block { @apply flex flex-col gap-1; }
+  .b2b-pricing-block--card { @apply text-[13px]; }
+  .b2b-pricing-block--pdp { @apply text-[18px]; }
+  .b2b-pricing-block__base { @apply flex items-baseline gap-[6px] text-[11px] text-muted; }
+  .b2b-pricing-block__base--struck .b2b-pricing-block__amount,
+  .b2b-pricing-block__amount--struck { @apply font-normal text-subtle line-through; }
+  .b2b-pricing-block__label { @apply font-mono text-[10px] uppercase tracking-[0.04em] text-subtle; }
+  .b2b-pricing-block__sale { @apply flex items-baseline gap-[6px]; }
+  .b2b-pricing-block__badge { @apply rounded bg-[#fee2e2] px-[6px] py-[2px] font-mono text-[10px] font-semibold uppercase tracking-[0.04em] text-[#b91c1c]; }
+  .b2b-pricing-block__columns { @apply flex flex-wrap items-baseline gap-1; }
+  .b2b-pricing-block__amount { @apply font-mono font-semibold text-fg; }
+  .b2b-pricing-block__amount--sale { @apply text-[#b91c1c]; }
+  .b2b-pricing-block__amount-alt { @apply font-mono text-[0.85em] font-normal text-muted; }
+  .b2b-pricing-block__suffix { @apply font-mono text-[10px] uppercase tracking-[0.04em] text-subtle; }
+  .b2b-pricing-block__suffix--alt { @apply text-line-strong; }
 }
-.b2b-pricing-block--card { font-size: 13px; }
-.b2b-pricing-block--pdp  { font-size: 18px; }
-.b2b-pricing-block__base {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  color: var(--ink-500);
-  font-size: 11px;
-}
-.b2b-pricing-block__base--struck .b2b-pricing-block__amount,
-.b2b-pricing-block__amount--struck {
-  text-decoration: line-through;
-  color: var(--ink-400);
-  font-weight: 400;
-}
-.b2b-pricing-block__label {
-  font-family: var(--font-mono);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 10px;
-  color: var(--ink-400);
-}
-.b2b-pricing-block__sale {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-.b2b-pricing-block__badge {
-  background: #fee2e2;
-  color: #b91c1c;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-.b2b-pricing-block__columns {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-.b2b-pricing-block__amount {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  color: var(--ink-900);
-}
-.b2b-pricing-block__amount--sale { color: #b91c1c; }
-.b2b-pricing-block__amount-alt {
-  font-family: var(--font-mono);
-  color: var(--ink-500);
-  font-size: 0.85em;
-  font-weight: 400;
-}
-.b2b-pricing-block__suffix {
-  font-family: var(--font-mono);
-  text-transform: uppercase;
-  font-size: 10px;
-  color: var(--ink-400);
-  letter-spacing: 0.04em;
-}
-.b2b-pricing-block__suffix--alt { color: var(--ink-300, #c7c7c7); }
 
 .b2b-quote-cta--card {
   display: inline-block;
