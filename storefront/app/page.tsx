@@ -44,23 +44,24 @@ export default async function HomePage(): Promise<ReactNode> {
   return (
     <>
       <Hook code="homepage.top" />
-      <section className="industria-hero">
-        <div className="mx-auto max-w-[1360px] px-[24px] industria-hero__inner">
+      <section className="border-b border-line bg-surface bg-[radial-gradient(ellipse_at_top_right,rgba(29,78,216,0.04),transparent_60%)] pt-[56px] pb-[72px]">
+        <div className="mx-auto grid max-w-[1360px] grid-cols-[minmax(0,5fr)_minmax(0,4fr)] items-center gap-[56px] px-[24px] max-[920px]:grid-cols-1">
           <div>
-            <span className="industria-hero__eyebrow">
-              <span className="dot" /> 120 000+ SKU · 84 producentów · wysyłka dziś
+            <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-line bg-surface-alt px-[10px] py-[6px] font-mono text-[11px] tracking-[0.04em] text-muted">
+              <span className="inline-block h-[6px] w-[6px] rounded-full bg-ok" /> 120 000+ SKU · 84
+              producentów · wysyłka dziś
             </span>
-            <h1>
+            <h1 className="text-[56px] leading-[1.04] tracking-[-0.03em] max-[720px]:text-[38px] [&_em]:not-italic [&_em]:text-accent">
               Komponenty przemysłowe
               <br />
               dostępne <em>od ręki</em>.
             </h1>
-            <p className="industria-hero__lead">
+            <p className="mt-6 mb-8 max-w-[540px] text-[16px] leading-[1.6] text-muted">
               Hurtownia B2B dla utrzymania ruchu, integratorów automatyki i działów produkcji.
               Ceny netto, limit kredytowy, karty katalogowe, certyfikaty 3.1 — wszystko w jednym
               miejscu.
             </p>
-            <div className="industria-hero__ctas">
+            <div className="mb-10 flex flex-wrap gap-3">
               <Link href="/catalog" className="btn btn--dark btn--lg">
                 Przeglądaj katalog <ArrowRightIcon />
               </Link>
@@ -68,63 +69,64 @@ export default async function HomePage(): Promise<ReactNode> {
                 <LightningIcon /> Quick Order z CSV
               </Link>
             </div>
-            <div className="industria-hero__stats">
-              <div>
-                <div className="industria-hero__stat__num">120k+</div>
-                <span className="industria-hero__stat__label">Pozycji w magazynie</span>
-              </div>
-              <div>
-                <div className="industria-hero__stat__num">84</div>
-                <span className="industria-hero__stat__label">Producentów</span>
-              </div>
-              <div>
-                <div className="industria-hero__stat__num">14:00</div>
-                <span className="industria-hero__stat__label">Cut-off wysyłki</span>
-              </div>
-              <div>
-                <div className="industria-hero__stat__num">98,4%</div>
-                <span className="industria-hero__stat__label">Dostępność on-stock</span>
-              </div>
+            <div className="grid grid-cols-4 gap-[24px] max-[720px]:grid-cols-2">
+              {[
+                ['120k+', 'Pozycji w magazynie'],
+                ['84', 'Producentów'],
+                ['14:00', 'Cut-off wysyłki'],
+                ['98,4%', 'Dostępność on-stock'],
+              ].map(([num, label]) => (
+                <div key={label}>
+                  <div className="font-mono text-[22px] font-semibold tracking-[-0.02em] text-fg">
+                    {num}
+                  </div>
+                  <span className="text-[11px] uppercase tracking-[0.06em] text-muted">
+                    {label}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
-          <div className="industria-hero__visual">
-            <div className="industria-hero__visual__head">
-              <span className="industria-hero__visual__head__title">SKU 6205-2RS · SKF</span>
+          <div className="relative overflow-hidden rounded-xl bg-[var(--ink-900)] p-[24px] text-[#f4f4f5]">
+            <div className="mb-[18px] flex items-baseline justify-between font-mono text-[12px] text-[#a1a1aa]">
+              <span className="font-medium text-white">SKU 6205-2RS · SKF</span>
               <span>on-stock · 1 280 szt. · WAW-01</span>
             </div>
-            <div className="industria-hero__bigsku">
-              <small>NOŚNOŚĆ DYNAMICZNA</small>
+            <div className="mt-[12px] mb-[16px] font-mono text-[56px] font-semibold leading-none tracking-[-0.03em]">
+              <small className="mb-2 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#a1a1aa]">
+                NOŚNOŚĆ DYNAMICZNA
+              </small>
               14,0 kN
             </div>
-            <div className="industria-hero__visual__tags">
-              <span className="industria-hero__visual__tag">d 25 mm</span>
-              <span className="industria-hero__visual__tag">D 52 mm</span>
-              <span className="industria-hero__visual__tag">B 15 mm</span>
-              <span className="industria-hero__visual__tag">14 000 obr/min</span>
-              <span className="industria-hero__visual__tag">ISO 15:2017</span>
+            <div className="mb-[24px] flex flex-wrap gap-2">
+              {['d 25 mm', 'D 52 mm', 'B 15 mm', '14 000 obr/min', 'ISO 15:2017'].map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full border border-white/12 bg-white/8 px-[10px] py-[4px] font-mono text-[11px] text-[#e5e7eb]"
+                >
+                  {tag}
+                </span>
+              ))}
             </div>
-            <div className="industria-hero__visual__cards">
-              <div className="industria-hero__visual__card">
-                <div className="ico"><DocIcon /></div>
-                <div>
-                  <strong>Karta katalogowa</strong>
-                  <span>PDF · 1,2 MB</span>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                [<DocIcon key="d" />, 'Karta katalogowa', 'PDF · 1,2 MB'],
+                [<ShieldIcon key="s" />, 'Certyfikat 3.1', 'EN 10204'],
+                [<LayersIcon key="l" />, 'Model 3D STEP', '2,8 MB'],
+              ].map(([icon, title, sub]) => (
+                <div
+                  key={title as string}
+                  className="flex items-center gap-2 rounded-sm border border-white/10 bg-white/6 p-[10px]"
+                >
+                  <div className="inline-flex h-[32px] w-[32px] items-center justify-center rounded-[6px] bg-white/8">
+                    {icon}
+                  </div>
+                  <div>
+                    <strong className="block text-[11px] font-medium text-white">{title}</strong>
+                    <span className="block font-mono text-[10px] text-[#a1a1aa]">{sub}</span>
+                  </div>
                 </div>
-              </div>
-              <div className="industria-hero__visual__card">
-                <div className="ico"><ShieldIcon /></div>
-                <div>
-                  <strong>Certyfikat 3.1</strong>
-                  <span>EN 10204</span>
-                </div>
-              </div>
-              <div className="industria-hero__visual__card">
-                <div className="ico"><LayersIcon /></div>
-                <div>
-                  <strong>Model 3D STEP</strong>
-                  <span>2,8 MB</span>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
