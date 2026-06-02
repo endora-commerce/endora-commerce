@@ -201,13 +201,9 @@
 /* ------------------------------------------------------------------ */
 /* Layout shell                                                         */
 /* ------------------------------------------------------------------ */
-.b2b-shell {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  background: var(--bg);
-}
-.b2b-shell__main { flex: 1; }
+
+/* .b2b-shell / .b2b-shell__main migrated to utilities in markup
+   (flex min-h-screen flex-col bg-bg / flex-1) — feature 041. */
 
 /* .container migrated to utilities in markup (mx-auto max-w-[1360px] px-[24px]) — feature 041.
    It is NOT kept as a component class because it collides with Tailwind's own `container`
@@ -430,24 +426,6 @@
   .b2b-pricing-block__amount-alt { @apply font-mono text-[0.85em] font-normal text-muted; }
   .b2b-pricing-block__suffix { @apply font-mono text-[10px] uppercase tracking-[0.04em] text-subtle; }
   .b2b-pricing-block__suffix--alt { @apply text-line-strong; }
-}
-
-.b2b-quote-cta--card {
-  display: inline-block;
-  font-size: 12px;
-  color: var(--brand-700);
-  text-decoration: underline;
-  font-family: var(--font-mono);
-}
-.b2b-quote-cta--pdp {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.b2b-quote-cta__hint {
-  margin: 0;
-  color: var(--ink-700);
-  font-size: 14px;
 }
 
 /* .industria-stock* (inline dot variant, reused across card/PDP) → @apply (feature 041) */

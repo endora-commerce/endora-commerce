@@ -27,7 +27,7 @@ export function QuoteRequestCta(props: {
     return (
       <a
         href={`/p/${encodeURIComponent(productSlug)}#quote`}
-        className="b2b-quote-cta b2b-quote-cta--card"
+        className="inline-block font-mono text-[12px] text-accent underline"
         data-product-id={productId}
       >
         {label ?? 'Cena na zapytanie'}
@@ -36,9 +36,9 @@ export function QuoteRequestCta(props: {
   }
 
   return (
-    <div className="b2b-quote-cta b2b-quote-cta--pdp" id="quote">
+    <div className="flex flex-col gap-[8px]" id="quote">
       {!withoutHint ? (
-        <p className="b2b-quote-cta__hint">
+        <p className="m-0 text-[14px] text-fg-soft">
           {label ?? 'Cena tego produktu jest dostępna w odpowiedzi na zapytanie ofertowe.'}
         </p>
       ) : null}

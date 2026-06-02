@@ -73,7 +73,7 @@ export default async function RootLayout({
           locale={locale}
           channel={ctx.salesChannelCode}
         >
-          <div className="b2b-shell">
+          <div className="flex min-h-screen flex-col bg-bg">
             {isCheckoutRoute ? (
               <CheckoutHeader />
             ) : (
@@ -88,7 +88,7 @@ export default async function RootLayout({
                 <Hook code="header.bottom" />
               </>
             )}
-            <main className="b2b-shell__main">
+            <main className="flex-1">
               {/* Feature 037 — post-login cart-merge confirmation. The
                   component reads-and-clears its own flash cookie, so it
                   renders to `null` on every page except the one that
