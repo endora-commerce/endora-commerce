@@ -45,6 +45,7 @@
   /* Named so the generated text-colour utilities read cleanly: text-fg / text-muted /
      text-subtle (a `--color-text-muted` token would instead yield `text-text-muted`). */
   --color-fg: var(--ink-900);
+  --color-fg-soft: var(--ink-700);
   --color-muted: var(--ink-500);
   --color-subtle: var(--ink-400);
 
@@ -1049,158 +1050,17 @@ h3 { font-size: 16px; font-weight: 600; }
 @media (max-width: 540px)  { .industria-product-grid, .industria-product-grid--3 { grid-template-columns: 1fr; } }
 .industria-product-grid > li { list-style: none; }
 
-.industria-product-card {
-  position: relative;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-  transition: border-color 0.2s ease, box-shadow 0.25s ease, transform 0.25s ease;
-  display: flex;
-  flex-direction: column;
-  will-change: transform;
-}
-.industria-product-card:hover {
-  border-color: var(--ink-700);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-3px);
-}
+/* .industria-product-card* migrated to utilities in components/ProductCard.tsx (feature 041) */
 
-.industria-product-card__media {
-  position: relative;
-  background: var(--surface-alt);
-  aspect-ratio: 1 / 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-bottom: 1px solid var(--line);
-}
-.industria-product-card__media img {
-  max-width: 70%;
-  max-height: 70%;
-  object-fit: contain;
-  transition: transform 0.4s ease;
-}
-.industria-product-card:hover .industria-product-card__media img { transform: scale(1.05); }
-.industria-product-card__media-placeholder {
-  width: 60%;
-  height: 60%;
-  background:
-    repeating-linear-gradient(45deg, var(--ink-200), var(--ink-200) 6px, transparent 6px, transparent 12px);
-  border-radius: var(--r-sm);
-  opacity: 0.4;
-}
-.industria-product-card__badges {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.industria-product-card__compare {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 32px;
-  height: 32px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--ink-500);
-  cursor: pointer;
-}
-.industria-product-card__compare:hover { color: var(--brand-700); border-color: var(--ink-700); }
-.industria-product-card__compare.is-active { background: var(--brand-700); border-color: var(--brand-700); color: #fff; }
-
-.industria-product-card__body {
-  padding: 14px 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-}
-.industria-product-card__sku {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--ink-500);
-  display: flex;
-  gap: 6px;
-}
-.industria-product-card__brand { color: var(--ink-700); font-weight: 500; }
-.industria-product-card__name {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ink-900);
-  line-height: 1.4;
-  margin: 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.industria-product-card__attrs {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  margin: 6px 0 4px;
-  font-size: 11px;
-  color: var(--ink-500);
-  font-family: var(--font-mono);
-}
-.industria-product-card__attrs strong { color: var(--ink-700); font-weight: 500; }
-.industria-product-card__foot {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  padding-top: 10px;
-  margin-top: auto;
-  border-top: 1px solid var(--line);
-  gap: 8px;
-}
-.industria-product-card__price__from {
-  font-size: 10px;
-  color: var(--ink-400);
-  font-family: var(--font-mono);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.industria-product-card__price__main {
-  font-family: var(--font-mono);
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--ink-900);
-  letter-spacing: -0.01em;
-}
-.industria-product-card__price__alt {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--ink-500);
-}
-
-.industria-badge {
-  display: inline-flex;
-  padding: 3px 7px;
-  font-size: 10px;
-  font-weight: 600;
-  border-radius: 4px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-family: var(--font-mono);
-}
-.industria-badge--new { background: var(--brand-700); color: #fff; }
-.industria-badge--promo { background: #ec4899; color: #fff; }
-.industria-badge--low { background: var(--warn-700); color: #fff; }
-.industria-badge--sale {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  background: #dc2626;
-  color: #fff;
-  z-index: 1;
+/* .industria-badge* (reused) → @apply (feature 041) */
+@layer components {
+  .industria-badge {
+    @apply inline-flex rounded px-[7px] py-[3px] font-mono text-[10px] font-semibold uppercase tracking-[0.04em];
+  }
+  .industria-badge--new { @apply bg-accent text-white; }
+  .industria-badge--promo { @apply bg-[#ec4899] text-white; }
+  .industria-badge--low { @apply bg-warn text-white; }
+  .industria-badge--sale { @apply absolute left-[10px] top-[10px] z-[1] bg-[#dc2626] text-white; }
 }
 
 .b2b-pricing-block {
@@ -1291,24 +1151,17 @@ h3 { font-size: 16px; font-weight: 600; }
   font-size: 14px;
 }
 
-.industria-stock {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  font-family: var(--font-mono);
+/* .industria-stock* (inline dot variant, reused across card/PDP) → @apply (feature 041) */
+@layer components {
+  .industria-stock { @apply inline-flex items-center gap-[5px] font-mono text-[11px]; }
+  .industria-stock .dot { @apply h-[6px] w-[6px] rounded-full; }
+  .industria-stock--in { @apply text-ok; }
+  .industria-stock--in .dot { @apply bg-ok; }
+  .industria-stock--low { @apply text-warn; }
+  .industria-stock--low .dot { @apply bg-warn; }
+  .industria-stock--out { @apply text-bad; }
+  .industria-stock--out .dot { @apply bg-bad; }
 }
-.industria-stock .dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-}
-.industria-stock--in   { color: var(--ok-700); }
-.industria-stock--in   .dot { background: var(--ok-700); }
-.industria-stock--low  { color: var(--warn-700); }
-.industria-stock--low  .dot { background: var(--warn-700); }
-.industria-stock--out  { color: var(--bad-700); }
-.industria-stock--out  .dot { background: var(--bad-700); }
 
 /* ------------------------------------------------------------------ */
 /* Catalog (filters + listing)                                            */
