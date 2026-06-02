@@ -13,11 +13,12 @@ import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
-import { RfqService, type RfqEventBus } from './rfq-service.js';
-import { RfqEventService } from './rfq-event-service.js';
-import { RfqRevisionService } from './rfq-revision-service.js';
-import { RfqNotificationService } from './rfq-notification-service.js';
-import { SalesRepAssignmentService } from '../../organizations/services/sales-rep-assignment-service.js';
+import type { RfqService} from './rfq-service.js';
+import { type RfqEventBus } from './rfq-service.js';
+import type { RfqEventService } from './rfq-event-service.js';
+import type { RfqRevisionService } from './rfq-revision-service.js';
+import type { RfqNotificationService } from './rfq-notification-service.js';
+import type { SalesRepAssignmentService } from '../../organizations/services/sales-rep-assignment-service.js';
 
 /**
  * Admin-facing Quote Requests service — feature 008 workflow.

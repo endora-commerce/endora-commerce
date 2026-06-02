@@ -50,7 +50,7 @@ export class ModuleRegistryCache {
       void this.refreshFromDb(opts.em).catch((err) => {
         // Slip into degraded mode; route handlers will check via fallback.
         this.degraded = true;
-        // eslint-disable-next-line no-console
+         
         console.warn(
           `[module-lifecycle] registry-cache refresh failed: ${
             err instanceof Error ? err.message : String(err)

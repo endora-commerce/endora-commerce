@@ -1,5 +1,4 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
-// eslint-disable-next-line @typescript-eslint/naming-convention -- `Redis` is the class default-exported by ioredis; PascalCase is correct.
 import Redis from 'ioredis';
 import { CustomerAccount } from './modules/customer_accounts/entities/customer-account.entity.js';
 import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';

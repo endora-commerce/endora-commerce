@@ -20,7 +20,7 @@ import type {
   StorageResolveUrlOutput,
 } from './storage-adapter.js';
 import { computeLocator } from './locator.js';
-import { HmacSigner } from '../hmac.js';
+import type { HmacSigner } from '../hmac.js';
 import {
   BackendUnavailableError,
   ConfigurationError,

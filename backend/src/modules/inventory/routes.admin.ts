@@ -13,13 +13,13 @@ import {
 import { StockLevel } from './entities/stock-level.entity.js';
 import { Product } from '../catalog/entities/product.entity.js';
 import { DEFAULT_WAREHOUSE_ID } from './entities/warehouse.entity.js';
-import { WarehouseService } from './services/warehouse-service.js';
-import { StockLevelService } from './services/stock-level-service.js';
-import { WarehouseChannelService } from './services/warehouse-channel-service.js';
-import { ThresholdAdminService } from './services/threshold-admin-service.js';
-import { LowStockAlertService } from './services/low-stock-alert-service.js';
-import { AvailabilityNotificationService } from './services/availability-notification-service.js';
-import { CsvStockImporter } from './services/csv-stock-importer.js';
+import type { WarehouseService } from './services/warehouse-service.js';
+import type { StockLevelService } from './services/stock-level-service.js';
+import type { WarehouseChannelService } from './services/warehouse-channel-service.js';
+import type { ThresholdAdminService } from './services/threshold-admin-service.js';
+import type { LowStockAlertService } from './services/low-stock-alert-service.js';
+import type { AvailabilityNotificationService } from './services/availability-notification-service.js';
+import type { CsvStockImporter } from './services/csv-stock-importer.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
 /**

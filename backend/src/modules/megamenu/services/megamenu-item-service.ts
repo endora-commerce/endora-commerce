@@ -8,7 +8,7 @@ import {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { MegamenuCache } from './megamenu-cache.js';
-import { MegamenuService } from './megamenu-service.js';
+import type { MegamenuService } from './megamenu-service.js';
 import { validateTarget, type TargetValidatorDeps } from './target-validator.js';
 
 const SOFT_DEPTH_WARN_AT = 4;

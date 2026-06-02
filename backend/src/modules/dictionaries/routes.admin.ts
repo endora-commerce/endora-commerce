@@ -14,18 +14,19 @@ import {
 } from '@b2b/contracts';
 import type { RequireAdminFactory } from './plugin.js';
 import { DICTIONARY_PERMISSIONS } from './manifest.js';
+import type {
+  CountryService} from './services/country-service.js';
 import {
-  CountryService,
   type CreateCountryInput,
   type UpdateCountryInput,
 } from './services/country-service.js';
-import { LanguageCountryService } from './services/language-country-service.js';
+import type { LanguageCountryService } from './services/language-country-service.js';
 import type { Country } from './entities/country.entity.js';
 import type { DictionaryTranslation } from './entities/dictionary-translation.entity.js';
 import type { LanguageCountry } from './entities/language-country.entity.js';
-import { TranslationService } from './services/translation-service.js';
-import { LanguageService } from '../languages/services/language-service.js';
-import { CurrencyService } from '../currencies/services/currency-service.js';
+import type { TranslationService } from './services/translation-service.js';
+import type { LanguageService } from '../languages/services/language-service.js';
+import type { CurrencyService } from '../currencies/services/currency-service.js';
 import type { Language } from '../languages/entities/language.entity.js';
 import type { Currency } from '../currencies/entities/currency.entity.js';
 

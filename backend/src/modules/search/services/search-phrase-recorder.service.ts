@@ -100,7 +100,7 @@ export class SearchPhraseRecorder {
 }
 
 function defaultLogger(err: unknown): void {
-  // eslint-disable-next-line no-console
+   
   console.warn(
     JSON.stringify({
       level: 'warn',

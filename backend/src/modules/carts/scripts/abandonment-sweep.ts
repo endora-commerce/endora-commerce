@@ -89,7 +89,7 @@ const isMain = import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
   runAbandonmentSweep()
     .then((result) => {
-      // eslint-disable-next-line no-console
+       
       console.warn(
         `[cart-abandonment-sweep] abandoned=${result.abandonedCount} ` +
           `notified=${result.notifiedCount}`,
@@ -97,7 +97,7 @@ if (isMain) {
       process.exit(0);
     })
     .catch((err: unknown) => {
-      // eslint-disable-next-line no-console
+       
       console.error('[cart-abandonment-sweep] failed:', err);
       process.exit(1);
     });

@@ -126,7 +126,7 @@ function advisoryLockKeyFor(channelId: string, slug: string): string {
   // Take the first 8 bytes as a 64-bit big-endian integer; force the
   // sign bit so the value fits in Postgres's signed bigint range. The
   // exact mapping doesn't matter — we just need a stable bigint.
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+   
   let hi = digest.readUInt32BE(0);
   // Clear the top bit so the resulting bigint is positive.
   hi = hi & 0x7fffffff;

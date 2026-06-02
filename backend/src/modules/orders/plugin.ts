@@ -19,7 +19,6 @@ import { registerCartsOrganizationRoutes } from '../carts/routes.organization.js
 import type { PricingService } from '../price_lists/services/pricing-service.js';
 import type { PromotionService } from '../promotions/services/promotion-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
-// eslint-disable-next-line @typescript-eslint/naming-convention -- `Redis` is the class default-exported by ioredis; PascalCase is correct.
 import type Redis from 'ioredis';
 import type { Mailer } from '../email/services/mailer.js';
 import {

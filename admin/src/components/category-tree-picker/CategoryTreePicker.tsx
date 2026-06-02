@@ -140,7 +140,7 @@ export function CategoryTreePicker(props: CategoryTreePickerProps): ReactNode {
               locale={locale}
               checked={selectedSet.has(node.category.id)}
               indeterminate={indeterminateIds.has(node.category.id)}
-              disabled={props.disabled}
+              disabled={props.disabled ?? false}
               hasChildren={hasChildren}
               expanded={expanded}
               expandLabel={t('categoryTreePicker.expand')}

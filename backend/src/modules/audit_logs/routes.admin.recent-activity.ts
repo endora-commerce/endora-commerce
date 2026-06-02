@@ -39,7 +39,7 @@ const itemSchema = z.object({
   summary: z.record(z.string(), z.unknown()).nullable(),
 });
 
-const responseSchema = z.object({
+export const responseSchema = z.object({
   data: z.array(itemSchema),
   pagination: z.object({
     limit: z.number().int().min(1).max(12),
