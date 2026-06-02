@@ -1,15 +1,21 @@
 import { type ComponentConfig } from '@measured/puck';
-import type { CSSProperties } from 'react';
 import type { HeadingProps } from '../schema/component-types.js';
-import { baseFont } from './styles.js';
 
-const sizeMap: Record<HeadingProps['level'], number> = {
-  h1: 48,
-  h2: 40,
-  h3: 32,
-  h4: 26,
-  h5: 22,
-  h6: 18,
+// Per-level font sizes + alignment, expressed as `cmsc:`-prefixed utilities
+// (verbatim from the former `sizeMap` px values). Feature 041.
+const sizeClass: Record<HeadingProps['level'], string> = {
+  h1: 'cmsc:text-[48px]',
+  h2: 'cmsc:text-[40px]',
+  h3: 'cmsc:text-[32px]',
+  h4: 'cmsc:text-[26px]',
+  h5: 'cmsc:text-[22px]',
+  h6: 'cmsc:text-[18px]',
+};
+
+const alignClass: Record<HeadingProps['align'], string> = {
+  left: 'cmsc:text-left',
+  center: 'cmsc:text-center',
+  right: 'cmsc:text-right',
 };
 
 export const Heading: ComponentConfig<HeadingProps> = {
@@ -45,16 +51,8 @@ export const Heading: ComponentConfig<HeadingProps> = {
   },
   render: ({ level, text, align }) => {
     const Tag = level;
-    const style: CSSProperties = {
-      ...baseFont,
-      margin: 0,
-      color: '#15202b',
-      fontSize: sizeMap[level],
-      lineHeight: 1.12,
-      fontWeight: 700,
-      textAlign: align,
-    };
+    const className = `cmsc:font-sans cmsc:m-0 cmsc:text-[#15202b] cmsc:leading-[1.12] cmsc:font-bold ${sizeClass[level]} ${alignClass[align]}`;
 
-    return <Tag style={style}>{text}</Tag>;
+    return <Tag className={className}>{text}</Tag>;
   },
 };

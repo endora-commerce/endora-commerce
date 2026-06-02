@@ -6,7 +6,11 @@ import StarterKit from '@tiptap/starter-kit';
 import { type ComponentConfig } from '@measured/puck';
 import { useMemo, useState } from 'react';
 import type { TextProps } from '../schema/component-types.js';
-import { baseFont, editorFrame } from './styles.js';
+
+// The former `editorFrame` CSSProperties as `cmsc:`-prefixed utilities (verbatim:
+// 1px solid #d9e0e7, radius 8, padding 12, white bg, Inter font). Feature 041.
+const EDITOR_FRAME =
+  'cmsc:font-sans cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:rounded-[8px] cmsc:p-[12px] cmsc:bg-white';
 
 const defaultContent: JSONContent = {
   type: 'doc',
@@ -86,18 +90,13 @@ function RichTextField({
         type="button"
         onFocus={() => setFocused(true)}
         onClick={() => setFocused(true)}
-        style={{
-          ...editorFrame,
-          display: 'block',
-          width: '100%',
-          minHeight: 88,
-          textAlign: 'left',
-          cursor: readOnly ? 'default' : 'text',
-        }}
+        className={`${EDITOR_FRAME} cmsc:block cmsc:w-full cmsc:min-h-[88px] cmsc:text-left ${
+          readOnly ? 'cmsc:cursor-default' : 'cmsc:cursor-text'
+        }`}
         disabled={readOnly}
       >
         <span
-          style={{ ...baseFont, color: '#334155', fontSize: 14 }}
+          className="cmsc:font-sans cmsc:text-[#334155] cmsc:text-[14px]"
           dangerouslySetInnerHTML={{
             __html: htmlFromTiptap(value) || '<p>Focus to edit rich text</p>',
           }}
@@ -107,7 +106,7 @@ function RichTextField({
   }
 
   return (
-    <div style={editorFrame}>
+    <div className={EDITOR_FRAME}>
       <EditorContent editor={editor} />
     </div>
   );
@@ -137,7 +136,7 @@ export const Text: ComponentConfig<TextProps> = {
 
     return (
       <div
-        style={{ ...baseFont, color: '#243447', fontSize: 16, lineHeight: 1.65 }}
+        className="cmsc:font-sans cmsc:text-[#243447] cmsc:text-[16px] cmsc:leading-[1.65]"
         dangerouslySetInnerHTML={{ __html: safeHtml }}
       />
     );

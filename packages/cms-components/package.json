@@ -8,6 +8,7 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./styles.css": "./dist/cms-components.css",
     "./*": "./src/*.ts",
     "./components/*": "./src/components/*.tsx",
     "./schema/*": "./src/schema/*.ts"
@@ -16,6 +17,7 @@
     "node": ">=22.17.0"
   },
   "scripts": {
+    "build": "tailwindcss -i styles/cms-components.css -o dist/cms-components.css --minify",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests"
@@ -39,10 +41,12 @@
     }
   },
   "devDependencies": {
+    "@tailwindcss/cli": "4",
     "@tiptap/core": "^3.22.5",
     "@tiptap/react": "^3.22.5",
     "@tiptap/starter-kit": "^3.22.5",
     "@types/react": "^19.2.14",
+    "tailwindcss": "4",
     "typescript": "^5.9.3",
     "vitest": "^2.1.4"
   }

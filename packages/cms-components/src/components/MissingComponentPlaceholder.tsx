@@ -1,6 +1,4 @@
 import { type ComponentConfig } from '@measured/puck';
-import type { CSSProperties } from 'react';
-import { baseFont } from './styles.js';
 
 /**
  * Placeholder rendered in place of a Page Builder component whose React
@@ -43,22 +41,16 @@ export const MissingComponentPlaceholder: ComponentConfig<MissingComponentPlaceh
       isAdminPreview = /(?:^|[?&])cms_admin=1(?:&|$)/.test(search);
     }
     if (!isAdminPreview) {
-      return <span aria-hidden="true" style={{ display: 'none' }} />;
+      return <span aria-hidden="true" className="cmsc:hidden" />;
     }
-    const style: CSSProperties = {
-      ...baseFont,
-      border: '1px dashed #ef4444',
-      background: '#fef2f2',
-      color: '#7f1d1d',
-      padding: 12,
-      borderRadius: 6,
-      fontSize: 13,
-    };
     return (
-      <div role="note" style={style}>
+      <div
+        role="note"
+        className="cmsc:font-sans cmsc:border cmsc:border-dashed cmsc:border-[#ef4444] cmsc:bg-[#fef2f2] cmsc:text-[#7f1d1d] cmsc:p-[12px] cmsc:rounded-[6px] cmsc:text-[13px]"
+      >
         <strong>Missing CMS component:</strong> <code>{componentName}</code>
         {ownerModule ? <span> (owner: {ownerModule})</span> : null}
-        <div style={{ marginTop: 4, color: '#991b1b' }}>
+        <div className="cmsc:mt-[4px] cmsc:text-[#991b1b]">
           The renderer is not bundled in this storefront build. Re-deploy with the contributing
           module's renderer to make this component appear.
         </div>
