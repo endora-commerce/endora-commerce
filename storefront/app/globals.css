@@ -1625,22 +1625,7 @@ h3 { font-size: 16px; font-weight: 600; }
   text-align: right;
 }
 
-.industria-pagination {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 24px;
-}
-.industria-pagination__hint {
-  font-size: 12px;
-  color: var(--ink-500);
-}
-.industria-pagination__pages {
-  display: flex;
-  gap: 6px;
-}
+/* .industria-pagination migrated to utilities (feature 041) */
 
 /* ------------------------------------------------------------------ */
 /* PDP                                                                     */
@@ -2465,13 +2450,7 @@ h3 { font-size: 16px; font-weight: 600; }
 .b2b-card__meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .b2b-card__sku { color: var(--ink-500); font-family: var(--font-mono); font-size: 11px; }
 
-.b2b-price { font-weight: 600; font-family: var(--font-mono); }
-.b2b-price--none { font-weight: 400; color: var(--ink-500); }
-
-.b2b-stock { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--surface-alt); font-family: var(--font-mono); }
-.b2b-stock--in   { background: var(--ok-50); color: var(--ok-700); }
-.b2b-stock--low  { background: var(--warn-50); color: var(--warn-700); }
-.b2b-stock--out  { background: var(--bad-50); color: var(--bad-700); }
+/* .b2b-price / .b2b-stock migrated to utilities (feature 041) */
 
 .b2b-filters fieldset { border: 1px solid var(--line); border-radius: var(--r-md); margin-bottom: 12px; padding: 12px 14px; }
 .b2b-filters legend { font-weight: 600; padding: 0 4px; font-size: 13px; }

@@ -30,20 +30,20 @@ export function StockBadge(props: {
   const { stockLevel, stockIndicator } = props.product;
   if (stockLevel !== null && stockLevel !== undefined) {
     if (stockLevel <= 0) {
-      return <span className="b2b-stock b2b-stock--out">{t('product.outOfStock')}</span>;
+      return <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-bad-soft text-bad">{t('product.outOfStock')}</span>;
     }
     return (
-      <span className="b2b-stock b2b-stock--in">{`${stockLevel} ${t('product.inStock')}`}</span>
+      <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-ok-soft text-ok">{`${stockLevel} ${t('product.inStock')}`}</span>
     );
   }
   if (stockIndicator === 'out_of_stock') {
-    return <span className="b2b-stock b2b-stock--out">{t('product.outOfStock')}</span>;
+    return <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-bad-soft text-bad">{t('product.outOfStock')}</span>;
   }
   if (stockIndicator === 'available') {
-    return <span className="b2b-stock b2b-stock--in">{t('product.inStock')}</span>;
+    return <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-ok-soft text-ok">{t('product.inStock')}</span>;
   }
   if (stockIndicator === 'to_order') {
-    return <span className="b2b-stock b2b-stock--low">{t('product.requestQuote')}</span>;
+    return <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-warn-soft text-warn">{t('product.requestQuote')}</span>;
   }
   return null;
 }
@@ -54,35 +54,35 @@ function renderFromStorefrontStock(
   t: ReturnType<typeof tForLocale>,
 ): ReactNode {
   if (!stock.manageStock) {
-    return <span className="b2b-stock b2b-stock--in">{t('product.inStock')}</span>;
+    return <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-ok-soft text-ok">{t('product.inStock')}</span>;
   }
   if (stock.isOutOfStock) {
-    return <span className="b2b-stock b2b-stock--out">{t('product.outOfStock')}</span>;
+    return <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-bad-soft text-bad">{t('product.outOfStock')}</span>;
   }
 
   if (stock.displayMode === 'exact' && stock.exactOnHand !== null) {
     return (
-      <span className="b2b-stock b2b-stock--in">
+      <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-ok-soft text-ok">
         {`${stock.exactOnHand.toLocaleString(locale)} ${t('product.inStock')}`}
       </span>
     );
   }
 
   if (stock.displayMode === 'available_or_not') {
-    return <span className="b2b-stock b2b-stock--in">{t('product.inStock')}</span>;
+    return <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-ok-soft text-ok">{t('product.inStock')}</span>;
   }
 
   // band
   switch (stock.displayBand) {
     case 'high':
-      return <span className="b2b-stock b2b-stock--in">{t('product.stockBand.high')}</span>;
+      return <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-ok-soft text-ok">{t('product.stockBand.high')}</span>;
     case 'medium':
-      return <span className="b2b-stock b2b-stock--in">{t('product.stockBand.medium')}</span>;
+      return <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-ok-soft text-ok">{t('product.stockBand.medium')}</span>;
     case 'low':
-      return <span className="b2b-stock b2b-stock--low">{t('product.stockBand.low')}</span>;
+      return <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-warn-soft text-warn">{t('product.stockBand.low')}</span>;
     case 'available':
-      return <span className="b2b-stock b2b-stock--in">{t('product.inStock')}</span>;
+      return <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-ok-soft text-ok">{t('product.inStock')}</span>;
     case 'out_of_stock':
-      return <span className="b2b-stock b2b-stock--out">{t('product.outOfStock')}</span>;
+      return <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-bad-soft text-bad">{t('product.outOfStock')}</span>;
   }
 }
