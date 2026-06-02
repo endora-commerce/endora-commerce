@@ -1750,139 +1750,61 @@ h3 { font-size: 16px; font-weight: 600; }
 .b2b-listing { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; }
 @media (max-width: 720px) { .b2b-listing { grid-template-columns: 1fr; } }
 
-.b2b-auth {
-  max-width: 480px;
-  margin: 48px auto;
-  padding: 28px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
+/* .b2b-auth* / .b2b-account* form+account system migrated to @apply (feature 041).
+   The floating-label :has()/:placeholder-shown state rules stay as raw CSS (R5 residual). */
+@layer components {
+  .b2b-auth { @apply mx-auto my-[48px] max-w-[480px] rounded-lg border border-line bg-surface p-[28px]; }
+  .b2b-auth h1 { @apply m-0 mb-4 text-[24px]; }
+  .b2b-auth p { @apply mb-4 mt-0 text-muted; }
+  .b2b-auth__form { @apply grid gap-[14px]; }
+  .b2b-auth__field { @apply relative block; }
+  .b2b-auth__field input,
+  .b2b-auth__field select,
+  .b2b-auth__field textarea {
+    @apply w-full rounded-sm border border-line bg-surface px-[12px] pt-[20px] pb-[6px] text-[14px] leading-[1.4] text-fg outline-none transition-[border-color,box-shadow] duration-150;
+  }
+  .b2b-auth__field textarea { @apply min-h-[100px] resize-y pt-[24px]; }
+  .b2b-auth__field input:hover,
+  .b2b-auth__field select:hover,
+  .b2b-auth__field textarea:hover { @apply border-line-strong; }
+  .b2b-auth__field input:focus,
+  .b2b-auth__field select:focus,
+  .b2b-auth__field textarea:focus { @apply border-[color:var(--brand-600)] shadow-[0_0_0_3px_rgba(37,99,235,0.16)]; }
+  .b2b-auth__field input::placeholder,
+  .b2b-auth__field textarea::placeholder { @apply text-transparent transition-[color] duration-150; }
+  .b2b-auth__field input:focus::placeholder,
+  .b2b-auth__field textarea:focus::placeholder { @apply text-subtle; }
+  .b2b-auth__field label {
+    @apply pointer-events-none absolute left-[12px] top-1/2 origin-top-left -translate-y-1/2 text-[14px] font-medium text-muted transition-[top,transform,color] duration-150;
+  }
+  .b2b-auth__row { @apply grid grid-cols-2 gap-3 max-[480px]:grid-cols-1; }
+  .b2b-auth__actions { @apply mt-2 flex gap-2; }
+  .b2b-auth__actions button { @apply rounded-sm border-0 bg-[color:var(--ink-900)] px-[16px] py-[10px] font-medium text-white; }
+  .b2b-auth__actions button:hover { @apply bg-[color:var(--ink-800)]; }
+  .b2b-auth__error { @apply rounded-sm border border-bad-soft bg-bad-soft px-[12px] py-[10px] text-[13px] text-bad; }
+  .b2b-auth__success { @apply rounded-sm border border-ok-soft bg-ok-soft px-[12px] py-[10px] text-[13px] text-ok; }
+  .b2b-auth__hint { @apply mt-4 text-[12px] text-muted; }
+  .b2b-account { @apply mx-auto grid max-w-[1360px] grid-cols-[240px_minmax(0,1fr)] gap-6 p-[24px] max-[720px]:grid-cols-1 max-[720px]:p-[16px]; }
+  .b2b-account__nav { @apply flex flex-col gap-[2px]; }
+  .b2b-account__nav a { @apply rounded-sm px-[12px] py-[8px] text-[13px] text-fg-soft; }
+  .b2b-account__nav a:hover { @apply bg-surface-alt; }
+  .b2b-account__panel { @apply rounded-lg border border-line bg-surface p-[22px]; }
+  .b2b-account__panel h2 { @apply mt-0; }
+  .b2b-account__table { @apply w-full border-collapse; }
+  .b2b-account__table th, .b2b-account__table td { @apply border-b border-line p-[10px] text-left text-[13px]; }
+  .b2b-account__table th { @apply text-[11px] font-medium uppercase tracking-[0.04em] text-muted; }
+  .b2b-account__table td { @apply font-mono; }
 }
-.b2b-auth h1 { margin: 0 0 16px; font-size: 24px; }
-.b2b-auth p { color: var(--ink-500); margin: 0 0 16px; }
-.b2b-auth__form { display: grid; gap: 14px; }
-
-/* Floating-label field — Hyva-inspired. Markup stays
- * `<div class="b2b-auth__field"><label>…</label><input placeholder=" " …/></div>`
- * (label first, input with a single-space placeholder so
- * `:placeholder-shown` tracks the empty state). The `:has()` selector
- * lets the wrapper restyle itself based on input state without
- * reordering the markup. */
-.b2b-auth__field {
-  position: relative;
-  display: block;
-}
-.b2b-auth__field input,
-.b2b-auth__field select,
-.b2b-auth__field textarea {
-  width: 100%;
-  padding: 20px 12px 6px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  font: inherit;
-  font-size: 14px;
-  background: var(--surface);
-  color: var(--ink-900);
-  outline: none;
-  line-height: 1.4;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
-}
-.b2b-auth__field textarea { min-height: 100px; resize: vertical; padding-top: 24px; }
-.b2b-auth__field input:hover,
-.b2b-auth__field select:hover,
-.b2b-auth__field textarea:hover { border-color: var(--line-strong); }
-.b2b-auth__field input:focus,
-.b2b-auth__field select:focus,
-.b2b-auth__field textarea:focus {
-  border-color: var(--brand-600);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
-}
-/* Hide the native placeholder until the field is focused so it doesn't
- * compete visually with the centred label in the empty state. The
- * sentinel `placeholder=" "` value only exists to make `:placeholder-shown`
- * track the empty input — its text was never meant to be visible. */
-.b2b-auth__field input::placeholder,
-.b2b-auth__field textarea::placeholder { color: transparent; transition: color 0.16s ease; }
-.b2b-auth__field input:focus::placeholder,
-.b2b-auth__field textarea:focus::placeholder { color: var(--ink-400); }
-
-.b2b-auth__field label {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%) scale(1);
-  transform-origin: top left;
-  pointer-events: none;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--ink-500);
-  background: transparent;
-  transition: top 0.16s ease, transform 0.16s ease, color 0.16s ease;
-}
-/* Textareas: label always sits at the top — vertical centring would
- * land it inside the multiline body. */
+/* Floating-label state selectors (R5 residual — :has()/:placeholder-shown). */
 .b2b-auth__field:has(textarea) label { top: 18px; transform: translateY(0); }
-
-/* Floats label up when input has focus, has content, or for selects /
- * textareas (which always show the label floated since they don't have
- * a meaningful placeholder-shown state). */
 .b2b-auth__field:has(input:focus) label,
 .b2b-auth__field:has(textarea:focus) label,
 .b2b-auth__field:has(input:not(:placeholder-shown)) label,
 .b2b-auth__field:has(textarea:not(:placeholder-shown)) label,
-.b2b-auth__field:has(select) label {
-  top: 6px;
-  transform: translateY(0) scale(0.82);
-}
+.b2b-auth__field:has(select) label { top: 6px; transform: translateY(0) scale(0.82); }
 .b2b-auth__field:has(input:focus) label,
 .b2b-auth__field:has(textarea:focus) label,
-.b2b-auth__field:has(select:focus) label {
-  color: var(--brand-700);
-}
-.b2b-auth__row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-@media (max-width: 480px) { .b2b-auth__row { grid-template-columns: 1fr; } }
-.b2b-auth__actions { display: flex; gap: 8px; margin-top: 8px; }
-.b2b-auth__actions button {
-  padding: 10px 16px;
-  background: var(--ink-900);
-  color: #fff;
-  border: 0;
-  border-radius: var(--r-sm);
-  font-weight: 500;
-}
-.b2b-auth__actions button:hover { background: var(--ink-800); }
-.b2b-auth__error { background: var(--bad-50); color: var(--bad-700); padding: 10px 12px; border-radius: var(--r-sm); border: 1px solid var(--bad-100); font-size: 13px; }
-.b2b-auth__success { background: var(--ok-50); color: var(--ok-700); padding: 10px 12px; border-radius: var(--r-sm); border: 1px solid var(--ok-100); font-size: 13px; }
-.b2b-auth__hint { font-size: 12px; color: var(--ink-500); margin-top: 16px; }
-
-.b2b-account {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  gap: 24px;
-  padding: 24px;
-  max-width: 1360px;
-  margin: 0 auto;
-}
-@media (max-width: 720px) { .b2b-account { grid-template-columns: 1fr; padding: 16px; } }
-.b2b-account__nav { display: flex; flex-direction: column; gap: 2px; }
-.b2b-account__nav a { padding: 8px 12px; border-radius: var(--r-sm); font-size: 13px; color: var(--ink-700); }
-.b2b-account__nav a:hover { background: var(--surface-alt); }
-.b2b-account__panel {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  padding: 22px;
-}
-.b2b-account__panel h2 { margin-top: 0; }
-.b2b-account__table { width: 100%; border-collapse: collapse; }
-.b2b-account__table th, .b2b-account__table td {
-  text-align: left;
-  padding: 10px;
-  border-bottom: 1px solid var(--line);
-  font-size: 13px;
-}
-.b2b-account__table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-500); font-weight: 500; }
-.b2b-account__table td { font-family: var(--font-mono); }
+.b2b-auth__field:has(select:focus) label { color: var(--brand-700); }
 
 /* --- Action buttons used by un-restyled pages -------------------- */
 /* .b2b-cta — shared dark CTA atom (used in 5 files) → @apply (feature 041) */
