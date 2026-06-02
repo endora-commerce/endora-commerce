@@ -43,6 +43,7 @@ import { ConsoleMailer } from './modules/email/services/mailer.js';
 import { resolveSmtpUrlFromEnv } from './modules/email/resolve-smtp-url.js';
 import { SmtpMailer } from './modules/email/services/smtp-mailer.js';
 import { commerceModule } from './modules/orders/plugin.js';
+import { AddressService } from './modules/addresses/services/address-service.js';
 import type { OrderListService } from './modules/orders/services/order-list-service.js';
 import { customersModule } from './modules/customers/plugin.js';
 import { CUSTOMERS_SETTING_CODES } from './modules/customers/manifest.js';
@@ -581,6 +582,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCustomerContext: customerResolver,
       salesChannelMembership: salesChannels.handle.membershipService,
       pricingService: priceLists.handle.pricingService,
+      addressService: new AddressService(em, dictionaries.handle.validator),
       promotionService: promotions.handle.promotionService,
       redis,
       // Feature 027 US5 — abandonment-sweep resolvers + dispatcher.

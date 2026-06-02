@@ -3,11 +3,23 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import type { CartService } from '../../carts/services/cart-service.js';
+import type { AddressService } from '../../addresses/services/address-service.js';
 import type { Mailer } from '../../email/services/mailer.js';
 import type { Order } from '../entities/order.entity.js';
 import { OrderComment } from '../entities/order-comment.entity.js';
 import type { OrderService } from './order-service.js';
 import { buildAdminCreatedOrderEmail } from '../email-templates/admin-created-order.js';
+
+/** A new address typed on the create form (vs. an existing org address id). */
+export interface AdminCreateOrderInlineAddress {
+  recipientName: string;
+  street: string;
+  city: string;
+  postalCode: string;
+  country: string;
+  phone?: string | undefined;
+  saveToAddressBook: boolean;
+}
 
 export interface AdminCreateOrderInput {
   customerAccountId: string;
@@ -15,8 +27,11 @@ export interface AdminCreateOrderInput {
   items: Array<{ productId: string; variantId?: string | undefined; quantity: number }>;
   deliveryMethodId: string;
   paymentMethodId: string;
-  deliveryAddressId: string;
-  billingAddressId: string;
+  /** Per side, supply EITHER an existing org address id OR an inline address. */
+  deliveryAddressId?: string | undefined;
+  billingAddressId?: string | undefined;
+  deliveryAddress?: AdminCreateOrderInlineAddress | undefined;
+  billingAddress?: AdminCreateOrderInlineAddress | undefined;
   customerNote?: string | undefined;
   comment?: { body: string; isCustomerVisible: boolean; notifyCustomer: boolean } | undefined;
 }
@@ -35,6 +50,7 @@ export class OrderCreationAdminService {
     private readonly emFactory: () => EntityManager,
     private readonly cartService: CartService,
     private readonly orderService: OrderService,
+    private readonly addressService: AddressService,
     private readonly mailer?: Mailer,
   ) {}
 
@@ -52,28 +68,87 @@ export class OrderCreationAdminService {
     const organizationId = customer.organizationId;
     const customerCtx = { customerAccountId: input.customerAccountId, organizationId };
 
-    // Seed the customer's cart from the admin-entered items (current pricing
-    // via CartService). Clearing first matches the platform's single-active-cart
-    // model (same approach as RfqService.convertToOrder).
-    await this.cartService.clearForCustomer(customerCtx);
-    for (const it of input.items) {
-      await this.cartService.addItem(
-        { customer: customerCtx },
-        { productId: it.productId, ...(it.variantId ? { variantId: it.variantId } : {}), quantity: it.quantity },
-      );
-    }
+    // Resolve each address side to an org address id. An inline address is
+    // created in the org book (so placeOrder can look it up and snapshot it);
+    // a non-saved inline address is soft-deleted again after placement — the
+    // order keeps its standalone JSONB snapshot, so the book stays clean.
+    const transientAddressIds: string[] = [];
+    const resolveAddress = async (
+      kind: 'delivery' | 'billing',
+      id: string | undefined,
+      inline: AdminCreateOrderInlineAddress | undefined,
+    ): Promise<string> => {
+      if (id) return id;
+      if (!inline) {
+        throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, `Missing ${kind} address.`);
+      }
+      const created = await this.addressService.createAddress(organizationId, {
+        kind,
+        recipientName: inline.recipientName,
+        street: inline.street,
+        city: inline.city,
+        postalCode: inline.postalCode,
+        country: inline.country,
+        ...(inline.phone ? { phone: inline.phone } : {}),
+        // Never demote the org's real default for an order-form address.
+        isDefault: false,
+      });
+      if (!inline.saveToAddressBook) transientAddressIds.push(created.id);
+      return created.id;
+    };
 
-    const order = await this.orderService.placeOrder(
-      { customerAccountId: input.customerAccountId, organizationId, impersonatorAdminUserId: adminUserId },
-      {
-        deliveryAddressId: input.deliveryAddressId,
-        billingAddressId: input.billingAddressId,
-        deliveryMethodId: input.deliveryMethodId,
-        paymentMethodId: input.paymentMethodId,
-        salesChannelId: input.salesChannelId,
-        ...(input.customerNote ? { customerNote: input.customerNote } : {}),
-      },
-    );
+    const cleanupTransient = async (): Promise<void> => {
+      for (const addressId of transientAddressIds) {
+        try {
+          await this.addressService.deleteAddress(organizationId, addressId);
+        } catch {
+          // best-effort cleanup; a leftover soft-deletable row is harmless.
+        }
+      }
+    };
+
+    let order: Order;
+    try {
+      const deliveryAddressId = await resolveAddress(
+        'delivery',
+        input.deliveryAddressId,
+        input.deliveryAddress,
+      );
+      const billingAddressId = await resolveAddress(
+        'billing',
+        input.billingAddressId,
+        input.billingAddress,
+      );
+
+      // Seed the customer's cart from the admin-entered items (current pricing
+      // via CartService). Clearing first matches the platform's single-active-cart
+      // model (same approach as RfqService.convertToOrder).
+      await this.cartService.clearForCustomer(customerCtx);
+      for (const it of input.items) {
+        await this.cartService.addItem(
+          { customer: customerCtx },
+          { productId: it.productId, ...(it.variantId ? { variantId: it.variantId } : {}), quantity: it.quantity },
+        );
+      }
+
+      order = await this.orderService.placeOrder(
+        { customerAccountId: input.customerAccountId, organizationId, impersonatorAdminUserId: adminUserId },
+        {
+          deliveryAddressId,
+          billingAddressId,
+          deliveryMethodId: input.deliveryMethodId,
+          paymentMethodId: input.paymentMethodId,
+          salesChannelId: input.salesChannelId,
+          ...(input.customerNote ? { customerNote: input.customerNote } : {}),
+        },
+      );
+    } catch (err) {
+      await cleanupTransient();
+      throw err;
+    }
+    // Placement succeeded and snapshotted the addresses onto the order; drop any
+    // one-time addresses from the reusable org address book.
+    await cleanupTransient();
 
     // Optional initial comment captured on the create form.
     if (input.comment) {

@@ -17,6 +17,7 @@ import { CartAbandonmentWorker } from '../carts/services/cart-abandonment-worker
 import { registerCartsAdminRoutes } from '../carts/routes.admin.js';
 import { registerCartsOrganizationRoutes } from '../carts/routes.organization.js';
 import type { PricingService } from '../price_lists/services/pricing-service.js';
+import { AddressService } from '../addresses/services/address-service.js';
 import type { PromotionService } from '../promotions/services/promotion-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
 import type Redis from 'ioredis';
@@ -113,6 +114,13 @@ export interface OrdersModuleOptions {
    * don't care about pricing engine semantics can omit it.
    */
   pricingService?: PricingService;
+  /**
+   * Feature 038 (US3) — org address book service. Used by the admin
+   * create-order flow to persist (and clean up) addresses typed inline on the
+   * form. Optional so foundation tests that never create inline addresses can
+   * omit it.
+   */
+  addressService?: AddressService;
   /**
    * Feature 026 — optional gate that refuses cart-line-add, place-order, and
    * RFQ-submit when the Customer's Organization is not `active`. Threaded
@@ -399,10 +407,12 @@ export function commerceModule(options: OrdersModuleOptions) {
       options.emFactory,
       () => options.getRfqService?.() ?? null,
     );
+    const addressService = options.addressService ?? new AddressService(options.emFactory);
     const orderCreationAdminService = new OrderCreationAdminService(
       options.emFactory,
       cartService,
       orderService,
+      addressService,
       options.mailer,
     );
 
@@ -476,6 +486,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       requireCustomer: options.requireCustomer,
       requireAdmin: options.requireAdmin,
       resolveCustomerContext: options.resolveCustomerContext,
+      ...(options.pricingService ? { pricingService: options.pricingService } : {}),
       ...(options.assertOrganizationCanTransact
         ? { assertOrganizationCanTransact: options.assertOrganizationCanTransact }
         : {}),
