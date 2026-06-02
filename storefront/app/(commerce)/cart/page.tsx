@@ -91,9 +91,9 @@ export default async function CartPage({
     return (
       <div className="mx-auto max-w-[1360px] px-[24px]">
         <Breadcrumbs strings={strings.breadcrumbs} />
-        <div className="cart-empty">
-          <h1>{strings.heading}</h1>
-          <p>{strings.empty}</p>
+        <div className="rounded-md border border-line bg-surface px-[24px] py-[48px] text-center">
+          <h1 className="m-0 mb-2 text-[22px] font-semibold text-fg">{strings.heading}</h1>
+          <p className="m-0 mb-[18px] text-[14px] text-muted">{strings.empty}</p>
           <Link href="/catalog" className="btn btn--dark">
             {strings.browseCatalog}
           </Link>
@@ -106,12 +106,12 @@ export default async function CartPage({
   const submitForApprovalNeeded = requiresApproval && cart.approvalStatus === 'not_required';
 
   return (
-    <div className="mx-auto max-w-[1360px] px-[24px] cart-page">
+    <div className="mx-auto max-w-[1360px] px-[24px] pt-[8px] pb-[64px]">
       <Breadcrumbs strings={strings.breadcrumbs} />
-      <header className="cart-page__head">
+      <header className="mb-4 flex items-end justify-between gap-4">
         <div>
-          <h1>{strings.heading}</h1>
-          <p>{strings.subheading(cart.items.length)}</p>
+          <h1 className="m-0 text-[24px] font-semibold tracking-[-0.02em] text-fg">{strings.heading}</h1>
+          <p className="mt-1 text-[13px] text-muted">{strings.subheading(cart.items.length)}</p>
         </div>
       </header>
 
@@ -133,12 +133,12 @@ export default async function CartPage({
 
       {/* Conversion-redirect banners */}
       {params.qrCreated ? (
-        <div className="cart-banner cart-banner--success" role="status">
+        <div className="mb-3 rounded-md border border-[#bbf7d0] bg-[#ecfdf3] px-[14px] py-[10px] text-[13px] text-ok" role="status">
           {strings.banner.qrCreated}
         </div>
       ) : null}
       {params.listAdded ? (
-        <div className="cart-banner cart-banner--success" role="status">
+        <div className="mb-3 rounded-md border border-[#bbf7d0] bg-[#ecfdf3] px-[14px] py-[10px] text-[13px] text-ok" role="status">
           {strings.banner.listAdded(params.listAdded)}
         </div>
       ) : null}
@@ -154,17 +154,17 @@ export default async function CartPage({
       ) : null}
 
       {params.error ? (
-        <div className="cart-banner cart-banner--error" role="alert">
+        <div className="mb-3 rounded-md border border-[#fecaca] bg-[#fef2f2] px-[14px] py-[10px] text-[13px] text-[#b91c1c]" role="alert">
           {params.error}
         </div>
       ) : null}
 
-      <div className="cart-page__layout">
+      <div className="grid grid-cols-[1fr_380px] items-start gap-8 max-[960px]:grid-cols-1">
         <div>
-          <div className="cart-card">
-            <div className="cart-card__head">
-              <h2>{strings.cardHeading}</h2>
-              <span className="cart-card__head__count">
+          <div className="overflow-hidden rounded-md border border-line bg-surface">
+            <div className="flex items-center justify-between border-b border-line px-[22px] py-[18px]">
+              <h2 className="m-0 text-[18px] font-semibold text-fg">{strings.cardHeading}</h2>
+              <span className="font-mono text-[12px] text-muted">
                 {strings.itemCount(cart.items.length)}
               </span>
             </div>
@@ -180,7 +180,7 @@ export default async function CartPage({
               />
             ))}
 
-            <div className="cart-card__foot">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-[22px] py-[18px]">
               <Link href="/catalog" className="btn btn--ghost">
                 ← {strings.continueShopping}
               </Link>
@@ -196,8 +196,8 @@ export default async function CartPage({
           <UpsellStrip upsells={upsells} strings={strings.upsells} />
         </div>
 
-        <aside className="cart-summary">
-          <h3>{strings.summary.heading}</h3>
+        <aside className="sticky top-[96px] rounded-md border border-line bg-surface p-[20px]">
+          <h3 className="m-0 mb-[14px] text-[14px] font-semibold text-fg">{strings.summary.heading}</h3>
 
           <CartTotals
             subtotal={cart.subtotal}
@@ -237,7 +237,7 @@ export default async function CartPage({
             strings={strings.coupon}
           />
 
-          <div style={{ marginTop: 16 }}>
+          <div className="mt-4">
             <PrimaryCtaButton
               cta={primaryCta}
               submitForApprovalNeeded={submitForApprovalNeeded}
@@ -248,7 +248,7 @@ export default async function CartPage({
             />
           </div>
 
-          <div className="cart-summary__hint">
+          <div className="mt-[14px] flex items-start gap-2 border-t border-line pt-[14px] text-[12px] text-muted [&_svg]:mt-[2px] [&_svg]:h-[14px] [&_svg]:w-[14px] [&_svg]:shrink-0 [&_svg]:text-ok">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
