@@ -26,7 +26,8 @@ describe('MiniCartBadge — SSR rendering', () => {
     );
     expect(html).toContain('href="/cart"');
     expect(html).toContain('Your cart with items');
-    expect(html).toMatch(/badge[^>]*>3</);
+    expect(html).toContain('aria-label="3 items in cart"');
+    expect(html).toMatch(/>3</);
   });
 
   it('renders the aria-label even on an empty cart', () => {

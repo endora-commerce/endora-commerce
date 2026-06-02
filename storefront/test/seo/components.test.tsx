@@ -27,7 +27,7 @@ describe('Breadcrumbs — JSON-LD + crawlable anchors', () => {
         ]}
       />,
     );
-    expect(html).toContain('<nav class="b2b-breadcrumbs"');
+    expect(html).toContain('<nav aria-label="Breadcrumb"');
     expect(html).toContain('aria-label="Breadcrumb"');
     expect(html).toContain('aria-current="page"');
     expect(html).toContain('href="/"');
@@ -92,7 +92,7 @@ describe('ProductGallery — server-rendered images + document links', () => {
 
   it('renders a placeholder when there are no images', () => {
     const html = renderToString(<ProductGallery assets={[]} alt="empty" />);
-    expect(html).toContain('b2b-gallery__placeholder');
+    expect(html).toContain('aspect-[4/3]');
   });
 });
 
