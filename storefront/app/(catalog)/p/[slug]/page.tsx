@@ -128,7 +128,7 @@ export default async function ProductPage({
       : null;
 
   return (
-    <div className="mx-auto max-w-[1360px] px-[24px] industria-pdp">
+    <div className="mx-auto max-w-[1360px] px-[24px] pt-[18px] pb-[64px]">
       <Breadcrumbs
         crumbs={[
           { href: '/', label: t('nav.home') },
@@ -141,7 +141,7 @@ export default async function ProductPage({
       />
       <Hook code="product.top" />
 
-      <article className="b2b-pdp">
+      <article className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-[24px] max-[720px]:grid-cols-1">
         {product.gallery && product.gallery.length > 0 ? (
           <GallerySwitcher gallery={product.gallery} alt={product.name} />
         ) : (
@@ -152,7 +152,7 @@ export default async function ProductPage({
           <small className="muted">SKU: {product.sku}</small>
           <p>{product.description}</p>
 
-          <div className="b2b-card__meta" style={{ marginTop: 16 }}>
+          <div className="mt-4 flex items-center justify-between gap-2">
             <PriceTag
               price={product.price}
               resolved={resolvedPrice}
@@ -283,22 +283,26 @@ export default async function ProductPage({
           {Object.keys(product.attributeValues).length > 0 ? (
             <div style={{ marginTop: 24 }}>
               {product.attributeSet ? (
-                <p
-                  className="b2b-pdp__attribute-set"
-                  style={{ fontSize: '0.875rem', color: 'var(--muted, #666)', marginBottom: 8 }}
-                >
+                <p className="mb-2 text-[0.875rem] text-muted">
                   {product.attributeSet.name[locale] ??
                     product.attributeSet.name['en-US'] ??
                     Object.values(product.attributeSet.name)[0] ??
                     product.attributeSet.code}
                 </p>
               ) : null}
-              <table className="b2b-pdp__attributes">
+              <table className="w-full border-collapse">
                 <tbody>
                   {Object.entries(product.attributeValues).map(([key, value]) => (
                     <tr key={key}>
-                      <th scope="row">{key}</th>
-                      <td>{String(value)}</td>
+                      <th
+                        scope="row"
+                        className="border-b border-line p-[8px] text-left text-[13px] font-medium text-muted"
+                      >
+                        {key}
+                      </th>
+                      <td className="border-b border-line p-[8px] text-left font-mono text-[13px]">
+                        {String(value)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

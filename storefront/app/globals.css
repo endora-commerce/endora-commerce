@@ -1136,9 +1136,7 @@ h3 { font-size: 16px; font-weight: 600; }
 /* ------------------------------------------------------------------ */
 /* PDP                                                                     */
 /* ------------------------------------------------------------------ */
-.industria-pdp {
-  padding: 18px 0 64px;
-}
+/* .industria-pdp migrated to utilities in p/[slug]/page.tsx (feature 041) */
 .industria-pdp__top {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr) 320px;
@@ -1953,7 +1951,7 @@ h3 { font-size: 16px; font-weight: 600; }
 .b2b-card__media img { width: 100%; height: 100%; object-fit: contain; }
 .b2b-card__media-placeholder { width: 100%; height: 100%; background: var(--surface-alt); }
 .b2b-card__name { margin: 0; font-size: 14px; font-weight: 500; line-height: 1.4; }
-.b2b-card__meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+/* .b2b-card__meta migrated to utilities in p/[slug]/page.tsx (feature 041) */
 .b2b-card__sku { color: var(--ink-500); font-family: var(--font-mono); font-size: 11px; }
 
 /* .b2b-price / .b2b-stock migrated to utilities (feature 041) */
@@ -1974,8 +1972,7 @@ h3 { font-size: 16px; font-weight: 600; }
 
 /* .b2b-breadcrumbs migrated to utilities in components/Breadcrumbs.tsx (feature 041) */
 
-.b2b-pdp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; }
-@media (max-width: 720px) { .b2b-pdp { grid-template-columns: 1fr; } }
+/* .b2b-pdp migrated to utilities in p/[slug]/page.tsx (feature 041) */
 /* .b2b-pdp__attributes* migrated to utilities in components/attributes/ParametryTab.tsx (feature 041) */
 
 /* .b2b-gallery* migrated to utilities in ProductGallery.tsx / GallerySwitcher.tsx (feature 041) */
