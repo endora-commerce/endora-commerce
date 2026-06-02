@@ -64,8 +64,15 @@ export function CartLine({
       ? strings.unavailable[line.unavailableReason]
       : null;
   return (
-    <div className={`cart-line${line.unavailable ? ' is-unavailable' : ''}`}>
-      <div className="cart-line__media" aria-hidden="true">
+    <div
+      className={`grid grid-cols-[56px_1fr_130px_110px_130px_28px] items-center gap-[14px] border-b border-line px-[22px] py-[14px] last:border-b-0 max-[720px]:grid-cols-[56px_1fr_auto] max-[720px]:gap-y-[10px] max-[720px]:[grid-template-areas:'media_body_actions''stepper_unit_total']${
+        line.unavailable ? ' opacity-60' : ''
+      }`}
+    >
+      <div
+        className="grid h-[56px] w-[56px] place-items-center rounded-sm bg-surface-alt text-line-strong [&_svg]:h-[60%] [&_svg]:w-[60%] max-[720px]:[grid-area:media]"
+        aria-hidden="true"
+      >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="6" width="18" height="13" rx="2" />
           <path d="M3 10h18" />
@@ -73,21 +80,28 @@ export function CartLine({
         </svg>
       </div>
 
-      <div className="cart-line__body">
-        {line.sku ? <span className="cart-line__sku">{line.sku}</span> : null}
-        <span className="cart-line__name">{line.productName}</span>
-        {unavailableLabel ? (
-          <span className="cart-line__unavailable">{unavailableLabel}</span>
+      <div className="flex min-w-0 flex-col gap-[2px] max-[720px]:[grid-area:body]">
+        {line.sku ? (
+          <span className="truncate font-mono text-[11px] uppercase text-muted">{line.sku}</span>
         ) : null}
-        <form action={saveToListAction} style={{ marginTop: 4 }}>
+        <span className="line-clamp-2 text-[14px] font-semibold leading-[1.3] text-fg">
+          {line.productName}
+        </span>
+        {unavailableLabel ? (
+          <span className="mt-[2px] text-[11px] text-muted">{unavailableLabel}</span>
+        ) : null}
+        <form action={saveToListAction} className="mt-1">
           <input type="hidden" name="itemId" value={line.id} />
-          <button type="submit" className="cart-line__save-link">
+          <button
+            type="submit"
+            className="cursor-pointer border-0 bg-none p-0 text-[11px] text-muted underline underline-offset-2"
+          >
             {strings.saveToListLabel}
           </button>
         </form>
       </div>
 
-      <form action={updateAction} className="cart-line__stepper">
+      <form action={updateAction} className="max-[720px]:[grid-area:stepper]">
         <input type="hidden" name="itemId" value={line.id} />
         <div className="qty__stepper" role="group" aria-label={strings.qtyLabel}>
           <button
@@ -118,19 +132,25 @@ export function CartLine({
         </div>
       </form>
 
-      <span className="cart-line__unit" aria-label={strings.unitPriceLabel}>
+      <span
+        className="text-right font-mono text-[13px] text-fg-soft max-[720px]:[grid-area:unit]"
+        aria-label={strings.unitPriceLabel}
+      >
         {formatMoney(line.unitPrice)}
       </span>
 
-      <span className="cart-line__total" aria-label={strings.lineTotalLabel}>
+      <span
+        className="text-right font-mono text-[14px] font-semibold text-fg max-[720px]:[grid-area:total]"
+        aria-label={strings.lineTotalLabel}
+      >
         {formatMoney(line.lineTotal)}
       </span>
 
-      <form action={removeAction}>
+      <form action={removeAction} className="max-[720px]:justify-self-end max-[720px]:[grid-area:actions]">
         <input type="hidden" name="itemId" value={line.id} />
         <button
           type="submit"
-          className="cart-line__remove"
+          className="grid h-[28px] w-[28px] cursor-pointer place-items-center rounded-sm border border-transparent bg-transparent text-muted transition hover:bg-surface-alt hover:text-[#b91c1c]"
           aria-label={strings.removeLabel}
           title={strings.removeLabel}
         >
