@@ -868,14 +868,9 @@ h3 { font-size: 16px; font-weight: 600; }
 /* ------------------------------------------------------------------ */
 /* Catalog (filters + listing)                                            */
 /* ------------------------------------------------------------------ */
-.industria-catalog {
-  display: grid;
-  grid-template-columns: 264px minmax(0, 1fr);
-  gap: 32px;
-  padding: 24px 0 56px;
-}
-@media (max-width: 920px) {
-  .industria-catalog { grid-template-columns: 1fr; }
+/* .industria-catalog page layout → @apply (catalog/category/search pages) (feature 041) */
+@layer components {
+  .industria-catalog { @apply grid grid-cols-[264px_minmax(0,1fr)] gap-8 py-[24px] pb-[56px] max-[920px]:grid-cols-1; }
 }
 /* .industria-filters* / .industria-chip* migrated to utilities in components/FilterPanel.tsx (feature 041) */
 
@@ -892,9 +887,11 @@ h3 { font-size: 16px; font-weight: 600; }
 }
 /* .industria-viewmode* migrated to utilities in components/CatalogToolbar.tsx (feature 041) */
 
-.industria-catalog__title { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 8px; }
-.industria-catalog__title h1 { font-size: 26px; }
-.industria-catalog__title p { font-size: 13px; color: var(--ink-500); margin: 4px 0 0; }
+@layer components {
+  .industria-catalog__title { @apply mb-2 flex items-end justify-between gap-4; }
+  .industria-catalog__title h1 { @apply text-[26px]; }
+  .industria-catalog__title p { @apply mt-1 text-[13px] text-muted; }
+}
 
 /* List-view rows */
 /* .industria-product-list / .industria-product-row* migrated to utilities (feature 041) */
@@ -1668,17 +1665,23 @@ h3 { font-size: 16px; font-weight: 600; }
 .industria-kpi__num { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; margin-bottom: 6px; }
 .industria-kpi__sub { font-size: 11px; color: var(--ink-500); }
 
-.industria-orders { width: 100%; border-collapse: collapse; }
-.industria-orders th, .industria-orders td { padding: 12px 18px; text-align: left; font-size: 13px; border-bottom: 1px solid var(--line); }
-.industria-orders th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-500); font-weight: 500; }
-.industria-orders td { font-family: var(--font-mono); }
+/* .industria-orders (orders + quote-request tables) → @apply (feature 041) */
+@layer components {
+  .industria-orders { @apply w-full border-collapse; }
+  .industria-orders th, .industria-orders td { @apply border-b border-line px-[18px] py-[12px] text-left text-[13px]; }
+  .industria-orders th { @apply text-[11px] font-medium uppercase tracking-[0.04em] text-muted; }
+  .industria-orders td { @apply font-mono; }
+}
 
-.industria-status { display: inline-flex; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 500; font-family: var(--font-mono); }
-.industria-status--processing { background: var(--brand-50); color: var(--brand-700); }
-.industria-status--paid { background: var(--ok-50); color: var(--ok-700); }
-.industria-status--delivered { background: var(--surface-alt); color: var(--ink-700); }
-.industria-status--pending { background: var(--warn-50); color: var(--warn-700); }
-.industria-status--draft { background: var(--surface-alt); color: var(--ink-500); }
+/* .industria-status* badges → @apply (feature 041) */
+@layer components {
+  .industria-status { @apply inline-flex rounded-full px-[9px] py-[3px] font-mono text-[11px] font-medium; }
+  .industria-status--processing { @apply bg-accent-soft text-accent; }
+  .industria-status--paid { @apply bg-ok-soft text-ok; }
+  .industria-status--delivered { @apply bg-surface-alt text-fg-soft; }
+  .industria-status--pending { @apply bg-warn-soft text-warn; }
+  .industria-status--draft { @apply bg-surface-alt text-muted; }
+}
 
 /* ------------------------------------------------------------------ */
 /* Legacy b2b-* (used by un-restyled pages)                                */
