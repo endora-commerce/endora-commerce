@@ -42,15 +42,15 @@ export function PriceTag(props: {
   }
 
   if (resolved === null) {
-    return <span className="b2b-price b2b-price--none">{t('product.requestQuote')}</span>;
+    return <span className="font-mono font-normal text-muted">{t('product.requestQuote')}</span>;
   }
 
   if (!price) {
-    return <span className="b2b-price b2b-price--none">{t('product.requestQuote')}</span>;
+    return <span className="font-mono font-normal text-muted">{t('product.requestQuote')}</span>;
   }
   const formatted = new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: price.currency,
   }).format(price.amount);
-  return <span className="b2b-price">{formatted}</span>;
+  return <span className="font-mono font-semibold">{formatted}</span>;
 }

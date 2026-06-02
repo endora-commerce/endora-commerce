@@ -1,0 +1,5 @@
+# Playwright transient run artifacts (diffs, actual images, traces, reports)
+test-results/
+playwright-report/
+blob-report/
+.playwright/

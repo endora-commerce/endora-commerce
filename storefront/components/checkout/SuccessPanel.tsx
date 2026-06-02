@@ -26,7 +26,7 @@ export function SuccessPanel({
 }: SuccessPanelProps): ReactNode {
   const t = tForLocale(locale);
   return (
-    <div className="b2b-auth" style={{ maxWidth: 720 }}>
+    <div className="b2b-auth max-w-[720px]">
       <h1>{t('checkout.success.title')}</h1>
       <p className="b2b-auth__success">
         {t('checkout.success.orderNumberPrefix')}

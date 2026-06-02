@@ -51,7 +51,7 @@ export function BundleConfigurator(props: {
 
   return (
     <form
-      className="b2b-bundle-configurator"
+      className="flex flex-col gap-4"
       action={`/p/${props.productSlug}/configure`}
       method="post"
     >
@@ -59,21 +59,22 @@ export function BundleConfigurator(props: {
         const slotName = localize(slot.name, props.locale);
         const required = slot.minQuantity > 0;
         return (
-          <fieldset key={slot.id} className="b2b-bundle-configurator__slot">
-            <legend>
+          <fieldset key={slot.id} className="rounded-md border border-line p-[12px]">
+            <legend className="font-medium">
               {slotName}
               {required ? (
-                <span className="b2b-bundle-configurator__required">
+                <span className="text-muted">
                   {' '}
                   ({props.labels.requiredSlot})
                 </span>
               ) : null}
             </legend>
-            <label htmlFor={`slot-${slot.id}-option`}>
+            <label htmlFor={`slot-${slot.id}-option`} className="block">
               {slotName}
               <select
                 id={`slot-${slot.id}-option`}
                 name={`slot[${slot.id}][optionId]`}
+                className="mt-1 w-full rounded-sm border border-line px-[8px] py-[6px]"
                 {...(required ? { required: true } : {})}
               >
                 {required ? <option value="">—</option> : <option value="">—</option>}
@@ -84,7 +85,7 @@ export function BundleConfigurator(props: {
                 ))}
               </select>
             </label>
-            <label htmlFor={`slot-${slot.id}-quantity`}>
+            <label htmlFor={`slot-${slot.id}-quantity`} className="mt-2 block">
               <input
                 id={`slot-${slot.id}-quantity`}
                 name={`slot[${slot.id}][quantity]`}
@@ -92,6 +93,7 @@ export function BundleConfigurator(props: {
                 min={String(slot.minQuantity)}
                 max={String(slot.maxQuantity)}
                 defaultValue={String(Math.max(slot.minQuantity, 1))}
+                className="w-[6rem] rounded-sm border border-line px-[8px] py-[6px]"
               />
             </label>
           </fieldset>

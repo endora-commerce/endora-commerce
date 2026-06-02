@@ -30,7 +30,7 @@ const item = (
 describe('GallerySwitcher — SSR contract', () => {
   it('renders placeholder when gallery is empty', () => {
     const html = renderToString(<GallerySwitcher gallery={[]} alt="Widget" />);
-    expect(html).toContain('b2b-gallery__placeholder');
+    expect(html).toContain('aspect-[4/3]');
   });
 
   it('renders Base Image as the primary main image (first <img>)', () => {
@@ -44,7 +44,7 @@ describe('GallerySwitcher — SSR contract', () => {
         alt="Widget"
       />,
     );
-    const firstMain = html.match(/<img[^>]*class="b2b-gallery__main"[^>]*>/);
+    const firstMain = html.match(/<img[^>]*class="w-full rounded-md"[^>]*>/);
     expect(firstMain?.[0] ?? '').toContain('src="/asset/base.jpg"');
   });
 
@@ -58,7 +58,7 @@ describe('GallerySwitcher — SSR contract', () => {
         alt="Widget"
       />,
     );
-    const firstMain = html.match(/<img[^>]*class="b2b-gallery__main"[^>]*>/);
+    const firstMain = html.match(/<img[^>]*class="w-full rounded-md"[^>]*>/);
     expect(firstMain?.[0] ?? '').toContain('src="/asset/thumb.jpg"');
   });
 
@@ -87,7 +87,7 @@ describe('GallerySwitcher — SSR contract', () => {
         alt="Widget"
       />,
     );
-    const stripImgs = html.match(/<img[^>]*class="b2b-gallery__thumb"[^>]*>/g);
+    const stripImgs = html.match(/<img[^>]*class="h-\[64px\][^>]*>/g);
     expect(stripImgs?.length ?? 0).toBe(3);
   });
 });

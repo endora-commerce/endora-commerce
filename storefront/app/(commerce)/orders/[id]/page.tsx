@@ -58,7 +58,7 @@ export default async function OrderConfirmationPage({
   const awaitingPayment = !isTerminal && order.paymentStatus === 'awaiting_payment';
 
   return (
-    <div className="b2b-auth" style={{ maxWidth: 720 }}>
+    <div className="b2b-auth max-w-[720px]">
       <h1>Thank you — order placed</h1>
       <p className="b2b-auth__success">
         Order <strong>{order.businessId}</strong> has been received.
@@ -115,7 +115,7 @@ export default async function OrderConfirmationPage({
         </tbody>
         <tfoot>
           <tr>
-            <th colSpan={3} style={{ textAlign: 'right' }}>
+            <th colSpan={3} className="text-right">
               Subtotal
             </th>
             <td>
@@ -123,7 +123,7 @@ export default async function OrderConfirmationPage({
             </td>
           </tr>
           <tr>
-            <th colSpan={3} style={{ textAlign: 'right' }}>
+            <th colSpan={3} className="text-right">
               Tax
             </th>
             <td>
@@ -132,7 +132,7 @@ export default async function OrderConfirmationPage({
           </tr>
           {order.discountTotal > 0 ? (
             <tr>
-              <th colSpan={3} style={{ textAlign: 'right' }}>
+              <th colSpan={3} className="text-right">
                 Discount
               </th>
               <td>
@@ -141,7 +141,7 @@ export default async function OrderConfirmationPage({
             </tr>
           ) : null}
           <tr>
-            <th colSpan={3} style={{ textAlign: 'right' }}>
+            <th colSpan={3} className="text-right">
               Delivery
             </th>
             <td>
@@ -149,7 +149,7 @@ export default async function OrderConfirmationPage({
             </td>
           </tr>
           <tr>
-            <th colSpan={3} style={{ textAlign: 'right' }}>
+            <th colSpan={3} className="text-right">
               <strong>Total</strong>
             </th>
             <td>
@@ -174,15 +174,15 @@ export default async function OrderConfirmationPage({
       <p className="b2b-auth__hint">
         Recreate this order&apos;s items at current prices — as a new cart, or as a quote request.
       </p>
-      <form action={reorderAction} style={{ display: 'inline' }}>
+      <form action={reorderAction} className="inline">
         <input type="hidden" name="id" value={order.id} />
-        <button type="submit" className="b2b-button">
+        <button type="submit" className="btn btn--outline btn--sm">
           Order again → cart
         </button>
       </form>{' '}
-      <form action={reorderToQuoteAction} style={{ display: 'inline' }}>
+      <form action={reorderToQuoteAction} className="inline">
         <input type="hidden" name="id" value={order.id} />
-        <button type="submit" className="b2b-button">
+        <button type="submit" className="btn btn--outline btn--sm">
           Order again → quote request
         </button>
       </form>
@@ -206,7 +206,7 @@ export default async function OrderConfirmationPage({
         <form action={addCommentAction}>
           <input type="hidden" name="id" value={order.id} />
           <textarea name="body" required aria-label="Add a comment" rows={3} />
-          <button type="submit" className="b2b-button">
+          <button type="submit" className="btn btn--outline btn--sm">
             Add comment
           </button>
         </form>

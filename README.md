@@ -29,7 +29,7 @@ The repository is a **pnpm monorepo** with three independently buildable applica
 - `admin/` — React admin panel (Vite). Usable on smartphone viewports from feature **029** (drawer navigation below 1024px; see [`docs/docs/admin/mobile-responsive.md`](./docs/docs/admin/mobile-responsive.md)).
 - `packages/contracts/` — Zod schemas shared across applications (source of truth for API types per Principle V).
 - `packages/api-client/` — typed HTTP client used by storefront and admin.
-- `packages/cms-components/` — Page Builder React components shared between admin (Puck editor) and storefront (`<Render>` server component); built around the new `cms` module's component-extension SPI.
+- `packages/cms-components/` — Page Builder React components shared between admin (Puck editor) and storefront (`<Render>` server component); built around the new `cms` module's component-extension SPI. Styled with a self-contained, `cmsc:`-prefixed Tailwind stylesheet (`dist/cms-components.css`) so it renders identically in either host without restyling host chrome (feature 041).
 - `docs/` — Docusaurus documentation site for developers and Product Owners.
 
 ## Capability status
@@ -93,6 +93,14 @@ pnpm install
 ```
 
 The install pulls all workspaces (`backend`, `storefront`, `admin`, `packages/*`, `docs`).
+
+`@b2b/cms-components` ships a pre-built, self-contained Tailwind stylesheet
+(`dist/cms-components.css`, committed) that both the storefront CMS render path and the admin
+Page Builder import. Regenerate it after changing those components' utility classes:
+
+```bash
+pnpm --filter @b2b/cms-components build   # uses @tailwindcss/cli (build-time devDep)
+```
 
 ## Environment variables
 

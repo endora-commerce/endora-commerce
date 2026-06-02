@@ -48,8 +48,17 @@ export default async function CheckoutPage({
   // can render their copy in PL/EN.
   const { locale } = await getServerContext();
 
-  const [cartResult, addresses, deliveryMethods, paymentMethodsRaw, creditLimit, me, defaults] =
-    await Promise.all([
+  let loaded: [
+    Awaited<ReturnType<typeof getCart>>,
+    Awaited<ReturnType<typeof listAddresses>>,
+    Awaited<ReturnType<typeof listDeliveryMethods>>,
+    Awaited<ReturnType<typeof listPaymentMethods>>,
+    Awaited<ReturnType<typeof getMyCreditLimit>>,
+    Awaited<ReturnType<typeof getMe>> | null,
+    Awaited<ReturnType<typeof getResolvedQuickOrderDefaults>> | null,
+  ];
+  try {
+    loaded = await Promise.all([
       getCart(jar),
       listAddresses(session),
       listDeliveryMethods(),
@@ -59,6 +68,18 @@ export default async function CheckoutPage({
       // Feature 039 (US2) — resolved default ordering preferences to pre-select.
       getResolvedQuickOrderDefaults(session).catch(() => null),
     ]);
+  } catch (err) {
+    // A stale/expired `b2b_session` cookie is still truthy, so it slips past
+    // the `!session` guard above but the backend rejects it with 401. Treat
+    // that as "not logged in" and bounce to login with a return path, rather
+    // than crashing the page with an unhandled UNAUTHORIZED error.
+    if (err instanceof StorefrontApiError && err.status === 401) {
+      redirect('/login?next=/checkout');
+    }
+    throw err;
+  }
+  const [cartResult, addresses, deliveryMethods, paymentMethodsRaw, creditLimit, me, defaults] =
+    loaded;
   if (cartResult.newAnonCookie) await setAnonCartCookie(cartResult.newAnonCookie);
   const cart = cartResult.cart;
   const canTransact = me?.organization?.canTransact ?? true;
@@ -92,7 +113,7 @@ export default async function CheckoutPage({
   const billingAddrs = addresses.filter((a) => a.kind === 'billing');
 
   return (
-    <div className="b2b-auth" style={{ maxWidth: 720 }}>
+    <div className="b2b-auth max-w-[720px]">
       <h1>Checkout</h1>
       <OrganizationModerationBanner
         status={me?.organization?.status}
@@ -130,7 +151,7 @@ export default async function CheckoutPage({
         </div>
 
         {creditLimit ? (
-          <div style={{ marginTop: 'var(--b2b-spacing, 16px)' }}>
+          <div className="mt-[16px]">
             <CreditLimitWidget limit={creditLimit} />
             {creditAvailable < cartTotal ? (
               <p className="b2b-auth__hint">
@@ -155,7 +176,7 @@ export default async function CheckoutPage({
               </tr>
             ))}
             <tr>
-              <th colSpan={2} scope="row" style={{ textAlign: 'right' }}>
+              <th colSpan={2} scope="row" className="text-right">
                 Subtotal
               </th>
               <th>
@@ -164,7 +185,7 @@ export default async function CheckoutPage({
             </tr>
             {cart.discount ? (
               <tr>
-                <th colSpan={2} scope="row" style={{ textAlign: 'right' }}>
+                <th colSpan={2} scope="row" className="text-right">
                   Discount ({cart.discount.code})
                 </th>
                 <th>
@@ -174,7 +195,7 @@ export default async function CheckoutPage({
             ) : null}
             {cart.grandTotal ? (
               <tr>
-                <th colSpan={2} scope="row" style={{ textAlign: 'right' }}>
+                <th colSpan={2} scope="row" className="text-right">
                   <strong>Total</strong>
                 </th>
                 <th>

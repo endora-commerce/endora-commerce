@@ -19,16 +19,14 @@ export const Columns: ComponentConfig<ColumnsProps> = {
     const columnWidths = parseWidths(widths, count);
 
     return (
+      // `gridTemplateColumns` (computed widths) + `gap` (author-driven) stay inline
+      // (FR-006); the rest are `cmsc:` utilities. Feature 041.
       <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: columnWidths.join(' '),
-          gap,
-          width: '100%',
-        }}
+        className="cmsc:grid cmsc:w-full"
+        style={{ gridTemplateColumns: columnWidths.join(' '), gap }}
       >
         {Array.from({ length: count }, (_, index) => (
-          <div key={index} style={{ minWidth: 0 }}>
+          <div key={index} className="cmsc:min-w-0">
             <DropZone zone={`${id}:column-${index}`} minEmptyHeight={96} />
           </div>
         ))}

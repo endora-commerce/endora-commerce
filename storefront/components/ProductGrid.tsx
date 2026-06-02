@@ -15,17 +15,12 @@ export function ProductGrid(props: {
   const t = tForLocale(props.locale);
   if (props.products.length === 0) {
     return (
-      <p
-        className="industria-grid--empty muted"
-        style={{ textAlign: 'center', padding: '40px 0' }}
-      >
-        {t('catalog.empty')}
-      </p>
+      <p className="py-[40px] text-center text-muted">{t('catalog.empty')}</p>
     );
   }
   if (props.view === 'list') {
     return (
-      <ul className="industria-product-list">
+      <ul className="m-0 flex list-none flex-col gap-2 p-0">
         {props.products.map((p) => (
           <li key={p.id}>
             <ProductRow product={p} locale={props.locale} />
@@ -34,10 +29,8 @@ export function ProductGrid(props: {
       </ul>
     );
   }
-  const cls =
-    props.columns === 3
-      ? 'industria-product-grid industria-product-grid--3'
-      : 'industria-product-grid';
+  const gridCols = props.columns === 3 ? 'grid-cols-3' : 'grid-cols-4';
+  const cls = `grid ${gridCols} gap-[16px] m-0 p-0 list-none max-[1100px]:grid-cols-2 max-[540px]:grid-cols-1`;
   return (
     <ul className={cls}>
       {props.products.map((p) => (

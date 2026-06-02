@@ -44,23 +44,24 @@ export default async function HomePage(): Promise<ReactNode> {
   return (
     <>
       <Hook code="homepage.top" />
-      <section className="industria-hero">
-        <div className="container industria-hero__inner">
+      <section className="border-b border-line bg-surface bg-[radial-gradient(ellipse_at_top_right,rgba(29,78,216,0.04),transparent_60%)] pt-[56px] pb-[72px]">
+        <div className="mx-auto grid max-w-[1360px] grid-cols-[minmax(0,5fr)_minmax(0,4fr)] items-center gap-[56px] px-[24px] max-[920px]:grid-cols-1">
           <div>
-            <span className="industria-hero__eyebrow">
-              <span className="dot" /> 120 000+ SKU · 84 producentów · wysyłka dziś
+            <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-line bg-surface-alt px-[10px] py-[6px] font-mono text-[11px] tracking-[0.04em] text-muted">
+              <span className="inline-block h-[6px] w-[6px] rounded-full bg-ok" /> 120 000+ SKU · 84
+              producentów · wysyłka dziś
             </span>
-            <h1>
+            <h1 className="text-[56px] leading-[1.04] tracking-[-0.03em] max-[720px]:text-[38px] [&_em]:not-italic [&_em]:text-accent">
               Komponenty przemysłowe
               <br />
               dostępne <em>od ręki</em>.
             </h1>
-            <p className="industria-hero__lead">
+            <p className="mt-6 mb-8 max-w-[540px] text-[16px] leading-[1.6] text-muted">
               Hurtownia B2B dla utrzymania ruchu, integratorów automatyki i działów produkcji.
               Ceny netto, limit kredytowy, karty katalogowe, certyfikaty 3.1 — wszystko w jednym
               miejscu.
             </p>
-            <div className="industria-hero__ctas">
+            <div className="mb-10 flex flex-wrap gap-3">
               <Link href="/catalog" className="btn btn--dark btn--lg">
                 Przeglądaj katalog <ArrowRightIcon />
               </Link>
@@ -68,69 +69,70 @@ export default async function HomePage(): Promise<ReactNode> {
                 <LightningIcon /> Quick Order z CSV
               </Link>
             </div>
-            <div className="industria-hero__stats">
-              <div>
-                <div className="industria-hero__stat__num">120k+</div>
-                <span className="industria-hero__stat__label">Pozycji w magazynie</span>
-              </div>
-              <div>
-                <div className="industria-hero__stat__num">84</div>
-                <span className="industria-hero__stat__label">Producentów</span>
-              </div>
-              <div>
-                <div className="industria-hero__stat__num">14:00</div>
-                <span className="industria-hero__stat__label">Cut-off wysyłki</span>
-              </div>
-              <div>
-                <div className="industria-hero__stat__num">98,4%</div>
-                <span className="industria-hero__stat__label">Dostępność on-stock</span>
-              </div>
+            <div className="grid grid-cols-4 gap-[24px] max-[720px]:grid-cols-2">
+              {[
+                ['120k+', 'Pozycji w magazynie'],
+                ['84', 'Producentów'],
+                ['14:00', 'Cut-off wysyłki'],
+                ['98,4%', 'Dostępność on-stock'],
+              ].map(([num, label]) => (
+                <div key={label}>
+                  <div className="font-mono text-[22px] font-semibold tracking-[-0.02em] text-fg">
+                    {num}
+                  </div>
+                  <span className="text-[11px] uppercase tracking-[0.06em] text-muted">
+                    {label}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
-          <div className="industria-hero__visual">
-            <div className="industria-hero__visual__head">
-              <span className="industria-hero__visual__head__title">SKU 6205-2RS · SKF</span>
+          <div className="relative overflow-hidden rounded-xl bg-[var(--ink-900)] p-[24px] text-[#f4f4f5]">
+            <div className="mb-[18px] flex items-baseline justify-between font-mono text-[12px] text-[#a1a1aa]">
+              <span className="font-medium text-white">SKU 6205-2RS · SKF</span>
               <span>on-stock · 1 280 szt. · WAW-01</span>
             </div>
-            <div className="industria-hero__bigsku">
-              <small>NOŚNOŚĆ DYNAMICZNA</small>
+            <div className="mt-[12px] mb-[16px] font-mono text-[56px] font-semibold leading-none tracking-[-0.03em]">
+              <small className="mb-2 block text-[11px] font-medium uppercase tracking-[0.08em] text-[#a1a1aa]">
+                NOŚNOŚĆ DYNAMICZNA
+              </small>
               14,0 kN
             </div>
-            <div className="industria-hero__visual__tags">
-              <span className="industria-hero__visual__tag">d 25 mm</span>
-              <span className="industria-hero__visual__tag">D 52 mm</span>
-              <span className="industria-hero__visual__tag">B 15 mm</span>
-              <span className="industria-hero__visual__tag">14 000 obr/min</span>
-              <span className="industria-hero__visual__tag">ISO 15:2017</span>
+            <div className="mb-[24px] flex flex-wrap gap-2">
+              {['d 25 mm', 'D 52 mm', 'B 15 mm', '14 000 obr/min', 'ISO 15:2017'].map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full border border-white/12 bg-white/8 px-[10px] py-[4px] font-mono text-[11px] text-[#e5e7eb]"
+                >
+                  {tag}
+                </span>
+              ))}
             </div>
-            <div className="industria-hero__visual__cards">
-              <div className="industria-hero__visual__card">
-                <div className="ico"><DocIcon /></div>
-                <div>
-                  <strong>Karta katalogowa</strong>
-                  <span>PDF · 1,2 MB</span>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                [<DocIcon key="d" />, 'Karta katalogowa', 'PDF · 1,2 MB'],
+                [<ShieldIcon key="s" />, 'Certyfikat 3.1', 'EN 10204'],
+                [<LayersIcon key="l" />, 'Model 3D STEP', '2,8 MB'],
+              ].map(([icon, title, sub]) => (
+                <div
+                  key={title as string}
+                  className="flex items-center gap-2 rounded-sm border border-white/10 bg-white/6 p-[10px]"
+                >
+                  <div className="inline-flex h-[32px] w-[32px] items-center justify-center rounded-[6px] bg-white/8">
+                    {icon}
+                  </div>
+                  <div>
+                    <strong className="block text-[11px] font-medium text-white">{title}</strong>
+                    <span className="block font-mono text-[10px] text-[#a1a1aa]">{sub}</span>
+                  </div>
                 </div>
-              </div>
-              <div className="industria-hero__visual__card">
-                <div className="ico"><ShieldIcon /></div>
-                <div>
-                  <strong>Certyfikat 3.1</strong>
-                  <span>EN 10204</span>
-                </div>
-              </div>
-              <div className="industria-hero__visual__card">
-                <div className="ico"><LayersIcon /></div>
-                <div>
-                  <strong>Model 3D STEP</strong>
-                  <span>2,8 MB</span>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      <section className="container section">
+      <section className="mx-auto max-w-[1360px] px-[24px] section">
         <div className="section__head">
           <div>
             <span className="section__eyebrow">01 / Asortyment</span>
@@ -144,48 +146,64 @@ export default async function HomePage(): Promise<ReactNode> {
             Zobacz wszystkie <ArrowRightIcon />
           </Link>
         </div>
-        <div className="industria-cat-grid">
+        <div className="grid grid-cols-6 gap-[16px] max-[1100px]:grid-cols-3 max-[600px]:grid-cols-2">
           {categoryTiles.map((c, i) => {
             const glyph = GLYPH_KEYS[i % GLYPH_KEYS.length] as keyof typeof GLYPHS;
             return (
-              <Link key={c.href} href={c.href} className="industria-cat-tile">
-                <div className="industria-cat-tile__icon">{GLYPHS[glyph]}</div>
-                <h3 className="industria-cat-tile__name">{c.name}</h3>
-                <span className="industria-cat-tile__count">
+              <Link
+                key={c.href}
+                href={c.href}
+                className="relative block rounded-lg border border-line bg-surface p-[22px] transition hover:-translate-y-[2px] hover:border-[var(--ink-700)]"
+              >
+                <div className="mb-[14px] inline-flex h-[56px] w-[56px] items-center justify-center rounded-md border border-line bg-surface-alt [&_svg]:h-[36px] [&_svg]:w-[36px]">
+                  {GLYPHS[glyph]}
+                </div>
+                <h3 className="m-0 mb-1 block text-[14px] font-semibold text-fg">{c.name}</h3>
+                <span className="font-mono text-[12px] text-muted">
                   {c.count.toLocaleString('pl-PL')} produktów
                 </span>
-                <span className="industria-cat-tile__arrow"><ArrowUpRightIcon /></span>
+                <span className="absolute right-[22px] top-[22px] text-line-strong">
+                  <ArrowUpRightIcon />
+                </span>
               </Link>
             );
           })}
         </div>
       </section>
 
-      <section className="container section" style={{ paddingTop: 0 }}>
-        <div className="industria-features">
-          <div className="industria-feature">
-            <div className="industria-feature__icon"><TruckIcon size={20} /></div>
+      <section className="mx-auto max-w-[1360px] px-[24px] section pt-0">
+        <div className="grid grid-cols-4 gap-[16px] max-[920px]:grid-cols-2 max-[600px]:grid-cols-1">
+          <div className="flex gap-[14px] rounded-lg border border-line bg-surface-alt p-[20px]">
+            <div className="inline-flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-md border border-line bg-surface text-accent">
+              <TruckIcon size={20} />
+            </div>
             <div>
               <h4>Wysyłka tego samego dnia</h4>
               <p>Cut-off 14:00. 98,4% pozycji on-stock w magazynie centralnym Warszawa-Okęcie.</p>
             </div>
           </div>
-          <div className="industria-feature">
-            <div className="industria-feature__icon"><WalletIcon size={20} /></div>
+          <div className="flex gap-[14px] rounded-lg border border-line bg-surface-alt p-[20px]">
+            <div className="inline-flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-md border border-line bg-surface text-accent">
+              <WalletIcon size={20} />
+            </div>
             <div>
               <h4>Limit kredytowy</h4>
               <p>Od 5 000 do 500 000 PLN. Faktura z odroczonym terminem 14/30/60 dni.</p>
             </div>
           </div>
-          <div className="industria-feature">
-            <div className="industria-feature__icon"><DocIcon size={20} /></div>
+          <div className="flex gap-[14px] rounded-lg border border-line bg-surface-alt p-[20px]">
+            <div className="inline-flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-md border border-line bg-surface text-accent">
+              <DocIcon size={20} />
+            </div>
             <div>
               <h4>Karty katalogowe i CAD</h4>
               <p>Każdy produkt ma kartę PDF, model 3D STEP/DXF, deklarację RoHS.</p>
             </div>
           </div>
-          <div className="industria-feature">
-            <div className="industria-feature__icon"><SettingsIcon size={20} /></div>
+          <div className="flex gap-[14px] rounded-lg border border-line bg-surface-alt p-[20px]">
+            <div className="inline-flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-md border border-line bg-surface text-accent">
+              <SettingsIcon size={20} />
+            </div>
             <div>
               <h4>Integracja z ERP</h4>
               <p>API REST, webhooki, eksport CSV/EDI. Quick Order dla 200+ pozycji.</p>
@@ -195,7 +213,7 @@ export default async function HomePage(): Promise<ReactNode> {
       </section>
 
       {products.data.length > 0 ? (
-        <section className="container section">
+        <section className="mx-auto max-w-[1360px] px-[24px] section">
           <div className="section__head">
             <div>
               <span className="section__eyebrow">02 / Bestsellery</span>
@@ -206,7 +224,7 @@ export default async function HomePage(): Promise<ReactNode> {
               Cały bestseller <ArrowRightIcon />
             </Link>
           </div>
-          <ul className="industria-product-grid">
+          <ul className="m-0 grid list-none grid-cols-4 gap-[16px] p-0 max-[1100px]:grid-cols-2 max-[540px]:grid-cols-1">
             {products.data.map((p) => (
               <li key={p.id}>
                 <ProductCard product={p} locale={locale} />

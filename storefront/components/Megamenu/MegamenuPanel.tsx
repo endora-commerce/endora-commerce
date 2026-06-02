@@ -31,7 +31,7 @@ export function MegamenuPanel({ topLevelItem }: MegamenuPanelProps): ReactNode {
       className="absolute inset-x-0 top-full z-40 hidden bg-white shadow-lg group-hover:block"
       style={{ borderTop: '1px solid #e5e7eb' }}
     >
-      <div className="container mx-auto grid grid-cols-12 gap-8 px-6 py-7">
+      <div className="mx-auto max-w-[1360px] px-[24px] mx-auto grid grid-cols-12 gap-8 px-6 py-7">
         {leftEmbed ? <CmsBlockEmbedSlot item={leftEmbed} className="col-span-3" /> : null}
         <div className={leftEmbed ? 'col-span-6' : 'col-span-9'}>
           {linkChildren.length === 0 ? (

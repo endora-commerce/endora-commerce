@@ -21,7 +21,6 @@ export async function getActiveMegamenu(ctx: RequestContext): Promise<ResolvedMe
   } catch (err) {
     if (err instanceof StorefrontApiError && err.status === 404) return null;
     // Megamenu must not break a page render. Log and fall back to no-menu.
-    // eslint-disable-next-line no-console
     console.warn('[storefront] megamenu fetch failed', err);
     return null;
   }

@@ -47,22 +47,16 @@ export function CartDroppedLinesBanner({
   return (
     <div
       role="alert"
-      style={{
-        background: '#fffaeb',
-        border: '1px solid #d4a000',
-        borderRadius: '0.25rem',
-        padding: '0.75rem 1rem',
-        marginBottom: '1rem',
-      }}
+      className="mb-4 rounded-sm border border-[#d4a000] bg-[#fffaeb] px-4 py-3"
     >
-      <h2 style={{ fontSize: '0.95rem', margin: '0 0 0.5rem' }}>{strings.heading}</h2>
-      <p style={{ margin: '0 0 0.5rem' }}>{strings.intro}</p>
-      <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
+      <h2 className="m-0 mb-2 text-[0.95rem]">{strings.heading}</h2>
+      <p className="m-0 mb-2">{strings.intro}</p>
+      <ul className="m-0 pl-5">
         {droppedLines.map((line) => (
           <li key={line.productId}>
             <strong>{line.productName}</strong>
             {' — '}
-            <span style={{ color: '#a06000' }}>{labelFor(line.reason, strings)}</span>
+            <span className="text-[#a06000]">{labelFor(line.reason, strings)}</span>
           </li>
         ))}
       </ul>

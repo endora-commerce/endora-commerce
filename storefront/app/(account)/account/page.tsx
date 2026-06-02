@@ -19,7 +19,7 @@ export default async function AccountProfilePage(): Promise<ReactNode> {
     <>
       <h2>Your profile</h2>
       {creditLimit ? (
-        <div style={{ marginBottom: 'var(--b2b-spacing, 16px)' }}>
+        <div className="mb-[16px]">
           <CreditLimitWidget limit={creditLimit} showReservations />
         </div>
       ) : null}

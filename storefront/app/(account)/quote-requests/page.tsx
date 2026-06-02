@@ -15,7 +15,7 @@ export default async function QuoteRequestsPage(): Promise<ReactNode> {
   const rfqs = await listRfqs(session);
 
   return (
-    <div className="container" style={{ paddingTop: 24, paddingBottom: 48 }}>
+    <div className="mx-auto max-w-[1360px] px-[24px]" style={{ paddingTop: 24, paddingBottom: 48 }}>
       <div
         style={{
           display: 'flex',

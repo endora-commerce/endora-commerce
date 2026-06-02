@@ -1,12 +1,13 @@
 import { DropZone, type ComponentConfig } from '@measured/puck';
-import type { CSSProperties } from 'react';
 import type { RowProps } from '../schema/component-types.js';
 
-const alignMap: Record<RowProps['align'], CSSProperties['alignItems']> = {
-  stretch: 'stretch',
-  start: 'flex-start',
-  center: 'center',
-  end: 'flex-end',
+// `align` is one of four fixed options → utility classes. `gap`, `background`
+// and `padding` are author-driven arbitrary values → kept inline (FR-006). Feature 041.
+const alignClass: Record<RowProps['align'], string> = {
+  stretch: 'cmsc:items-stretch',
+  start: 'cmsc:items-start',
+  center: 'cmsc:items-center',
+  end: 'cmsc:items-end',
 };
 
 export const Row: ComponentConfig<RowProps> = {
@@ -34,15 +35,8 @@ export const Row: ComponentConfig<RowProps> = {
   },
   render: ({ id, gap, align, background, padding }) => (
     <section
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap,
-        alignItems: alignMap[align],
-        background,
-        padding,
-        width: '100%',
-      }}
+      className={`cmsc:flex cmsc:flex-col cmsc:w-full ${alignClass[align]}`}
+      style={{ gap, background, padding }}
     >
       <DropZone zone={`${id}:content`} minEmptyHeight={80} />
     </section>

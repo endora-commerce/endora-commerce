@@ -23,9 +23,9 @@ export function Pagination(props: {
     cursor: props.nextCursor,
   });
   return (
-    <nav className="industria-pagination" aria-label="Pagination">
-      <span className="industria-pagination__hint" aria-hidden="true" />
-      <div className="industria-pagination__pages">
+    <nav className="mt-6 flex flex-wrap items-center justify-between gap-3" aria-label="Pagination">
+      <span className="text-[12px] text-muted" aria-hidden="true" />
+      <div className="flex gap-1.5">
         <Link
           href={`${props.basePath}?${params.toString()}` as never}
           rel="next"

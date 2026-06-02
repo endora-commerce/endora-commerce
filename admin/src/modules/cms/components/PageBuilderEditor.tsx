@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Puck, type Config, type ComponentConfig, type Data } from '@measured/puck';
 import '@measured/puck/puck.css';
+// Self-contained, prefix-isolated (`cmsc:`) stylesheet for the shared CMS components
+// (feature 041, FR-012b). This is the admin's ONLY change; it carries its own token
+// values + no preflight, so it cannot restyle admin chrome.
+import '@b2b/cms-components/styles.css';
 import { defaultPageBuilderConfig, makeMissingComponentConfig } from '@b2b/cms-components';
 import type { CmsPageBuilderDescriptor } from '@b2b/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';

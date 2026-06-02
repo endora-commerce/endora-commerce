@@ -1,27 +1,12 @@
-import type { CSSProperties } from 'react';
-
-export const baseFont: CSSProperties = {
-  fontFamily:
-    'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-};
-
-export const editorFrame: CSSProperties = {
-  ...baseFont,
-  border: '1px solid #d9e0e7',
-  borderRadius: 8,
-  padding: 12,
-  background: '#ffffff',
-};
-
-export const emptyEmbed: CSSProperties = {
-  ...baseFont,
-  border: '1px dashed #9aa7b4',
-  borderRadius: 8,
-  padding: 16,
-  color: '#5f6b7a',
-  background: '#f8fafc',
-  fontSize: 14,
-};
+/*
+ * Dynamic/computed styling helpers for the CMS Page Builder components.
+ *
+ * Static styling (the former `baseFont` / `editorFrame` / `emptyEmbed`
+ * `CSSProperties` constants) was migrated to `cmsc:`-prefixed Tailwind
+ * utilities in markup (feature 041, see `styles/cms-components.css`). Only
+ * genuinely computed helpers — which produce author-driven values that no
+ * utility class can express — remain here.
+ */
 
 export function clampColumnCount(columns: number): number {
   if (!Number.isFinite(columns)) return 2;

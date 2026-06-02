@@ -28,16 +28,16 @@ export function GroupedSummary(props: {
   if (props.items.length === 0) return null;
 
   return (
-    <div className="b2b-grouped-summary">
-      <ul className="b2b-grouped-summary__list">
+    <div className="flex flex-col gap-3">
+      <ul className="m-0 flex list-none flex-col gap-2 rounded-md border border-line p-[12px]">
         {props.items.map((item) => (
-          <li key={item.id} className="b2b-grouped-summary__row">
-            <span className="b2b-grouped-summary__qty">{item.quantity} ×</span>
-            <a href={`/p/${item.product.slug}`} className="b2b-grouped-summary__link">
+          <li key={item.id} className="flex items-center gap-2 text-[13px]">
+            <span className="font-mono text-muted">{item.quantity} ×</span>
+            <a href={`/p/${item.product.slug}`} className="text-fg hover:text-accent">
               {item.product.name}
             </a>
             {item.product.price ? (
-              <span className="b2b-grouped-summary__price">
+              <span className="ml-auto font-mono font-medium text-fg">
                 {(item.product.price.amount * item.quantity).toFixed(2)}{' '}
                 {item.product.price.currency}
               </span>

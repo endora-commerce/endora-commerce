@@ -22,7 +22,7 @@ export function Megamenu({ megamenu }: MegamenuProps): ReactNode {
   }
   return (
     <nav aria-label="Primary navigation" className="border-b border-border bg-white">
-      <div className="container mx-auto flex">
+      <div className="mx-auto max-w-[1360px] px-[24px] mx-auto flex">
         {/* Mobile (≤ md): burger drawer with stacked drill-down. */}
         <MegamenuMobileDrawer megamenu={megamenu} />
         {/* Desktop (≥ md): top-level bar with hover-revealed panels. */}

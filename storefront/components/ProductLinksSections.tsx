@@ -35,21 +35,26 @@ export interface ProductLinksLabels {
 
 function LinkCard({ link }: { link: ProductLinkSummary }): ReactNode {
   return (
-    <li className="b2b-product-links__card">
-      <a href={`/p/${link.product.slug}`} className="b2b-product-links__link">
+    <li className="overflow-hidden rounded-md border border-line bg-surface transition hover:border-[var(--ink-700)] hover:shadow-sm">
+      <a
+        href={`/p/${link.product.slug}`}
+        className="flex flex-col gap-1.5 p-[10px] text-inherit"
+      >
         {link.product.primaryAssetUrl ? (
           <img
             src={link.product.primaryAssetUrl}
             alt=""
-            className="b2b-product-links__thumb"
+            className="aspect-square w-full rounded-sm bg-surface-alt object-contain"
             loading="lazy"
           />
         ) : (
-          <div className="b2b-product-links__thumb b2b-product-links__thumb--placeholder" />
+          <div className="aspect-square w-full rounded-sm bg-surface-alt" />
         )}
-        <span className="b2b-product-links__name">{link.product.name}</span>
+        <span className="line-clamp-2 text-[12px] font-medium leading-[1.3] text-fg">
+          {link.product.name}
+        </span>
         {link.product.price ? (
-          <span className="b2b-product-links__price">
+          <span className="font-mono text-[12px] font-medium text-accent">
             {link.product.price.amount.toFixed(2)} {link.product.price.currency}
           </span>
         ) : null}
@@ -66,11 +71,13 @@ export function ProductLinksSections(props: {
   if (props.related.length === 0 && props.upSell.length === 0) return null;
 
   return (
-    <div className="b2b-product-links">
+    <div className="mt-8 flex flex-col gap-8">
       {props.related.length > 0 ? (
-        <section className="b2b-product-links__section" data-kind="related">
-          <h2 className="b2b-product-links__heading">{props.labels.related}</h2>
-          <ul className="b2b-product-links__list">
+        <section data-kind="related">
+          <h2 className="mb-3 text-[14px] font-semibold uppercase tracking-[0.04em] text-muted">
+            {props.labels.related}
+          </h2>
+          <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 p-0">
             {props.related.map((link) => (
               <LinkCard key={link.id} link={link} />
             ))}
@@ -78,9 +85,11 @@ export function ProductLinksSections(props: {
         </section>
       ) : null}
       {props.upSell.length > 0 ? (
-        <section className="b2b-product-links__section" data-kind="up-sell">
-          <h2 className="b2b-product-links__heading">{props.labels.upSell}</h2>
-          <ul className="b2b-product-links__list">
+        <section data-kind="up-sell">
+          <h2 className="mb-3 text-[14px] font-semibold uppercase tracking-[0.04em] text-muted">
+            {props.labels.upSell}
+          </h2>
+          <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 p-0">
             {props.upSell.map((link) => (
               <LinkCard key={link.id} link={link} />
             ))}

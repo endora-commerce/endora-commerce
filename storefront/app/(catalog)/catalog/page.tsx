@@ -33,7 +33,7 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
     : t('catalog.heading');
 
   return (
-    <div className="container">
+    <div className="mx-auto max-w-[1360px] px-[24px]">
       <Breadcrumbs
         crumbs={[
           { href: '/', label: t('nav.home') },

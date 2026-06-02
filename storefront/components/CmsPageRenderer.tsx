@@ -1,5 +1,8 @@
 import { Render } from '@measured/puck';
 import { defaultPageBuilderConfig, CmsRenderProvider } from '@b2b/cms-components';
+// Self-contained, prefix-isolated stylesheet for the CMS Page Builder components
+// (feature 041, FR-012a). SSR-safe — bundled globally by Next at build time.
+import '@b2b/cms-components/styles.css';
 import type { CmsResolvedPage, CmsResolvedBlock, CmsResolvedTemplate } from '@b2b/contracts';
 import { Hook } from './Hook';
 

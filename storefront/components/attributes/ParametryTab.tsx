@@ -34,16 +34,26 @@ export function ParametryTab(props: {
   const t = tForLocale(props.locale);
 
   return (
-    <section className="b2b-pdp__attributes" aria-labelledby="b2b-pdp-attributes-title">
-      <h2 id="b2b-pdp-attributes-title" className="b2b-pdp__attributes-title">
+    <section aria-labelledby="b2b-pdp-attributes-title">
+      <h2
+        id="b2b-pdp-attributes-title"
+        className="mb-2 text-[14px] font-semibold uppercase tracking-[0.04em] text-muted"
+      >
         {t('product.attributes.tabTitle')}
       </h2>
-      <table className="b2b-pdp__attributes-table">
+      <table className="w-full border-collapse">
         <tbody>
           {items.map((a) => (
             <tr key={a.key}>
-              <th scope="row">{a.label}</th>
-              <td>{a.valueRendered}</td>
+              <th
+                scope="row"
+                className="border-b border-line p-[8px] text-left text-[13px] font-medium text-muted"
+              >
+                {a.label}
+              </th>
+              <td className="border-b border-line p-[8px] text-left font-mono text-[13px]">
+                {a.valueRendered}
+              </td>
             </tr>
           ))}
         </tbody>

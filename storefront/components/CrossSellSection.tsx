@@ -28,27 +28,38 @@ export function CrossSellSection(props: {
   if (unique.length === 0) return null;
 
   return (
-    <section className="b2b-cross-sell" aria-labelledby="b2b-cross-sell-heading">
-      <h2 id="b2b-cross-sell-heading" className="b2b-cross-sell__heading">
+    <section className="mt-8" aria-labelledby="b2b-cross-sell-heading">
+      <h2
+        id="b2b-cross-sell-heading"
+        className="mb-3 text-[14px] font-semibold uppercase tracking-[0.04em] text-muted"
+      >
         {props.heading}
       </h2>
-      <ul className="b2b-cross-sell__list">
+      <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 p-0">
         {unique.map((link) => (
-          <li key={link.id} className="b2b-cross-sell__card">
-            <a href={`/p/${link.product.slug}`} className="b2b-cross-sell__link">
+          <li
+            key={link.id}
+            className="overflow-hidden rounded-md border border-line bg-surface transition hover:border-[var(--ink-700)] hover:shadow-sm"
+          >
+            <a
+              href={`/p/${link.product.slug}`}
+              className="flex flex-col gap-1.5 p-[10px] text-inherit"
+            >
               {link.product.primaryAssetUrl ? (
                 <img
                   src={link.product.primaryAssetUrl}
                   alt=""
-                  className="b2b-cross-sell__thumb"
+                  className="aspect-square w-full rounded-sm bg-surface-alt object-contain"
                   loading="lazy"
                 />
               ) : (
-                <div className="b2b-cross-sell__thumb b2b-cross-sell__thumb--placeholder" />
+                <div className="aspect-square w-full rounded-sm bg-surface-alt" />
               )}
-              <span className="b2b-cross-sell__name">{link.product.name}</span>
+              <span className="line-clamp-2 text-[12px] font-medium leading-[1.3] text-fg">
+                {link.product.name}
+              </span>
               {link.product.price ? (
-                <span className="b2b-cross-sell__price">
+                <span className="font-mono text-[12px] font-medium text-accent">
                   {link.product.price.amount.toFixed(2)} {link.product.price.currency}
                 </span>
               ) : null}

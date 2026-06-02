@@ -29,11 +29,11 @@ export function FilterPanel(props: {
   const clearAllHref = buildHref(props.basePath, props.baseQuery);
 
   return (
-    <aside className="industria-filters">
-      <div className="industria-filters__head">
-        <h3>{t('catalog.filters')}</h3>
+    <aside className="sticky top-[132px] self-start rounded-lg border border-line bg-surface p-[18px]">
+      <div className="mb-[14px] flex items-center justify-between">
+        <h3 className="text-[14px]">{t('catalog.filters')}</h3>
         {activeChips.length > 0 ? (
-          <Link className="industria-filters__head__clear" href={clearAllHref}>
+          <Link className="text-[12px] text-accent hover:text-accent-hover" href={clearAllHref}>
             Wyczyść
           </Link>
         ) : null}
@@ -45,14 +45,16 @@ export function FilterPanel(props: {
         ))}
 
         {activeChips.length > 0 ? (
-          <div
-            className="industria-filters__group"
-            style={{ borderTop: 0, paddingTop: 0 }}
-          >
-            <h4>Aktywne ({activeChips.length})</h4>
-            <div className="industria-filters__chips">
+          <div className="pt-0">
+            <h4 className="mb-[10px] text-[12px] font-medium uppercase tracking-[0.06em] text-muted">
+              Aktywne ({activeChips.length})
+            </h4>
+            <div className="flex flex-wrap gap-[5px]">
               {activeChips.map((chip) => (
-                <span key={chip.key} className="industria-chip">
+                <span
+                  key={chip.key}
+                  className="inline-flex items-center gap-1 rounded-full border border-[var(--brand-100)] bg-accent-soft py-[4px] pr-[4px] pl-[8px] font-mono text-[11px] text-accent"
+                >
                   {chip.label}
                   <Link
                     href={buildHref(
@@ -62,6 +64,7 @@ export function FilterPanel(props: {
                     )}
                     aria-label={`Usuń filtr: ${chip.label}`}
                     title="Usuń filtr"
+                    className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-full text-accent hover:bg-[var(--brand-100)]"
                   >
                     <XIcon />
                   </Link>
@@ -72,10 +75,10 @@ export function FilterPanel(props: {
         ) : null}
 
         {props.filters.map((filter) => (
-          <div key={filter.attributeKey} className="industria-filters__group">
-            <h4>
+          <div key={filter.attributeKey} className="border-t border-line py-[14px]">
+            <h4 className="mb-[10px] flex items-center justify-between text-[12px] font-medium uppercase tracking-[0.06em] text-muted">
               {filter.label}
-              <span className="industria-filters__chev" aria-hidden="true">
+              <span className="inline-flex items-center text-line-strong" aria-hidden="true">
                 <ChevDownIcon />
               </span>
             </h4>
@@ -86,18 +89,19 @@ export function FilterPanel(props: {
               return (
                 <label
                   key={opt.value}
-                  className="industria-filters__opt"
+                  className="flex cursor-pointer items-center justify-between py-[5px] text-[13px]"
                 >
-                  <span>
+                  <span className="inline-flex items-center gap-2 text-fg-soft">
                     <input
                       type="checkbox"
                       name={`filter[attr.${filter.attributeKey}]`}
                       value={opt.value}
                       defaultChecked={active}
+                      className="accent-accent"
                     />
                     {opt.label}
                   </span>
-                  <span className="industria-filters__opt__count">
+                  <span className="font-mono text-[11px] text-subtle">
                     {opt.count.toLocaleString('pl-PL')}
                   </span>
                 </label>
@@ -106,11 +110,7 @@ export function FilterPanel(props: {
           </div>
         ))}
 
-        <button
-          type="submit"
-          className="btn btn--dark btn--block"
-          style={{ marginTop: 14 }}
-        >
+        <button type="submit" className="btn btn--dark btn--block mt-[14px]">
           {t('common.searchAction')}
         </button>
       </form>

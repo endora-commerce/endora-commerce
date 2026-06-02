@@ -27,14 +27,20 @@ export function CompareModeSwitcher(props: {
   disabled?: boolean;
 }): ReactNode {
   return (
-    <div className="b2b-compare__mode-switcher" role="radiogroup" aria-label="Display mode">
+    <div
+      className="inline-flex overflow-hidden rounded-md border border-line"
+      role="radiogroup"
+      aria-label="Display mode"
+    >
       {MODES.map((mode) => {
         const active = mode === props.value;
         return (
           <button
             key={mode}
             type="button"
-            className={`b2b-compare__mode-button${active ? ' is-active' : ''}`}
+            className={`cursor-pointer px-[12px] py-[6px] text-[12px] disabled:opacity-50 ${
+              active ? 'bg-accent text-white' : 'bg-surface text-fg-soft hover:bg-surface-alt'
+            }`}
             role="radio"
             aria-checked={active}
             disabled={props.disabled}

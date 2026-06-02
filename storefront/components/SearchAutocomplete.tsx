@@ -244,12 +244,12 @@ export function SearchAutocomplete(props: SearchAutocompleteProps): ReactNode {
       </button>
       {showPopup ? (
         <ul
-          className="b2b-search-autocomplete__popup"
+          className="absolute left-0 right-0 top-full z-50 m-0 mt-1 max-h-[400px] list-none overflow-auto rounded-md border border-line bg-surface py-1 shadow-lg"
           role="listbox"
           aria-label={props.searchActionLabel}
         >
           {unavailable ? (
-            <li className="b2b-search-autocomplete__unavailable" aria-disabled="true">
+            <li className="px-3 py-2 text-[13px] text-muted" aria-disabled="true">
               {props.unavailableLabel}
             </li>
           ) : (
@@ -259,14 +259,14 @@ export function SearchAutocomplete(props: SearchAutocompleteProps): ReactNode {
                   key={p.id}
                   role="option"
                   aria-selected={i === activeIndex}
-                  className={`b2b-search-autocomplete__hit${
-                    i === activeIndex ? ' is-active' : ''
+                  className={`text-[13px] [&>a]:block [&>a]:px-3 [&>a]:py-2 ${
+                    i === activeIndex ? 'bg-surface-alt' : 'hover:bg-surface-alt'
                   }`}
                 >
                   <a href={`/products/${encodeURIComponent(p.slug)}`}>{p.name}</a>
                 </li>
               ))}
-              <li className="b2b-search-autocomplete__see-all">
+              <li className="text-[13px] font-medium text-accent [&>a]:block [&>a]:px-3 [&>a]:py-2 hover:bg-surface-alt">
                 <a href={`/search?q=${encodeURIComponent(value.trim())}`}>
                   {props.seeAllResultsLabel}
                 </a>

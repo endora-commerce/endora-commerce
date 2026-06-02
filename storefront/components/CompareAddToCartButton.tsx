@@ -74,7 +74,7 @@ export function CompareAddToCartButton(props: {
       >
         {success ? '✓ Dodano' : busy ? 'Dodawanie…' : 'Dodaj do koszyka'}
       </button>
-      {error ? <div className="b2b-compare__cart-error">{error}</div> : null}
+      {error ? <div className="mt-1 text-[12px] text-bad">{error}</div> : null}
     </>
   );
 }

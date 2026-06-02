@@ -1,24 +1,12 @@
 import { type ComponentConfig } from '@measured/puck';
-import type { CSSProperties } from 'react';
 import type { ButtonProps, ButtonVariant } from '../schema/component-types.js';
-import { baseFont } from './styles.js';
 
-const variantStyles: Record<ButtonVariant, CSSProperties> = {
-  primary: {
-    background: '#1261a6',
-    borderColor: '#1261a6',
-    color: '#ffffff',
-  },
-  secondary: {
-    background: '#ffffff',
-    borderColor: '#1261a6',
-    color: '#1261a6',
-  },
-  ghost: {
-    background: 'transparent',
-    borderColor: 'transparent',
-    color: '#1261a6',
-  },
+// Verbatim colour reproduction of the former inline `variantStyles`, expressed as
+// `cmsc:`-prefixed utility classes (feature 041).
+const variantClass: Record<ButtonVariant, string> = {
+  primary: 'cmsc:bg-[#1261a6] cmsc:border-[#1261a6] cmsc:text-white',
+  secondary: 'cmsc:bg-white cmsc:border-[#1261a6] cmsc:text-[#1261a6]',
+  ghost: 'cmsc:bg-transparent cmsc:border-transparent cmsc:text-[#1261a6]',
 };
 
 export const Button: ComponentConfig<ButtonProps> = {
@@ -55,21 +43,7 @@ export const Button: ComponentConfig<ButtonProps> = {
       href={href || '#'}
       target={target}
       rel={target === '_blank' ? 'noreferrer' : undefined}
-      style={{
-        ...baseFont,
-        ...variantStyles[variant],
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 40,
-        padding: '0 18px',
-        border: '1px solid',
-        borderRadius: 8,
-        fontSize: 14,
-        fontWeight: 700,
-        lineHeight: 1,
-        textDecoration: 'none',
-      }}
+      className={`cmsc:font-sans cmsc:inline-flex cmsc:items-center cmsc:justify-center cmsc:min-h-[40px] cmsc:px-[18px] cmsc:border cmsc:border-solid cmsc:rounded-[8px] cmsc:text-[14px] cmsc:font-bold cmsc:leading-none cmsc:no-underline ${variantClass[variant]}`}
     >
       {label}
     </a>

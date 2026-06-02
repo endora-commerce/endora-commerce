@@ -44,12 +44,24 @@ export function ProductCard(props: {
   const stockNode = stock ? renderFromStorefrontStock(stock, locale, t) : stockFor(product, t);
 
   return (
-    <article className="industria-product-card">
-      <Link href={`/p/${product.slug}`} className="industria-product-card__media" aria-label={product.name}>
+    <article className="group relative flex flex-col overflow-hidden rounded-lg border border-line bg-surface transition hover:-translate-y-[3px] hover:border-[var(--ink-700)] hover:shadow-md">
+      <Link
+        href={`/p/${product.slug}`}
+        className="relative flex aspect-square items-center justify-center border-b border-line bg-surface-alt"
+        aria-label={product.name}
+      >
         {product.primaryAssetUrl ? (
-          <img src={product.primaryAssetUrl} alt={product.name} loading="lazy" />
+          <img
+            src={product.primaryAssetUrl}
+            alt={product.name}
+            loading="lazy"
+            className="max-h-[70%] max-w-[70%] object-contain transition-transform duration-[400ms] group-hover:scale-105"
+          />
         ) : (
-          <span className="industria-product-card__media-placeholder" aria-hidden="true" />
+          <span
+            className="h-[60%] w-[60%] rounded-sm opacity-40 bg-[repeating-linear-gradient(45deg,var(--ink-200),var(--ink-200)_6px,transparent_6px,transparent_12px)]"
+            aria-hidden="true"
+          />
         )}
       </Link>
       <CompareToggle productId={product.id} />
@@ -59,14 +71,16 @@ export function ProductCard(props: {
         </span>
       ) : null}
 
-      <div className="industria-product-card__body">
-        <div className="industria-product-card__sku">
-          <span className="industria-product-card__brand">{product.sku}</span>
+      <div className="flex flex-1 flex-col gap-[6px] p-[14px] pb-[16px]">
+        <div className="flex gap-[6px] font-mono text-[11px] text-muted">
+          <span className="font-medium text-fg-soft">{product.sku}</span>
         </div>
-        <Link href={`/p/${product.slug}`} style={{ color: 'inherit' }}>
-          <h3 className="industria-product-card__name">{product.name}</h3>
+        <Link href={`/p/${product.slug}`} className="text-inherit">
+          <h3 className="m-0 line-clamp-2 text-[13px] font-medium leading-[1.4] text-fg">
+            {product.name}
+          </h3>
         </Link>
-        <div className="industria-product-card__foot">
+        <div className="mt-auto flex items-end justify-between gap-2 border-t border-line pt-[10px]">
           <div>{renderPriceSlot({ product, locale, resolved, t })}</div>
           {stockNode}
         </div>
@@ -89,7 +103,7 @@ function renderPriceSlot(args: {
     }
     return (
       <>
-        <div className="industria-product-card__price__from">od / szt.</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.04em] text-subtle">od / szt.</div>
         <BaseSalePriceBlock
           basePrice={resolved.basePrice}
           salePrice={resolved.salePrice}
@@ -123,7 +137,7 @@ function renderPriceSlot(args: {
 
   if (!priceFmt) {
     return (
-      <div className="industria-product-card__price__main" style={{ fontSize: 13 }}>
+      <div className="font-mono text-[13px] font-semibold tracking-[-0.01em] text-fg">
         {t('product.requestQuote')}
       </div>
     );
@@ -132,9 +146,9 @@ function renderPriceSlot(args: {
   return (
     <>
       <div className="industria-product-card__price__from">od / szt.</div>
-      <div className="industria-product-card__price__main">{priceFmt}</div>
+      <div className="font-mono text-[16px] font-semibold tracking-[-0.01em] text-fg">{priceFmt}</div>
       {grossFmt ? (
-        <div className="industria-product-card__price__alt">brutto {grossFmt}</div>
+        <div className="font-mono text-[11px] text-muted">brutto {grossFmt}</div>
       ) : null}
     </>
   );
