@@ -50,30 +50,34 @@ export function CartApprovalBanner({
   submitForApprovalAction,
   strings,
 }: CartApprovalBannerProps): ReactNode {
+  const base = 'mb-3 rounded-sm border px-[14px] py-[12px] text-[13px]';
   if (approvalStatus === 'pending') {
     return (
-      <div className="cart-approval-banner cart-approval-banner--pending" role="status">
+      <div className={`${base} border-[#fde68a] bg-[#fef7e7] text-[#b45309]`} role="status">
         {strings.pending}
       </div>
     );
   }
   if (approvalStatus === 'approved') {
     return (
-      <div className="cart-approval-banner cart-approval-banner--approved" role="status">
+      <div className={`${base} border-[#bbf7d0] bg-[#ecfdf3] text-ok`} role="status">
         {strings.approved}
       </div>
     );
   }
   if (approvalStatus === 'rejected_by_org_admin') {
     return (
-      <div className="cart-approval-banner cart-approval-banner--rejected" role="alert">
+      <div className={`${base} border-[#fecaca] bg-[#fef2f2] text-[#b91c1c]`} role="alert">
         {strings.rejected(rejectedReason)}
       </div>
     );
   }
   if (policyOn && approvalStatus === 'not_required') {
     return (
-      <div className="cart-approval-banner cart-approval-banner--policy" role="status">
+      <div
+        className={`${base} flex items-center justify-between gap-[10px] border-line bg-surface-alt text-fg-soft`}
+        role="status"
+      >
         <span>{strings.policyOn}</span>
         <form action={submitForApprovalAction}>
           <button type="submit" className="btn btn--dark btn--sm">
