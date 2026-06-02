@@ -10,12 +10,9 @@ export default function CatalogLoading(): ReactNode {
   return (
     <>
       <div className="b2b-progress" aria-hidden="true" />
-      <div className="mx-auto max-w-[1360px] px-[24px]" style={{ padding: '24px 24px 48px' }}>
-        <div
-          className="b2b-skel b2b-skel--line b2b-skel-card__line--short"
-          style={{ height: 28, marginBottom: 18 }}
-        />
-        <ul className="industria-product-grid" style={{ marginTop: 12 }}>
+      <div className="mx-auto max-w-[1360px] px-[24px] pt-[24px] pb-[48px]">
+        <div className="b2b-skel b2b-skel--line b2b-skel-card__line--short h-[28px] mb-[18px]" />
+        <ul className="industria-product-grid mt-[12px]">
           {placeholders.map((_, i) => (
             <li key={i}>
               <div className="b2b-skel-card">
@@ -25,8 +22,8 @@ export default function CatalogLoading(): ReactNode {
                   <div className="b2b-skel b2b-skel--line b2b-skel-card__line--long" />
                   <div className="b2b-skel b2b-skel--line b2b-skel-card__line--mid" />
                   <div className="b2b-skel-card__foot">
-                    <div className="b2b-skel b2b-skel--line b2b-skel-card__line--short" style={{ width: '35%' }} />
-                    <div className="b2b-skel b2b-skel--text" style={{ width: '25%' }} />
+                    <div className="b2b-skel b2b-skel--line b2b-skel-card__line--short w-[35%]" />
+                    <div className="b2b-skel b2b-skel--text w-[25%]" />
                   </div>
                 </div>
               </div>

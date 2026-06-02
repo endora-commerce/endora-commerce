@@ -74,7 +74,7 @@ export default async function MembersPage({
               <td>{m.email}</td>
               <td>{ROLE_LABELS[m.role]}</td>
               <td>
-                <form action={changeRoleAction} style={{ display: 'inline-flex', gap: '0.25rem' }}>
+                <form action={changeRoleAction} className="inline-flex gap-[0.25rem]">
                   <input type="hidden" name="memberId" value={m.id} />
                   <select name="role" defaultValue={m.role}>
                     <option value="organization_admin">{ROLE_LABELS.organization_admin}</option>
@@ -83,7 +83,7 @@ export default async function MembersPage({
                   <button type="submit">Save</button>
                 </form>{' '}
                 {m.id === me.customerAccount.id ? null : (
-                  <form action={removeAction} style={{ display: 'inline' }}>
+                  <form action={removeAction} className="inline">
                     <input type="hidden" name="memberId" value={m.id} />
                     <button type="submit">Remove</button>
                   </form>
@@ -115,7 +115,7 @@ export default async function MembersPage({
                   <td>{new Date(inv.createdAt).toLocaleDateString()}</td>
                   <td>{new Date(inv.expiresAt).toLocaleDateString()}</td>
                   <td>
-                    <form action={revokeAction} style={{ display: 'inline' }}>
+                    <form action={revokeAction} className="inline">
                       <input type="hidden" name="invitationId" value={inv.id} />
                       <button type="submit">Revoke</button>
                     </form>

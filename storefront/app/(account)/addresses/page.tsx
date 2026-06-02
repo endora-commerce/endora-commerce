@@ -60,7 +60,7 @@ export default async function MyAddressesPage({
                   {a.isDefault ? (
                     'Default'
                   ) : (
-                    <form action={setDefaultAction} style={{ display: 'inline' }}>
+                    <form action={setDefaultAction} className="inline">
                       <input type="hidden" name="addressId" value={a.id} />
                       <button type="submit">Make default</button>
                     </form>

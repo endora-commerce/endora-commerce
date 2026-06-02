@@ -113,7 +113,7 @@ export default async function CheckoutPage({
   const billingAddrs = addresses.filter((a) => a.kind === 'billing');
 
   return (
-    <div className="b2b-auth" style={{ maxWidth: 720 }}>
+    <div className="b2b-auth max-w-[720px]">
       <h1>Checkout</h1>
       <OrganizationModerationBanner
         status={me?.organization?.status}
@@ -151,7 +151,7 @@ export default async function CheckoutPage({
         </div>
 
         {creditLimit ? (
-          <div style={{ marginTop: 'var(--b2b-spacing, 16px)' }}>
+          <div className="mt-[16px]">
             <CreditLimitWidget limit={creditLimit} />
             {creditAvailable < cartTotal ? (
               <p className="b2b-auth__hint">
@@ -176,7 +176,7 @@ export default async function CheckoutPage({
               </tr>
             ))}
             <tr>
-              <th colSpan={2} scope="row" style={{ textAlign: 'right' }}>
+              <th colSpan={2} scope="row" className="text-right">
                 Subtotal
               </th>
               <th>
@@ -185,7 +185,7 @@ export default async function CheckoutPage({
             </tr>
             {cart.discount ? (
               <tr>
-                <th colSpan={2} scope="row" style={{ textAlign: 'right' }}>
+                <th colSpan={2} scope="row" className="text-right">
                   Discount ({cart.discount.code})
                 </th>
                 <th>
@@ -195,7 +195,7 @@ export default async function CheckoutPage({
             ) : null}
             {cart.grandTotal ? (
               <tr>
-                <th colSpan={2} scope="row" style={{ textAlign: 'right' }}>
+                <th colSpan={2} scope="row" className="text-right">
                   <strong>Total</strong>
                 </th>
                 <th>

@@ -21,8 +21,8 @@ export function PaymentMethods({
   const preferredIdx = preferredId ? methods.findIndex((m) => m.id === preferredId) : -1;
   const selectedIdx = preferredIdx >= 0 ? preferredIdx : 0;
   return (
-    <fieldset className="b2b-auth__form" style={{ border: 0, padding: 0 }}>
-      <legend style={{ fontWeight: 600 }}>Payment method</legend>
+    <fieldset className="b2b-auth__form border-0 p-0">
+      <legend className="font-semibold">Payment method</legend>
       {methods.length === 0 ? (
         <p className="muted">
           No payment method is available for your account on this sales channel.
