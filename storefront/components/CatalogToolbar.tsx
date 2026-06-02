@@ -57,13 +57,13 @@ export function CatalogToolbar(props: {
 
   return (
     <div
-      className="industria-toolbar"
+      className="mb-[14px] flex flex-wrap items-center justify-between gap-3 rounded-md border border-line bg-surface px-[16px] py-[12px]"
       aria-busy={pending ? 'true' : undefined}
     >
-      <div className="industria-toolbar__left">
-        Pokazuję <strong>1–{props.shown}</strong> wyników
+      <div className="flex items-center gap-3 text-[13px] text-muted">
+        Pokazuję <strong className="font-mono font-semibold text-fg">1–{props.shown}</strong> wyników
       </div>
-      <div className="industria-toolbar__right">
+      <div className="flex items-center gap-2">
         <select
           className="industria-select"
           name="sort"
@@ -88,7 +88,7 @@ export function CatalogToolbar(props: {
           <option value="96">96 / strona</option>
         </select>
         <div
-          className="industria-viewmode"
+          className="inline-flex h-[32px] overflow-hidden rounded-sm border border-line"
           role="radiogroup"
           aria-label="Tryb widoku"
         >
@@ -97,7 +97,9 @@ export function CatalogToolbar(props: {
             role="radio"
             aria-checked={props.view === 'grid'}
             aria-label="Siatka"
-            className={props.view === 'grid' ? 'is-active' : ''}
+            className={`flex h-[32px] w-[32px] items-center justify-center ${
+              props.view === 'grid' ? 'bg-fg text-white' : 'bg-surface text-muted hover:text-fg'
+            }`}
             onClick={(): void => onViewChange('grid')}
           >
             <GridIcon />
@@ -107,7 +109,9 @@ export function CatalogToolbar(props: {
             role="radio"
             aria-checked={props.view === 'list'}
             aria-label="Lista"
-            className={props.view === 'list' ? 'is-active' : ''}
+            className={`flex h-[32px] w-[32px] items-center justify-center ${
+              props.view === 'list' ? 'bg-fg text-white' : 'bg-surface text-muted hover:text-fg'
+            }`}
             onClick={(): void => onViewChange('list')}
           >
             <ListIcon />
