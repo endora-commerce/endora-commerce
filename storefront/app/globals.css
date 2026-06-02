@@ -23,6 +23,12 @@
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css' layer(utilities);
 
+/* Map Tailwind's `dark:` variant to the storefront's runtime `.is-dark` scope (set on
+   <html>), so `dark:` utilities respond to the existing theme toggle rather than the OS
+   preference. Most components re-theme automatically via the semantic CSS-variable tokens;
+   `dark:` is for the few elements that need an explicit per-scope override. */
+@custom-variant dark (&:where(.is-dark, .is-dark *));
+
 /*
  * Semantic design-token layer (Tier 2). These theme keys are the ONLY tokens markup
  * may reference (via utilities like bg-surface / text-muted / border-line / rounded-md).
@@ -753,64 +759,7 @@ h3 { font-size: 16px; font-weight: 600; }
 /* ------------------------------------------------------------------ */
 /* Footer                                                                  */
 /* ------------------------------------------------------------------ */
-.industria-footer {
-  margin-top: 64px;
-  background: var(--ink-900);
-  color: #d4d4d8;
-  padding: 56px 0 28px;
-}
-:root.is-dark .industria-footer { background: #050507; }
-.industria-footer__grid {
-  display: grid;
-  grid-template-columns: 2fr repeat(4, 1fr);
-  gap: 32px;
-  padding-bottom: 36px;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
-}
-@media (max-width: 920px) {
-  .industria-footer__grid { grid-template-columns: 1fr 1fr; }
-}
-.industria-footer__brand .industria-header__mark { background: #fff; color: var(--ink-900); }
-.industria-footer__brand p { color: #a1a1aa; max-width: 280px; margin: 14px 0 0; line-height: 1.5; }
-.industria-footer__col h5 {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #fafafa;
-  margin: 0 0 14px;
-  font-family: var(--font-mono);
-  font-weight: 500;
-}
-.industria-footer__col a {
-  display: block;
-  padding: 5px 0;
-  color: #a1a1aa;
-  font-size: 13px;
-}
-.industria-footer__col a:hover { color: #fff; }
-.industria-footer__newsletter input {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.12);
-  color: #fff;
-  padding: 8px 10px;
-  border-radius: 6px;
-  width: 100%;
-  font-size: 13px;
-  margin-bottom: 8px;
-}
-.industria-footer__newsletter input::placeholder { color: #71717a; }
-.industria-footer__bottom {
-  padding-top: 22px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-  color: #71717a;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-.industria-footer__bottom a { color: #a1a1aa; }
-.industria-footer__bottom a:hover { color: #fff; }
+/* .industria-footer* migrated to utilities in components/Footer.tsx (feature 041) */
 
 /* ------------------------------------------------------------------ */
 /* Impersonation banner                                                   */
