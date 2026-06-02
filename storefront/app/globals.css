@@ -305,53 +305,15 @@ h3 { font-size: 16px; font-weight: 600; }
   .industria-search__kbd { @apply mr-[6px] self-center whitespace-nowrap rounded border border-line bg-surface px-[7px] py-[2px] font-mono text-[11px] leading-[1.4] text-muted; }
 }
 
-.industria-header__actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.industria-header__user {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 6px 4px 12px;
-  border-radius: var(--r-md);
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink-900);
-  font-size: 12px;
-  margin-left: 8px;
-  transition: border-color 0.12s ease;
-}
-.industria-header__user:hover { border-color: var(--line-strong); }
-.industria-header__user__avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  background: var(--brand-100);
-  color: var(--brand-700);
-  font-weight: 600;
-  font-size: 12px;
-  font-family: var(--font-mono);
-  display: inline-grid;
-  place-items: center;
-}
-.industria-header__user__name {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.15;
-}
-.industria-header__user__name strong {
-  display: block;
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--ink-900);
-}
-.industria-header__user__name em {
-  display: block;
-  font-style: normal;
-  color: var(--ink-400);
-  font-size: 11px;
+/* .industria-header__actions / __user* → @apply (feature 041) */
+@layer components {
+  .industria-header__actions { @apply flex items-center gap-1; }
+  .industria-header__user { @apply ml-2 inline-flex items-center gap-[10px] rounded-md border border-line bg-surface py-1 pl-[12px] pr-[6px] text-[12px] text-fg transition-[border-color] duration-100; }
+  .industria-header__user:hover { @apply border-line-strong; }
+  .industria-header__user__avatar { @apply inline-grid h-[32px] w-[32px] place-items-center rounded-[6px] bg-[color:var(--brand-100)] font-mono text-[12px] font-semibold text-accent; }
+  .industria-header__user__name { @apply flex flex-col leading-[1.15]; }
+  .industria-header__user__name strong { @apply block text-[13px] font-semibold text-fg; }
+  .industria-header__user__name em { @apply block text-[11px] not-italic text-subtle; }
 }
 
 /* Compare toggle floats in the product card's media area */
@@ -360,80 +322,21 @@ h3 { font-size: 16px; font-weight: 600; }
 /* ------------------------------------------------------------------ */
 /* Main nav (below header)                                               */
 /* ------------------------------------------------------------------ */
-.industria-nav {
-  position: sticky;
-  top: 72px;
-  z-index: 30;
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
+/* .industria-nav* (sticky sub-nav) → @apply (feature 041) */
+@layer components {
+  .industria-nav { @apply sticky top-[72px] z-30 border-b border-line bg-surface; }
+  .industria-nav__inner { @apply flex h-[48px] items-stretch gap-1; }
+  .industria-nav__btn { @apply inline-flex h-full items-center gap-2 border-0 border-b-2 border-b-transparent bg-transparent px-[14px] text-[13px] font-medium text-fg-soft transition-[color,border-color] duration-100; }
+  .industria-nav__btn:hover { @apply text-accent; }
+  .industria-nav__btn[aria-current="page"],
+  .industria-nav__btn.is-active { @apply border-b-accent text-accent; }
+  .industria-nav__sep { @apply mx-[6px] my-3 inline-block w-px bg-line; }
+  .industria-nav__right { @apply ml-auto flex items-center gap-2; }
+  .industria-nav__pill { @apply inline-flex items-center gap-[6px] rounded-full bg-ok-soft px-[10px] py-1 font-mono text-[11px] font-medium text-ok; }
+  .industria-nav__pill__dot { @apply h-[6px] w-[6px] rounded-full bg-current; }
+  .industria-nav__btn--primary { @apply ml-1 h-[32px] self-center rounded-sm border-b-0 bg-[color:var(--ink-900)] px-[14px] text-white; }
+  .industria-nav__btn--primary:hover { @apply bg-[color:var(--ink-800)] text-white; }
 }
-.industria-nav__inner {
-  display: flex;
-  align-items: stretch;
-  height: 48px;
-  gap: 4px;
-}
-.industria-nav__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 14px;
-  height: 100%;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ink-700);
-  border: 0;
-  background: transparent;
-  border-bottom: 2px solid transparent;
-  transition: color 0.12s ease, border-color 0.12s ease;
-}
-.industria-nav__btn:hover { color: var(--brand-700); }
-.industria-nav__btn[aria-current="page"],
-.industria-nav__btn.is-active {
-  color: var(--brand-700);
-  border-bottom-color: var(--brand-700);
-}
-.industria-nav__sep {
-  width: 1px;
-  background: var(--line);
-  margin: 12px 6px;
-  display: inline-block;
-}
-.industria-nav__right {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.industria-nav__pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: var(--ok-50);
-  color: var(--ok-700);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
-}
-.industria-nav__pill__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-.industria-nav__btn--primary {
-  align-self: center;
-  height: 32px;
-  padding: 0 14px;
-  background: var(--ink-900);
-  color: #fff;
-  border-bottom: 0;
-  border-radius: var(--r-sm);
-  margin-left: 4px;
-}
-.industria-nav__btn--primary:hover { background: var(--ink-800); color: #fff; }
 
 /* ------------------------------------------------------------------ */
 /* Megamenu — full-width dropdown panel under the "Wszystkie kategorie" */
