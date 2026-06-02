@@ -84,7 +84,7 @@ export function CategoriesMega({ megamenu }: CategoriesMegaProps): ReactNode {
       </button>
 
       <div className={'industria-mega' + (open ? ' is-open' : '')}>
-        <div className="container">
+        <div className="mx-auto max-w-[1360px] px-[24px]">
           <div className="industria-mega__grid">
             {/* Departments */}
             <div className="industria-mega__col">

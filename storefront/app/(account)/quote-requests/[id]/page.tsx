@@ -41,7 +41,7 @@ export default async function QuoteRequestDetailPage({
   } catch (err) {
     if (err instanceof StorefrontApiError && err.status === 404) {
       return (
-        <div className="container" style={{ paddingTop: 24, paddingBottom: 48 }}>
+        <div className="mx-auto max-w-[1360px] px-[24px]" style={{ paddingTop: 24, paddingBottom: 48 }}>
           <p className="muted">Nie znaleziono zapytania ofertowego.</p>
           <Link href="/account/quote-requests" className="btn btn--outline btn--sm">
             ← Lista zapytań
@@ -61,7 +61,7 @@ export default async function QuoteRequestDetailPage({
   const currency = rfq.items[0]?.lineCurrency ?? 'PLN';
 
   return (
-    <div className="container" style={{ paddingTop: 24, paddingBottom: 48 }}>
+    <div className="mx-auto max-w-[1360px] px-[24px]" style={{ paddingTop: 24, paddingBottom: 48 }}>
       <Link href="/account/quote-requests" className="btn btn--ghost btn--sm" style={{ marginBottom: 8 }}>
         ← Lista zapytań
       </Link>

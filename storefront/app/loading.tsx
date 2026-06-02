@@ -10,7 +10,7 @@ export default function Loading(): ReactNode {
   return (
     <>
       <div className="b2b-progress" aria-hidden="true" />
-      <div className="container" style={{ padding: '32px 24px' }}>
+      <div className="mx-auto max-w-[1360px] px-[24px]" style={{ padding: '32px 24px' }}>
         <div className="b2b-skel b2b-skel--text b2b-skel-card__line--short" style={{ marginBottom: 14 }} />
         <div className="b2b-skel b2b-skel--line b2b-skel-card__line--mid" style={{ marginBottom: 24, height: 24 }} />
         <div className="b2b-skel b2b-skel--block" style={{ minHeight: 320 }} />

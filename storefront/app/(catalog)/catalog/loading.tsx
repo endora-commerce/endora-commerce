@@ -10,7 +10,7 @@ export default function CatalogLoading(): ReactNode {
   return (
     <>
       <div className="b2b-progress" aria-hidden="true" />
-      <div className="container" style={{ padding: '24px 24px 48px' }}>
+      <div className="mx-auto max-w-[1360px] px-[24px]" style={{ padding: '24px 24px 48px' }}>
         <div
           className="b2b-skel b2b-skel--line b2b-skel-card__line--short"
           style={{ height: 28, marginBottom: 18 }}

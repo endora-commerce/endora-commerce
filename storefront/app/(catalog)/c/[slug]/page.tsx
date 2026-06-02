@@ -50,7 +50,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
   );
 
   return (
-    <div className="container">
+    <div className="mx-auto max-w-[1360px] px-[24px]">
       <Breadcrumbs
         crumbs={[
           { href: '/', label: t('nav.home') },

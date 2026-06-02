@@ -89,7 +89,7 @@ export default async function CartPage({
 
   if (cart.items.length === 0) {
     return (
-      <div className="container">
+      <div className="mx-auto max-w-[1360px] px-[24px]">
         <Breadcrumbs strings={strings.breadcrumbs} />
         <div className="cart-empty">
           <h1>{strings.heading}</h1>
@@ -106,7 +106,7 @@ export default async function CartPage({
   const submitForApprovalNeeded = requiresApproval && cart.approvalStatus === 'not_required';
 
   return (
-    <div className="container cart-page">
+    <div className="mx-auto max-w-[1360px] px-[24px] cart-page">
       <Breadcrumbs strings={strings.breadcrumbs} />
       <header className="cart-page__head">
         <div>

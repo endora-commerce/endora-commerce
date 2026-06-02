@@ -36,9 +36,11 @@
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-alt: var(--surface-alt);
-  --color-text: var(--ink-900);
-  --color-text-muted: var(--ink-500);
-  --color-text-subtle: var(--ink-400);
+  /* Named so the generated text-colour utilities read cleanly: text-fg / text-muted /
+     text-subtle (a `--color-text-muted` token would instead yield `text-text-muted`). */
+  --color-fg: var(--ink-900);
+  --color-muted: var(--ink-500);
+  --color-subtle: var(--ink-400);
 
   /* Hairlines → border-* */
   --color-line: var(--line);
@@ -195,34 +197,20 @@ h3 { font-size: 16px; font-weight: 600; }
 }
 .b2b-shell__main { flex: 1; }
 
-.container {
-  max-width: 1360px;
-  margin: 0 auto;
-  padding: 0 24px;
-}
+/* .container migrated to utilities in markup (mx-auto max-w-[1360px] px-[24px]) — feature 041.
+   It is NOT kept as a component class because it collides with Tailwind's own `container`
+   utility (which lives in @layer utilities and would override an @layer components rule). */
 
-.section {
-  padding: 56px 0;
+/* .section* migrated to Tailwind via @apply (feature 041); class API unchanged. */
+@layer components {
+  .section { @apply py-[56px]; }
+  .section__head { @apply mb-[28px] flex items-end justify-between gap-[24px]; }
+  .section__eyebrow {
+    @apply mb-[8px] inline-block font-mono text-[11px] uppercase tracking-[0.08em] text-muted;
+  }
+  .section__head h2 { @apply m-0; }
+  .section__head p { @apply mx-0 mb-0 mt-[6px] max-w-[540px] text-muted; }
 }
-
-.section__head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 24px;
-  margin-bottom: 28px;
-}
-.section__eyebrow {
-  display: inline-block;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: var(--ink-500);
-  text-transform: uppercase;
-  margin-bottom: 8px;
-}
-.section__head h2 { margin: 0; }
-.section__head p { color: var(--ink-500); margin: 6px 0 0; max-width: 540px; }
 
 /* ------------------------------------------------------------------ */
 /* Buttons                                                              */

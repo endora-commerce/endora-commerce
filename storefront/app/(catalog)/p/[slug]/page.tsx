@@ -128,7 +128,7 @@ export default async function ProductPage({
       : null;
 
   return (
-    <div className="container industria-pdp">
+    <div className="mx-auto max-w-[1360px] px-[24px] industria-pdp">
       <Breadcrumbs
         crumbs={[
           { href: '/', label: t('nav.home') },

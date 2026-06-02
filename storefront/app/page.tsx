@@ -45,7 +45,7 @@ export default async function HomePage(): Promise<ReactNode> {
     <>
       <Hook code="homepage.top" />
       <section className="industria-hero">
-        <div className="container industria-hero__inner">
+        <div className="mx-auto max-w-[1360px] px-[24px] industria-hero__inner">
           <div>
             <span className="industria-hero__eyebrow">
               <span className="dot" /> 120 000+ SKU · 84 producentów · wysyłka dziś
@@ -130,7 +130,7 @@ export default async function HomePage(): Promise<ReactNode> {
         </div>
       </section>
 
-      <section className="container section">
+      <section className="mx-auto max-w-[1360px] px-[24px] section">
         <div className="section__head">
           <div>
             <span className="section__eyebrow">01 / Asortyment</span>
@@ -161,7 +161,7 @@ export default async function HomePage(): Promise<ReactNode> {
         </div>
       </section>
 
-      <section className="container section" style={{ paddingTop: 0 }}>
+      <section className="mx-auto max-w-[1360px] px-[24px] section" style={{ paddingTop: 0 }}>
         <div className="industria-features">
           <div className="industria-feature">
             <div className="industria-feature__icon"><TruckIcon size={20} /></div>
@@ -195,7 +195,7 @@ export default async function HomePage(): Promise<ReactNode> {
       </section>
 
       {products.data.length > 0 ? (
-        <section className="container section">
+        <section className="mx-auto max-w-[1360px] px-[24px] section">
           <div className="section__head">
             <div>
               <span className="section__eyebrow">02 / Bestsellery</span>

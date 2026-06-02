@@ -22,7 +22,7 @@ export function Footer(props: {
 
   return (
     <footer className="industria-footer">
-      <div className="container">
+      <div className="mx-auto max-w-[1360px] px-[24px]">
         {props.top}
         <div className="industria-footer__grid">
           <div className="industria-footer__brand">

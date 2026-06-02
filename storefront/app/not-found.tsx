@@ -34,7 +34,7 @@ export default async function NotFound(): Promise<ReactNode> {
       : FALLBACK_CATEGORIES;
 
   return (
-    <section className="container section industria-404">
+    <section className="mx-auto max-w-[1360px] px-[24px] section industria-404">
       <div className="industria-404__inner">
         <div className="industria-404__copy">
           <span className="industria-404__eyebrow">
