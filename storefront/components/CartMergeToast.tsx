@@ -28,7 +28,7 @@ export async function CartMergeToast(): Promise<ReactNode> {
     <div
       role="status"
       aria-live="polite"
-      className="b2b-cart-merge-toast"
+      className="border-b border-line bg-ok-soft px-[16px] py-[10px] text-[13px] text-ok"
       data-testid="cart-merge-toast"
       data-outcome={outcome}
     >

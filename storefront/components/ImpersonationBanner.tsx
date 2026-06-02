@@ -21,16 +21,7 @@ export function ImpersonationBanner(props: ImpersonationBannerProps): ReactNode 
   return (
     <div
       role="alert"
-      className="b2b-impersonation"
-      style={{
-        background: 'var(--b2b-color-warning, #b45309)',
-        color: '#fff',
-        padding: '8px 16px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 12,
-      }}
+      className="flex items-center justify-between gap-3 bg-warn px-[16px] py-[8px] text-white"
     >
       <span>
         <strong>Support session active.</strong> An administrator (
@@ -40,14 +31,7 @@ export function ImpersonationBanner(props: ImpersonationBannerProps): ReactNode 
       <form action={endPath} method="post">
         <button
           type="submit"
-          style={{
-            background: '#fff',
-            color: 'var(--b2b-color-text)',
-            border: 0,
-            padding: '4px 12px',
-            borderRadius: 4,
-            cursor: 'pointer',
-          }}
+          className="cursor-pointer rounded border-0 bg-white px-[12px] py-[4px] text-fg"
         >
           End support session
         </button>

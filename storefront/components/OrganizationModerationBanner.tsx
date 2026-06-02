@@ -29,17 +29,15 @@ export function OrganizationModerationBanner(
     <div
       role="status"
       aria-live="polite"
-      className="b2b-org-moderation-banner"
+      className="mb-4 rounded-md border px-[16px] py-[12px]"
+      // Colours are status-driven (dynamic palette) — kept inline per the dynamic-styles rule.
       style={{
         background: palette.background,
-        border: `1px solid ${palette.border}`,
+        borderColor: palette.border,
         color: palette.text,
-        padding: '12px 16px',
-        borderRadius: 6,
-        marginBottom: 16,
       }}
     >
-      <strong style={{ display: 'block', marginBottom: 4 }}>{palette.title}</strong>
+      <strong className="mb-1 block">{palette.title}</strong>
       <span>{props.message}</span>
     </div>
   );
