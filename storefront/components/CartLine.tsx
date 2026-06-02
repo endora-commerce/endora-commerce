@@ -94,7 +94,7 @@ export function CartLine({
           <input type="hidden" name="itemId" value={line.id} />
           <button
             type="submit"
-            className="cursor-pointer border-0 bg-none p-0 text-[11px] text-muted underline underline-offset-2"
+            className="cursor-pointer border-0 bg-transparent p-0 text-[11px] text-muted underline underline-offset-2"
           >
             {strings.saveToListLabel}
           </button>
