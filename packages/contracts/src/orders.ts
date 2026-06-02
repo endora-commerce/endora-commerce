@@ -307,25 +307,101 @@ export const adminCreateOrderItemSchema = z.object({
   quantity: z.number().int().positive(),
 });
 
-export const adminCreateOrderRequestSchema = z.object({
+/**
+ * A brand-new address typed inline on the admin create-order form, instead of
+ * picking an existing one from the customer's organization address book. The
+ * address is always snapshotted onto the order; `saveToAddressBook` controls
+ * whether it is also persisted to the org book for reuse (false = one-time).
+ */
+export const adminCreateOrderInlineAddressSchema = z.object({
+  recipientName: z.string().min(1).max(160),
+  street: z.string().min(1).max(255),
+  city: z.string().min(1).max(120),
+  postalCode: z.string().min(1).max(20),
+  country: z.string().length(2),
+  phone: z.string().max(32).optional(),
+  saveToAddressBook: z.boolean(),
+});
+export type AdminCreateOrderInlineAddress = z.infer<typeof adminCreateOrderInlineAddressSchema>;
+
+export const adminCreateOrderRequestSchema = z
+  .object({
+    customerAccountId: uuidSchema,
+    salesChannelId: uuidSchema,
+    items: z.array(adminCreateOrderItemSchema).min(1),
+    deliveryMethodId: uuidSchema,
+    paymentMethodId: uuidSchema,
+    /**
+     * Per address side, supply EITHER an existing org address id OR an inline
+     * new address — exactly one of each pair (enforced below). The id path is
+     * the original US3 behavior; the inline path is the create-new-address flow.
+     */
+    deliveryAddressId: uuidSchema.optional(),
+    billingAddressId: uuidSchema.optional(),
+    deliveryAddress: adminCreateOrderInlineAddressSchema.optional(),
+    billingAddress: adminCreateOrderInlineAddressSchema.optional(),
+    customerNote: z.string().max(4000).optional(),
+    comment: z
+      .object({
+        body: z.string().min(1).max(8000),
+        isCustomerVisible: z.boolean(),
+        notifyCustomer: z.boolean(),
+      })
+      .optional(),
+  })
+  .superRefine((val, ctx) => {
+    if ((val.deliveryAddressId == null) === (val.deliveryAddress == null)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['deliveryAddressId'],
+        message: 'Provide exactly one of deliveryAddressId or deliveryAddress.',
+      });
+    }
+    if ((val.billingAddressId == null) === (val.billingAddress == null)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['billingAddressId'],
+        message: 'Provide exactly one of billingAddressId or billingAddress.',
+      });
+    }
+  });
+export type AdminCreateOrderRequest = z.infer<typeof adminCreateOrderRequestSchema>;
+
+// --- Admin order pricing preview (live summary on the create form) ---------
+
+export const adminOrderPreviewRequestSchema = z.object({
   customerAccountId: uuidSchema,
   salesChannelId: uuidSchema,
   items: z.array(adminCreateOrderItemSchema).min(1),
-  deliveryMethodId: uuidSchema,
-  paymentMethodId: uuidSchema,
-  /** The customer's saved addresses to use for this order (US3). */
-  deliveryAddressId: uuidSchema,
-  billingAddressId: uuidSchema,
-  customerNote: z.string().max(4000).optional(),
-  comment: z
-    .object({
-      body: z.string().min(1).max(8000),
-      isCustomerVisible: z.boolean(),
-      notifyCustomer: z.boolean(),
-    })
-    .optional(),
+  deliveryMethodId: uuidSchema.optional(),
+  paymentMethodId: uuidSchema.optional(),
 });
-export type AdminCreateOrderRequest = z.infer<typeof adminCreateOrderRequestSchema>;
+export type AdminOrderPreviewRequest = z.infer<typeof adminOrderPreviewRequestSchema>;
+
+export const adminOrderPreviewLineSchema = z.object({
+  productId: uuidSchema,
+  variantId: z.string().nullable().optional(),
+  quantity: z.number().int().positive(),
+  unitPrice: z.string(),
+  currency: z.string(),
+  lineTotal: z.number(),
+  unavailable: z.boolean().optional(),
+});
+
+export const adminOrderPreviewResponseSchema = z.object({
+  lines: z.array(adminOrderPreviewLineSchema),
+  summary: z.object({
+    subtotal: z.number(),
+    taxTotal: z.number(),
+    deliveryTotal: z.number(),
+    paymentSurcharge: z.number(),
+    discountTotal: z.number(),
+    total: z.number(),
+    currency: z.string(),
+  }),
+  messages: z.array(z.object({ productId: uuidSchema, code: z.string() })),
+});
+export type AdminOrderPreviewResponse = z.infer<typeof adminOrderPreviewResponseSchema>;
 
 // --- Comments --------------------------------------------------------------
 

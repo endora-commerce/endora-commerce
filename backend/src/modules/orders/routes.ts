@@ -3,6 +3,7 @@ import {
   adminAddOrderCommentRequestSchema,
   adminCreateOrderRequestSchema,
   adminOrderPaymentStatusTransitionSchema,
+  adminOrderPreviewRequestSchema,
   adminOrdersListQuerySchema,
   adminOrderStatusTransitionSchema,
   bulkOrderStatusRequestSchema,
@@ -37,6 +38,13 @@ import { Asset } from '../assets_library/entities/asset.entity.js';
 import { buildBulkInvoicesPdf, buildMinimalInvoicePdf } from '../invoices/services/invoice-pdf.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import { OrganizationCannotTransactError } from '../organizations/services/organization-context-service.js';
+import type { PricingService } from '../price_lists/services/pricing-service.js';
+import { Product } from '../catalog/entities/product.entity.js';
+import { Organization } from '../organizations/entities/organization.entity.js';
+import { SalesChannel } from '../sales_channels/entities/sales-channel.entity.js';
+import { DeliveryMethod } from '../delivery_methods/entities/delivery-method.entity.js';
+import { PaymentMethod } from '../payment_methods/entities/payment-method.entity.js';
+import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
 
 export interface OrdersDeps {
   orderService: OrderService;
@@ -55,6 +63,12 @@ export interface OrdersDeps {
   orderCloneToQuoteService: OrderCloneToQuoteService;
   /** Feature 038 US3 — create an order on behalf of a customer. */
   orderCreationAdminService: OrderCreationAdminService;
+  /**
+   * Feature 038 US3 — pricing engine, used by the read-only create-order
+   * preview to resolve per-line prices for the chosen customer/channel. When
+   * absent the preview endpoint returns a graceful zeroed summary.
+   */
+  pricingService?: PricingService;
   emFactory: () => EntityManager;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   requireAdmin: RequireAdminFactory;
@@ -324,6 +338,145 @@ export async function registerOrderRoutes(
       const order = await deps.orderCreationAdminService.create(resolveAdminUserId(request), body);
       reply.code(201);
       return { data: await serializeOrder(emFactory(), order) };
+    },
+  );
+
+  // Read-only pricing preview for the create-order form (US3). Mirrors
+  // placeOrder's loads + totals math (order-service.ts) so the previewed
+  // summary matches the order that will be created. Creates nothing.
+  app.post(
+    '/api/v1/admin/orders/preview',
+    { preHandler: requireAdmin('orders:write'), schema: { body: adminOrderPreviewRequestSchema } },
+    async (request) => {
+      const body = adminOrderPreviewRequestSchema.parse(request.body);
+      const em = emFactory();
+
+      const customer = await em.findOne(CustomerAccount, { id: body.customerAccountId });
+      if (!customer) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');
+      if (!customer.organizationId) {
+        throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Customer has no organization.');
+      }
+      // Resolve the channel like placeOrder does — prefer the requested one,
+      // fall back to an active channel so the preview never hard-fails on a
+      // stale/legacy id (the price context still resolves sensibly).
+      const salesChannel =
+        (await em.findOne(SalesChannel, { id: body.salesChannelId })) ??
+        (await em.findOne(SalesChannel, { status: 'active' }));
+      if (!salesChannel) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Sales channel not found.');
+      const organization = await em.findOne(Organization, { id: customer.organizationId });
+      const deliveryMethod = body.deliveryMethodId
+        ? await em.findOne(DeliveryMethod, { id: body.deliveryMethodId })
+        : null;
+      const paymentMethod = body.paymentMethodId
+        ? await em.findOne(PaymentMethod, { id: body.paymentMethodId })
+        : null;
+
+      const currency = deliveryMethod?.currency ?? salesChannel.defaultCurrency;
+      const customerGroupId = customer.customerGroupId ?? organization?.customerGroupId ?? null;
+
+      const lines: Array<{
+        productId: string;
+        variantId: string | null;
+        quantity: number;
+        unitPrice: string;
+        currency: string;
+        lineTotal: number;
+        unavailable?: boolean;
+      }> = [];
+      const messages: Array<{ productId: string; code: string }> = [];
+      let subtotal = 0;
+
+      for (const it of body.items) {
+        const product = await em.findOne(Product, { id: it.productId });
+        if (!product) {
+          messages.push({ productId: it.productId, code: 'PRODUCT_NOT_FOUND' });
+          lines.push({
+            productId: it.productId,
+            variantId: it.variantId ?? null,
+            quantity: it.quantity,
+            unitPrice: '0',
+            currency,
+            lineTotal: 0,
+            unavailable: true,
+          });
+          continue;
+        }
+
+        const resolved = deps.pricingService
+          ? await deps.pricingService.resolveLinePrice({
+              product,
+              variantId: it.variantId ?? null,
+              context: {
+                quantity: it.quantity,
+                organization: organization ?? null,
+                customerGroupId,
+                salesChannel,
+                currencyCode: currency,
+              },
+            })
+          : null;
+
+        // Quote-only products (displayMode 'none') cannot be ordered directly —
+        // CartService rejects them at add time, so the preview flags them.
+        if (resolved && resolved.displayMode === 'none') {
+          messages.push({ productId: it.productId, code: 'QUOTE_ONLY' });
+          lines.push({
+            productId: it.productId,
+            variantId: it.variantId ?? null,
+            quantity: it.quantity,
+            unitPrice: '0',
+            currency: resolved.currency,
+            lineTotal: 0,
+            unavailable: true,
+          });
+          continue;
+        }
+
+        // Mirror CartService.addItem: resolved engine price, else the legacy
+        // `defaultPrice` / `price` attribute fallback (so preview == order).
+        const unitPrice = resolved
+          ? Number(resolved.amount).toFixed(2)
+          : Number(
+              (product.attributeValues?.['defaultPrice'] as number | string | undefined) ??
+                (product.attributeValues?.['price'] as number | string | undefined) ??
+                0,
+            ).toFixed(2);
+        const lineCurrency = resolved?.currency ?? currency;
+        subtotal += Number(unitPrice) * it.quantity;
+        lines.push({
+          productId: it.productId,
+          variantId: it.variantId ?? null,
+          quantity: it.quantity,
+          unitPrice,
+          currency: lineCurrency,
+          lineTotal: Math.round(Number(unitPrice) * it.quantity * 100) / 100,
+        });
+      }
+
+      // Same expressions as placeOrder (order-service.ts:686/722-725).
+      const taxRate = 0.23;
+      const taxTotal = Math.round(subtotal * taxRate * 100) / 100;
+      const deliveryTotal = deliveryMethod ? Number(deliveryMethod.cost) : 0;
+      const paymentSurcharge = paymentMethod ? Number(paymentMethod.additionalPrice ?? '0') : 0;
+      const discountTotal = 0;
+      const total =
+        Math.round((subtotal + taxTotal + deliveryTotal + paymentSurcharge - discountTotal) * 100) / 100;
+
+      return {
+        data: {
+          lines,
+          summary: {
+            subtotal: Math.round(subtotal * 100) / 100,
+            taxTotal,
+            deliveryTotal,
+            paymentSurcharge,
+            discountTotal,
+            total,
+            currency,
+          },
+          messages,
+        },
+      };
     },
   );
 
