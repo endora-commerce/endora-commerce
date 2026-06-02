@@ -342,94 +342,24 @@ h3 { font-size: 16px; font-weight: 600; }
 /* Megamenu — full-width dropdown panel under the "Wszystkie kategorie" */
 /* trigger (ported from the Industria storefront-ui design spec).         */
 /* ------------------------------------------------------------------ */
-.industria-mega-wrap {
-  display: inline-flex;
-  align-items: stretch;
-}
-.industria-mega {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
-  box-shadow: var(--shadow-lg);
-  padding: 28px 0;
-  display: none;
-  z-index: 40;
-}
-.industria-mega.is-open { display: block; }
-.industria-mega__grid {
-  display: grid;
-  grid-template-columns: 220px 1fr 280px;
-  gap: 32px;
-}
-.industria-mega__col { min-width: 0; }
-.industria-mega__list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.industria-mega__list a {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  color: var(--ink-700);
-  transition: background 0.1s;
-}
-.industria-mega__list a:hover,
-.industria-mega__list a[aria-current="true"] {
-  background: var(--surface-alt);
-  color: var(--brand-700);
-}
-.industria-mega__list a span {
-  color: var(--ink-300);
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
-.industria-mega__heading {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-400);
-  margin: 0 12px 10px;
-}
-.industria-mega__cols {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-}
-.industria-mega__promo {
-  background: var(--surface-alt);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.industria-mega__promo h4 { margin: 0; font-size: 14px; }
-.industria-mega__promo p { margin: 0; font-size: 12px; color: var(--ink-500); }
-.industria-mega__promo__cta {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--brand-700);
-  font-weight: 500;
-  font-size: 12px;
-}
-/* Below the nav's desktop breakpoint the panel collapses; the trigger
-   stays as a plain link to the catalog. */
-@media (max-width: 920px) {
-  .industria-mega { display: none !important; }
-  .industria-mega__grid { grid-template-columns: 1fr; }
+/* .industria-mega* megamenu panel → @apply (feature 041; markup untouched — hydrated). */
+@layer components {
+  .industria-mega-wrap { @apply inline-flex items-stretch; }
+  .industria-mega { @apply absolute left-0 right-0 top-full z-40 hidden border-b border-line bg-surface py-[28px] shadow-lg max-[920px]:!hidden; }
+  .industria-mega.is-open { @apply block; }
+  .industria-mega__grid { @apply grid grid-cols-[220px_1fr_280px] gap-8 max-[920px]:grid-cols-1; }
+  .industria-mega__col { @apply min-w-0; }
+  .industria-mega__list { @apply m-0 flex list-none flex-col gap-[2px] p-0; }
+  .industria-mega__list a { @apply flex items-center justify-between rounded-[6px] px-[12px] py-[8px] text-[13px] text-fg-soft transition-[background] duration-100; }
+  .industria-mega__list a:hover,
+  .industria-mega__list a[aria-current="true"] { @apply bg-surface-alt text-accent; }
+  .industria-mega__list a span { @apply font-mono text-[11px] text-line-strong; }
+  .industria-mega__heading { @apply mx-[12px] mb-[10px] text-[11px] font-semibold uppercase tracking-[0.12em] text-subtle; }
+  .industria-mega__cols { @apply grid grid-cols-3 gap-6; }
+  .industria-mega__promo { @apply flex flex-col gap-[10px] rounded-md border border-line bg-surface-alt p-[18px]; }
+  .industria-mega__promo h4 { @apply m-0 text-[14px]; }
+  .industria-mega__promo p { @apply m-0 text-[12px] text-muted; }
+  .industria-mega__promo__cta { @apply inline-flex items-center gap-[6px] text-[12px] font-medium text-accent; }
 }
 
 /* ------------------------------------------------------------------ */
