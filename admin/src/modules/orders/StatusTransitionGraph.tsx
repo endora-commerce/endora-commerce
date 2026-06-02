@@ -39,7 +39,7 @@ interface Props {
   t: (key: string, params?: Record<string, string | number>) => string;
 }
 
-type GraphLayout = 'force' | 'circular';
+type GraphLayout = 'force' | 'circular' | 'none';
 
 interface GraphParams {
   dataType?: 'node' | 'edge';
@@ -63,7 +63,7 @@ export function StatusTransitionGraph({
   onRemove,
   t,
 }: Props): ReactNode {
-  const [layout, setLayout] = useState<GraphLayout>('force');
+  const [layout, setLayout] = useState<GraphLayout>('none');
   const [connectMode, setConnectMode] = useState(false);
   const [pendingFrom, setPendingFrom] = useState<string | null>(null);
   const [selected, setSelected] = useState<TransitionDef | null>(null);
@@ -83,6 +83,59 @@ export function StatusTransitionGraph({
   );
 
   const option = useMemo<EChartsOption>(() => {
+    // With no automatic layout, ECharts needs explicit coordinates. Lay the
+    // graph out left→right by lifecycle flow: initial status on the left,
+    // terminal statuses on the right, the rest ranked by their shortest
+    // transition distance from an initial status. Nodes stay where dragged.
+    const coordByCode = new Map<string, { x: number; y: number }>();
+    if (layout === 'none') {
+      const adjacency = new Map<string, string[]>();
+      for (const tr of transitions) {
+        const out = adjacency.get(tr.fromStatusCode) ?? [];
+        out.push(tr.toStatusCode);
+        adjacency.set(tr.fromStatusCode, out);
+      }
+      // BFS shortest distance from the initial status set (cycle-safe).
+      const col = new Map<string, number>();
+      const queue: string[] = [];
+      for (const s of statuses)
+        if (s.isInitial) {
+          col.set(s.code, 0);
+          queue.push(s.code);
+        }
+      while (queue.length > 0) {
+        const cur = queue.shift() as string;
+        const depth = col.get(cur) as number;
+        for (const next of adjacency.get(cur) ?? [])
+          if (!col.has(next)) {
+            col.set(next, depth + 1);
+            queue.push(next);
+          }
+      }
+      // Unreachable statuses (no path from an initial) sit one column in.
+      let maxNonTerminal = 0;
+      for (const s of statuses) {
+        if (!col.has(s.code)) col.set(s.code, 1);
+        if (!s.isTerminal) maxNonTerminal = Math.max(maxNonTerminal, col.get(s.code) as number);
+      }
+      // Terminal statuses are pinned to the rightmost column.
+      const hasTerminal = statuses.some((s) => s.isTerminal);
+      const terminalCol = hasTerminal ? maxNonTerminal + 1 : maxNonTerminal;
+      for (const s of statuses) if (s.isTerminal) col.set(s.code, terminalCol);
+      // Spread nodes vertically within each column, centred.
+      const byCol = new Map<number, string[]>();
+      for (const s of statuses) {
+        const c = col.get(s.code) as number;
+        const bucket = byCol.get(c) ?? [];
+        bucket.push(s.code);
+        byCol.set(c, bucket);
+      }
+      for (const [c, codes] of byCol)
+        codes.forEach((code, j) => {
+          coordByCode.set(code, { x: c * 220, y: (j - (codes.length - 1) / 2) * 120 });
+        });
+    }
+
     const nodes = statuses.map((s) => {
       const flags = [
         s.isInitial ? t('orderStatusConfig.flag.initial') : null,
@@ -92,11 +145,13 @@ export function StatusTransitionGraph({
         .filter(Boolean)
         .join(', ');
       const fill = s.isInitial ? COLOR_INITIAL : s.isTerminal ? COLOR_TERMINAL : COLOR_NORMAL;
+      const coords = coordByCode.get(s.code) ?? {};
       return {
         name: s.code,
         label: statusLabel(s),
         flags,
         symbolSize: 22,
+        ...coords,
         itemStyle: {
           color: fill,
           borderColor: s.isSystem ? COLOR_SYSTEM_BORDER : 'transparent',
@@ -223,6 +278,13 @@ export function StatusTransitionGraph({
           <span className="text-sm text-muted-foreground">{connectHint}</span>
         ) : null}
         <div className="ml-auto flex items-center gap-1">
+          <Button
+            variant={layout === 'none' ? 'default' : 'outline'}
+            size="sm"
+            onClick={(): void => setLayout('none')}
+          >
+            {t('orderStatusConfig.graph.layoutNone')}
+          </Button>
           <Button
             variant={layout === 'force' ? 'default' : 'outline'}
             size="sm"

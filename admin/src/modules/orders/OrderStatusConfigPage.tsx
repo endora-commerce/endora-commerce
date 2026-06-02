@@ -66,6 +66,9 @@ export function OrderStatusConfigPage(): ReactNode {
   const [editDefaultName, setEditDefaultName] = useState('');
   const [editNames, setEditNames] = useState<Record<string, string>>({});
 
+  // Status pending deletion — drives the confirmation dialog.
+  const [pendingDelete, setPendingDelete] = useState<StatusDef | null>(null);
+
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
@@ -143,7 +146,10 @@ export function OrderStatusConfigPage(): ReactNode {
     });
   };
 
-  const deleteStatus = (code: string): void => {
+  const confirmDelete = (): void => {
+    const code = pendingDelete?.code;
+    if (!code) return;
+    setPendingDelete(null);
     void run(() => apiClient.delete(`/api/v1/admin/orders/statuses/${code}`));
   };
 
@@ -164,7 +170,10 @@ export function OrderStatusConfigPage(): ReactNode {
     );
   };
 
-  if (loading) return <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>;
+  // Only blank the page on the very first load; subsequent refetches (after a
+  // mutation) keep the page mounted and update the table + graph in place.
+  if (loading && !graph)
+    return <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>;
 
   const statuses = graph?.statuses ?? [];
 
@@ -276,7 +285,7 @@ export function OrderStatusConfigPage(): ReactNode {
                         size="sm"
                         disabled={locked}
                         aria-label={`delete-${s.code}`}
-                        onClick={(): void => deleteStatus(s.code)}
+                        onClick={(): void => setPendingDelete(s)}
                       >
                         <Trash2 />
                       </Button>
@@ -351,6 +360,32 @@ export function OrderStatusConfigPage(): ReactNode {
           />
         </CardContent>
       </Card>
+
+      {pendingDelete ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-lg">
+            <h2 className="mb-2 text-lg font-semibold">
+              {t('orderStatusConfig.deleteConfirm.title')}
+            </h2>
+            <p className="mb-6 text-sm text-muted-foreground">
+              {t('orderStatusConfig.deleteConfirm.body', { name: statusLabel(pendingDelete) })}
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={(): void => setPendingDelete(null)}>
+                {t('common.action.cancel')}
+              </Button>
+              <Button variant="destructive" onClick={confirmDelete}>
+                <Trash2 />
+                {t('common.action.delete')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }
