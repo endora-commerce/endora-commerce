@@ -12,6 +12,66 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
 
+/*
+ * TailwindCSS v4 — theme + utility layers only. Preflight (Tailwind's global reset)
+ * is intentionally NOT imported: this storefront keeps its own reset/base below
+ * (the Industria base), so activating Tailwind introduces no global reset change and
+ * therefore no visual diff. Migrating markup to utilities happens incrementally; the
+ * border-utility compatibility shim is added alongside the first border migration.
+ */
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+/*
+ * Semantic design-token layer (Tier 2). These theme keys are the ONLY tokens markup
+ * may reference (via utilities like bg-surface / text-muted / border-line / rounded-md).
+ * `inline` makes each generated utility reference the underlying CSS variable rather
+ * than freezing its value, so the runtime `.is-dark` scope (and any future
+ * `[data-theme]`) re-themes every utility with no rebuild (FR-003 / FR-003a).
+ * Right-hand sides point at the Tier-1 primitives defined in :root / :root.is-dark.
+ */
+@theme inline {
+  /* Surfaces & text → bg-* / text-* */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-alt: var(--surface-alt);
+  --color-text: var(--ink-900);
+  --color-text-muted: var(--ink-500);
+  --color-text-subtle: var(--ink-400);
+
+  /* Hairlines → border-* */
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  /* Brand / accent */
+  --color-accent: var(--brand-700);
+  --color-accent-hover: var(--brand-900);
+  --color-accent-soft: var(--brand-50);
+
+  /* Status (foreground + soft background) */
+  --color-ok: var(--ok-700);
+  --color-ok-soft: var(--ok-100);
+  --color-warn: var(--warn-700);
+  --color-warn-soft: var(--warn-100);
+  --color-bad: var(--bad-700);
+  --color-bad-soft: var(--bad-100);
+
+  /* Radii → rounded-* (overrides Tailwind defaults with the Industria scale) */
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+
+  /* Elevation → shadow-* */
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  /* Type → font-* */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
 :root {
   /* Brand (indigo by default) */
   --brand-50:  #eff6ff;

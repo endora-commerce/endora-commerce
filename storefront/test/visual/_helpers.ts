@@ -13,10 +13,16 @@ export async function settle(page: Page): Promise<void> {
       await (document as Document & { fonts: FontFaceSet }).fonts.ready;
     }
   });
-  // Disable CSS animations/transitions for deterministic capture.
+  // Deterministic capture:
+  //  - disable any residual CSS animations/transitions;
+  //  - hide transient, fixed-position global toasts (e.g. the cart-merge toast) that
+  //    appear intermittently. They are position:fixed, so hiding them does not reflow
+  //    page content — it only removes non-deterministic overlay pixels.
   await page.addStyleTag({
-    content:
-      '*, *::before, *::after { transition: none !important; animation: none !important; }',
+    content: `
+      *, *::before, *::after { transition: none !important; animation: none !important; }
+      .b2b-cart-merge-toast, [data-testid="cart-merge-toast"] { display: none !important; }
+    `,
   });
 }
 
