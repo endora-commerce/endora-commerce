@@ -40,7 +40,7 @@ export async function seedCreditLimitRaceFixture(em: EntityManager): Promise<voi
     kind: 'credit_limit',
     adapter: 'credit_limit',
     statusOnPending: 'new',
-    statusOnSuccess: 'confirmed',
+    statusOnSuccess: 'paid',
     statusOnFailure: 'cancelled',
   });
   await em.persistAndFlush(cl);
@@ -109,7 +109,7 @@ export async function seedCreditLimitWithActiveReservation(em: EntityManager): P
     kind: 'credit_limit',
     adapter: 'credit_limit',
     statusOnPending: 'new',
-    statusOnSuccess: 'confirmed',
+    statusOnSuccess: 'paid',
     statusOnFailure: 'cancelled',
   });
   await em.persistAndFlush(cl);
@@ -121,15 +121,18 @@ export async function seedCreditLimitWithActiveReservation(em: EntityManager): P
   });
   await em.persistAndFlush(limit);
 
-  // Pre-existing Order (status='confirmed', payment_status='deferred') with
+  // Pre-existing Order (status='processing', payment_status='deferred') with
   // payment method credit_limit. The reservation amount is 5000 — enough so a
   // PATCH adjusting the limit to 1000 fails ADJUSTMENT_BELOW_ACTIVE.
+  // 'processing' is a current, non-terminal default status that carries a
+  // universal →cancelled edge (the order-status model overhaul replaced the
+  // legacy 'confirmed' code).
   const order = em.create(Order, {
     id: SEED_CREDIT_LIMIT_ORDER_ID,
     organizationId: TEST_ORGANIZATION_ID,
     placedByCustomerAccountId: TEST_CUSTOMER_ID,
     salesChannelId: '00000000-0000-4000-8000-0000000000c1',
-    status: 'confirmed',
+    status: 'processing',
     paymentStatus: 'deferred',
     deliveryAddress: {
       recipientName: 'Stub', street: 'ul. Odbioru 1', city: 'Warszawa',

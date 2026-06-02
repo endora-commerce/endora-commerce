@@ -22,7 +22,7 @@ interface OpenApi {
 const REQUIRED_PATHS = [
   '/api/v1/catalog/products',
   '/api/v1/catalog/products/{idOrSlug}',
-  '/api/v1/quote-requests/current',
+  '/api/v1/quote-requests',
   '/api/v1/orders',
   '/api/v1/cart',
   '/api/v1/me/credit-limit',

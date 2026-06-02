@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import { OrganizationContextService } from './services/organization-context-service.js';
-import {
+import type { OrganizationContextService } from './services/organization-context-service.js';
+import type {
   OrganizationRestrictionService,
 } from './services/organization-restriction-service.js';
 

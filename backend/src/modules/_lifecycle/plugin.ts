@@ -6,9 +6,10 @@ import {
   ModuleLifecycleOrchestrator,
   type OrchestratorDeps,
 } from './services/orchestrator.js';
+import type {
+  ModuleRegistryCache} from './services/registry-cache.js';
 import {
-  registryCache,
-  ModuleRegistryCache,
+  registryCache
 } from './services/registry-cache.js';
 import { buildStaticRegistry } from './services/static-registry.js';
 import type { LoadedManifestRegistry } from './services/manifest-loader.js';

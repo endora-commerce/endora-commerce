@@ -252,8 +252,17 @@ export async function setupBackendServer(
 
   const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
   const redis = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
-  const sessionKeys = await redis.keys('session:*');
-  if (sessionKeys.length > 0) await redis.del(sessionKeys);
+  // Each setup truncates + reseeds the DB with fresh random-id rows, so any
+  // Redis cache that keys by a STABLE business key (channel code, setting code)
+  // but stores the now-deleted row's id goes stale and causes FK violations on
+  // the next insert. CI gets an ephemeral Redis per run; a developer's local
+  // Redis persists across runs, so we must clear the cross-run-stale namespaces
+  // here. (cms/megamenu/blog/dictionaries clear their own caches further down
+  // via their module handle's `invalidateAll()`, which also drops the LRU.)
+  for (const pattern of ['session:*', 'sales-channels:v1:*', 'settings:v1:*']) {
+    const keys = await redis.keys(pattern);
+    if (keys.length > 0) await redis.del(keys);
+  }
 
   const sessionService = new SessionService(em, redis);
   const auditLogService = new AuditLogService(em);
@@ -324,6 +333,12 @@ export async function setupBackendServer(
   // Feature 040 — late-bound OrderListService for the customers module.
   let orderListServiceForCustomers: import('../../src/modules/orders/services/order-list-service.js').OrderListService | null = null;
   let handleFeature026: BackendServerHandle['organizations'] | null = null;
+  // Feature 007 — late-bound comparisons adoption hook. Bound once the
+  // comparisons module is constructed below; mirrors composition.ts so the
+  // customer login flow adopts an anonymous comparison carried by cookie.
+  let comparisonAdoption:
+    | ((customerAccountId: string, anonymousToken: string) => Promise<void>)
+    | null = null;
 
   // Feature 026 US4 — restriction service + per-request allow-list resolvers.
   // Mirrors the composition.ts pattern: production wiring reads
@@ -698,6 +713,7 @@ export async function setupBackendServer(
           mailer: moderationMailer,
           storefrontBaseUrl: 'http://localhost:3000',
           onLogin: async (ctx) => {
+            let result: Record<string, unknown> = {};
             if (cartService && ctx.anonymousCartToken && ctx.organizationId) {
               const cartMerge = await cartService.mergeAnonymousIntoCustomer(
                 ctx.anonymousCartToken,
@@ -706,9 +722,14 @@ export async function setupBackendServer(
                   organizationId: ctx.organizationId,
                 },
               );
-              return { cartMerge };
+              result = { cartMerge };
             }
-            return {};
+            // Feature 007 — adopt an anonymous comparison carried by the
+            // compare_token cookie. Mirrors composition.ts onLogin.
+            if (comparisonAdoption && ctx.anonymousCompareToken) {
+              await comparisonAdoption(ctx.customerAccountId, ctx.anonymousCompareToken);
+            }
+            return result;
           },
         }),
       ];
@@ -946,6 +967,10 @@ export async function setupBackendServer(
     requireAdmin: requireTestAdmin(permissionService),
   });
   modules.push(comparisons.plugin);
+  // Late-bind the comparisons adoption hook used by the login flow above.
+  comparisonAdoption = comparisons.handle.comparisonService.adoptAnonymousComparison.bind(
+    comparisons.handle.comparisonService,
+  );
 
   // Feature 008 — Quote Requests workflow.
   const quoteRequests = quoteRequestsModule({
@@ -1129,6 +1154,14 @@ export async function setupBackendServer(
       },
     },
   });
+  // Seed the in-process module registry as "all modules enabled". Production
+  // cold-starts this from the `module_registrations` table via
+  // `registryCache.start()`, but the test harness never boots the lifecycle
+  // orchestrator. Without this, every route wrapped in `defineModuleRoutes`
+  // (e.g. the entire `blog` surface) 503s with MODULE_DISABLED, and the
+  // permission catalogue would report zero enabled modules. Lifecycle tests
+  // that need a specific module disabled override this within their own setup.
+  registryCache.__setEnabledForTesting(REGISTERED_MANIFESTS.map((e) => e.manifest.id));
   permissionCatalogueService.setEnabledModuleIdsAccessor(() => registryCache.enabledIds());
   await app.ready();
 

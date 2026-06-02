@@ -45,15 +45,33 @@ export default [
         'error',
         { selector: 'default', format: ['camelCase'], leadingUnderscore: 'allow' },
         { selector: 'variable', format: ['camelCase', 'UPPER_CASE', 'PascalCase'], leadingUnderscore: 'allow' },
+        // Function-declaration React components are PascalCase, mirroring the
+        // arrow-function components already permitted by the `variable` rule.
+        { selector: 'function', format: ['camelCase', 'PascalCase'], leadingUnderscore: 'allow' },
         { selector: 'parameter', format: ['camelCase'], leadingUnderscore: 'allow' },
+        // Default imports of classes / namespaces are conventionally PascalCase
+        // (e.g. `import Redis from 'ioredis'`, `import Fastify from 'fastify'`).
+        { selector: 'import', format: ['camelCase', 'PascalCase'] },
         { selector: 'typeLike', format: ['PascalCase'] },
         { selector: 'enumMember', format: ['PascalCase', 'UPPER_CASE'] },
         { selector: 'property', format: null },
         { selector: 'objectLiteralProperty', format: null },
+        // Registry objects keyed by data values (e.g. 'payment-method') and
+        // test-seam method signatures don't follow identifier conventions.
+        { selector: 'objectLiteralMethod', format: null },
+        { selector: 'typeMethod', format: null },
+        // Test-only seams use a `__` prefix to signal "do not call in prod".
+        { selector: 'classMethod', format: ['camelCase'], leadingUnderscore: 'allowSingleOrDouble' },
       ],
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
-      '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
+      // Allow inline `import('...').Type` annotations — used deliberately for
+      // lazy/late-bound type references (e.g. forward-declared service handles)
+      // without pulling a value import to the top of the file.
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        { prefer: 'type-imports', disallowTypeAnnotations: false },
+      ],
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },

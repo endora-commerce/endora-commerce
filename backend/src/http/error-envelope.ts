@@ -51,6 +51,14 @@ export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelo
     if (!options.translateErrorMessage || !isErrorEnvelope(payload)) return payload;
     const target = ERROR_TRANSLATION_KEYS[payload.error.code];
     if (!target) return payload;
+    // VALIDATION_FAILED is overloaded: besides generic Zod failures it is the
+    // code several services reuse while putting a specific, machine-readable
+    // token in the message (e.g. `sku_in_use`, `attribute_not_found`,
+    // `language_not_in_channel`). Unlike other registered codes — whose
+    // message is human prose safe to localize wholesale — replacing this one
+    // with the generic localized string would destroy the token that API
+    // consumers (and contract tests) depend on. Leave its message verbatim.
+    if (payload.error.code === ERROR_CODES.VALIDATION_FAILED) return payload;
     const language = (await options.resolvePreferredLanguage?.(request)) ?? ADMIN_LANGUAGE_FALLBACK;
     const translated = await options.translateErrorMessage({
       moduleId: target.moduleId,

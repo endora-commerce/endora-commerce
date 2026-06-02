@@ -11,8 +11,8 @@ import type { CatalogQueryService } from '../../catalog/services/catalog-query.s
 import type { SettingsService } from '../../settings/services/settings.service.js';
 import { Comparison } from '../entities/comparison.entity.js';
 import { ComparisonProduct } from '../entities/comparison-product.entity.js';
-import { ShareTokenGenerator } from './share-token-generator.js';
-import { ComparableAttributeProjection } from './comparable-attribute-projection.js';
+import type { ShareTokenGenerator } from './share-token-generator.js';
+import type { ComparableAttributeProjection } from './comparable-attribute-projection.js';
 import {
   COMPARE_SETTING_CODES,
   DEFAULT_COMPARE_MAX_PRODUCTS,

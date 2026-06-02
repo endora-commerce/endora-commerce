@@ -93,12 +93,17 @@ describe('admin Megamenu bindings + activation contract (T023)', () => {
 
   it('rejects a binding whose language is not in the channel scope', async () => {
     const menu = await createMenu();
+    // `pl-PL` is a recognised dictionary language (so it passes the language
+    // existence check) but is NOT in the system-default channel's scope
+    // (`en-US` only), which is exactly the case this test exercises. (`fr-FR`
+    // used to work here but is not seeded in the dictionary, so it would now
+    // fail the earlier existence check with a different error.)
     const res = await h.app.inject({
       method: 'POST',
       url: `/api/v1/admin/megamenu/menus/${menu.id}/bindings`,
       headers: { 'content-type': 'application/json' },
       cookies: adminCookie,
-      payload: JSON.stringify({ salesChannelId: defaultChannelId, language: 'fr-FR' }),
+      payload: JSON.stringify({ salesChannelId: defaultChannelId, language: 'pl-PL' }),
     });
     expect(res.statusCode).toBe(400);
     expect(res.json()).toMatchObject({

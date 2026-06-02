@@ -39,7 +39,7 @@ export class PageBuilderRegistry {
     for (const [name, entry] of Object.entries(partial.components)) {
       if (this.components.has(name)) {
         const existing = this.components.get(name)!;
-        // eslint-disable-next-line no-console
+         
         console.warn(
           `[cms/page-builder-registry] Component "${name}" already registered by ` +
             `"${existing.ownerModule}"; overwriting with registration from "${moduleCode}".`,

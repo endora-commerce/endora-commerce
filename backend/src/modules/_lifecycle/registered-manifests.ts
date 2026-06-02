@@ -28,6 +28,7 @@ import { manifest as dictionariesManifest } from '../dictionaries/manifest.js';
 // is missing from this list (and therefore has no manifest entry) is
 // treated as inactive — see `assertEveryModuleHasManifest` below.
 import { manifest as addressesManifest } from '../addresses/manifest.js';
+import { manifest as adminNotificationsManifest } from '../admin_notifications/manifest.js';
 import { manifest as adminRolesManifest } from '../admin_roles/manifest.js';
 import { manifest as adminUsersManifest } from '../admin_users/manifest.js';
 import { manifest as analyticsManifest } from '../analytics/manifest.js';
@@ -53,6 +54,7 @@ import { manifest as paymentsManifest } from '../payments/manifest.js';
 import { manifest as promotionsManifest } from '../promotions/manifest.js';
 import { manifest as quickOrderManifest } from '../quick_order/manifest.js';
 import { manifest as seoManifest } from '../seo/manifest.js';
+import { manifest as shipmentsManifest } from '../shipments/manifest.js';
 import { manifest as shoppingListsManifest } from '../shopping_lists/manifest.js';
 import { manifest as taxesManifest } from '../taxes/manifest.js';
 import { manifest as webhooksManifest } from '../webhooks/manifest.js';
@@ -119,6 +121,7 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   // Pass C retrofit — every remaining legacy module gets a manifest so
   // none of them are treated as inactive. Sort: alphabetical by id.
   { manifest: addressesManifest, filePath: pathFor('addresses') },
+  { manifest: adminNotificationsManifest, filePath: pathFor('admin_notifications') },
   { manifest: adminRolesManifest, filePath: pathFor('admin_roles') },
   { manifest: adminUsersManifest, filePath: pathFor('admin_users') },
   { manifest: analyticsManifest, filePath: pathFor('analytics') },
@@ -144,6 +147,7 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   { manifest: promotionsManifest, filePath: pathFor('promotions') },
   { manifest: quickOrderManifest, filePath: pathFor('quick_order') },
   { manifest: seoManifest, filePath: pathFor('seo') },
+  { manifest: shipmentsManifest, filePath: pathFor('shipments') },
   { manifest: shoppingListsManifest, filePath: pathFor('shopping_lists') },
   { manifest: taxesManifest, filePath: pathFor('taxes') },
   { manifest: webhooksManifest, filePath: pathFor('webhooks') },

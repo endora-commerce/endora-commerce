@@ -101,7 +101,11 @@ export function registerOpenApiRoutes(app: FastifyInstance, meta: OpenApiMetadat
   };
 
   app.get('/api/v1/_openapi.json', async (_req, reply) => {
-    reply.header('Content-Type', 'application/json').send(getDoc());
+    // Return the payload rather than calling `reply.send()` and then resolving
+    // the async handler with `undefined` — Fastify 5 treats the latter as a
+    // second send and raises ERR_HTTP_HEADERS_SENT.
+    reply.header('Content-Type', 'application/json');
+    return getDoc();
   });
 
   app.get('/api/v1/_docs', async (_req, reply) => {

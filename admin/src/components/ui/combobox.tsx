@@ -84,7 +84,7 @@ function sameValue<T>(a: T | null, b: T | null): boolean {
   return a === b;
 }
 
-function comboboxInner<T>(
+function ComboboxInner<T>(
   {
     options,
     value,
@@ -381,6 +381,6 @@ function comboboxInner<T>(
  * Generic-friendly forwardRef wrapper. The cast preserves the `<T>` parameter
  * through `forwardRef`, which otherwise erases generics on the inner component.
  */
-export const Combobox = forwardRef(comboboxInner) as <T = string>(
+export const Combobox = forwardRef(ComboboxInner) as <T = string>(
   props: ComboboxProps<T> & { ref?: React.Ref<HTMLInputElement> },
 ) => ReactNode;

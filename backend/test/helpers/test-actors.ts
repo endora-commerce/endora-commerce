@@ -135,10 +135,21 @@ export interface TestAuthDeps {
  */
 export function registerTestAuth(app: FastifyInstance, deps: TestAuthDeps): void {
   app.addHook('onRequest', async (request: FastifyRequest) => {
+    // Mirror the resolved actor onto BOTH `request.testActor` (the harness's
+    // own decoration, read by modules that take an injected actor resolver)
+    // AND `request.actor` (the production decoration the auth plugin sets).
+    // Some storefront routes — notably `comparisons` — read `request.actor`
+    // directly instead of through an injected resolver, so without this they
+    // would see `undefined` and 500 under the test harness.
+    const setActor = (actor: TestActor): void => {
+      request.testActor = actor;
+      (request as unknown as { actor: TestActor }).actor = actor;
+    };
+
     const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
     const raw = cookies?.['b2b_session'];
     if (!raw) {
-      request.testActor = { kind: 'anonymous' };
+      setActor({ kind: 'anonymous' });
       return;
     }
 
@@ -155,20 +166,20 @@ export function registerTestAuth(app: FastifyInstance, deps: TestAuthDeps): void
             id: resolved.session.customerAccountId,
           });
           if (customer) {
-            request.testActor = {
+            setActor({
               kind: 'customer',
               customerAccountId: customer.id,
               organizationId: customer.organizationId ?? null,
               impersonatorAdminUserId: resolved.session.impersonatorAdminUserId ?? null,
-            };
+            });
             return;
           }
         }
         if (resolved.kind === 'admin' && resolved.session.adminUserId) {
-          request.testActor = {
+          setActor({
             kind: 'admin',
             adminUserId: resolved.session.adminUserId,
-          };
+          });
           return;
         }
       }
@@ -177,20 +188,20 @@ export function registerTestAuth(app: FastifyInstance, deps: TestAuthDeps): void
     // Fall back to the stub cookie map.
     const customer = CUSTOMER_COOKIES[raw];
     if (customer) {
-      request.testActor = {
+      setActor({
         kind: 'customer',
         customerAccountId: customer.customerAccountId,
         organizationId: customer.organizationId,
         impersonatorAdminUserId: null,
-      };
+      });
       return;
     }
     const admin = ADMIN_COOKIES[raw];
     if (admin) {
-      request.testActor = { kind: 'admin', adminUserId: admin.adminUserId };
+      setActor({ kind: 'admin', adminUserId: admin.adminUserId });
       return;
     }
-    request.testActor = { kind: 'anonymous' };
+    setActor({ kind: 'anonymous' });
   });
 }
 

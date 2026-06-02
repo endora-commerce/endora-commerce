@@ -8,7 +8,7 @@ import {
 } from '@b2b/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ShoppingListService } from './services/shopping-list-service.js';
-import { ShoppingList } from './entities/shopping-list.entity.js';
+import type { ShoppingList } from './entities/shopping-list.entity.js';
 import { ShoppingListItem } from './entities/shopping-list-item.entity.js';
 
 /**

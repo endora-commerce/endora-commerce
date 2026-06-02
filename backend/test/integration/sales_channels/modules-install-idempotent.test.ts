@@ -45,15 +45,19 @@ describe('modules:install sales_channels — idempotency (T069)', () => {
       await reconciler.apply([settingsManifest]);
 
       const before = await em.find(SettingGroup, { code: 'sales_channels' });
+      const beforeSettings = await em.find(Setting, { ownerModule: 'sales_channels' });
       // First apply.
       const first = await reconciler.apply([salesChannelsManifest]);
       const firstModule = first.perModule.find((m) => m.moduleCode === 'sales_channels');
       expect(firstModule).toBeDefined();
-      // The group is either added now (when not pre-existing) or updated (when
-      // a previous test left it). Settings count is always 0.
-      expect(firstModule!.addedSettings).toBe(0);
+      // The group + the module's single `storefront_url` setting are either
+      // added now (when not pre-existing) or already present (when a previous
+      // test left them).
       if (before.length === 0) {
         expect(firstModule!.addedGroups).toBe(1);
+      }
+      if (beforeSettings.length === 0) {
+        expect(firstModule!.addedSettings).toBe(1);
       }
 
       const sales = await em.findOneOrFail(SettingGroup, { code: 'sales_channels' });
@@ -70,11 +74,13 @@ describe('modules:install sales_channels — idempotency (T069)', () => {
       const all = await em.find(SettingGroup, { code: 'sales_channels' });
       expect(all.length).toBe(1);
 
-      // No settings ship in the v1 sales_channels manifest — confirm
-      // the pipeline does not synthesize phantom rows under
+      // The sales_channels manifest ships exactly one setting
+      // (`sales_channels.storefront_url`) — confirm the pipeline persists that
+      // single row and does not synthesize phantom rows under
       // owner_module='sales_channels'.
       const owned = await em.find(Setting, { ownerModule: 'sales_channels' });
-      expect(owned.length).toBe(0);
+      expect(owned.length).toBe(1);
+      expect(owned[0]!.code).toBe('sales_channels.storefront_url');
     } finally {
       await db.rollbackTx();
     }

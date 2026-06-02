@@ -1,8 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DisplayMode } from '@b2b/contracts';
-import { Product } from '../../catalog/entities/product.entity.js';
-import { Organization } from '../../organizations/entities/organization.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import type { Product } from '../../catalog/entities/product.entity.js';
+import type { Organization } from '../../organizations/entities/organization.entity.js';
+import type { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import { PriceList } from '../entities/price-list.entity.js';
 import { PriceListPriceBracket } from '../entities/price-list-price-bracket.entity.js';
 import {

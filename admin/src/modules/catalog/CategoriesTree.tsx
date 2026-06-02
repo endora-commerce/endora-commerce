@@ -69,6 +69,12 @@ export function CategoriesTree(): ReactNode {
   }, [refresh]);
 
   const tree = useMemo(() => buildCategoryTree(categories), [categories]);
+  // Tree nodes carry the picker's minimal category shape, which drops the
+  // admin-only fields (e.g. mainImageAssetId). Look the full record up by id.
+  const categoryById = useMemo(
+    () => new Map(categories.map((c) => [c.id, c])),
+    [categories],
+  );
 
   const handleCreate = useCallback(
     async (input: {
@@ -209,7 +215,7 @@ export function CategoriesTree(): ReactNode {
                       <TableCell>{c.sortOrder}</TableCell>
                       <TableCell>
                         <CategoryMainImage
-                          mainImageAssetId={c.mainImageAssetId ?? null}
+                          mainImageAssetId={categoryById.get(c.id)?.mainImageAssetId ?? null}
                           onChange={(assetId): void => {
                             void apiClient
                               .patch<{ data: AdminCategory }>(
@@ -361,6 +367,8 @@ function EditForm({
   onCancel: () => void;
 }): ReactNode {
   const t = useTranslation('catalog');
+  const { language } = useTranslationContext();
+  const locale = adminLanguageToLocale(language);
   const [slug, setSlug] = useState(category.slug);
   const [nameEn, setNameEn] = useState(category.name['en-US'] ?? '');
   const [namePl, setNamePl] = useState(category.name['pl-PL'] ?? '');
@@ -391,7 +399,7 @@ function EditForm({
               .filter((c) => c.id !== category.id)
               .map((c) => (
                 <option key={c.id} value={c.id}>
-                  {label(c.name, c.slug)} ({c.slug})
+                  {pickCategoryDisplayName(c.name, c.slug, locale)} ({c.slug})
                 </option>
               ))}
           </Select>

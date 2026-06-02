@@ -138,7 +138,8 @@ describe('ProductEditor — category tree picker (feature 031)', () => {
     const parentCheckbox = await screen.findByRole('checkbox', { name: 'Parent Cat' });
     expect(parentCheckbox).not.toBeChecked();
 
-    await user.click(screen.getByRole('button', { name: 'categoryTreePicker.expand' }));
+    // The picker auto-expands branches up to each selected category, so the
+    // pre-selected child row is already visible without a manual expand click.
     const childCheckbox = await screen.findByRole('checkbox', { name: 'Child Cat' });
     expect(childCheckbox).toBeChecked();
 
