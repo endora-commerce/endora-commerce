@@ -48,8 +48,17 @@ export default async function CheckoutPage({
   // can render their copy in PL/EN.
   const { locale } = await getServerContext();
 
-  const [cartResult, addresses, deliveryMethods, paymentMethodsRaw, creditLimit, me, defaults] =
-    await Promise.all([
+  let loaded: [
+    Awaited<ReturnType<typeof getCart>>,
+    Awaited<ReturnType<typeof listAddresses>>,
+    Awaited<ReturnType<typeof listDeliveryMethods>>,
+    Awaited<ReturnType<typeof listPaymentMethods>>,
+    Awaited<ReturnType<typeof getMyCreditLimit>>,
+    Awaited<ReturnType<typeof getMe>> | null,
+    Awaited<ReturnType<typeof getResolvedQuickOrderDefaults>> | null,
+  ];
+  try {
+    loaded = await Promise.all([
       getCart(jar),
       listAddresses(session),
       listDeliveryMethods(),
@@ -59,6 +68,18 @@ export default async function CheckoutPage({
       // Feature 039 (US2) — resolved default ordering preferences to pre-select.
       getResolvedQuickOrderDefaults(session).catch(() => null),
     ]);
+  } catch (err) {
+    // A stale/expired `b2b_session` cookie is still truthy, so it slips past
+    // the `!session` guard above but the backend rejects it with 401. Treat
+    // that as "not logged in" and bounce to login with a return path, rather
+    // than crashing the page with an unhandled UNAUTHORIZED error.
+    if (err instanceof StorefrontApiError && err.status === 401) {
+      redirect('/login?next=/checkout');
+    }
+    throw err;
+  }
+  const [cartResult, addresses, deliveryMethods, paymentMethodsRaw, creditLimit, me, defaults] =
+    loaded;
   if (cartResult.newAnonCookie) await setAnonCartCookie(cartResult.newAnonCookie);
   const cart = cartResult.cart;
   const canTransact = me?.organization?.canTransact ?? true;
