@@ -8,9 +8,8 @@ import { tForLocale } from '../lib/i18n/messages';
  * laid out horizontally per the Industria `product-row` design:
  * media · main (sku + name) · stock · price · actions.
  *
- * Backend list summaries don't currently expose technical attributes
- * or alt-currency prices, so the "attrs" row from the prototype is
- * omitted until a richer projection lands.
+ * Migrated to Tailwind utilities (feature 041). Reuses the shared
+ * `.industria-stock` atom (kept as an @apply component class).
  */
 export function ProductRow(props: {
   product: ProductSummary;
@@ -28,34 +27,39 @@ export function ProductRow(props: {
     : null;
 
   return (
-    <article className="industria-product-row">
+    <article className="grid grid-cols-[88px_minmax(0,1fr)_180px_200px] items-center gap-[20px] rounded-md border border-line bg-surface p-[16px] transition hover:border-[var(--ink-700)] hover:shadow-sm max-[920px]:grid-cols-[64px_minmax(0,1fr)]">
       <Link
         href={`/p/${product.slug}`}
-        className="industria-product-row__media"
+        className="grid h-[88px] w-[88px] place-items-center overflow-hidden rounded-sm border border-line bg-surface-alt"
         aria-label={product.name}
       >
         {product.primaryAssetUrl ? (
-          <img src={product.primaryAssetUrl} alt={product.name} loading="lazy" />
+          <img
+            src={product.primaryAssetUrl}
+            alt={product.name}
+            loading="lazy"
+            className="h-full w-full object-contain p-[6px]"
+          />
         ) : null}
       </Link>
-      <div className="industria-product-row__main">
-        <div className="industria-product-card__sku">
-          <span className="industria-product-card__brand">{product.sku}</span>
+      <div className="min-w-0">
+        <div className="flex gap-[6px] font-mono text-[11px] text-muted">
+          <span className="font-medium text-fg-soft">{product.sku}</span>
         </div>
-        <h3>
-          <Link href={`/p/${product.slug}`} style={{ color: 'inherit' }}>
+        <h3 className="mt-[4px] mb-[6px] text-[14px] font-semibold text-fg">
+          <Link href={`/p/${product.slug}`} className="text-inherit hover:text-accent">
             {product.name}
           </Link>
         </h3>
       </div>
-      <div className="industria-product-row__stock">
-        {renderStock(product, t)}
-      </div>
-      <div className="industria-product-row__price">
+      <div className="max-[920px]:col-start-2">{renderStock(product, t)}</div>
+      <div className="text-right max-[920px]:col-start-2">
         {priceFmt ? (
-          <div className="industria-product-card__price__main">{priceFmt}</div>
+          <div className="font-mono text-[16px] font-semibold tracking-[-0.01em] text-fg">
+            {priceFmt}
+          </div>
         ) : (
-          <div className="industria-product-card__price__main" style={{ fontSize: 13 }}>
+          <div className="font-mono text-[13px] font-semibold tracking-[-0.01em] text-fg">
             {t('product.requestQuote')}
           </div>
         )}

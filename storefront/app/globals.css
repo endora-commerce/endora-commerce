@@ -1037,18 +1037,7 @@ h3 { font-size: 16px; font-weight: 600; }
 /* ------------------------------------------------------------------ */
 /* Product card / grid (Industria)                                         */
 /* ------------------------------------------------------------------ */
-.industria-product-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.industria-product-grid--3 { grid-template-columns: repeat(3, 1fr); }
-@media (max-width: 1100px) { .industria-product-grid, .industria-product-grid--3 { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 540px)  { .industria-product-grid, .industria-product-grid--3 { grid-template-columns: 1fr; } }
-.industria-product-grid > li { list-style: none; }
+/* .industria-product-grid* migrated to utilities in components/ProductGrid.tsx (feature 041) */
 
 /* .industria-product-card* migrated to utilities in components/ProductCard.tsx (feature 041) */
 
@@ -1351,62 +1340,7 @@ h3 { font-size: 16px; font-weight: 600; }
 .industria-catalog__title p { font-size: 13px; color: var(--ink-500); margin: 4px 0 0; }
 
 /* List-view rows */
-.industria-product-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.industria-product-list > li { display: block; }
-.industria-product-row {
-  display: grid;
-  grid-template-columns: 88px minmax(0, 1fr) 180px 200px;
-  gap: 20px;
-  padding: 16px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  align-items: center;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-.industria-product-row:hover {
-  border-color: var(--ink-700);
-  box-shadow: var(--shadow-sm);
-}
-@media (max-width: 920px) {
-  .industria-product-row { grid-template-columns: 64px minmax(0, 1fr); }
-  .industria-product-row__stock,
-  .industria-product-row__price { grid-column: 2; }
-}
-.industria-product-row__media {
-  width: 88px;
-  height: 88px;
-  background: var(--surface-alt);
-  border-radius: var(--r-sm);
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--line);
-  overflow: hidden;
-}
-.industria-product-row__media img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  padding: 6px;
-}
-.industria-product-row__main { min-width: 0; }
-.industria-product-row__main h3 {
-  margin: 4px 0 6px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink-900);
-}
-.industria-product-row__main h3 a:hover { color: var(--brand-700); }
-.industria-product-row__price {
-  text-align: right;
-}
+/* .industria-product-list / .industria-product-row* migrated to utilities (feature 041) */
 
 /* .industria-pagination migrated to utilities (feature 041) */
 
