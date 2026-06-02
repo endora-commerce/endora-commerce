@@ -58,15 +58,17 @@ export function AttachmentsList(props: {
   }
 
   return (
-    <section className="b2b-attachments">
+    <section className="flex flex-col gap-4">
       {Array.from(groups.entries()).map(([code, group]) => (
-        <div key={code} className="b2b-attachments__group">
-          <h3 className="b2b-attachments__type">{group.typeName}</h3>
-          <ul>
+        <div key={code}>
+          <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted">
+            {group.typeName}
+          </h3>
+          <ul className="m-0 flex list-none flex-col gap-1 p-0">
             {group.items.map((att) => (
-              <li key={att.id} className="b2b-attachment">
+              <li key={att.id} className="py-1">
                 <a
-                  className="b2b-attachment__link"
+                  className="text-[13px] text-accent hover:text-accent-hover"
                   href={att.asset.url}
                   rel="noopener"
                   target="_blank"
@@ -75,7 +77,7 @@ export function AttachmentsList(props: {
                   {att.name}
                 </a>
                 {att.description ? (
-                  <p className="b2b-attachment__description">{att.description}</p>
+                  <p className="mt-0.5 text-[12px] text-muted">{att.description}</p>
                 ) : null}
               </li>
             ))}

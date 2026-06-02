@@ -2826,58 +2826,7 @@ select:focus-visible {
 }
 
 /* Up-sell strip */
-.cart-upsells {
-  margin-top: 28px;
-}
-.cart-upsells__head {
-  display: flex; justify-content: space-between; align-items: flex-end;
-  margin-bottom: 12px;
-}
-.cart-upsells__head h2 {
-  margin: 0;
-  font-size: 14px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.04em;
-  color: var(--ink-500);
-}
-.cart-upsells__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
-  list-style: none; padding: 0; margin: 0;
-}
-.cart-upsells__item {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 14px;
-  transition: border-color .12s, box-shadow .12s;
-}
-.cart-upsells__item:hover {
-  border-color: var(--ink-700);
-  box-shadow: var(--shadow-sm);
-}
-.cart-upsells__item a {
-  display: flex; flex-direction: column; gap: 6px;
-  color: inherit;
-}
-.cart-upsells__item__name {
-  font-size: 13px; font-weight: 500;
-  color: var(--ink-900);
-  line-height: 1.3;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.cart-upsells__item__price {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--brand-700);
-  font-weight: 500;
-}
-.cart-upsells__item__price--quote {
-  color: var(--ink-500);
-  font-style: italic;
-  font-weight: 400;
-}
+/* .cart-upsells* migrated to utilities in components/UpsellStrip.tsx (feature 041) */
 
 /* Approval-state banner variants (feature 027 US4) */
 .cart-approval-banner {

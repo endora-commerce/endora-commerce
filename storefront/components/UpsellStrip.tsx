@@ -29,20 +29,27 @@ function formatMoney(m: { amount: number; currency: string }): string {
 export function UpsellStrip({ upsells, strings }: UpsellStripProps): ReactNode {
   if (upsells.length === 0) return null;
   return (
-    <section className="cart-upsells" aria-label={strings.heading}>
-      <div className="cart-upsells__head">
-        <h2>{strings.heading}</h2>
+    <section className="mt-[28px]" aria-label={strings.heading}>
+      <div className="mb-3 flex items-end justify-between">
+        <h2 className="m-0 text-[14px] font-semibold uppercase tracking-[0.04em] text-muted">
+          {strings.heading}
+        </h2>
       </div>
-      <ul className="cart-upsells__grid">
+      <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3 p-0">
         {upsells.map((u) => (
-          <li key={u.productId} className="cart-upsells__item">
-            <a href={`/p/${u.productSlug}`}>
-              <span className="cart-upsells__item__name">{u.productName}</span>
+          <li
+            key={u.productId}
+            className="rounded-md border border-line bg-surface p-[14px] transition hover:border-[var(--ink-700)] hover:shadow-sm"
+          >
+            <a href={`/p/${u.productSlug}`} className="flex flex-col gap-1.5 text-inherit">
+              <span className="line-clamp-2 text-[13px] font-medium leading-[1.3] text-fg">
+                {u.productName}
+              </span>
               <span
                 className={
                   u.unitPrice
-                    ? 'cart-upsells__item__price'
-                    : 'cart-upsells__item__price cart-upsells__item__price--quote'
+                    ? 'font-mono text-[13px] font-medium text-accent'
+                    : 'font-mono text-[13px] font-normal italic text-muted'
                 }
               >
                 {u.unitPrice ? formatMoney(u.unitPrice) : strings.noPriceLabel}
