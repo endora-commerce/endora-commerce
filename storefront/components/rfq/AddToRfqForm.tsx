@@ -29,11 +29,11 @@ export function AddToRfqForm({
   defaultQuantity = 1,
 }: AddToRfqFormProps): ReactNode {
   return (
-    <form action={addToQuoteAction} className="industria-rfq-widget" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+    <form action={addToQuoteAction} className="flex items-center gap-2">
       <input type="hidden" name="productId" value={productId} />
       <input type="hidden" name="productSlug" value={productSlug} />
       {variantId ? <input type="hidden" name="variantId" value={variantId} /> : null}
-      <label htmlFor={`rfq-qty-${productId}`} style={{ fontSize: 12 }}>
+      <label htmlFor={`rfq-qty-${productId}`} className="text-[12px]">
         Ilość
       </label>
       <input
@@ -43,7 +43,7 @@ export function AddToRfqForm({
         min={1}
         max={9999}
         defaultValue={defaultQuantity}
-        style={{ width: '5rem', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '6px 8px' }}
+        className="w-[5rem] rounded-sm border border-line px-[8px] py-[6px]"
       />
       <button type="submit" className="btn btn--outline btn--sm">
         Dodaj do zapytania

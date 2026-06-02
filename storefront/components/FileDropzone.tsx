@@ -47,7 +47,11 @@ export function FileDropzone({
   return (
     <div>
       <div
-        className={`b2b-dropzone${dragging ? ' b2b-dropzone--active' : ''}`}
+        className={`flex cursor-pointer items-center justify-center rounded-md border-2 border-dashed p-[24px] text-center text-[13px] transition ${
+          dragging
+            ? 'border-accent bg-accent-soft text-accent'
+            : 'border-line text-muted hover:border-line-strong'
+        }`}
         onDragOver={(e) => {
           e.preventDefault();
           setDragging(true);
@@ -72,7 +76,7 @@ export function FileDropzone({
         ref={inputRef}
         type="file"
         accept={accept}
-        style={{ display: 'none' }}
+        className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) ingest(file);
