@@ -2487,17 +2487,7 @@ h3 { font-size: 16px; font-weight: 600; }
   font-size: 13px;
 }
 
-.b2b-breadcrumbs ol {
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 0;
-  margin: 0 0 16px 0;
-  color: var(--ink-500);
-  font-size: 12px;
-}
-.b2b-breadcrumbs li + li::before { content: '›'; margin-right: 6px; color: var(--ink-300); }
+/* .b2b-breadcrumbs migrated to utilities in components/Breadcrumbs.tsx (feature 041) */
 
 .b2b-pdp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; }
 @media (max-width: 720px) { .b2b-pdp { grid-template-columns: 1fr; } }

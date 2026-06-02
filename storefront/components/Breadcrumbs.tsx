@@ -23,10 +23,19 @@ export function Breadcrumbs(props: { crumbs: BreadcrumbCrumb[] }): ReactNode {
     })),
   };
   return (
-    <nav className="b2b-breadcrumbs" aria-label="Breadcrumb">
-      <ol>
+    <nav aria-label="Breadcrumb">
+      {/*
+        Migrated to utilities (was .b2b-breadcrumbs). Spacing/size use arbitrary px to
+        preserve exact parity — the storefront root font-size is 14px, so Tailwind's
+        rem-based scales would not equal the original absolute px. Colours use semantic
+        tokens. The '›' separator is a before: pseudo-element on every li except the first.
+      */}
+      <ol className="m-0 mb-[16px] flex list-none flex-wrap gap-[6px] p-0 text-[12px] text-muted">
         {props.crumbs.map((c, idx) => (
-          <li key={c.href}>
+          <li
+            key={c.href}
+            className="before:mr-[6px] before:text-line-strong before:content-['›'] first:before:hidden"
+          >
             {idx === props.crumbs.length - 1 ? (
               <span aria-current="page">{c.label}</span>
             ) : (
