@@ -867,220 +867,47 @@ h3 { font-size: 16px; font-weight: 600; }
 /* ------------------------------------------------------------------ */
 /* Compare                                                                  */
 /* ------------------------------------------------------------------ */
-.industria-compare-page { padding: 8px 0 64px; }
-
-.industria-compare-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 0 16px;
-  flex-wrap: wrap;
-  gap: 12px;
+/* .industria-compare* / .industria-cmp-card* / .industria-switch (compare page) → @apply
+   (feature 041). Switch-knob + is-best::before pseudo-elements kept as raw residual (R5). */
+@layer components {
+  .industria-compare-page { @apply pt-[8px] pb-[64px]; }
+  .industria-compare-toolbar { @apply flex flex-wrap items-center justify-between gap-3 pt-1 pb-4; }
+  .industria-compare-toolbar__left { @apply flex items-center gap-4 text-[13px] text-fg-soft; }
+  .industria-compare-toolbar__right { @apply flex flex-wrap items-center gap-2; }
+  .industria-compare-toolbar__readonly { @apply inline-flex items-center rounded-full border border-line bg-surface-alt px-[10px] py-1 font-mono text-[11px] text-muted; }
+  .industria-toggle-row { @apply inline-flex cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-[13px] text-fg-soft; }
+  .industria-toggle-row:focus-visible { @apply rounded outline-2 outline-offset-2 outline-[color:var(--brand-600)]; }
+  .industria-switch { @apply relative h-[18px] w-[32px] flex-shrink-0 cursor-pointer rounded-full border-0 bg-[color:var(--ink-200)] p-0 transition-[background-color] duration-150; }
+  .industria-switch.is-on { @apply bg-accent; }
+  .industria-switch:focus-visible { @apply outline-2 outline-offset-2 outline-[color:var(--brand-600)]; }
+  .industria-compare-table { @apply overflow-auto rounded-lg border border-line bg-surface; }
+  .industria-compare-table table { @apply w-full min-w-[900px] border-collapse; }
+  .industria-compare-table th,
+  .industria-compare-table td { @apply border-b border-line p-[14px] px-[16px] text-left align-top text-[13px]; }
+  .industria-compare-table thead th { @apply sticky top-[156px] z-[1] w-[22%] border-b border-line-strong bg-surface-alt font-medium; }
+  .industria-compare-table thead th:first-child { @apply w-[12%] bg-surface; }
+  .industria-compare-table tbody th { @apply w-[200px] bg-surface-alt p-[14px] px-[16px] text-left text-[12px] font-medium text-[color:var(--ink-600)]; }
+  .industria-compare-table tbody td { @apply font-mono text-fg-soft; }
+  .industria-compare-table tbody td b { @apply font-semibold text-fg; }
+  .industria-compare-table tbody td.is-best { @apply relative bg-[rgba(21,128,61,0.06)] font-semibold text-ok; }
+  .industria-compare-table__action-row th,
+  .industria-compare-table__action-row td { @apply border-b-0 bg-surface; }
+  .industria-compare-table__actions { @apply flex flex-wrap gap-[6px] font-sans; }
+  .industria-cmp-card { @apply relative flex flex-col gap-2; }
+  .industria-cmp-card__media { @apply grid aspect-square place-items-center overflow-hidden rounded-sm border border-line bg-surface text-[color:var(--ink-200)]; }
+  .industria-cmp-card__media img { @apply h-full w-full object-contain p-[8px]; }
+  .industria-cmp-card__placeholder { @apply h-[60%] w-[60%]; }
+  .industria-cmp-card__sku { @apply font-mono text-[11px] text-subtle; }
+  .industria-cmp-card__name { @apply text-[13px] font-semibold text-fg no-underline; }
+  .industria-cmp-card__name:hover { @apply text-accent; }
+  .industria-cmp-card__price { @apply font-mono text-[13px] text-fg; }
+  .industria-cmp-card__remove { @apply absolute right-0 top-0 grid h-[24px] w-[24px] cursor-pointer place-items-center rounded border border-line bg-surface text-subtle transition-[background-color,color,border-color] duration-100; }
+  .industria-cmp-card__remove:hover { @apply border-[color:var(--bad-700)] bg-bad-soft text-bad; }
 }
-.industria-compare-toolbar__left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  font-size: 13px;
-  color: var(--ink-700);
-}
-.industria-compare-toolbar__right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.industria-compare-toolbar__readonly {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: var(--surface-alt);
-  border: 1px solid var(--line);
-  color: var(--ink-500);
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
-.industria-toggle-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--ink-700);
-  background: transparent;
-  border: 0;
-  padding: 0;
-  font: inherit;
-}
-.industria-toggle-row:focus-visible {
-  outline: 2px solid var(--brand-600);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-.industria-switch {
-  width: 32px;
-  height: 18px;
-  background: var(--ink-200);
-  border-radius: 999px;
-  position: relative;
-  flex-shrink: 0;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-.industria-switch::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 14px;
-  height: 14px;
-  background: #fff;
-  border-radius: 999px;
-  box-shadow: var(--shadow-sm);
-  transition: transform 0.15s ease;
-}
-.industria-switch.is-on { background: var(--brand-700); }
+/* Pseudo-element residuals (R5): switch knob + BEST marker. */
+.industria-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; background: #fff; border-radius: 999px; box-shadow: var(--shadow-sm); transition: transform 0.15s ease; }
 .industria-switch.is-on::after { transform: translateX(14px); }
-.industria-switch:focus-visible { outline: 2px solid var(--brand-600); outline-offset: 2px; }
-
-.industria-compare-table {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  overflow: auto;
-}
-.industria-compare-table table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 900px;
-}
-.industria-compare-table th,
-.industria-compare-table td {
-  padding: 14px 16px;
-  text-align: left;
-  vertical-align: top;
-  border-bottom: 1px solid var(--line);
-  font-size: 13px;
-}
-.industria-compare-table thead th {
-  background: var(--surface-alt);
-  border-bottom: 1px solid var(--line-strong);
-  font-weight: 500;
-  width: 22%;
-  /* Header sits below the 36 px topbar + 72 px main header + 48 px nav. */
-  position: sticky;
-  top: 156px;
-  z-index: 1;
-}
-.industria-compare-table thead th:first-child {
-  width: 12%;
-  background: var(--surface);
-}
-.industria-compare-table tbody th {
-  text-align: left;
-  padding: 14px 16px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--ink-600);
-  background: var(--surface-alt);
-  width: 200px;
-}
-.industria-compare-table tbody td {
-  font-family: var(--font-mono);
-  color: var(--ink-700);
-}
-.industria-compare-table tbody td b { color: var(--ink-900); font-weight: 600; }
-.industria-compare-table tbody td.is-best {
-  background: rgba(21, 128, 61, 0.06);
-  color: var(--ok-700);
-  font-weight: 600;
-  position: relative;
-}
-.industria-compare-table tbody td.is-best::before {
-  content: 'BEST';
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  font-size: 9px;
-  font-family: var(--font-mono);
-  color: var(--ok-700);
-  letter-spacing: 0.08em;
-}
-.industria-compare-table__action-row th,
-.industria-compare-table__action-row td {
-  background: var(--surface);
-  border-bottom: 0;
-}
-.industria-compare-table__actions {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  font-family: var(--font-sans);
-}
-
-.industria-cmp-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.industria-cmp-card__media {
-  aspect-ratio: 1 / 1;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  display: grid;
-  place-items: center;
-  color: var(--ink-200);
-  overflow: hidden;
-}
-.industria-cmp-card__media img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  padding: 8px;
-}
-.industria-cmp-card__placeholder { width: 60%; height: 60%; }
-.industria-cmp-card__sku {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--ink-400);
-}
-.industria-cmp-card__name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink-900);
-  text-decoration: none;
-}
-.industria-cmp-card__name:hover { color: var(--brand-700); }
-.industria-cmp-card__price {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--ink-900);
-}
-.industria-cmp-card__remove {
-  position: absolute;
-  top: 0;
-  right: 0;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  color: var(--ink-400);
-  width: 24px;
-  height: 24px;
-  display: grid;
-  place-items: center;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
-}
-.industria-cmp-card__remove:hover {
-  background: var(--bad-50);
-  color: var(--bad-700);
-  border-color: var(--bad-700);
-}
+.industria-compare-table tbody td.is-best::before { content: 'BEST'; position: absolute; top: 8px; right: 8px; font-size: 9px; font-family: var(--font-mono); color: var(--ok-700); letter-spacing: 0.08em; }
 
 /* ------------------------------------------------------------------ */
 /* Quick Order                                                              */
