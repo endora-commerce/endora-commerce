@@ -15,20 +15,25 @@ export function ProductGallery(props: {
   const documents = props.assets.filter((a) => a.kind === 'pdf' || a.kind === 'certificate');
 
   return (
-    <div className="b2b-gallery">
+    <div>
       {images.length > 0 ? (
-        <ul className="b2b-gallery__images">
+        <ul className="m-0 grid list-none grid-cols-1 gap-3 p-0">
           {images.map((img) => (
             <li key={img.id}>
-              <img src={img.url} alt={img.altText ?? props.alt} loading="lazy" />
+              <img
+                src={img.url}
+                alt={img.altText ?? props.alt}
+                loading="lazy"
+                className="w-full rounded-md"
+              />
             </li>
           ))}
         </ul>
       ) : (
-        <div className="b2b-gallery__placeholder" aria-hidden="true" />
+        <div className="aspect-[4/3] rounded-md bg-surface-alt" aria-hidden="true" />
       )}
       {documents.length > 0 ? (
-        <ul className="b2b-gallery__documents">
+        <ul className="m-0 mt-3 flex list-none gap-3 p-0">
           {documents.map((doc) => (
             <li key={doc.id}>
               <a href={doc.url} rel="noopener" target="_blank">

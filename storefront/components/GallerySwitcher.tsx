@@ -23,28 +23,23 @@ export function GallerySwitcher(props: {
   alt: string;
 }): ReactNode {
   if (props.gallery.length === 0) {
-    return <div className="b2b-gallery__placeholder" aria-hidden="true" />;
+    return <div className="aspect-[4/3] rounded-md bg-surface-alt" aria-hidden="true" />;
   }
 
   const baseImage = props.gallery.find((g) => g.labels.includes('base_image'));
   const primary = baseImage ?? props.gallery[0]!;
 
   return (
-    <div className="b2b-gallery">
-      <img
-        className="b2b-gallery__main"
-        src={primary.asset.url}
-        alt={props.alt}
-        loading="eager"
-      />
-      <ul className="b2b-gallery__strip">
+    <div>
+      <img className="w-full rounded-md" src={primary.asset.url} alt={props.alt} loading="eager" />
+      <ul className="m-0 mt-3 flex list-none gap-2 p-0">
         {props.gallery.map((item) => {
           const isSmall = item.labels.includes('small_image');
           return (
             <li key={item.id} {...(isSmall ? { 'data-small-image': 'true' } : {})}>
               <a href={`#gallery-${item.id}`}>
                 <img
-                  className="b2b-gallery__thumb"
+                  className="h-[64px] w-[64px] rounded-sm border border-line object-contain"
                   src={item.asset.url}
                   alt={props.alt}
                   loading="lazy"

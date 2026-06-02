@@ -18,11 +18,11 @@ export function VirtualCta(props: {
   if (!props.virtual.downloadAssetId && !props.virtual.downloadUrl) return null;
 
   return (
-    <div className="b2b-virtual-cta">
-      <a href="/cart" className="b2b-cta b2b-virtual-cta__buy">
+    <div>
+      <a href="/cart" className="b2b-cta">
         {props.labels.buyAndDownload}
       </a>
-      <p className="b2b-virtual-cta__delivery">{props.labels.digitalDelivery}</p>
+      <p className="mt-2 text-[12px] text-muted">{props.labels.digitalDelivery}</p>
     </div>
   );
 }
