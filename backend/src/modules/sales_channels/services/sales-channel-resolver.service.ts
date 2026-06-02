@@ -1,7 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { SalesChannel } from '../entities/sales-channel.entity.js';
+import type {
+  SalesChannelsCache} from './sales-channels-cache.js';
 import {
-  SalesChannelsCache,
   toCachedChannel,
   type CachedChannel,
 } from './sales-channels-cache.js';

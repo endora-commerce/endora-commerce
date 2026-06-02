@@ -22,10 +22,11 @@ import { Product } from '../../catalog/entities/product.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { Cart } from '../../carts/entities/cart.entity.js';
 import { CartItem } from '../../carts/entities/cart-item.entity.js';
-import { RfqEventService } from './rfq-event-service.js';
-import { RfqRevisionService } from './rfq-revision-service.js';
-import { RfqNotificationService, type NotificationRecipient } from './rfq-notification-service.js';
-import { SalesRepAssignmentService } from '../../organizations/services/sales-rep-assignment-service.js';
+import type { RfqEventService } from './rfq-event-service.js';
+import type { RfqRevisionService } from './rfq-revision-service.js';
+import type { RfqNotificationService} from './rfq-notification-service.js';
+import { type NotificationRecipient } from './rfq-notification-service.js';
+import type { SalesRepAssignmentService } from '../../organizations/services/sales-rep-assignment-service.js';
 import { AdminUser } from '../../admin_users/entities/admin-user.entity.js';
 
 /**

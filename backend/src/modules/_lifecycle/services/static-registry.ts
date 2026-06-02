@@ -49,7 +49,7 @@ export function buildStaticRegistry(
   for (const e of modules.values()) {
     for (const dep of e.manifest.dependencies) {
       if (!modules.has(dep)) {
-        // eslint-disable-next-line no-console
+         
         console.warn(
           `[static-registry] manifest "${e.manifest.id}" depends on ` +
             `"${dep}" which is not in the static registry — ` +

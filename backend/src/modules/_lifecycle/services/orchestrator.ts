@@ -13,7 +13,7 @@ import type {
 import { ManifestReconciler } from '../../settings/services/manifest-reconciler.js';
 import { Setting } from '../../settings/entities/setting.entity.js';
 import { SettingGroup } from '../../settings/entities/setting-group.entity.js';
-import { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { ModuleRegistration } from '../entities/module-registration.entity.js';
 import {
   acquireLifecycleLock,
@@ -538,7 +538,7 @@ export class ModuleLifecycleOrchestrator {
         return { moduleId, state: 'already-enabled' };
       }
       // state === 'disabled' — verify deps are enabled.
-      const enabledSet = await this.installedSet();
+      const enabledSet = await this.enabledSet();
       const missing = this.deps.registry.graph.unresolvedDependenciesOf(
         moduleId,
         enabledSet,
@@ -791,6 +791,19 @@ export class ModuleLifecycleOrchestrator {
   private async installedSet(): Promise<Set<string>> {
     const rows = await this.deps.em().find(ModuleRegistration, {
       state: { $in: ['installed', 'disabled'] },
+    });
+    return new Set(rows.map((r) => r.moduleId));
+  }
+
+  /**
+   * Set of moduleIds that are currently ENABLED (state='installed'). Distinct
+   * from {@link installedSet}, which also counts disabled modules as present.
+   * Enabling a module requires every dependency to be enabled — a merely
+   * present-but-disabled dependency must NOT satisfy the check.
+   */
+  private async enabledSet(): Promise<Set<string>> {
+    const rows = await this.deps.em().find(ModuleRegistration, {
+      state: 'installed',
     });
     return new Set(rows.map((r) => r.moduleId));
   }

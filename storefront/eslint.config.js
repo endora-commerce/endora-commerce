@@ -7,9 +7,19 @@
 // imports of component libraries (`import Link from 'next/link'`) pass.
 
 import rootConfig from '../eslint.config.js';
+import nextPlugin from '@next/eslint-plugin-next';
 
 export default [
   ...rootConfig,
+  {
+    files: ['**/*.ts', '**/*.tsx'],
+    plugins: {
+      '@next/next': nextPlugin,
+    },
+    rules: {
+      '@next/next/no-img-element': 'warn',
+    },
+  },
   {
     files: ['**/*.tsx'],
     rules: {

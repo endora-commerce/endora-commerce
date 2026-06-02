@@ -70,7 +70,7 @@ const isMain = import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
   backfillQuoteChannel()
     .then((result) => {
-      // eslint-disable-next-line no-console
+       
       console.warn(
         `[backfill-quote-channel] system_default=${result.systemDefaultId} ` +
           `scanned=${result.rowsScanned} updated=${result.rowsUpdated}`,
@@ -78,7 +78,7 @@ if (isMain) {
       process.exit(0);
     })
     .catch((err: unknown) => {
-      // eslint-disable-next-line no-console
+       
       console.error('[backfill-quote-channel] failed:', err);
       process.exit(1);
     });

@@ -129,7 +129,11 @@ describe('admin sales-channels CRUD + lifecycle (T029-T033)', () => {
     );
   });
 
-  it('POST refuses unknown language code → UNKNOWN_LANGUAGE_CODE', async () => {
+  // Feature 017 — language/currency codes are validated against the central
+  // dictionary, so an unknown code is rejected with 409 DICTIONARY_ENTRY_NOT_FOUND
+  // (the dictionary validator's uniform error) rather than the legacy
+  // 422 UNKNOWN_LANGUAGE_CODE / UNKNOWN_CURRENCY_CODE.
+  it('POST refuses unknown language code → DICTIONARY_ENTRY_NOT_FOUND', async () => {
     const r = await h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/sales-channels',
@@ -143,13 +147,13 @@ describe('admin sales-channels CRUD + lifecycle (T029-T033)', () => {
         defaultCurrency: 'PLN',
       },
     });
-    expect(r.statusCode).toBe(422);
+    expect(r.statusCode).toBe(409);
     expect((r.json() as { error: { code: string } }).error.code).toBe(
-      ERROR_CODES.UNKNOWN_LANGUAGE_CODE,
+      ERROR_CODES.DICTIONARY_ENTRY_NOT_FOUND,
     );
   });
 
-  it('POST refuses unknown currency code → UNKNOWN_CURRENCY_CODE', async () => {
+  it('POST refuses unknown currency code → DICTIONARY_ENTRY_NOT_FOUND', async () => {
     const r = await h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/sales-channels',
@@ -163,9 +167,9 @@ describe('admin sales-channels CRUD + lifecycle (T029-T033)', () => {
         defaultCurrency: 'XYZ',
       },
     });
-    expect(r.statusCode).toBe(422);
+    expect(r.statusCode).toBe(409);
     expect((r.json() as { error: { code: string } }).error.code).toBe(
-      ERROR_CODES.UNKNOWN_CURRENCY_CODE,
+      ERROR_CODES.DICTIONARY_ENTRY_NOT_FOUND,
     );
   });
 

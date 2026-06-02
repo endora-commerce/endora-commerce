@@ -14,7 +14,7 @@ import { S3StorageAdapter } from './s3-adapter.js';
 import { GcsStorageAdapter } from './gcs-adapter.js';
 import { legacyAssetResolver } from './legacy-resolver.js';
 import { ConfigurationError } from './errors.js';
-import { HmacSigner } from '../hmac.js';
+import type { HmacSigner } from '../hmac.js';
 
 /**
  * The minimum settings surface AdapterRegistry needs. The composition root

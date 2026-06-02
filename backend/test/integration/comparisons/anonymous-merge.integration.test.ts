@@ -68,7 +68,9 @@ describe('Compare module — anonymous→authenticated merge (Phase 8 / T070)', 
     const em = h.em();
     const rows = await em.find(Comparison, {});
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.anonymousToken).toBeNull();
+    // MikroORM hydrates a NULL optional column as `undefined`; both mean
+    // "the anonymous token was cleared" (verified at the DB layer).
+    expect(rows[0]!.anonymousToken ?? null).toBeNull();
     expect(rows[0]!.customerAccountId).not.toBeNull();
   });
 
@@ -121,7 +123,9 @@ describe('Compare module — anonymous→authenticated merge (Phase 8 / T070)', 
     const em = h.em();
     const rows = await em.find(Comparison, {});
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.anonymousToken).toBeNull();
+    // MikroORM hydrates a NULL optional column as `undefined`; both mean
+    // "the anonymous token was cleared" (verified at the DB layer).
+    expect(rows[0]!.anonymousToken ?? null).toBeNull();
     expect(rows[0]!.customerAccountId).not.toBeNull();
     // The product on the surviving comparison is the customer's original
     // (101), not the anonymous one (102).

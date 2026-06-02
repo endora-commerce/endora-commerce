@@ -12,7 +12,7 @@ export interface HealthDeps {
   pingMeilisearch: () => Promise<boolean>;
 }
 
-const healthResponseSchema = z.object({
+export const healthResponseSchema = z.object({
   status: z.enum(['ok', 'degraded']),
   checks: z.object({
     database: z.boolean(),

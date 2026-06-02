@@ -212,7 +212,7 @@ export class SearchEventSubscriber {
 }
 
 function defaultLogger(err: unknown, eventName: string): void {
-  // eslint-disable-next-line no-console
+   
   console.warn(
     JSON.stringify({
       level: 'warn',
