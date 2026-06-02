@@ -265,194 +265,44 @@ h3 { font-size: 16px; font-weight: 600; }
 /* ------------------------------------------------------------------ */
 /* Top utility bar                                                       */
 /* ------------------------------------------------------------------ */
-.industria-topbar {
-  background: var(--ink-900);
-  color: #d6dae3;
-  font-size: 12px;
-  border-bottom: 1px solid #14181f;
+/* .industria-topbar* (header utility strip) → @apply (feature 041) */
+@layer components {
+  .industria-topbar { @apply border-b border-[#14181f] bg-[color:var(--ink-900)] text-[12px] text-[#d6dae3]; }
+  .industria-topbar__inner { @apply flex h-[36px] items-center justify-between gap-[24px]; }
+  .industria-topbar__left, .industria-topbar__right { @apply flex items-center gap-[20px]; }
+  .industria-topbar__item { @apply inline-flex items-center gap-[6px] text-[#b8c0cf]; }
+  .industria-topbar__item svg { @apply opacity-80; }
+  .industria-topbar__sep { @apply inline-block h-[14px] w-px bg-white/12; }
+  .industria-topbar__chip { @apply inline-flex items-center gap-[6px] rounded-full border border-white/8 bg-white/6 px-[8px] py-[3px] font-mono text-[11px] tracking-[0.02em] text-[#cfd5e0]; }
+  .industria-topbar__chip strong { @apply font-semibold text-white; }
+  .industria-topbar__switcher { @apply inline-flex items-center gap-[6px] text-[#b8c0cf]; }
+  .industria-topbar__switcher label { @apply text-[11px] opacity-85; }
+  .industria-topbar__switcher select { @apply rounded border border-white/16 bg-transparent px-[6px] py-[2px] text-[11px] text-white; }
+  .industria-topbar a { @apply text-inherit opacity-85; }
+  .industria-topbar a:hover { @apply opacity-100; }
 }
-.industria-topbar__inner {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 24px;
-  height: 36px;
-}
-.industria-topbar__left, .industria-topbar__right {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-.industria-topbar__item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #b8c0cf;
-}
-.industria-topbar__item svg { opacity: 0.8; }
-.industria-topbar__sep {
-  width: 1px;
-  height: 14px;
-  background: rgba(255,255,255,0.12);
-  display: inline-block;
-}
-.industria-topbar__chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 8px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 999px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.02em;
-  color: #cfd5e0;
-}
-.industria-topbar__chip strong { color: #fff; font-weight: 600; }
-.industria-topbar__switcher {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #b8c0cf;
-}
-.industria-topbar__switcher label {
-  font-size: 11px;
-  opacity: 0.85;
-}
-.industria-topbar__switcher select {
-  background: transparent;
-  border: 1px solid rgba(255,255,255,0.16);
-  color: #fff;
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-.industria-topbar a { color: inherit; opacity: 0.85; }
-.industria-topbar a:hover { opacity: 1; }
 
 /* ------------------------------------------------------------------ */
 /* Header                                                                */
 /* ------------------------------------------------------------------ */
-.industria-header {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
-}
-.industria-header__inner {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 32px;
-  align-items: center;
-  height: 72px;
-}
-.industria-header__brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 700;
-  font-size: 18px;
-  letter-spacing: -0.01em;
-  color: var(--ink-900);
-}
-.industria-header__mark {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  background: var(--ink-900);
-  color: #fff;
-  display: inline-grid;
-  place-items: center;
-  font-family: var(--font-mono);
-  font-weight: 600;
-  letter-spacing: -0.04em;
-  font-size: 14px;
-}
-.industria-header__brand__name {
-  display: flex;
-  flex-direction: column;
-  line-height: 1;
-}
-.industria-header__brand small {
-  display: block;
-  font-weight: 500;
-  font-size: 10px;
-  color: var(--ink-400);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  margin-top: 3px;
-}
+/* .industria-header* + .industria-search* (sticky header + search) → @apply (feature 041) */
+@layer components {
+  .industria-header { @apply sticky top-0 z-50 border-b border-line bg-surface; }
+  .industria-header__inner { @apply grid h-[72px] grid-cols-[auto_1fr_auto] items-center gap-8; }
+  .industria-header__brand { @apply inline-flex items-center gap-[10px] text-[18px] font-bold tracking-[-0.01em] text-fg; }
+  .industria-header__mark { @apply inline-grid h-[32px] w-[32px] place-items-center rounded-[6px] bg-[color:var(--ink-900)] font-mono text-[14px] font-semibold tracking-[-0.04em] text-white; }
+  .industria-header__brand__name { @apply flex flex-col leading-none; }
+  .industria-header__brand small { @apply mt-[3px] block text-[10px] font-medium uppercase tracking-[0.12em] text-subtle; }
 
-.industria-search {
-  position: relative;
-  display: flex;
-  align-items: stretch;
-  background: var(--surface-alt);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  height: 44px;
-  max-width: 720px;
-  width: 100%;
-  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
-}
-.industria-search:focus-within {
-  border-color: var(--brand-600);
-  background: var(--surface);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
-}
-.industria-search__icon {
-  display: inline-flex;
-  align-items: center;
-  padding: 0 4px 0 14px;
-  color: var(--ink-400);
-}
-.industria-search .b2b-search-autocomplete {
-  flex: 1;
-  display: flex;
-  align-items: stretch;
-  min-width: 0;
-  position: relative;
-}
-.industria-search input {
-  flex: 1;
-  border: 0;
-  background: transparent;
-  padding: 0 8px;
-  outline: none;
-  font-size: 14px;
-  color: var(--ink-900);
-  min-width: 0;
-}
-.industria-search input::placeholder { color: var(--ink-400); }
-.industria-search__cta {
-  background: var(--brand-700);
-  color: #fff;
-  border: 0;
-  padding: 0 18px;
-  border-radius: 0 var(--r-md) var(--r-md) 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  /* `align-items: stretch` on the form makes this fill the 44 px frame, */
-  /* and the right-side radius hugs the outer border. */
-}
-.industria-search__cta:hover { background: var(--brand-900); }
-.industria-search__kbd {
-  align-self: center;
-  margin-right: 6px;
-  padding: 2px 7px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--surface);
-  color: var(--ink-500);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.4;
-  white-space: nowrap;
+  .industria-search { @apply relative flex h-[44px] w-full max-w-[720px] items-stretch rounded-md border border-line bg-surface-alt transition-[border-color,background-color,box-shadow] duration-150; }
+  .industria-search:focus-within { @apply border-[color:var(--brand-600)] bg-surface shadow-[0_0_0_3px_rgba(37,99,235,0.12)]; }
+  .industria-search__icon { @apply inline-flex items-center pl-[14px] pr-[4px] text-subtle; }
+  .industria-search .b2b-search-autocomplete { @apply relative flex min-w-0 flex-1 items-stretch; }
+  .industria-search input { @apply min-w-0 flex-1 border-0 bg-transparent px-[8px] text-[14px] text-fg outline-none; }
+  .industria-search input::placeholder { @apply text-subtle; }
+  .industria-search__cta { @apply inline-flex items-center gap-[6px] rounded-r-md border-0 bg-accent px-[18px] text-[13px] font-medium text-white; }
+  .industria-search__cta:hover { @apply bg-accent-hover; }
+  .industria-search__kbd { @apply mr-[6px] self-center whitespace-nowrap rounded border border-line bg-surface px-[7px] py-[2px] font-mono text-[11px] leading-[1.4] text-muted; }
 }
 
 .industria-header__actions {
