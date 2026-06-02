@@ -144,6 +144,7 @@ export class OrderService {
       resolveMinOrderValue?: (salesChannelId: string) => Promise<number>;
       resolveChannelFulfilmentStrategy?: (salesChannelId: string) => Promise<FulfilmentStrategy>;
       resolveChannelFulfilmentWarehouseOrder?: (salesChannelId: string) => Promise<string[]>;
+      resolveChannelAllowNegativeStock?: (salesChannelId: string) => Promise<boolean>;
     },
   ) {
     this.accessService = accessService ?? new OrderAccessService(emFactory);
@@ -158,6 +159,7 @@ export class OrderService {
     this.resolveChannelFulfilmentStrategy = paymentDeps?.resolveChannelFulfilmentStrategy;
     this.resolveChannelFulfilmentWarehouseOrder =
       paymentDeps?.resolveChannelFulfilmentWarehouseOrder;
+    this.resolveChannelAllowNegativeStock = paymentDeps?.resolveChannelAllowNegativeStock;
   }
 
   /**
@@ -172,6 +174,18 @@ export class OrderService {
     | undefined;
   private readonly resolveChannelFulfilmentWarehouseOrder:
     | ((salesChannelId: string) => Promise<string[]>)
+    | undefined;
+
+  /**
+   * Global gate for per-product backorder. Resolves
+   * `inventory.allow_negative_stock` for a channel via the Settings module
+   * (per-channel value → global value → manifest default `false`). When the
+   * gate is off, a product's `backorderEnabled` flag is ignored and orders
+   * below available stock are rejected. Optional; when unwired the gate
+   * defaults to off.
+   */
+  private readonly resolveChannelAllowNegativeStock:
+    | ((salesChannelId: string) => Promise<boolean>)
     | undefined;
 
   /**
@@ -514,6 +528,13 @@ export class OrderService {
           : [],
       };
 
+      // Global backorder gate (inventory.allow_negative_stock). When off, a
+      // product's per-product backorder flag is ignored below. Resolver
+      // failures degrade to off (safest: never silently oversell).
+      const allowNegativeStock = this.resolveChannelAllowNegativeStock
+        ? await this.resolveChannelAllowNegativeStock(channelStrategyId).catch(() => false)
+        : false;
+
       // Candidate warehouses for the channel — joined with the warehouses
       // table so we can carry the code (used by lex tie-breaks in the
       // resolver) and the isDefault flag.
@@ -634,7 +655,7 @@ export class OrderService {
           })),
           strategy,
           warehouseOrder,
-          backorderEnabled: flags?.backorderEnabled ?? false,
+          backorderEnabled: allowNegativeStock && (flags?.backorderEnabled ?? false),
         });
 
         if (!outcome.ok) {

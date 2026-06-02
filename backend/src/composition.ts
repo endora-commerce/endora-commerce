@@ -707,6 +707,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           return [];
         }
       },
+      // Global backorder gate — collapses per-channel value → global value →
+      // manifest default (false). Failures degrade to false (never oversell).
+      resolveChannelAllowNegativeStock: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'inventory.allow_negative_stock',
+            salesChannelId,
+            z.boolean(),
+          );
+        } catch {
+          return false;
+        }
+      },
       getRfqService: () => quoteRequests?.handle().rfqService ?? null,
       // Feature 039 — expose OrderService for the quick_order one-click flow.
       exposeOrderService: (svc) => {

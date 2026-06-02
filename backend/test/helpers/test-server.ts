@@ -566,6 +566,20 @@ export async function setupBackendServer(
       promotionService: promotions.handle.promotionService,
       redis,
       getRfqService: () => quoteRequests?.handle().rfqService ?? null,
+      // Global backorder gate — resolved at request time via the Settings
+      // module (declared below; the closure runs well after setup completes).
+      resolveChannelAllowNegativeStock: async (salesChannelId: string) => {
+        try {
+          const { z } = await import('zod');
+          return await settings.handle.settingsService.get(
+            'inventory.allow_negative_stock',
+            salesChannelId,
+            z.boolean(),
+          );
+        } catch {
+          return false;
+        }
+      },
       // Feature 039 — expose OrderService for the quick_order one-click flow.
       exposeOrderService: (svc) => {
         orderServiceForOneClick = svc;

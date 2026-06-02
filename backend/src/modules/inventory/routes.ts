@@ -240,16 +240,22 @@ export async function registerInventoryRoutes(
         thresholds,
       });
 
+      // Effective backorder = per-product flag AND the global negative-stock
+      // gate; this is what order placement enforces, so the storefront must
+      // not advertise backorder when the global gate is off.
+      const allowNegativeStock = await readAllowNegativeStock(channelId, settingsService);
+      const effectiveBackorderEnabled = (product.backorderEnabled ?? false) && allowNegativeStock;
+
       const isOutOfStock = (product.manageStock ?? true) && cumulativeOnHand <= 0;
       const showNotifyButton =
         (product.manageStock ?? true) &&
-        !(product.backorderEnabled ?? false) &&
+        !effectiveBackorderEnabled &&
         cumulativeOnHand <= 0;
 
       const payload: StorefrontProductStock = {
         productId,
         manageStock: product.manageStock ?? true,
-        backorderEnabled: product.backorderEnabled ?? false,
+        backorderEnabled: effectiveBackorderEnabled,
         displayMode,
         displayBand,
         exactOnHand: displayMode === 'exact' ? cumulativeOnHand : null,
@@ -299,6 +305,31 @@ async function readDisplayMode(
     }
   }
   return 'band';
+}
+
+/**
+ * Global backorder gate (`inventory.allow_negative_stock`) for a channel.
+ * Mirrors `readDisplayMode`: per-channel value → global value → manifest
+ * default (false). Failures degrade to false so the storefront never
+ * promises a backorder the order placement would reject.
+ */
+async function readAllowNegativeStock(
+  channelId: string,
+  settingsService?: SettingsService,
+): Promise<boolean> {
+  if (settingsService && channelId) {
+    try {
+      const { z } = await import('zod');
+      return await settingsService.get(
+        INVENTORY_SETTING_CODES.ALLOW_NEGATIVE_STOCK,
+        channelId,
+        z.boolean(),
+      );
+    } catch {
+      // fall through
+    }
+  }
+  return false;
 }
 
 async function loadGlobalThresholds(em: EntityManager): Promise<{

@@ -18,6 +18,7 @@ export const INVENTORY_SETTING_CODES = {
   GLOBAL_THRESHOLD_MEDIUM: 'inventory.global_threshold_medium',
   GLOBAL_THRESHOLD_LOW: 'inventory.global_threshold_low',
   LOW_STOCK_ALERT_RECIPIENT_EMAIL: 'inventory.low_stock_alert_recipient_email',
+  ALLOW_NEGATIVE_STOCK: 'inventory.allow_negative_stock',
 } as const;
 
 const settings = defineModuleSettingsManifest({
@@ -82,6 +83,15 @@ const settings = defineModuleSettingsManifest({
       groupCode: 'inventory',
       valueType: 'string',
       defaultValue: '',
+    },
+    {
+      code: INVENTORY_SETTING_CODES.ALLOW_NEGATIVE_STOCK,
+      name: 'Allow ordering below stock (negative stock)',
+      description:
+        'Global gate for per-product backorder. When false, no product accepts orders below available stock regardless of its per-product backorder flag. When true, products whose backorder flag is set may be ordered into negative stock.',
+      groupCode: 'inventory',
+      valueType: 'boolean',
+      defaultValue: false,
     },
   ],
 });

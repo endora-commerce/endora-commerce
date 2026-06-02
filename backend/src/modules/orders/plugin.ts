@@ -245,6 +245,11 @@ export interface OrdersModuleOptions {
    */
   resolveChannelFulfilmentStrategy?: (salesChannelId: string) => Promise<FulfilmentStrategy>;
   resolveChannelFulfilmentWarehouseOrder?: (salesChannelId: string) => Promise<string[]>;
+  /**
+   * Global backorder gate (`inventory.allow_negative_stock`) resolved per
+   * sales channel. When unwired the gate defaults to off.
+   */
+  resolveChannelAllowNegativeStock?: (salesChannelId: string) => Promise<boolean>;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -344,6 +349,9 @@ export function commerceModule(options: OrdersModuleOptions) {
           : {}),
         ...(options.resolveChannelFulfilmentWarehouseOrder
           ? { resolveChannelFulfilmentWarehouseOrder: options.resolveChannelFulfilmentWarehouseOrder }
+          : {}),
+        ...(options.resolveChannelAllowNegativeStock
+          ? { resolveChannelAllowNegativeStock: options.resolveChannelAllowNegativeStock }
           : {}),
         // Feature 036 (US3) — PromotionService satisfies PromotionPort
         // structurally; threaded so placeOrder stamps the cart's coupon
