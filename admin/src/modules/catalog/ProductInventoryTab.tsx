@@ -6,6 +6,7 @@ import {
   FulfilmentStrategyPicker,
   type FulfilmentStrategyValue,
 } from '@/modules/inventory/components/FulfilmentStrategyPicker';
+import { settingsClient } from '@/modules/settings/api/settings-client';
 
 interface RosterResponse {
   items: StockLevelRow[];
@@ -19,6 +20,8 @@ interface SetStockResponse {
 interface AdminProductResponse {
   data: {
     id: string;
+    manageStock: boolean;
+    backorderEnabled: boolean;
     lowStockThreshold: number | null;
     lowStockThresholdMode: 'cumulative' | 'per_warehouse';
     fulfilmentStrategy: FulfilmentStrategy | null;
@@ -60,15 +63,20 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
     warehouseOrder: [],
   });
   const [fulfilmentSaving, setFulfilmentSaving] = useState(false);
+  const [manageStock, setManageStock] = useState(true);
+  const [backorderEnabled, setBackorderEnabled] = useState(false);
+  const [allowNegativeGlobal, setAllowNegativeGlobal] = useState(false);
+  const [stockMgmtSaving, setStockMgmtSaving] = useState(false);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
     try {
-      const [whRes, rosterRes, productRes] = await Promise.all([
+      const [whRes, rosterRes, productRes, allowNegativeSetting] = await Promise.all([
         apiClient.get<WarehousesResponse>('/api/v1/admin/warehouses?activeOnly=true&pageSize=200'),
         apiClient.get<RosterResponse>(`/api/v1/admin/inventory/levels?productId=${productId}`),
         apiClient.get<AdminProductResponse>(`/api/v1/admin/catalog/products/${productId}`),
+        settingsClient.getByCode('inventory.allow_negative_stock').catch(() => null),
       ]);
       setWarehouses(whRes.items);
       const onHandMap = new Map<string, number>();
@@ -101,6 +109,12 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
         strategy: productRes.data.fulfilmentStrategy,
         warehouseOrder: productRes.data.fulfilmentStrategyWarehouseOrder ?? [],
       });
+      setManageStock(productRes.data.manageStock ?? true);
+      setBackorderEnabled(productRes.data.backorderEnabled ?? false);
+      if (allowNegativeSetting) {
+        const effective = allowNegativeSetting.globalValue ?? allowNegativeSetting.defaultValue;
+        setAllowNegativeGlobal(effective === true);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load warehouses.');
     } finally {
@@ -155,6 +169,29 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
       setError(err instanceof ApiError ? err.envelope.error.message : t('inventoryTab.error.save'));
     } finally {
       setFulfilmentSaving(false);
+    }
+  };
+
+  const handleSaveStockMgmt = async (
+    next: { manageStock?: boolean; backorderEnabled?: boolean },
+  ): Promise<void> => {
+    const nextManage = next.manageStock ?? manageStock;
+    const nextBackorder = next.backorderEnabled ?? backorderEnabled;
+    setStockMgmtSaving(true);
+    setError(null);
+    setInfo(null);
+    try {
+      await apiClient.patch(`/api/v1/admin/catalog/products/${productId}`, {
+        manageStock: nextManage,
+        backorderEnabled: nextBackorder,
+      });
+      setManageStock(nextManage);
+      setBackorderEnabled(nextBackorder);
+      setInfo(t('inventoryTab.stockMgmt.saved'));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : t('inventoryTab.error.save'));
+    } finally {
+      setStockMgmtSaving(false);
     }
   };
 
@@ -239,6 +276,49 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
 
   return (
     <div className="b2b-col" style={{ gap: 16 }}>
+      <div className="b2b-card">
+        <div className="b2b-card__head">
+          <h2>{t('inventoryTab.stockMgmt.title')}</h2>
+        </div>
+        <div className="b2b-card__body b2b-col" style={{ gap: 12 }}>
+          <label className="b2b-row" style={{ gap: 8, alignItems: 'flex-start' }}>
+            <input
+              type="checkbox"
+              checked={!manageStock}
+              disabled={stockMgmtSaving}
+              onChange={(e): void => {
+                void handleSaveStockMgmt({ manageStock: !e.target.checked });
+              }}
+            />
+            <span>
+              <div>{t('inventoryTab.stockMgmt.disableManageStock')}</div>
+              <div className="b2b-help">{t('inventoryTab.stockMgmt.disableManageStockHelp')}</div>
+            </span>
+          </label>
+
+          <label className="b2b-row" style={{ gap: 8, alignItems: 'flex-start' }}>
+            <input
+              type="checkbox"
+              checked={backorderEnabled}
+              disabled={stockMgmtSaving || manageStock === false || !allowNegativeGlobal}
+              onChange={(e): void => {
+                void handleSaveStockMgmt({ backorderEnabled: e.target.checked });
+              }}
+            />
+            <span>
+              <div>{t('inventoryTab.stockMgmt.backorder')}</div>
+              <div className="b2b-help">
+                {!allowNegativeGlobal
+                  ? t('inventoryTab.stockMgmt.backorderGloballyDisabled')
+                  : manageStock === false
+                    ? t('inventoryTab.stockMgmt.backorderUnmanaged')
+                    : t('inventoryTab.stockMgmt.backorderHelp')}
+              </div>
+            </span>
+          </label>
+        </div>
+      </div>
+
       <div className="b2b-card" style={{ padding: 12 }}>
         <div className="b2b-row" style={{ gap: 16 }}>
           <div>
