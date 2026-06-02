@@ -1976,10 +1976,7 @@ h3 { font-size: 16px; font-weight: 600; }
 
 .b2b-pdp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; }
 @media (max-width: 720px) { .b2b-pdp { grid-template-columns: 1fr; } }
-.b2b-pdp__attributes { border-collapse: collapse; width: 100%; }
-.b2b-pdp__attributes th, .b2b-pdp__attributes td { padding: 8px; border-bottom: 1px solid var(--line); text-align: left; font-size: 13px; }
-.b2b-pdp__attributes th { color: var(--ink-500); font-weight: 500; }
-.b2b-pdp__attributes td { font-family: var(--font-mono); }
+/* .b2b-pdp__attributes* migrated to utilities in components/attributes/ParametryTab.tsx (feature 041) */
 
 /* .b2b-gallery* migrated to utilities in ProductGallery.tsx / GallerySwitcher.tsx (feature 041) */
 
