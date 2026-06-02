@@ -52,26 +52,33 @@ export function CartCouponInput({
   strings,
 }: CartCouponInputProps): ReactNode {
   return (
-    <div className="cart-coupon">
-      <h4>{strings.label}</h4>
+    <div className="mt-4 border-t border-line pt-4">
+      <h4 className="m-0 mb-2 text-[12px] font-semibold uppercase tracking-[0.04em] text-muted">
+        {strings.label}
+      </h4>
 
       {appliedCode ? (
-        <form action={clearAction} className="cart-coupon__active">
+        <form
+          action={clearAction}
+          className="flex items-center justify-between gap-2 rounded-sm border border-line bg-surface-alt px-[10px] py-[8px] text-[12px]"
+        >
           <span>
-            <code>{appliedCode}</code> · {strings.activeCode(appliedCode)}
+            <code className="font-mono font-semibold text-ok">{appliedCode}</code> ·{' '}
+            {strings.activeCode(appliedCode)}
           </span>
           <button type="submit" className="btn btn--ghost btn--sm">
             {strings.clearButton}
           </button>
         </form>
       ) : (
-        <form action={applyAction} className="cart-coupon__form">
+        <form action={applyAction} className="flex gap-1.5">
           <input
             type="text"
             name="code"
             placeholder={strings.placeholder}
             required
             pattern="[A-Z0-9_-]{1,64}"
+            className="h-[36px] min-w-0 flex-1 rounded-sm border border-line bg-surface px-[10px] font-mono text-[12px] uppercase text-fg outline-0 focus:border-accent"
           />
           <button type="submit" className="btn btn--dark btn--sm">
             {strings.applyButton}
@@ -80,13 +87,13 @@ export function CartCouponInput({
       )}
 
       {droppedOnRead ? (
-        <p className="cart-coupon__notice">
+        <p className="mt-2 rounded-sm border border-[#fde68a] bg-[#fef7e7] px-[10px] py-[8px] text-[12px] text-[#b45309]">
           {strings.autoDropped(droppedOnRead.code, droppedOnRead.reason)}
         </p>
       ) : null}
 
       {applyError ? (
-        <p className="cart-coupon__error">
+        <p className="mt-2 rounded-sm border border-[#fecaca] bg-[#fef2f2] px-[10px] py-[8px] text-[12px] text-[#b91c1c]">
           {strings.rejectedReason(applyError.reason, applyError.shortfall)}
         </p>
       ) : null}

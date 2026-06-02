@@ -39,27 +39,27 @@ export function CartTotals({
 }: CartTotalsProps): ReactNode {
   return (
     <>
-      <div className="cart-summary__row">
+      <div className="flex justify-between py-[6px] text-[13px] text-[color:var(--ink-600)]">
         <span>{strings.subtotalLabel(itemCount)}</span>
-        <span className="cart-summary__row__value">{formatMoney(subtotal)}</span>
+        <span className="font-mono font-medium text-fg">{formatMoney(subtotal)}</span>
       </div>
-      <div className="cart-summary__row">
+      <div className="flex justify-between py-[6px] text-[13px] text-[color:var(--ink-600)]">
         <span>{strings.deliveryLabel}</span>
-        <span className="cart-summary__row__value" style={{ color: 'var(--ok-700)' }}>
-          {strings.deliveryValue}
-        </span>
+        <span className="font-mono font-medium text-ok">{strings.deliveryValue}</span>
       </div>
       {discount ? (
-        <div className="cart-summary__row cart-summary__row--discount">
+        <div className="flex justify-between py-[6px] text-[13px] text-[color:var(--ink-600)]">
           <span>{strings.discountLabel(discount.code)}</span>
-          <span className="cart-summary__row__value">
+          <span className="font-mono font-medium text-ok">
             −{formatMoney({ amount: discount.amount, currency: discount.currency })}
           </span>
         </div>
       ) : null}
-      <div className="cart-summary__total">
-        <span>{strings.grandTotalLabel}</span>
-        <span className="num">{formatMoney(grandTotal)}</span>
+      <div className="mt-2 flex items-baseline justify-between border-t border-line pt-[14px]">
+        <span className="text-[13px] font-semibold text-fg">{strings.grandTotalLabel}</span>
+        <span className="font-mono text-[22px] font-semibold tracking-[-0.01em] text-fg">
+          {formatMoney(grandTotal)}
+        </span>
       </div>
     </>
   );
