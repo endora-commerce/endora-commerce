@@ -73,7 +73,11 @@ export function CompareToggle(props: { productId: string }): ReactNode {
     <>
       <button
         type="button"
-        className={`b2b-compare-toggle${active ? ' is-active' : ''}`}
+        className={`absolute right-[10px] top-[10px] z-[2] cursor-pointer rounded-[6px] border px-[9px] py-[5px] font-mono text-[11px] transition disabled:cursor-wait disabled:opacity-50 ${
+          active
+            ? 'border-accent bg-accent text-white'
+            : 'border-line bg-surface text-fg-soft hover:border-[var(--ink-700)] hover:text-fg'
+        }`}
         aria-pressed={active}
         disabled={busy}
         onClick={(): void => void onClick()}
@@ -81,7 +85,11 @@ export function CompareToggle(props: { productId: string }): ReactNode {
       >
         {active ? '✓ Compared' : 'Compare'}
       </button>
-      {error ? <span className="b2b-compare-toggle__error">{error}</span> : null}
+      {error ? (
+        <span className="absolute bottom-[8px] left-[8px] right-[8px] block rounded bg-bad-soft px-[6px] py-[4px] text-[10px] text-bad">
+          {error}
+        </span>
+      ) : null}
     </>
   );
 }

@@ -250,38 +250,16 @@ h3 { font-size: 16px; font-weight: 600; }
   .btn--block { @apply w-full justify-center; }
 }
 
-.icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--r-md);
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--ink-700);
-  position: relative;
-  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
-}
-.icon-btn:hover { background: var(--surface-alt); color: var(--ink-900); }
-.icon-btn:focus-visible { outline: 2px solid var(--brand-600); outline-offset: 2px; }
-.icon-btn__count {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  background: var(--brand-700);
-  color: #fff;
-  border: 2px solid var(--surface);
-  border-radius: 999px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+/* .icon-btn* — shared icon-button atom (header, compare, cart badge) → @apply (feature 041) */
+@layer components {
+  .icon-btn {
+    @apply relative inline-flex h-[40px] w-[40px] items-center justify-center rounded-md border border-transparent bg-transparent text-fg-soft transition-[background-color,border-color,color] duration-100;
+  }
+  .icon-btn:hover { @apply bg-surface-alt text-fg; }
+  .icon-btn:focus-visible { @apply outline-2 outline-offset-2 outline-[color:var(--brand-600)]; }
+  .icon-btn__count {
+    @apply absolute right-[2px] top-[2px] inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-surface bg-accent px-[5px] font-mono text-[10px] font-semibold text-white;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -527,40 +505,7 @@ h3 { font-size: 16px; font-weight: 600; }
 }
 
 /* Compare toggle floats in the product card's media area */
-.b2b-compare-toggle {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 2;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 5px 9px;
-  font-size: 11px;
-  font-family: var(--font-mono);
-  color: var(--ink-700);
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, color 0.15s;
-}
-.b2b-compare-toggle:hover { border-color: var(--ink-700); color: var(--ink-900); }
-.b2b-compare-toggle.is-active {
-  background: var(--brand-700);
-  border-color: var(--brand-700);
-  color: #fff;
-}
-.b2b-compare-toggle:disabled { opacity: 0.5; cursor: wait; }
-.b2b-compare-toggle__error {
-  display: block;
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  right: 8px;
-  font-size: 10px;
-  color: var(--bad-700);
-  background: var(--bad-50);
-  padding: 4px 6px;
-  border-radius: 4px;
-}
+/* .b2b-compare-toggle* migrated to utilities in components/CompareToggle.tsx (feature 041) */
 
 /* ------------------------------------------------------------------ */
 /* Main nav (below header)                                               */
