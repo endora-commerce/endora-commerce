@@ -144,48 +144,64 @@ export default async function HomePage(): Promise<ReactNode> {
             Zobacz wszystkie <ArrowRightIcon />
           </Link>
         </div>
-        <div className="industria-cat-grid">
+        <div className="grid grid-cols-6 gap-[16px] max-[1100px]:grid-cols-3 max-[600px]:grid-cols-2">
           {categoryTiles.map((c, i) => {
             const glyph = GLYPH_KEYS[i % GLYPH_KEYS.length] as keyof typeof GLYPHS;
             return (
-              <Link key={c.href} href={c.href} className="industria-cat-tile">
-                <div className="industria-cat-tile__icon">{GLYPHS[glyph]}</div>
-                <h3 className="industria-cat-tile__name">{c.name}</h3>
-                <span className="industria-cat-tile__count">
+              <Link
+                key={c.href}
+                href={c.href}
+                className="relative block rounded-lg border border-line bg-surface p-[22px] transition hover:-translate-y-[2px] hover:border-[var(--ink-700)]"
+              >
+                <div className="mb-[14px] inline-flex h-[56px] w-[56px] items-center justify-center rounded-md border border-line bg-surface-alt [&_svg]:h-[36px] [&_svg]:w-[36px]">
+                  {GLYPHS[glyph]}
+                </div>
+                <h3 className="m-0 mb-1 block text-[14px] font-semibold text-fg">{c.name}</h3>
+                <span className="font-mono text-[12px] text-muted">
                   {c.count.toLocaleString('pl-PL')} produktów
                 </span>
-                <span className="industria-cat-tile__arrow"><ArrowUpRightIcon /></span>
+                <span className="absolute right-[22px] top-[22px] text-line-strong">
+                  <ArrowUpRightIcon />
+                </span>
               </Link>
             );
           })}
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1360px] px-[24px] section" style={{ paddingTop: 0 }}>
-        <div className="industria-features">
-          <div className="industria-feature">
-            <div className="industria-feature__icon"><TruckIcon size={20} /></div>
+      <section className="mx-auto max-w-[1360px] px-[24px] section pt-0">
+        <div className="grid grid-cols-4 gap-[16px] max-[920px]:grid-cols-2 max-[600px]:grid-cols-1">
+          <div className="flex gap-[14px] rounded-lg border border-line bg-surface-alt p-[20px]">
+            <div className="inline-flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-md border border-line bg-surface text-accent">
+              <TruckIcon size={20} />
+            </div>
             <div>
               <h4>Wysyłka tego samego dnia</h4>
               <p>Cut-off 14:00. 98,4% pozycji on-stock w magazynie centralnym Warszawa-Okęcie.</p>
             </div>
           </div>
-          <div className="industria-feature">
-            <div className="industria-feature__icon"><WalletIcon size={20} /></div>
+          <div className="flex gap-[14px] rounded-lg border border-line bg-surface-alt p-[20px]">
+            <div className="inline-flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-md border border-line bg-surface text-accent">
+              <WalletIcon size={20} />
+            </div>
             <div>
               <h4>Limit kredytowy</h4>
               <p>Od 5 000 do 500 000 PLN. Faktura z odroczonym terminem 14/30/60 dni.</p>
             </div>
           </div>
-          <div className="industria-feature">
-            <div className="industria-feature__icon"><DocIcon size={20} /></div>
+          <div className="flex gap-[14px] rounded-lg border border-line bg-surface-alt p-[20px]">
+            <div className="inline-flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-md border border-line bg-surface text-accent">
+              <DocIcon size={20} />
+            </div>
             <div>
               <h4>Karty katalogowe i CAD</h4>
               <p>Każdy produkt ma kartę PDF, model 3D STEP/DXF, deklarację RoHS.</p>
             </div>
           </div>
-          <div className="industria-feature">
-            <div className="industria-feature__icon"><SettingsIcon size={20} /></div>
+          <div className="flex gap-[14px] rounded-lg border border-line bg-surface-alt p-[20px]">
+            <div className="inline-flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-md border border-line bg-surface text-accent">
+              <SettingsIcon size={20} />
+            </div>
             <div>
               <h4>Integracja z ERP</h4>
               <p>API REST, webhooki, eksport CSV/EDI. Quick Order dla 200+ pozycji.</p>
@@ -206,7 +222,7 @@ export default async function HomePage(): Promise<ReactNode> {
               Cały bestseller <ArrowRightIcon />
             </Link>
           </div>
-          <ul className="industria-product-grid">
+          <ul className="m-0 grid list-none grid-cols-4 gap-[16px] p-0 max-[1100px]:grid-cols-2 max-[540px]:grid-cols-1">
             {products.data.map((p) => (
               <li key={p.id}>
                 <ProductCard product={p} locale={locale} />
