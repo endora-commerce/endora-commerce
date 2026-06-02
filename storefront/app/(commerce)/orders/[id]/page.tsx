@@ -176,13 +176,13 @@ export default async function OrderConfirmationPage({
       </p>
       <form action={reorderAction} style={{ display: 'inline' }}>
         <input type="hidden" name="id" value={order.id} />
-        <button type="submit" className="b2b-button">
+        <button type="submit" className="btn btn--outline btn--sm">
           Order again → cart
         </button>
       </form>{' '}
       <form action={reorderToQuoteAction} style={{ display: 'inline' }}>
         <input type="hidden" name="id" value={order.id} />
-        <button type="submit" className="b2b-button">
+        <button type="submit" className="btn btn--outline btn--sm">
           Order again → quote request
         </button>
       </form>
@@ -206,7 +206,7 @@ export default async function OrderConfirmationPage({
         <form action={addCommentAction}>
           <input type="hidden" name="id" value={order.id} />
           <textarea name="body" required aria-label="Add a comment" rows={3} />
-          <button type="submit" className="b2b-button">
+          <button type="submit" className="btn btn--outline btn--sm">
             Add comment
           </button>
         </form>
