@@ -51,12 +51,9 @@ export function VariantPicker({
   if (variants.length === 0) return null;
 
   return (
-    <fieldset className="b2b-variant-picker" style={{ marginTop: 24, padding: 16 }}>
-      <legend style={{ fontWeight: 600 }}>{labels.heading}</legend>
-      <ul
-        className="b2b-variant-picker__list"
-        style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}
-      >
+    <fieldset className="mt-6 rounded-md border border-line p-[16px]">
+      <legend className="font-semibold">{labels.heading}</legend>
+      <ul className="m-0 grid list-none gap-2 p-0">
         {variants.map((v) => {
           const isSelected = selectedSku === v.sku;
           const description = describeAttributeValues(v.variantAttributeValues);
@@ -74,31 +71,23 @@ export function VariantPicker({
                       ? labels.selectThisVariant
                       : undefined
                 }
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 4,
-                  padding: 8,
-                  border: isSelected ? '2px solid currentColor' : '1px solid #ccc',
-                  background: outOfStock ? '#f5f5f5' : 'transparent',
-                  textDecoration: 'none',
-                  color: 'inherit',
-                  pointerEvents: outOfStock ? 'none' : 'auto',
-                }}
+                className={`flex flex-col gap-1 p-[8px] text-inherit no-underline ${
+                  isSelected ? 'border-2 border-current' : 'border border-line'
+                } ${outOfStock ? 'pointer-events-none bg-surface-alt' : 'bg-transparent'}`}
                 rel="nofollow"
               >
-                <span style={{ fontWeight: isSelected ? 600 : 400 }}>{description}</span>
-                <span style={{ fontSize: '0.875rem', color: 'var(--muted, #666)' }}>
+                <span className={isSelected ? 'font-semibold' : 'font-normal'}>{description}</span>
+                <span className="text-[0.875rem] text-muted">
                   {labels.sku}: <code>{v.sku}</code>
                 </span>
                 {v.priceOverride != null ? (
-                  <span style={{ fontSize: '0.875rem' }}>
+                  <span className="text-[0.875rem]">
                     {labels.priceOverride}:{' '}
                     <strong>{formatPriceOverride(v.priceOverride)}</strong>
                   </span>
                 ) : null}
                 {v.stockLevel != null ? (
-                  <span style={{ fontSize: '0.875rem' }}>
+                  <span className="text-[0.875rem]">
                     {outOfStock ? labels.outOfStock : `${labels.stockLevel}: ${v.stockLevel}`}
                   </span>
                 ) : null}
