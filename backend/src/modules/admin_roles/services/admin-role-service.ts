@@ -7,15 +7,26 @@ import { AdminUser } from '../../admin_users/entities/admin-user.entity.js';
 import type { PermissionCatalogueService } from './permission-catalogue.service.js';
 
 /**
- * AdminRoleService (T193). CRUD over AdminRole rows. Two invariants:
+ * AdminRoleService (T193). CRUD over AdminRole rows. Invariants:
  *
  *   - permissions referenced in `permissions` MUST be in the merged assignable
- *     catalogue (`PermissionCatalogueService`)
- *     (the wildcard `*` is intentionally rejected here — it's bootstrap-only,
- *     applied via a seed, never from the UI).
+ *     catalogue (`PermissionCatalogueService`), OR be the wildcard `*` which
+ *     grants full access. When `*` is present the permission set is normalised
+ *     to exactly `['*']` (a role is either "full access" or an explicit list).
+ *   - the bootstrap `platform_admin` role is locked to `['*']`: it always has
+ *     full access and its permission set cannot be downgraded from the UI.
  *   - a Role with assigned AdminUsers cannot be deleted (409); reassign or
  *     deactivate the users first.
  */
+
+/** Wildcard permission — grants access to every gated admin route. */
+const WILDCARD = '*';
+
+/**
+ * The bootstrap super-admin role. Its permission set is forced to the wildcard
+ * on every upsert so it can never be locked out of the panel.
+ */
+const PLATFORM_ADMIN_CODE = 'platform_admin';
 
 export interface UpsertAdminRoleInput {
   code: string;
@@ -75,12 +86,18 @@ export class AdminRoleService {
   }
 
   async upsertByCode(input: UpsertAdminRoleInput): Promise<AdminRole> {
-    this.#assertPermissionsKnown(input.permissions);
+    // The platform_admin role is always full-access; ignore any narrower
+    // payload so the bootstrap super-admin can never be downgraded. Every
+    // other role may opt into the wildcard or carry an explicit list.
+    const permissions =
+      input.code === PLATFORM_ADMIN_CODE
+        ? [WILDCARD]
+        : this.#normalizePermissions(input.permissions);
     const em = this.emFactory();
     let role = await em.findOne(AdminRole, { code: input.code });
     if (role) {
       role.name = input.name;
-      role.permissions = input.permissions;
+      role.permissions = permissions;
       role.requiresTwoFactor = input.requiresTwoFactor ?? role.requiresTwoFactor;
       await em.flush();
       return role;
@@ -88,7 +105,7 @@ export class AdminRoleService {
     role = em.create(AdminRole, {
       code: input.code,
       name: input.name,
-      permissions: input.permissions,
+      permissions,
       requiresTwoFactor: input.requiresTwoFactor ?? false,
     });
     try {
@@ -128,7 +145,14 @@ export class AdminRoleService {
     await em.removeAndFlush(role);
   }
 
-  #assertPermissionsKnown(permissions: string[]): void {
+  /**
+   * Validate an explicit permission list and collapse the wildcard. A list
+   * containing `*` is "full access" — it normalises to exactly `['*']` and the
+   * catalogue check is skipped. Otherwise every code must exist in the merged
+   * assignable catalogue, else a 400 VALIDATION_FAILED is raised.
+   */
+  #normalizePermissions(permissions: string[]): string[] {
+    if (permissions.includes(WILDCARD)) return [WILDCARD];
     const known = new Set(this.permissionCatalogue.listAssignableCodes());
     const invalid = permissions.filter((p) => !known.has(p));
     if (invalid.length > 0) {
@@ -138,5 +162,6 @@ export class AdminRoleService {
         `Unknown permission(s): ${invalid.join(', ')}`,
       );
     }
+    return permissions;
   }
 }
