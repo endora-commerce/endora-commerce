@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Columns3, Download, ListChecks, Printer } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
@@ -103,6 +103,7 @@ const EMPTY_TEXT = { q: '', orgName: '', customerName: '', totalMin: '', totalMa
 export function OrdersList(): ReactNode {
   const t = useTranslation('core');
   const { pageSize, setPageSize } = usePageSizePreference('orders');
+  const [searchParams] = useSearchParams();
 
   const [rows, setRows] = useState<AdminOrderRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -114,7 +115,7 @@ export function OrdersList(): ReactNode {
   const [page, setPage] = useState(0);
 
   // Filters.
-  const [statusCodes, setStatusCodes] = useState<string[]>([]);
+  const [statusCodes, setStatusCodes] = useState<string[]>(() => searchParams.getAll('status'));
   const [salesChannelIds, setSalesChannelIds] = useState<string[]>([]);
   const [paymentMethodIds, setPaymentMethodIds] = useState<string[]>([]);
   const [deliveryMethodIds, setDeliveryMethodIds] = useState<string[]>([]);

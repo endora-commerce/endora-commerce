@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
@@ -27,6 +27,15 @@ type RfqStatus =
   | 'Approved'
   | 'Completed'
   | 'Expired';
+
+const RFQ_STATUSES: readonly RfqStatus[] = [
+  'Created from admin',
+  'Pending',
+  'Canceled',
+  'Approved',
+  'Completed',
+  'Expired',
+];
 
 type AssignmentScope = 'mine' | 'unassigned' | 'all';
 
@@ -66,11 +75,20 @@ const STATUS_VARIANT: Record<
 
 export function RfqList(): ReactNode {
   const t = useTranslation('core');
+  const [searchParams] = useSearchParams();
   const [rows, setRows] = useState<AdminRfqRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'all' | RfqStatus>('all');
-  const [scope, setScope] = useState<AssignmentScope>('mine');
+  const [statusFilter, setStatusFilter] = useState<'all' | RfqStatus>(() => {
+    const fromUrl = searchParams.get('status');
+    return fromUrl !== null && RFQ_STATUSES.includes(fromUrl as RfqStatus)
+      ? (fromUrl as RfqStatus)
+      : 'all';
+  });
+  const [scope, setScope] = useState<AssignmentScope>(() => {
+    const fromUrl = searchParams.get('scope');
+    return fromUrl === 'all' || fromUrl === 'unassigned' || fromUrl === 'mine' ? fromUrl : 'mine';
+  });
   const [organizationId, setOrganizationId] = useState<string>('');
 
   const refresh = useCallback(async (): Promise<void> => {

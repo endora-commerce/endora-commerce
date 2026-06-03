@@ -562,6 +562,16 @@ textarea.b2b-field {
   border-radius: var(--r-lg);
   box-shadow: var(--sh-1);
 }
+.b2b-card--clickable {
+  display: block;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.b2b-card--clickable:hover {
+  border-color: var(--border-strong, var(--fg-muted));
+  box-shadow: var(--sh-2, var(--sh-1));
+  transform: translateY(-1px);
+}
 .b2b-card__head {
   padding: 14px 16px;
   border-bottom: 1px solid var(--border-subtle);
