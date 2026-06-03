@@ -846,6 +846,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireApiKey: integrations.handle.requireApiKey,
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,
+      adminNotificationService: adminNotifications.handle.adminNotificationService,
+      mailer: organizationsMailer,
       resolveAdminAuditContext: (request) => {
         if (request.actor.kind !== 'admin') {
           // Auditing an anonymous mutation shouldn't happen — the admin gate

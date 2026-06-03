@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { ProductsBulkEditDialog } from './ProductsBulkEditDialog';
 import {
-  BULK_EDIT_MAX_BATCH_SIZE,
+  BULK_EDIT_HARD_MAX,
   resolveProductSelection,
   type ListFilterSnapshot,
 } from './lib/resolve-product-selection';
@@ -266,11 +266,15 @@ export function ProductsList(): ReactNode {
     setResolvingSelection(true);
     try {
       const ids = await resolveSelectedIds();
-      if (ids.length > BULK_EDIT_MAX_BATCH_SIZE) {
+      // Large selections are no longer rejected — above the backend's
+      // async threshold they are delegated to a background bulk operation
+      // (the dialog surfaces a "queued" acknowledgement). Only the
+      // contract hard maximum is enforced client-side.
+      if (ids.length > BULK_EDIT_HARD_MAX) {
         setSelectionError(
-          t('productsList.selection.bulkEditLimit', {
+          t('productsList.selection.bulkEditHardLimit', {
             total: ids.length,
-            maxBatchSize: BULK_EDIT_MAX_BATCH_SIZE,
+            maxBatchSize: BULK_EDIT_HARD_MAX,
           }),
         );
         return;

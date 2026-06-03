@@ -102,8 +102,11 @@ describe('Feature 022 — POST /products/bulk-update (foundational contract)', (
     expect(body.error.code).toBe('VALIDATION_FAILED');
   });
 
-  it('rejects productIds.length > 200 with 400 BULK_TOO_LARGE', async () => {
+  it('queues selections above the async threshold with a 202 ack', async () => {
     // 201 valid-v4 UUIDs (variant '8' + version '4' nibbles in place).
+    // Above the synchronous threshold these are no longer rejected — the
+    // request is delegated to a background bulk operation and a queued
+    // acknowledgement is returned immediately.
     const oversized = Array.from({ length: 201 }, (_, i) => {
       const tail = String(i + 1).padStart(12, '0');
       return `11111111-2222-4333-8444-${tail}`;
@@ -117,15 +120,13 @@ describe('Feature 022 — POST /products/bulk-update (foundational contract)', (
       },
       cookies: adminCookie,
     });
-    expect(res.statusCode).toBe(400);
+    expect(res.statusCode).toBe(202);
     const body = res.json() as {
-      error: {
-        code: string;
-        details?: { maxBatchSize?: number; recommendedSplitInto?: number };
-      };
+      data?: { queued?: boolean; bulkOperationId?: string; total?: number };
     };
-    expect(body.error.code).toBe('BULK_TOO_LARGE');
-    expect(body.error.details?.maxBatchSize).toBe(200);
+    expect(body.data?.queued).toBe(true);
+    expect(body.data?.total).toBe(201);
+    expect(typeof body.data?.bulkOperationId).toBe('string');
   });
 
   it('returns the bulk response shape on a minimal happy path', async () => {

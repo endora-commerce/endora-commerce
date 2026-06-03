@@ -131,10 +131,12 @@ describe('Feature 022 — POST /products/bulk-update (attribute values)', () => 
     expect(body.data.results[0]!.details?.attribute).toBe('flagged_not_in_set');
   });
 
-  it('returns BULK_TOO_LARGE BEFORE running the mass-editable pre-flight check', async () => {
-    // Confirm cap is enforced first — otherwise a 201-id list with an
-    // unflagged attribute would fail with ATTRIBUTE_NOT_MASS_EDITABLE
-    // instead of BULK_TOO_LARGE. The order matters for client UX.
+  it('queues a large selection instead of running the synchronous pre-flight', async () => {
+    // Above the async threshold the mass-editable pre-flight no longer
+    // runs inline — the request is delegated to a background bulk
+    // operation (the worker validates per-product). So a 201-id list with
+    // an unflagged attribute is accepted with a queued ack rather than
+    // rejected synchronously.
     const oversized = Array.from({ length: 201 }, (_, i) => {
       const tail = String(i + 1).padStart(12, '0');
       return `11111111-2222-4333-8444-${tail}`;
@@ -148,8 +150,8 @@ describe('Feature 022 — POST /products/bulk-update (attribute values)', () => 
       },
       cookies: adminCookie,
     });
-    expect(res.statusCode).toBe(400);
-    const body = res.json() as { error: { code: string } };
-    expect(body.error.code).toBe('BULK_TOO_LARGE');
+    expect(res.statusCode).toBe(202);
+    const body = res.json() as { data?: { queued?: boolean } };
+    expect(body.data?.queued).toBe(true);
   });
 });

@@ -6,6 +6,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react';
+import { Link } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { CategoryTreePicker } from '@/components/category-tree-picker';
@@ -55,12 +56,24 @@ interface BulkUpdateResultRow {
   changedFields?: string[];
 }
 
+interface BulkUpdateSyncData {
+  bulkOperationId: string;
+  summary: { succeeded: number; skipped: number; failed: number; total: number };
+  results: BulkUpdateResultRow[];
+}
+
+interface BulkUpdateQueuedData {
+  queued: true;
+  bulkOperationId: string;
+  total: number;
+}
+
 interface BulkUpdateResponse {
-  data: {
-    bulkOperationId: string;
-    summary: { succeeded: number; skipped: number; failed: number; total: number };
-    results: BulkUpdateResultRow[];
-  };
+  data: BulkUpdateSyncData | BulkUpdateQueuedData;
+}
+
+function isQueued(data: BulkUpdateSyncData | BulkUpdateQueuedData): data is BulkUpdateQueuedData {
+  return 'queued' in data && data.queued === true;
 }
 
 export interface ProductsBulkEditDialogProps {
@@ -123,7 +136,8 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<BulkUpdateResponse['data'] | null>(null);
+  const [result, setResult] = useState<BulkUpdateSyncData | null>(null);
+  const [queued, setQueued] = useState<BulkUpdateQueuedData | null>(null);
 
   // Load mass-editable attributes + channel / category metadata on mount.
   useEffect(() => {
@@ -192,7 +206,11 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
         '/api/v1/admin/catalog/products/bulk-update',
         { productIds, fields },
       );
-      setResult(res.data);
+      if (isQueued(res.data)) {
+        setQueued(res.data);
+      } else {
+        setResult(res.data);
+      }
       onApplied?.();
     } catch (e) {
       if (e instanceof ApiError) {
@@ -291,7 +309,9 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
           </div>
         ) : null}
 
-        {result ? (
+        {queued ? (
+          <BulkEditQueuedAck queued={queued} onClose={onClose} t={t} />
+        ) : result ? (
           <BulkEditSummary result={result} onClose={onClose} t={t} />
         ) : (
           <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -436,7 +456,7 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
           </div>
         )}
 
-        {!result ? (
+        {!result && !queued ? (
           <div
             style={{
               display: 'flex',
@@ -579,8 +599,49 @@ function MultiSelect(props: MultiSelectProps): ReactNode {
   );
 }
 
+interface BulkEditQueuedAckProps {
+  queued: BulkUpdateQueuedData;
+  onClose: () => void;
+  t: ReturnType<typeof useTranslation>;
+}
+
+function BulkEditQueuedAck(props: BulkEditQueuedAckProps): ReactNode {
+  return (
+    <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div
+        style={{
+          padding: 14,
+          borderRadius: 8,
+          background: 'var(--info-bg, #eff6ff)',
+          border: '1px solid var(--info-border, #bfdbfe)',
+          fontSize: 14,
+          lineHeight: 1.5,
+        }}
+      >
+        <strong>{props.t('productsList.bulkEdit.queued.title')}</strong>
+        <div style={{ marginTop: 4 }}>
+          {props.t('productsList.bulkEdit.queued.body', { total: props.queued.total })}
+        </div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+        <Link
+          to="/catalog/bulk-operations"
+          className="b2b-btn"
+          onClick={props.onClose}
+          style={{ textDecoration: 'none' }}
+        >
+          {props.t('productsList.bulkEdit.queued.viewAll')}
+        </Link>
+        <button type="button" className="b2b-btn b2b-btn--primary" onClick={props.onClose}>
+          {props.t('productsList.bulkEdit.action.close')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 interface BulkEditSummaryProps {
-  result: BulkUpdateResponse['data'];
+  result: BulkUpdateSyncData;
   onClose: () => void;
   t: ReturnType<typeof useTranslation>;
 }

@@ -47,6 +47,30 @@ export interface BulkUpdateResult {
 
 const MAX_BATCH_SIZE = 200;
 const RECOMMENDED_SPLIT_INTO = 100;
+/** How often the async worker path is told how far the run has progressed. */
+const PROGRESS_REPORT_EVERY = 25;
+
+export interface BulkUpdateProgress {
+  processed: number;
+  total: number;
+  succeeded: number;
+  skipped: number;
+  failed: number;
+}
+
+export interface BulkUpdateOptions {
+  /**
+   * Skip the synchronous MAX_BATCH_SIZE guard. Set by the queued worker
+   * path, which is allowed to process arbitrarily large selections off
+   * the request thread.
+   */
+  skipBatchLimit?: boolean;
+  /**
+   * Invoked periodically (every {@link PROGRESS_REPORT_EVERY} products and
+   * once at the end) so the worker can persist live progress counters.
+   */
+  onProgress?: (progress: BulkUpdateProgress) => Promise<void> | void;
+}
 
 export class CatalogBulkUpdateService {
   constructor(
@@ -76,8 +100,13 @@ export class CatalogBulkUpdateService {
   async bulkUpdate(
     req: BulkUpdateProductsRequest,
     auditCtx?: AdminAuditContext,
+    opts?: BulkUpdateOptions,
   ): Promise<BulkUpdateResult> {
-    if (req.productIds.length > MAX_BATCH_SIZE) {
+    // The synchronous request path caps the selection at MAX_BATCH_SIZE so a
+    // single HTTP call never blocks on thousands of writes. The asynchronous
+    // worker path (queued bulk operations) passes `skipBatchLimit` because it
+    // already chunks progress reporting and runs off the request thread.
+    if (!opts?.skipBatchLimit && req.productIds.length > MAX_BATCH_SIZE) {
       throw new HttpError(
         400,
         ERROR_CODES.BULK_TOO_LARGE,
@@ -98,9 +127,24 @@ export class CatalogBulkUpdateService {
     const bulkOperationId = randomUUID();
     const results: BulkUpdateOutcome[] = [];
 
+    const total = req.productIds.length;
+    let processed = 0;
+    let succeeded = 0;
+    let skipped = 0;
+    let failed = 0;
     for (const productId of req.productIds) {
       const outcome = await this.applyToOneProduct(productId, req, auditCtx);
       results.push(outcome);
+      processed += 1;
+      if (outcome.status === 'succeeded') succeeded += 1;
+      else if (outcome.status === 'skipped') skipped += 1;
+      else failed += 1;
+      if (
+        opts?.onProgress &&
+        (processed % PROGRESS_REPORT_EVERY === 0 || processed === total)
+      ) {
+        await opts.onProgress({ processed, total, succeeded, skipped, failed });
+      }
     }
 
     const summary = {

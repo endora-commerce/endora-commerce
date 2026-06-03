@@ -6,6 +6,7 @@ import type { SalesChannelMembershipService } from '../sales_channels/services/s
 import { CatalogQueryService } from './services/catalog-query.service.js';
 import { CatalogAdminService, type CatalogEventBus } from './services/catalog-admin.service.js';
 import { CatalogBulkUpdateService } from './services/catalog-bulk-update.service.js';
+import { BulkOperationService } from './services/bulk-operation.service.js';
 import { CategoryAdminService } from './services/category-admin.service.js';
 import { AttributeSetService } from './services/attribute-set.service.js';
 import { GalleryService } from './services/gallery.service.js';
@@ -19,6 +20,8 @@ import { ProductScopeContextService } from './services/product-scope-context.ser
 import { ProductValueResolverService } from './services/product-value-resolver.service.js';
 import { SearchQueryService } from '../search/services/search-query.service.js';
 import type { LanguageService } from '../languages/services/language-service.js';
+import type { AdminNotificationService } from '../admin_notifications/services/admin-notification-service.js';
+import type { Mailer } from '../email/services/mailer.js';
 import { registerCatalogPublicRoutes } from './routes.public.js';
 import { registerCatalogAdminRoutes, type RequireAdminFactory } from './routes.admin.js';
 import { registerCatalogApiKeyRoutes } from './routes.api-key.js';
@@ -66,6 +69,23 @@ export interface CatalogModuleOptions {
    * the new admin endpoints are NOT registered.
    */
   languageService?: LanguageService;
+  /**
+   * In-app (bell) notifications — used by the queued bulk-edit path to
+   * tell the requester their background operation finished. Optional;
+   * when omitted the notification is simply skipped.
+   */
+  adminNotificationService?: AdminNotificationService;
+  /**
+   * Email transport — used by the queued bulk-edit path to email the
+   * requester on completion. Optional; when omitted email is skipped.
+   */
+  mailer?: Mailer;
+  /**
+   * Set to `false` to skip the in-process bulk-operation sweeper (tests
+   * drive the service directly). Production keeps it on. Mirrors the
+   * price-lists status sweeper pattern.
+   */
+  enableBulkOperationSweeper?: boolean;
 }
 
 export function catalogModule(options: CatalogModuleOptions) {
@@ -94,6 +114,28 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.salesChannelMembership,
       options.auditLogService,
     );
+
+    // Queued bulk-edit: persists large selections as background
+    // operations, drained by the in-process sweeper below. The
+    // `onEnqueued` kick makes processing start without waiting for the
+    // next interval tick.
+    let bulkOperationService: BulkOperationService | undefined;
+    const bulkSweeperEnabled = options.enableBulkOperationSweeper !== false;
+    bulkOperationService = new BulkOperationService(options.emFactory, bulkUpdateService, {
+      ...(options.adminNotificationService
+        ? { notificationService: options.adminNotificationService }
+        : {}),
+      ...(options.mailer ? { mailer: options.mailer } : {}),
+      onEnqueued: bulkSweeperEnabled
+        ? (): void => {
+            bulkOperationService
+              ?.processPending()
+              .catch((err: unknown) => app.log.error({ err }, 'bulk-operation drain failed'));
+          }
+        : (): void => {
+            /* sweeper disabled (tests) — drain is driven manually */
+          },
+    });
 
     const bundleServicePublic = new BundleService(options.emFactory);
     await registerCatalogPublicRoutes(app, {
@@ -152,6 +194,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       groupedService,
       bundleService,
       bulkUpdateService,
+      bulkOperationService,
       requireAdmin:
         options.requireAdmin ??
         (() => async () => {
@@ -166,5 +209,37 @@ export function catalogModule(options: CatalogModuleOptions) {
       ...(valueResolverService ? { productValueResolverService: valueResolverService } : {}),
       ...(overridesService ? { productOverridesService: overridesService } : {}),
     });
+
+    // In-process sweeper for queued bulk operations. Mirrors the
+    // price-lists status sweeper: a periodic drain catches anything the
+    // create-time `onEnqueued` kick missed (e.g. work left pending across
+    // a restart). Unref'd so it never keeps the process alive, and torn
+    // down on close.
+    if (bulkSweeperEnabled) {
+      const svc = bulkOperationService;
+      const handle = setInterval(() => {
+        svc
+          .processPending()
+          .then((res) => {
+            if (res.processed > 0) {
+              app.log.info({ res }, 'bulk-operation sweep drained pending operations');
+            }
+          })
+          .catch((err: unknown) => {
+            app.log.error({ err }, 'bulk-operation sweep failed');
+          });
+      }, BULK_OPERATION_SWEEP_INTERVAL_MS);
+      if (typeof handle.unref === 'function') handle.unref();
+      app.addHook('onClose', async () => {
+        clearInterval(handle);
+      });
+      // Drain anything already pending at boot.
+      svc
+        .processPending()
+        .catch((err: unknown) => app.log.error({ err }, 'bulk-operation boot drain failed'));
+    }
   };
 }
+
+/** How often the queued bulk-operation sweeper drains pending rows. */
+const BULK_OPERATION_SWEEP_INTERVAL_MS = 10_000;

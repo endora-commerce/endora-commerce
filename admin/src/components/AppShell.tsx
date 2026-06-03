@@ -115,6 +115,12 @@ const NAV: NavSection[] = [
       { to: '/catalog/attribute-sets', labelKey: 'appShell.nav.attributeSets', icon: Tag },
       { to: '/catalog/attachment-types', labelKey: 'appShell.nav.attachmentTypes', icon: FileText },
       {
+        to: '/catalog/bulk-operations',
+        labelKey: 'appShell.nav.bulkOperations',
+        icon: ListChecks,
+        requiredPermission: 'catalog:read',
+      },
+      {
         to: '/assets-library',
         labelKey: 'appShell.nav.assetsLibrary',
         icon: ImageIcon,

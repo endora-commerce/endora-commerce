@@ -1,0 +1,91 @@
+import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { randomUUID } from 'crypto';
+
+/**
+ * BulkOperation — feature: queued product bulk-edit.
+ *
+ * A persisted record of an asynchronous bulk operation. When an admin
+ * selects more than the synchronous threshold of products for a bulk
+ * edit, the request is enqueued as one of these rows instead of being
+ * applied inline. An in-process sweeper (see `BulkOperationWorker`)
+ * picks up `pending` rows, applies the patch through
+ * `CatalogBulkUpdateService`, and updates the live counters so the
+ * "Bulk actions" admin page can show progress. On completion the
+ * requester receives an in-app (bell) notification and an email.
+ *
+ * `payload` holds the original request (`productIds` + `fields`); on
+ * finish, `results` holds the per-product outcome list (capped).
+ */
+export type BulkOperationStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+export interface BulkOperationPayload {
+  productIds: string[];
+  fields: Record<string, unknown>;
+}
+
+@Entity({ tableName: 'catalog_bulk_operations' })
+export class BulkOperation {
+  [OptionalProps]?:
+    | 'id'
+    | 'type'
+    | 'status'
+    | 'processed'
+    | 'succeeded'
+    | 'skipped'
+    | 'failed'
+    | 'results'
+    | 'error'
+    | 'createdAt'
+    | 'startedAt'
+    | 'finishedAt';
+
+  @PrimaryKey({ type: 'uuid' })
+  id: string = randomUUID();
+
+  @Property({ type: 'string', length: 64 })
+  type: string = 'product_bulk_update';
+
+  @Property({ type: 'string', length: 16 })
+  @Index()
+  status: BulkOperationStatus = 'pending';
+
+  @Property({ type: 'uuid' })
+  @Index()
+  requestedByAdminUserId!: string;
+
+  @Property({ type: 'integer' })
+  total!: number;
+
+  @Property({ type: 'integer' })
+  processed = 0;
+
+  @Property({ type: 'integer' })
+  succeeded = 0;
+
+  @Property({ type: 'integer' })
+  skipped = 0;
+
+  @Property({ type: 'integer' })
+  failed = 0;
+
+  /** The original request payload — `{ productIds, fields }`. */
+  @Property({ type: 'json' })
+  payload!: BulkOperationPayload;
+
+  /** Per-product outcomes once finished (capped to keep the row small). */
+  @Property({ type: 'json', nullable: true })
+  results?: unknown | null;
+
+  @Property({ type: 'text', nullable: true })
+  error?: string | null;
+
+  @Property({ type: 'datetime', onCreate: () => new Date() })
+  @Index()
+  createdAt: Date = new Date();
+
+  @Property({ type: 'datetime', nullable: true })
+  startedAt?: Date | null;
+
+  @Property({ type: 'datetime', nullable: true })
+  finishedAt?: Date | null;
+}

@@ -9,6 +9,7 @@ import { ProductAttribute } from '../modules/catalog/entities/product-attribute.
 import { AttributeOption } from '../modules/catalog/entities/attribute-option.entity.js';
 import { ProductValueOverride } from '../modules/catalog/entities/product-value-override.entity.js';
 import { ProductEditorPreference } from '../modules/catalog/entities/product-editor-preference.entity.js';
+import { BulkOperation } from '../modules/catalog/entities/bulk-operation.entity.js';
 import { AttributeSet } from '../modules/catalog/entities/attribute-set.entity.js';
 import { AttributeSetAttribute } from '../modules/catalog/entities/attribute-set-attribute.entity.js';
 import { GalleryItem } from '../modules/catalog/entities/gallery-item.entity.js';
@@ -147,6 +148,8 @@ export const ALL_ENTITIES = [
   // per-channel + per-language overrides (feature 022)
   ProductValueOverride,
   ProductEditorPreference,
+  // Queued product bulk-edit operations
+  BulkOperation,
   // Attribute Sets (feature 002)
   AttributeSet,
   AttributeSetAttribute,
