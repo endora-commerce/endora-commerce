@@ -30,3 +30,11 @@ export async function resolveProductSelection(
 }
 
 export const BULK_EDIT_MAX_BATCH_SIZE = 200;
+
+/**
+ * Hard client-side ceiling on a single bulk-edit selection, matching the
+ * contract's `bulkUpdateProductsRequestSchema` upper bound. Selections
+ * between the synchronous threshold and this limit are accepted and
+ * processed as a background bulk operation.
+ */
+export const BULK_EDIT_HARD_MAX = 10_000;

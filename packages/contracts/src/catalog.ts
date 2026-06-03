@@ -621,6 +621,64 @@ export const bulkUpdateProductsResponseSchema = z.object({
 });
 export type BulkUpdateProductsResponse = z.infer<typeof bulkUpdateProductsResponseSchema>;
 
+// ---------------------------------------------------------------------------
+// Queued bulk operations
+//
+// Selections above the synchronous threshold are not applied inline.
+// Instead the handler enqueues a `BulkOperation` and returns the ack
+// below; the work is finished off-thread by the in-process sweeper, and
+// progress is observable through the bulk-operations list endpoints.
+// ---------------------------------------------------------------------------
+
+export const bulkUpdateQueuedResponseSchema = z.object({
+  data: z.object({
+    queued: z.literal(true),
+    bulkOperationId: z.string().uuid(),
+    total: z.number().int().nonnegative(),
+  }),
+});
+export type BulkUpdateQueuedResponse = z.infer<typeof bulkUpdateQueuedResponseSchema>;
+
+export const bulkOperationStatusSchema = z.enum([
+  'pending',
+  'running',
+  'completed',
+  'failed',
+]);
+export type BulkOperationStatus = z.infer<typeof bulkOperationStatusSchema>;
+
+export const bulkOperationSchema = z.object({
+  id: z.string().uuid(),
+  type: z.string(),
+  status: bulkOperationStatusSchema,
+  requestedByAdminUserId: z.string().uuid(),
+  total: z.number().int().nonnegative(),
+  processed: z.number().int().nonnegative(),
+  succeeded: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  touchedFields: z.array(z.string()),
+  results: z.array(bulkUpdateProductResultSchema).nullable(),
+  error: z.string().nullable(),
+  createdAt: z.string(),
+  startedAt: z.string().nullable(),
+  finishedAt: z.string().nullable(),
+});
+export type BulkOperation = z.infer<typeof bulkOperationSchema>;
+
+export const bulkOperationsListResponseSchema = z.object({
+  data: z.array(bulkOperationSchema),
+  pagination: z.object({
+    total: z.number().int().nonnegative(),
+    limit: z.number().int().positive(),
+    offset: z.number().int().nonnegative(),
+  }),
+});
+export type BulkOperationsListResponse = z.infer<typeof bulkOperationsListResponseSchema>;
+
+export const bulkOperationResponseSchema = z.object({ data: bulkOperationSchema });
+export type BulkOperationResponse = z.infer<typeof bulkOperationResponseSchema>;
+
 export const createVariantRequestSchema = z.object({
   sku: z.string().min(1).max(64),
   variantAttributeValues: z.record(z.string(), z.unknown()),

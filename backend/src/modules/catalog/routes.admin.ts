@@ -29,9 +29,13 @@ import {
   updateGalleryItemRequestSchema,
   updateProductRequestSchema,
   updateVariantRequestSchema,
+  ERROR_CODES,
 } from '@b2b/contracts';
+import { HttpError } from '../../http/error-envelope.js';
 import type { CatalogAdminService } from './services/catalog-admin.service.js';
 import type { CatalogBulkUpdateService } from './services/catalog-bulk-update.service.js';
+import type { BulkOperationService } from './services/bulk-operation.service.js';
+import type { BulkOperationStatus } from './entities/bulk-operation.entity.js';
 import { dbToApiAttributeType } from './services/catalog-admin.service.js';
 import type { CategoryAdminService } from './services/category-admin.service.js';
 import type { AttributeSetService } from './services/attribute-set.service.js';
@@ -60,6 +64,25 @@ import type { Category } from './entities/category.entity.js';
 export type RequireAdminFactory = (
   permission?: string,
 ) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+
+/**
+ * Selections larger than this are delegated to a background bulk
+ * operation rather than applied inline (when the queue is wired). Kept
+ * comfortably below the synchronous MAX_BATCH_SIZE so the inline path is
+ * always fast.
+ */
+const BULK_ASYNC_THRESHOLD = 50;
+
+const BULK_OPERATION_STATUSES: readonly BulkOperationStatus[] = [
+  'pending',
+  'running',
+  'completed',
+  'failed',
+];
+
+function isBulkOperationStatus(value: string): value is BulkOperationStatus {
+  return (BULK_OPERATION_STATUSES as readonly string[]).includes(value);
+}
 
 export interface CatalogAdminDeps {
   adminService: CatalogAdminService;
@@ -114,6 +137,14 @@ export interface CatalogAdminDeps {
    * green; the route is only registered when this dep is present.
    */
   bulkUpdateService?: CatalogBulkUpdateService;
+  /**
+   * Queued bulk-edit. When present, selections above
+   * {@link BULK_ASYNC_THRESHOLD} are enqueued as background operations
+   * instead of being applied inline, and the bulk-operations
+   * list/detail endpoints are registered. Optional so dev/test
+   * composition roots can omit the queue infrastructure.
+   */
+  bulkOperationService?: BulkOperationService;
   /**
    * PreHandler gate — supplied by the composition root. Set to the real
    * `requireAdmin('catalog:write')` factory at server boot. Optional so tests
@@ -284,17 +315,35 @@ export async function registerCatalogAdminRoutes(
 
   // Feature 022 — Products Bulk Edit. Applies a sparse field-patch to a
   // selection of products in one call; returns a per-product outcome.
+  //
+  // Above BULK_ASYNC_THRESHOLD products the request is delegated to a
+  // background bulk operation (when the queue service is wired): the
+  // handler returns a 202 ack immediately and the work is finished
+  // off-thread, with the requester notified by bell + email on
+  // completion. The synchronous path keeps the inline per-product result.
   if (deps.bulkUpdateService) {
     const bulkUpdateService = deps.bulkUpdateService;
+    const bulkOperationService = deps.bulkOperationService;
     app.post(
       '/api/v1/admin/catalog/products/bulk-update',
       {
         preHandler: requireAdmin('catalog:write'),
         schema: { body: bulkUpdateProductsRequestSchema },
       },
-      async (request) => {
+      async (request, reply) => {
         const body = bulkUpdateProductsRequestSchema.parse(request.body);
         const auditCtx = deps.resolveAdminAuditContext?.(request);
+
+        if (bulkOperationService && body.productIds.length > BULK_ASYNC_THRESHOLD) {
+          const op = await bulkOperationService.create({
+            requestedByAdminUserId:
+              auditCtx?.actorAdminUserId ?? '00000000-0000-0000-0000-000000000000',
+            payload: { productIds: body.productIds, fields: body.fields },
+          });
+          reply.status(202);
+          return { data: { queued: true as const, bulkOperationId: op.id, total: op.total } };
+        }
+
         const ctx = auditCtx
           ? {
               actorAdminUserId: auditCtx.actorAdminUserId,
@@ -309,6 +358,57 @@ export async function registerCatalogAdminRoutes(
           : undefined;
         const result = await bulkUpdateService.bulkUpdate(body, ctx);
         return { data: result };
+      },
+    );
+  }
+
+  // Bulk operations history — list + detail backing the "Bulk actions"
+  // admin page (completed / running / pending operations + summaries).
+  if (deps.bulkOperationService) {
+    const bulkOperationService = deps.bulkOperationService;
+    app.get(
+      '/api/v1/admin/catalog/bulk-operations',
+      { preHandler: requireAdmin('catalog:read') },
+      async (request) => {
+        const q = request.query as {
+          status?: string | string[];
+          limit?: string;
+          offset?: string;
+        };
+        const rawStatuses = q.status
+          ? Array.isArray(q.status)
+            ? q.status
+            : [q.status]
+          : [];
+        const status = rawStatuses.filter(isBulkOperationStatus);
+        const limit = q.limit ? Number.parseInt(q.limit, 10) : 25;
+        const offset = q.offset ? Number.parseInt(q.offset, 10) : 0;
+        const res = await bulkOperationService.list({
+          ...(status.length ? { status } : {}),
+          limit: Number.isFinite(limit) ? limit : 25,
+          offset: Number.isFinite(offset) ? offset : 0,
+        });
+        return {
+          data: res.items,
+          pagination: {
+            total: res.total,
+            limit: Number.isFinite(limit) ? limit : 25,
+            offset: Number.isFinite(offset) ? offset : 0,
+          },
+        };
+      },
+    );
+
+    app.get(
+      '/api/v1/admin/catalog/bulk-operations/:id',
+      { preHandler: requireAdmin('catalog:read') },
+      async (request) => {
+        const { id } = request.params as { id: string };
+        const op = await bulkOperationService.get(id);
+        if (!op) {
+          throw new HttpError(404, ERROR_CODES.NOT_FOUND, `bulk operation ${id} not found`);
+        }
+        return { data: op };
       },
     );
   }

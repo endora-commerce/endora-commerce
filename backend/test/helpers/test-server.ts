@@ -756,6 +756,10 @@ export async function setupBackendServer(
       requireApiKey: integrations.handle.requireApiKey,
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,
+      // Tests drive bulk-operation processing deterministically (or assert
+      // the queued ack only); the background sweeper stays off so queued
+      // rows don't churn the DB after a response or across teardown.
+      enableBulkOperationSweeper: false,
       resolveAdminAuditContext: (request) => {
         if (request.testActor?.kind !== 'admin') {
           return { actorAdminUserId: TEST_ADMIN_ID };
