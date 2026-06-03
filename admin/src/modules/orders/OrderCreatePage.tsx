@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Copy, Plus, Trash2 } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { PageHeader } from '@/components/ui/page-header';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
+import { CountrySelect } from '@/components/country-select';
 import { ProductPicker } from '@/modules/catalog/components/ProductPicker';
 import { useTranslation } from '@/i18n/useTranslation';
 
@@ -93,6 +94,20 @@ function inlineComplete(f: InlineAddressFields): boolean {
 
 function addressComplete(c: AddressChoice): boolean {
   return c.mode === 'existing' ? c.id.trim().length > 0 : inlineComplete(c.fields);
+}
+
+/** True when the choice carries something worth copying to the other side. */
+function addressHasContent(c: AddressChoice): boolean {
+  return c.mode === 'existing'
+    ? c.id.trim().length > 0
+    : Object.values(c.fields).some((v) => v.trim().length > 0);
+}
+
+/** Deep copy of an address choice so the two sides don't share mutable state. */
+function cloneAddressChoice(c: AddressChoice): AddressChoice {
+  return c.mode === 'existing'
+    ? { mode: 'existing', id: c.id }
+    : { mode: 'new', fields: { ...c.fields }, save: c.save };
 }
 
 interface PreviewLine {
@@ -235,6 +250,7 @@ function AddressPicker(props: {
   disabled: boolean;
   loading: boolean;
   emptyMessage: string;
+  copy?: { label: string; disabled: boolean; onCopy: () => void };
 }): ReactNode {
   const t = useTranslation('core');
   const { choice, onChange, idPrefix } = props;
@@ -282,6 +298,20 @@ function AddressPicker(props: {
         </div>
       </div>
 
+      {props.copy ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-auto px-0 text-xs"
+          disabled={props.copy.disabled}
+          onClick={props.copy.onCopy}
+        >
+          <Copy className="size-3" />
+          {props.copy.label}
+        </Button>
+      ) : null}
+
       {choice.mode === 'existing' ? (
         <Combobox<string>
           id={`${idPrefix}-existing`}
@@ -303,7 +333,17 @@ function AddressPicker(props: {
             {inlineField('city', t('orderCreate.address.field.city'))}
           </div>
           <div className="grid grid-cols-2 gap-3">
-            {inlineField('country', t('orderCreate.address.field.country'))}
+            <div className="space-y-1">
+              <Label htmlFor={`${idPrefix}-country`}>
+                {t('orderCreate.address.field.country')}
+              </Label>
+              <CountrySelect
+                id={`${idPrefix}-country`}
+                ariaLabel={`${idPrefix}-country`}
+                value={choice.mode === 'new' ? choice.fields.country : null}
+                onChange={(code): void => setField('country', code ?? '')}
+              />
+            </div>
             {inlineField('phone', t('orderCreate.address.field.phone'), false)}
           </div>
           <label className="flex items-center gap-2 text-sm">
@@ -642,6 +682,11 @@ export function OrderCreatePage(): ReactNode {
             disabled={!customerAccountId}
             loading={addressesLoading}
             emptyMessage={addressEmptyMessage}
+            copy={{
+              label: t('orderCreate.address.copyFromBilling'),
+              disabled: !addressHasContent(billingChoice),
+              onCopy: (): void => setDeliveryChoice(cloneAddressChoice(billingChoice)),
+            }}
           />
           <AddressPicker
             idPrefix="billingAddress"
@@ -652,6 +697,11 @@ export function OrderCreatePage(): ReactNode {
             disabled={!customerAccountId}
             loading={addressesLoading}
             emptyMessage={addressEmptyMessage}
+            copy={{
+              label: t('orderCreate.address.copyFromDelivery'),
+              disabled: !addressHasContent(deliveryChoice),
+              onCopy: (): void => setBillingChoice(cloneAddressChoice(deliveryChoice)),
+            }}
           />
         </CardContent>
       </Card>
