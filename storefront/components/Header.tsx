@@ -88,10 +88,12 @@ export function Header(props: {
             </span>
             <SearchAutocomplete
               apiBaseUrl={apiBaseUrl}
+              locale={props.locale}
               placeholder={t('search.placeholder')}
               searchActionLabel={t('common.searchAction')}
               seeAllResultsLabel={t('search.seeAllResults')}
               unavailableLabel={t('search.unavailable')}
+              requestQuoteLabel={t('product.requestQuote')}
               showKeyboardHint
               {...(props.salesChannelCode !== undefined
                 ? { salesChannelCode: props.salesChannelCode }

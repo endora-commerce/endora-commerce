@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, SearchSuggestResponseSchema } from '@b2b/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -88,6 +88,36 @@ describe('GET /api/v1/search/suggest — feature 006 / US1', () => {
     expect(body.meta.queryEcho).toBe('pro');
     expect(body.meta.limit).toBeGreaterThan(0);
     expect(body.data.length).toBeLessThanOrEqual(body.meta.limit);
+  });
+
+  it('enriches each suggestion with SKU, image, and the resolved price/visibility', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/search/suggest?q=pro',
+    });
+    expect(res.statusCode).toBe(200);
+    // The whole envelope must satisfy the enriched contract schema.
+    const parsed = SearchSuggestResponseSchema.safeParse(res.json());
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+
+    // The happy-path corpus answers `pro` with at least one hit; assert the
+    // enriched surface the storefront popup renders (SKU + per-customer price
+    // resolution). `primaryAssetUrl` is null-or-URL by contract.
+    expect(parsed.data.data.length).toBeGreaterThan(0);
+    for (const item of parsed.data.data) {
+      expect(typeof item.sku).toBe('string');
+      expect(item.sku.length).toBeGreaterThan(0);
+      // The pricing enricher is wired in the test server, so every hit carries
+      // a resolved visibility mode.
+      expect(['gross_only', 'net_only', 'both', 'none']).toContain(
+        item.priceDisplayMode,
+      );
+      if (item.basePrice) {
+        expect(typeof item.basePrice.amount).toBe('string');
+        expect(typeof item.basePrice.currency).toBe('string');
+      }
+    }
   });
 
   it('honours an explicit limit override', async () => {

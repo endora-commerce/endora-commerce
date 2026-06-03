@@ -1,4 +1,4 @@
-import type { ProductSummary } from '@b2b/contracts';
+import type { SearchSuggestItem } from '@b2b/contracts';
 
 /**
  * Storefront client for the search module's typeahead endpoint —
@@ -11,7 +11,7 @@ import type { ProductSummary } from '@b2b/contracts';
  */
 
 export interface SuggestResponse {
-  data: ProductSummary[];
+  data: SearchSuggestItem[];
   meta: {
     limit: number;
     minimumQueryLength: number;

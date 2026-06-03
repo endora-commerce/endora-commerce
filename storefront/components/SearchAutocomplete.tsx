@@ -9,6 +9,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
+import type { SearchSuggestItem } from '@b2b/contracts';
 import {
   getSuggestions,
   SearchSuggestError,
@@ -38,6 +39,8 @@ const DEBOUNCE_MS = 200;
 export interface SearchAutocompleteProps {
   /** Backend base URL passed in from the server-rendered shell. */
   apiBaseUrl: string;
+  /** Active locale — drives the currency/number formatting of suggestion prices. */
+  locale: string;
   /** Suggestion-count default until the first response echoes the resolved value. */
   initialLimit?: number;
   /** Minimum-query-length default until the first response echoes the resolved value. */
@@ -47,6 +50,11 @@ export interface SearchAutocompleteProps {
   /** Translated placeholder + button label (matches the server-rendered fallback). */
   placeholder: string;
   searchActionLabel: string;
+  /**
+   * Translated label shown in the price slot when the resolved
+   * `priceDisplayMode` is `none` (price hidden for this customer).
+   */
+  requestQuoteLabel: string;
   /**
    * Translated "see all results" link label. Kept as a plain string so
    * the prop is serialisable across the Server → Client component
@@ -259,11 +267,40 @@ export function SearchAutocomplete(props: SearchAutocompleteProps): ReactNode {
                   key={p.id}
                   role="option"
                   aria-selected={i === activeIndex}
-                  className={`text-[13px] [&>a]:block [&>a]:px-3 [&>a]:py-2 ${
+                  className={`text-[13px] ${
                     i === activeIndex ? 'bg-surface-alt' : 'hover:bg-surface-alt'
                   }`}
                 >
-                  <a href={`/products/${encodeURIComponent(p.slug)}`}>{p.name}</a>
+                  <a
+                    href={`/products/${encodeURIComponent(p.slug)}`}
+                    className="flex items-center gap-3 px-3 py-2"
+                  >
+                    <span className="flex h-10 w-10 flex-none items-center justify-center overflow-hidden rounded border border-line bg-surface-alt">
+                      {p.primaryAssetUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={p.primaryAssetUrl}
+                          alt=""
+                          loading="lazy"
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      ) : (
+                        <span
+                          className="h-1/2 w-1/2 rounded-sm opacity-40 bg-[repeating-linear-gradient(45deg,var(--ink-200),var(--ink-200)_4px,transparent_4px,transparent_8px)]"
+                          aria-hidden="true"
+                        />
+                      )}
+                    </span>
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate font-medium text-fg">{p.name}</span>
+                      <span className="truncate font-mono text-[11px] text-muted">
+                        {p.sku}
+                      </span>
+                    </span>
+                    <span className="flex-none whitespace-nowrap text-right">
+                      {renderSuggestionPrice(p, props.locale, props.requestQuoteLabel)}
+                    </span>
+                  </a>
                 </li>
               ))}
               <li className="text-[13px] font-medium text-accent [&>a]:block [&>a]:px-3 [&>a]:py-2 hover:bg-surface-alt">
@@ -277,4 +314,67 @@ export function SearchAutocomplete(props: SearchAutocompleteProps): ReactNode {
       ) : null}
     </div>
   );
+}
+
+/**
+ * Price slot for one suggestion. Honours the per-customer price-list
+ * resolution the backend attaches:
+ *   - `priceDisplayMode === 'none'` → the price is hidden for this customer;
+ *     show the "request a quote" label instead.
+ *   - a resolved sale price → show it, with the base price struck through.
+ *   - otherwise → the resolved base price, falling back to the legacy
+ *     `ProductSummary.price` projection when the resolver wasn't wired.
+ */
+function renderSuggestionPrice(
+  p: SearchSuggestItem,
+  locale: string,
+  requestQuoteLabel: string,
+): ReactNode {
+  if (p.priceDisplayMode === 'none') {
+    return (
+      <span className="text-[11px] font-medium text-muted">{requestQuoteLabel}</span>
+    );
+  }
+
+  const base = p.basePrice
+    ? formatMoney(p.basePrice.amount, p.basePrice.currency, locale)
+    : p.price
+      ? formatMoney(p.price.amount, p.price.currency, locale)
+      : null;
+  const sale = p.salePrice
+    ? formatMoney(p.salePrice.amount, p.salePrice.currency, locale)
+    : null;
+
+  if (sale) {
+    return (
+      <span className="flex flex-col items-end leading-tight">
+        <span className="font-mono text-[13px] font-semibold text-fg">{sale}</span>
+        {base ? (
+          <span className="font-mono text-[11px] text-muted line-through">{base}</span>
+        ) : null}
+      </span>
+    );
+  }
+  if (base) {
+    return <span className="font-mono text-[13px] font-semibold text-fg">{base}</span>;
+  }
+  return <span className="text-[11px] font-medium text-muted">{requestQuoteLabel}</span>;
+}
+
+function formatMoney(
+  amount: string | number,
+  currency: string,
+  locale: string,
+): string {
+  const value = typeof amount === 'string' ? Number(amount) : amount;
+  if (!Number.isFinite(value)) return '';
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+    }).format(value);
+  } catch {
+    return `${value.toFixed(2)} ${currency}`;
+  }
 }

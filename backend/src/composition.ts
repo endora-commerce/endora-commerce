@@ -75,6 +75,7 @@ import { salesChannelsModule } from './modules/sales_channels/plugin.js';
 import { salesChannelsManifest } from './modules/sales_channels/manifest.js';
 import { DefaultChannelReconciler } from './modules/sales_channels/services/default-channel-reconciler.js';
 import { searchModule } from './modules/search/plugin.js';
+import { createSuggestionPricingEnricher } from './modules/search/services/suggestion-pricing-enricher.js';
 import { SearchIndexer } from './modules/search/services/search-indexer.js';
 import { searchManifest } from './modules/search/manifest.js';
 import { comparisonsModule } from './modules/comparisons/plugin.js';
@@ -1048,6 +1049,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     settingsService: settings.handle.settingsService,
     settingsAdminService: settings.handle.adminService,
     requireAdmin,
+    // Typeahead suggestions carry the per-customer price-list resolution so
+    // the popup shows the price the searching user would actually pay,
+    // honouring their price list and price-visibility (feature 011).
+    enrichSuggestionPricing: createSuggestionPricingEnricher({
+      emFactory: em,
+      pricingService: priceLists.handle.pricingService,
+    }),
     resolveAdminAuditContext: (request) => {
       if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
       return { actorAdminUserId: request.actor.adminUserId };
