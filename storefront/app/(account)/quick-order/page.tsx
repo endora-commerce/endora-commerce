@@ -65,7 +65,11 @@ export default async function QuickOrderPage({
       <p className="b2b-auth__hint">
         Paste a CSV with <code>sku,quantity</code> headers (extra columns set variant attributes),
         or drag-drop a CSV / Excel file. We&apos;ll show you which rows match a real product before
-        anything is added.
+        anything is added.{' '}
+        <a href="/quick-order-template.csv" download>
+          Download CSV template
+        </a>
+        .
       </p>
 
       {sp.error ? <p className="b2b-auth__error">{sp.error}</p> : null}
@@ -197,6 +201,7 @@ function PreviewPanel({ preview }: { preview: PreviewState }): ReactNode {
                 <th>SKU</th>
                 <th>Variant</th>
                 <th>Quantity</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -205,7 +210,32 @@ function PreviewPanel({ preview }: { preview: PreviewState }): ReactNode {
                   <td>{r.line}</td>
                   <td>{r.sku}</td>
                   <td>{r.resolvedVariantSku ?? '—'}</td>
-                  <td>{r.quantity}</td>
+                  <td>
+                    <form action={updateQuantityAction} id={`qty-${r.line}`}>
+                      <input type="hidden" name="preview" value={encodePreview(preview)} />
+                      <input type="hidden" name="line" value={r.line} />
+                      <input
+                        type="number"
+                        name="quantity"
+                        min={1}
+                        defaultValue={r.quantity}
+                        style={{ width: 72 }}
+                        aria-label={`Quantity for ${r.sku}`}
+                      />
+                      <button type="submit">
+                        Update
+                      </button>
+                    </form>
+                  </td>
+                  <td>
+                    <form action={removeRecognizedAction}>
+                      <input type="hidden" name="preview" value={encodePreview(preview)} />
+                      <input type="hidden" name="line" value={r.line} />
+                      <button type="submit">
+                        Remove
+                      </button>
+                    </form>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -295,6 +325,29 @@ async function addSearchResultAction(formData: FormData): Promise<void> {
   params.set('preview', encodePreview(preview));
   if (q) params.set('q', q);
   redirect(`/quick-order?${params.toString()}`);
+}
+
+async function updateQuantityAction(formData: FormData): Promise<void> {
+  'use server';
+  const preview = decodePreview((formData.get('preview') as string) ?? '');
+  const line = Number.parseInt((formData.get('line') as string) ?? '', 10);
+  const quantity = Math.max(1, Number.parseInt((formData.get('quantity') as string) ?? '1', 10) || 1);
+  if (!preview) redirect('/quick-order?error=Nothing+to+update.');
+
+  const row = preview!.recognized.find((r) => r.line === line);
+  if (row) row.quantity = quantity;
+  redirect(`/quick-order?preview=${encodePreview(preview!)}`);
+}
+
+async function removeRecognizedAction(formData: FormData): Promise<void> {
+  'use server';
+  const preview = decodePreview((formData.get('preview') as string) ?? '');
+  const line = Number.parseInt((formData.get('line') as string) ?? '', 10);
+  if (!preview) redirect('/quick-order?error=Nothing+to+remove.');
+
+  preview!.recognized = preview!.recognized.filter((r) => r.line !== line);
+  preview!.summary = { ...preview!.summary, recognizedCount: preview!.recognized.length };
+  redirect(`/quick-order?preview=${encodePreview(preview!)}`);
 }
 
 async function importAction(formData: FormData): Promise<void> {
