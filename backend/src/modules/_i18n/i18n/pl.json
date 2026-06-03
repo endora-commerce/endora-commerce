@@ -1534,7 +1534,6 @@
   "orderDetail.sections.comments": "Komentarze",
   "orderDetail.sections.delivery": "Dostawa",
   "orderDetail.sections.items": "Pozycje",
-  "orderDetail.sections.status": "Status",
   "orderDetail.title": "Zamówienie {id}",
   "orderDetail.totals.delivery": "Dostawa",
   "orderDetail.totals.subtotal": "Suma częściowa",

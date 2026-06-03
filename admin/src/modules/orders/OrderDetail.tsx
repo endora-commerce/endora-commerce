@@ -246,7 +246,54 @@ export function OrderDetail(): ReactNode {
           </span>
         }
         actions={
-          <>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="flex items-center gap-1.5">
+              <Label
+                htmlFor="ostat"
+                className="whitespace-nowrap text-xs font-medium text-muted-foreground"
+              >
+                {t('orderDetail.fields.orderStatus')}
+              </Label>
+              <Select
+                id="ostat"
+                aria-label={t('orderDetail.fields.orderStatus')}
+                className="h-9 w-auto min-w-36"
+                value={order.status}
+                onChange={(e): void => {
+                  if (e.target.value !== order.status) void handleStatus(e.target.value);
+                }}
+              >
+                {statusOptions(graph, order.status).map((code) => (
+                  <option key={code} value={code}>
+                    {statusName(graph, code)}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Label
+                htmlFor="pstat"
+                className="whitespace-nowrap text-xs font-medium text-muted-foreground"
+              >
+                {t('orderDetail.fields.paymentStatus')}
+              </Label>
+              <Select
+                id="pstat"
+                aria-label={t('orderDetail.fields.paymentStatus')}
+                className="h-9 w-auto min-w-36"
+                value={order.paymentStatus}
+                onChange={(e): void => void handlePaymentStatus(e.target.value)}
+              >
+                {PAYMENT_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {t(`orderDetail.paymentStatus.${s}`)}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div className="mx-1 hidden h-6 w-px bg-border sm:block" aria-hidden="true" />
+
             <Button asChild variant="outline">
               <Link to="/orders">
                 <ArrowLeft />
@@ -271,7 +318,7 @@ export function OrderDetail(): ReactNode {
                 {t('orderDetail.invoicePdf')}
               </a>
             </Button>
-          </>
+          </div>
         }
       />
 
@@ -285,46 +332,6 @@ export function OrderDetail(): ReactNode {
           <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
-
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>{t('orderDetail.sections.status')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="ostat">{t('orderDetail.fields.orderStatus')}</Label>
-              <Select
-                id="ostat"
-                value={order.status}
-                onChange={(e): void => {
-                  if (e.target.value !== order.status) void handleStatus(e.target.value);
-                }}
-              >
-                {statusOptions(graph, order.status).map((code) => (
-                  <option key={code} value={code}>
-                    {statusName(graph, code)}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="pstat">{t('orderDetail.fields.paymentStatus')}</Label>
-              <Select
-                id="pstat"
-                value={order.paymentStatus}
-                onChange={(e): void => void handlePaymentStatus(e.target.value)}
-              >
-                {PAYMENT_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {t(`orderDetail.paymentStatus.${s}`)}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       <div className="mb-4">
         <div className="b2b-tabs-scroll">

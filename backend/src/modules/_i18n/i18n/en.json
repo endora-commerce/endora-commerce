@@ -1534,7 +1534,6 @@
   "orderDetail.sections.comments": "Comments",
   "orderDetail.sections.delivery": "Delivery",
   "orderDetail.sections.items": "Items",
-  "orderDetail.sections.status": "Status",
   "orderDetail.title": "Order {id}",
   "orderDetail.totals.delivery": "Delivery",
   "orderDetail.totals.subtotal": "Subtotal",
