@@ -404,7 +404,7 @@ export function OrderDetail(): ReactNode {
           </div>
 
           {order.customerNote ? (
-            <Card>
+            <Card className="mb-4">
               <CardHeader>
                 <CardTitle>{t('orderDetail.sections.buyerNote')}</CardTitle>
               </CardHeader>
