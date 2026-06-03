@@ -89,6 +89,7 @@ export class OrderStatusGraphService {
     defaultName: string;
     isTerminal?: boolean | undefined;
     weight?: number | undefined;
+    color?: string | undefined;
   }): Promise<void> {
     const em = this.emFactory();
     const existing = await em.findOne(OrderStatus, { code: input.code });
@@ -103,6 +104,7 @@ export class OrderStatusGraphService {
       isTerminal: input.isTerminal ?? false,
       isSystem: false,
       weight: input.weight ?? 100,
+      color: input.color ?? 'neutral',
     });
     em.persist(status);
     // Materialize universal on_hold/cancelled edges for the new status so the
@@ -121,6 +123,7 @@ export class OrderStatusGraphService {
       defaultName?: string | undefined;
       isTerminal?: boolean | undefined;
       weight?: number | undefined;
+      color?: string | undefined;
     },
   ): Promise<void> {
     const em = this.emFactory();
@@ -129,6 +132,7 @@ export class OrderStatusGraphService {
     if (patch.name !== undefined) status.name = patch.name;
     if (patch.defaultName !== undefined) status.defaultName = patch.defaultName;
     if (patch.weight !== undefined) status.weight = patch.weight;
+    if (patch.color !== undefined) status.color = patch.color;
     if (patch.isTerminal !== undefined && patch.isTerminal !== status.isTerminal) {
       if (patch.isTerminal) {
         const outgoing = await em.count(OrderStatusTransition, { fromStatusCode: code });
@@ -259,5 +263,6 @@ function toStatusDef(s: OrderStatus): OrderStatusDef {
     isTerminal: s.isTerminal,
     isSystem: s.isSystem,
     weight: s.weight,
+    color: s.color,
   };
 }

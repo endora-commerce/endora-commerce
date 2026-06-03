@@ -4,6 +4,7 @@ import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { dictionaryClient } from '@/modules/dictionaries/client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -18,6 +19,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { StatusTransitionGraph } from './StatusTransitionGraph';
+import { ORDER_STATUS_DEFAULT_COLOR, orderStatusBadgeStyle } from './orderStatusColor';
+import { StatusColorPicker } from './StatusColorPicker';
 
 interface StatusDef {
   code: string;
@@ -27,6 +30,7 @@ interface StatusDef {
   isTerminal: boolean;
   isSystem: boolean;
   weight: number;
+  color: string;
   inUseCount: number;
 }
 interface TransitionDef {
@@ -60,11 +64,13 @@ export function OrderStatusConfigPage(): ReactNode {
   const [newDefaultName, setNewDefaultName] = useState('');
   const [newNames, setNewNames] = useState<Record<string, string>>({});
   const [newTerminal, setNewTerminal] = useState(false);
+  const [newColor, setNewColor] = useState(ORDER_STATUS_DEFAULT_COLOR);
 
   // Inline edit of an existing status's names.
   const [editCode, setEditCode] = useState<string | null>(null);
   const [editDefaultName, setEditDefaultName] = useState('');
   const [editNames, setEditNames] = useState<Record<string, string>>({});
+  const [editColor, setEditColor] = useState(ORDER_STATUS_DEFAULT_COLOR);
 
   // Status pending deletion — drives the confirmation dialog.
   const [pendingDelete, setPendingDelete] = useState<StatusDef | null>(null);
@@ -120,11 +126,13 @@ export function OrderStatusConfigPage(): ReactNode {
         name: cleanNames(newNames),
         defaultName,
         isTerminal: newTerminal,
+        color: newColor,
       });
       setNewCode('');
       setNewDefaultName('');
       setNewNames({});
       setNewTerminal(false);
+      setNewColor(ORDER_STATUS_DEFAULT_COLOR);
     });
   };
 
@@ -132,6 +140,7 @@ export function OrderStatusConfigPage(): ReactNode {
     setEditCode(s.code);
     setEditDefaultName(s.defaultName);
     setEditNames({ ...s.name });
+    setEditColor(s.color || ORDER_STATUS_DEFAULT_COLOR);
   };
 
   const saveEdit = (code: string): void => {
@@ -141,6 +150,7 @@ export function OrderStatusConfigPage(): ReactNode {
       await apiClient.patch(`/api/v1/admin/orders/statuses/${code}`, {
         name: cleanNames(editNames),
         defaultName,
+        color: editColor,
       });
       setEditCode(null);
     });
@@ -248,6 +258,15 @@ export function OrderStatusConfigPage(): ReactNode {
                               />
                             </div>
                           ))}
+                          <div className="space-y-1">
+                            <Label>{t('orderStatusConfig.field.color')}</Label>
+                            <StatusColorPicker
+                              value={editColor}
+                              onChange={setEditColor}
+                              label={t('orderStatusConfig.field.color')}
+                              customLabel={t('orderStatusConfig.color.custom')}
+                            />
+                          </div>
                           <div className="flex gap-2 pt-1">
                             <Button size="sm" onClick={(): void => saveEdit(s.code)}>
                               {t('common.action.save')}
@@ -258,7 +277,9 @@ export function OrderStatusConfigPage(): ReactNode {
                           </div>
                         </div>
                       ) : (
-                        statusLabel(s)
+                        <Badge className="font-medium" style={orderStatusBadgeStyle(s.color)}>
+                          {statusLabel(s)}
+                        </Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground align-top">
@@ -329,6 +350,15 @@ export function OrderStatusConfigPage(): ReactNode {
                 />
               </div>
             ))}
+            <div className="space-y-1">
+              <Label>{t('orderStatusConfig.field.color')}</Label>
+              <StatusColorPicker
+                value={newColor}
+                onChange={setNewColor}
+                label={t('orderStatusConfig.field.color')}
+                customLabel={t('orderStatusConfig.color.custom')}
+              />
+            </div>
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -378,7 +408,7 @@ export function OrderStatusConfigPage(): ReactNode {
               <Button variant="outline" onClick={(): void => setPendingDelete(null)}>
                 {t('common.action.cancel')}
               </Button>
-              <Button variant="destructive" onClick={confirmDelete}>
+              <Button variant="destructive" aria-label="confirm-delete" onClick={confirmDelete}>
                 <Trash2 />
                 {t('common.action.delete')}
               </Button>

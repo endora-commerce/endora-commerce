@@ -6,6 +6,7 @@ import { formatDateTime } from '@/lib/format';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { orderStatusBadgeStyle } from './orderStatusColor';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
@@ -33,24 +34,13 @@ interface AdminOrderRow {
 interface StatusDef {
   code: string;
   name: Record<string, string>;
+  color: string;
 }
 interface ListResponse {
   data: AdminOrderRow[];
   pagination: { page: number; pageSize: number; total: number };
   counts?: Record<string, number>;
 }
-
-const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
-  new: 'warning',
-  pending: 'warning',
-  paid: 'default',
-  processing: 'default',
-  shipment_ready: 'default',
-  shipment_sent: 'default',
-  completed: 'success',
-  on_hold: 'secondary',
-  cancelled: 'destructive',
-};
 
 const API_BASE = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? '';
 
@@ -126,6 +116,11 @@ export function OrdersList(): ReactNode {
       const s = statuses.find((x) => x.code === code);
       return s?.name['en'] ?? Object.values(s?.name ?? {})[0] ?? code;
     },
+    [statuses],
+  );
+
+  const statusColor = useCallback(
+    (code: string): string => statuses.find((x) => x.code === code)?.color ?? '#64748b',
     [statuses],
   );
 
@@ -301,7 +296,11 @@ export function OrdersList(): ReactNode {
                 {
                   id: 'status',
                   header: t('orders.column.status'),
-                  render: (o) => <Badge variant={STATUS_VARIANT[o.status] ?? 'secondary'}>{statusLabel(o.status)}</Badge>,
+                  render: (o) => (
+                    <Badge style={orderStatusBadgeStyle(statusColor(o.status))}>
+                      {statusLabel(o.status)}
+                    </Badge>
+                  ),
                 },
                 {
                   id: 'payment',

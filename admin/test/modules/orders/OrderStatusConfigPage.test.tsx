@@ -89,6 +89,8 @@ describe('OrderStatusConfigPage', () => {
     renderPage();
     await waitFor(() => expect(screen.getByLabelText('delete-pending')).toBeInTheDocument());
     await userEvent.click(screen.getByLabelText('delete-pending'));
+    // Confirm in the deletion dialog.
+    await userEvent.click(screen.getByLabelText('confirm-delete'));
     expect(deleteSpy).toHaveBeenCalledWith('/api/v1/admin/orders/statuses/pending');
   });
 

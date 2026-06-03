@@ -45,6 +45,7 @@ const ORDER = {
 };
 
 const BUNDLE = passthroughBundle('core', [
+  'orderDetail.tabs.comments',
   'orderDetail.comments.add',
   'orderDetail.comments.customerVisible',
   'orderDetail.comments.notify',
@@ -87,12 +88,14 @@ function renderDetail(): void {
 describe('OrderDetail — comments', () => {
   it('renders existing comments and marks internal ones', async () => {
     renderDetail();
+    await userEvent.click(await screen.findByText('orderDetail.tabs.comments'));
     await waitFor(() => expect(screen.getByText('internal note')).toBeInTheDocument());
     expect(screen.getByText('orderDetail.comments.internal')).toBeInTheDocument();
   });
 
   it('posts a comment with the chosen visibility/notify flags', async () => {
     renderDetail();
+    await userEvent.click(await screen.findByText('orderDetail.tabs.comments'));
     await waitFor(() => expect(screen.getByText('internal note')).toBeInTheDocument());
     await userEvent.type(screen.getByLabelText('comment-body'), 'please pay your invoice');
     // Toggle notify on (customer-visible defaults to checked).

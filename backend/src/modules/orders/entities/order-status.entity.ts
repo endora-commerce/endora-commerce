@@ -12,7 +12,15 @@ import { randomUUID } from 'crypto';
  */
 @Entity({ tableName: 'order_statuses' })
 export class OrderStatus {
-  [OptionalProps]?: 'id' | 'isInitial' | 'isTerminal' | 'isSystem' | 'weight' | 'createdAt' | 'updatedAt';
+  [OptionalProps]?:
+    | 'id'
+    | 'isInitial'
+    | 'isTerminal'
+    | 'isSystem'
+    | 'weight'
+    | 'color'
+    | 'createdAt'
+    | 'updatedAt';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -41,6 +49,10 @@ export class OrderStatus {
 
   @Property({ type: 'integer' })
   weight: number = 100;
+
+  /** Badge colour as a `#rrggbb` hex value; neutral slate by default. */
+  @Property({ type: 'string', length: 16 })
+  color: string = '#64748b';
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();
