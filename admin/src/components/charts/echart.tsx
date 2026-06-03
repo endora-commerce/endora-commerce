@@ -54,7 +54,13 @@ export function EChart({
     const observer = new ResizeObserver(() => chart.resize());
     observer.observe(el);
 
+    // When the chart mounts inside a flex/grid child, its final width may only
+    // be known after the first layout pass — resize on the next frame so the
+    // canvas fills the full container width instead of an initial narrow guess.
+    const raf = requestAnimationFrame(() => chart.resize());
+
     return () => {
+      cancelAnimationFrame(raf);
       observer.disconnect();
       chart.dispose();
       chartRef.current = null;
