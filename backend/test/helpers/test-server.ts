@@ -757,14 +757,11 @@ export async function setupBackendServer(
       requireApiKey: integrations.handle.requireApiKey,
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,
-      // Tests drive bulk-operation processing deterministically (or assert
-      // the queued ack only); the background sweeper stays off so queued
-      // rows don't churn the DB after a response or across teardown.
-      enableBulkOperationSweeper: false,
-      // Stub reindex runner so the `search_reindex` enqueuer is wired (the
-      // attribute-searchable flip path). It never hits Meilisearch — the
-      // sweeper is off, so queued reindex ops stay `pending` and are
-      // asserted via the bulk-operations list, just like product updates.
+      // Tests assert the queued ack only: no `redis` is wired into the catalog
+      // module here, so the producer's enqueue is a no-op and queued rows stay
+      // `pending` (no BullMQ worker, no DB churn after a response or across
+      // teardown). Stub reindex runner so the `search_reindex` enqueuer is
+      // wired (the attribute-searchable flip path); it never hits Meilisearch.
       reindexSearchIndexes: async () => ({ documentCount: 0 }),
       resolveAdminAuditContext: (request) => {
         if (request.testActor?.kind !== 'admin') {
