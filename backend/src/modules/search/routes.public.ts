@@ -6,7 +6,9 @@ import {
   SearchSuggestQuerySchema,
   SEARCH_PHRASE_MAX_LENGTH,
   SEARCH_SUGGEST_LIMIT_MAX,
+  type ProductSummary,
   type RecordPhraseResponse,
+  type SearchSuggestItem,
   type SearchSuggestResponse,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
@@ -36,17 +38,35 @@ import type { SearchPhraseRecorder } from './services/search-phrase-recorder.ser
 const salesChannelHeaderSchema = z.string().optional();
 const acceptLanguageHeaderSchema = z.string().optional();
 
+/**
+ * Enriches raw suggestions with the per-customer price-list resolution so the
+ * typeahead popup can show the price the searching user would actually pay,
+ * honouring their price list and price-visibility. Wired from the composition
+ * root (where the price-lists `PricingService` lives). When absent, the popup
+ * degrades to the legacy `ProductSummary.price` projection.
+ */
+export type SuggestionPricingEnricher = (
+  items: ProductSummary[],
+  ctx: {
+    salesChannelCode?: string | undefined;
+    /** Organization of the signed-in customer, or null for guests. */
+    organizationId?: string | null;
+  },
+) => Promise<SearchSuggestItem[]>;
+
 export interface SearchPublicDeps {
   suggestService: SearchSuggestService;
   /** When provided, `POST /api/v1/search/record` is mounted (US3). */
   phraseRecorder?: SearchPhraseRecorder;
+  /** When provided, suggestions carry the per-customer resolved price. */
+  enrichSuggestionPricing?: SuggestionPricingEnricher;
 }
 
 export async function registerSearchPublicRoutes(
   app: FastifyInstance,
   deps: SearchPublicDeps,
 ): Promise<void> {
-  const { suggestService, phraseRecorder } = deps;
+  const { suggestService, phraseRecorder, enrichSuggestionPricing } = deps;
 
   // POST /api/v1/search/record — feature 006 / US3 / T036.
   // Mounted only when a recorder was wired (search/plugin.ts gates
@@ -115,6 +135,30 @@ export async function registerSearchPublicRoutes(
         },
         ctx,
       );
+      // Enrich with the per-customer price-list resolution when wired. The
+      // organization comes from the request actor (the suggest fetch carries
+      // the session cookie), so a signed-in buyer sees their negotiated price
+      // and a guest sees the public one. Enrichment failures degrade to the
+      // raw projection — the popup must never 500 over a pricing hiccup.
+      if (enrichSuggestionPricing) {
+        const actor = request.actor;
+        const organizationId =
+          actor.kind === 'customer' ? actor.organizationId : null;
+        try {
+          const enriched = await enrichSuggestionPricing(result.data, {
+            ...(ctx.salesChannelCode !== undefined
+              ? { salesChannelCode: ctx.salesChannelCode }
+              : {}),
+            organizationId,
+          });
+          return {
+            data: enriched,
+            meta: result.meta,
+          } satisfies SearchSuggestResponse;
+        } catch {
+          // fall through to the un-enriched response
+        }
+      }
       return result satisfies SearchSuggestResponse;
     } catch (err) {
       if (err instanceof QueryTooShort) {

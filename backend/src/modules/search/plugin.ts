@@ -13,7 +13,10 @@ import {
 } from './services/search-suggest.service.js';
 import { LlmToggleService } from './services/llm-toggle.service.js';
 import { SearchPhraseRecorder } from './services/search-phrase-recorder.service.js';
-import { registerSearchPublicRoutes } from './routes.public.js';
+import {
+  registerSearchPublicRoutes,
+  type SuggestionPricingEnricher,
+} from './routes.public.js';
 import { registerSearchAdminRoutes } from './routes.admin.js';
 import type { RequireAdminFactory } from '../settings/plugin.js';
 import type {
@@ -65,6 +68,12 @@ export interface SearchModuleOptions {
   /** When provided, admin routes mount under `/api/v1/admin/search/*`. */
   requireAdmin?: RequireAdminFactory;
   resolveAdminAuditContext?: (req: FastifyRequest) => AdminAuditContext;
+  /**
+   * When provided, typeahead suggestions are enriched with the per-customer
+   * price-list resolution (SKU + image already ride on the summary). Wired
+   * from the composition root where the price-lists `PricingService` lives.
+   */
+  enrichSuggestionPricing?: SuggestionPricingEnricher;
 }
 
 export interface SearchModuleHandle {
@@ -165,6 +174,9 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
       await registerSearchPublicRoutes(app, {
         suggestService,
         phraseRecorder,
+        ...(options.enrichSuggestionPricing !== undefined
+          ? { enrichSuggestionPricing: options.enrichSuggestionPricing }
+          : {}),
       });
       // US2 — LLM toggle wrapper. Mounts only when the admin gate +
       // settings admin service are both wired (test-server passes them).

@@ -60,6 +60,7 @@ import { settingsModule } from '../../src/modules/settings/plugin.js';
 import { settingsManifest as settingsModuleManifest } from '../../src/modules/settings/manifest.js';
 import { salesChannelsModule } from '../../src/modules/sales_channels/plugin.js';
 import { searchModule } from '../../src/modules/search/plugin.js';
+import { createSuggestionPricingEnricher } from '../../src/modules/search/services/suggestion-pricing-enricher.js';
 import { searchManifest } from '../../src/modules/search/manifest.js';
 import { comparisonsModule } from '../../src/modules/comparisons/plugin.js';
 import { comparisonsManifest } from '../../src/modules/comparisons/manifest.js';
@@ -968,6 +969,10 @@ export async function setupBackendServer(
     settingsService: settings.handle.settingsService,
     settingsAdminService: settings.handle.adminService,
     requireAdmin: requireTestAdmin(permissionService),
+    enrichSuggestionPricing: createSuggestionPricingEnricher({
+      emFactory: em,
+      pricingService: priceLists.handle.pricingService,
+    }),
     resolveAdminAuditContext: (request) => ({
       actorAdminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,

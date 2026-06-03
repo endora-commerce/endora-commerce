@@ -11,6 +11,7 @@
 
 import { z } from 'zod';
 import { productSummarySchema } from './catalog.js';
+import { displayModeSchema } from './price-lists.js';
 
 // ---------------------------------------------------------------------------
 // (1) GET /api/v1/search/suggest — US1 / T009
@@ -56,8 +57,44 @@ export const SearchSuggestMetaSchema = z.object({
 });
 export type SearchSuggestMeta = z.infer<typeof SearchSuggestMetaSchema>;
 
+/**
+ * Money carried by an enriched suggestion. The amount is a decimal STRING
+ * (e.g. "199.00") to preserve trailing zeros across the wire, matching the
+ * `resolved-price` endpoint's shape (feature 011) rather than the foundation
+ * `moneySchema` (which uses a number for the legacy `ProductSummary.price`).
+ */
+export const searchSuggestMoneySchema = z.object({
+  amount: z.string(),
+  currency: z.string(),
+});
+export type SearchSuggestMoney = z.infer<typeof searchSuggestMoneySchema>;
+
+/**
+ * A typeahead suggestion. Extends the foundation `ProductSummary` (id, sku,
+ * name, slug, `primaryAssetUrl`, legacy `price`) with the per-customer
+ * price-list resolution so the popup can render the SKU, image, and the
+ * price the searching user would actually pay — honouring their price list
+ * and price-visibility (`priceDisplayMode`, where `none` hides the price).
+ *
+ * The pricing fields are optional: when the search module runs without a
+ * pricing enricher wired (foundation tests, Meilisearch-only deployments)
+ * the response degrades to a plain `ProductSummary` and the storefront
+ * falls back to the legacy `price` projection.
+ */
+export const searchSuggestItemSchema = productSummarySchema.extend({
+  /** Resolved price-list Base price for this customer; `null` when no
+   *  bracket applies or the price is hidden. */
+  basePrice: searchSuggestMoneySchema.nullable().optional(),
+  /** Resolved Sale price, when a sale list applies to this customer. */
+  salePrice: searchSuggestMoneySchema.nullable().optional(),
+  /** Resolved price-visibility mode. `none` ⇒ the storefront must hide the
+   *  price and offer a quote affordance instead. */
+  priceDisplayMode: displayModeSchema.optional(),
+});
+export type SearchSuggestItem = z.infer<typeof searchSuggestItemSchema>;
+
 export const SearchSuggestResponseSchema = z.object({
-  data: z.array(productSummarySchema),
+  data: z.array(searchSuggestItemSchema),
   meta: SearchSuggestMetaSchema,
 });
 export type SearchSuggestResponse = z.infer<typeof SearchSuggestResponseSchema>;
