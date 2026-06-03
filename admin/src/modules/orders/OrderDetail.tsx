@@ -31,6 +31,7 @@ import {
 import { OrderPaymentsTab } from './OrderPaymentsTab';
 import { OrderShipmentsTab } from './OrderShipmentsTab';
 import { Section } from './Section';
+import { orderStatusBadgeStyle } from './orderStatusColor';
 
 type OrderTab = 'overview' | 'payment' | 'delivery' | 'comments';
 
@@ -68,6 +69,7 @@ interface StatusDef {
   code: string;
   name: Record<string, string>;
   isTerminal: boolean;
+  color?: string;
 }
 interface StatusGraph {
   statuses: StatusDef[];
@@ -78,6 +80,10 @@ function statusName(graph: StatusGraph | null, code: string): string {
   const s = graph?.statuses.find((x) => x.code === code);
   if (!s) return code;
   return s.name['en'] ?? Object.values(s.name)[0] ?? code;
+}
+
+function statusColor(graph: StatusGraph | null, code: string): string {
+  return graph?.statuses.find((x) => x.code === code)?.color ?? 'neutral';
 }
 
 /** Current status plus the statuses reachable from it (valid next transitions). */
@@ -243,7 +249,7 @@ export function OrderDetail(): ReactNode {
         title={
           <>
             {t('orderDetail.title', { id: order.id.slice(0, 8) })}
-            <Badge variant="secondary" className="text-xs font-medium">
+            <Badge className="text-xs font-medium" style={orderStatusBadgeStyle(statusColor(graph, order.status))}>
               {statusName(graph, order.status)}
             </Badge>
           </>

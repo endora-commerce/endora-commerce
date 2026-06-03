@@ -91,6 +91,8 @@
   "orderCreate.field.quantity": "Quantity",
   "orderStatusConfig.title": "Order statuses",
   "orderStatusConfig.field.defaultName": "Default name",
+  "orderStatusConfig.field.color": "Color",
+  "orderStatusConfig.color.custom": "Custom color",
   "orderStatusConfig.description": "Configure the order status lifecycle and allowed transitions",
   "orderStatusConfig.statuses": "Statuses",
   "orderStatusConfig.transitions": "Transitions",

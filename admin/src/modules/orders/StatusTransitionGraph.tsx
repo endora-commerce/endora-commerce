@@ -22,6 +22,7 @@ interface StatusDef {
   isTerminal: boolean;
   isSystem: boolean;
   weight: number;
+  color: string;
   inUseCount: number;
 }
 interface TransitionDef {

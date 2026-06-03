@@ -528,6 +528,7 @@ export async function registerOrderRoutes(
             isTerminal: s.isTerminal,
             isSystem: s.isSystem,
             weight: s.weight,
+            color: s.color,
             inUseCount: s.inUseCount,
           })),
           transitions: graph.transitions.map((t) => ({

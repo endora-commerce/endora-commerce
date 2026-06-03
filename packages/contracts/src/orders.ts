@@ -157,6 +157,26 @@ export const adminOrderShippedRequestSchema = z.object({
 
 // --- Status configuration --------------------------------------------------
 
+/**
+ * Status badge colour — an arbitrary `#rrggbb` hex value. The admin colour
+ * picker offers a curated preset palette plus a free custom colour. The default
+ * is a neutral slate, matching the legacy uncoloured look.
+ */
+export const ORDER_STATUS_DEFAULT_COLOR = '#64748b';
+/** Curated preset palette surfaced by the admin colour picker. */
+export const ORDER_STATUS_COLOR_PRESETS = [
+  '#64748b', // slate (neutral)
+  '#3b82f6', // blue
+  '#10b981', // emerald
+  '#f59e0b', // amber
+  '#ef4444', // red
+  '#8b5cf6', // purple
+] as const;
+export const orderStatusColorSchema = z
+  .string()
+  .regex(/^#[0-9a-fA-F]{6}$/, 'Colour must be a #rrggbb hex value');
+export type OrderStatusColor = z.infer<typeof orderStatusColorSchema>;
+
 export const orderStatusDefSchema = z.object({
   code: orderStatusCodeSchema,
   name: multilingualStringSchema,
@@ -166,6 +186,8 @@ export const orderStatusDefSchema = z.object({
   isTerminal: z.boolean(),
   isSystem: z.boolean(),
   weight: z.number().int(),
+  /** Badge colour for this status (defaults to `neutral`). */
+  color: orderStatusColorSchema,
   /** # of orders currently in this status — drives the delete-guard UI. */
   inUseCount: z.number().int().nonnegative(),
 });
@@ -190,6 +212,7 @@ export const createOrderStatusRequestSchema = z.object({
   defaultName: z.string().min(1),
   isTerminal: z.boolean().optional(),
   weight: z.number().int().optional(),
+  color: orderStatusColorSchema.optional(),
 });
 export type CreateOrderStatusRequest = z.infer<typeof createOrderStatusRequestSchema>;
 
@@ -198,6 +221,7 @@ export const updateOrderStatusRequestSchema = z.object({
   defaultName: z.string().min(1).optional(),
   isTerminal: z.boolean().optional(),
   weight: z.number().int().optional(),
+  color: orderStatusColorSchema.optional(),
 });
 export type UpdateOrderStatusRequest = z.infer<typeof updateOrderStatusRequestSchema>;
 

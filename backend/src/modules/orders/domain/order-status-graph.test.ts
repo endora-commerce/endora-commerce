@@ -77,9 +77,9 @@ describe('OrderStatusGraph — default seed', () => {
 describe('materializeUniversalTransitions', () => {
   it('never produces self-edges and skips terminal sources', () => {
     const edges = materializeUniversalTransitions([
-      { code: 'new', name: {}, defaultName: '', isInitial: true, isTerminal: false, isSystem: true, weight: 1 },
-      { code: 'on_hold', name: {}, defaultName: '', isInitial: false, isTerminal: false, isSystem: true, weight: 2 },
-      { code: 'cancelled', name: {}, defaultName: '', isInitial: false, isTerminal: true, isSystem: true, weight: 3 },
+      { code: 'new', name: {}, defaultName: '', isInitial: true, isTerminal: false, isSystem: true, weight: 1, color: '#64748b' },
+      { code: 'on_hold', name: {}, defaultName: '', isInitial: false, isTerminal: false, isSystem: true, weight: 2, color: '#64748b' },
+      { code: 'cancelled', name: {}, defaultName: '', isInitial: false, isTerminal: true, isSystem: true, weight: 3, color: '#64748b' },
     ]);
     expect(edges.every((e) => e.fromStatusCode !== e.toStatusCode)).toBe(true);
     // cancelled is terminal → no outgoing universal edge from it.
@@ -100,8 +100,8 @@ describe('computeDefaultTransitions', () => {
 
 describe('OrderStatusGraph.assertValid', () => {
   const base: OrderStatusDef[] = [
-    { code: 'new', name: {}, defaultName: '', isInitial: true, isTerminal: false, isSystem: true, weight: 1 },
-    { code: 'done', name: {}, defaultName: '', isInitial: false, isTerminal: true, isSystem: true, weight: 2 },
+    { code: 'new', name: {}, defaultName: '', isInitial: true, isTerminal: false, isSystem: true, weight: 1, color: '#64748b' },
+    { code: 'done', name: {}, defaultName: '', isInitial: false, isTerminal: true, isSystem: true, weight: 2, color: '#64748b' },
   ];
 
   it('passes a well-formed config', () => {
@@ -109,7 +109,7 @@ describe('OrderStatusGraph.assertValid', () => {
   });
 
   it('rejects more than one initial status', () => {
-    const two = [...base, { code: 'new2', name: {}, defaultName: '', isInitial: true, isTerminal: false, isSystem: false, weight: 3 }];
+    const two = [...base, { code: 'new2', name: {}, defaultName: '', isInitial: true, isTerminal: false, isSystem: false, weight: 3, color: '#64748b' }];
     expect(() => new OrderStatusGraph(two, []).assertValid()).toThrow(OrderStatusConfigError);
   });
 
