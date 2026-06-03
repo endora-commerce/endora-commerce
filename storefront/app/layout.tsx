@@ -84,6 +84,9 @@ export default async function RootLayout({
                   locale={locale}
                   cartItemCount={cartItemCount}
                   megamenu={megamenu}
+                  {...(ctx.salesChannelCode !== undefined
+                    ? { salesChannelCode: ctx.salesChannelCode }
+                    : {})}
                 />
                 <Hook code="header.bottom" />
               </>

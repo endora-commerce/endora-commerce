@@ -118,6 +118,12 @@ async function main(): Promise<void> {
     code: 'pl_retail',
     name: { 'en-US': 'PL Retail', 'pl-PL': 'PL Retail' },
     isPublic: true,
+    // Public channel doubles as the platform system default so header-less
+    // requests (anonymous storefront, direct API hits) resolve here instead
+    // of tripping the resolver's "registry empty" guard. Without this the
+    // boot reconciler would promote the lexically-first channel (pl_b2b_vip,
+    // a logged-in-only channel) — the wrong default for the storefront.
+    systemDefault: true,
     defaultLanguage: 'pl-PL',
     defaultCurrency: 'PLN',
   });
