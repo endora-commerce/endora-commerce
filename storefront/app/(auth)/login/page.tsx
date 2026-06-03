@@ -80,30 +80,36 @@ async function loginAction(formData: FormData): Promise<void> {
   const twoFactorCode = (formData.get('twoFactorCode') as string | null) || undefined;
   const next = sanitiseNext((formData.get('next') as string) ?? '/account');
 
+  // Only the network/auth call is wrapped — the `redirect()` calls below must
+  // stay OUTSIDE the try, otherwise Next's `NEXT_REDIRECT` control-flow throw
+  // is caught here and re-routed into the error branch, blanking the page.
+  let result;
   try {
-    const result = await loginCustomer({
+    result = await loginCustomer({
       email,
       password,
       ...(twoFactorCode ? { twoFactorCode } : {}),
     });
-    if (!result.sessionCookieValue) {
-      redirect(`/login?error=${encodeURIComponent('Login did not return a session.')}`);
-    }
-    await setSessionCookie(result.sessionCookieValue);
-    // Feature 037 — when the login carried an anonymous cart and the
-    // backend's merge had an observable effect, write a short-lived flash
-    // cookie so the next page render can show the confirmation toast.
-    // `noop` outcomes deliberately skip the flash (FR-018).
-    if (
-      result.cartMerge?.outcome === 'adopted' ||
-      result.cartMerge?.outcome === 'merged'
-    ) {
-      await setCartMergeFlash(result.cartMerge.outcome);
-    }
   } catch (err) {
     const message =
-      err instanceof StorefrontApiError ? err.message : 'Sign-in failed. Please try again.';
+      err instanceof StorefrontApiError ? err.detail : 'Sign-in failed. Please try again.';
     redirect(`/login?error=${encodeURIComponent(message)}&next=${encodeURIComponent(next)}`);
+  }
+  if (!result.sessionCookieValue) {
+    redirect(
+      `/login?error=${encodeURIComponent('Sign-in failed. Please try again.')}&next=${encodeURIComponent(next)}`,
+    );
+  }
+  await setSessionCookie(result.sessionCookieValue);
+  // Feature 037 — when the login carried an anonymous cart and the
+  // backend's merge had an observable effect, write a short-lived flash
+  // cookie so the next page render can show the confirmation toast.
+  // `noop` outcomes deliberately skip the flash (FR-018).
+  if (
+    result.cartMerge?.outcome === 'adopted' ||
+    result.cartMerge?.outcome === 'merged'
+  ) {
+    await setCartMergeFlash(result.cartMerge.outcome);
   }
   redirect(next);
 }

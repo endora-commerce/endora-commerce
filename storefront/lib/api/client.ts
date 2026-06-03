@@ -31,12 +31,19 @@ const baseUrl = process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001';
 export class StorefrontApiError extends Error {
   readonly status: number;
   readonly code: string;
+  /**
+   * The backend's human-readable message *without* the `CODE: ` prefix that
+   * `message` carries for logs. Use this when surfacing the error to end
+   * users (e.g. the login form) so they don't see the raw error code.
+   */
+  readonly detail: string;
   readonly requestId?: string;
 
   constructor(status: number, code: string, message: string, requestId?: string) {
     super(`${code}: ${message}`);
     this.status = status;
     this.code = code;
+    this.detail = message;
     if (requestId !== undefined) this.requestId = requestId;
   }
 }
