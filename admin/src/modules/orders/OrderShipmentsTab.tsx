@@ -2,7 +2,6 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -12,6 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
+import { Section } from './Section';
 
 interface ShipmentRow {
   id: string;
@@ -62,46 +62,41 @@ export function OrderShipmentsTab(props: { orderId: string }): ReactNode {
   }, [props.orderId]);
 
   return (
-    <Card className="mb-4">
-      <CardHeader>
-        <CardTitle>{t('orderDetail.shipments.title')}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
-        ) : error ? (
-          <p className="text-sm text-destructive">{t('common.state.error')}</p>
-        ) : rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('orderDetail.shipments.empty')}</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('orderDetail.shipments.columns.attempt')}</TableHead>
-                <TableHead>{t('orderDetail.shipments.columns.status')}</TableHead>
-                <TableHead>{t('orderDetail.shipments.columns.tracking')}</TableHead>
-                <TableHead>{t('orderDetail.shipments.columns.createdAt')}</TableHead>
-                <TableHead>{t('orderDetail.shipments.columns.failure')}</TableHead>
+    <Section title={t('orderDetail.shipments.title')}>
+      {loading ? (
+        <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
+      ) : error ? (
+        <p className="text-sm text-destructive">{t('common.state.error')}</p>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t('orderDetail.shipments.empty')}</p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('orderDetail.shipments.columns.attempt')}</TableHead>
+              <TableHead>{t('orderDetail.shipments.columns.status')}</TableHead>
+              <TableHead>{t('orderDetail.shipments.columns.tracking')}</TableHead>
+              <TableHead>{t('orderDetail.shipments.columns.createdAt')}</TableHead>
+              <TableHead>{t('orderDetail.shipments.columns.failure')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((s) => (
+              <TableRow key={s.id}>
+                <TableCell>#{s.attemptNo}</TableCell>
+                <TableCell>
+                  <Badge variant={STATUS_VARIANT[s.status]}>
+                    {t(`orderDetail.shipments.status.${s.status}`)}
+                  </Badge>
+                </TableCell>
+                <TableCell className="font-mono text-xs">{s.externalReference ?? '—'}</TableCell>
+                <TableCell>{formatDateTime(s.createdAt)}</TableCell>
+                <TableCell className="text-destructive">{s.failureReason ?? ''}</TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((s) => (
-                <TableRow key={s.id}>
-                  <TableCell>#{s.attemptNo}</TableCell>
-                  <TableCell>
-                    <Badge variant={STATUS_VARIANT[s.status]}>
-                      {t(`orderDetail.shipments.status.${s.status}`)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">{s.externalReference ?? '—'}</TableCell>
-                  <TableCell>{formatDateTime(s.createdAt)}</TableCell>
-                  <TableCell className="text-destructive">{s.failureReason ?? ''}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </Section>
   );
 }

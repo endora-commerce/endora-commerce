@@ -4,7 +4,6 @@ import { apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -14,6 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
+import { Section } from './Section';
 
 interface PaymentRow {
   id: string;
@@ -101,114 +101,92 @@ export function OrderPaymentsTab(props: { orderId: string }): ReactNode {
   const invoiceHref = `${import.meta.env['VITE_API_BASE_URL'] ?? ''}/api/v1/orders/${props.orderId}/invoice`;
 
   if (loading) {
-    return (
-      <Card className="mb-4">
-        <CardContent className="pt-6">
-          <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
-        </CardContent>
-      </Card>
-    );
+    return <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>;
   }
   if (error) {
-    return (
-      <Card className="mb-4">
-        <CardContent className="pt-6">
-          <p className="text-sm text-destructive">{t('common.state.error')}</p>
-        </CardContent>
-      </Card>
-    );
+    return <p className="text-sm text-destructive">{t('common.state.error')}</p>;
   }
 
   return (
     <>
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>{t('orderDetail.payments.title')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {payments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('orderDetail.payments.empty')}</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('orderDetail.payments.columns.attempt')}</TableHead>
-                  <TableHead>{t('orderDetail.payments.columns.amount')}</TableHead>
-                  <TableHead>{t('orderDetail.payments.columns.status')}</TableHead>
-                  <TableHead>{t('orderDetail.payments.columns.paidAt')}</TableHead>
-                  <TableHead>{t('orderDetail.payments.columns.reference')}</TableHead>
-                  <TableHead>{t('orderDetail.payments.columns.failure')}</TableHead>
+      <Section title={t('orderDetail.payments.title')}>
+        {payments.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t('orderDetail.payments.empty')}</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('orderDetail.payments.columns.attempt')}</TableHead>
+                <TableHead>{t('orderDetail.payments.columns.amount')}</TableHead>
+                <TableHead>{t('orderDetail.payments.columns.status')}</TableHead>
+                <TableHead>{t('orderDetail.payments.columns.paidAt')}</TableHead>
+                <TableHead>{t('orderDetail.payments.columns.reference')}</TableHead>
+                <TableHead>{t('orderDetail.payments.columns.failure')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {payments.map((p) => (
+                <TableRow key={p.id}>
+                  <TableCell>#{p.attemptNo}</TableCell>
+                  <TableCell className="tabular-nums">{money(p.amount, p.currency)}</TableCell>
+                  <TableCell>
+                    <Badge variant={PAYMENT_STATUS_VARIANT[p.status]}>
+                      {t(`orderDetail.paymentStatus.${p.status}`)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{p.paidAt ? formatDateTime(p.paidAt) : '—'}</TableCell>
+                  <TableCell className="font-mono text-xs">{p.externalReference ?? '—'}</TableCell>
+                  <TableCell className="text-destructive">{p.failureReason ?? ''}</TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {payments.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell>#{p.attemptNo}</TableCell>
-                    <TableCell className="tabular-nums">{money(p.amount, p.currency)}</TableCell>
-                    <TableCell>
-                      <Badge variant={PAYMENT_STATUS_VARIANT[p.status]}>
-                        {t(`orderDetail.paymentStatus.${p.status}`)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{p.paidAt ? formatDateTime(p.paidAt) : '—'}</TableCell>
-                    <TableCell className="font-mono text-xs">{p.externalReference ?? '—'}</TableCell>
-                    <TableCell className="text-destructive">{p.failureReason ?? ''}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Section>
 
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>{t('orderDetail.invoices.title')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {invoices.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('orderDetail.invoices.empty')}</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('orderDetail.invoices.columns.number')}</TableHead>
-                  <TableHead>{t('orderDetail.invoices.columns.kind')}</TableHead>
-                  <TableHead>{t('orderDetail.invoices.columns.issuedAt')}</TableHead>
-                  <TableHead>{t('orderDetail.invoices.columns.total')}</TableHead>
-                  <TableHead>{t('orderDetail.invoices.columns.status')}</TableHead>
-                  <TableHead />
+      <Section title={t('orderDetail.invoices.title')}>
+        {invoices.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t('orderDetail.invoices.empty')}</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('orderDetail.invoices.columns.number')}</TableHead>
+                <TableHead>{t('orderDetail.invoices.columns.kind')}</TableHead>
+                <TableHead>{t('orderDetail.invoices.columns.issuedAt')}</TableHead>
+                <TableHead>{t('orderDetail.invoices.columns.total')}</TableHead>
+                <TableHead>{t('orderDetail.invoices.columns.status')}</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {invoices.map((inv) => (
+                <TableRow key={inv.id}>
+                  <TableCell className="font-medium">{inv.number}</TableCell>
+                  <TableCell>{t(`orderDetail.invoices.kind.${inv.kind}`)}</TableCell>
+                  <TableCell>{formatDateTime(inv.issuedAt)}</TableCell>
+                  <TableCell className="tabular-nums">{money(inv.total, inv.currency)}</TableCell>
+                  <TableCell>
+                    <Badge variant={INVOICE_STATUS_VARIANT[inv.status]}>
+                      {t(`orderDetail.invoices.status.${inv.status}`)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {inv.pdfReady ? (
+                      <Button asChild variant="outline" size="sm" className="bg-card">
+                        <a href={invoiceHref} target="_blank" rel="noreferrer">
+                          <FileDown />
+                          {t('orderDetail.invoices.download')}
+                        </a>
+                      </Button>
+                    ) : null}
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invoices.map((inv) => (
-                  <TableRow key={inv.id}>
-                    <TableCell className="font-medium">{inv.number}</TableCell>
-                    <TableCell>{t(`orderDetail.invoices.kind.${inv.kind}`)}</TableCell>
-                    <TableCell>{formatDateTime(inv.issuedAt)}</TableCell>
-                    <TableCell className="tabular-nums">{money(inv.total, inv.currency)}</TableCell>
-                    <TableCell>
-                      <Badge variant={INVOICE_STATUS_VARIANT[inv.status]}>
-                        {t(`orderDetail.invoices.status.${inv.status}`)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {inv.pdfReady ? (
-                        <Button asChild variant="outline" size="sm">
-                          <a href={invoiceHref} target="_blank" rel="noreferrer">
-                            <FileDown />
-                            {t('orderDetail.invoices.download')}
-                          </a>
-                        </Button>
-                      ) : null}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Section>
     </>
   );
 }
