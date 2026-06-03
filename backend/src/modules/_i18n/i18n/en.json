@@ -1470,6 +1470,7 @@
   "orderDetail.tabs.overview": "Overview",
   "orderDetail.tabs.payment": "Payment",
   "orderDetail.tabs.delivery": "Delivery",
+  "orderDetail.tabs.comments": "Comments",
   "orderDetail.payments.title": "Payments",
   "orderDetail.payments.empty": "No payments yet.",
   "orderDetail.payments.columns.attempt": "Attempt",

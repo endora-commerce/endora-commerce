@@ -6,6 +6,7 @@ import {
   CreditCard,
   FileDown,
   FileText,
+  MessageSquare,
   RotateCcw,
   Truck,
 } from 'lucide-react';
@@ -30,7 +31,7 @@ import {
 import { OrderPaymentsTab } from './OrderPaymentsTab';
 import { OrderShipmentsTab } from './OrderShipmentsTab';
 
-type OrderTab = 'overview' | 'payment' | 'delivery';
+type OrderTab = 'overview' | 'payment' | 'delivery' | 'comments';
 
 interface OrderItem {
   id: string;
@@ -349,6 +350,13 @@ export function OrderDetail(): ReactNode {
               active={tab}
               onChange={setTab}
             />
+            <TabBtn
+              id="comments"
+              label={t('orderDetail.tabs.comments')}
+              icon={<MessageSquare size={14} />}
+              active={tab}
+              onChange={setTab}
+            />
           </div>
         </div>
       </div>
@@ -476,65 +484,67 @@ export function OrderDetail(): ReactNode {
         </>
       ) : null}
 
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>{t('orderDetail.sections.comments')}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {comments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('orderDetail.comments.empty')}</p>
-          ) : (
-            <ul className="space-y-2">
-              {comments.map((c) => (
-                <li key={c.id} className="rounded-md border p-3 text-sm" data-testid="order-comment">
-                  <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>{formatDateTime(c.createdAt)}</span>
-                    {c.authorCustomerAccountId ? (
-                      <span>{t('orderDetail.comments.byCustomer')}</span>
-                    ) : (
-                      <span>{t('orderDetail.comments.byStaff')}</span>
-                    )}
-                    {!c.isCustomerVisible ? (
-                      <span className="rounded bg-muted px-1.5 py-0.5">{t('orderDetail.comments.internal')}</span>
-                    ) : null}
-                  </div>
-                  <p>{c.body}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="space-y-2 border-t pt-3">
-            <textarea
-              aria-label="comment-body"
-              className="min-h-20 w-full rounded-md border p-2 text-sm"
-              value={commentBody}
-              onChange={(e): void => setCommentBody(e.target.value)}
-              placeholder={t('orderDetail.comments.placeholder')}
-            />
-            <div className="flex flex-wrap items-center gap-4">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={commentVisible}
-                  onChange={(e): void => setCommentVisible(e.target.checked)}
-                />
-                {t('orderDetail.comments.customerVisible')}
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={commentNotify}
-                  onChange={(e): void => setCommentNotify(e.target.checked)}
-                />
-                {t('orderDetail.comments.notify')}
-              </label>
-              <Button size="sm" disabled={!commentBody.trim()} onClick={(): void => void handleAddComment()}>
-                {t('orderDetail.comments.add')}
-              </Button>
+      {tab === 'comments' ? (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>{t('orderDetail.sections.comments')}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {comments.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t('orderDetail.comments.empty')}</p>
+            ) : (
+              <ul className="space-y-2">
+                {comments.map((c) => (
+                  <li key={c.id} className="rounded-md border p-3 text-sm" data-testid="order-comment">
+                    <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{formatDateTime(c.createdAt)}</span>
+                      {c.authorCustomerAccountId ? (
+                        <span>{t('orderDetail.comments.byCustomer')}</span>
+                      ) : (
+                        <span>{t('orderDetail.comments.byStaff')}</span>
+                      )}
+                      {!c.isCustomerVisible ? (
+                        <span className="rounded bg-muted px-1.5 py-0.5">{t('orderDetail.comments.internal')}</span>
+                      ) : null}
+                    </div>
+                    <p>{c.body}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="space-y-2 border-t pt-3">
+              <textarea
+                aria-label="comment-body"
+                className="min-h-20 w-full rounded-md border p-2 text-sm"
+                value={commentBody}
+                onChange={(e): void => setCommentBody(e.target.value)}
+                placeholder={t('orderDetail.comments.placeholder')}
+              />
+              <div className="flex flex-wrap items-center gap-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={commentVisible}
+                    onChange={(e): void => setCommentVisible(e.target.checked)}
+                  />
+                  {t('orderDetail.comments.customerVisible')}
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={commentNotify}
+                    onChange={(e): void => setCommentNotify(e.target.checked)}
+                  />
+                  {t('orderDetail.comments.notify')}
+                </label>
+                <Button size="sm" disabled={!commentBody.trim()} onClick={(): void => void handleAddComment()}>
+                  {t('orderDetail.comments.add')}
+                </Button>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : null}
     </>
   );
 }
