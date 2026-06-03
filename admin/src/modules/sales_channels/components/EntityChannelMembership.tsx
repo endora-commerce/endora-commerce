@@ -148,7 +148,7 @@ export function EntityChannelMembership({
   if (!entityId) return null;
 
   return (
-    <Card className="mt-4">
+    <Card className="mb-4">
       <CardHeader>
         <CardTitle className="text-base">{t('membership.title')}</CardTitle>
       </CardHeader>
