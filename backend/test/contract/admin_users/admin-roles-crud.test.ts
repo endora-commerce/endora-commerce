@@ -77,6 +77,37 @@ describe('Admin roles CRUD', () => {
     expect(del.statusCode).toBe(204);
   });
 
+  it('accepts the wildcard and normalises it to exactly ["*"]', async () => {
+    const res = await h.app.inject({
+      method: 'PUT',
+      url: '/api/v1/admin/admin-roles/super_role',
+      cookies: { b2b_session: 'stub-admin-session' },
+      payload: {
+        code: 'super_role',
+        name: 'Super role',
+        // Mixed wildcard + explicit codes collapse to just the wildcard.
+        permissions: ['*', 'orders:read'],
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { data: { permissions: string[] } }).data.permissions).toEqual(['*']);
+  });
+
+  it('locks platform_admin to the wildcard regardless of payload', async () => {
+    const res = await h.app.inject({
+      method: 'PUT',
+      url: '/api/v1/admin/admin-roles/platform_admin',
+      cookies: { b2b_session: 'stub-admin-session' },
+      payload: {
+        code: 'platform_admin',
+        name: 'Platform Admin',
+        permissions: ['orders:read'],
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { data: { permissions: string[] } }).data.permissions).toEqual(['*']);
+  });
+
   it('rejects an unknown permission with VALIDATION_FAILED', async () => {
     const res = await h.app.inject({
       method: 'PUT',

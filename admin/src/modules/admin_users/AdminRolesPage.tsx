@@ -236,7 +236,12 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
     new Set(props.role.permissions.filter((p) => p !== '*')),
   );
   const [requiresTwoFactor, setRequiresTwoFactor] = useState(props.role.requiresTwoFactor);
-  const isWildcard = props.role.permissions.includes('*');
+  // The platform_admin role is locked to full access — the toggle is forced on
+  // and disabled so it can never be downgraded (mirrors the backend invariant).
+  const isPlatformAdmin = props.role.code === 'platform_admin';
+  const [wildcard, setWildcard] = useState(
+    isPlatformAdmin || props.role.permissions.includes('*'),
+  );
 
   const grouped = useMemo(() => {
     const byModule = new Map<string, PermissionRow[]>();
@@ -251,15 +256,25 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
   return (
     <Card>
       <CardContent className="space-y-4 pt-6">
-        {isWildcard ? (
-          <Alert variant="warning">
-            <ShieldAlert className="size-4" />
-            <AlertTitle>{t('adminRoles.wildcardTitle')}</AlertTitle>
-            <AlertDescription>
-              {t('adminRoles.wildcardPrefix')} <code className="font-mono">*</code> {t('adminRoles.wildcardSuffix')}
-            </AlertDescription>
-          </Alert>
-        ) : null}
+        <Alert variant="warning">
+          <ShieldAlert className="size-4" />
+          <AlertTitle>{t('adminRoles.wildcardTitle')}</AlertTitle>
+          <AlertDescription className="space-y-2">
+            <label className="inline-flex items-center gap-2 font-medium">
+              <Checkbox
+                checked={wildcard}
+                disabled={isPlatformAdmin}
+                onChange={(e): void => setWildcard(e.target.checked)}
+              />
+              {t('adminRoles.wildcardToggle')} <code className="font-mono">*</code>
+            </label>
+            <p>
+              {isPlatformAdmin
+                ? t('adminRoles.wildcardLocked')
+                : `${t('adminRoles.wildcardPrefix')} ${t('adminRoles.wildcardSuffix')}`}
+            </p>
+          </AlertDescription>
+        </Alert>
         <form
           className="space-y-4"
           onSubmit={(e: FormEvent): void => {
@@ -267,7 +282,7 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
             props.onSave({
               code,
               name,
-              permissions: Array.from(permissions),
+              permissions: wildcard ? ['*'] : Array.from(permissions),
               requiresTwoFactor,
             });
           }}
@@ -303,7 +318,7 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
             {t('adminRoles.field.requires2fa')}
           </label>
 
-          <div className="space-y-3">
+          <div className={cn('space-y-3', wildcard && 'pointer-events-none opacity-50')}>
             <h3 className="text-sm font-semibold">{t('adminRoles.permissionsHeading')}</h3>
             {grouped.map(([module, perms]) => (
               <fieldset key={module} className="rounded-md border p-3">
@@ -317,7 +332,8 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
                       className="flex items-center gap-2 text-sm"
                     >
                       <Checkbox
-                        checked={permissions.has(p.code)}
+                        checked={wildcard || permissions.has(p.code)}
+                        disabled={wildcard}
                         onChange={(e): void => {
                           setPermissions((prev) => {
                             const next = new Set(prev);
