@@ -217,7 +217,7 @@ export function SearchAutocomplete(props: SearchAutocompleteProps): ReactNode {
       const hit = response.data[activeIndex];
       if (hit) {
         e.preventDefault();
-        window.location.href = `/products/${encodeURIComponent(hit.slug)}`;
+        window.location.href = `/p/${encodeURIComponent(hit.slug)}`;
       }
     } else if (e.key === 'Escape') {
       setOpen(false);
@@ -272,7 +272,7 @@ export function SearchAutocomplete(props: SearchAutocompleteProps): ReactNode {
                   }`}
                 >
                   <a
-                    href={`/products/${encodeURIComponent(p.slug)}`}
+                    href={`/p/${encodeURIComponent(p.slug)}`}
                     className="flex items-center gap-3 px-3 py-2"
                   >
                     <span className="flex h-10 w-10 flex-none items-center justify-center overflow-hidden rounded border border-line bg-surface-alt">
