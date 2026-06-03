@@ -146,6 +146,7 @@ const sidebars = {
       label: 'Operations',
       link: { type: 'generated-index', title: 'Operations' },
       items: [
+        'operations/queue-consumers',
         {
           type: 'category',
           label: 'Runbooks',
