@@ -148,7 +148,7 @@ export function DefaultPreferencesPanel(props: DefaultPreferencesPanelProps): Re
   const shippingAddresses = addresses.filter((a) => a.kind === 'delivery');
 
   return (
-    <Card className="mt-4">
+    <Card className="mb-4">
       <CardHeader>
         <CardTitle>{t('defaultPreferences.title')}</CardTitle>
       </CardHeader>
