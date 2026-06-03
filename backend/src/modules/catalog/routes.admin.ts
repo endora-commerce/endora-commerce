@@ -436,12 +436,14 @@ export async function registerCatalogAdminRoutes(
     },
     async (request) => {
       const body = updateAttributeRequestSchema.parse(request.body);
+      const auditCtx = deps.resolveAdminAuditContext?.(request);
       // Accept either UUID (id) or snake_case key — admin UI consumes
       // the API by key, but contract tests round-trip through the id
       // returned on create.
       const attr = await adminService.updateAttributeByIdOrKey(
         request.params.idOrKey,
         body,
+        auditCtx,
       );
       const optionValues = await adminService.getAttributeOptionValues(attr.id);
       return { data: serializeAdminAttribute(attr, optionValues) };

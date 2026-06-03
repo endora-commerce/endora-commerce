@@ -69,6 +69,24 @@ export class CatalogAdminService {
     private readonly salesChannelMembership?: SalesChannelMembershipService,
   ) {}
 
+  /**
+   * Enqueues a full Meilisearch reindex (a `search_reindex` bulk operation)
+   * when an attribute's `searchable` flag flips. Set by the catalog plugin
+   * once the BulkOperationService exists (it is constructed after this
+   * service). When unset, a flag change still emits `attribute.updated.v1`
+   * (the lightweight settings refresh) but no reindex is queued.
+   */
+  private enqueueSearchReindex?: (ctx: {
+    actorAdminUserId: string | null;
+    attributeKey: string;
+  }) => Promise<void>;
+
+  setSearchReindexEnqueuer(
+    fn: (ctx: { actorAdminUserId: string | null; attributeKey: string }) => Promise<void>,
+  ): void {
+    this.enqueueSearchReindex = fn;
+  }
+
   async createProduct(
     req: CreateProductRequest,
     auditCtx?: AdminAuditContext,
@@ -836,6 +854,7 @@ export class CatalogAdminService {
   async updateAttributeByIdOrKey(
     idOrKey: string,
     req: UpdateAttributeRequest,
+    auditCtx?: AdminAuditContext,
   ): Promise<ProductAttribute> {
     const isUuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrKey);
@@ -851,23 +870,32 @@ export class CatalogAdminService {
         `Attribute "${idOrKey}" not found.`,
       );
     }
-    return this.applyAttributeUpdate(em, attr, req);
+    return this.applyAttributeUpdate(em, attr, req, auditCtx);
   }
 
-  async updateAttribute(key: string, req: UpdateAttributeRequest): Promise<ProductAttribute> {
+  async updateAttribute(
+    key: string,
+    req: UpdateAttributeRequest,
+    auditCtx?: AdminAuditContext,
+  ): Promise<ProductAttribute> {
     const em = this.emFactory();
     const attr = await em.findOne(ProductAttribute, { key });
     if (!attr) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute "${key}" not found.`);
     }
-    return this.applyAttributeUpdate(em, attr, req);
+    return this.applyAttributeUpdate(em, attr, req, auditCtx);
   }
 
   private async applyAttributeUpdate(
     em: EntityManager,
     attr: ProductAttribute,
     req: UpdateAttributeRequest,
+    auditCtx?: AdminAuditContext,
   ): Promise<ProductAttribute> {
+    // Capture the searchable flag before applying so we can tell a real
+    // flip apart from a save that left it untouched (only a real change
+    // warrants a full reindex).
+    const previousIsSearchable = attr.isSearchable;
     if (req.label !== undefined) attr.label = req.label;
     if (req.labelDefault !== undefined) attr.labelDefault = req.labelDefault;
     if (req.isSearchable !== undefined) attr.isSearchable = req.isSearchable;
@@ -920,6 +948,27 @@ export class CatalogAdminService {
       isSearchable: attr.isSearchable,
       isFilterable: attr.isFilterable,
     });
+
+    // Feature: when the `searchable` flag actually flips, queue a full
+    // Meilisearch reindex as a bulk operation (the `search:reindex` CLI
+    // equivalent). The event above only refreshes Meili's searchable-field
+    // settings; a flag flip needs the documents re-pushed so the field
+    // starts/stops contributing to matches. Best-effort — a failure to
+    // enqueue must not fail the attribute save.
+    if (
+      req.isSearchable !== undefined &&
+      attr.isSearchable !== previousIsSearchable &&
+      this.enqueueSearchReindex
+    ) {
+      try {
+        await this.enqueueSearchReindex({
+          actorAdminUserId: auditCtx?.actorAdminUserId ?? null,
+          attributeKey: attr.key,
+        });
+      } catch {
+        /* enqueue is best-effort — the save already succeeded */
+      }
+    }
     return attr;
   }
 

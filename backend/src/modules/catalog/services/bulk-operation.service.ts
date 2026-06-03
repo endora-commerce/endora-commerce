@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { BulkUpdateProductsRequest } from '@b2b/contracts';
+import { BULK_OPERATION_TYPES, type BulkUpdateProductsRequest } from '@b2b/contracts';
 import { AdminUser } from '../../admin_users/entities/admin-user.entity.js';
 import type { AdminNotificationService } from '../../admin_notifications/services/admin-notification-service.js';
 import type { Mailer } from '../../email/services/mailer.js';
@@ -67,6 +67,16 @@ export interface ListBulkOperationsResult {
   total: number;
 }
 
+/**
+ * Runs a full Meilisearch reindex (the `search:reindex` CLI equivalent) and
+ * reports how many documents landed. Wired from the composition root so the
+ * catalog module stays decoupled from the search module's indexer.
+ */
+export type SearchReindexRunner = () => Promise<{
+  /** Total documents pushed across every channel index. */
+  documentCount: number;
+}>;
+
 export class BulkOperationService {
   /** Single-flight guard so overlapping sweep ticks don't double-process. */
   private draining = false;
@@ -79,6 +89,12 @@ export class BulkOperationService {
       mailer?: Mailer;
       /** Fired after a row is enqueued so the sweeper can start at once. */
       onEnqueued?: () => void;
+      /**
+       * Runs a full Meilisearch reindex for `search_reindex` operations.
+       * When omitted, such operations fail with a clear "not configured"
+       * message rather than silently no-op'ing.
+       */
+      reindexRunner?: SearchReindexRunner;
     } = {},
   ) {}
 
@@ -165,6 +181,11 @@ export class BulkOperationService {
     const op = await em.findOne(BulkOperation, { id });
     if (!op) return;
 
+    if (op.type === BULK_OPERATION_TYPES.SEARCH_REINDEX) {
+      await this.processReindex(op);
+      return;
+    }
+
     const req: BulkUpdateProductsRequest = {
       productIds: op.payload.productIds,
       fields: op.payload.fields,
@@ -216,6 +237,55 @@ export class BulkOperationService {
     }
   }
 
+  /**
+   * Runs a `search_reindex` operation: a full Meilisearch reindex (the
+   * `search:reindex` CLI equivalent). Counts every reindexed document as
+   * both processed and succeeded; failure surfaces on the row + notifications.
+   */
+  private async processReindex(op: BulkOperation): Promise<void> {
+    const em = this.emFactory();
+    if (!this.deps.reindexRunner) {
+      const message = 'Search reindex handler is not configured.';
+      await em.nativeUpdate(
+        BulkOperation,
+        { id: op.id },
+        { status: 'failed', error: message, finishedAt: new Date() },
+      );
+      await this.notify(op, 'failed', null, message);
+      return;
+    }
+    try {
+      const { documentCount } = await this.deps.reindexRunner();
+      await em.nativeUpdate(
+        BulkOperation,
+        { id: op.id },
+        {
+          status: 'completed',
+          total: documentCount,
+          processed: documentCount,
+          succeeded: documentCount,
+          skipped: 0,
+          failed: 0,
+          finishedAt: new Date(),
+        },
+      );
+      await this.notify(op, 'completed', {
+        succeeded: documentCount,
+        skipped: 0,
+        failed: 0,
+        total: documentCount,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await em.nativeUpdate(
+        BulkOperation,
+        { id: op.id },
+        { status: 'failed', error: message, finishedAt: new Date() },
+      );
+      await this.notify(op, 'failed', null, message);
+    }
+  }
+
   private async notify(
     op: BulkOperation,
     status: 'completed' | 'failed',
@@ -227,12 +297,19 @@ export class BulkOperationService {
 
     const succeeded = summary?.succeeded ?? 0;
     const total = summary?.total ?? op.total;
-    const title =
-      status === 'completed'
+    const isReindex = op.type === BULK_OPERATION_TYPES.SEARCH_REINDEX;
+    const title = isReindex
+      ? status === 'completed'
+        ? `Search reindex finished — ${total} documents indexed`
+        : 'Search reindex failed'
+      : status === 'completed'
         ? `Bulk edit finished — ${succeeded}/${total} updated`
         : 'Bulk edit failed';
-    const body =
-      status === 'completed'
+    const body = isReindex
+      ? status === 'completed'
+        ? `The search index was rebuilt: ${total} documents indexed.`
+        : `The search reindex could not be completed: ${error ?? 'unknown error'}.`
+      : status === 'completed'
         ? `${total} products processed: ${succeeded} succeeded, ${summary?.skipped ?? 0} skipped, ${summary?.failed ?? 0} failed.`
         : `The bulk edit of ${op.total} products could not be completed: ${error ?? 'unknown error'}.`;
 
