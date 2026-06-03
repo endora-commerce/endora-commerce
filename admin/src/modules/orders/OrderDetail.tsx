@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
-  ArrowLeft,
   ClipboardList,
   CreditCard,
   FileDown,
@@ -14,6 +13,7 @@ import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -239,7 +239,15 @@ export function OrderDetail(): ReactNode {
   return (
     <>
       <PageHeader
-        title={t('orderDetail.title', { id: order.id.slice(0, 8) })}
+        back={{ label: t('orders.page.title'), to: '/orders' }}
+        title={
+          <>
+            {t('orderDetail.title', { id: order.id.slice(0, 8) })}
+            <Badge variant="secondary" className="text-xs font-medium">
+              {statusName(graph, order.status)}
+            </Badge>
+          </>
+        }
         description={
           <span>
             {t('orderDetail.placedAt', { date: formatDateTime(order.placedAt) })}{' '}
@@ -248,25 +256,25 @@ export function OrderDetail(): ReactNode {
         }
         actions={
           <>
-            <Button asChild variant="outline" className="bg-card">
-              <Link to="/orders">
-                <ArrowLeft />
-                {t('common.action.back')}
-              </Link>
-            </Button>
-            <Button variant="outline" className="bg-card" onClick={(): void => void handleReorder()}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-card"
+              onClick={(): void => void handleReorder()}
+            >
               <RotateCcw />
               {t('orderDetail.reorder.action')}
             </Button>
             <Button
               variant="outline"
+              size="sm"
               className="bg-card"
               onClick={(): void => void handleCloneToQuote()}
             >
               <FileText />
               {t('orderDetail.cloneToQuote.action')}
             </Button>
-            <Button asChild variant="outline" className="bg-card">
+            <Button asChild variant="outline" size="sm" className="bg-card">
               <a
                 href={`${import.meta.env['VITE_API_BASE_URL'] ?? ''}/api/v1/orders/${order.id}/invoice`}
                 target="_blank"
@@ -327,7 +335,7 @@ export function OrderDetail(): ReactNode {
           </div>
         </div>
 
-        <CardContent className="space-y-6 pt-6">
+        <CardContent className="divide-y divide-border pt-6 [&>*]:py-6 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
           {tab === 'overview' ? (
             <>
               <Section title={t('orderDetail.sections.status')}>
@@ -411,7 +419,7 @@ export function OrderDetail(): ReactNode {
                       <TableHead>{t('orderDetail.columns.qty')}</TableHead>
                       <TableHead>{t('orderDetail.columns.unit')}</TableHead>
                       <TableHead>{t('orderDetail.columns.tax')}</TableHead>
-                      <TableHead>{t('orderDetail.columns.line')}</TableHead>
+                      <TableHead className="text-right">{t('orderDetail.columns.line')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -425,7 +433,7 @@ export function OrderDetail(): ReactNode {
                           {it.unitPrice.toFixed(2)} {order.currency}
                         </TableCell>
                         <TableCell>{(it.taxRate * 100).toFixed(1)}%</TableCell>
-                        <TableCell className="tabular-nums">
+                        <TableCell className="tabular-nums text-right">
                           {it.lineTotal.toFixed(2)} {order.currency}
                         </TableCell>
                       </TableRow>
@@ -436,7 +444,7 @@ export function OrderDetail(): ReactNode {
                       <th colSpan={4} className="text-right font-medium text-muted-foreground">
                         {t('orderDetail.totals.subtotal')}
                       </th>
-                      <td className="tabular-nums">
+                      <td className="tabular-nums text-right">
                         {order.subtotal.toFixed(2)} {order.currency}
                       </td>
                     </tr>
@@ -444,7 +452,7 @@ export function OrderDetail(): ReactNode {
                       <th colSpan={4} className="text-right font-medium text-muted-foreground">
                         {t('orderDetail.totals.tax')}
                       </th>
-                      <td className="tabular-nums">
+                      <td className="tabular-nums text-right">
                         {order.taxTotal.toFixed(2)} {order.currency}
                       </td>
                     </tr>
@@ -452,7 +460,7 @@ export function OrderDetail(): ReactNode {
                       <th colSpan={4} className="text-right font-medium text-muted-foreground">
                         {t('orderDetail.totals.delivery')}
                       </th>
-                      <td className="tabular-nums">
+                      <td className="tabular-nums text-right">
                         {order.deliveryTotal.toFixed(2)} {order.currency}
                       </td>
                     </tr>
@@ -460,7 +468,7 @@ export function OrderDetail(): ReactNode {
                       <th colSpan={4} className="text-right font-semibold">
                         {t('orderDetail.totals.total')}
                       </th>
-                      <td className="tabular-nums font-semibold">
+                      <td className="tabular-nums text-right font-semibold">
                         {order.total.toFixed(2)} {order.currency}
                       </td>
                     </tr>
