@@ -14,6 +14,7 @@ import {
   CustomerGroupPanel,
   AddressesPanel,
 } from './panels/ManagementPanels';
+import { DefaultPreferencesPanel } from '../quick_order/DefaultPreferencesPanel';
 
 interface AdminCustomerDetail {
   id: string;
@@ -198,6 +199,7 @@ export function CustomerDetail(): ReactNode {
       <OrganizationAssignmentPanel customerId={id} organizationId={c.organizationId} onChanged={(): void => void refresh()} />
       <CustomerGroupPanel customerId={id} customerGroupId={c.customerGroupId} onChanged={(): void => void refresh()} />
       <AddressesPanel customerId={id} onChanged={(): void => void refresh()} />
+      <DefaultPreferencesPanel scope="customer" scopeId={id} />
 
       <OrdersPanel customerId={id} />
       <QuoteRequestsPanel customerId={id} />

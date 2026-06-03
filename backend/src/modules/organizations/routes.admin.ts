@@ -32,6 +32,7 @@ import {
 } from './services/organization-restriction-service.js';
 import type { OrganizationEffectivePriceListsService } from './services/organization-effective-pricelists-service.js';
 import type { OrganizationTaxIdValidationService } from './services/organization-tax-id-validation-service.js';
+import type { AddressService } from '../addresses/services/address-service.js';
 import {
   approveOrganizationSchema,
   rejectOrganizationSchema,
@@ -70,6 +71,8 @@ export interface AdminOrgsDeps {
   effectivePriceListsService?: OrganizationEffectivePriceListsService;
   /** Optional — when provided, mounts the VAT-validation endpoints (US7). */
   taxIdValidationService?: OrganizationTaxIdValidationService;
+  /** Optional — when provided, mounts the org-addresses read endpoint used by the default-preferences panel. */
+  addressService?: AddressService;
 }
 
 export async function registerOrganizationsAdminRoutes(
@@ -177,6 +180,33 @@ export async function registerOrganizationsAdminRoutes(
       };
     },
   );
+
+  // Org-owned addresses (with ids) — feeds the default-preferences panel's
+  // billing/shipping address pickers on the Organization edit page.
+  if (deps.addressService) {
+    const addressService = deps.addressService;
+    app.get<{ Params: { id: string } }>(
+      '/api/v1/admin/organizations/:id/addresses',
+      { preHandler: customersRead },
+      async (request) => {
+        const rows = await addressService.list(request.params.id);
+        return {
+          data: rows.map((a) => ({
+            id: a.id,
+            organizationId: a.organizationId,
+            kind: a.kind,
+            recipientName: a.recipientName,
+            street: a.street,
+            city: a.city,
+            postalCode: a.postalCode,
+            country: a.country,
+            phone: a.phone ?? null,
+            isDefault: a.isDefault,
+          })),
+        };
+      },
+    );
+  }
 
   app.patch<{ Params: { id: string } }>(
     '/api/v1/admin/organizations/:id',
