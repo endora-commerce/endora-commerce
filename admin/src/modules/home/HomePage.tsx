@@ -19,13 +19,15 @@ interface Kpi {
   labelKey: string;
   value: string;
   tone?: 'default' | 'warn' | 'danger';
+  /** Destination the tile links to — a filtered list mirroring the KPI's query. */
+  to: string;
 }
 
 const INITIAL_KPIS: Kpi[] = [
-  { labelKey: 'home.kpi.activeProducts', value: '—' },
-  { labelKey: 'home.kpi.pendingQuotes', value: '—', tone: 'warn' },
-  { labelKey: 'home.kpi.openOrders', value: '—' },
-  { labelKey: 'home.kpi.outOfStock', value: '—', tone: 'danger' },
+  { labelKey: 'home.kpi.activeProducts', value: '—', to: '/catalog/products?status=active' },
+  { labelKey: 'home.kpi.pendingQuotes', value: '—', tone: 'warn', to: '/quote-requests?status=Pending&scope=all' },
+  { labelKey: 'home.kpi.openOrders', value: '—', to: '/orders?status=new' },
+  { labelKey: 'home.kpi.outOfStock', value: '—', tone: 'danger', to: '/inventory?stock=out' },
 ];
 
 export function HomePage(): ReactNode {
@@ -51,21 +53,21 @@ export function HomePage(): ReactNode {
         fetchKpi('/api/v1/admin/catalog/products?pageSize=1', (data: unknown) => {
           const counts = (data as { counts?: { active?: number } }).counts;
           if (counts?.active !== undefined) {
-            next[0] = { labelKey: 'home.kpi.activeProducts', value: String(counts.active) };
+            next[0]!.value = String(counts.active);
           }
         }),
         fetchKpi('/api/v1/admin/quote-requests?status=submitted', (data: unknown) => {
           const arr = (data as { data?: unknown[] }).data ?? [];
-          next[1] = { labelKey: 'home.kpi.pendingQuotes', value: String(arr.length), tone: 'warn' };
+          next[1]!.value = String(arr.length);
         }),
         fetchKpi('/api/v1/admin/orders?status=new', (data: unknown) => {
           const arr = (data as { data?: unknown[] }).data ?? [];
-          next[2] = { labelKey: 'home.kpi.openOrders', value: String(arr.length) };
+          next[2]!.value = String(arr.length);
         }),
         fetchKpi('/api/v1/admin/inventory', (data: unknown) => {
           const k = (data as { data?: { outOfStockCount?: number } }).data;
           if (k?.outOfStockCount !== undefined) {
-            next[3] = { labelKey: 'home.kpi.outOfStock', value: String(k.outOfStockCount), tone: 'danger' };
+            next[3]!.value = String(k.outOfStockCount);
           }
         }),
         fetchKpi('/api/v1/admin/inventory/low-stock', (data: unknown) => {
@@ -117,6 +119,7 @@ export function HomePage(): ReactNode {
             key={k.labelKey}
             label={t(k.labelKey)}
             value={k.value}
+            to={k.to}
             {...(k.tone !== undefined ? { tone: k.tone } : {})}
           />
         ))}
@@ -228,15 +231,21 @@ function Stat({
   label,
   value,
   tone,
+  to,
 }: {
   label: string;
   value: string;
   tone?: 'default' | 'warn' | 'danger';
+  to: string;
 }): ReactNode {
   const color =
     tone === 'danger' ? 'var(--danger)' : tone === 'warn' ? 'var(--warn)' : 'var(--fg)';
   return (
-    <div className="b2b-card" style={{ flex: 1, padding: 16 }}>
+    <Link
+      to={to}
+      className="b2b-card b2b-card--clickable"
+      style={{ flex: 1, padding: 16, textDecoration: 'none', color: 'inherit' }}
+    >
       <div
         className="b2b-muted"
         style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}
@@ -244,7 +253,7 @@ function Stat({
         {label}
       </div>
       <div style={{ fontSize: 26, fontWeight: 600, marginTop: 4, color }}>{value}</div>
-    </div>
+    </Link>
   );
 }
 

@@ -4,7 +4,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { AlertCircle, Search, Upload } from 'lucide-react';
 import type {
   InventoryLandingKpis,
@@ -37,13 +37,17 @@ interface KpiResponse {
  */
 export function InventoryPage(): ReactNode {
   const t = useTranslation('core');
+  const [searchParams] = useSearchParams();
   const [kpis, setKpis] = useState<InventoryLandingKpis | null>(null);
   const [rows, setRows] = useState<StockLevelRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'low' | 'out'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'low' | 'out'>(() => {
+    const fromUrl = searchParams.get('stock');
+    return fromUrl === 'low' || fromUrl === 'out' ? fromUrl : 'all';
+  });
   const { pageSize, setPageSize } = usePageSizePreference('inventory-levels');
   const [page, setPage] = useState(0);
 

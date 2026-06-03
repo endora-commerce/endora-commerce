@@ -6,7 +6,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   CircleDollarSign,
   Download,
@@ -80,9 +80,16 @@ interface ProductsResponse {
   counts: { all: number; active: number; draft: number; inactive: number };
 }
 
+const STATUS_FILTERS: readonly StatusFilter[] = ['all', 'active', 'draft', 'inactive'];
+
+function isStatusFilter(value: string | null): value is StatusFilter {
+  return value !== null && (STATUS_FILTERS as readonly string[]).includes(value);
+}
+
 export function ProductsList(): ReactNode {
   const t = useTranslation('catalog');
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [rows, setRows] = useState<AdminProduct[]>([]);
   const [total, setTotal] = useState(0);
   const [counts, setCounts] = useState<{ all: number; active: number; draft: number; inactive: number }>(
@@ -91,7 +98,10 @@ export function ProductsList(): ReactNode {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => {
+    const fromUrl = searchParams.get('status');
+    return isStatusFilter(fromUrl) ? fromUrl : 'all';
+  });
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [stockFilter, setStockFilter] = useState<StockFilter>('all');
   const [selection, setSelection] = useState<ProductListSelection>(emptySelection);
