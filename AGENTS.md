@@ -66,4 +66,6 @@ Every new module with admin routes gated by `requireAdmin(...)` **must** registe
 
 Do not duplicate shared codes from core `PERMISSION_CATALOGUE` (`packages/contracts/src/admin.ts`). Contract: `specs/026-admin-roles-permissions/contracts/module-manifest-permissions.md`.
 
+When you introduce new feature, follow principles described in `.specify/memory/constitution.md` file.
+
 <!-- MANUAL ADDITIONS END -->
