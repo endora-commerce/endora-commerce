@@ -9,6 +9,8 @@ import { useTranslation } from '@/i18n/useTranslation';
 export interface SavedViewState {
   filters: Record<string, unknown>;
   sort: { field: string; dir: 'asc' | 'desc' };
+  /** Column-picker selection; `null`/absent ⇒ the list falls back to defaults. */
+  visibleColumns?: string[] | null;
 }
 interface SavedView extends SavedViewState {
   id: string;
@@ -49,7 +51,9 @@ export function OrderSavedViews({ current, onLoad, onError }: Props): ReactNode 
   const handleLoad = (id: string): void => {
     setSelectedId(id);
     const view = views.find((v) => v.id === id);
-    if (view) onLoad({ filters: view.filters, sort: view.sort });
+    if (view) {
+      onLoad({ filters: view.filters, sort: view.sort, visibleColumns: view.visibleColumns ?? null });
+    }
   };
 
   const save = async (): Promise<void> => {
@@ -62,6 +66,7 @@ export function OrderSavedViews({ current, onLoad, onError }: Props): ReactNode 
         shared,
         filters: current.filters,
         sort: current.sort,
+        visibleColumns: current.visibleColumns ?? null,
       });
       await load();
     } catch (err) {

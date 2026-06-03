@@ -66,6 +66,7 @@ import { Migration060OrgFulfilmentStrategy } from '../modules/organizations/migr
 import { Migration061CustomerAccountsLifecycle } from '../modules/customer_accounts/migrations/061_customer_accounts_lifecycle.js';
 import { Migration062CustomerAddressesInit } from '../modules/customers/migrations/062_customer_addresses_init.js';
 import { Migration063OrderStatusColor } from '../modules/orders/migrations/063_order_status_color.js';
+import { Migration064OrderSavedViewColumns } from '../modules/orders/migrations/064_order_saved_view_columns.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -301,6 +302,10 @@ export default defineConfig({
       {
         name: 'Migration063OrderStatusColor',
         class: Migration063OrderStatusColor,
+      },
+      {
+        name: 'Migration064OrderSavedViewColumns',
+        class: Migration064OrderSavedViewColumns,
       },
     ],
     transactional: true,

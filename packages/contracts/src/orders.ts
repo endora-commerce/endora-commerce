@@ -233,13 +233,36 @@ export type SetOrderTransitionsRequest = z.infer<typeof setOrderTransitionsReque
 
 // --- Admin orders list / search / bulk / export ----------------------------
 
+/**
+ * Query-string list params arrive as a single value (`?k=a`) or repeated
+ * (`?k=a&k=b`). Normalise both to a `T[]` so the multiselect filters always
+ * see an array. Empty / absent ⇒ `undefined`.
+ */
+function multiQueryParam<T extends z.ZodTypeAny>(schema: T) {
+  return z
+    .union([schema, z.array(schema)])
+    .optional()
+    .transform((v): z.output<T>[] | undefined =>
+      v === undefined ? undefined : Array.isArray(v) ? v : [v],
+    );
+}
+
 export const adminOrdersListQuerySchema = z.object({
-  status: orderStatusCodeSchema.optional(),
-  salesChannelId: uuidSchema.optional(),
+  // Multi-select filters (accept repeated query params).
+  status: multiQueryParam(orderStatusCodeSchema),
+  salesChannelId: multiQueryParam(uuidSchema),
+  paymentMethodId: multiQueryParam(uuidSchema),
+  deliveryMethodId: multiQueryParam(uuidSchema),
   organizationId: uuidSchema.optional(),
   q: z.string().max(200).optional(),
+  // Dedicated org / customer name filters (free-text, AND-combined with `q`).
+  orgName: z.string().max(200).optional(),
+  customerName: z.string().max(200).optional(),
   placedFrom: isoDateTimeSchema.optional(),
   placedTo: isoDateTimeSchema.optional(),
+  // Order-total range (inclusive).
+  totalMin: z.coerce.number().nonnegative().optional(),
+  totalMax: z.coerce.number().nonnegative().optional(),
   sort: z.string().optional(),
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().max(200).default(25),
@@ -258,6 +281,12 @@ export const adminOrderRowSchema = z.object({
   total: z.number().finite().nonnegative(),
   currency: z.string().length(3),
   placedAt: isoDateTimeSchema,
+  createdAt: isoDateTimeSchema,
+  salesChannelId: uuidSchema,
+  salesChannelName: z.string().nullable(),
+  deliveryMethodName: z.string().nullable(),
+  shipToName: z.string().nullable(),
+  billToName: z.string().nullable(),
 });
 export type AdminOrderRow = z.infer<typeof adminOrderRowSchema>;
 
@@ -309,6 +338,8 @@ export const orderSavedViewSchema = z.object({
   ownerAdminUserId: uuidSchema,
   filters: z.record(z.string(), z.unknown()),
   sort: orderSavedViewSortSchema,
+  /** Column-picker selection. `null` ⇒ fall back to the default-visible set. */
+  visibleColumns: z.array(z.string()).nullable().optional(),
 });
 export type OrderSavedView = z.infer<typeof orderSavedViewSchema>;
 
@@ -317,6 +348,7 @@ export const createOrderSavedViewRequestSchema = z.object({
   shared: z.boolean(),
   filters: z.record(z.string(), z.unknown()),
   sort: orderSavedViewSortSchema,
+  visibleColumns: z.array(z.string()).nullable().optional(),
 });
 export type CreateOrderSavedViewRequest = z.infer<typeof createOrderSavedViewRequestSchema>;
 
