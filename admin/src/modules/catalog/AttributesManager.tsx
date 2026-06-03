@@ -378,8 +378,12 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
   const t = useTranslation('catalog');
   const isEdit = mode === 'edit';
   const [key, setKey] = useState(attribute?.key ?? '');
-  const [labelEn, setLabelEn] = useState(attribute?.label['en-US'] ?? '');
-  const [labelPl, setLabelPl] = useState(attribute?.label['pl-PL'] ?? '');
+  // Pre-fill from the stored label, tolerating older rows whose locale keys are
+  // `en`/`pl` (or only `labelDefault`) rather than the canonical `en-US`/`pl-PL`.
+  const [labelEn, setLabelEn] = useState(
+    attribute?.label['en-US'] ?? attribute?.label['en'] ?? attribute?.labelDefault ?? '',
+  );
+  const [labelPl, setLabelPl] = useState(attribute?.label['pl-PL'] ?? attribute?.label['pl'] ?? '');
   const [valueType, setValueType] = useState<ValueType>(attribute?.valueType ?? 'string');
   const [enumValues, setEnumValues] = useState('');
   const [isSearchable, setIsSearchable] = useState(attribute?.isSearchable ?? false);
