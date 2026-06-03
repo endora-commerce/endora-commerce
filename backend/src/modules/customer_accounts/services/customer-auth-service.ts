@@ -33,10 +33,10 @@ export class CustomerAuthService {
     const customer = await em.findOne(CustomerAccount, { email: input.email });
     if (!customer) {
       // Generic error to avoid account enumeration.
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Invalid email or password.');
+      throw new HttpError(401, ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email or password.');
     }
     if (customer.deletedAt) {
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Invalid email or password.');
+      throw new HttpError(401, ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email or password.');
     }
     // Feature 040 — a blocked account cannot log in (FR-012/FR-016). The
     // distinct error lets the storefront show a clear "account blocked" message.
@@ -49,7 +49,7 @@ export class CustomerAuthService {
     }
     const ok = await verifyPassword(customer.passwordHash, input.password);
     if (!ok) {
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Invalid email or password.');
+      throw new HttpError(401, ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email or password.');
     }
 
     const session = await this.sessionService.createSession({

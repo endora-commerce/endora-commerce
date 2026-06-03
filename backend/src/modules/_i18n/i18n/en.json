@@ -1271,6 +1271,7 @@
   "errors.EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION": "Email Belongs To Another Organization.",
   "errors.TERMS_VERSION_STALE": "Terms Version Stale.",
   "errors.TOKEN_INVALID_OR_EXPIRED": "Token Invalid Or Expired.",
+  "errors.INVALID_CREDENTIALS": "Invalid email or password. Please try again.",
   "errors.CURRENT_PASSWORD_INVALID": "Current Password Invalid.",
   "errors.TWO_FACTOR_REQUIRED": "Two Factor Required.",
   "errors.TWO_FACTOR_REQUIRED_BY_ROLE": "Two Factor Required By Role.",

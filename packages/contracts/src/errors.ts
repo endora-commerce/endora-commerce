@@ -80,6 +80,11 @@ export const ERROR_CODES = {
   EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION: 'EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION',
   TERMS_VERSION_STALE: 'TERMS_VERSION_STALE',
   TOKEN_INVALID_OR_EXPIRED: 'TOKEN_INVALID_OR_EXPIRED',
+  // Wrong email/password on login. A code distinct from the generic
+  // UNAUTHORIZED ("authentication is required") guard so the storefront can
+  // surface an actionable "invalid email or password — try again" message
+  // instead of the opaque guard string (mirrors ACCOUNT_BLOCKED).
+  INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
   CURRENT_PASSWORD_INVALID: 'CURRENT_PASSWORD_INVALID',
   TWO_FACTOR_REQUIRED: 'TWO_FACTOR_REQUIRED',
   TWO_FACTOR_REQUIRED_BY_ROLE: 'TWO_FACTOR_REQUIRED_BY_ROLE',
