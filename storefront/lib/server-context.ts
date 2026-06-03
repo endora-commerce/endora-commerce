@@ -10,7 +10,9 @@ import type { RequestContext } from './api/client';
  * request carries the same Sales Channel + locale.
  *
  * The Sales Channel header is read from `X-Sales-Channel` so a reverse
- * proxy / multi-storefront deployment can stamp it per-host.
+ * proxy / multi-storefront deployment can stamp it per-host. When no proxy
+ * stamps the header (local dev, single-channel deployment), the code is
+ * left undefined and the backend resolves its system-default channel.
  */
 export interface ServerContext {
   config: I18nConfigResponse;
