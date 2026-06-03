@@ -1,5 +1,5 @@
 <!--
-This template encodes the seven quality gates from
+This template encodes the eight quality gates from
 .specify/memory/constitution.md → "Development Workflow & Quality Gates".
 A reviewer who marks "LGTM" without checking these gates is not approving
 this PR (constitution §Governance).
@@ -22,6 +22,7 @@ this PR (constitution §Governance).
 - [ ] **5. Working language** (Principle VIII) — `pnpm run check:language` is clean. Inline **comments inside source files** and every page authored under the **`/docs/` documentation site** are English. Identifiers, string literals, specs, plans, tasks, the README, this PR description, commit messages, and code-review prose MAY be in any language.
 - [ ] **6. Docs sync** — README and the docs site are updated alongside any new module or infrastructure-relevant change.
 - [ ] **7. Dependency justification** (Principle IV) — every new runtime dependency added by this PR has a one-paragraph rationale below.
+- [ ] **8. UI reuse** (Principle IX) — frontend changes reuse existing Admin UI / Storefront UI components and layouts; any net-new component or layout carries a UX justification (missing pattern, primitives evaluated, why composition failed).
 
 ### New runtime dependencies (gate 7)
 
