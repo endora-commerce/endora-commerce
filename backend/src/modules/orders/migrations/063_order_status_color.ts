@@ -7,7 +7,7 @@ import { Migration } from '@mikro-orm/migrations';
  * badge. Defaults to a neutral slate (the legacy uncoloured look) and backfills
  * the seeded system / default statuses with sensible colours.
  */
-export class Migration060OrderStatusColor extends Migration {
+export class Migration063OrderStatusColor extends Migration {
   override async up(): Promise<void> {
     this.addSql(
       `alter table "order_statuses" add column "color" varchar(16) not null default '#64748b';`,
