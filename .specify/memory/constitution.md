@@ -1,31 +1,24 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 2.1.0 → 3.0.0
-Rationale: MAJOR bump. Principle VIII is redefined and substantially
-narrowed. The previous version required English for in-code
-identifiers, file/folder names, DB tables and columns, API field
-names, URL path segments, non-user-facing string literals (logs,
-error codes, route definitions, migration SQL), inline comments
-and docstrings, AND the entire `/docs/` Docusaurus site. The new
-version requires English ONLY for (a) inline comments and
-docstrings inside source files and (b) every page authored under
-the `/docs/` documentation site. Identifiers, file names, DB
-columns, API fields, log strings, and other prose are no longer
-language-constrained by this principle (case style is still
-governed by Principle VI). Because this lifts obligations from
-prior compliant work and redefines a NON-NEGOTIABLE rule, the
-versioning policy mandates a MAJOR bump.
+Version change: 3.0.0 → 3.1.0
+Rationale: MINOR bump. A new principle (IX. UI Reuse &
+Design-System Consistency) is added, and a corresponding eighth
+quality gate is introduced in the Development Workflow section. No
+existing principle is removed, narrowed, or redefined, and no
+prior compliant work is invalidated, so the versioning policy
+mandates a MINOR (not MAJOR) bump.
 
 Modified principles:
-  - VIII. Working Language — English (NON-NEGOTIABLE)
-        Scope reduced from "source code + `/docs/`" to
-        "source-code comments + `/docs/`". All identifier-,
-        filename-, DB-, API-, and string-literal obligations
-        removed. Out-of-scope catalogue trimmed accordingly.
+  - (none renamed or redefined)
 
 Added sections:
-  - (none)
+  - IX. UI Reuse & Design-System Consistency — new principle. New
+    frontend work MUST reuse existing Admin UI / Storefront UI
+    components and layouts; a net-new component or layout MAY be
+    introduced only with a stated UX justification.
+  - Development Workflow & Quality Gates — new gate #8 ("UI reuse")
+    enforcing Principle IX at review time.
 
 Removed sections:
   - (none)
@@ -35,16 +28,10 @@ Templates / artifacts requiring alignment:
        Check generically; no edits required.
   - ✅ .specify/templates/spec-template.md      — no edits required.
   - ✅ .specify/templates/tasks-template.md     — no edits required.
-  - ✅ README.md — Principle VIII quick-reference line rewritten to
-       the comments-only + /docs/ scope.
-  - ✅ .github/pull_request_template.md — gate #5 rewritten to the
-       comments-only + /docs/ scope.
-  - ✅ .github/workflows/ci.yml — Constitution Check step label
-       refreshed.
-  - ✅ scripts/check-language.sh — narrowed to flag (a) non-English
-       comments inside source files and (b) non-English prose under
-       `docs/docs/**/*.{md,mdx}`. Identifier and string-literal
-       scanning removed.
+  - ✅ README.md — principle quick-reference list extended with
+       item 9 (UI reuse); quality-gate sentence updated.
+  - ✅ .github/pull_request_template.md — new gate #8 checkbox added;
+       header comment updated from "seven" to "eight" gates.
 
 Deferred items / TODOs:
   - (none)
@@ -269,6 +256,32 @@ by translating every spec at the cost of nuance and review speed.
 The product also remains free to speak whatever customer-facing
 languages the business requires.
 
+### IX. UI Reuse & Design-System Consistency
+
+New frontend work MUST reuse the existing UI building blocks before creating
+new ones. Both frontends carry a design system: the **Admin UI** primitives
+and layouts under `admin/` and the **Storefront UI** primitives and layouts
+under `storefront/` (plus any shared UI promoted into `packages/`). When a
+story needs a screen, panel, table, form, modal, navigation surface, or any
+other view, the author MUST first reach for an existing component or layout
+that already covers the pattern and compose the feature from it. A net-new
+component or layout MAY be introduced ONLY when reusing the existing ones would
+produce a worse user experience, and that **UX justification MUST be stated**
+in the feature plan or the PR description — naming the pattern that was
+missing, the existing primitives that were evaluated, and why composing them
+failed. "It was faster to write fresh" and "I did not know one existed" are
+not justifications. A new primitive that earns its place SHOULD be promoted
+into the relevant design system (Admin UI, Storefront UI, or shared
+`packages/`) so the next story reuses it in turn.
+
+**Rationale**: The platform grows feature by feature across many contributors;
+duplicated, slightly divergent components are how a UI rots into visual
+inconsistency, double maintenance, and accessibility drift. Reuse-by-default
+keeps the visual language coherent, shrinks the bundle, concentrates fixes in
+one place, and makes every screen feel like one product. The UX escape hatch
+keeps the rule from forcing a worse experience when the existing kit genuinely
+does not fit — but it costs one sentence of justification, paid deliberately.
+
 ## Technology Stack
 
 The following stack is mandated. Substitutions require amending this
@@ -401,6 +414,9 @@ Every change MUST pass the following gates before merge:
    site in the same commit range.
 7. **Dependency justification** — any new runtime dependency MUST carry a
    one-paragraph rationale in the PR description (Principle IV).
+8. **UI reuse** — reviewers MUST reject any net-new frontend component or
+   layout that duplicates an existing Admin UI / Storefront UI primitive
+   without a stated UX justification (Principle IX).
 
 Code review MUST explicitly verify each of the above. "LGTM" without
 evidence of checking the gates is not an approval.
@@ -439,4 +455,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 3.0.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-05-01
+**Version**: 3.1.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-06-03
