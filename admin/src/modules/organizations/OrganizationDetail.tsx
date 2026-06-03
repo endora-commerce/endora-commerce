@@ -10,6 +10,7 @@ import { ModerationActionsPanel } from './panels/ModerationActionsPanel';
 import { ApplicablePriceListsPanel } from './panels/ApplicablePriceListsPanel';
 import { VatValidationPanel } from './panels/VatValidationPanel';
 import { RestrictionsPanel } from './panels/RestrictionsPanel';
+import { DefaultPreferencesPanel } from '../quick_order/DefaultPreferencesPanel';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -646,6 +647,9 @@ export function OrganizationDetail(): ReactNode {
           onChanged={refresh}
         />
       </div>
+
+      {/* Feature 039 — default ordering preferences (org scope). */}
+      <DefaultPreferencesPanel scope="organization" scopeId={org.id} />
 
       {/* Feature 026 US7 — VAT-ID / NIP validation history + retrigger. */}
       <div className="mt-4">

@@ -187,6 +187,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
         invitationService,
         roleService,
         auditLogService: options.auditLogService,
+        addressService,
         ...(options.moderationService ? { moderationService: options.moderationService } : {}),
         ...(options.restrictionService ? { restrictionService: options.restrictionService } : {}),
         ...(options.effectivePriceListsService
