@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, FileDown, FileText, RotateCcw } from 'lucide-react';
+import {
+  ArrowLeft,
+  ClipboardList,
+  CreditCard,
+  FileDown,
+  FileText,
+  RotateCcw,
+  Truck,
+} from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +27,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { OrderPaymentsTab } from './OrderPaymentsTab';
+import { OrderShipmentsTab } from './OrderShipmentsTab';
+
+type OrderTab = 'overview' | 'payment' | 'delivery';
 
 interface OrderItem {
   id: string;
@@ -98,6 +111,7 @@ export function OrderDetail(): ReactNode {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [tab, setTab] = useState<OrderTab>('overview');
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -311,6 +325,157 @@ export function OrderDetail(): ReactNode {
         </CardContent>
       </Card>
 
+      <div className="mb-4">
+        <div className="b2b-tabs-scroll">
+          <div className="b2b-tabs" role="tablist">
+            <TabBtn
+              id="overview"
+              label={t('orderDetail.tabs.overview')}
+              icon={<ClipboardList size={14} />}
+              active={tab}
+              onChange={setTab}
+            />
+            <TabBtn
+              id="payment"
+              label={t('orderDetail.tabs.payment')}
+              icon={<CreditCard size={14} />}
+              active={tab}
+              onChange={setTab}
+            />
+            <TabBtn
+              id="delivery"
+              label={t('orderDetail.tabs.delivery')}
+              icon={<Truck size={14} />}
+              active={tab}
+              onChange={setTab}
+            />
+          </div>
+        </div>
+      </div>
+
+      {tab === 'payment' ? <OrderPaymentsTab orderId={id} /> : null}
+      {tab === 'delivery' ? <OrderShipmentsTab orderId={id} /> : null}
+
+      {tab === 'overview' ? (
+        <>
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle>{t('orderDetail.sections.items')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('orderDetail.columns.product')}</TableHead>
+                    <TableHead>{t('orderDetail.columns.qty')}</TableHead>
+                    <TableHead>{t('orderDetail.columns.unit')}</TableHead>
+                    <TableHead>{t('orderDetail.columns.tax')}</TableHead>
+                    <TableHead>{t('orderDetail.columns.line')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {order.items.map((it) => (
+                    <TableRow key={it.id}>
+                      <TableCell className="font-mono text-xs">{it.productId.slice(0, 8)}</TableCell>
+                      <TableCell>{it.quantity}</TableCell>
+                      <TableCell className="tabular-nums">
+                        {it.unitPrice.toFixed(2)} {order.currency}
+                      </TableCell>
+                      <TableCell>{(it.taxRate * 100).toFixed(1)}%</TableCell>
+                      <TableCell className="tabular-nums">
+                        {it.lineTotal.toFixed(2)} {order.currency}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+                <tfoot className="border-t [&_td]:p-2 [&_th]:p-2">
+                  <tr>
+                    <th colSpan={4} className="text-right font-medium text-muted-foreground">
+                      {t('orderDetail.totals.subtotal')}
+                    </th>
+                    <td className="tabular-nums">
+                      {order.subtotal.toFixed(2)} {order.currency}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th colSpan={4} className="text-right font-medium text-muted-foreground">
+                      {t('orderDetail.totals.tax')}
+                    </th>
+                    <td className="tabular-nums">
+                      {order.taxTotal.toFixed(2)} {order.currency}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th colSpan={4} className="text-right font-medium text-muted-foreground">
+                      {t('orderDetail.totals.delivery')}
+                    </th>
+                    <td className="tabular-nums">
+                      {order.deliveryTotal.toFixed(2)} {order.currency}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th colSpan={4} className="text-right font-semibold">
+                      {t('orderDetail.totals.total')}
+                    </th>
+                    <td className="tabular-nums font-semibold">
+                      {order.total.toFixed(2)} {order.currency}
+                    </td>
+                  </tr>
+                </tfoot>
+              </Table>
+            </CardContent>
+          </Card>
+
+          <div className="mb-4 grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('orderDetail.sections.delivery')}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p>
+                  {order.deliveryAddress.street}
+                  <br />
+                  {order.deliveryAddress.postalCode} {order.deliveryAddress.city}
+                  <br />
+                  {order.deliveryAddress.country}
+                </p>
+                <p className="text-muted-foreground">
+                  {t('orderDetail.deliveryVia')} <strong>{order.deliveryMethod.code}</strong>
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('orderDetail.sections.billing')}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p>
+                  {order.billingAddress.street}
+                  <br />
+                  {order.billingAddress.postalCode} {order.billingAddress.city}
+                  <br />
+                  {order.billingAddress.country}
+                </p>
+                <p className="text-muted-foreground">
+                  {t('orderDetail.paidBy')} <strong>{order.paymentMethod.code}</strong> ({order.paymentMethod.kind})
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {order.customerNote ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('orderDetail.sections.buyerNote')}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm">{order.customerNote}</p>
+              </CardContent>
+            </Card>
+          ) : null}
+        </>
+      ) : null}
+
       <Card className="mb-4">
         <CardHeader>
           <CardTitle>{t('orderDetail.sections.comments')}</CardTitle>
@@ -370,122 +535,27 @@ export function OrderDetail(): ReactNode {
           </div>
         </CardContent>
       </Card>
-
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>{t('orderDetail.sections.items')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('orderDetail.columns.product')}</TableHead>
-                <TableHead>{t('orderDetail.columns.qty')}</TableHead>
-                <TableHead>{t('orderDetail.columns.unit')}</TableHead>
-                <TableHead>{t('orderDetail.columns.tax')}</TableHead>
-                <TableHead>{t('orderDetail.columns.line')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {order.items.map((it) => (
-                <TableRow key={it.id}>
-                  <TableCell className="font-mono text-xs">{it.productId.slice(0, 8)}</TableCell>
-                  <TableCell>{it.quantity}</TableCell>
-                  <TableCell className="tabular-nums">
-                    {it.unitPrice.toFixed(2)} {order.currency}
-                  </TableCell>
-                  <TableCell>{(it.taxRate * 100).toFixed(1)}%</TableCell>
-                  <TableCell className="tabular-nums">
-                    {it.lineTotal.toFixed(2)} {order.currency}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-            <tfoot className="border-t [&_td]:p-2 [&_th]:p-2">
-              <tr>
-                <th colSpan={4} className="text-right font-medium text-muted-foreground">
-                  {t('orderDetail.totals.subtotal')}
-                </th>
-                <td className="tabular-nums">
-                  {order.subtotal.toFixed(2)} {order.currency}
-                </td>
-              </tr>
-              <tr>
-                <th colSpan={4} className="text-right font-medium text-muted-foreground">
-                  {t('orderDetail.totals.tax')}
-                </th>
-                <td className="tabular-nums">
-                  {order.taxTotal.toFixed(2)} {order.currency}
-                </td>
-              </tr>
-              <tr>
-                <th colSpan={4} className="text-right font-medium text-muted-foreground">
-                  {t('orderDetail.totals.delivery')}
-                </th>
-                <td className="tabular-nums">
-                  {order.deliveryTotal.toFixed(2)} {order.currency}
-                </td>
-              </tr>
-              <tr>
-                <th colSpan={4} className="text-right font-semibold">
-                  {t('orderDetail.totals.total')}
-                </th>
-                <td className="tabular-nums font-semibold">
-                  {order.total.toFixed(2)} {order.currency}
-                </td>
-              </tr>
-            </tfoot>
-          </Table>
-        </CardContent>
-      </Card>
-
-      <div className="mb-4 grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('orderDetail.sections.delivery')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>
-              {order.deliveryAddress.street}
-              <br />
-              {order.deliveryAddress.postalCode} {order.deliveryAddress.city}
-              <br />
-              {order.deliveryAddress.country}
-            </p>
-            <p className="text-muted-foreground">
-              {t('orderDetail.deliveryVia')} <strong>{order.deliveryMethod.code}</strong>
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('orderDetail.sections.billing')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>
-              {order.billingAddress.street}
-              <br />
-              {order.billingAddress.postalCode} {order.billingAddress.city}
-              <br />
-              {order.billingAddress.country}
-            </p>
-            <p className="text-muted-foreground">
-              {t('orderDetail.paidBy')} <strong>{order.paymentMethod.code}</strong> ({order.paymentMethod.kind})
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {order.customerNote ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('orderDetail.sections.buyerNote')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm">{order.customerNote}</p>
-          </CardContent>
-        </Card>
-      ) : null}
     </>
+  );
+}
+
+function TabBtn(props: {
+  id: OrderTab;
+  label: string;
+  icon: ReactNode;
+  active: OrderTab;
+  onChange: (id: OrderTab) => void;
+}): ReactNode {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={props.active === props.id}
+      className={cn('b2b-tab', props.active === props.id && 'is-active')}
+      onClick={(): void => props.onChange(props.id)}
+    >
+      {props.icon}
+      {props.label}
+    </button>
   );
 }
