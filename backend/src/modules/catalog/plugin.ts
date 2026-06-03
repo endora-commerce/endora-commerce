@@ -1,12 +1,16 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { BULK_OPERATION_TYPES } from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import { CatalogQueryService } from './services/catalog-query.service.js';
 import { CatalogAdminService, type CatalogEventBus } from './services/catalog-admin.service.js';
 import { CatalogBulkUpdateService } from './services/catalog-bulk-update.service.js';
-import { BulkOperationService } from './services/bulk-operation.service.js';
+import {
+  BulkOperationService,
+  type SearchReindexRunner,
+} from './services/bulk-operation.service.js';
 import { CategoryAdminService } from './services/category-admin.service.js';
 import { AttributeSetService } from './services/attribute-set.service.js';
 import { GalleryService } from './services/gallery.service.js';
@@ -86,6 +90,13 @@ export interface CatalogModuleOptions {
    * price-lists status sweeper pattern.
    */
   enableBulkOperationSweeper?: boolean;
+  /**
+   * Runs a full Meilisearch reindex (the `search:reindex` CLI equivalent).
+   * When provided, flipping an attribute's `searchable` flag enqueues a
+   * `search_reindex` bulk operation that calls this. Wired from the
+   * composition root so catalog stays decoupled from the search module.
+   */
+  reindexSearchIndexes?: SearchReindexRunner;
 }
 
 export function catalogModule(options: CatalogModuleOptions) {
@@ -126,6 +137,9 @@ export function catalogModule(options: CatalogModuleOptions) {
         ? { notificationService: options.adminNotificationService }
         : {}),
       ...(options.mailer ? { mailer: options.mailer } : {}),
+      ...(options.reindexSearchIndexes
+        ? { reindexRunner: options.reindexSearchIndexes }
+        : {}),
       onEnqueued: bulkSweeperEnabled
         ? (): void => {
             bulkOperationService
@@ -136,6 +150,21 @@ export function catalogModule(options: CatalogModuleOptions) {
             /* sweeper disabled (tests) — drain is driven manually */
           },
     });
+
+    // When a reindex runner is wired, flipping an attribute's `searchable`
+    // flag enqueues a `search_reindex` bulk operation (visible on the
+    // "Akcje masowe" page, with the same bell + email notifications).
+    if (options.reindexSearchIndexes) {
+      const queue = bulkOperationService;
+      adminService.setSearchReindexEnqueuer(async ({ actorAdminUserId }) => {
+        await queue.create({
+          type: BULK_OPERATION_TYPES.SEARCH_REINDEX,
+          requestedByAdminUserId:
+            actorAdminUserId ?? '00000000-0000-0000-0000-000000000000',
+          payload: { productIds: [], fields: {} },
+        });
+      });
+    }
 
     const bundleServicePublic = new BundleService(options.emFactory);
     await registerCatalogPublicRoutes(app, {

@@ -760,6 +760,11 @@ export async function setupBackendServer(
       // the queued ack only); the background sweeper stays off so queued
       // rows don't churn the DB after a response or across teardown.
       enableBulkOperationSweeper: false,
+      // Stub reindex runner so the `search_reindex` enqueuer is wired (the
+      // attribute-searchable flip path). It never hits Meilisearch — the
+      // sweeper is off, so queued reindex ops stay `pending` and are
+      // asserted via the bulk-operations list, just like product updates.
+      reindexSearchIndexes: async () => ({ documentCount: 0 }),
       resolveAdminAuditContext: (request) => {
         if (request.testActor?.kind !== 'admin') {
           return { actorAdminUserId: TEST_ADMIN_ID };

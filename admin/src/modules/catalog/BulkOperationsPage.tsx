@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import type { BulkOperation, BulkOperationStatus } from '@b2b/contracts';
+import { BULK_OPERATION_TYPES, type BulkOperation, type BulkOperationStatus } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -46,6 +46,25 @@ const STATUS_BADGE: Record<
 };
 
 const POLL_INTERVAL_MS = 4000;
+
+const KNOWN_OPERATION_TYPES = new Set<string>([
+  BULK_OPERATION_TYPES.PRODUCT_BULK_UPDATE,
+  BULK_OPERATION_TYPES.SEARCH_REINDEX,
+]);
+
+/**
+ * Friendly label for a bulk operation's `type`. Known kinds resolve through
+ * i18n; an unknown kind (e.g. one shipped by a future module) falls back to
+ * the raw type string rather than an i18n placeholder.
+ */
+function operationTypeLabel(
+  op: BulkOperation,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
+  return KNOWN_OPERATION_TYPES.has(op.type)
+    ? t(`bulkOperations.type.${op.type}`)
+    : op.type;
+}
 
 export function BulkOperationsPage(): ReactNode {
   const t = useTranslation('catalog');
@@ -133,6 +152,7 @@ export function BulkOperationsPage(): ReactNode {
               <TableHeader>
                 <TableRow>
                   <TableHead>{t('bulkOperations.column.created')}</TableHead>
+                  <TableHead>{t('bulkOperations.column.type')}</TableHead>
                   <TableHead>{t('bulkOperations.column.status')}</TableHead>
                   <TableHead>{t('bulkOperations.column.progress')}</TableHead>
                   <TableHead className="text-right">{t('bulkOperations.column.succeeded')}</TableHead>
@@ -156,6 +176,7 @@ export function BulkOperationsPage(): ReactNode {
                         <TableCell className="whitespace-nowrap text-sm">
                           {formatDateTime(op.createdAt)}
                         </TableCell>
+                        <TableCell className="text-sm">{operationTypeLabel(op, t)}</TableCell>
                         <TableCell>
                           <Badge variant={STATUS_BADGE[op.status]}>
                             {t(`bulkOperations.status.${op.status}`)}
@@ -178,7 +199,7 @@ export function BulkOperationsPage(): ReactNode {
                       </TableRow>
                       {isOpen ? (
                         <TableRow>
-                          <TableCell colSpan={7}>
+                          <TableCell colSpan={8}>
                             {op.error ? (
                               <Alert variant="destructive">
                                 <AlertDescription>{op.error}</AlertDescription>
