@@ -8,6 +8,7 @@ export interface SavedViewInput {
   shared: boolean;
   filters: Record<string, unknown>;
   sort: { field: string; dir: 'asc' | 'desc' };
+  visibleColumns?: string[] | null | undefined;
 }
 
 /**
@@ -38,6 +39,7 @@ export class OrderListViewService {
       shared: input.shared,
       filters: input.filters,
       sort: input.sort,
+      visibleColumns: input.visibleColumns ?? null,
     });
     await em.persistAndFlush(view);
     return view;
@@ -52,6 +54,7 @@ export class OrderListViewService {
       shared?: boolean | undefined;
       filters?: Record<string, unknown> | undefined;
       sort?: { field: string; dir: 'asc' | 'desc' } | undefined;
+      visibleColumns?: string[] | null | undefined;
     },
   ): Promise<OrderListSavedView> {
     const em = this.emFactory();
@@ -60,6 +63,7 @@ export class OrderListViewService {
     if (patch.shared !== undefined) view.shared = patch.shared;
     if (patch.filters !== undefined) view.filters = patch.filters;
     if (patch.sort !== undefined) view.sort = patch.sort;
+    if (patch.visibleColumns !== undefined) view.visibleColumns = patch.visibleColumns;
     await em.flush();
     return view;
   }

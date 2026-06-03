@@ -11,7 +11,7 @@ import { randomUUID } from 'crypto';
  */
 @Entity({ tableName: 'order_list_saved_views' })
 export class OrderListSavedView {
-  [OptionalProps]?: 'id' | 'shared' | 'createdAt' | 'updatedAt';
+  [OptionalProps]?: 'id' | 'shared' | 'createdAt' | 'updatedAt' | 'visibleColumns';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -33,6 +33,14 @@ export class OrderListSavedView {
   /** Serialized sort: { field, dir }. */
   @Property({ type: 'json' })
   sort!: { field: string; dir: 'asc' | 'desc' };
+
+  /**
+   * Column-picker selection (ordered list of column ids). `null` ⇒ the client
+   * falls back to its default-visible set. Nullable for backward compatibility
+   * with views saved before the column picker shipped.
+   */
+  @Property({ type: 'json', nullable: true })
+  visibleColumns: string[] | null = null;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

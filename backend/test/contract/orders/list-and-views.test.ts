@@ -52,11 +52,21 @@ describe('Admin orders list, bulk, export, saved views', () => {
     await teardownBackendServer(h);
   });
 
-  it('lists with search, per-status counts, and resolved names', async () => {
+  it('lists with search, per-status counts, resolved names, and the new columns', async () => {
     const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/orders?q=QA-LIST', ...admin });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
-      data: Array<{ businessId: string; organizationName: string | null; statusName: Record<string, string> }>;
+      data: Array<{
+        businessId: string;
+        organizationName: string | null;
+        statusName: Record<string, string>;
+        createdAt: string;
+        salesChannelId: string;
+        salesChannelName: string | null;
+        deliveryMethodName: string | null;
+        shipToName: string | null;
+        billToName: string | null;
+      }>;
       pagination: { total: number };
       counts: Record<string, number>;
     };
@@ -66,12 +76,43 @@ describe('Admin orders list, bulk, export, saved views', () => {
     const a = body.data.find((r) => r.businessId === 'QA-LIST-A');
     expect(a?.organizationName).toBeTruthy();
     expect(a?.statusName['en']).toBe('New');
+    // Feature: widened list row.
+    expect(a?.createdAt).toBeTruthy();
+    expect(a?.deliveryMethodName).toBe('DM');
+    expect(a?.shipToName).toBe('A');
+    expect(a?.billToName).toBe('A');
+    expect(a).toHaveProperty('salesChannelName'); // null here (random channel id)
   });
 
-  it('filters by status tab', async () => {
+  it('filters by a single status tab', async () => {
     const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/orders?q=QA-LIST&status=new', ...admin });
     const body = res.json() as { pagination: { total: number } };
     expect(body.pagination.total).toBe(2);
+  });
+
+  it('filters by multiple statuses (repeated query param)', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/orders?q=QA-LIST&status=new&status=paid',
+      ...admin,
+    });
+    const body = res.json() as { pagination: { total: number } };
+    expect(body.pagination.total).toBe(3);
+  });
+
+  it('filters by total range', async () => {
+    const above = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/orders?q=QA-LIST&totalMin=200',
+      ...admin,
+    });
+    expect((above.json() as { pagination: { total: number } }).pagination.total).toBe(0);
+    const within = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/orders?q=QA-LIST&totalMin=50&totalMax=150',
+      ...admin,
+    });
+    expect((within.json() as { pagination: { total: number } }).pagination.total).toBe(3);
   });
 
   it('bulk status: moves eligible, reports skipped with reasons', async () => {
@@ -115,21 +156,31 @@ describe('Admin orders list, bulk, export, saved views', () => {
     expect(res.body.startsWith('%PDF-')).toBe(true);
   });
 
-  it('saves, lists, and deletes a list view', async () => {
+  it('saves, lists, and deletes a list view incl. visible columns', async () => {
     const create = await h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/orders/list-views',
       ...admin,
-      payload: { name: 'EU unpaid', shared: false, filters: { status: 'new' }, sort: { field: 'placedAt', dir: 'desc' } },
+      payload: {
+        name: 'EU unpaid',
+        shared: false,
+        filters: { status: ['new'] },
+        sort: { field: 'placedAt', dir: 'desc' },
+        visibleColumns: ['order', 'status', 'total'],
+      },
     });
     expect(create.statusCode).toBe(201);
-    const viewId = (create.json() as { data: { id: string } }).data.id;
+    const created = (create.json() as { data: { id: string; visibleColumns: string[] | null } }).data;
+    expect(created.visibleColumns).toEqual(['order', 'status', 'total']);
 
     const list = await h.app.inject({ method: 'GET', url: '/api/v1/admin/orders/list-views', ...admin });
-    const names = (list.json() as { data: Array<{ id: string; name: string }> }).data.map((v) => v.name);
-    expect(names).toContain('EU unpaid');
+    const view = (list.json() as { data: Array<{ id: string; name: string; visibleColumns: string[] | null }> }).data.find(
+      (v) => v.id === created.id,
+    );
+    expect(view?.name).toBe('EU unpaid');
+    expect(view?.visibleColumns).toEqual(['order', 'status', 'total']);
 
-    const del = await h.app.inject({ method: 'DELETE', url: `/api/v1/admin/orders/list-views/${viewId}`, ...admin });
+    const del = await h.app.inject({ method: 'DELETE', url: `/api/v1/admin/orders/list-views/${created.id}`, ...admin });
     expect(del.statusCode).toBe(200);
   });
 });

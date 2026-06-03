@@ -489,7 +489,34 @@ export async function registerOrderRoutes(
       if (!order) {
         throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
       }
-      return { data: await serializeOrder(em, order) };
+      // Admin detail view: enrich with the linked organization + customer basics
+      // so operators can handle the order without leaving the page.
+      const [organization, customer] = await Promise.all([
+        em.findOne(Organization, { id: order.organizationId }),
+        em.findOne(CustomerAccount, { id: order.placedByCustomerAccountId }),
+      ]);
+      return {
+        data: {
+          ...(await serializeOrder(em, order)),
+          organization: organization
+            ? {
+                id: organization.id,
+                name: organization.name,
+                legalName: organization.legalName ?? null,
+                taxId: organization.taxId,
+                vatStatus: organization.vatStatus,
+              }
+            : null,
+          customer: customer
+            ? {
+                id: customer.id,
+                firstName: customer.firstName,
+                lastName: customer.lastName,
+                email: customer.email,
+              }
+            : null,
+        },
+      };
     },
   );
 
@@ -728,6 +755,7 @@ function serializeSavedView(v: {
   ownerAdminUserId: string;
   filters: Record<string, unknown>;
   sort: { field: string; dir: 'asc' | 'desc' };
+  visibleColumns: string[] | null;
 }): Record<string, unknown> {
   return {
     id: v.id,
@@ -736,6 +764,7 @@ function serializeSavedView(v: {
     ownerAdminUserId: v.ownerAdminUserId,
     filters: v.filters,
     sort: v.sort,
+    visibleColumns: v.visibleColumns,
   };
 }
 

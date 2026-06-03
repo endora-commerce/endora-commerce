@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Download, ListChecks, Printer } from 'lucide-react';
+import { ArrowRight, Columns3, Download, ListChecks, Printer } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -11,7 +11,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
-import { ResponsiveTable } from '@/components/ResponsiveTable';
+import { MultiSelect, type MultiSelectOption } from '@/components/ui/multi-select';
+import { ResponsiveTable, type ResponsiveColumn } from '@/components/ResponsiveTable';
 import { PaginationFooter } from '@/components/PaginationFooter';
 import { usePageSizePreference } from '@/lib/use-page-size-preference';
 import { useTranslation } from '@/i18n/useTranslation';
@@ -30,11 +31,22 @@ interface AdminOrderRow {
   total: number;
   currency: string;
   placedAt: string;
+  createdAt: string;
+  salesChannelId: string;
+  salesChannelName: string | null;
+  deliveryMethodName: string | null;
+  shipToName: string | null;
+  billToName: string | null;
 }
 interface StatusDef {
   code: string;
   name: Record<string, string>;
   color: string;
+}
+interface MethodOption {
+  id: string;
+  code: string;
+  name: Record<string, string>;
 }
 interface ListResponse {
   data: AdminOrderRow[];
@@ -44,6 +56,50 @@ interface ListResponse {
 
 const API_BASE = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? '';
 
+// Pickable columns in display order. `select` (bulk checkbox) and the actions
+// column are structural and always rendered, so they are not in the picker.
+const COLUMN_IDS = [
+  'order',
+  'placedAt',
+  'salesChannel',
+  'customer',
+  'org',
+  'status',
+  'payment',
+  'deliveryMethod',
+  'shipTo',
+  'billTo',
+  'total',
+] as const;
+type ColumnId = (typeof COLUMN_IDS)[number];
+
+// Default-visible set (the rest start hidden, toggled via the column picker).
+const DEFAULT_VISIBLE: ColumnId[] = [
+  'order',
+  'placedAt',
+  'salesChannel',
+  'customer',
+  'org',
+  'status',
+  'total',
+];
+
+function pickName(name: Record<string, string> | undefined | null): string {
+  if (!name) return '';
+  return name['en'] ?? name['en-US'] ?? Object.values(name)[0] ?? '';
+}
+
+function asStringArray(v: unknown): string[] {
+  if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string');
+  if (typeof v === 'string' && v) return [v];
+  return [];
+}
+function asString(v: unknown): string {
+  return typeof v === 'string' ? v : '';
+}
+
+const EMPTY_TEXT = { q: '', orgName: '', customerName: '', totalMin: '', totalMax: '' };
+
 export function OrdersList(): ReactNode {
   const t = useTranslation('core');
   const { pageSize, setPageSize } = usePageSizePreference('orders');
@@ -52,28 +108,52 @@ export function OrdersList(): ReactNode {
   const [total, setTotal] = useState(0);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [statuses, setStatuses] = useState<StatusDef[]>([]);
+  const [channels, setChannels] = useState<MethodOption[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<MethodOption[]>([]);
+  const [deliveryMethods, setDeliveryMethods] = useState<MethodOption[]>([]);
   const [page, setPage] = useState(0);
-  const [statusFilter, setStatusFilter] = useState('');
-  const [query, setQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
+
+  // Filters.
+  const [statusCodes, setStatusCodes] = useState<string[]>([]);
+  const [salesChannelIds, setSalesChannelIds] = useState<string[]>([]);
+  const [paymentMethodIds, setPaymentMethodIds] = useState<string[]>([]);
+  const [deliveryMethodIds, setDeliveryMethodIds] = useState<string[]>([]);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [textFilters, setTextFilters] = useState(EMPTY_TEXT);
+  const [debouncedText, setDebouncedText] = useState(EMPTY_TEXT);
+
   const [sort, setSort] = useState('placedAt:desc');
+  const [visibleColumnIds, setVisibleColumnIds] = useState<ColumnId[]>(DEFAULT_VISIBLE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  // Debounce the free-text search.
+  // Debounce the free-text / numeric filters.
   useEffect(() => {
-    const id = window.setTimeout(() => setDebouncedQuery(query), 250);
+    const id = window.setTimeout(() => setDebouncedText(textFilters), 300);
     return () => window.clearTimeout(id);
-  }, [query]);
+  }, [textFilters]);
 
   useEffect(() => {
     void apiClient
       .get<{ data: { statuses: StatusDef[] } }>('/api/v1/admin/orders/statuses')
       .then((res) => setStatuses(res.data.statuses))
       .catch(() => setStatuses([]));
+    void apiClient
+      .get<{ items: MethodOption[] }>('/api/v1/admin/sales-channels?pageSize=100')
+      .then((res) => setChannels(res.items))
+      .catch(() => setChannels([]));
+    void apiClient
+      .get<{ data: MethodOption[] }>('/api/v1/admin/payment-methods')
+      .then((res) => setPaymentMethods(res.data))
+      .catch(() => setPaymentMethods([]));
+    void apiClient
+      .get<{ data: MethodOption[] }>('/api/v1/admin/delivery-methods')
+      .then((res) => setDeliveryMethods(res.data))
+      .catch(() => setDeliveryMethods([]));
   }, []);
 
   const queryString = useMemo(() => {
@@ -81,10 +161,31 @@ export function OrdersList(): ReactNode {
     params.set('page', String(page + 1));
     params.set('pageSize', String(Math.min(pageSize, 200)));
     params.set('sort', sort);
-    if (statusFilter) params.set('status', statusFilter);
-    if (debouncedQuery.trim()) params.set('q', debouncedQuery.trim());
+    for (const s of statusCodes) params.append('status', s);
+    for (const id of salesChannelIds) params.append('salesChannelId', id);
+    for (const id of paymentMethodIds) params.append('paymentMethodId', id);
+    for (const id of deliveryMethodIds) params.append('deliveryMethodId', id);
+    if (dateFrom) params.set('placedFrom', `${dateFrom}T00:00:00.000Z`);
+    if (dateTo) params.set('placedTo', `${dateTo}T23:59:59.999Z`);
+    const { q, orgName, customerName, totalMin, totalMax } = debouncedText;
+    if (q.trim()) params.set('q', q.trim());
+    if (orgName.trim()) params.set('orgName', orgName.trim());
+    if (customerName.trim()) params.set('customerName', customerName.trim());
+    if (totalMin.trim()) params.set('totalMin', totalMin.trim());
+    if (totalMax.trim()) params.set('totalMax', totalMax.trim());
     return params.toString();
-  }, [page, pageSize, sort, statusFilter, debouncedQuery]);
+  }, [
+    page,
+    pageSize,
+    sort,
+    statusCodes,
+    salesChannelIds,
+    paymentMethodIds,
+    deliveryMethodIds,
+    dateFrom,
+    dateTo,
+    debouncedText,
+  ]);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -109,7 +210,17 @@ export function OrdersList(): ReactNode {
   // Reset to the first page whenever a filter narrows the result set.
   useEffect(() => {
     setPage(0);
-  }, [statusFilter, debouncedQuery, sort, pageSize]);
+  }, [
+    statusCodes,
+    salesChannelIds,
+    paymentMethodIds,
+    deliveryMethodIds,
+    dateFrom,
+    dateTo,
+    debouncedText,
+    sort,
+    pageSize,
+  ]);
 
   const statusLabel = useCallback(
     (code: string): string => {
@@ -151,15 +262,153 @@ export function OrdersList(): ReactNode {
   };
 
   const applyView = (view: SavedViewState): void => {
-    setStatusFilter(typeof view.filters['status'] === 'string' ? (view.filters['status'] as string) : '');
-    setQuery(typeof view.filters['q'] === 'string' ? (view.filters['q'] as string) : '');
+    const f = view.filters;
+    setStatusCodes(asStringArray(f['status']));
+    setSalesChannelIds(asStringArray(f['salesChannelId']));
+    setPaymentMethodIds(asStringArray(f['paymentMethodId']));
+    setDeliveryMethodIds(asStringArray(f['deliveryMethodId']));
+    setDateFrom(asString(f['dateFrom']));
+    setDateTo(asString(f['dateTo']));
+    setTextFilters({
+      q: asString(f['q']),
+      orgName: asString(f['orgName']),
+      customerName: asString(f['customerName']),
+      totalMin: asString(f['totalMin']),
+      totalMax: asString(f['totalMax']),
+    });
     setSort(`${view.sort.field}:${view.sort.dir}`);
+    if (view.visibleColumns && view.visibleColumns.length) {
+      setVisibleColumnIds(view.visibleColumns.filter((c): c is ColumnId => COLUMN_IDS.includes(c as ColumnId)));
+    } else {
+      setVisibleColumnIds(DEFAULT_VISIBLE);
+    }
   };
 
   const currentView: SavedViewState = {
-    filters: { ...(statusFilter ? { status: statusFilter } : {}), ...(debouncedQuery ? { q: debouncedQuery } : {}) },
+    filters: {
+      ...(statusCodes.length ? { status: statusCodes } : {}),
+      ...(salesChannelIds.length ? { salesChannelId: salesChannelIds } : {}),
+      ...(paymentMethodIds.length ? { paymentMethodId: paymentMethodIds } : {}),
+      ...(deliveryMethodIds.length ? { deliveryMethodId: deliveryMethodIds } : {}),
+      ...(dateFrom ? { dateFrom } : {}),
+      ...(dateTo ? { dateTo } : {}),
+      ...(debouncedText.q ? { q: debouncedText.q } : {}),
+      ...(debouncedText.orgName ? { orgName: debouncedText.orgName } : {}),
+      ...(debouncedText.customerName ? { customerName: debouncedText.customerName } : {}),
+      ...(debouncedText.totalMin ? { totalMin: debouncedText.totalMin } : {}),
+      ...(debouncedText.totalMax ? { totalMax: debouncedText.totalMax } : {}),
+    },
     sort: { field: sort.split(':')[0] ?? 'placedAt', dir: sort.endsWith(':asc') ? 'asc' : 'desc' },
+    visibleColumns: visibleColumnIds,
   };
+
+  const setText = (key: keyof typeof EMPTY_TEXT, value: string): void =>
+    setTextFilters((prev) => ({ ...prev, [key]: value }));
+
+  const methodOptions = (list: MethodOption[]): MultiSelectOption[] =>
+    list.map((m) => ({ value: m.id, label: pickName(m.name) || m.code }));
+
+  const statusOptions: MultiSelectOption[] = statuses.map((s) => ({
+    value: s.code,
+    label: `${statusLabel(s.code)}${counts[s.code] !== undefined ? ` (${counts[s.code]})` : ''}`,
+  }));
+
+  const columnOptions: MultiSelectOption[] = COLUMN_IDS.map((id) => ({
+    value: id,
+    label: t(`orders.column.${id}`),
+  }));
+
+  // Build the visible columns in canonical order.
+  const columnDefs: Record<ColumnId, ResponsiveColumn<AdminOrderRow>> = {
+    order: {
+      id: 'order',
+      header: t('orders.column.order'),
+      primary: true,
+      render: (o) => (
+        <Link to={`/orders/${o.id}`} className="font-mono text-xs underline underline-offset-2">
+          #{o.businessId}
+        </Link>
+      ),
+      meta: (o) => formatDateTime(o.placedAt),
+    },
+    placedAt: {
+      id: 'placedAt',
+      header: t('orders.column.placedAt'),
+      render: (o) => formatDateTime(o.placedAt),
+    },
+    salesChannel: {
+      id: 'salesChannel',
+      header: t('orders.column.salesChannel'),
+      render: (o) => o.salesChannelName ?? '—',
+    },
+    customer: {
+      id: 'customer',
+      header: t('orders.column.customer'),
+      render: (o) => o.customerName ?? '—',
+    },
+    org: {
+      id: 'org',
+      header: t('orders.column.org'),
+      render: (o) => o.organizationName ?? o.organizationId.slice(0, 8),
+    },
+    status: {
+      id: 'status',
+      header: t('orders.column.status'),
+      render: (o) => (
+        <Badge style={orderStatusBadgeStyle(statusColor(o.status))}>{statusLabel(o.status)}</Badge>
+      ),
+    },
+    payment: {
+      id: 'payment',
+      header: t('orders.column.payment'),
+      hideOnMobile: true,
+      render: (o) => o.paymentStatus,
+    },
+    deliveryMethod: {
+      id: 'deliveryMethod',
+      header: t('orders.column.deliveryMethod'),
+      render: (o) => o.deliveryMethodName ?? '—',
+    },
+    shipTo: {
+      id: 'shipTo',
+      header: t('orders.column.shipTo'),
+      render: (o) => o.shipToName ?? '—',
+    },
+    billTo: {
+      id: 'billTo',
+      header: t('orders.column.billTo'),
+      render: (o) => o.billToName ?? '—',
+    },
+    total: {
+      id: 'total',
+      header: t('orders.column.total'),
+      render: (o) => (
+        <span className="tabular-nums">
+          {o.total.toFixed(2)} {o.currency}
+        </span>
+      ),
+    },
+  };
+
+  const visibleSet = new Set(visibleColumnIds);
+  const selectColumn: ResponsiveColumn<AdminOrderRow> = {
+    id: 'select',
+    header: (
+      <input type="checkbox" aria-label="select-all" checked={allSelected} onChange={toggleAll} />
+    ),
+    render: (o) => (
+      <input
+        type="checkbox"
+        aria-label={`select-${o.businessId}`}
+        checked={selected.has(o.id)}
+        onChange={(): void => toggleOne(o.id)}
+      />
+    ),
+  };
+  const tableColumns: ResponsiveColumn<AdminOrderRow>[] = [
+    selectColumn,
+    ...COLUMN_IDS.filter((id) => visibleSet.has(id)).map((id) => columnDefs[id]),
+  ];
 
   return (
     <>
@@ -193,23 +442,117 @@ export function OrdersList(): ReactNode {
             <Label htmlFor="osearch">{t('orders.field.search')}</Label>
             <input
               id="osearch"
-              className="h-9 w-64 rounded-md border px-3 text-sm"
-              value={query}
-              onChange={(e): void => setQuery(e.target.value)}
+              className="h-9 w-56 rounded-md border px-3 text-sm"
+              value={textFilters.q}
+              onChange={(e): void => setText('q', e.target.value)}
               placeholder={t('orders.search.placeholder')}
             />
           </div>
           <div className="space-y-1">
             <Label htmlFor="ostatus">{t('orders.field.status')}</Label>
-            <Select id="ostatus" value={statusFilter} onChange={(e): void => setStatusFilter(e.target.value)}>
-              <option value="">{t('orders.filter.all')}</option>
-              {statuses.map((s) => (
-                <option key={s.code} value={s.code}>
-                  {statusLabel(s.code)}
-                  {counts[s.code] !== undefined ? ` (${counts[s.code]})` : ''}
-                </option>
-              ))}
-            </Select>
+            <MultiSelect
+              className="w-48"
+              ariaLabel={t('orders.field.status')}
+              placeholder={t('orders.filter.all')}
+              options={statusOptions}
+              selected={statusCodes}
+              onChange={setStatusCodes}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="ochannel">{t('orders.field.salesChannel')}</Label>
+            <MultiSelect
+              className="w-44"
+              ariaLabel={t('orders.field.salesChannel')}
+              placeholder={t('orders.filter.all')}
+              options={methodOptions(channels)}
+              selected={salesChannelIds}
+              onChange={setSalesChannelIds}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="opay">{t('orders.field.paymentMethod')}</Label>
+            <MultiSelect
+              className="w-44"
+              ariaLabel={t('orders.field.paymentMethod')}
+              placeholder={t('orders.filter.all')}
+              options={methodOptions(paymentMethods)}
+              selected={paymentMethodIds}
+              onChange={setPaymentMethodIds}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="odelivery">{t('orders.field.deliveryMethod')}</Label>
+            <MultiSelect
+              className="w-44"
+              ariaLabel={t('orders.field.deliveryMethod')}
+              placeholder={t('orders.filter.all')}
+              options={methodOptions(deliveryMethods)}
+              selected={deliveryMethodIds}
+              onChange={setDeliveryMethodIds}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="oorg">{t('orders.field.orgName')}</Label>
+            <input
+              id="oorg"
+              className="h-9 w-40 rounded-md border px-3 text-sm"
+              value={textFilters.orgName}
+              onChange={(e): void => setText('orgName', e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="ocust">{t('orders.field.customerName')}</Label>
+            <input
+              id="ocust"
+              className="h-9 w-40 rounded-md border px-3 text-sm"
+              value={textFilters.customerName}
+              onChange={(e): void => setText('customerName', e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="odatefrom">{t('orders.field.dateFrom')}</Label>
+            <input
+              id="odatefrom"
+              type="date"
+              className="h-9 rounded-md border px-3 text-sm"
+              value={dateFrom}
+              onChange={(e): void => setDateFrom(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="odateto">{t('orders.field.dateTo')}</Label>
+            <input
+              id="odateto"
+              type="date"
+              className="h-9 rounded-md border px-3 text-sm"
+              value={dateTo}
+              onChange={(e): void => setDateTo(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="otmin">{t('orders.field.totalMin')}</Label>
+            <input
+              id="otmin"
+              type="number"
+              min="0"
+              step="0.01"
+              className="h-9 w-24 rounded-md border px-3 text-sm"
+              value={textFilters.totalMin}
+              onChange={(e): void => setText('totalMin', e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="otmax">{t('orders.field.totalMax')}</Label>
+            <input
+              id="otmax"
+              type="number"
+              min="0"
+              step="0.01"
+              className="h-9 w-24 rounded-md border px-3 text-sm"
+              value={textFilters.totalMax}
+              onChange={(e): void => setText('totalMax', e.target.value)}
+            />
           </div>
           <div className="space-y-1">
             <Label htmlFor="osort">{t('orders.field.sort')}</Label>
@@ -219,6 +562,20 @@ export function OrdersList(): ReactNode {
               <option value="total:desc">{t('orders.sort.totalDesc')}</option>
               <option value="businessId:asc">{t('orders.sort.idAsc')}</option>
             </Select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="ocolumns">{t('orders.columns.label')}</Label>
+            <MultiSelect
+              className="w-40"
+              ariaLabel={t('orders.columns.label')}
+              placeholder={t('orders.columns.label')}
+              icon={<Columns3 className="size-4 opacity-70" />}
+              options={columnOptions}
+              selected={visibleColumnIds}
+              onChange={(next): void =>
+                setVisibleColumnIds(next.filter((c): c is ColumnId => COLUMN_IDS.includes(c as ColumnId)))
+              }
+            />
           </div>
           <OrderSavedViews current={currentView} onLoad={applyView} onError={setError} />
         </CardContent>
@@ -252,72 +609,7 @@ export function OrdersList(): ReactNode {
             <ResponsiveTable
               data={rows}
               keyExtractor={(o) => o.id}
-              columns={[
-                {
-                  id: 'select',
-                  header: (
-                    <input
-                      type="checkbox"
-                      aria-label="select-all"
-                      checked={allSelected}
-                      onChange={toggleAll}
-                    />
-                  ),
-                  render: (o) => (
-                    <input
-                      type="checkbox"
-                      aria-label={`select-${o.businessId}`}
-                      checked={selected.has(o.id)}
-                      onChange={(): void => toggleOne(o.id)}
-                    />
-                  ),
-                },
-                {
-                  id: 'order',
-                  header: t('orders.column.order'),
-                  primary: true,
-                  render: (o) => (
-                    <Link to={`/orders/${o.id}`} className="font-mono text-xs underline underline-offset-2">
-                      {o.businessId}
-                    </Link>
-                  ),
-                  meta: (o) => formatDateTime(o.placedAt),
-                },
-                {
-                  id: 'customer',
-                  header: t('orders.column.customer'),
-                  render: (o) => o.customerName ?? '—',
-                },
-                {
-                  id: 'org',
-                  header: t('orders.column.org'),
-                  render: (o) => o.organizationName ?? o.organizationId.slice(0, 8),
-                },
-                {
-                  id: 'status',
-                  header: t('orders.column.status'),
-                  render: (o) => (
-                    <Badge style={orderStatusBadgeStyle(statusColor(o.status))}>
-                      {statusLabel(o.status)}
-                    </Badge>
-                  ),
-                },
-                {
-                  id: 'payment',
-                  header: t('orders.column.payment'),
-                  hideOnMobile: true,
-                  render: (o) => o.paymentStatus,
-                },
-                {
-                  id: 'total',
-                  header: t('orders.column.total'),
-                  render: (o) => (
-                    <span className="tabular-nums">
-                      {o.total.toFixed(2)} {o.currency}
-                    </span>
-                  ),
-                },
-              ]}
+              columns={tableColumns}
               renderActions={(o) => (
                 <Button asChild variant="outline" size="sm" className="min-h-11">
                   <Link to={`/orders/${o.id}`}>

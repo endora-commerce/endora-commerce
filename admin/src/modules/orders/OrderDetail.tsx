@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   ClipboardList,
+  Copy,
   CreditCard,
   FileDown,
   FileText,
@@ -44,14 +45,39 @@ interface OrderItem {
   lineTotal: number;
 }
 
+interface OrderAddress {
+  recipientName?: string;
+  street: string;
+  city: string;
+  postalCode: string;
+  country: string;
+  phone?: string | null;
+}
+interface OrderOrganization {
+  id: string;
+  name: string;
+  legalName: string | null;
+  taxId: string;
+  vatStatus: string;
+}
+interface OrderCustomer {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
 interface OrderDetail {
   id: string;
+  businessId: string;
   organizationId: string;
   placedByCustomerAccountId: string;
+  organization: OrderOrganization | null;
+  customer: OrderCustomer | null;
   status: string;
   paymentStatus: string;
-  deliveryAddress: { street: string; city: string; postalCode: string; country: string };
-  billingAddress: { street: string; city: string; postalCode: string; country: string };
+  deliveryAddress: OrderAddress;
+  billingAddress: OrderAddress;
   deliveryMethod: { code: string; name: Record<string, string>; cost: number };
   paymentMethod: { code: string; name: Record<string, string>; kind: string };
   items: OrderItem[];
@@ -179,6 +205,16 @@ export function OrderDetail(): ReactNode {
     }
   }, [id, commentBody, commentVisible, commentNotify, loadComments, t]);
 
+  const copyBusinessId = useCallback(async (): Promise<void> => {
+    if (!order) return;
+    try {
+      await navigator.clipboard.writeText(order.businessId);
+      setInfo(t('orderDetail.copied', { id: order.businessId }));
+    } catch {
+      setError(t('orderDetail.copyError'));
+    }
+  }, [order, t]);
+
   const handleReorder = useCallback(async (): Promise<void> => {
     try {
       const res = await apiClient.post<{ data: { unavailableItems: unknown[] } }>(
@@ -248,7 +284,15 @@ export function OrderDetail(): ReactNode {
         back={{ label: t('orders.page.title'), to: '/orders' }}
         title={
           <>
-            {t('orderDetail.title', { id: order.id.slice(0, 8) })}
+            <button
+              type="button"
+              onClick={(): void => void copyBusinessId()}
+              title={t('orderDetail.copyHint')}
+              className="inline-flex items-center gap-1.5 hover:opacity-80"
+            >
+              {t('orderDetail.title', { id: order.businessId })}
+              <Copy className="size-3.5 opacity-60" />
+            </button>
             <Badge className="text-xs font-medium" style={orderStatusBadgeStyle(statusColor(graph, order.status))}>
               {statusName(graph, order.status)}
             </Badge>
@@ -257,7 +301,7 @@ export function OrderDetail(): ReactNode {
         description={
           <span>
             {t('orderDetail.placedAt', { date: formatDateTime(order.placedAt) })}{' '}
-            <code className="font-mono text-xs">{order.organizationId.slice(0, 8)}</code>
+            <code className="font-mono text-xs">({order.id})</code>
           </span>
         }
         actions={
@@ -380,9 +424,59 @@ export function OrderDetail(): ReactNode {
               </Section>
 
               <div className="grid gap-6 md:grid-cols-2">
+                <Section title={t('orderDetail.sections.organization')}>
+                  {order.organization ? (
+                    <div className="space-y-1 text-sm">
+                      <p className="font-medium">{order.organization.name}</p>
+                      {order.organization.legalName &&
+                      order.organization.legalName !== order.organization.name ? (
+                        <p className="text-muted-foreground">{order.organization.legalName}</p>
+                      ) : null}
+                      <p className="text-muted-foreground">
+                        {t('orderDetail.org.taxId')}: <strong>{order.organization.taxId}</strong>
+                      </p>
+                      <p className="text-muted-foreground">
+                        {t('orderDetail.org.vat')}:{' '}
+                        {t(`orderDetail.vatStatus.${order.organization.vatStatus}`)}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      <code className="font-mono text-xs">{order.organizationId}</code>
+                    </p>
+                  )}
+                </Section>
+                <Section title={t('orderDetail.sections.customer')}>
+                  {order.customer ? (
+                    <div className="space-y-1 text-sm">
+                      <p className="font-medium">
+                        {`${order.customer.firstName} ${order.customer.lastName}`.trim() ||
+                          order.customer.email}
+                      </p>
+                      <p className="text-muted-foreground">
+                        <a className="underline underline-offset-2" href={`mailto:${order.customer.email}`}>
+                          {order.customer.email}
+                        </a>
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      <code className="font-mono text-xs">{order.placedByCustomerAccountId}</code>
+                    </p>
+                  )}
+                </Section>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
                 <Section title={t('orderDetail.sections.delivery')}>
                   <div className="space-y-2 text-sm">
                     <p>
+                      {order.deliveryAddress.recipientName ? (
+                        <>
+                          <strong>{order.deliveryAddress.recipientName}</strong>
+                          <br />
+                        </>
+                      ) : null}
                       {order.deliveryAddress.street}
                       <br />
                       {order.deliveryAddress.postalCode} {order.deliveryAddress.city}
@@ -397,6 +491,12 @@ export function OrderDetail(): ReactNode {
                 <Section title={t('orderDetail.sections.billing')}>
                   <div className="space-y-2 text-sm">
                     <p>
+                      {order.billingAddress.recipientName ? (
+                        <>
+                          <strong>{order.billingAddress.recipientName}</strong>
+                          <br />
+                        </>
+                      ) : null}
                       {order.billingAddress.street}
                       <br />
                       {order.billingAddress.postalCode} {order.billingAddress.city}
