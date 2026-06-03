@@ -1,5 +1,5 @@
 <!--
-This template encodes the eight quality gates from
+This template encodes the nine quality gates from
 .specify/memory/constitution.md → "Development Workflow & Quality Gates".
 A reviewer who marks "LGTM" without checking these gates is not approving
 this PR (constitution §Governance).
@@ -23,6 +23,7 @@ this PR (constitution §Governance).
 - [ ] **6. Docs sync** — README and the docs site are updated alongside any new module or infrastructure-relevant change.
 - [ ] **7. Dependency justification** (Principle IV) — every new runtime dependency added by this PR has a one-paragraph rationale below.
 - [ ] **8. UI reuse** (Principle IX) — frontend changes reuse existing Admin UI / Storefront UI components and layouts; any net-new component or layout carries a UX justification (missing pattern, primitives evaluated, why composition failed).
+- [ ] **9. Async queue consumers** (Principle X) — queue-backed async work is processed by a separate, independently scalable consumer process (not an in-process `setInterval` sweeper); jobs are claimed atomically and handlers are idempotent so N ≥ 2 consumer instances never double-process.
 
 ### New runtime dependencies (gate 7)
 

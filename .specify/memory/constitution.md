@@ -1,24 +1,30 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 3.0.0 → 3.1.0
-Rationale: MINOR bump. A new principle (IX. UI Reuse &
-Design-System Consistency) is added, and a corresponding eighth
-quality gate is introduced in the Development Workflow section. No
-existing principle is removed, narrowed, or redefined, and no
-prior compliant work is invalidated, so the versioning policy
-mandates a MINOR (not MAJOR) bump.
+Version change: 3.1.0 → 3.2.0
+Rationale: MINOR bump. A new principle (X. Scalable Queue Consumers)
+is added, and a corresponding ninth quality gate is introduced in
+the Development Workflow section. No existing principle is removed,
+narrowed, or redefined; the new rule applies to new and ongoing
+work going forward, so the versioning policy mandates a MINOR (not
+MAJOR) bump. Pre-existing in-process queue drains predate the rule
+and are tracked as compliance-review follow-ups rather than treated
+as retroactively invalidated.
 
 Modified principles:
   - (none renamed or redefined)
 
 Added sections:
-  - IX. UI Reuse & Design-System Consistency — new principle. New
-    frontend work MUST reuse existing Admin UI / Storefront UI
-    components and layouts; a net-new component or layout MAY be
-    introduced only with a stated UX justification.
-  - Development Workflow & Quality Gates — new gate #8 ("UI reuse")
-    enforcing Principle IX at review time.
+  - X. Scalable Queue Consumers — new principle. Any asynchronous
+    operation backed by a queue MUST be processed by a dedicated
+    consumer process that is deployable and horizontally scalable
+    independently of the API server; the API process MUST only
+    enqueue, never drain. Jobs MUST be claimed atomically and
+    handlers MUST be idempotent so N≥2 consumer instances never
+    double-process. In-process sweepers/timers are not a permitted
+    production processing path.
+  - Development Workflow & Quality Gates — new gate #9 ("Async queue
+    consumers") enforcing Principle X at review time.
 
 Removed sections:
   - (none)
@@ -29,12 +35,20 @@ Templates / artifacts requiring alignment:
   - ✅ .specify/templates/spec-template.md      — no edits required.
   - ✅ .specify/templates/tasks-template.md     — no edits required.
   - ✅ README.md — principle quick-reference list extended with
-       item 9 (UI reuse); quality-gate sentence updated.
-  - ✅ .github/pull_request_template.md — new gate #8 checkbox added;
-       header comment updated from "seven" to "eight" gates.
+       item 10 (scalable queue consumers); quality-gate sentence updated.
+  - ✅ .github/pull_request_template.md — new gate #9 checkbox added;
+       header comment updated from "eight" to "nine" gates.
 
 Deferred items / TODOs:
-  - (none)
+  - Existing in-process queue drains predate Principle X and are now
+    non-compliant: the catalog bulk-operation sweeper
+    (catalog/plugin.ts `setInterval` + `onEnqueued` kick draining the
+    `bulk_operations` table), and the analogous price-lists status
+    sweeper, RFQ-expiry worker, and cart-abandonment sweep. These MUST
+    be migrated to separate, independently scalable consumer processes
+    (or have a documented single-instance exemption recorded) and are
+    tracked via the quarterly compliance review — not a blocker for
+    this amendment.
 -->
 
 # B2B Platform Constitution
@@ -282,6 +296,44 @@ one place, and makes every screen feel like one product. The UX escape hatch
 keeps the rule from forcing a worse experience when the existing kit genuinely
 does not fit — but it costs one sentence of justification, paid deliberately.
 
+### X. Scalable Queue Consumers
+
+Any asynchronous operation that relies on a queue MUST be processed by a
+dedicated **consumer process** that is deployable and scalable independently of
+the API server. The component that enqueues work (an HTTP handler, an event
+subscriber, a scheduler) is the **producer**: it MUST only enqueue and return —
+it MUST NOT also drain or execute the job inside the API/web process. Queue
+processing MUST run as a separate worker entrypoint — its own process, started
+by its own command, independently restartable and independently scalable —
+backed by the mandated queue substrate (Redis / BullMQ-class per the Technology
+Stack).
+
+Consumers MUST be safe to run as **N ≥ 2 concurrent instances**: every job MUST
+be claimed atomically (or otherwise exclusively locked) so horizontal scaling
+never double-processes a job, and handlers MUST be idempotent with respect to
+redelivery and retries. Long-running or bursty asynchronous work — bulk edits,
+imports/exports, re-indexing, notification fan-out, webhook delivery — MUST flow
+through this path so it can be scaled out and isolated from request latency.
+
+In-process timers or sweepers that drain a queue inside the API process (e.g. a
+`setInterval` loop in the web server) are NOT a permitted production processing
+path for queue-backed asynchronous work: they couple processing to the API's
+lifecycle, cannot be scaled horizontally, and contend with request handling.
+They MAY be used only as a test harness or as an explicitly documented,
+single-instance development convenience — never as the deployed consumer. A
+synchronous operation that genuinely does not need a queue is out of scope for
+this principle (do not introduce a queue speculatively — see Principle IV); but
+once an operation is asynchronous and queue-backed, this principle is binding.
+
+**Rationale**: Asynchronous work exists precisely because it is too slow, too
+bursty, or too failure-prone to run inline. Pinning that work to the API process
+throws away the main benefit — the ability to add consumer instances when the
+backlog grows, to fail and retry in isolation, and to keep p95 request latency
+flat under load. A separate, horizontally scalable consumer is the difference
+between a queue that absorbs a 50k-product bulk edit and one that takes the
+storefront down with it. Atomic claiming and idempotency are the non-negotiable
+cost of safely running more than one consumer.
+
 ## Technology Stack
 
 The following stack is mandated. Substitutions require amending this
@@ -417,6 +469,11 @@ Every change MUST pass the following gates before merge:
 8. **UI reuse** — reviewers MUST reject any net-new frontend component or
    layout that duplicates an existing Admin UI / Storefront UI primitive
    without a stated UX justification (Principle IX).
+9. **Async queue consumers** — reviewers MUST reject any queue-backed
+   asynchronous operation whose jobs are drained inside the API/web process
+   (e.g. an in-process `setInterval` sweeper) instead of a separate,
+   independently scalable consumer process, or whose handlers are not safe to
+   run across N ≥ 2 consumer instances (atomic claim + idempotent) (Principle X).
 
 Code review MUST explicitly verify each of the above. "LGTM" without
 evidence of checking the gates is not an approval.
@@ -455,4 +512,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 3.1.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-06-03
+**Version**: 3.2.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-06-03
