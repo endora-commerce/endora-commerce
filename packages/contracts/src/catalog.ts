@@ -647,6 +647,20 @@ export const bulkOperationStatusSchema = z.enum([
 ]);
 export type BulkOperationStatus = z.infer<typeof bulkOperationStatusSchema>;
 
+/**
+ * Known bulk-operation kinds. `type` on the record is an open string (the
+ * queue is generic), but these are the kinds the platform ships:
+ *   - `product_bulk_update` — the queued large product bulk-edit (feature 022).
+ *   - `search_reindex`       — a full Meilisearch reindex (the `search:reindex`
+ *      CLI equivalent), enqueued when an attribute's `searchable` flag changes.
+ */
+export const BULK_OPERATION_TYPES = {
+  PRODUCT_BULK_UPDATE: 'product_bulk_update',
+  SEARCH_REINDEX: 'search_reindex',
+} as const;
+export type BulkOperationType =
+  (typeof BULK_OPERATION_TYPES)[keyof typeof BULK_OPERATION_TYPES];
+
 export const bulkOperationSchema = z.object({
   id: z.string().uuid(),
   type: z.string(),

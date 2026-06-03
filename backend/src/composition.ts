@@ -76,6 +76,7 @@ import { salesChannelsManifest } from './modules/sales_channels/manifest.js';
 import { DefaultChannelReconciler } from './modules/sales_channels/services/default-channel-reconciler.js';
 import { searchModule } from './modules/search/plugin.js';
 import { createSuggestionPricingEnricher } from './modules/search/services/suggestion-pricing-enricher.js';
+import { SearchIndexer } from './modules/search/services/search-indexer.js';
 import { searchManifest } from './modules/search/manifest.js';
 import { comparisonsModule } from './modules/comparisons/plugin.js';
 import { comparisonsManifest } from './modules/comparisons/manifest.js';
@@ -849,6 +850,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       languageService: i18n.handle.languageService,
       adminNotificationService: adminNotifications.handle.adminNotificationService,
       mailer: organizationsMailer,
+      // Full Meilisearch reindex (the `search:reindex` CLI equivalent),
+      // run as a `search_reindex` bulk operation when an attribute's
+      // `searchable` flag flips. A fresh indexer reads Meili config from env,
+      // exactly like the CLI.
+      reindexSearchIndexes: async () => {
+        const indexer = new SearchIndexer();
+        const results = await indexer.reindexAllChannels(em());
+        const documentCount = results.reduce((sum, r) => sum + r.documentCount, 0);
+        return { documentCount };
+      },
       resolveAdminAuditContext: (request) => {
         if (request.actor.kind !== 'admin') {
           // Auditing an anonymous mutation shouldn't happen — the admin gate
