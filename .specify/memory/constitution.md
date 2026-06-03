@@ -15,14 +15,19 @@ Modified principles:
   - (none renamed or redefined)
 
 Added sections:
-  - X. Scalable Queue Consumers — new principle. Any asynchronous
-    operation backed by a queue MUST be processed by a dedicated
-    consumer process that is deployable and horizontally scalable
-    independently of the API server; the API process MUST only
-    enqueue, never drain. Jobs MUST be claimed atomically and
-    handlers MUST be idempotent so N≥2 consumer instances never
-    double-process. In-process sweepers/timers are not a permitted
-    production processing path.
+  - X. Scalable Queue Consumers — new principle. Splits a binding
+    architectural invariant from a volume-tuned deployment posture.
+    Invariant (MUST): durable distributed queue (Redis/BullMQ-class),
+    atomic job claim + idempotent handlers (safe at N≥2 instances),
+    producer only enqueues (never inline-executes), and the consumer
+    is a separable worker entrypoint — an in-process `setInterval`
+    sweeper draining the queue inside the API process is prohibited.
+    Posture (SHOULD/MAY): run the consumer as a separate, independently
+    scalable process by default; low-volume work MAY be co-located in
+    the API deployable if it stays a separable entrypoint and the
+    co-location is justified in one sentence (mirrors the Principle IX
+    escape hatch; keeps single-VPS deploys simple per Infrastructure
+    Constraints and aligned with YAGNI / Principle IV).
   - Development Workflow & Quality Gates — new gate #9 ("Async queue
     consumers") enforcing Principle X at review time.
 
@@ -298,41 +303,55 @@ does not fit — but it costs one sentence of justification, paid deliberately.
 
 ### X. Scalable Queue Consumers
 
-Any asynchronous operation that relies on a queue MUST be processed by a
-dedicated **consumer process** that is deployable and scalable independently of
-the API server. The component that enqueues work (an HTTP handler, an event
-subscriber, a scheduler) is the **producer**: it MUST only enqueue and return —
-it MUST NOT also drain or execute the job inside the API/web process. Queue
-processing MUST run as a separate worker entrypoint — its own process, started
-by its own command, independently restartable and independently scalable —
-backed by the mandated queue substrate (Redis / BullMQ-class per the Technology
-Stack).
+This principle separates the **architectural invariant** (what makes async work
+safely scalable) from the **deployment posture** (where the consumer runs). The
+invariant is binding; the posture is the default, tuned to volume.
 
-Consumers MUST be safe to run as **N ≥ 2 concurrent instances**: every job MUST
-be claimed atomically (or otherwise exclusively locked) so horizontal scaling
-never double-processes a job, and handlers MUST be idempotent with respect to
-redelivery and retries. Long-running or bursty asynchronous work — bulk edits,
-imports/exports, re-indexing, notification fan-out, webhook delivery — MUST flow
-through this path so it can be scaled out and isolated from request latency.
+**Architectural invariant (MUST)** — for any asynchronous operation backed by a
+queue:
 
-In-process timers or sweepers that drain a queue inside the API process (e.g. a
-`setInterval` loop in the web server) are NOT a permitted production processing
-path for queue-backed asynchronous work: they couple processing to the API's
-lifecycle, cannot be scaled horizontally, and contend with request handling.
-They MAY be used only as a test harness or as an explicitly documented,
-single-instance development convenience — never as the deployed consumer. A
-synchronous operation that genuinely does not need a queue is out of scope for
-this principle (do not introduce a queue speculatively — see Principle IV); but
-once an operation is asynchronous and queue-backed, this principle is binding.
+- The queue MUST be a durable, distributed substrate (Redis / BullMQ-class per
+  the Technology Stack), not an in-memory list bound to one process.
+- Every job MUST be claimed atomically (or otherwise exclusively locked) so that
+  running **N ≥ 2 consumer instances never double-processes a job**, and handlers
+  MUST be idempotent with respect to redelivery and retries.
+- The component that enqueues (an HTTP handler, an event subscriber, a scheduler)
+  is the **producer**: it MUST only enqueue and return — it MUST NOT block on, or
+  inline-execute, the job inside the request/response path.
+- The consumer MUST be implemented as a **separable worker entrypoint** — a
+  module that can be started as its own process and scaled to multiple instances
+  **without code changes**. Coupling job processing to the API/web server's
+  lifecycle (e.g. a `setInterval` sweeper draining the queue inside the request
+  process) is PROHIBITED: it cannot scale out, contends with request handling,
+  and dies with the API. Such timers are allowed only as a test harness, never as
+  the deployed processing path.
 
-**Rationale**: Asynchronous work exists precisely because it is too slow, too
-bursty, or too failure-prone to run inline. Pinning that work to the API process
-throws away the main benefit — the ability to add consumer instances when the
-backlog grows, to fail and retry in isolation, and to keep p95 request latency
-flat under load. A separate, horizontally scalable consumer is the difference
-between a queue that absorbs a 50k-product bulk edit and one that takes the
-storefront down with it. Atomic claiming and idempotency are the non-negotiable
-cost of safely running more than one consumer.
+**Deployment posture (SHOULD / MAY)** — given the invariant holds:
+
+- Production SHOULD run the consumer as a **separate, independently scalable
+  process** whenever the work is long-running, bursty, or volume-sensitive (bulk
+  edits, imports/exports, re-indexing, notification fan-out, webhook delivery).
+- For genuinely low-volume work, the worker MAY be co-located in the same
+  deployable as the API **provided it stays a separable entrypoint** and the
+  co-location is noted with one sentence in the feature plan or PR (mirroring the
+  Principle IX escape hatch). This keeps single-VPS deployments (see
+  Infrastructure Constraints) simple without forfeiting the ability to split the
+  worker out later under load.
+
+A synchronous operation that genuinely does not need a queue is out of scope —
+do not introduce a queue speculatively (Principle IV). Once an operation is
+asynchronous and queue-backed, the invariant above is binding.
+
+**Rationale**: Scalability is unlocked by three things — a durable distributed
+queue, atomic claiming, and idempotent handlers — not by the deployment
+topology. Get those right and the work is already safe to run on N instances;
+where the consumer process physically runs becomes a dial you turn with load
+rather than an architecture you must redo. Pinning processing to the API's
+event loop, by contrast, throws the benefit away: it can't scale out, it
+contends with request latency, and it dies with the web server. Mandating the
+*separable entrypoint* (hard) while leaving *separate process* a volume-tuned
+default (soft) keeps the rule honest on a single VPS and aligned with YAGNI,
+without ever permitting the in-process-sweeper anti-pattern.
 
 ## Technology Stack
 
@@ -470,10 +489,13 @@ Every change MUST pass the following gates before merge:
    layout that duplicates an existing Admin UI / Storefront UI primitive
    without a stated UX justification (Principle IX).
 9. **Async queue consumers** — reviewers MUST reject any queue-backed
-   asynchronous operation whose jobs are drained inside the API/web process
-   (e.g. an in-process `setInterval` sweeper) instead of a separate,
-   independently scalable consumer process, or whose handlers are not safe to
-   run across N ≥ 2 consumer instances (atomic claim + idempotent) (Principle X).
+   asynchronous operation that violates Principle X's invariant: jobs MUST use a
+   durable queue with atomic claim + idempotent handlers (safe at N ≥ 2
+   instances), the producer MUST NOT inline-execute the job, and the consumer
+   MUST be a separable worker entrypoint — never a `setInterval` sweeper draining
+   the queue inside the API process. Running the worker as a separate process is
+   the production default; co-locating low-volume work is allowed only with a
+   one-sentence justification (Principle X).
 
 Code review MUST explicitly verify each of the above. "LGTM" without
 evidence of checking the gates is not an approval.

@@ -23,7 +23,7 @@ this PR (constitution §Governance).
 - [ ] **6. Docs sync** — README and the docs site are updated alongside any new module or infrastructure-relevant change.
 - [ ] **7. Dependency justification** (Principle IV) — every new runtime dependency added by this PR has a one-paragraph rationale below.
 - [ ] **8. UI reuse** (Principle IX) — frontend changes reuse existing Admin UI / Storefront UI components and layouts; any net-new component or layout carries a UX justification (missing pattern, primitives evaluated, why composition failed).
-- [ ] **9. Async queue consumers** (Principle X) — queue-backed async work is processed by a separate, independently scalable consumer process (not an in-process `setInterval` sweeper); jobs are claimed atomically and handlers are idempotent so N ≥ 2 consumer instances never double-process.
+- [ ] **9. Async queue consumers** (Principle X) — queue-backed async work uses a durable queue with atomic claim + idempotent handlers (safe at N ≥ 2 instances), the producer only enqueues, and the consumer is a separable worker entrypoint (never an in-process `setInterval` sweeper). Separate process is the production default; co-locating low-volume work carries a one-sentence justification.
 
 ### New runtime dependencies (gate 7)
 
