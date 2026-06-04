@@ -115,12 +115,6 @@ const NAV: NavSection[] = [
       { to: '/catalog/attribute-sets', labelKey: 'appShell.nav.attributeSets', icon: Tag },
       { to: '/catalog/attachment-types', labelKey: 'appShell.nav.attachmentTypes', icon: FileText },
       {
-        to: '/catalog/bulk-operations',
-        labelKey: 'appShell.nav.bulkOperations',
-        icon: ListChecks,
-        requiredPermission: 'catalog:read',
-      },
-      {
         to: '/assets-library',
         labelKey: 'appShell.nav.assetsLibrary',
         icon: ImageIcon,
@@ -221,6 +215,15 @@ const NAV: NavSection[] = [
     items: [
       { to: '/admin-users', labelKey: 'appShell.nav.users', icon: Users },
       { to: '/admin-roles', labelKey: 'appShell.nav.roles', icon: ShieldCheck },
+      // Bulk operations may span many domains (not just products), so the
+      // entry lives under System. The URL stays `/catalog/bulk-operations`
+      // to keep existing deep-links (e.g. the bulk-edit "queued" ack) valid.
+      {
+        to: '/catalog/bulk-operations',
+        labelKey: 'appShell.nav.bulkOperations',
+        icon: ListChecks,
+        requiredPermission: 'catalog:read',
+      },
       { to: '/audit-log', labelKey: 'appShell.nav.auditLog', icon: ListChecks },
       { to: '/api-keys', labelKey: 'appShell.nav.apiKeys', icon: KeyRound },
       { to: '/webhooks', labelKey: 'appShell.nav.webhooks', icon: Webhook },
