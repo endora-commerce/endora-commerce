@@ -1,4 +1,5 @@
-import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { BULK_OPERATION_TYPES, type BulkOperation, type BulkOperationStatus } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -68,11 +69,11 @@ function operationTypeLabel(
 
 export function BulkOperationsPage(): ReactNode {
   const t = useTranslation('catalog');
+  const navigate = useNavigate();
   const [rows, setRows] = useState<BulkOperation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | BulkOperationStatus>('all');
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const filterRef = useRef(statusFilter);
   filterRef.current = statusFilter;
 
@@ -106,15 +107,6 @@ export function BulkOperationsPage(): ReactNode {
     }, POLL_INTERVAL_MS);
     return (): void => window.clearInterval(id);
   }, [hasActive, refresh]);
-
-  const toggle = (id: string): void => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
 
   return (
     <>
@@ -165,79 +157,38 @@ export function BulkOperationsPage(): ReactNode {
                 {rows.map((op) => {
                   const pct =
                     op.total > 0 ? Math.round((op.processed / op.total) * 100) : 0;
-                  const isOpen = expanded.has(op.id);
-                  const expandable = op.error !== null || (op.results?.length ?? 0) > 0;
                   return (
-                    <Fragment key={op.id}>
-                      <TableRow
-                        onClick={expandable ? (): void => toggle(op.id) : undefined}
-                        style={expandable ? { cursor: 'pointer' } : undefined}
-                      >
-                        <TableCell className="whitespace-nowrap text-sm">
-                          {formatDateTime(op.createdAt)}
-                        </TableCell>
-                        <TableCell className="text-sm">{operationTypeLabel(op, t)}</TableCell>
-                        <TableCell>
-                          <Badge variant={STATUS_BADGE[op.status]}>
-                            {t(`bulkOperations.status.${op.status}`)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          <span className="font-mono">
-                            {op.processed}/{op.total}
-                          </span>{' '}
-                          <span className="text-muted-foreground">({pct}%)</span>
-                        </TableCell>
-                        <TableCell className="text-right text-sm">{op.succeeded}</TableCell>
-                        <TableCell className="text-right text-sm">{op.skipped}</TableCell>
-                        <TableCell className="text-right text-sm">{op.failed}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {op.touchedFields.length > 0
-                            ? op.touchedFields.join(', ')
-                            : '—'}
-                        </TableCell>
-                      </TableRow>
-                      {isOpen ? (
-                        <TableRow>
-                          <TableCell colSpan={8}>
-                            {op.error ? (
-                              <Alert variant="destructive">
-                                <AlertDescription>{op.error}</AlertDescription>
-                              </Alert>
-                            ) : null}
-                            {op.results && op.results.length > 0 ? (
-                              <div className="mt-2 max-h-64 overflow-auto rounded-md border">
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow>
-                                      <TableHead>{t('bulkOperations.detail.product')}</TableHead>
-                                      <TableHead>{t('bulkOperations.detail.outcome')}</TableHead>
-                                      <TableHead>{t('bulkOperations.detail.reason')}</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {op.results
-                                      .filter((r) => r.status !== 'succeeded')
-                                      .slice(0, 200)
-                                      .map((r) => (
-                                        <TableRow key={r.productId}>
-                                          <TableCell className="font-mono text-xs">
-                                            {r.productId}
-                                          </TableCell>
-                                          <TableCell className="text-sm">{r.status}</TableCell>
-                                          <TableCell className="text-sm text-muted-foreground">
-                                            {r.reason ?? r.details?.message ?? '—'}
-                                          </TableCell>
-                                        </TableRow>
-                                      ))}
-                                  </TableBody>
-                                </Table>
-                              </div>
-                            ) : null}
-                          </TableCell>
-                        </TableRow>
-                      ) : null}
-                    </Fragment>
+                    <TableRow
+                      key={op.id}
+                      onClick={(): void => {
+                        void navigate(`/catalog/bulk-operations/${op.id}`);
+                      }}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <TableCell className="whitespace-nowrap text-sm">
+                        {formatDateTime(op.createdAt)}
+                      </TableCell>
+                      <TableCell className="text-sm">{operationTypeLabel(op, t)}</TableCell>
+                      <TableCell>
+                        <Badge variant={STATUS_BADGE[op.status]}>
+                          {t(`bulkOperations.status.${op.status}`)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        <span className="font-mono">
+                          {op.processed}/{op.total}
+                        </span>{' '}
+                        <span className="text-muted-foreground">({pct}%)</span>
+                      </TableCell>
+                      <TableCell className="text-right text-sm">{op.succeeded}</TableCell>
+                      <TableCell className="text-right text-sm">{op.skipped}</TableCell>
+                      <TableCell className="text-right text-sm">{op.failed}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {op.touchedFields.length > 0
+                          ? op.touchedFields.join(', ')
+                          : '—'}
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
               </TableBody>

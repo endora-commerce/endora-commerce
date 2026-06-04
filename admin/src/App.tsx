@@ -43,6 +43,7 @@ import { AttributesManager } from './modules/catalog/AttributesManager.js';
 import { AttributeSetsPage } from './modules/catalog/AttributeSetsPage.js';
 import { AttachmentTypesPage } from './modules/catalog/AttachmentTypesPage.js';
 import { BulkOperationsPage } from './modules/catalog/BulkOperationsPage.js';
+import { BulkOperationDetailPage } from './modules/catalog/BulkOperationDetailPage.js';
 import { LibraryPage as AssetsLibraryPage } from './modules/assets_library/pages/LibraryPage.js';
 import { OrganizationsList } from './modules/organizations/OrganizationsList.js';
 import { OrganizationDetail } from './modules/organizations/OrganizationDetail.js';
@@ -136,6 +137,7 @@ export function App(): ReactNode {
         <Route path="/catalog/attribute-sets" element={<AttributeSetsPage />} />
         <Route path="/catalog/attachment-types" element={<AttachmentTypesPage />} />
         <Route path="/catalog/bulk-operations" element={<BulkOperationsPage />} />
+        <Route path="/catalog/bulk-operations/:id" element={<BulkOperationDetailPage />} />
         <Route path="/assets-library" element={<AssetsLibraryPage />} />
         <Route path="/organizations" element={<OrganizationsList />} />
         <Route path="/organizations/:id" element={<OrganizationDetail />} />
