@@ -148,17 +148,21 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
           apiClient.get<{ data: { items: AdminAttributeSummary[] } }>(
             '/api/v1/admin/catalog/attributes/by-flag?flag=isMassEditable',
           ),
+          // The sales-channels list endpoint returns `{ items }` (not `{ data }`);
+          // accept either shape so an unexpected envelope can never leave the
+          // state holding `undefined` (which would crash the render at
+          // `channels.map`).
           apiClient
-            .get<{ data: SalesChannel[] }>('/api/v1/admin/sales-channels')
-            .catch(() => ({ data: [] as SalesChannel[] })),
+            .get<{ items?: SalesChannel[]; data?: SalesChannel[] }>('/api/v1/admin/sales-channels')
+            .catch((): { items?: SalesChannel[]; data?: SalesChannel[] } => ({ items: [] })),
           apiClient
             .get<{ data: AdminCategory[] }>('/api/v1/admin/catalog/categories')
             .catch(() => ({ data: [] as AdminCategory[] })),
         ]);
         if (cancelled) return;
-        setAttrs(attrRes.data.items);
-        setChannels(chRes.data);
-        setCategories(catRes.data);
+        setAttrs(attrRes.data?.items ?? []);
+        setChannels(chRes.items ?? chRes.data ?? []);
+        setCategories(catRes.data ?? []);
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof ApiError ? e.envelope.error.message : String(e));
