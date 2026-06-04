@@ -298,7 +298,10 @@
   .industria-search { @apply relative flex h-[44px] w-full max-w-[720px] items-stretch rounded-md border border-line bg-surface-alt transition-[border-color,background-color,box-shadow] duration-150; }
   .industria-search:focus-within { @apply border-[color:var(--brand-600)] bg-surface shadow-[0_0_0_3px_rgba(37,99,235,0.12)]; }
   .industria-search__icon { @apply inline-flex items-center pl-[14px] pr-[4px] text-subtle; }
-  .industria-search .b2b-search-autocomplete { @apply relative flex min-w-0 flex-1 items-stretch; }
+  /* Not `relative`: the suggestions popup (absolute left-0 right-0) anchors to
+     the `.industria-search` frame instead, so it spans the full search-box
+     width and its left edge is flush with the box border (no icon-column gap). */
+  .industria-search .b2b-search-autocomplete { @apply flex min-w-0 flex-1 items-stretch; }
   .industria-search input { @apply min-w-0 flex-1 border-0 bg-transparent px-[8px] text-[14px] text-fg outline-none; }
   .industria-search input::placeholder { @apply text-subtle; }
   .industria-search__cta { @apply inline-flex items-center gap-[6px] rounded-r-md border-0 bg-accent px-[18px] text-[13px] font-medium text-white; }
