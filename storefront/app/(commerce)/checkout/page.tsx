@@ -53,7 +53,7 @@ export default async function CheckoutPage({
     Awaited<ReturnType<typeof listAddresses>>,
     Awaited<ReturnType<typeof listDeliveryMethods>>,
     Awaited<ReturnType<typeof listPaymentMethods>>,
-    Awaited<ReturnType<typeof getMyCreditLimit>>,
+    Awaited<ReturnType<typeof getMyCreditLimit>> | null,
     Awaited<ReturnType<typeof getMe>> | null,
     Awaited<ReturnType<typeof getResolvedQuickOrderDefaults>> | null,
   ];
@@ -63,7 +63,10 @@ export default async function CheckoutPage({
       listAddresses(session),
       listDeliveryMethods(),
       listPaymentMethods(),
-      getMyCreditLimit(session),
+      // Credit limit is optional context — an org without a granted limit (or a
+      // failing lookup) must not bounce a logged-in buyer to login or crash the
+      // page. Downstream already treats a null limit as "no credit option".
+      getMyCreditLimit(session).catch(() => null),
       getMe(session).catch(() => null),
       // Feature 039 (US2) — resolved default ordering preferences to pre-select.
       getResolvedQuickOrderDefaults(session).catch(() => null),
@@ -168,7 +171,9 @@ export default async function CheckoutPage({
           <tbody>
             {cart.items.map((it) => (
               <tr key={it.id}>
-                <td>{it.productId}</td>
+                <td style={{ fontFamily: 'var(--font-sans)' }}>
+                  {it.productName ?? it.productId}
+                </td>
                 <td>x {it.quantity}</td>
                 <td>
                   {(it.unitPrice.amount * it.quantity).toFixed(2)} {it.unitPrice.currency}
