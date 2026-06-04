@@ -537,12 +537,18 @@ export function ProductsList(): ReactNode {
           <ProductsBulkEditDialog
             productIds={bulkEditProductIds}
             selectionScope={selection.mode === 'collection' ? 'collection' : 'page'}
-            onClose={(): void => setBulkEditOpen(false)}
-            onApplied={(): void => {
-              void refresh();
-              clearSelection();
+            onClose={(): void => {
               setBulkEditOpen(false);
               setBulkEditProductIds([]);
+            }}
+            onApplied={(): void => {
+              // Refresh the list and drop the selection in the background, but
+              // keep the dialog open: it now shows the queued-acknowledgement
+              // ("sent to the queue, you'll be notified when it finishes") or
+              // the synchronous summary. The user dismisses it via the dialog's
+              // own Close / "View bulk actions" buttons.
+              void refresh();
+              clearSelection();
             }}
           />
         ) : null}

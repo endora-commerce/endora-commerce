@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 
 /**
@@ -54,6 +55,10 @@ const BUNDLE_KEYS = [
   'productsList.bulkEdit.summary.skipped',
   'productsList.bulkEdit.summary.failed',
   'productsList.bulkEdit.summary.total',
+  'productsList.bulkEdit.queued.title',
+  'productsList.bulkEdit.queued.body',
+  'productsList.bulkEdit.queued.viewAll',
+  'productsList.bulkEdit.action.close',
   'productsList.bulkEdit.empty',
   'categoryTreePicker.filter.placeholder',
   'categoryTreePicker.aria.treeLabel',
@@ -209,6 +214,43 @@ describe('ProductsBulkEditDialog — interaction', () => {
     expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.getByText('1')).toBeInTheDocument();
     expect(screen.getByText('4')).toBeInTheDocument();
+  });
+
+  it('Renders the queued acknowledgement when the bulk edit is sent to the queue', async () => {
+    primeOnOpenGets();
+    // Large selections are processed off-thread: the backend returns a
+    // `queued: true` ack instead of a synchronous summary.
+    postSpy.mockResolvedValueOnce({
+      data: { queued: true, bulkOperationId: 'op-queued', total: 120 },
+    });
+
+    const onApplied = vi.fn();
+    renderWithI18n(
+      <MemoryRouter>
+        <ProductsBulkEditDialog productIds={['a', 'b', 'c']} onClose={vi.fn()} onApplied={onApplied} />
+      </MemoryRouter>,
+      BUNDLE,
+    );
+
+    const user = userEvent.setup();
+    const statusLabel = await screen.findByText('productsList.bulkEdit.section.status');
+    const statusCheckbox = statusLabel
+      .closest('label')!
+      .querySelector('input[type="checkbox"]') as HTMLInputElement;
+    await user.click(statusCheckbox);
+    await user.click(
+      screen.getByRole('button', { name: 'productsList.bulkEdit.action.apply' }),
+    );
+
+    // The "sent to the queue, you'll be notified" acknowledgement renders,
+    // with a link to the bulk-operations list.
+    await screen.findByText('productsList.bulkEdit.queued.title');
+    expect(screen.getByText('productsList.bulkEdit.queued.body')).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'productsList.bulkEdit.queued.viewAll' }),
+    ).toBeInTheDocument();
+    // Parent is still notified so it can refresh the list / clear selection.
+    await waitFor(() => expect(onApplied).toHaveBeenCalledTimes(1));
   });
 
   it('Renders one row per mass-editable attribute and only ticked rows are submitted (T026)', async () => {
