@@ -268,15 +268,18 @@ export function catalogModule(options: CatalogModuleOptions) {
       const worker = defineModuleWorker(
         'catalog',
         createBulkOperationWorker(workerConnection, async (job) => {
+          app.log.info(
+            { operationId: job.data.operationId },
+            'bulk-operation processing started',
+          );
           await svc.processById(job.data.operationId);
+          app.log.info(
+            { operationId: job.data.operationId },
+            'bulk-operation processing finished',
+          );
         }),
+        { logger: app.log },
       );
-      worker.on('failed', (job, err) => {
-        app.log.error(
-          { err, operationId: job?.data.operationId },
-          'bulk-operation job failed',
-        );
-      });
       app.addHook('onClose', async () => {
         await worker.close();
         workerConnection.disconnect();
