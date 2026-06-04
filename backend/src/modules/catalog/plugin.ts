@@ -1,7 +1,14 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type Redis from 'ioredis';
 import { BULK_OPERATION_TYPES } from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
+import { defineModuleWorker } from '../_lifecycle/plugin-helpers.js';
+import {
+  createBulkOperationQueue,
+  createBulkOperationWorker,
+  BULK_OPERATION_JOB_NAME,
+} from './services/bulk-operation-queue.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import { CatalogQueryService } from './services/catalog-query.service.js';
@@ -85,11 +92,20 @@ export interface CatalogModuleOptions {
    */
   mailer?: Mailer;
   /**
-   * Set to `false` to skip the in-process bulk-operation sweeper (tests
-   * drive the service directly). Production keeps it on. Mirrors the
-   * price-lists status sweeper pattern.
+   * Redis connection used to back the bulk-operation queue (Principle X).
+   * When provided, `create()` enqueues each operation onto a durable BullMQ
+   * queue instead of processing it in-process. When omitted (tests), enqueue
+   * is a no-op and queued rows stay `pending` for direct-driven assertions.
    */
-  enableBulkOperationSweeper?: boolean;
+  redis?: Redis;
+  /**
+   * When `true` (and `redis` is provided), this process also runs the
+   * bulk-operation **consumer** (a BullMQ worker). Co-locating the worker in
+   * the API process is the default single-VPS posture; set `BACKEND_ROLE=api`
+   * and run `pnpm --filter backend run worker` to split it into its own
+   * independently scalable process without code changes.
+   */
+  runBulkOperationWorker?: boolean;
   /**
    * Runs a full Meilisearch reindex (the `search:reindex` CLI equivalent).
    * When provided, flipping an attribute's `searchable` flag enqueues a
@@ -126,13 +142,15 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.auditLogService,
     );
 
-    // Queued bulk-edit: persists large selections as background
-    // operations, drained by the in-process sweeper below. The
-    // `onEnqueued` kick makes processing start without waiting for the
-    // next interval tick.
-    let bulkOperationService: BulkOperationService | undefined;
-    const bulkSweeperEnabled = options.enableBulkOperationSweeper !== false;
-    bulkOperationService = new BulkOperationService(options.emFactory, bulkUpdateService, {
+    // Queued bulk-edit (Principle X): large selections persist as `pending`
+    // operations on a durable BullMQ queue. The producer (`create()`) only
+    // enqueues; a separable BullMQ worker (below / or its own process) is the
+    // consumer. When no Redis is wired (tests) enqueue is a no-op and rows
+    // stay `pending` for direct-driven assertions.
+    const bulkOperationQueue = options.redis
+      ? createBulkOperationQueue(options.redis)
+      : undefined;
+    const bulkOperationService = new BulkOperationService(options.emFactory, bulkUpdateService, {
       ...(options.adminNotificationService
         ? { notificationService: options.adminNotificationService }
         : {}),
@@ -140,15 +158,13 @@ export function catalogModule(options: CatalogModuleOptions) {
       ...(options.reindexSearchIndexes
         ? { reindexRunner: options.reindexSearchIndexes }
         : {}),
-      onEnqueued: bulkSweeperEnabled
-        ? (): void => {
-            bulkOperationService
-              ?.processPending()
-              .catch((err: unknown) => app.log.error({ err }, 'bulk-operation drain failed'));
+      ...(bulkOperationQueue
+        ? {
+            onEnqueued: async (operationId: string): Promise<void> => {
+              await bulkOperationQueue.add(BULK_OPERATION_JOB_NAME, { operationId });
+            },
           }
-        : (): void => {
-            /* sweeper disabled (tests) — drain is driven manually */
-          },
+        : {}),
     });
 
     // When a reindex runner is wired, flipping an attribute's `searchable`
@@ -239,36 +255,55 @@ export function catalogModule(options: CatalogModuleOptions) {
       ...(overridesService ? { productOverridesService: overridesService } : {}),
     });
 
-    // In-process sweeper for queued bulk operations. Mirrors the
-    // price-lists status sweeper: a periodic drain catches anything the
-    // create-time `onEnqueued` kick missed (e.g. work left pending across
-    // a restart). Unref'd so it never keeps the process alive, and torn
-    // down on close.
-    if (bulkSweeperEnabled) {
+    // Consumer side (Principle X). The BullMQ worker claims each queued
+    // operation atomically and runs the idempotent handler. It is a separable
+    // entrypoint: co-located here by default (single-VPS posture) but
+    // startable as its own process via `pnpm --filter backend run worker`
+    // (which sets BACKEND_ROLE so the API process skips this block).
+    if (bulkOperationQueue && options.runBulkOperationWorker && options.redis) {
       const svc = bulkOperationService;
-      const handle = setInterval(() => {
-        svc
-          .processPending()
-          .then((res) => {
-            if (res.processed > 0) {
-              app.log.info({ res }, 'bulk-operation sweep drained pending operations');
-            }
-          })
-          .catch((err: unknown) => {
-            app.log.error({ err }, 'bulk-operation sweep failed');
-          });
-      }, BULK_OPERATION_SWEEP_INTERVAL_MS);
-      if (typeof handle.unref === 'function') handle.unref();
-      app.addHook('onClose', async () => {
-        clearInterval(handle);
+      // BullMQ workers issue blocking Redis commands, so they need a
+      // dedicated connection rather than the app's shared client.
+      const workerConnection = options.redis.duplicate();
+      const worker = defineModuleWorker(
+        'catalog',
+        createBulkOperationWorker(workerConnection, async (job) => {
+          await svc.processById(job.data.operationId);
+        }),
+      );
+      worker.on('failed', (job, err) => {
+        app.log.error(
+          { err, operationId: job?.data.operationId },
+          'bulk-operation job failed',
+        );
       });
-      // Drain anything already pending at boot.
-      svc
-        .processPending()
-        .catch((err: unknown) => app.log.error({ err }, 'bulk-operation boot drain failed'));
+      app.addHook('onClose', async () => {
+        await worker.close();
+        workerConnection.disconnect();
+        await bulkOperationQueue.close();
+      });
+      // Boot reconciliation: re-enqueue rows left `pending` (e.g. created while
+      // the queue was unreachable, or predating this deploy). Not a draining
+      // sweeper — it only enqueues onto the durable queue, then returns.
+      void svc
+        .findPendingIds()
+        .then(async (ids) => {
+          for (const operationId of ids) {
+            await bulkOperationQueue.add(BULK_OPERATION_JOB_NAME, { operationId });
+          }
+          if (ids.length > 0) {
+            app.log.info({ count: ids.length }, 'bulk-operation boot reconciliation enqueued');
+          }
+        })
+        .catch((err: unknown) =>
+          app.log.error({ err }, 'bulk-operation boot reconciliation failed'),
+        );
+    } else if (bulkOperationQueue) {
+      // Producer-only process (BACKEND_ROLE=api): close the queue handle on
+      // shutdown so its Redis connection is released cleanly.
+      app.addHook('onClose', async () => {
+        await bulkOperationQueue.close();
+      });
     }
   };
 }
-
-/** How often the queued bulk-operation sweeper drains pending rows. */
-const BULK_OPERATION_SWEEP_INTERVAL_MS = 10_000;

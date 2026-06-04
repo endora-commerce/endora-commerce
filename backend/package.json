@@ -12,6 +12,8 @@
     "build": "pnpm run manifest-index:generate && tsc -p tsconfig.build.json",
     "manifest-index:generate": "tsx scripts/generate-manifest-index.ts",
     "start": "node dist/index.js",
+    "worker": "node dist/worker.js",
+    "worker:dev": "tsx watch --env-file-if-exists=.env src/worker.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src test",
     "test": "vitest run",

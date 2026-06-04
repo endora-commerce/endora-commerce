@@ -127,6 +127,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
   const redis = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
+  // Principle X deployment dial. BACKEND_ROLE controls whether this process
+  // runs queue consumers (workers):
+  //   - unset / 'all'    → API + co-located workers (default single-VPS)
+  //   - 'api'            → HTTP only; workers run in a separate `pnpm worker`
+  //   - 'worker'         → workers only (set by src/worker.ts; no HTTP listen)
+  const backendRole = process.env['BACKEND_ROLE'] ?? 'all';
+  const runWorkers = backendRole !== 'api';
   // Feature 018 — separate ioredis client for the module-state pub/sub
   // channel. ioredis multiplexes commands and subscriptions on different
   // sockets, so we keep them on different clients to avoid the "subscribed
@@ -850,6 +857,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       languageService: i18n.handle.languageService,
       adminNotificationService: adminNotifications.handle.adminNotificationService,
       mailer: organizationsMailer,
+      // Principle X — durable BullMQ queue for bulk operations. The consumer
+      // (BullMQ worker) runs co-located here unless BACKEND_ROLE=api, in which
+      // case it runs only in the separate `pnpm worker` process.
+      redis,
+      runBulkOperationWorker: runWorkers,
       // Full Meilisearch reindex (the `search:reindex` CLI equivalent),
       // run as a `search_reindex` bulk operation when an attribute's
       // `searchable` flag flips. A fresh indexer reads Meili config from env,

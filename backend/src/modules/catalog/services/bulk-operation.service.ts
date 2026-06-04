@@ -17,13 +17,16 @@ import type {
  * BulkOperationService — queued product bulk-edit.
  *
  * Owns the lifecycle of {@link BulkOperation} rows:
- *   - `create()` persists a `pending` row and (via the injected kick)
- *     nudges the in-process sweeper so processing starts promptly.
- *   - `processPending()` is the sweep entry point: it drains all
- *     `pending` rows one at a time, applying each through
- *     {@link CatalogBulkUpdateService} with live progress persisted on
- *     the row. A single-flight guard means concurrent ticks (the
- *     interval timer + the create-time kick) never double-process.
+ *   - `create()` persists a `pending` row and enqueues it (via the injected
+ *     `onEnqueued` producer) onto the durable BullMQ queue — it never
+ *     inline-executes the job (Constitution Principle X).
+ *   - `processById()` is the consumer entry point invoked by the BullMQ
+ *     worker: it claims the row atomically (`pending → running`) and applies
+ *     it through {@link CatalogBulkUpdateService} with live progress persisted
+ *     on the row. The conditional claim makes it idempotent under BullMQ
+ *     redelivery / retries and safe at N ≥ 2 worker instances.
+ *   - `processPending()` drains every `pending` row in-process; it is kept for
+ *     manual scripts / tests only — the deployed path is the queue worker.
  *   - On completion / failure the requester is notified twice: an
  *     in-app bell notification and an email.
  *   - `list()` / `get()` back the "Bulk actions" admin page.
@@ -87,8 +90,13 @@ export class BulkOperationService {
     private readonly deps: {
       notificationService?: AdminNotificationService;
       mailer?: Mailer;
-      /** Fired after a row is enqueued so the sweeper can start at once. */
-      onEnqueued?: () => void;
+      /**
+       * Producer hook: hands the new operation's id to the durable queue.
+       * Called once per `create()` with the persisted row's id. Failures are
+       * swallowed by the caller — the `pending` row is the source of truth and
+       * the worker's boot reconciliation re-enqueues anything left behind.
+       */
+      onEnqueued?: (operationId: string) => void | Promise<void>;
       /**
        * Runs a full Meilisearch reindex for `search_reindex` operations.
        * When omitted, such operations fail with a clear "not configured"
@@ -107,8 +115,48 @@ export class BulkOperationService {
     op.total = input.payload.productIds.length;
     op.payload = input.payload;
     await em.persistAndFlush(op);
-    this.deps.onEnqueued?.();
+    // Producer side (Principle X): enqueue and return. Never block the HTTP
+    // response on actual processing. Enqueue errors are non-fatal — the row
+    // stays `pending` and the worker's boot reconciliation re-enqueues it.
+    try {
+      await this.deps.onEnqueued?.(op.id);
+    } catch {
+      /* enqueue is best-effort; reconciliation is the safety net */
+    }
     return serialize(op);
+  }
+
+  /**
+   * Consumer entry point invoked by the BullMQ worker for one queued
+   * operation. Atomically claims the row (`pending → running`); if the claim
+   * affects no row the operation was already taken or finished, so this is a
+   * no-op — making the handler idempotent under redelivery/retries and safe at
+   * N ≥ 2 worker instances.
+   */
+  async processById(operationId: string): Promise<void> {
+    const em = this.emFactory();
+    const affected = await em.nativeUpdate(
+      BulkOperation,
+      { id: operationId, status: 'pending' },
+      { status: 'running', startedAt: new Date() },
+    );
+    if (affected === 0) return;
+    await this.processOne(operationId);
+  }
+
+  /**
+   * Ids of every operation still `pending`. Used by the worker at boot to
+   * re-enqueue rows that were created while no producer/queue was reachable
+   * (e.g. an enqueue failure, or a row predating this deployment).
+   */
+  async findPendingIds(): Promise<string[]> {
+    const em = this.emFactory();
+    const rows = await em.find(
+      BulkOperation,
+      { status: 'pending' },
+      { fields: ['id'], orderBy: { createdAt: 'asc' } },
+    );
+    return rows.map((r) => r.id);
   }
 
   async list(input: ListBulkOperationsInput = {}): Promise<ListBulkOperationsResult> {
