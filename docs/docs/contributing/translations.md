@@ -128,7 +128,7 @@ Workflow for any developer adding a new string to the Admin UI:
    if it includes a count or a name, use `{name}` placeholders.
 4. **Add the Polish entry** to `pl.json`. Consult the glossary above. Match
    the placeholder list exactly. For counts in running text use the
-   patterns documented in feature 021's [research §R5](../../../specs/021-full-pl-en/research.md#r5--plural-handling-under-feature-019s-singular-only-model).
+   patterns documented in feature 021's research §R5 (`specs/021-full-pl-en/research.md`).
 5. **Replace the hard-coded literal** in the source:
    ```tsx
    <Button>{t('actions.save')}</Button>   // where t = useTranslation('moduleId')
@@ -158,8 +158,7 @@ Workflow for any developer adding a new string to the Admin UI:
 
 - **Native, not literal**: Polish strings are written for a native Polish
   reader, not transliterated from English. A reviewer pass before merge is
-  required (see the wave reviews under
-  [specs/021-full-pl-en/tasks.md](../../../specs/021-full-pl-en/tasks.md)).
+  required (see the wave reviews under `specs/021-full-pl-en/tasks.md`).
 - **Locale formatting**: numbers, dates, currencies, and relative times
   must use Polish locale conventions. Use browser-native `Intl.NumberFormat('pl-PL', …)` /
   `Intl.DateTimeFormat('pl-PL', …)` at the rendering layer; never encode
