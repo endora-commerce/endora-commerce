@@ -609,6 +609,9 @@
   .b2b-account__nav { @apply flex flex-col gap-[2px]; }
   .b2b-account__nav a { @apply rounded-sm px-[12px] py-[8px] text-[13px] text-fg-soft; }
   .b2b-account__nav a:hover { @apply bg-surface-alt; }
+  .b2b-account__logout { @apply mt-3 inline-flex w-full cursor-pointer items-center gap-2 rounded-md border border-line bg-surface px-[12px] py-[8px] text-[13px] font-medium text-fg-soft transition-[background-color,border-color,color] duration-150; }
+  .b2b-account__logout:hover { @apply border-line-strong bg-surface-alt text-[color:var(--ink-900)]; }
+  .b2b-account__logout:focus-visible { @apply outline-2 outline-offset-2 outline-[color:var(--brand-600)]; }
   .b2b-account__panel { @apply rounded-lg border border-line bg-surface p-[22px]; }
   .b2b-account__panel h2 { @apply mt-0; }
   .b2b-account__table { @apply w-full border-collapse; }
