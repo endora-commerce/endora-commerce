@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { OrganizationPicker } from '@/components/organization-picker/OrganizationPicker';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import {
@@ -212,11 +213,9 @@ export function CreditLimitsPage(): ReactNode {
           >
             <div className="flex-1 space-y-2">
               <Label>{t('creditLimits.field.orgId')}</Label>
-              <Input
-                value={orgIdInput}
-                onChange={(e): void => setOrgIdInput(e.target.value)}
-                placeholder={t('creditLimits.placeholder.uuid')}
-                required
+              <OrganizationPicker
+                value={orgIdInput || null}
+                onChange={(v): void => setOrgIdInput(v ?? '')}
               />
             </div>
             <Button type="submit" variant="outline">

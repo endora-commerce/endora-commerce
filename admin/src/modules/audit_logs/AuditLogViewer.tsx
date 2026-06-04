@@ -5,6 +5,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { AdminUserPicker } from '@/components/admin-user-picker/AdminUserPicker';
+import { CustomerPicker } from '@/components/customer-picker/CustomerPicker';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { useTranslation } from '@/i18n/useTranslation';
@@ -130,20 +132,18 @@ export function AuditLogViewer(): ReactNode {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="f-actor">{t('auditLog.filter.actor')}</Label>
-                <Input
+                <AdminUserPicker
                   id="f-actor"
-                  placeholder="UUID"
-                  value={actor}
-                  onChange={(e): void => setActor(e.target.value.trim())}
+                  value={actor || null}
+                  onChange={(v): void => setActor(v ?? '')}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="f-customer">{t('auditLog.filter.impersonatedCustomer')}</Label>
-                <Input
+                <CustomerPicker
                   id="f-customer"
-                  placeholder="UUID"
-                  value={impersonated}
-                  onChange={(e): void => setImpersonated(e.target.value.trim())}
+                  value={impersonated || null}
+                  onChange={(v): void => setImpersonated(v ?? '')}
                 />
               </div>
             </div>

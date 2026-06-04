@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { SalesChannelPicker } from '@/components/sales-channel-picker/SalesChannelPicker';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
@@ -89,11 +90,10 @@ export function ComparisonsListPage(): ReactNode {
           <div className="grid gap-4 md:grid-cols-4">
             <div className="space-y-2">
               <Label htmlFor="sales-channel-id">{t('list.filter.salesChannelId')}</Label>
-              <Input
+              <SalesChannelPicker
                 id="sales-channel-id"
-                value={salesChannelId}
-                onChange={(e): void => setSalesChannelId(e.target.value)}
-                placeholder={t('list.filter.uuidOptional')}
+                value={salesChannelId || null}
+                onChange={(v): void => setSalesChannelId(v ?? '')}
               />
             </div>
             <div className="space-y-2">

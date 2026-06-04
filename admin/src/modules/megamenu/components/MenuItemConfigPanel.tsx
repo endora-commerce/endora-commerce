@@ -4,6 +4,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { CategorySelect } from '@/components/category-picker/CategorySelect';
+import { CmsPagePicker } from '@/components/cms-picker/CmsPagePicker';
+import { CmsBlockPicker } from '@/components/cms-picker/CmsBlockPicker';
+import { AssetFieldPicker } from '@/components/asset-picker/AssetFieldPicker';
 import { useTranslation } from '@/i18n/useTranslation';
 
 export type IndexedItem = MegamenuItem & { id: string; parentId: string | null };
@@ -120,10 +124,9 @@ function KindSpecificFields({
       return (
         <div className="space-y-1">
           <Label>{t('fields.categoryId')}</Label>
-          <Input
-            value={typeof target.categoryId === 'string' ? target.categoryId : ''}
-            onChange={(event) => setTarget({ categoryId: event.target.value } as never)}
-            placeholder={t('placeholders.categoryUuid')}
+          <CategorySelect
+            value={typeof target.categoryId === 'string' && target.categoryId ? target.categoryId : null}
+            onChange={(v) => setTarget({ categoryId: v ?? '' } as never)}
           />
         </div>
       );
@@ -132,10 +135,9 @@ function KindSpecificFields({
       return (
         <div className="space-y-1">
           <Label>{t('fields.cmsPageId')}</Label>
-          <Input
-            value={typeof target.pageId === 'string' ? target.pageId : ''}
-            onChange={(event) => setTarget({ pageId: event.target.value } as never)}
-            placeholder={t('placeholders.cmsPageUuid')}
+          <CmsPagePicker
+            value={typeof target.pageId === 'string' && target.pageId ? target.pageId : null}
+            onChange={(v) => setTarget({ pageId: v ?? '' } as never)}
           />
         </div>
       );
@@ -182,10 +184,11 @@ function KindSpecificFields({
         <>
           <div className="space-y-1">
             <Label>{t('fields.assetId')}</Label>
-            <Input
+            <AssetFieldPicker
               value={typeof target.assetId === 'string' ? target.assetId : ''}
-              onChange={(event) => setTarget({ assetId: event.target.value } as never)}
-              placeholder={t('placeholders.assetUuid')}
+              onChange={(id) => setTarget({ assetId: id } as never)}
+              acceptMimePrefix={target.kind === 'video' ? 'video/' : 'image/'}
+              allowUpload
             />
           </div>
           <div className="space-y-1">
@@ -206,10 +209,9 @@ function KindSpecificFields({
         <>
           <div className="space-y-1">
             <Label>{t('fields.cmsBlockId')}</Label>
-            <Input
-              value={typeof target.blockId === 'string' ? target.blockId : ''}
-              onChange={(event) => setTarget({ blockId: event.target.value } as never)}
-              placeholder={t('placeholders.cmsBlockUuid')}
+            <CmsBlockPicker
+              value={typeof target.blockId === 'string' && target.blockId ? target.blockId : null}
+              onChange={(v) => setTarget({ blockId: v ?? '' } as never)}
             />
           </div>
           <div className="space-y-1">

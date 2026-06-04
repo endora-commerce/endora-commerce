@@ -1982,11 +1982,11 @@ function CreateGroupedItemInline({
     >
       <div className="space-y-1 md:col-span-2">
         <Label htmlFor="gchild">{t('productEditor.grouped.column.child')}</Label>
-        <Input
+        <ProductPicker
           id="gchild"
-          value={childProductId}
-          onChange={(e): void => setChildProductId(e.target.value)}
-          placeholder={t('productEditor.grouped.field.childPlaceholder')}
+          mode="select"
+          value={childProductId || null}
+          onChange={(v): void => setChildProductId(v ?? '')}
         />
       </div>
       <div className="space-y-1">
@@ -2256,11 +2256,11 @@ function BundleSlotCard({
       <div className="mt-3 flex items-end gap-2">
         <div className="flex-1 space-y-1">
           <Label htmlFor={`opt-${slot.id}`}>{t('productEditor.bundle.column.optionProductId')}</Label>
-          <Input
+          <ProductPicker
             id={`opt-${slot.id}`}
-            value={optionId}
-            onChange={(e): void => setOptionId(e.target.value)}
-            placeholder={t('productEditor.bundle.field.optionPlaceholder')}
+            mode="select"
+            value={optionId || null}
+            onChange={(v): void => setOptionId(v ?? '')}
           />
         </div>
         <Button

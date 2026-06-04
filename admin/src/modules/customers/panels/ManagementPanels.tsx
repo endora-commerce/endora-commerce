@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { OrganizationPicker } from '@/components/organization-picker/OrganizationPicker';
+import { CustomerGroupPicker } from '@/components/customer-group-picker/CustomerGroupPicker';
 import { useTranslation } from '@/i18n/useTranslation';
 
 interface CommonProps {
@@ -46,7 +48,7 @@ export function OrganizationAssignmentPanel({
 }: CommonProps & { organizationId: string | null }): ReactNode {
   const t = useTranslation('customers');
   const { busy, error, run } = useAction(onChanged);
-  const [orgId, setOrgId] = useState('');
+  const [orgId, setOrgId] = useState<string | null>(null);
 
   return (
     <Card className="mb-4">
@@ -62,12 +64,13 @@ export function OrganizationAssignmentPanel({
         <div className="space-y-2">
           <Label htmlFor="assign-org">{t('detail.org.assignLabel')}</Label>
           <div className="flex gap-2">
-            <Input id="assign-org" value={orgId} onChange={(e): void => setOrgId(e.target.value)} placeholder="organization id" />
+            <OrganizationPicker id="assign-org" value={orgId} onChange={setOrgId} className="flex-1" />
             <Button
-              disabled={busy || !orgId.trim()}
-              onClick={(): void =>
-                void run(() => apiClient.post(`/api/v1/admin/customers/${customerId}/organization`, { organizationId: orgId.trim() }))
-              }
+              disabled={busy || !orgId}
+              onClick={(): void => {
+                if (!orgId) return;
+                void run(() => apiClient.post(`/api/v1/admin/customers/${customerId}/organization`, { organizationId: orgId }));
+              }}
             >
               {t('detail.org.assign')}
             </Button>
@@ -94,7 +97,7 @@ export function CustomerGroupPanel({
 }: CommonProps & { customerGroupId: string | null }): ReactNode {
   const t = useTranslation('customers');
   const { busy, error, run } = useAction(onChanged);
-  const [groupId, setGroupId] = useState('');
+  const [groupId, setGroupId] = useState<string | null>(null);
 
   return (
     <Card className="mb-4">
@@ -110,12 +113,13 @@ export function CustomerGroupPanel({
         <div className="space-y-2">
           <Label htmlFor="set-group">{t('detail.group.setLabel')}</Label>
           <div className="flex gap-2">
-            <Input id="set-group" value={groupId} onChange={(e): void => setGroupId(e.target.value)} placeholder="customer group id" />
+            <CustomerGroupPicker id="set-group" value={groupId} onChange={setGroupId} className="flex-1" />
             <Button
-              disabled={busy || !groupId.trim()}
-              onClick={(): void =>
-                void run(() => apiClient.put(`/api/v1/admin/customers/${customerId}/customer-group`, { customerGroupId: groupId.trim() }))
-              }
+              disabled={busy || !groupId}
+              onClick={(): void => {
+                if (!groupId) return;
+                void run(() => apiClient.put(`/api/v1/admin/customers/${customerId}/customer-group`, { customerGroupId: groupId }));
+              }}
             >
               {t('detail.group.set')}
             </Button>
