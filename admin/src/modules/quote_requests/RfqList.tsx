@@ -7,10 +7,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
+import { OrganizationPicker } from '@/components/organization-picker/OrganizationPicker';
 import { ResponsiveTable } from '@/components/ResponsiveTable';
 import { useTranslation } from '@/i18n/useTranslation';
 
@@ -158,11 +158,10 @@ export function RfqList(): ReactNode {
             </div>
             <div>
               <Label htmlFor="rfq-org">{t('rfq.list.field.organizationId')}</Label>
-              <Input
+              <OrganizationPicker
                 id="rfq-org"
-                value={organizationId}
-                onChange={(e): void => setOrganizationId(e.target.value)}
-                placeholder={t('rfq.list.field.uuid')}
+                value={organizationId || null}
+                onChange={(v): void => setOrganizationId(v ?? '')}
               />
             </div>
             <Button variant="default" onClick={(): void => void refresh()} disabled={loading}>

@@ -14,6 +14,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
+import { ProductPicker } from '@/modules/catalog/components/ProductPicker';
+import { CategorySelect } from '@/components/category-picker/CategorySelect';
 import {
   Table,
   TableBody,
@@ -354,7 +356,10 @@ function MetaEditorCard(): ReactNode {
           <Select
             className="w-auto"
             value={entityType}
-            onChange={(e): void => setEntityType(e.target.value as SeoEntityType)}
+            onChange={(e): void => {
+              setEntityType(e.target.value as SeoEntityType);
+              setEntityId('');
+            }}
           >
             {ENTITY_TYPES.map((et) => (
               <option key={et} value={et}>
@@ -362,12 +367,21 @@ function MetaEditorCard(): ReactNode {
               </option>
             ))}
           </Select>
-          <Input
-            className="w-80"
-            value={entityId}
-            onChange={(e): void => setEntityId(e.target.value)}
-            placeholder={t('seo.meta.field.entityUuid')}
-          />
+          <div className="w-80">
+            {entityType === 'product' ? (
+              <ProductPicker
+                mode="select"
+                value={entityId || null}
+                onChange={(v): void => setEntityId(v ?? '')}
+                includeArchived
+              />
+            ) : (
+              <CategorySelect
+                value={entityId || null}
+                onChange={(v): void => setEntityId(v ?? '')}
+              />
+            )}
+          </div>
           <Input
             className="w-24"
             value={locale}

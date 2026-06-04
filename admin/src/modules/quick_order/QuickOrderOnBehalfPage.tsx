@@ -3,8 +3,9 @@ import { ApiError } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { CustomerPicker } from '@/components/customer-picker/CustomerPicker';
+import { OrganizationPicker } from '@/components/organization-picker/OrganizationPicker';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Table,
@@ -124,21 +125,19 @@ export function QuickOrderOnBehalfPage(): ReactNode {
         </CardHeader>
         <CardContent className="space-y-3">
           <div>
-            <Label htmlFor="customerAccountId">Customer account id</Label>
-            <Input
+            <Label htmlFor="customerAccountId">Customer account</Label>
+            <CustomerPicker
               id="customerAccountId"
-              value={customerAccountId}
-              onChange={(e) => setCustomerAccountId(e.target.value)}
-              placeholder="uuid"
+              value={customerAccountId || null}
+              onChange={(v) => setCustomerAccountId(v ?? '')}
             />
           </div>
           <div>
-            <Label htmlFor="organizationId">Organization id</Label>
-            <Input
+            <Label htmlFor="organizationId">Organization</Label>
+            <OrganizationPicker
               id="organizationId"
-              value={organizationId}
-              onChange={(e) => setOrganizationId(e.target.value)}
-              placeholder="uuid"
+              value={organizationId || null}
+              onChange={(v) => setOrganizationId(v ?? '')}
             />
           </div>
         </CardContent>

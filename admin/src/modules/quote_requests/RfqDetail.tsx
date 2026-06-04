@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Textarea } from '@/components/ui/textarea';
+import { ProductPicker } from '@/modules/catalog/components/ProductPicker';
 import {
   Table,
   TableBody,
@@ -488,10 +489,10 @@ function ModifyCard({
             {lines.map((l, i) => (
               <TableRow key={i}>
                 <TableCell>
-                  <input
-                    value={l.productId}
-                    onChange={(e): void => updateLine(i, { productId: e.target.value })}
-                    style={{ width: '100%', padding: 6, border: '1px solid var(--border)', borderRadius: 4 }}
+                  <ProductPicker
+                    mode="select"
+                    value={l.productId || null}
+                    onChange={(v): void => updateLine(i, { productId: v ?? '' })}
                   />
                 </TableCell>
                 <TableCell>
