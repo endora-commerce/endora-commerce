@@ -274,6 +274,39 @@ describe('ProductsBulkEditDialog — interaction', () => {
     expect(av.warranty_years).toBeUndefined();
   });
 
+  it('Renders sales-channel options from the real `{ items }` envelope without crashing', async () => {
+    // Regression: the sales-channels list endpoint returns `{ items }`, not
+    // `{ data }`. Reading the wrong key left `channels` as `undefined` and
+    // crashed the render at `channels.map` (blank screen on "Edycja masowa").
+    getSpy.mockImplementation((path: string) => {
+      if (path.includes('attributes/by-flag')) {
+        return Promise.resolve({ data: { items: [] } });
+      }
+      if (path.includes('sales-channels')) {
+        return Promise.resolve({
+          items: [{ id: 'ch-1', code: 'web', name: { 'en-US': 'Web' } }],
+          page: 0,
+          pageSize: 200,
+          total: 1,
+        });
+      }
+      if (path.includes('catalog/categories')) {
+        return Promise.resolve({ data: [] });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    renderWithI18n(
+      <ProductsBulkEditDialog productIds={['p1']} onClose={vi.fn()} />,
+      BUNDLE,
+    );
+
+    // The dialog mounts and the channel option renders (no crash).
+    expect(
+      await screen.findByRole('button', { name: 'Web' }),
+    ).toBeInTheDocument();
+  });
+
   it('Categories tree selection is sent in bulk POST (feature 031)', async () => {
     const CAT_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
     getSpy.mockImplementation((path: string) => {
