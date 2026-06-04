@@ -18,6 +18,7 @@ import {
   type RequireAdminFactory,
 } from './routes.admin.js';
 import { ModuleRegistration } from './entities/module-registration.entity.js';
+import { resumeWorkersFor } from './plugin-helpers.js';
 import { findInactiveModules } from './registered-manifests.js';
 
 export interface LifecycleModuleDeps {
@@ -101,6 +102,21 @@ export function lifecycleModule(deps: LifecycleModuleDeps): LifecycleModule {
       redisSubscriber: deps.redisSubscriber,
       em: deps.emFactory,
     });
+
+    // Resume any BullMQ workers that registered *before* this plugin warmed
+    // the cache. `defineModuleWorker` starts a worker paused when its module
+    // reads as disabled at registration time; modules wired earlier in the
+    // composition (e.g. `catalog`, which owns the bulk-operation /
+    // search-reindex worker) hit that branch because the enabled-set was
+    // still empty. The orchestrator only resumes workers on an explicit
+    // enable transition, so without this an already-installed module's
+    // worker would stay paused for the whole process lifetime and its queue
+    // (e.g. `catalog.bulk-operation`) would never drain. Resuming is a no-op
+    // for workers that were already running.
+    for (const moduleId of registryCache.enabledIds()) {
+      await resumeWorkersFor(moduleId);
+    }
+
     await registerLifecycleAdminRoutes(app, {
       orchestrator,
       requireAdmin: deps.requireAdmin,
