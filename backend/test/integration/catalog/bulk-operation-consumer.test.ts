@@ -69,6 +69,8 @@ describe('Bulk-operation queue consumer — processById', () => {
     // Producer enqueued exactly once with the persisted row's id.
     expect(enqueued).toEqual([op.id]);
     expect(op.status).toBe('pending');
+    // A log trail is seeded on create so the detail view has a record.
+    expect(op.logs?.length).toBeGreaterThanOrEqual(1);
 
     // Consumer runs the handler once and the row reaches `completed`.
     await svc.processById(op.id);
@@ -76,6 +78,9 @@ describe('Bulk-operation queue consumer — processById', () => {
     const after = await svc.get(op.id);
     expect(after?.status).toBe('completed');
     expect(after?.succeeded).toBe(3);
+    // The log trail grew with start + completion entries.
+    expect(after?.logs?.some((l) => l.message.includes('Rozpoczęto'))).toBe(true);
+    expect(after?.logs?.some((l) => l.message.includes('Zakończono'))).toBe(true);
 
     // Redelivery / a second worker claiming the same job is a no-op.
     await svc.processById(op.id);

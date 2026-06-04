@@ -648,6 +648,17 @@ export const bulkOperationStatusSchema = z.enum([
 export type BulkOperationStatus = z.infer<typeof bulkOperationStatusSchema>;
 
 /**
+ * One timestamped lifecycle event in a bulk operation's log trail, surfaced
+ * in the bulk-operations detail view next to the per-element results.
+ */
+export const bulkOperationLogEntrySchema = z.object({
+  ts: z.string(),
+  level: z.enum(['info', 'warn', 'error']),
+  message: z.string(),
+});
+export type BulkOperationLogEntry = z.infer<typeof bulkOperationLogEntrySchema>;
+
+/**
  * Known bulk-operation kinds. `type` on the record is an open string (the
  * queue is generic), but these are the kinds the platform ships:
  *   - `product_bulk_update` — the queued large product bulk-edit (feature 022).
@@ -673,6 +684,7 @@ export const bulkOperationSchema = z.object({
   failed: z.number().int().nonnegative(),
   touchedFields: z.array(z.string()),
   results: z.array(bulkUpdateProductResultSchema).nullable(),
+  logs: z.array(bulkOperationLogEntrySchema).nullable(),
   error: z.string().nullable(),
   createdAt: z.string(),
   startedAt: z.string().nullable(),

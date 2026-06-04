@@ -68,6 +68,7 @@ import { Migration062CustomerAddressesInit } from '../modules/customers/migratio
 import { Migration063OrderStatusColor } from '../modules/orders/migrations/063_order_status_color.js';
 import { Migration064OrderSavedViewColumns } from '../modules/orders/migrations/064_order_saved_view_columns.js';
 import { Migration065CatalogBulkOperations } from '../modules/catalog/migrations/065_catalog_bulk_operations.js';
+import { Migration066BulkOperationLogs } from '../modules/catalog/migrations/066_bulk_operation_logs.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -311,6 +312,10 @@ export default defineConfig({
       {
         name: 'Migration065CatalogBulkOperations',
         class: Migration065CatalogBulkOperations,
+      },
+      {
+        name: 'Migration066BulkOperationLogs',
+        class: Migration066BulkOperationLogs,
       },
     ],
     transactional: true,

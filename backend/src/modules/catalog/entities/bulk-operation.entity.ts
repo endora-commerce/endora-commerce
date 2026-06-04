@@ -23,6 +23,19 @@ export interface BulkOperationPayload {
   fields: Record<string, unknown>;
 }
 
+/**
+ * One timestamped lifecycle event in a bulk operation's log trail. The list
+ * grows as the operation moves through its lifecycle (created → started →
+ * completed/failed, plus notable milestones), giving the detail view a
+ * "what happened, when" record alongside the per-element `results`.
+ */
+export interface BulkOperationLogEntry {
+  /** ISO-8601 timestamp of the event. */
+  ts: string;
+  level: 'info' | 'warn' | 'error';
+  message: string;
+}
+
 @Entity({ tableName: 'catalog_bulk_operations' })
 export class BulkOperation {
   [OptionalProps]?:
@@ -34,6 +47,7 @@ export class BulkOperation {
     | 'skipped'
     | 'failed'
     | 'results'
+    | 'logs'
     | 'error'
     | 'createdAt'
     | 'startedAt'
@@ -75,6 +89,10 @@ export class BulkOperation {
   /** Per-product outcomes once finished (capped to keep the row small). */
   @Property({ type: 'json', nullable: true })
   results?: unknown | null;
+
+  /** Ordered lifecycle log entries (see {@link BulkOperationLogEntry}). */
+  @Property({ type: 'json', nullable: true })
+  logs?: BulkOperationLogEntry[] | null;
 
   @Property({ type: 'text', nullable: true })
   error?: string | null;

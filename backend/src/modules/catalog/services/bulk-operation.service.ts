@@ -5,6 +5,7 @@ import type { AdminNotificationService } from '../../admin_notifications/service
 import type { Mailer } from '../../email/services/mailer.js';
 import {
   BulkOperation,
+  type BulkOperationLogEntry,
   type BulkOperationPayload,
   type BulkOperationStatus,
 } from '../entities/bulk-operation.entity.js';
@@ -53,6 +54,7 @@ export interface SerializedBulkOperation {
   failed: number;
   touchedFields: string[];
   results: BulkUpdateOutcome[] | null;
+  logs: BulkOperationLogEntry[] | null;
   error: string | null;
   createdAt: string;
   startedAt: string | null;
@@ -114,6 +116,14 @@ export class BulkOperationService {
     op.requestedByAdminUserId = input.requestedByAdminUserId;
     op.total = input.payload.productIds.length;
     op.payload = input.payload;
+    op.logs = [
+      logEntry(
+        'info',
+        op.type === BULK_OPERATION_TYPES.SEARCH_REINDEX
+          ? 'Operacja przeindeksowania wyszukiwarki utworzona i dodana do kolejki.'
+          : `Operacja utworzona i dodana do kolejki (${op.total} elementów).`,
+      ),
+    ];
     await em.persistAndFlush(op);
     // Producer side (Principle X): enqueue and return. Never block the HTTP
     // response on actual processing. Enqueue errors are non-fatal — the row
@@ -229,8 +239,11 @@ export class BulkOperationService {
     const op = await em.findOne(BulkOperation, { id });
     if (!op) return;
 
+    const logs: BulkOperationLogEntry[] = Array.isArray(op.logs) ? [...op.logs] : [];
+    logs.push(logEntry('info', `Rozpoczęto przetwarzanie operacji (${op.total} elementów).`));
+
     if (op.type === BULK_OPERATION_TYPES.SEARCH_REINDEX) {
-      await this.processReindex(op);
+      await this.processReindex(op, logs);
       return;
     }
 
@@ -260,6 +273,20 @@ export class BulkOperationService {
         },
       );
 
+      logs.push(
+        logEntry(
+          'info',
+          `Zakończono: ${result.summary.succeeded} z powodzeniem, ${result.summary.skipped} pominięto, ${result.summary.failed} z błędem (łącznie ${result.summary.total}).`,
+        ),
+      );
+      if (result.summary.failed > 0) {
+        logs.push(
+          logEntry(
+            'warn',
+            `${result.summary.failed} elementów zakończyło się błędem — szczegóły w statusie pojedynczych elementów.`,
+          ),
+        );
+      }
       await em.nativeUpdate(
         BulkOperation,
         { id },
@@ -270,16 +297,18 @@ export class BulkOperationService {
           skipped: result.summary.skipped,
           failed: result.summary.failed,
           results: result.results.slice(0, MAX_PERSISTED_RESULTS),
+          logs,
           finishedAt: new Date(),
         },
       );
       await this.notify(op, 'completed', result.summary);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      logs.push(logEntry('error', `Operacja nie powiodła się: ${message}`));
       await em.nativeUpdate(
         BulkOperation,
         { id },
-        { status: 'failed', error: message, finishedAt: new Date() },
+        { status: 'failed', error: message, logs, finishedAt: new Date() },
       );
       await this.notify(op, 'failed', null, message);
     }
@@ -290,20 +319,27 @@ export class BulkOperationService {
    * `search:reindex` CLI equivalent). Counts every reindexed document as
    * both processed and succeeded; failure surfaces on the row + notifications.
    */
-  private async processReindex(op: BulkOperation): Promise<void> {
+  private async processReindex(
+    op: BulkOperation,
+    logs: BulkOperationLogEntry[] = [],
+  ): Promise<void> {
     const em = this.emFactory();
     if (!this.deps.reindexRunner) {
       const message = 'Search reindex handler is not configured.';
+      logs.push(logEntry('error', `Operacja nie powiodła się: ${message}`));
       await em.nativeUpdate(
         BulkOperation,
         { id: op.id },
-        { status: 'failed', error: message, finishedAt: new Date() },
+        { status: 'failed', error: message, logs, finishedAt: new Date() },
       );
       await this.notify(op, 'failed', null, message);
       return;
     }
     try {
       const { documentCount } = await this.deps.reindexRunner();
+      logs.push(
+        logEntry('info', `Przeindeksowano ${documentCount} dokumentów we wszystkich indeksach.`),
+      );
       await em.nativeUpdate(
         BulkOperation,
         { id: op.id },
@@ -314,6 +350,7 @@ export class BulkOperationService {
           succeeded: documentCount,
           skipped: 0,
           failed: 0,
+          logs,
           finishedAt: new Date(),
         },
       );
@@ -325,10 +362,11 @@ export class BulkOperationService {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      logs.push(logEntry('error', `Operacja nie powiodła się: ${message}`));
       await em.nativeUpdate(
         BulkOperation,
         { id: op.id },
-        { status: 'failed', error: message, finishedAt: new Date() },
+        { status: 'failed', error: message, logs, finishedAt: new Date() },
       );
       await this.notify(op, 'failed', null, message);
     }
@@ -392,6 +430,10 @@ export class BulkOperationService {
   }
 }
 
+function logEntry(level: BulkOperationLogEntry['level'], message: string): BulkOperationLogEntry {
+  return { ts: new Date().toISOString(), level, message };
+}
+
 function touchedFieldsOf(payload: BulkOperationPayload): string[] {
   const fields = payload.fields ?? {};
   const keys = Object.keys(fields).filter((k) => k !== 'attributeValues');
@@ -416,6 +458,7 @@ function serialize(op: BulkOperation): SerializedBulkOperation {
     failed: op.failed,
     touchedFields: touchedFieldsOf(op.payload),
     results: (op.results as BulkUpdateOutcome[] | null) ?? null,
+    logs: op.logs ?? null,
     error: op.error ?? null,
     createdAt: op.createdAt.toISOString(),
     startedAt: op.startedAt ? op.startedAt.toISOString() : null,
