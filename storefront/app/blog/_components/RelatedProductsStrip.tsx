@@ -15,7 +15,7 @@ export function RelatedProductsStrip({
         {products.map((product) => (
           <Link
             key={product.id}
-            href={`/products/${product.slug}`}
+            href={`/p/${product.slug}`}
             className="group flex flex-col overflow-hidden rounded-lg border border-[--line] bg-[--surface] transition hover:shadow-lg"
           >
             {product.mainImageUrl ? (
