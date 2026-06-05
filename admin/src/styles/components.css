@@ -313,7 +313,11 @@
   display: flex; align-items: center;
   padding: 0 24px;
   gap: 16px;
-  position: sticky; top: 0; z-index: 20;
+  /* Sits above all in-page content — incl. the sticky form-action bar
+     (z-index 30) — so topbar popovers (e.g. the notification bell dropdown)
+     are not painted behind page buttons. Stays below the mobile nav backdrop
+     (40) and drawers/modals/scrim (50/60). */
+  position: sticky; top: 0; z-index: 35;
 }
 .b2b-topbar__crumbs {
   display: flex; align-items: center; gap: 6px;
