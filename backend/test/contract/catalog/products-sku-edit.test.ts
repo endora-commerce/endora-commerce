@@ -111,4 +111,43 @@ describe('Admin Products contract — feature 012 editable SKU (T027)', () => {
     });
     expect(res.statusCode).toBe(200);
   });
+
+  // Regression: the admin Product editor always round-trips the full
+  // `attributeValues` map on save — including the virtual `defaultPrice` key,
+  // which belongs to no AttributeSet. A SKU-only edit must not be rejected
+  // with ATTRIBUTE_VALUE_REJECTED because that virtual key is present.
+  it('PATCH changing only the SKU while round-tripping the virtual defaultPrice succeeds', async () => {
+    const create = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/catalog/products',
+      payload: {
+        sku: 'SKU-EDIT-PRICE',
+        type: 'simple',
+        name: { 'en-US': 'priced' },
+        description: { 'en-US': 'desc' },
+        categoryIds: [],
+        // `internal_sku_notes` is a real Default-set attribute (seed); the
+        // `defaultPrice` virtual key reproduces the editor's save payload.
+        attributeValues: { internal_sku_notes: 'note', defaultPrice: 49.99 },
+        visibility: 'public',
+      },
+      cookies: adminCookie,
+    });
+    expect(create.statusCode).toBe(201);
+    const id = (create.json() as { data: { id: string } }).data.id;
+
+    const res = await h.app.inject({
+      method: 'PATCH',
+      url: `/api/v1/admin/catalog/products/${id}`,
+      payload: {
+        sku: 'SKU-EDIT-PRICE-renamed',
+        attributeValues: { internal_sku_notes: 'note', defaultPrice: 49.99 },
+      },
+      cookies: adminCookie,
+    });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { data: { sku: string } }).data.sku).toBe(
+      'SKU-EDIT-PRICE-renamed',
+    );
+  });
 });

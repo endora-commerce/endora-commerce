@@ -49,6 +49,19 @@ export interface AdminAuditContext {
 }
 
 /**
+ * Virtual attribute-value keys that are NOT bound to any AttributeSet but are
+ * legitimately stored under `product.attributeValues`. `defaultPrice` / `price`
+ * are the per-product base price the Details tab edits and the PriceList engine
+ * reads (see `default-price-list-migration.ts`). They must never be rejected by
+ * `assertAttributeValueKeysAllowed`, otherwise every save that carries a price
+ * (i.e. nearly all of them) fails with ATTRIBUTE_VALUE_REJECTED.
+ */
+const VIRTUAL_ATTRIBUTE_VALUE_KEYS: ReadonlySet<string> = new Set([
+  'defaultPrice',
+  'price',
+]);
+
+/**
  * Catalog write-path service (admin write surface).
  * Every mutation emits a typed event on the shared bus so the search indexer
  * (T067) and webhook bridge (Phase 2 T037) can react.
@@ -274,6 +287,7 @@ export class CatalogAdminService {
         em,
         product.attributeSetId,
         req.attributeValues as Record<string, unknown>,
+        new Set(Object.keys(product.attributeValues ?? {})),
       );
       product.attributeValues = { ...product.attributeValues, ...req.attributeValues };
       changedFields.push('attributeValues');
@@ -1601,6 +1615,12 @@ export class CatalogAdminService {
     em: EntityManager,
     attributeSetId: string,
     attributeValues: Record<string, unknown> | undefined,
+    // Keys already persisted on the Product. These were validated at their
+    // time of write, so re-sending them (e.g. the admin form round-trips the
+    // full value map when only the SKU changed, or when the AttributeSet was
+    // swapped leaving orphan keys behind) must NOT be rejected — only keys
+    // that are genuinely new to this save are checked against the set.
+    existingKeys: ReadonlySet<string> = new Set(),
   ): Promise<void> {
     if (!attributeValues) return;
     const keys = Object.keys(attributeValues);
@@ -1616,7 +1636,12 @@ export class CatalogAdminService {
     )) as Array<{ key: string }>;
     const allowed = new Set(rows.map((r) => r.key));
 
-    const rejected = keys.filter((k) => !allowed.has(k));
+    const rejected = keys.filter(
+      (k) =>
+        !allowed.has(k) &&
+        !existingKeys.has(k) &&
+        !VIRTUAL_ATTRIBUTE_VALUE_KEYS.has(k),
+    );
     if (rejected.length > 0) {
       throw new HttpError(
         400,
