@@ -113,6 +113,15 @@ export interface CatalogModuleOptions {
    * composition root so catalog stays decoupled from the search module.
    */
   reindexSearchIndexes?: SearchReindexRunner;
+  /**
+   * Resolves the `general.product_image_placeholder_url` setting (global or
+   * per sales channel) for a channel code. Wired from composition so catalog
+   * stays decoupled from the settings module. When provided, storefront
+   * product summaries / details with no image fall back to the configured URL.
+   */
+  resolveProductImagePlaceholderUrl?: (
+    salesChannelCode: string | undefined,
+  ) => Promise<string | null>;
 }
 
 export function catalogModule(options: CatalogModuleOptions) {
@@ -188,6 +197,9 @@ export function catalogModule(options: CatalogModuleOptions) {
       searchQueryService,
       productLinkService: productLinkServiceForRead,
       bundleService: bundleServicePublic,
+      ...(options.resolveProductImagePlaceholderUrl
+        ? { resolveProductImagePlaceholderUrl: options.resolveProductImagePlaceholderUrl }
+        : {}),
     });
     const categoryAdminService = new CategoryAdminService(
       options.emFactory,
