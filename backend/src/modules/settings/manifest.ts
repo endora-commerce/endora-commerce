@@ -21,7 +21,22 @@ const settings = defineModuleSettingsManifest({
       // Empty salesChannelCodes ⇒ applies to every sales channel.
     },
   ],
-  settings: [],
+  settings: [
+    {
+      // Image URL shown when a product has no image of its own, on product
+      // cards / listings (and the product page). Resolvable globally or
+      // per sales channel via the standard settings scope mechanism.
+      code: 'product_image_placeholder_url',
+      name: 'Product image placeholder',
+      description:
+        'Full image URL displayed on product cards and listings when a ' +
+        'product has no image of its own. Leave empty to show no placeholder. ' +
+        'Can be overridden per sales channel.',
+      groupCode: 'general',
+      valueType: 'string',
+      defaultValue: '',
+    },
+  ],
 });
 
 /** Module-lifecycle manifest (feature 018) + i18n bundle declaration (feature 019). */
