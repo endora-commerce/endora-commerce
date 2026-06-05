@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import Redis from 'ioredis';
+import { z } from 'zod';
 import { CustomerAccount } from './modules/customer_accounts/entities/customer-account.entity.js';
 import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';
 import { AdminRole } from './modules/admin_roles/entities/admin-role.entity.js';
@@ -882,6 +883,27 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           actorAdminUserId: request.actor.adminUserId,
           impersonatedCustomerAccountId: null,
         };
+      },
+      // Storefront product-image placeholder (general.product_image_placeholder_url),
+      // resolved global-or-per-channel through the SettingsService. Returns null
+      // (no placeholder) when unset or on any resolution error so a settings
+      // hiccup can never break product listings.
+      resolveProductImagePlaceholderUrl: async (salesChannelCode) => {
+        try {
+          const channel = salesChannelCode
+            ? await salesChannels.handle.resolver.getByCode(salesChannelCode)
+            : await salesChannels.handle.resolver.getSystemDefault();
+          const channelId = channel?.id ?? platformSettingsChannelId;
+          const url = await settings.handle.settingsService.get(
+            'product_image_placeholder_url',
+            channelId,
+            z.string(),
+          );
+          const trimmed = url.trim();
+          return trimmed === '' ? null : trimmed;
+        } catch {
+          return null;
+        }
       },
     }),
     inventoryModule({

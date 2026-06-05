@@ -145,7 +145,11 @@ export default async function ProductPage({
         {product.gallery && product.gallery.length > 0 ? (
           <GallerySwitcher gallery={product.gallery} alt={product.name} />
         ) : (
-          <ProductGallery assets={product.assets} alt={product.name} />
+          <ProductGallery
+            assets={product.assets}
+            alt={product.name}
+            placeholderUrl={product.primaryAssetUrl}
+          />
         )}
         <div>
           <h1>{product.name}</h1>

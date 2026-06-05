@@ -3,7 +3,11 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { loginCustomer } from '../../../lib/api/auth';
 import { StorefrontApiError } from '../../../lib/api/client';
-import { setCartMergeFlash, setSessionCookie } from '../../../lib/session';
+import {
+  clearAnonCartCookie,
+  setCartMergeFlash,
+  setSessionCookie,
+} from '../../../lib/session';
 import { Hook } from '../../../components/Hook';
 
 /**
@@ -109,6 +113,11 @@ async function loginAction(formData: FormData): Promise<void> {
     result.cartMerge?.outcome === 'adopted' ||
     result.cartMerge?.outcome === 'merged'
   ) {
+    // The anon cart was drained into the customer cart and marked completed
+    // backend-side; drop the now-stale anon cookie so later reads (e.g. after
+    // a session expiry) don't fall back to that emptied cart and make the cart
+    // appear to vanish.
+    await clearAnonCartCookie();
     await setCartMergeFlash(result.cartMerge.outcome);
   }
   redirect(next);

@@ -763,6 +763,26 @@ export async function setupBackendServer(
       // teardown). Stub reindex runner so the `search_reindex` enqueuer is
       // wired (the attribute-searchable flip path); it never hits Meilisearch.
       reindexSearchIndexes: async () => ({ documentCount: 0 }),
+      // Storefront product-image placeholder resolver (mirrors composition.ts);
+      // `settings` is declared below — the closure runs at request time.
+      resolveProductImagePlaceholderUrl: async (salesChannelCode) => {
+        try {
+          const { z } = await import('zod');
+          const channel = salesChannelCode
+            ? await salesChannels.handle.resolver.getByCode(salesChannelCode)
+            : await salesChannels.handle.resolver.getSystemDefault();
+          if (!channel) return null;
+          const url = await settings.handle.settingsService.get(
+            'product_image_placeholder_url',
+            channel.id,
+            z.string(),
+          );
+          const trimmed = url.trim();
+          return trimmed === '' ? null : trimmed;
+        } catch {
+          return null;
+        }
+      },
       resolveAdminAuditContext: (request) => {
         if (request.testActor?.kind !== 'admin') {
           return { actorAdminUserId: TEST_ADMIN_ID };

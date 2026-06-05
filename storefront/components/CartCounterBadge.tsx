@@ -1,18 +1,21 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 
 /**
  * Header cart icon + count badge — client component that hydrates with
- * the count fetched server-side in `app/layout.tsx` and refreshes when
- * something on the page dispatches the `b2b:cart:changed` custom event
- * (e.g. `<CompareAddToCartButton>` on the /compare page).
+ * the count fetched server-side in `app/layout.tsx` and then re-fetches the
+ * live count on mount, on every client-side navigation, and whenever the
+ * page dispatches the `b2b:cart:changed` custom event.
  *
- * Most cart mutations go through server actions and trigger a full
- * server re-render — those paths don't need the event, the SSR-rendered
- * badge is already up to date. This component covers the client-only
- * mutation paths that can't invalidate the layout from the server.
+ * Why re-fetch on navigation: the badge lives in the root layout, whose
+ * Server Component is NOT re-run on soft (client-side) navigations, so the
+ * server-provided `initialCount` is only accurate for the page that was hard
+ * loaded. Without the per-navigation refresh the badge would show a stale
+ * count (e.g. 0 on the home page) even though the cart has items — the bug
+ * this component is fixing.
  */
 export function CartCounterBadge(props: {
   initialCount: number;
@@ -28,14 +31,16 @@ export function CartCounterBadge(props: {
   itemsAriaLabelTemplate: string;
 }): ReactNode {
   const [count, setCount] = useState<number>(props.initialCount);
+  const pathname = usePathname();
 
-  // Keep the badge in sync with the server-provided value across
-  // navigation; the prop changes when the layout re-renders.
+  // Keep the badge in sync with the server-provided value when the layout is
+  // hard-rendered; the prop changes when the layout actually re-runs.
   useEffect(() => {
     setCount(props.initialCount);
   }, [props.initialCount]);
 
   useEffect(() => {
+    let cancelled = false;
     const refresh = async (): Promise<void> => {
       try {
         const res = await fetch(`${props.apiBase}/api/v1/cart?view=mini`, {
@@ -47,15 +52,22 @@ export function CartCounterBadge(props: {
         if (!res.ok) return;
         const payload = (await res.json()) as { data?: { itemCount?: number } };
         const next = payload.data?.itemCount;
-        if (typeof next === 'number') setCount(next);
+        if (!cancelled && typeof next === 'number') setCount(next);
       } catch {
         // Swallow — the badge stays at its current value rather than flashing 0.
       }
     };
+    // Refresh on mount and on every client-side navigation (pathname change),
+    // so the badge reflects the real cart on every page — not just the one
+    // that was hard-loaded.
+    void refresh();
     const onChanged = (): void => void refresh();
     window.addEventListener('b2b:cart:changed', onChanged);
-    return () => window.removeEventListener('b2b:cart:changed', onChanged);
-  }, [props.apiBase]);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('b2b:cart:changed', onChanged);
+    };
+  }, [props.apiBase, pathname]);
 
   const ariaLabel =
     count > 0

@@ -10,6 +10,9 @@ import type { ProductAsset } from '@b2b/contracts';
 export function ProductGallery(props: {
   assets: ProductAsset[];
   alt: string;
+  /** Fallback image shown when the product has no images of its own
+   *  (resolved from the `product_image_placeholder_url` setting). */
+  placeholderUrl?: string | null;
 }): ReactNode {
   const images = props.assets.filter((a) => a.kind === 'image');
   const documents = props.assets.filter((a) => a.kind === 'pdf' || a.kind === 'certificate');
@@ -29,6 +32,13 @@ export function ProductGallery(props: {
             </li>
           ))}
         </ul>
+      ) : props.placeholderUrl ? (
+        <img
+          src={props.placeholderUrl}
+          alt={props.alt}
+          loading="lazy"
+          className="aspect-[4/3] w-full rounded-md object-contain bg-surface-alt"
+        />
       ) : (
         <div className="aspect-[4/3] rounded-md bg-surface-alt" aria-hidden="true" />
       )}

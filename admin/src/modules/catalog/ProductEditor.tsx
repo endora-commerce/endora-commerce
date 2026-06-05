@@ -26,6 +26,7 @@ import {
   Warehouse as WarehouseIcon,
 } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { useUnsavedChangesPrompt } from '@/lib/use-unsaved-changes-prompt';
 import { useTranslation } from '@/i18n/useTranslation';
 import { AssetPicker } from '@/modules/assets_library/components/AssetPicker';
 import type { AssetSummary, AssetDetail } from '@/modules/assets_library/api/assets-library-client';
@@ -98,6 +99,25 @@ interface AdminCategory {
   sortOrder: number;
 }
 
+/**
+ * Order-insensitive JSON snapshot of the editable form fields, used to detect
+ * unsaved changes (object keys + array members are sorted so re-ordering alone
+ * never reads as a change).
+ */
+function stableSnapshot(values: Record<string, unknown>): string {
+  return JSON.stringify(values, (_key, value) => {
+    if (Array.isArray(value)) return [...value].sort();
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
+          a.localeCompare(b),
+        ),
+      );
+    }
+    return value;
+  });
+}
+
 export function ProductEditor(): ReactNode {
   const t = useTranslation('catalog');
   const params = useParams<{ id: string }>();
@@ -130,6 +150,28 @@ export function ProductEditor(): ReactNode {
   // can flush every pending channel-scoped override in a single PATCH.
   const scopeEditorRef = useRef<ProductScopeEditorHandle | null>(null);
 
+  // Unsaved-changes guard — a stable snapshot of the editable fields is taken
+  // on load (and re-taken after each save via refresh()); the form is "dirty"
+  // whenever the live values diverge from it.
+  const initialSnapshotRef = useRef<string>('');
+  const currentSnapshot = stableSnapshot({
+    sku,
+    type,
+    status,
+    visibility,
+    name,
+    description,
+    defaultPrice,
+    categoryIds,
+    attributeSetId,
+    attrValues,
+  });
+  const dirty =
+    !loading &&
+    initialSnapshotRef.current !== '' &&
+    currentSnapshot !== initialSnapshotRef.current;
+  useUnsavedChangesPrompt(dirty);
+
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
@@ -145,6 +187,21 @@ export function ProductEditor(): ReactNode {
       // Pick the system Default as the initial selection for new Products.
       const defaultSet = sets.data.find((s) => s.code === 'default');
       if (isNew && defaultSet) setAttributeSetId(defaultSet.id);
+      if (isNew) {
+        // Baseline for a brand-new product matches the useState defaults.
+        initialSnapshotRef.current = stableSnapshot({
+          sku: '',
+          type: 'simple',
+          status: 'draft',
+          visibility: 'public',
+          name: { 'en-US': '', 'pl-PL': '' },
+          description: { 'en-US': '', 'pl-PL': '' },
+          defaultPrice: '',
+          categoryIds: [],
+          attributeSetId: defaultSet?.id ?? '',
+          attrValues: {},
+        });
+      }
       if (id) {
         const res = await apiClient.get<{ data: AdminProduct }>(
           `/api/v1/admin/catalog/products/${id}`,
@@ -154,19 +211,35 @@ export function ProductEditor(): ReactNode {
         setType(p.type);
         setStatus(p.status);
         setVisibility(p.visibility);
-        setName({
+        const loadedName = {
           'en-US': p.name['en-US'] ?? '',
           'pl-PL': p.name['pl-PL'] ?? '',
-        });
-        setDescription({
+        };
+        setName(loadedName);
+        const loadedDescription = {
           'en-US': p.description['en-US'] ?? '',
           'pl-PL': p.description['pl-PL'] ?? '',
-        });
+        };
+        setDescription(loadedDescription);
         const price = (p.attributeValues['defaultPrice'] as number | undefined) ?? null;
-        setDefaultPrice(price != null ? String(price) : '');
+        const loadedPrice = price != null ? String(price) : '';
+        setDefaultPrice(loadedPrice);
         setAttrValues(p.attributeValues ?? {});
         setAttributeSetId(p.attributeSetId);
         setCategoryIds(p.categoryIds ?? []);
+        // Capture the loaded state as the clean baseline for dirty-tracking.
+        initialSnapshotRef.current = stableSnapshot({
+          sku: p.sku,
+          type: p.type,
+          status: p.status,
+          visibility: p.visibility,
+          name: loadedName,
+          description: loadedDescription,
+          defaultPrice: loadedPrice,
+          categoryIds: p.categoryIds ?? [],
+          attributeSetId: p.attributeSetId,
+          attrValues: p.attributeValues ?? {},
+        });
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
@@ -257,6 +330,36 @@ export function ProductEditor(): ReactNode {
   const handleAttrChange = useCallback((key: string, value: unknown): void => {
     setAttrValues((prev) => ({ ...prev, [key]: value }));
   }, []);
+
+  // Swapping the Attribute Set drops the values whose keys are not in the
+  // newly-selected set, so the save payload doesn't carry orphan keys left
+  // over from the previous set. `defaultPrice` / `price` are virtual keys
+  // owned by the Details tab (not bound to any set) and are always kept.
+  const handleAttributeSetChange = useCallback(
+    async (newSetId: string): Promise<void> => {
+      setAttributeSetId(newSetId);
+      if (!newSetId) return;
+      try {
+        const res = await apiClient.get<{ data: { attributes: { key: string }[] } }>(
+          `/api/v1/admin/catalog/attribute-sets/${newSetId}`,
+        );
+        const allowed = new Set(res.data.attributes.map((a) => a.key));
+        setAttrValues((prev) => {
+          const next: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(prev)) {
+            if (allowed.has(k) || k === 'defaultPrice' || k === 'price') {
+              next[k] = v;
+            }
+          }
+          return next;
+        });
+      } catch {
+        // Non-fatal — the backend tolerates round-tripped keys, so leaving
+        // the values untouched on a fetch failure still saves correctly.
+      }
+    },
+    [],
+  );
 
   const handleDeleteProduct = useCallback(async (): Promise<void> => {
     if (!id) return;
@@ -495,7 +598,7 @@ export function ProductEditor(): ReactNode {
                       <Select
                         id="pattrset"
                         value={attributeSetId}
-                        onChange={(e): void => setAttributeSetId(e.target.value)}
+                        onChange={(e): void => void handleAttributeSetChange(e.target.value)}
                       >
                         {attributeSets.length === 0 ? (
                           <option value="">{t('productEditor.attributeSet.loading')}</option>

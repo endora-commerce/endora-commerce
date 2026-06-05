@@ -46,6 +46,15 @@ export interface CatalogPublicDeps {
    * for the same reason as productLinkService.
    */
   bundleService?: BundleService;
+  /**
+   * Resolves the `general.product_image_placeholder_url` setting (global or
+   * per sales channel) for the given channel code. Returns the configured URL,
+   * or null when unset / on any resolution error. When supplied, storefront
+   * product summaries and details with no image of their own fall back to it.
+   */
+  resolveProductImagePlaceholderUrl?: (
+    salesChannelCode: string | undefined,
+  ) => Promise<string | null>;
 }
 
 export async function registerCatalogPublicRoutes(
@@ -53,6 +62,25 @@ export async function registerCatalogPublicRoutes(
   deps: CatalogPublicDeps,
 ): Promise<void> {
   const { queryService, searchQueryService } = deps;
+  const resolvePlaceholder = deps.resolveProductImagePlaceholderUrl;
+
+  // Fills `primaryAssetUrl` on imageless summaries with the configured
+  // placeholder (resolved once per request, only when at least one item needs
+  // it). Leaves products that already have an image untouched.
+  async function withListPlaceholder<
+    T extends { data: Array<{ primaryAssetUrl: string | null }> },
+  >(result: T, salesChannelCode: string | undefined): Promise<T> {
+    if (!resolvePlaceholder) return result;
+    if (!result.data.some((p) => !p.primaryAssetUrl)) return result;
+    const url = await resolvePlaceholder(salesChannelCode);
+    if (!url) return result;
+    return {
+      ...result,
+      data: result.data.map((p) =>
+        p.primaryAssetUrl ? p : { ...p, primaryAssetUrl: url },
+      ),
+    };
+  }
 
   // GET /api/v1/catalog/products
   app.get('/api/v1/catalog/products', async (request, reply) => {
@@ -78,7 +106,7 @@ export async function registerCatalogPublicRoutes(
           ctx,
         );
         reply.header('x-search-backend', 'meilisearch');
-        return result;
+        return await withListPlaceholder(result, ctx.salesChannelCode);
       } catch (err) {
         if (err instanceof SearchBackendUnavailable) {
           request.log.warn(
@@ -96,7 +124,7 @@ export async function registerCatalogPublicRoutes(
       ctx,
     );
     reply.header('x-search-backend', 'postgres');
-    return result;
+    return await withListPlaceholder(result, ctx.salesChannelCode);
   });
 
   // GET /api/v1/catalog/products/:idOrSlug
@@ -105,6 +133,16 @@ export async function registerCatalogPublicRoutes(
     async (request) => {
       const ctx = readContext(request);
       const product = await queryService.getProductByIdOrSlug(request.params.idOrSlug, ctx);
+      // Imageless product → fall back to the configured placeholder so the PDP
+      // hero/card renders something instead of an empty box.
+      if (
+        resolvePlaceholder &&
+        !product.primaryAssetUrl &&
+        product.assets.length === 0
+      ) {
+        const url = await resolvePlaceholder(ctx.salesChannelCode);
+        if (url) product.primaryAssetUrl = url;
+      }
       return { data: product };
     },
   );
