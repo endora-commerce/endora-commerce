@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import type { FulfilmentStrategy, Warehouse } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { useUnsavedChangesPrompt } from '@/lib/use-unsaved-changes-prompt';
 import { FulfilmentStrategyPanel } from './panels/FulfilmentStrategyPanel';
 import { formatDateTime } from '@/lib/format';
 import { OrganizationSalesRepsTab } from './OrganizationSalesRepsTab';
@@ -132,6 +133,16 @@ export function OrganizationDetail(): ReactNode {
       setEditEmail(editMember.email);
     }
   }, [editMember]);
+
+  // The member-edit overlay is the only deferred-save form on this page (the
+  // rest of the org fields persist immediately on change). Warn before leaving
+  // if it holds edits that haven't been saved yet.
+  const memberEditDirty =
+    editMember !== null &&
+    (editFirst !== editMember.firstName ||
+      editLast !== editMember.lastName ||
+      editEmail !== editMember.email);
+  useUnsavedChangesPrompt(memberEditDirty);
 
   const handlePatch = useCallback(
     async (patch: {

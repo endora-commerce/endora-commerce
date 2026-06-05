@@ -1,4 +1,5 @@
 {
+  "form.unsavedChanges.confirm": "Masz niezapisane zmiany. Opuścić tę stronę bez zapisywania?",
   "appShell.brand": "Platforma B2B",
   "appShell.skipToContent": "Przejdź do treści",
   "appShell.search.placeholder": "Szukaj…",

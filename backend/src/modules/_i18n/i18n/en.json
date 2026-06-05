@@ -1,4 +1,5 @@
 {
+  "form.unsavedChanges.confirm": "You have unsaved changes. Leave this page without saving?",
   "appShell.brand": "B2B Platform",
   "appShell.skipToContent": "Skip to content",
   "appShell.search.placeholder": "Search…",
