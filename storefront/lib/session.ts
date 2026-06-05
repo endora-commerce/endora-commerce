@@ -64,6 +64,20 @@ export async function setAnonCartCookie(value: string): Promise<void> {
 }
 
 /**
+ * Delete the anon cart cookie. Called after a successful login-time cart merge:
+ * the anonymous cart has been drained into the customer cart and marked
+ * `completed` backend-side, so the cookie now points at an empty cart. Leaving
+ * it set makes the storefront read that drained cart whenever the session is
+ * not the active cart actor (e.g. after the session expires), which surfaces as
+ * a cart that "disappeared". The backend already sends a clear-cookie header on
+ * merge, but a Next.js server action must mirror it into the browser jar.
+ */
+export async function clearAnonCartCookie(): Promise<void> {
+  const jar = await cookies();
+  jar.delete(ANON_CART_COOKIE);
+}
+
+/**
  * Flash-cookie writer used by the login server action after a successful
  * cart-merge. The next authenticated page render reads-and-clears the
  * cookie via `readAndClearCartMergeFlash` and shows a confirmation
