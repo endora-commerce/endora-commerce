@@ -21,6 +21,7 @@ import {
   Link as LinkIcon,
   Paperclip,
   Save,
+  SlidersHorizontal,
   Store as StoreIcon,
   Warehouse as WarehouseIcon,
 } from 'lucide-react';
@@ -47,6 +48,7 @@ import {
 } from '@/components/ui/table';
 import { EntityChannelMembership } from '../sales_channels/components/EntityChannelMembership';
 import { ProductInventoryTab } from './ProductInventoryTab';
+import { ProductAttributesTab } from './ProductAttributesTab';
 import { LinkedPriceListsPanel } from '../price_lists/LinkedPriceListsPanel';
 import { ProductPicker } from './components/ProductPicker';
 import {
@@ -122,6 +124,8 @@ export function ProductEditor(): ReactNode {
   // Feature 002 (T034) — Attribute Set selector
   const [attributeSets, setAttributeSets] = useState<AdminAttributeSet[]>([]);
   const [attributeSetId, setAttributeSetId] = useState<string>('');
+  // Editable attribute values keyed by attribute `key` (Attributes tab).
+  const [attrValues, setAttrValues] = useState<Record<string, unknown>>({});
   // Feature 023 — imperative handle on the scope-editor so the page Save
   // can flush every pending channel-scoped override in a single PATCH.
   const scopeEditorRef = useRef<ProductScopeEditorHandle | null>(null);
@@ -160,6 +164,7 @@ export function ProductEditor(): ReactNode {
         });
         const price = (p.attributeValues['defaultPrice'] as number | undefined) ?? null;
         setDefaultPrice(price != null ? String(price) : '');
+        setAttrValues(p.attributeValues ?? {});
         setAttributeSetId(p.attributeSetId);
         setCategoryIds(p.categoryIds ?? []);
       }
@@ -189,7 +194,10 @@ export function ProductEditor(): ReactNode {
         setError('At least one locale name is required.');
         return;
       }
-      const attributeValues: Record<string, unknown> = {};
+      // Seed from the Attributes-tab edits; `defaultPrice` is a virtual
+      // attribute owned by the Details tab and re-applied just below.
+      const attributeValues: Record<string, unknown> = { ...attrValues };
+      delete attributeValues['defaultPrice'];
       if (defaultPrice.trim()) {
         const v = Number(defaultPrice);
         if (!Number.isFinite(v) || v < 0) {
@@ -243,8 +251,12 @@ export function ProductEditor(): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
       }
     },
-    [isNew, id, sku, status, type, name, description, categoryIds, defaultPrice, visibility, navigate, refresh],
+    [isNew, id, sku, status, type, name, description, categoryIds, defaultPrice, attrValues, attributeSetId, visibility, navigate, refresh],
   );
+
+  const handleAttrChange = useCallback((key: string, value: unknown): void => {
+    setAttrValues((prev) => ({ ...prev, [key]: value }));
+  }, []);
 
   const handleDeleteProduct = useCallback(async (): Promise<void> => {
     if (!id) return;
@@ -285,6 +297,7 @@ export function ProductEditor(): ReactNode {
 
   const tabs: Array<{ id: string; label: string; icon: ReactNode; show: boolean }> = [
     { id: 'details', label: 'Details', icon: <FileTextIcon size={14} />, show: true },
+    { id: 'attributes', label: 'Attributes', icon: <SlidersHorizontal size={14} />, show: !isNew },
     { id: 'pricing', label: 'Pricing', icon: <CircleDollarSign size={14} />, show: !isNew },
     {
       id: 'variants',
@@ -589,6 +602,14 @@ export function ProductEditor(): ReactNode {
                 </div>
               </div>
             </form>
+          ) : null}
+
+          {activeTab === 'attributes' && id ? (
+            <ProductAttributesTab
+              attributeSetId={attributeSetId}
+              values={attrValues}
+              onChange={handleAttrChange}
+            />
           ) : null}
 
           {activeTab === 'pricing' && id ? <LinkedPriceListsPanel productId={id} /> : null}
