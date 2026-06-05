@@ -21,7 +21,20 @@ const settings = defineModuleSettingsManifest({
       // Empty salesChannelCodes ⇒ applies to every sales channel.
     },
   ],
-  settings: [],
+  settings: [
+    {
+      // Minutes of inactivity after which an admin is signed out of the Admin
+      // UI. Enforced client-side by an idle timer in the admin app.
+      code: 'admin.idle_logout_minutes',
+      name: 'Admin idle logout (minutes)',
+      description:
+        'Number of minutes of inactivity after which an administrator is ' +
+        'automatically signed out of the Admin UI. Default 60.',
+      groupCode: 'general',
+      valueType: 'number',
+      defaultValue: 60,
+    },
+  ],
 });
 
 /** Module-lifecycle manifest (feature 018) + i18n bundle declaration (feature 019). */

@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell.js';
 import { LoginPage } from './components/LoginPage.js';
+import { IdleLogout } from './components/IdleLogout.js';
 import { useAuth } from './lib/auth.js';
 import { TranslationProvider } from './i18n/TranslationProvider.js';
 import { useTranslation } from './i18n/useTranslation.js';
@@ -127,6 +128,8 @@ export function App(): ReactNode {
     <TranslationProvider language={language}>
       <AppLanguageContext.Provider value={{ language, setLanguage }}>
         <AdminActionsProvider language={language}>
+        {/* Auto sign-out after the configured inactivity window (default 60 min). */}
+        <IdleLogout />
         <Routes>
           <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
