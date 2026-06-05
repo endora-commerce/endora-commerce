@@ -240,6 +240,7 @@ export default async function CartPage({
           <div className="mt-4">
             <PrimaryCtaButton
               cta={primaryCta}
+              authenticated={me !== null}
               submitForApprovalNeeded={submitForApprovalNeeded}
               canTransact={canTransact}
               moderationMessage={me?.organization?.moderationMessage ?? null}
@@ -317,6 +318,7 @@ function toViewModel(it: CartItem): CartLineViewModel {
  */
 function PrimaryCtaButton({
   cta,
+  authenticated,
   submitForApprovalNeeded,
   canTransact,
   moderationMessage,
@@ -324,6 +326,8 @@ function PrimaryCtaButton({
   strings,
 }: {
   cta: NonNullable<CartSummary['primaryCta']>;
+  /** Whether the buyer has a valid customer session (resolved `/me`). */
+  authenticated: boolean;
   submitForApprovalNeeded: boolean;
   canTransact: boolean;
   moderationMessage: string | null;
@@ -370,9 +374,14 @@ function PrimaryCtaButton({
       </form>
     );
   }
-  // cta === 'checkout'
+  // cta === 'checkout'. /checkout requires a valid customer session, so when
+  // the buyer isn't authenticated (no session, or a stale/expired session that
+  // `/me` rejected) route them through login first — preserving the cart and
+  // returning to checkout via `?next` — instead of letting /checkout bounce
+  // them to login unexpectedly.
+  const checkoutHref = authenticated ? '/checkout' : '/login?next=/checkout';
   return (
-    <Link href="/checkout" className="btn btn--dark btn--lg btn--block">
+    <Link href={checkoutHref} className="btn btn--dark btn--lg btn--block">
       {strings.checkout} →
     </Link>
   );
