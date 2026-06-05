@@ -174,8 +174,8 @@ export default async function CheckoutPage({
                 <td style={{ fontFamily: 'var(--font-sans)' }}>
                   {it.productName ?? it.productId}
                 </td>
-                <td>x {it.quantity}</td>
-                <td>
+                <td className="text-right">x {it.quantity}</td>
+                <td className="text-right">
                   {(it.unitPrice.amount * it.quantity).toFixed(2)} {it.unitPrice.currency}
                 </td>
               </tr>
@@ -184,7 +184,7 @@ export default async function CheckoutPage({
               <th colSpan={2} scope="row" className="text-right">
                 Subtotal
               </th>
-              <th>
+              <th className="text-right">
                 {cart.subtotal.amount.toFixed(2)} {cart.subtotal.currency}
               </th>
             </tr>
@@ -193,7 +193,7 @@ export default async function CheckoutPage({
                 <th colSpan={2} scope="row" className="text-right">
                   Discount ({cart.discount.code})
                 </th>
-                <th>
+                <th className="text-right">
                   −{cart.discount.amount.toFixed(2)} {cart.discount.currency}
                 </th>
               </tr>
@@ -203,7 +203,7 @@ export default async function CheckoutPage({
                 <th colSpan={2} scope="row" className="text-right">
                   <strong>Total</strong>
                 </th>
-                <th>
+                <th className="text-right">
                   <strong>
                     {cart.grandTotal.amount.toFixed(2)} {cart.grandTotal.currency}
                   </strong>
@@ -213,7 +213,13 @@ export default async function CheckoutPage({
           </tbody>
         </table>
 
-        <div className="b2b-auth__actions">
+        <div className="b2b-auth__actions items-center justify-between">
+          <Link
+            href="/cart"
+            className="inline-flex items-center gap-2 rounded-sm border border-line bg-surface px-[16px] py-[10px] font-medium text-fg-soft transition-[background-color,border-color,color] duration-150 hover:border-line-strong hover:bg-surface-alt hover:text-[color:var(--ink-900)]"
+          >
+            ← Back to cart
+          </Link>
           <button
             type="submit"
             disabled={!canTransact}
