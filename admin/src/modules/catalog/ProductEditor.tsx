@@ -258,6 +258,36 @@ export function ProductEditor(): ReactNode {
     setAttrValues((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  // Swapping the Attribute Set drops the values whose keys are not in the
+  // newly-selected set, so the save payload doesn't carry orphan keys left
+  // over from the previous set. `defaultPrice` / `price` are virtual keys
+  // owned by the Details tab (not bound to any set) and are always kept.
+  const handleAttributeSetChange = useCallback(
+    async (newSetId: string): Promise<void> => {
+      setAttributeSetId(newSetId);
+      if (!newSetId) return;
+      try {
+        const res = await apiClient.get<{ data: { attributes: { key: string }[] } }>(
+          `/api/v1/admin/catalog/attribute-sets/${newSetId}`,
+        );
+        const allowed = new Set(res.data.attributes.map((a) => a.key));
+        setAttrValues((prev) => {
+          const next: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(prev)) {
+            if (allowed.has(k) || k === 'defaultPrice' || k === 'price') {
+              next[k] = v;
+            }
+          }
+          return next;
+        });
+      } catch {
+        // Non-fatal — the backend tolerates round-tripped keys, so leaving
+        // the values untouched on a fetch failure still saves correctly.
+      }
+    },
+    [],
+  );
+
   const handleDeleteProduct = useCallback(async (): Promise<void> => {
     if (!id) return;
     if (!confirm(t('productEditor.deleteConfirm'))) return;
@@ -495,7 +525,7 @@ export function ProductEditor(): ReactNode {
                       <Select
                         id="pattrset"
                         value={attributeSetId}
-                        onChange={(e): void => setAttributeSetId(e.target.value)}
+                        onChange={(e): void => void handleAttributeSetChange(e.target.value)}
                       >
                         {attributeSets.length === 0 ? (
                           <option value="">{t('productEditor.attributeSet.loading')}</option>
