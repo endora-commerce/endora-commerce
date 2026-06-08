@@ -52,7 +52,7 @@ export function AddToRfqForm({
   );
 }
 
-async function addToQuoteAction(formData: FormData): Promise<void> {
+export async function addToQuoteAction(formData: FormData): Promise<void> {
   'use server';
   const session = await getSessionCookie();
   const productSlug = (formData.get('productSlug') as string) ?? '';

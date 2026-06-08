@@ -14,7 +14,8 @@ import { PriceTag } from '../../../../components/PriceTag';
 import { StockBadge } from '../../../../components/StockBadge';
 import { NotifyWhenAvailableDialog } from '../../../../components/inventory/NotifyWhenAvailableDialog';
 import { BackorderHint } from '../../../../components/inventory/BackorderHint';
-import { AddToRfqForm } from '../../../../components/rfq/AddToRfqForm';
+import { addToQuoteAction } from '../../../../components/rfq/AddToRfqForm';
+import { ProductBuyActions } from '../../../../components/ProductBuyActions';
 import { QuoteRequestCta } from '../../../../components/pricing/QuoteRequestCta';
 import { ParametryTab } from '../../../../components/attributes/ParametryTab';
 import { Hook } from '../../../../components/Hook';
@@ -197,24 +198,18 @@ export default async function ProductPage({
                         cancel: t('product.notify.cancel'),
                       }}
                     />
-                  ) : product.price ? (
-                    <form action={addToCartAction} style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-                      <input type="hidden" name="productId" value={product.id} />
-                      {selectedVariantId ? (
-                        <input type="hidden" name="variantId" value={selectedVariantId} />
-                      ) : null}
-                      <input
-                        type="number"
-                        name="quantity"
-                        min={1}
-                        defaultValue={1}
-                        aria-label={t('product.addToCart')}
-                        style={{ width: '4rem' }}
-                      />
-                      <button type="submit" className="b2b-cta">
-                        {t('product.addToCart')}
-                      </button>
-                    </form>
+                  ) : null}
+                  {product.price || rfqSettings.showAddToQuoteOnPdp ? (
+                    <ProductBuyActions
+                      productId={product.id}
+                      productSlug={product.slug}
+                      {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
+                      showCart={!!product.price && !stock?.showNotifyButton}
+                      showQuote={rfqSettings.showAddToQuoteOnPdp}
+                      addToCartAction={addToCartAction}
+                      addToQuoteAction={addToQuoteAction}
+                      addToCartLabel={t('product.addToCart')}
+                    />
                   ) : null}
                   {oneClickEnabled && product.price ? (
                     <form action={oneClickAction} style={{ display: 'inline-flex', gap: 8 }}>
@@ -226,9 +221,6 @@ export default async function ProductPage({
                         Buy in one click
                       </button>
                     </form>
-                  ) : null}
-                  {rfqSettings.showAddToQuoteOnPdp ? (
-                    <AddToRfqForm productId={product.id} productSlug={product.slug} />
                   ) : null}
                 </>
               )
