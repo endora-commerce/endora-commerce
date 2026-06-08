@@ -59,7 +59,10 @@ import { promotionsModule } from '../../src/modules/promotions/plugin.js';
 import { settingsModule } from '../../src/modules/settings/plugin.js';
 import { settingsManifest as settingsModuleManifest } from '../../src/modules/settings/manifest.js';
 import { mfaModule } from '../../src/modules/mfa/plugin.js';
+import { mfaSettingsManifest } from '../../src/modules/mfa/manifest.js';
+import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
 import type { MfaLoginPort } from '../../src/modules/auth/services/mfa-login-port.js';
+import type { OAuthProviderPort } from '../../src/modules/mfa/services/oauth-provider-service.js';
 import { salesChannelsModule } from '../../src/modules/sales_channels/plugin.js';
 import { searchModule } from '../../src/modules/search/plugin.js';
 import { createSuggestionPricingEnricher } from '../../src/modules/search/services/suggestion-pricing-enricher.js';
@@ -161,6 +164,28 @@ export interface BackendServerHandle {
    * Available once the commerce module finishes wiring (after `setupBackendServer`).
    */
   cartService: () => CartService | null;
+}
+
+/**
+ * Feature 042 US4/US5 — deterministic fake OIDC provider for tests. The
+ * resolved email is the `code` query value; `unverified@example.com` → an
+ * unverified email. The authorization URL echoes `state` so callback tests can
+ * read it from the redirect Location.
+ */
+const fakeOAuthProvider: OAuthProviderPort = {
+  isEnabled: () => true,
+  buildAuthorizationUrl: async (provider, { state }) =>
+    `https://oauth.test/${provider}/authorize?state=${encodeURIComponent(state)}`,
+  exchangeCode: async (provider, { code }) => ({
+    provider,
+    sub: `sub-${code}`,
+    email: code,
+    emailVerified: code !== 'unverified@example.com',
+  }),
+};
+
+function hashTestPassword(): Promise<string> {
+  return hashPassword('social-login-no-password-placeholder');
 }
 
 const SEEDED_TABLES = [
@@ -840,6 +865,8 @@ export async function setupBackendServer(
     settingsService: settings.handle.settingsService,
     auditLogService,
     sessionService,
+    resolveDefaultChannelId: async () =>
+      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null,
     secretEncryptionKey: process.env['MFA_SECRET_ENCRYPTION_KEY'],
     requireCustomer: requireTestCustomer(),
     requireAdmin: requireTestAdmin(permissionService),
@@ -871,6 +898,36 @@ export async function setupBackendServer(
         throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization administrator role required.');
       }
       return { organizationId: c.organizationId, actor: c.id };
+    },
+    // Feature 042 US4/US5 — deterministic fake provider. `exchangeCode` derives
+    // the identity from the `code` query so tests control the resolved email;
+    // `unverified@example.com` simulates an unverified provider email.
+    oauthProvider: fakeOAuthProvider,
+    backendBaseUrl: 'http://localhost',
+    storefrontBaseUrl: 'http://localhost:3000',
+    adminBaseUrl: 'http://localhost:3002',
+    socialAccountResolvers: {
+      resolveCustomerByEmail: async (email) => {
+        const c = await em().findOne(CustomerAccount, { email, deletedAt: null });
+        return c ? { id: c.id } : null;
+      },
+      autoCreateCustomer: async (email) => {
+        const account = em().create(CustomerAccount, {
+          email,
+          passwordHash: await hashTestPassword(),
+          firstName: '',
+          lastName: '',
+          role: 'regular_user',
+          organizationId: null,
+          emailVerifiedAt: new Date(),
+        });
+        await em().persistAndFlush(account);
+        return { id: account.id };
+      },
+      resolveAdminByEmail: async (email) => {
+        const a = await em().findOne(AdminUser, { email, deletedAt: null, status: 'active' });
+        return a ? { id: a.id } : null;
+      },
     },
   });
   testMfaLoginPort = mfa.handle().mfaLoginPort;
@@ -1231,6 +1288,7 @@ export async function setupBackendServer(
     priceListsManifest,
     assetsLibraryManifest,
     blogManifest,
+    mfaSettingsManifest,
   ]);
 
   const app = await buildServer({

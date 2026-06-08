@@ -93,6 +93,9 @@ const settings = defineModuleSettingsManifest({
   ],
 });
 
+/** Exposed for the settings ManifestReconciler (boot + test harness). */
+export const mfaSettingsManifest = settings;
+
 export const manifest = defineModuleManifest({
   id: 'mfa',
   name: 'MFA',

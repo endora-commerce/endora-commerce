@@ -13,11 +13,17 @@ import {
 import { MfaLoginService } from './services/mfa-login-service.js';
 import { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
 import { MfaOrgPolicyService } from './services/mfa-org-policy-service.js';
+import {
+  SocialIdentityService,
+  type SocialIdentityDeps,
+} from './services/social-identity-service.js';
+import type { OAuthProviderPort } from './services/oauth-provider-service.js';
 import { SecretCipher } from './services/secret-cipher.js';
 import { registerMfaPublicRoutes } from './routes.public.js';
 import { registerMfaSelfServiceRoutes } from './routes.self-service.js';
 import { registerMfaAdminRoutes } from './routes.admin.js';
 import { registerMfaOrgRoutes } from './routes.org.js';
+import { registerMfaOAuthRoutes } from './routes.oauth.js';
 
 type RequireAdminFactory = (
   permission?: string,
@@ -42,6 +48,8 @@ export interface MfaModuleOptions {
   settingsService: SettingsReader;
   auditLogService: AuditLogService;
   sessionService: SessionService;
+  /** Resolves the system-default sales-channel id for global setting reads. */
+  resolveDefaultChannelId?: () => Promise<string | null>;
   /** base64 32-byte AES key for TOTP secrets at rest. */
   secretEncryptionKey?: string | undefined;
   /** Storefront customer guard + actor resolver (for self-service routes). */
@@ -59,6 +67,12 @@ export interface MfaModuleOptions {
   resolveOrgAdmin?: (
     req: FastifyRequest,
   ) => Promise<{ organizationId: string; actor: string }>;
+  /** Federated sign-in (US4/US5) — provider port + account resolvers + URLs. */
+  oauthProvider?: OAuthProviderPort;
+  socialAccountResolvers?: SocialIdentityDeps;
+  backendBaseUrl?: string;
+  storefrontBaseUrl?: string;
+  adminBaseUrl?: string;
   resolveAccountEmail?: (
     subjectType: 'customer' | 'admin',
     subjectId: string,
@@ -85,6 +99,7 @@ export function mfaModule(options: MfaModuleOptions): {
   const policyResolver = new MfaPolicyResolver(
     options.settingsService,
     options.emFactory,
+    options.resolveDefaultChannelId ?? (async () => null),
   );
 
   const cipher = options.secretEncryptionKey
@@ -130,6 +145,24 @@ export function mfaModule(options: MfaModuleOptions): {
       ...emailOpt,
       ...pwdOpt,
     });
+    // Federated sign-in (US4 customer / US5 admin).
+    if (options.oauthProvider && options.socialAccountResolvers) {
+      const socialIdentityService = new SocialIdentityService(
+        options.emFactory,
+        options.socialAccountResolvers,
+        options.auditLogService,
+      );
+      await registerMfaOAuthRoutes(app, {
+        oauthProvider: options.oauthProvider,
+        challengeStore,
+        policyResolver,
+        socialIdentityService,
+        sessionService: options.sessionService,
+        backendBaseUrl: options.backendBaseUrl ?? 'http://localhost:8080',
+        storefrontBaseUrl: options.storefrontBaseUrl ?? 'http://localhost:3000',
+        adminBaseUrl: options.adminBaseUrl ?? 'http://localhost:3002',
+      });
+    }
     // Storefront org-admin enforcement (US3).
     if (options.resolveOrgAdmin) {
       await registerMfaOrgRoutes(app, {

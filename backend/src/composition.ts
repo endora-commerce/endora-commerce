@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { randomUUID } from 'crypto';
 import Redis from 'ioredis';
 import { z } from 'zod';
 import { CustomerAccount } from './modules/customer_accounts/entities/customer-account.entity.js';
@@ -53,7 +54,12 @@ import { QUICK_ORDER_SETTING_CODES } from './modules/quick_order/manifest.js';
 import { adminModule } from './modules/admin_users/plugin.js';
 import { mfaModule } from './modules/mfa/plugin.js';
 import type { MfaLoginPort } from './modules/auth/services/mfa-login-port.js';
-import { verifyPassword } from './modules/auth/services/password-hasher.js';
+import { verifyPassword, hashPassword } from './modules/auth/services/password-hasher.js';
+import {
+  OpenIdOAuthProvider,
+  readOAuthConfigFromEnv,
+  type OAuthProviderPort,
+} from './modules/mfa/services/oauth-provider-service.js';
 import { inventoryModule } from './modules/inventory/plugin.js';
 import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
 import { creditLimitsModule } from './modules/credit_limits/plugin.js';
@@ -391,13 +397,64 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 042 — MFA module. Constructed here (after `settings`) so it can
   // read the per-scope MFA settings; its login port is bound to the late-bound
   // `mfaLoginPort` captured by the auth services above. Plugin pushed below.
+  // Feature 042 US4/US5 — federated sign-in. Wire the OIDC provider only when
+  // at least one provider is configured via env; otherwise the OAuth routes
+  // are simply not registered.
+  const oauthConfig = readOAuthConfigFromEnv();
+  const oauthProvider: OAuthProviderPort | undefined =
+    oauthConfig.google || oauthConfig.microsoft
+      ? new OpenIdOAuthProvider(oauthConfig)
+      : undefined;
+  const mfaSocialResolvers = {
+    resolveCustomerByEmail: async (email: string) => {
+      const c = await em().findOne(CustomerAccount, { email, deletedAt: null });
+      return c ? { id: c.id } : null;
+    },
+    autoCreateCustomer: async (email: string) => {
+      let allowed = false;
+      try {
+        const { z } = await import('zod');
+        allowed = await settings.handle.settingsService.get(
+          'customers.allow_registration_without_organization',
+          'default',
+          z.boolean(),
+        );
+      } catch {
+        allowed = false;
+      }
+      if (!allowed) return null;
+      const account = em().create(CustomerAccount, {
+        email,
+        passwordHash: await hashPassword(randomUUID() + randomUUID()),
+        firstName: '',
+        lastName: '',
+        role: 'regular_user',
+        organizationId: null,
+        emailVerifiedAt: new Date(),
+      });
+      await em().persistAndFlush(account);
+      return { id: account.id };
+    },
+    resolveAdminByEmail: async (email: string) => {
+      const a = await em().findOne(AdminUser, { email, deletedAt: null, status: 'active' });
+      return a ? { id: a.id } : null;
+    },
+  };
+
   const mfa = mfaModule({
     emFactory: em,
     redis,
     settingsService: settings.handle.settingsService,
     auditLogService,
     sessionService,
+    resolveDefaultChannelId: async () =>
+      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null,
     secretEncryptionKey: process.env['MFA_SECRET_ENCRYPTION_KEY'],
+    ...(oauthProvider ? { oauthProvider } : {}),
+    socialAccountResolvers: mfaSocialResolvers,
+    ...(process.env['BACKEND_PUBLIC_URL'] ? { backendBaseUrl: process.env['BACKEND_PUBLIC_URL'] } : {}),
+    ...(process.env['STOREFRONT_BASE_URL'] ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] } : {}),
+    ...(process.env['ADMIN_BASE_URL'] ? { adminBaseUrl: process.env['ADMIN_BASE_URL'] } : {}),
     requireCustomer,
     requireAdmin,
     resolveCustomerActor: (request) => {

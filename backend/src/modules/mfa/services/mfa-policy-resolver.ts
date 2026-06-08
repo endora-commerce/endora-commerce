@@ -31,12 +31,16 @@ export interface SettingsReader {
   get<T>(code: string, salesChannelId: string, schema: z.ZodType<T>): Promise<T>;
 }
 
-const GLOBAL_CHANNEL = 'default';
-
 export class MfaPolicyResolver {
   constructor(
     private readonly settings: SettingsReader,
     private readonly emFactory: () => EntityManager,
+    /**
+     * Resolves the system-default sales-channel id for "global" reads (admin
+     * surface, or a storefront request with no channel). `settingsService.get`
+     * requires a real channel UUID, so a literal sentinel cannot be used.
+     */
+    private readonly resolveDefaultChannelId: () => Promise<string | null> = async () => null,
   ) {}
 
   async resolve(
@@ -44,7 +48,10 @@ export class MfaPolicyResolver {
     ctx: MfaLoginContext,
   ): Promise<MfaResolvedPolicy> {
     const isAdmin = subject.subjectType === 'admin';
-    const channelId = isAdmin ? GLOBAL_CHANNEL : ctx.salesChannelId ?? GLOBAL_CHANNEL;
+    const channelId =
+      (isAdmin
+        ? await this.resolveDefaultChannelId()
+        : ctx.salesChannelId ?? (await this.resolveDefaultChannelId())) ?? '';
 
     const codes = isAdmin
       ? {

@@ -8,6 +8,9 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/lib/auth';
 import { loginCopy } from '@/i18n/preauth-login-copy';
 
+const adminApiBaseUrl =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
+
 /**
  * Admin login screen. Rendered by App when no session is active; the
  * AuthProvider re-fetches `/admin/me` after a successful POST and the
@@ -143,6 +146,23 @@ export function LoginPage(): ReactNode {
               {submitting ? loginCopy.submitting : loginCopy.submit}
             </Button>
           </form>
+          {/* Feature 042 US5 — federated sign-in (existing admin users only). */}
+          <div className="flex flex-col gap-2">
+            <a
+              className="inline-flex min-h-11 items-center justify-center rounded-md border px-4 text-sm"
+              href={`${adminApiBaseUrl}/api/v1/auth/admin/oauth/google/start`}
+              data-provider="google"
+            >
+              Continue with Google
+            </a>
+            <a
+              className="inline-flex min-h-11 items-center justify-center rounded-md border px-4 text-sm"
+              href={`${adminApiBaseUrl}/api/v1/auth/admin/oauth/microsoft/start`}
+              data-provider="microsoft"
+            >
+              Continue with Microsoft
+            </a>
+          </div>
           <p className="text-xs text-muted-foreground">
             {loginCopy.footerPrefix}{' '}
             <code className="rounded bg-muted px-1 py-0.5 text-[0.7rem]">

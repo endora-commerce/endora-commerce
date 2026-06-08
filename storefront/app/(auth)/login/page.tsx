@@ -12,6 +12,7 @@ import {
   setSessionCookie,
 } from '../../../lib/session';
 import { Hook } from '../../../components/Hook';
+import { SocialLoginButtons } from '../../../components/SocialLoginButtons';
 
 /**
  * Storefront login page (T151 / FR-040). Submits via a server action,
@@ -58,6 +59,10 @@ export default async function LoginPage({
             <button type="submit">Sign in</button>
           </div>
         </form>
+        <SocialLoginButtons
+          backendBaseUrl={process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001'}
+          next={nextPath}
+        />
         <p className="b2b-auth__hint">
           Forgot your password? <Link href="/password-reset/request">Reset it</Link>.
         </p>
