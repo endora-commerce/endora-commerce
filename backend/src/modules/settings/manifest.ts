@@ -29,9 +29,10 @@ const settings = defineModuleSettingsManifest({
       code: 'product_image_placeholder_url',
       name: 'Product image placeholder',
       description:
-        'Full image URL displayed on product cards and listings when a ' +
-        'product has no image of its own. Leave empty to show no placeholder. ' +
-        'Can be overridden per sales channel.',
+        'Image displayed on product cards and listings when a product has no ' +
+        'image of its own. Upload a file (drag-and-drop or file picker) or enter ' +
+        'an image URL. Leave empty to show no placeholder. Can be overridden per ' +
+        'sales channel.',
       groupCode: 'general',
       valueType: 'string',
       defaultValue: '',

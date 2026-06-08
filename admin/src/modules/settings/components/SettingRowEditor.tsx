@@ -10,6 +10,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
+import { ImageSettingInput } from './ImageSettingInput';
+
+/**
+ * String settings that hold an image URL get a file-upload editor (drag-and-drop
+ * / file picker via the Assets Library) instead of a plain text input. Matched by
+ * convention: a string-typed setting whose code names an image and ends in `_url`.
+ */
+function isImageUrlSetting(setting: SettingDto): boolean {
+  return (
+    setting.valueType === 'string' &&
+    setting.code.includes('image') &&
+    setting.code.endsWith('_url')
+  );
+}
 
 export interface SettingDraft {
   /** Current text in the input. */
@@ -152,7 +166,13 @@ export function SettingRowEditor({
         </Button>
       </div>
 
-      <div>{renderInput(setting.valueType, draft.text, setText, t)}</div>
+      <div>
+        {isImageUrlSetting(setting) ? (
+          <ImageSettingInput value={draft.text} onChange={setText} />
+        ) : (
+          renderInput(setting.valueType, draft.text, setText, t)
+        )}
+      </div>
 
       <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
         <span>
