@@ -1574,6 +1574,8 @@
   "orders.search.placeholder": "Order number, customer…",
   "orders.field.status": "Status",
   "orders.filter.all": "All statuses",
+  "orders.filter.toggle": "Filters",
+  "orders.filter.clearAll": "Clear all",
   "orders.field.sort": "Sort",
   "orders.sort.newest": "Newest first",
   "orders.sort.oldest": "Oldest first",
