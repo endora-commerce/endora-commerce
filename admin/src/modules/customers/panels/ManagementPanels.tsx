@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/select';
 import { OrganizationPicker } from '@/components/organization-picker/OrganizationPicker';
 import { CustomerGroupPicker } from '@/components/customer-group-picker/CustomerGroupPicker';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useUnsavedChangesPrompt } from '@/lib/use-unsaved-changes-prompt';
 
 interface CommonProps {
   customerId: string;
@@ -165,6 +166,14 @@ export function AddressesPanel({ customerId, onChanged }: CommonProps): ReactNod
     country: 'PL',
   });
 
+  // Warn before leaving with a partially-filled new-address form.
+  useUnsavedChangesPrompt(
+    form.recipientName !== '' ||
+      form.street !== '' ||
+      form.city !== '' ||
+      form.postalCode !== '',
+  );
+
   const load = useCallback(async (): Promise<void> => {
     try {
       const res = await apiClient.get<{ data: { personal: AdminCustomerAddress[] } }>(
@@ -225,6 +234,14 @@ export function AddressesPanel({ customerId, onChanged }: CommonProps): ReactNod
           onClick={(): void =>
             void run(async () => {
               await apiClient.post(`/api/v1/admin/customers/${customerId}/addresses`, form);
+              setForm({
+                kind: 'delivery',
+                recipientName: '',
+                street: '',
+                city: '',
+                postalCode: '',
+                country: 'PL',
+              });
               reload();
             })
           }

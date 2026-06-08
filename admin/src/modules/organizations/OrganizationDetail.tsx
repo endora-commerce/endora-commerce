@@ -142,7 +142,11 @@ export function OrganizationDetail(): ReactNode {
     (editFirst !== editMember.firstName ||
       editLast !== editMember.lastName ||
       editEmail !== editMember.email);
-  useUnsavedChangesPrompt(memberEditDirty);
+  // The invite and direct-add forms also hold unsaved data-entry.
+  const inviteDirty = inviteEmail !== '';
+  const directAddDirty =
+    directEmail !== '' || directFirst !== '' || directLast !== '' || directPassword !== '';
+  useUnsavedChangesPrompt(memberEditDirty || inviteDirty || directAddDirty);
 
   const handlePatch = useCallback(
     async (patch: {

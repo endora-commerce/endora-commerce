@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useUnsavedChangesPrompt } from '@/lib/use-unsaved-changes-prompt';
 import {
   Table,
   TableBody,
@@ -146,6 +147,9 @@ export function OrderDetail(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [tab, setTab] = useState<OrderTab>('overview');
+
+  // Warn before leaving with an unsent comment draft.
+  useUnsavedChangesPrompt(commentBody.trim() !== '');
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
