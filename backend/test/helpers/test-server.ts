@@ -862,6 +862,16 @@ export async function setupBackendServer(
       const rows = await em().find(CustomerAccount, { organizationId }, { fields: ['id'] });
       return rows.map((r) => r.id);
     },
+    resolveOrgAdmin: async (request) => {
+      if (request.testActor?.kind !== 'customer') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+      }
+      const c = await em().findOne(CustomerAccount, { id: request.testActor.customerAccountId });
+      if (!c || c.role !== 'organization_admin' || !c.organizationId) {
+        throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization administrator role required.');
+      }
+      return { organizationId: c.organizationId, actor: c.id };
+    },
   });
   testMfaLoginPort = mfa.handle().mfaLoginPort;
 

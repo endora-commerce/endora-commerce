@@ -43,6 +43,46 @@ export async function clearMfaChallengeCookie(): Promise<void> {
 
 const MFA_SETUP_COOKIE = 'b2b_mfa_setup';
 const MFA_RECOVERY_FLASH_COOKIE = 'b2b_mfa_recovery_flash';
+const MFA_SETUP_TICKET_COOKIE = 'b2b_mfa_setup_ticket';
+
+/**
+ * Feature 042 US3 — carries the enforced-setup ticket + the secret to display
+ * between the password step and the forced-setup screen (no session yet).
+ */
+export async function setMfaSetupTicketCookie(value: {
+  setupTicket: string;
+  secret: string;
+  otpauthUri: string;
+}): Promise<void> {
+  const jar = await cookies();
+  jar.set(MFA_SETUP_TICKET_COOKIE, JSON.stringify(value), {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env['NODE_ENV'] === 'production',
+    maxAge: 10 * 60,
+  });
+}
+
+export async function getMfaSetupTicketCookie(): Promise<{
+  setupTicket: string;
+  secret: string;
+  otpauthUri: string;
+} | null> {
+  const jar = await cookies();
+  const raw = jar.get(MFA_SETUP_TICKET_COOKIE)?.value;
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as { setupTicket: string; secret: string; otpauthUri: string };
+  } catch {
+    return null;
+  }
+}
+
+export async function clearMfaSetupTicketCookie(): Promise<void> {
+  const jar = await cookies();
+  jar.delete(MFA_SETUP_TICKET_COOKIE);
+}
 
 /** Holds the pending enrolment secret between "start setup" and "confirm". */
 export async function setMfaSetupCookie(value: {

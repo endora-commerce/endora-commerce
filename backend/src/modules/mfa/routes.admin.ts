@@ -1,18 +1,21 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { mfaResetBulkRequestSchema } from '@b2b/contracts';
+import { mfaResetBulkRequestSchema, mfaOrgPolicyRequestSchema } from '@b2b/contracts';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
+import type { MfaOrgPolicyService } from './services/mfa-org-policy-service.js';
 
 type RequireAdminFactory = (
   permission?: string,
 ) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 
 /**
- * Admin MFA management endpoints (feature 042, US6). 2FA reset is a
- * Platform-Admin capability (`mfa:reset`). Every reset is audited.
+ * Admin MFA management endpoints (feature 042). 2FA reset is a Platform-Admin
+ * capability (`mfa:reset`, US6); per-organization enforcement is `mfa:manage`
+ * (US3). Every mutation is audited.
  */
 export interface MfaAdminDeps {
   enrolmentService: MfaEnrolmentService;
+  orgPolicyService: MfaOrgPolicyService;
   auditLogService: AuditLogService;
   requireAdmin: RequireAdminFactory;
   resolveAdminActor: (req: FastifyRequest) => { adminUserId: string };
@@ -87,6 +90,27 @@ export async function registerMfaAdminRoutes(
         ...(request.ip ? { ipAddress: request.ip } : {}),
       });
       return { data: { requested, affected, skipped: requested - affected } };
+    },
+  );
+
+  // Per-organization enforcement (FR-014, US3).
+  app.post<{ Params: { organizationId: string } }>(
+    '/api/v1/admin/organizations/:organizationId/mfa-policy',
+    { preHandler: requireAdmin('mfa:manage'), schema: { body: mfaOrgPolicyRequestSchema } },
+    async (request) => {
+      const body = mfaOrgPolicyRequestSchema.parse(request.body);
+      const { organizationId } = request.params;
+      const actor = resolveAdminActor(request).adminUserId;
+      const res = await deps.orgPolicyService.setEnforcement(organizationId, body.enforceTotp, actor);
+      await auditLogService.record({
+        actorAdminUserId: actor,
+        action: 'mfa.org_enforced',
+        objectType: 'organization',
+        objectId: organizationId,
+        stateAfter: { enforceTotp: body.enforceTotp },
+        ...(request.ip ? { ipAddress: request.ip } : {}),
+      });
+      return { data: res };
     },
   );
 }

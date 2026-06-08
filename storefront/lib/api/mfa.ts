@@ -1,6 +1,63 @@
 import { apiMutate, apiGetAuthed } from './mutations';
 import type { RequestContext } from './client';
 
+function pickSessionCookie(setCookie: string[]): string | null {
+  for (const header of setCookie) {
+    const match = /(?:^|;\s*)?b2b_session=([^;]+)/.exec(header);
+    if (match) return match[1] ?? null;
+  }
+  return null;
+}
+
+/**
+ * Feature 042 US3 — enforced-but-unenrolled setup-ticket flow. `begin` returns
+ * the secret for the forced-setup screen; `complete` activates and returns a
+ * session cookie.
+ */
+export async function beginMfaSetupTicket(
+  setupTicket: string,
+  ctx?: RequestContext,
+): Promise<{ secret: string; otpauthUri: string }> {
+  const res = await apiMutate<{ secret: string; otpauthUri: string }>({
+    method: 'POST',
+    path: '/api/v1/auth/customer/mfa/setup-ticket/begin',
+    body: { setupTicket },
+    ...(ctx ? { ctx } : {}),
+  });
+  return res.data!;
+}
+
+export async function completeMfaSetupTicket(
+  setupTicket: string,
+  code: string,
+  ctx?: RequestContext,
+): Promise<{ recoveryCodes: string[]; sessionCookieValue: string | null }> {
+  const res = await apiMutate<{ status: 'authenticated'; recoveryCodes: string[] }>({
+    method: 'POST',
+    path: '/api/v1/auth/customer/mfa/setup-ticket/complete',
+    body: { setupTicket, code },
+    ...(ctx ? { ctx } : {}),
+  });
+  return {
+    recoveryCodes: res.data!.recoveryCodes,
+    sessionCookieValue: pickSessionCookie(res.setCookie),
+  };
+}
+
+/** Feature 042 US3 — org-admin sets per-organization 2FA enforcement. */
+export async function setOrganizationMfaPolicy(
+  sessionCookie: string,
+  enforceTotp: boolean,
+): Promise<{ enforceTotp: boolean }> {
+  const res = await apiMutate<{ enforceTotp: boolean }>({
+    method: 'PUT',
+    path: '/api/v1/account/organization/mfa-policy',
+    body: { enforceTotp },
+    sessionCookie,
+  });
+  return res.data!;
+}
+
 /**
  * Storefront self-service 2FA wrappers (feature 042, US1). All calls are made
  * with the customer's `b2b_session` cookie (server-side; the cookie is

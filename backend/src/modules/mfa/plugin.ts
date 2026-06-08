@@ -12,10 +12,12 @@ import {
 } from './services/mfa-policy-resolver.js';
 import { MfaLoginService } from './services/mfa-login-service.js';
 import { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
+import { MfaOrgPolicyService } from './services/mfa-org-policy-service.js';
 import { SecretCipher } from './services/secret-cipher.js';
 import { registerMfaPublicRoutes } from './routes.public.js';
 import { registerMfaSelfServiceRoutes } from './routes.self-service.js';
 import { registerMfaAdminRoutes } from './routes.admin.js';
+import { registerMfaOrgRoutes } from './routes.org.js';
 
 type RequireAdminFactory = (
   permission?: string,
@@ -53,6 +55,10 @@ export interface MfaModuleOptions {
   resolveAdminActor?: (req: FastifyRequest) => { adminUserId: string };
   /** Lists an organization's customer-account ids (US6 bulk reset). */
   resolveOrganizationCustomerIds?: (organizationId: string) => Promise<string[]>;
+  /** Resolves an org-admin customer's org + asserts the role (US3 storefront). */
+  resolveOrgAdmin?: (
+    req: FastifyRequest,
+  ) => Promise<{ organizationId: string; actor: string }>;
   resolveAccountEmail?: (
     subjectType: 'customer' | 'admin',
     subjectId: string,
@@ -94,12 +100,15 @@ export function mfaModule(options: MfaModuleOptions): {
     policyResolver,
     enrolmentService ?? undefined,
   );
+  const orgPolicyService = new MfaOrgPolicyService(options.emFactory);
 
   const plugin: ModulePlugin = async (app) => {
     if (!enrolmentService) return; // enrolment disabled without an encryption key
     await registerMfaPublicRoutes(app, {
       loginService,
       sessionService: options.sessionService,
+      challengeStore,
+      enrolmentService,
     });
     const emailOpt = options.resolveAccountEmail
       ? { resolveAccountEmail: options.resolveAccountEmail }
@@ -121,7 +130,16 @@ export function mfaModule(options: MfaModuleOptions): {
       ...emailOpt,
       ...pwdOpt,
     });
-    // Admin user self-service (US2) + admin reset (US6).
+    // Storefront org-admin enforcement (US3).
+    if (options.resolveOrgAdmin) {
+      await registerMfaOrgRoutes(app, {
+        orgPolicyService,
+        auditLogService: options.auditLogService,
+        requireCustomer: options.requireCustomer,
+        resolveOrgAdmin: options.resolveOrgAdmin,
+      });
+    }
+    // Admin user self-service (US2) + admin reset (US6) + org enforcement (US3).
     const { requireAdmin, resolveAdminActor } = options;
     if (requireAdmin && resolveAdminActor) {
       await registerMfaSelfServiceRoutes(app, {
@@ -138,6 +156,7 @@ export function mfaModule(options: MfaModuleOptions): {
       });
       await registerMfaAdminRoutes(app, {
         enrolmentService,
+        orgPolicyService,
         auditLogService: options.auditLogService,
         requireAdmin,
         resolveAdminActor,

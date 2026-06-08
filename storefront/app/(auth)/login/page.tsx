@@ -2,11 +2,13 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { loginCustomer } from '../../../lib/api/auth';
+import { beginMfaSetupTicket } from '../../../lib/api/mfa';
 import { StorefrontApiError } from '../../../lib/api/client';
 import {
   clearAnonCartCookie,
   setCartMergeFlash,
   setMfaChallengeCookie,
+  setMfaSetupTicketCookie,
   setSessionCookie,
 } from '../../../lib/session';
 import { Hook } from '../../../components/Hook';
@@ -92,13 +94,22 @@ async function loginAction(formData: FormData): Promise<void> {
     redirect(`/login/mfa?next=${encodeURIComponent(next)}`);
   }
   if (result.status === 'mfaSetupRequired') {
-    // Enforced-but-unenrolled. The forced-setup screen ships with US3; until
-    // then, point the customer at an actionable message.
-    redirect(
-      `/login?error=${encodeURIComponent(
-        'Two-factor authentication is required for your account. Please contact support to finish setup.',
-      )}&next=${encodeURIComponent(next)}`,
-    );
+    // Enforced-but-unenrolled — begin enrolment with the ticket and route to the
+    // forced-setup screen (the secret rides in an httpOnly cookie, not the URL).
+    let begun;
+    try {
+      begun = await beginMfaSetupTicket(result.setupTicket);
+    } catch {
+      redirect(
+        `/login?error=${encodeURIComponent('Could not start two-factor setup. Please try again.')}&next=${encodeURIComponent(next)}`,
+      );
+    }
+    await setMfaSetupTicketCookie({
+      setupTicket: result.setupTicket,
+      secret: begun.secret,
+      otpauthUri: begun.otpauthUri,
+    });
+    redirect(`/login/setup?next=${encodeURIComponent(next)}`);
   }
   if (!result.sessionCookieValue) {
     redirect(

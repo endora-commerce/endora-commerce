@@ -72,6 +72,22 @@ export const mfaActivateResponseSchema = z.object({
 });
 export type MfaActivateResponse = z.infer<typeof mfaActivateResponseSchema>;
 
+/**
+ * Enforced-but-unenrolled flow (feature 042, US3). The setup ticket replaces a
+ * session for the forced-enrolment screen: `begin` returns the secret, and
+ * `complete` activates + upgrades the ticket to a full session.
+ */
+export const mfaSetupTicketBeginSchema = z.object({
+  setupTicket: z.string().min(1),
+});
+export type MfaSetupTicketBegin = z.infer<typeof mfaSetupTicketBeginSchema>;
+
+export const mfaSetupTicketCompleteSchema = z.object({
+  setupTicket: z.string().min(1),
+  code: z.string().length(6),
+});
+export type MfaSetupTicketComplete = z.infer<typeof mfaSetupTicketCompleteSchema>;
+
 /** Re-auth for self-disable: current password, or a current TOTP/recovery code. */
 export const mfaDisableRequestSchema = z
   .object({
