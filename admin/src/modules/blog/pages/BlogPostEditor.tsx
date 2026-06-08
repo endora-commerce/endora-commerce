@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { useTranslation } from '@/i18n/useTranslation';
+import { normalize } from '@/lib/admin-actions/normalize';
 import { ContentLanguageTabs } from '../../cms/components/ContentLanguageTabs';
 import { PageBuilderEditor } from '../../cms/components/PageBuilderEditor';
 import { ScopePicker, type CmsScopeValue } from '../../cms/components/ScopePicker';
@@ -38,6 +39,20 @@ const blankForm: FormState = {
   metaKeywords: '',
 };
 
+/**
+ * Build a URL slug from a free-text title. Reuses the diacritic-folding
+ * `normalize` helper (so Polish "Łatwy poradnik" → "latwy-poradnik"), then
+ * collapses any run of non-alphanumerics to a single hyphen and trims to the
+ * 160-char limit enforced by the slug validation regex.
+ */
+function slugify(input: string): string {
+  return normalize(input)
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+/, '')
+    .slice(0, 160)
+    .replace(/-+$/, '');
+}
+
 function dataFor(post: BlogPostDetail | null, language: string | null): Data | null {
   if (!post || !language) return null;
   const tree = post.content.languages[language];
@@ -57,6 +72,10 @@ export function BlogPostEditor(): ReactNode {
   const navigate = useNavigate();
   const [post, setPost] = useState<BlogPostDetail | null>(null);
   const [form, setForm] = useState<FormState>(blankForm);
+  // For a new post, slug + meta title are auto-derived from the title until the
+  // editor types in either field, at which point that field stops auto-syncing.
+  const [slugEdited, setSlugEdited] = useState(false);
+  const [metaTitleEdited, setMetaTitleEdited] = useState(false);
   const [scope, setScope] = useState<CmsScopeValue>({
     salesChannelIds: [],
     languages: ['en-US'],
@@ -390,7 +409,17 @@ export function BlogPostEditor(): ReactNode {
               <Input
                 id="post-name"
                 value={form.name}
-                onChange={(event) => setForm((f) => ({ ...f, name: event.target.value }))}
+                onChange={(event) => {
+                  const name = event.target.value;
+                  setForm((f) => ({
+                    ...f,
+                    name,
+                    // New post: keep slug + meta title in sync with the title
+                    // until the editor overrides either one.
+                    ...(isNew && !slugEdited ? { slug: slugify(name) } : {}),
+                    ...(isNew && !metaTitleEdited ? { metaTitle: name } : {}),
+                  }));
+                }}
                 placeholder={t('postEditor.namePlaceholder')}
               />
             </div>
@@ -399,9 +428,10 @@ export function BlogPostEditor(): ReactNode {
               <Input
                 id="post-slug"
                 value={form.slug}
-                onChange={(event) =>
-                  setForm((f) => ({ ...f, slug: event.target.value.toLowerCase() }))
-                }
+                onChange={(event) => {
+                  setSlugEdited(true);
+                  setForm((f) => ({ ...f, slug: event.target.value.toLowerCase() }));
+                }}
                 className="font-mono"
                 placeholder="best-cordless-trimmers-2026"
               />
@@ -414,9 +444,10 @@ export function BlogPostEditor(): ReactNode {
               <Input
                 id="post-meta-title"
                 value={form.metaTitle}
-                onChange={(event) =>
-                  setForm((f) => ({ ...f, metaTitle: event.target.value }))
-                }
+                onChange={(event) => {
+                  setMetaTitleEdited(true);
+                  setForm((f) => ({ ...f, metaTitle: event.target.value }));
+                }}
               />
             </div>
             <div>
