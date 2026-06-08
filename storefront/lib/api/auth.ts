@@ -59,11 +59,14 @@ export async function verifyEmail(
 export interface LoginCustomerPayload {
   email: string;
   password: string;
-  twoFactorCode?: string;
 }
 
 interface LoginCustomerResponseData {
-  customerAccount: {
+  /** Feature 042 — two-step login discriminator. */
+  status: 'authenticated' | 'mfaRequired' | 'mfaSetupRequired';
+  challengeId?: string;
+  setupTicket?: string;
+  customerAccount?: {
     id: string;
     email: string;
     organizationId: string;
@@ -79,13 +82,14 @@ interface LoginCustomerResponseData {
   cartMerge?: CartMergeOutcomePublic | null;
 }
 
-export interface LoginCustomerResult {
-  customerAccount: LoginCustomerResponseData['customerAccount'];
-  /** Raw `b2b_session` cookie value the storefront should persist. */
-  sessionCookieValue: string | null;
-  /** Outcome of the cart-merge step, or `null` when the request carried no anon cart. */
-  cartMerge: CartMergeOutcomePublic | null;
-}
+export type LoginCustomerResult =
+  | {
+      status: 'authenticated';
+      sessionCookieValue: string | null;
+      cartMerge: CartMergeOutcomePublic | null;
+    }
+  | { status: 'mfaRequired'; challengeId: string }
+  | { status: 'mfaSetupRequired'; setupTicket: string };
 
 export async function loginCustomer(
   payload: LoginCustomerPayload,
@@ -97,13 +101,33 @@ export async function loginCustomer(
     body: payload,
     ...(ctx ? { ctx } : {}),
   });
-  // The session cookie comes back in Set-Cookie; the storefront persists it via setSessionCookie.
-  const cookieValue = pickSessionCookie(result.setCookie);
+  const data = result.data!;
+  if (data.status === 'mfaRequired') {
+    return { status: 'mfaRequired', challengeId: data.challengeId! };
+  }
+  if (data.status === 'mfaSetupRequired') {
+    return { status: 'mfaSetupRequired', setupTicket: data.setupTicket! };
+  }
+  // The session cookie comes back in Set-Cookie; persisted via setSessionCookie.
   return {
-    customerAccount: result.data!.customerAccount,
-    sessionCookieValue: cookieValue,
-    cartMerge: result.data!.cartMerge ?? null,
+    status: 'authenticated',
+    sessionCookieValue: pickSessionCookie(result.setCookie),
+    cartMerge: data.cartMerge ?? null,
   };
+}
+
+/** Feature 042 — complete the second step; returns the new session cookie. */
+export async function verifyCustomerMfa(
+  payload: { challengeId: string; code: string },
+  ctx?: RequestContext,
+): Promise<{ sessionCookieValue: string | null }> {
+  const result = await apiMutate<{ status: 'authenticated' }>({
+    method: 'POST',
+    path: '/api/v1/auth/customer/mfa/verify',
+    body: payload,
+    ...(ctx ? { ctx } : {}),
+  });
+  return { sessionCookieValue: pickSessionCookie(result.setCookie) };
 }
 
 export interface RegisterStandaloneCustomerPayload {

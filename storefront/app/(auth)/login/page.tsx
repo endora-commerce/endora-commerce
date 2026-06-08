@@ -6,6 +6,7 @@ import { StorefrontApiError } from '../../../lib/api/client';
 import {
   clearAnonCartCookie,
   setCartMergeFlash,
+  setMfaChallengeCookie,
   setSessionCookie,
 } from '../../../lib/session';
 import { Hook } from '../../../components/Hook';
@@ -51,16 +52,6 @@ export default async function LoginPage({
               placeholder=" "
             />
           </div>
-          <div className="b2b-auth__field">
-            <label htmlFor="login-2fa">Two-factor code (if enabled)</label>
-            <input
-              id="login-2fa"
-              name="twoFactorCode"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              placeholder="123456"
-            />
-          </div>
           <div className="b2b-auth__actions">
             <button type="submit">Sign in</button>
           </div>
@@ -81,7 +72,6 @@ async function loginAction(formData: FormData): Promise<void> {
   'use server';
   const email = (formData.get('email') as string) ?? '';
   const password = (formData.get('password') as string) ?? '';
-  const twoFactorCode = (formData.get('twoFactorCode') as string | null) || undefined;
   const next = sanitiseNext((formData.get('next') as string) ?? '/account');
 
   // Only the network/auth call is wrapped — the `redirect()` calls below must
@@ -89,15 +79,26 @@ async function loginAction(formData: FormData): Promise<void> {
   // is caught here and re-routed into the error branch, blanking the page.
   let result;
   try {
-    result = await loginCustomer({
-      email,
-      password,
-      ...(twoFactorCode ? { twoFactorCode } : {}),
-    });
+    result = await loginCustomer({ email, password });
   } catch (err) {
     const message =
       err instanceof StorefrontApiError ? err.detail : 'Sign-in failed. Please try again.';
     redirect(`/login?error=${encodeURIComponent(message)}&next=${encodeURIComponent(next)}`);
+  }
+  // Feature 042 — two-step login. An account with active 2FA gets routed to the
+  // second-step code screen; the opaque challenge id rides in an httpOnly cookie.
+  if (result.status === 'mfaRequired') {
+    await setMfaChallengeCookie(result.challengeId);
+    redirect(`/login/mfa?next=${encodeURIComponent(next)}`);
+  }
+  if (result.status === 'mfaSetupRequired') {
+    // Enforced-but-unenrolled. The forced-setup screen ships with US3; until
+    // then, point the customer at an actionable message.
+    redirect(
+      `/login?error=${encodeURIComponent(
+        'Two-factor authentication is required for your account. Please contact support to finish setup.',
+      )}&next=${encodeURIComponent(next)}`,
+    );
   }
   if (!result.sessionCookieValue) {
     redirect(

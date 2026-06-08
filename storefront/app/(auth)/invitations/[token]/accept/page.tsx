@@ -92,8 +92,10 @@ async function acceptInvitationAction(formData: FormData): Promise<void> {
       email: customerAccount.email,
       password,
     });
-    if (!login.sessionCookieValue) {
-      redirectWithError('Account created but session could not be started. Sign in manually.');
+    // Feature 042 — a 2FA-protected/enforced account must finish the second
+    // step via the normal login flow.
+    if (login.status !== 'authenticated' || !login.sessionCookieValue) {
+      redirectWithError('Account created. Please sign in to continue.');
       return;
     }
     await setSessionCookie(login.sessionCookieValue);
