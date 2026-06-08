@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { ERROR_CODES, impersonationRequestSchema } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import { SESSION_COOKIE_NAME } from '../auth/plugin.js';
+import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '../auth/plugin.js';
 import type { ImpersonationService } from './services/impersonation-service.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
@@ -45,7 +45,10 @@ export async function registerImpersonationRoutes(
       const adminId = request.testActor.adminUserId;
 
       const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
-      const adminCookie = cookies?.[SESSION_COOKIE_NAME] ?? '';
+      // The admin's own session lives in the dedicated admin cookie; fall back to
+      // the legacy customer-cookie name so older sessions / test stubs still work.
+      const adminCookie =
+        cookies?.[ADMIN_SESSION_COOKIE_NAME] ?? cookies?.[SESSION_COOKIE_NAME] ?? '';
       // For tests, the stub-admin-session cookie isn't a real session value —
       // we treat the entire raw cookie as the shadow regardless. End() will
       // refuse to restore a stub cookie that no longer resolves.
@@ -105,14 +108,28 @@ export async function registerImpersonationRoutes(
       requestId: request.id,
     });
 
-    setSessionCookie(reply, result.adminSessionCookieValue, result.adminSessionExpiresAt);
+    // Restore the admin session into the admin cookie and drop the impersonation
+    // session from the customer cookie, so ending impersonation leaves the admin
+    // signed in to the Admin UI but no longer acting as the customer.
+    setAdminSessionCookie(reply, result.adminSessionCookieValue, result.adminSessionExpiresAt);
+    reply.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
     reply.clearCookie(ADMIN_SHADOW_COOKIE, { path: '/' });
     return { data: { restored: true } };
   });
 }
 
+/** Set the impersonation (customer-scoped) session in the customer cookie. */
 function setSessionCookie(reply: FastifyReply, value: string, expiresAt: Date): void {
-  reply.setCookie(SESSION_COOKIE_NAME, value, {
+  setCookie(reply, SESSION_COOKIE_NAME, value, expiresAt);
+}
+
+/** Set the admin session in the dedicated admin cookie. */
+function setAdminSessionCookie(reply: FastifyReply, value: string, expiresAt: Date): void {
+  setCookie(reply, ADMIN_SESSION_COOKIE_NAME, value, expiresAt);
+}
+
+function setCookie(reply: FastifyReply, name: string, value: string, expiresAt: Date): void {
+  reply.setCookie(name, value, {
     path: '/',
     httpOnly: true,
     sameSite: 'lax',

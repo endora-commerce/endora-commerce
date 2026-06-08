@@ -7,7 +7,7 @@ import {
   customerAddressInputSchema,
   validateCustomerVatRequestSchema,
 } from '@b2b/contracts';
-import { SESSION_COOKIE_NAME } from '../auth/plugin.js';
+import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '../auth/plugin.js';
 import type { CustomerModerationService } from './services/customer-moderation-service.js';
 import type { CustomerAdminQueryService } from './services/customer-admin-query-service.js';
 import type { CustomerOrgAssignmentService } from './services/customer-org-assignment-service.js';
@@ -196,7 +196,10 @@ export async function registerCustomersAdminRoutes(
       const actor = await resolveModerationActor(request);
       const body = startImpersonationRequestSchema.parse(request.body ?? {});
       const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
-      const adminCookie = cookies?.[SESSION_COOKIE_NAME] ?? '';
+      // Admin session lives in the dedicated admin cookie; fall back to the
+      // legacy customer-cookie name so older sessions / test stubs still work.
+      const adminCookie =
+        cookies?.[ADMIN_SESSION_COOKIE_NAME] ?? cookies?.[SESSION_COOKIE_NAME] ?? '';
 
       const result = await impersonationService.start({
         adminUserId: actor.adminUserId,

@@ -147,9 +147,27 @@ export function registerTestAuth(app: FastifyInstance, deps: TestAuthDeps): void
     };
 
     const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
+
+    // Admin sessions live in a dedicated cookie so they can coexist with a
+    // customer session. Resolve it as a fallback candidate; the customer
+    // cookie (below) takes ambient precedence, matching the production plugin.
+    const adminRaw = cookies?.['b2b_admin_session'];
+    let adminCandidate: TestActor | null = null;
+    if (adminRaw) {
+      if (adminRaw.includes('.')) {
+        const resolvedAdmin = await deps.sessionService.loadSession(adminRaw);
+        if (resolvedAdmin?.kind === 'admin' && resolvedAdmin.session.adminUserId) {
+          adminCandidate = { kind: 'admin', adminUserId: resolvedAdmin.session.adminUserId };
+        }
+      }
+      if (!adminCandidate && ADMIN_COOKIES[adminRaw]) {
+        adminCandidate = { kind: 'admin', adminUserId: ADMIN_COOKIES[adminRaw]!.adminUserId };
+      }
+    }
+
     const raw = cookies?.['b2b_session'];
     if (!raw) {
-      setActor({ kind: 'anonymous' });
+      setActor(adminCandidate ?? { kind: 'anonymous' });
       return;
     }
 
@@ -201,7 +219,7 @@ export function registerTestAuth(app: FastifyInstance, deps: TestAuthDeps): void
       setActor({ kind: 'admin', adminUserId: admin.adminUserId });
       return;
     }
-    setActor({ kind: 'anonymous' });
+    setActor(adminCandidate ?? { kind: 'anonymous' });
   });
 }
 

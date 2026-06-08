@@ -10,8 +10,10 @@ import {
 import { ApiError, apiClient, onUnauthorized } from './api-client.js';
 
 /**
- * Admin auth context. The session lives in the `b2b_session` httpOnly cookie
- * issued by `POST /api/v1/auth/admin/login`; this client polls
+ * Admin auth context. The session lives in the `b2b_admin_session` httpOnly
+ * cookie issued by `POST /api/v1/auth/admin/login` — a cookie distinct from the
+ * storefront's `b2b_session` so an admin and a customer can be signed in at the
+ * same time in one browser; this client polls
  * `GET /api/v1/admin/me` on mount to learn whether a session exists and to
  * fetch the current admin's role + permissions for permission-aware UI gates.
  */

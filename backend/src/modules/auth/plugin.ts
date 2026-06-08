@@ -42,6 +42,8 @@ export type Actor = ActorAnonymous | ActorCustomer | ActorAdmin | ActorApiKey;
 declare module 'fastify' {
   interface FastifyRequest {
     actor: Actor;
+    /** Admin session resolved from the dedicated admin cookie, if any. */
+    adminActor: ActorAdmin | null;
   }
 }
 
@@ -55,14 +57,38 @@ export interface AuthPluginOptions {
    * route handlers don't have to re-fetch the CustomerAccount per request.
    */
   customerOrgResolver?: (customerAccountId: string) => Promise<string | null>;
-  /** Cookie name used to carry sessions. */
+  /** Cookie name used to carry customer (storefront) sessions. */
   cookieName?: string;
+  /** Cookie name used to carry admin (Admin UI) sessions. */
+  adminCookieName?: string;
 }
 
+/**
+ * Customer (storefront) sessions live in `b2b_session`; admin (Admin UI)
+ * sessions live in a **separate** `b2b_admin_session` cookie. Using two distinct
+ * cookie names lets a customer stay signed in on the storefront while an admin is
+ * signed in on the Admin UI in the same browser — on a shared host (e.g. all
+ * `localhost` ports) a single cookie name would clobber the other on every login.
+ */
 export const SESSION_COOKIE_NAME = 'b2b_session';
+export const ADMIN_SESSION_COOKIE_NAME = 'b2b_admin_session';
+
+/**
+ * If the request carries a valid admin session (resolved into `request.adminActor`
+ * by the auth plugin) but its ambient `request.actor` is not already an admin,
+ * promote the admin candidate. Admin guards call this so an admin route works
+ * even when a customer session is simultaneously present on the same request.
+ */
+export function promoteAdminActor(request: FastifyRequest): void {
+  const r = request as FastifyRequest & { adminActor?: ActorAdmin | null };
+  if (request.actor.kind !== 'admin' && r.adminActor) {
+    request.actor = r.adminActor;
+  }
+}
 
 async function authPluginImpl(app: FastifyInstance, opts: AuthPluginOptions): Promise<void> {
   const cookieName = opts.cookieName ?? SESSION_COOKIE_NAME;
+  const adminCookieName = opts.adminCookieName ?? ADMIN_SESSION_COOKIE_NAME;
 
   // Fastify 5 forbids reference-type defaults on decorateRequest (they'd be
   // shared across requests). Use a getter / setter pair backed by a
@@ -79,10 +105,24 @@ async function authPluginImpl(app: FastifyInstance, opts: AuthPluginOptions): Pr
     },
   });
 
+  // Admin session candidate, resolved from the admin cookie independently of the
+  // customer actor so both can coexist on one request.
+  const adminActorSlot = Symbol('b2b-auth.adminActor');
+  app.decorateRequest('adminActor', {
+    getter(): ActorAdmin | null {
+      const self = this as unknown as Record<symbol, ActorAdmin | null | undefined>;
+      return self[adminActorSlot] ?? null;
+    },
+    setter(value: ActorAdmin | null): void {
+      (this as unknown as Record<symbol, ActorAdmin | null>)[adminActorSlot] = value;
+    },
+  });
+
   app.addHook('onRequest', async (request: FastifyRequest) => {
     // Initialise to anonymous; downstream branches may overwrite with a
     // typed customer / admin / api_key actor.
     request.actor = { kind: 'anonymous' };
+    request.adminActor = null;
 
     // 1. API key (Bearer) beats cookie — integrations pass Authorization: Bearer ...
     const authHeader = request.headers.authorization;
@@ -97,42 +137,61 @@ async function authPluginImpl(app: FastifyInstance, opts: AuthPluginOptions): Pr
       return;
     }
 
-    // 2. Cookie → session lookup.
     const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
-    const raw = cookies?.[cookieName];
-    if (!raw) return;
-    const resolved = await opts.sessionService.loadSession(raw);
-    if (!resolved) return;
 
-    const session = resolved.session;
-    if (resolved.kind === 'admin' && session.adminUserId) {
-      request.actor = { kind: 'admin', adminUserId: session.adminUserId, session };
-      return;
+    // 2a. Admin cookie → admin session candidate (kept separate so it can
+    // coexist with a customer session in the same browser).
+    const adminRaw = cookies?.[adminCookieName];
+    if (adminRaw) {
+      const resolvedAdmin = await opts.sessionService.loadSession(adminRaw);
+      if (resolvedAdmin?.kind === 'admin' && resolvedAdmin.session.adminUserId) {
+        request.adminActor = {
+          kind: 'admin',
+          adminUserId: resolvedAdmin.session.adminUserId,
+          session: resolvedAdmin.session,
+        };
+      }
     }
-    if (resolved.kind === 'impersonation' && session.customerAccountId) {
-      const orgId = opts.customerOrgResolver
-        ? (await opts.customerOrgResolver(session.customerAccountId)) ?? ''
-        : '';
-      request.actor = {
-        kind: 'customer',
-        customerAccountId: session.customerAccountId,
-        organizationId: orgId,
-        impersonatorAdminUserId: session.impersonatorAdminUserId ?? null,
-        session,
-      };
-      return;
+
+    // 2b. Customer cookie → the ambient actor for public + customer routes.
+    const raw = cookies?.[cookieName];
+    if (raw) {
+      const resolved = await opts.sessionService.loadSession(raw);
+      if (resolved) {
+        const session = resolved.session;
+        if (resolved.kind === 'impersonation' && session.customerAccountId) {
+          const orgId = opts.customerOrgResolver
+            ? (await opts.customerOrgResolver(session.customerAccountId)) ?? ''
+            : '';
+          request.actor = {
+            kind: 'customer',
+            customerAccountId: session.customerAccountId,
+            organizationId: orgId,
+            impersonatorAdminUserId: session.impersonatorAdminUserId ?? null,
+            session,
+          };
+        } else if (resolved.kind === 'customer' && session.customerAccountId) {
+          const orgId = opts.customerOrgResolver
+            ? (await opts.customerOrgResolver(session.customerAccountId)) ?? ''
+            : '';
+          request.actor = {
+            kind: 'customer',
+            customerAccountId: session.customerAccountId,
+            organizationId: orgId,
+            impersonatorAdminUserId: null,
+            session,
+          };
+        }
+        // An admin-kind session in the customer cookie (legacy) is ignored;
+        // admins now authenticate via the dedicated admin cookie.
+      }
     }
-    if (resolved.kind === 'customer' && session.customerAccountId) {
-      const orgId = opts.customerOrgResolver
-        ? (await opts.customerOrgResolver(session.customerAccountId)) ?? ''
-        : '';
-      request.actor = {
-        kind: 'customer',
-        customerAccountId: session.customerAccountId,
-        organizationId: orgId,
-        impersonatorAdminUserId: null,
-        session,
-      };
+
+    // 3. If no customer/anonymous identity was established but an admin session
+    // exists, expose it as the ambient actor too, so admin flows that read
+    // `request.actor` without first running an admin guard still resolve.
+    if (request.actor.kind === 'anonymous' && request.adminActor) {
+      request.actor = request.adminActor;
     }
   });
 
