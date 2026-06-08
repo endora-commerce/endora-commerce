@@ -39,6 +39,12 @@ function label(a: AddressSummary): string {
   return `${a.recipientName} — ${a.street}, ${a.postalCode} ${a.city}, ${a.country}`;
 }
 
+// Shared Tailwind styling for the checkout form controls, matching the rest of
+// the storefront (border-line / surface tokens, brand focus ring).
+const FIELD_CLASS =
+  'h-[40px] w-full rounded-sm border border-line bg-surface px-[12px] text-[14px] text-fg outline-none transition-[border-color,box-shadow] duration-150 hover:border-line-strong focus:border-[color:var(--brand-600)] focus:shadow-[0_0_0_3px_rgba(37,99,235,0.16)]';
+const SELECT_CLASS = 'industria-select h-[40px] w-full pr-[32px] text-[14px] text-fg';
+
 function NewAddressFields({
   prefix,
   required,
@@ -55,29 +61,38 @@ function NewAddressFields({
         name={`${prefix}_recipientName`}
         placeholder={t('checkout.address.recipientName')}
         required={required}
+        className={FIELD_CLASS}
       />
       <input
         name={`${prefix}_street`}
         placeholder={t('checkout.address.street')}
         required={required}
+        className={FIELD_CLASS}
       />
       <input
         name={`${prefix}_postalCode`}
         placeholder={t('checkout.address.postalCode')}
         required={required}
+        className={FIELD_CLASS}
       />
       <input
         name={`${prefix}_city`}
         placeholder={t('checkout.address.city')}
         required={required}
+        className={FIELD_CLASS}
       />
       <input
         name={`${prefix}_country`}
         placeholder={t('checkout.address.country')}
         required={required}
         maxLength={2}
+        className={FIELD_CLASS}
       />
-      <input name={`${prefix}_phone`} placeholder={t('checkout.address.phone')} />
+      <input
+        name={`${prefix}_phone`}
+        placeholder={t('checkout.address.phone')}
+        className={FIELD_CLASS}
+      />
     </div>
   );
 }
@@ -128,7 +143,7 @@ export function AddressSection({
         </label>
 
         {shippingMode === 'saved' && deliveryAddresses.length > 0 ? (
-          <select name="deliveryAddressId" defaultValue={deliveryDefaultId}>
+          <select name="deliveryAddressId" defaultValue={deliveryDefaultId} className={SELECT_CLASS}>
             {deliveryAddresses.map((a) => (
               <option key={a.id} value={a.id}>
                 {label(a)}
@@ -175,7 +190,7 @@ export function AddressSection({
           </label>
 
           {billingMode === 'saved' && billingAddresses.length > 0 ? (
-            <select name="billingAddressId" defaultValue={billingDefaultId}>
+            <select name="billingAddressId" defaultValue={billingDefaultId} className={SELECT_CLASS}>
               {billingAddresses.map((a) => (
                 <option key={a.id} value={a.id}>
                   {label(a)}
