@@ -104,3 +104,4 @@ export * from './modules.js';
 export * from './admin-actions.js';
 export * from './product-scope-overrides.js';
 export * from './product-value-resolver.js';
+export * from './mfa.js';
