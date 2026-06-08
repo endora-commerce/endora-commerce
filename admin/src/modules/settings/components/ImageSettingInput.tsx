@@ -11,6 +11,25 @@ interface Props {
   onChange: (next: string) => void;
 }
 
+const BACKEND_BASE_URL =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
+
+/**
+ * Asset URLs from the Assets Library are host-relative (e.g. `/assets/file/<id>`)
+ * when no public base is configured. The admin (and the storefront) run on a
+ * different origin than the backend, so a relative URL fails to load there.
+ * Resolve it against the backend origin so the stored placeholder is a fully
+ * qualified URL that renders in the preview here AND on the storefront. Absolute
+ * (and protocol-relative) URLs pass through unchanged.
+ */
+function toAbsoluteAssetUrl(url: string): string {
+  const trimmed = url.trim();
+  if (trimmed === '') return '';
+  if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith('//')) return trimmed;
+  if (trimmed.startsWith('/')) return `${BACKEND_BASE_URL.replace(/\/+$/, '')}${trimmed}`;
+  return trimmed;
+}
+
 /**
  * Editor for string settings that hold an image URL (e.g. the product-image
  * placeholder). Instead of forcing the admin to paste a URL, it offers a
@@ -29,7 +48,7 @@ export function ImageSettingInput({ value, onChange }: Props): ReactNode {
         <div className="flex items-center gap-3 rounded-md border bg-muted/20 p-2">
           {/* eslint-disable-next-line jsx-a11y/alt-text */}
           <img
-            src={value}
+            src={toAbsoluteAssetUrl(value)}
             className="h-16 w-16 shrink-0 rounded border bg-background object-cover"
           />
           <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{value}</p>
@@ -44,7 +63,7 @@ export function ImageSettingInput({ value, onChange }: Props): ReactNode {
       <AssetUploader
         acceptPrefix="image/"
         defaults={{ visibility: 'public' }}
-        onUploaded={(asset): void => onChange(asset.url)}
+        onUploaded={(asset): void => onChange(toAbsoluteAssetUrl(asset.url))}
         triggerLabel={t('editor.image.upload')}
       />
 
