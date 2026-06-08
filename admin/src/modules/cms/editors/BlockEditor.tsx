@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Textarea } from '@/components/ui/textarea';
 import { useTranslation } from '@/i18n/useTranslation';
+import { normalize } from '@/lib/admin-actions/normalize';
 import { ContentLanguageTabs } from '../components/ContentLanguageTabs';
 import { PageBuilderEditor } from '../components/PageBuilderEditor';
 import { ScopePicker, type CmsScopeValue } from '../components/ScopePicker';
@@ -23,6 +24,21 @@ interface FormState {
 }
 
 const blankForm: FormState = { name: '', code: '', active: true, description: '' };
+
+/**
+ * Derive a CMS block code from a free-text name. Folds diacritics via the
+ * shared `normalize` helper (so "Łatwy blok" → "latwy-blok"), collapses any
+ * run of non-alphanumerics to a single hyphen, trims stray hyphens, and caps
+ * at the 180-char limit. The result is a subset of the `cmsCodeRe` charset
+ * (`[a-z0-9._-]`), so it always validates.
+ */
+function codeFromName(input: string): string {
+  return normalize(input)
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+/, '')
+    .slice(0, 180)
+    .replace(/-+$/, '');
+}
 
 function dataFor(block: CmsBlockDetail | null, language: string | null): Data | null {
   if (!block || !language) return null;
@@ -38,6 +54,9 @@ export function BlockEditor(): ReactNode {
   const navigate = useNavigate();
   const [block, setBlock] = useState<CmsBlockDetail | null>(null);
   const [form, setForm] = useState<FormState>(blankForm);
+  // For a new block the code auto-derives from the name until the editor types
+  // into the code field, at which point it stops auto-syncing.
+  const [codeEdited, setCodeEdited] = useState(false);
   const [scope, setScope] = useState<CmsScopeValue>({ salesChannelIds: [], languages: [] });
   const [activeLanguage, setActiveLanguage] = useState<string | null>(null);
   const [draftData, setDraftData] = useState<Data | null>(null);
@@ -142,11 +161,30 @@ export function BlockEditor(): ReactNode {
             <CardContent className="space-y-3">
               <div className="space-y-1">
                 <Label>{t('fields.name')}</Label>
-                <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+                <Input
+                  value={form.name}
+                  onChange={(event) => {
+                    const name = event.target.value;
+                    setForm((f) => ({
+                      ...f,
+                      name,
+                      // New block: keep the code in sync with the name until
+                      // the editor overrides it.
+                      ...(isNew && !codeEdited ? { code: codeFromName(name) } : {}),
+                    }));
+                  }}
+                />
               </div>
               <div className="space-y-1">
                 <Label>{t('fields.code')}</Label>
-                <Input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
+                <Input
+                  value={form.code}
+                  className="font-mono"
+                  onChange={(event) => {
+                    setCodeEdited(true);
+                    setForm((f) => ({ ...f, code: event.target.value.toLowerCase() }));
+                  }}
+                />
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <input
