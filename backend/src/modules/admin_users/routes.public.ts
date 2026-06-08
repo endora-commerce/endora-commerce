@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { adminLoginRequestSchema } from '@b2b/contracts';
 import type { AdminAuthService } from './services/admin-auth-service.js';
-import { SESSION_COOKIE_NAME } from '../auth/plugin.js';
+import { ADMIN_SESSION_COOKIE_NAME } from '../auth/plugin.js';
 import type { AdminUser } from './entities/admin-user.entity.js';
 
 /**
@@ -38,7 +38,7 @@ export async function registerAdminPublicRoutes(
 
   app.post('/api/v1/auth/admin/logout', async (request, reply) => {
     const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
-    const raw = cookies?.[SESSION_COOKIE_NAME];
+    const raw = cookies?.[ADMIN_SESSION_COOKIE_NAME];
     if (raw) {
       const dot = raw.indexOf('.');
       if (dot !== -1) {
@@ -46,13 +46,13 @@ export async function registerAdminPublicRoutes(
         if (sessionId) await adminAuthService.logout(sessionId);
       }
     }
-    reply.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
+    reply.clearCookie(ADMIN_SESSION_COOKIE_NAME, { path: '/' });
     reply.status(204).send();
   });
 }
 
 function setSessionCookie(reply: FastifyReply, value: string, expiresAt: Date): void {
-  reply.setCookie(SESSION_COOKIE_NAME, value, {
+  reply.setCookie(ADMIN_SESSION_COOKIE_NAME, value, {
     path: '/',
     httpOnly: true,
     sameSite: 'lax',

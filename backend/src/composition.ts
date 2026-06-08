@@ -11,7 +11,7 @@ import type { ModulePlugin } from './http/server.js';
 import type { ErrorEnvelopeOptions } from './http/error-envelope.js';
 import { initOrm, closeOrm } from './db/index.js';
 import { EventBus } from './events/bus.js';
-import { authPlugin } from './modules/auth/plugin.js';
+import { authPlugin, promoteAdminActor } from './modules/auth/plugin.js';
 import { SessionService } from './modules/auth/services/session-service.js';
 import { AuditLogService } from './modules/audit_logs/services/audit-log-service.js';
 import { PermissionService } from './modules/admin_roles/services/permission-service.js';
@@ -165,6 +165,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const requireAdmin =
     (permission?: string) =>
     async (request: FastifyRequest, _reply: FastifyReply): Promise<void> => {
+      promoteAdminActor(request);
       if (request.actor.kind !== 'admin') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
       }

@@ -13,16 +13,22 @@ import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-lo
  * authenticate as anything (its session is destroyed).
  */
 
-interface CookieJar { b2b_session?: string; admin_shadow_session?: string }
+interface CookieJar {
+  b2b_session?: string;
+  b2b_admin_session?: string;
+  admin_shadow_session?: string;
+}
 
 function parseCookies(setCookie: string | string[] | undefined): CookieJar {
   const headers = Array.isArray(setCookie) ? setCookie : [setCookie ?? ''];
   const jar: CookieJar = {};
   for (const h of headers) {
-    const m1 = /b2b_session=([^;]+)/.exec(h);
+    const m1 = /(?:^|; )b2b_session=([^;]+)/.exec(h);
     const m2 = /admin_shadow_session=([^;]+)/.exec(h);
+    const m3 = /b2b_admin_session=([^;]+)/.exec(h);
     if (m1?.[1]) jar.b2b_session = m1[1];
     if (m2?.[1]) jar.admin_shadow_session = m2[1];
+    if (m3?.[1]) jar.b2b_admin_session = m3[1];
   }
   return jar;
 }
@@ -53,14 +59,14 @@ describe('POST /api/v1/admin/impersonation/end', () => {
       },
     });
     expect(login.statusCode).toBe(200);
-    const adminSession = parseCookies(login.headers['set-cookie']).b2b_session!;
+    const adminSession = parseCookies(login.headers['set-cookie']).b2b_admin_session!;
 
-    // Start impersonation with the real admin session.
+    // Start impersonation with the real admin session (admin cookie).
     const start = await h.app.inject({
       method: 'POST',
       url: `/api/v1/admin/organizations/${orgId}/impersonate`,
       payload: { customerAccountId: customerId },
-      cookies: { b2b_session: adminSession },
+      cookies: { b2b_admin_session: adminSession },
     });
     expect(start.statusCode).toBe(200);
     const startCookies = parseCookies(start.headers['set-cookie']);
@@ -83,10 +89,10 @@ describe('POST /api/v1/admin/impersonation/end', () => {
     const after = await h.em().count(AuditLogEntry, { action: 'impersonation.end' });
     expect(after).toBe(before + 1);
 
-    // The original admin session is restored — `b2b_session` is reset to the
-    // shadow cookie value; `admin_shadow_session` is cleared.
+    // The original admin session is restored into the admin cookie; the
+    // impersonation `b2b_session` is cleared and so is `admin_shadow_session`.
     const endCookies = parseCookies(end.headers['set-cookie']);
-    expect(endCookies.b2b_session).toBeDefined();
-    expect(endCookies.b2b_session).not.toBe(impersonationCookie);
+    expect(endCookies.b2b_admin_session).toBeDefined();
+    expect(endCookies.b2b_admin_session).not.toBe(impersonationCookie);
   });
 });

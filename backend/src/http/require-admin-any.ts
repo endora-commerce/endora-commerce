@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from './error-envelope.js';
+import { promoteAdminActor } from '../modules/auth/plugin.js';
 import type { PermissionService } from '../modules/admin_roles/services/permission-service.js';
 
 export type RequireAdminAnyFactory = (
@@ -15,6 +16,7 @@ export function createRequireAdminAny(
   permissionService: PermissionService,
 ): RequireAdminAnyFactory {
   return (codes) => async (request, _reply) => {
+    promoteAdminActor(request);
     if (request.actor.kind !== 'admin') {
       throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
     }
