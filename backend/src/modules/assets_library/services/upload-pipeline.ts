@@ -16,7 +16,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { fileTypeFromBuffer } from 'file-type';
 import { randomUUID } from 'node:crypto';
-import { Readable } from 'node:stream';
+import { Readable, Transform } from 'node:stream';
 import { ERROR_CODES } from '@b2b/contracts';
 
 import { Asset } from '../entities/asset.entity.js';
@@ -147,12 +147,26 @@ export class UploadPipeline {
     });
 
     // — Stream into the adapter (storage-first commit) —
+    // Multipart parts frequently carry no per-part Content-Length, so
+    // `declaredSize` is often 0. Count the bytes as they flow to the adapter so
+    // the persisted `sizeBytes` is accurate; the file-serving route sends this
+    // value as `Content-Length`, and a wrong 0 makes browsers render an empty
+    // image (broken preview in admin and missing placeholder on the storefront).
+    let observedSize = 0;
+    const countingStream = sniffedStream.pipe(
+      new Transform({
+        transform(chunk: Buffer, _enc, cb): void {
+          observedSize += chunk.length;
+          cb(null, chunk);
+        },
+      }),
+    );
     try {
       await adapter.put({
         locator,
         mimeType: sniffedMime,
         visibility: input.visibility,
-        stream: sniffedStream,
+        stream: countingStream,
         sizeBytes: input.declaredSize,
       });
     } catch (err) {
@@ -185,7 +199,7 @@ export class UploadPipeline {
         kind: mimeToKind(sniffedMime),
         filename: input.filename,
         mimeType: sniffedMime,
-        sizeBytes: String(input.declaredSize > 0 ? input.declaredSize : 0),
+        sizeBytes: String(observedSize > 0 ? observedSize : input.declaredSize),
         storageUrl: publicForm.url,
         storageLocator: locator,
         storageBackend: adapter.code,

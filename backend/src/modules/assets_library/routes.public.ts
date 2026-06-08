@@ -104,7 +104,13 @@ export async function registerAssetsLibraryPublicRoutes(
       reply.header('Content-Type', a.mimeType);
       // sizeBytes is mapped as bigint at the DB layer; coerce to string for
       // the Content-Length header (Node's HTTP layer rejects bigint values).
-      reply.header('Content-Length', String(a.sizeBytes));
+      // Only set it when the recorded size is meaningful — a stale/legacy `0`
+      // (uploads that never captured a byte count) would otherwise tell the
+      // browser the body is empty and produce a broken/blank image. Omitting
+      // the header lets Fastify stream the file to EOF.
+      if (Number(a.sizeBytes) > 0) {
+        reply.header('Content-Length', String(a.sizeBytes));
+      }
       reply.header('ETag', etag);
       reply.header(
         'Cache-Control',
@@ -112,6 +118,14 @@ export async function registerAssetsLibraryPublicRoutes(
           ? 'public, max-age=31536000, immutable'
           : 'private, no-store, max-age=0',
       );
+      // Public assets are embedded by the storefront and admin, which run on a
+      // different origin than the backend. Helmet's default
+      // `Cross-Origin-Resource-Policy: same-origin` would block those
+      // cross-origin <img> loads, so relax it to `cross-origin` for public
+      // assets (private assets keep the stricter default).
+      if (a.visibility === 'public') {
+        reply.header('Cross-Origin-Resource-Policy', 'cross-origin');
+      }
       const dispoMode = req.query.download === '1' ? 'attachment' : 'inline';
       const safeName = a.filename.replace(/[\r\n";]/g, '_');
       reply.header('Content-Disposition', `${dispoMode}; filename="${safeName}"`);

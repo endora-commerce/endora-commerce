@@ -102,7 +102,16 @@ describe('public asset file (T037)', () => {
     expect(r.headers['etag']).toBeTruthy();
     expect(r.rawPayload).toBeInstanceOf(Buffer);
     expect(r.rawPayload.equals(TINY_PNG)).toBe(true);
-    await h.em().removeAndFlush(await h.em().findOneOrFail(Asset, { id }));
+    // The multipart part carried no Content-Length, so the byte count must be
+    // captured from the stream — not left at 0 — or browsers render a blank
+    // image. Content-Length must match the actual body length.
+    expect(r.headers['content-length']).toBe(String(TINY_PNG.length));
+    // Public assets are embedded cross-origin by the storefront/admin, so the
+    // resource policy must permit it.
+    expect(r.headers['cross-origin-resource-policy']).toBe('cross-origin');
+    const stored = await h.em().findOneOrFail(Asset, { id });
+    expect(Number(stored.sizeBytes)).toBe(TINY_PNG.length);
+    await h.em().removeAndFlush(stored);
   });
 
   it('returns 304 on conditional GET when ETag matches', async () => {
