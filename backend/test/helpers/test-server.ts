@@ -842,6 +842,7 @@ export async function setupBackendServer(
     sessionService,
     secretEncryptionKey: process.env['MFA_SECRET_ENCRYPTION_KEY'],
     requireCustomer: requireTestCustomer(),
+    requireAdmin: requireTestAdmin(permissionService),
     resolveCustomerActor: (request) => {
       if (request.testActor?.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
@@ -850,6 +851,12 @@ export async function setupBackendServer(
         customerAccountId: request.testActor.customerAccountId,
         organizationId: request.testActor.organizationId ?? null,
       };
+    },
+    resolveAdminActor: (request) => {
+      if (request.testActor?.kind !== 'admin') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+      }
+      return { adminUserId: request.testActor.adminUserId };
     },
   });
   testMfaLoginPort = mfa.handle().mfaLoginPort;

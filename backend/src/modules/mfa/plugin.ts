@@ -14,7 +14,11 @@ import { MfaLoginService } from './services/mfa-login-service.js';
 import { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
 import { SecretCipher } from './services/secret-cipher.js';
 import { registerMfaPublicRoutes } from './routes.public.js';
-import { registerMfaAccountRoutes } from './routes.account.js';
+import { registerMfaSelfServiceRoutes } from './routes.self-service.js';
+
+type RequireAdminFactory = (
+  permission?: string,
+) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 
 /**
  * MFA module composition root (feature 042).
@@ -43,6 +47,9 @@ export interface MfaModuleOptions {
     customerAccountId: string;
     organizationId: string | null;
   };
+  /** Admin guard factory + actor resolver (for admin self-service routes, US2). */
+  requireAdmin?: RequireAdminFactory;
+  resolveAdminActor?: (req: FastifyRequest) => { adminUserId: string };
   resolveAccountEmail?: (
     subjectType: 'customer' | 'admin',
     subjectId: string,
@@ -91,19 +98,42 @@ export function mfaModule(options: MfaModuleOptions): {
       loginService,
       sessionService: options.sessionService,
     });
-    await registerMfaAccountRoutes(app, {
+    const emailOpt = options.resolveAccountEmail
+      ? { resolveAccountEmail: options.resolveAccountEmail }
+      : {};
+    const pwdOpt = options.verifyAccountPassword
+      ? { verifyAccountPassword: options.verifyAccountPassword }
+      : {};
+    // Storefront customer self-service (US1).
+    await registerMfaSelfServiceRoutes(app, {
+      pathPrefix: '/api/v1/account/mfa',
+      subjectType: 'customer',
+      auditObjectType: 'customer_account',
+      requireGuard: options.requireCustomer,
+      resolveSubjectId: (req) => options.resolveCustomerActor(req).customerAccountId,
+      resolveOrganizationId: (req) => options.resolveCustomerActor(req).organizationId,
       enrolmentService,
       policyResolver,
       auditLogService: options.auditLogService,
-      requireCustomer: options.requireCustomer,
-      resolveCustomerActor: options.resolveCustomerActor,
-      ...(options.resolveAccountEmail
-        ? { resolveAccountEmail: options.resolveAccountEmail }
-        : {}),
-      ...(options.verifyAccountPassword
-        ? { verifyAccountPassword: options.verifyAccountPassword }
-        : {}),
+      ...emailOpt,
+      ...pwdOpt,
     });
+    // Admin user self-service (US2).
+    const { requireAdmin, resolveAdminActor } = options;
+    if (requireAdmin && resolveAdminActor) {
+      await registerMfaSelfServiceRoutes(app, {
+        pathPrefix: '/api/v1/admin/account/mfa',
+        subjectType: 'admin',
+        auditObjectType: 'admin_user',
+        requireGuard: requireAdmin(),
+        resolveSubjectId: (req) => resolveAdminActor(req).adminUserId,
+        enrolmentService,
+        policyResolver,
+        auditLogService: options.auditLogService,
+        ...emailOpt,
+        ...pwdOpt,
+      });
+    }
   };
 
   return {

@@ -399,6 +399,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     sessionService,
     secretEncryptionKey: process.env['MFA_SECRET_ENCRYPTION_KEY'],
     requireCustomer,
+    requireAdmin,
     resolveCustomerActor: (request) => {
       if (request.actor.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
@@ -407,6 +408,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         customerAccountId: request.actor.customerAccountId,
         organizationId: request.actor.organizationId ?? null,
       };
+    },
+    resolveAdminActor: (request) => {
+      promoteAdminActor(request);
+      if (request.actor.kind !== 'admin') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+      }
+      return { adminUserId: request.actor.adminUserId };
     },
     resolveAccountEmail: async (subjectType, subjectId) => {
       const em2 = em();

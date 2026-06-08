@@ -11,25 +11,26 @@ import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
 import type { MfaPolicyResolver } from './services/mfa-policy-resolver.js';
 
 /**
- * Storefront self-service 2FA endpoints (feature 042, US1). The customer must
- * be authenticated; the enforced-but-unenrolled setup-ticket path arrives in
- * US3. Audit entries are written for enable/disable/regenerate.
+ * Surface-agnostic self-service 2FA endpoints (feature 042). Mounted twice by
+ * the plugin: once for storefront customers (`/api/v1/account/mfa/*`, US1) and
+ * once for admin users (`/api/v1/admin/account/mfa/*`, US2). The only
+ * differences are the path prefix, the auth guard, how the subject id is
+ * resolved, and the audit `objectType`.
  */
-export interface MfaAccountDeps {
+export interface MfaSelfServiceOptions {
+  pathPrefix: string;
+  subjectType: 'customer' | 'admin';
+  auditObjectType: 'customer_account' | 'admin_user';
+  requireGuard: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+  resolveSubjectId: (req: FastifyRequest) => string;
+  resolveOrganizationId?: (req: FastifyRequest) => string | null;
   enrolmentService: MfaEnrolmentService;
   policyResolver: MfaPolicyResolver;
   auditLogService: AuditLogService;
-  requireCustomer: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
-  resolveCustomerActor: (req: FastifyRequest) => {
-    customerAccountId: string;
-    organizationId: string | null;
-  };
-  /** Resolves the account's email for the authenticator label (optional). */
   resolveAccountEmail?: (
     subjectType: 'customer' | 'admin',
     subjectId: string,
   ) => Promise<string | null>;
-  /** Verifies an account password for re-auth on disable (optional). */
   verifyAccountPassword?: (
     subjectType: 'customer' | 'admin',
     subjectId: string,
@@ -37,46 +38,43 @@ export interface MfaAccountDeps {
   ) => Promise<boolean>;
 }
 
-export async function registerMfaAccountRoutes(
+export async function registerMfaSelfServiceRoutes(
   app: FastifyInstance,
-  deps: MfaAccountDeps,
+  opts: MfaSelfServiceOptions,
 ): Promise<void> {
   const {
+    pathPrefix,
+    subjectType,
+    auditObjectType,
+    requireGuard,
+    resolveSubjectId,
     enrolmentService,
     policyResolver,
     auditLogService,
-    requireCustomer,
-    resolveCustomerActor,
-  } = deps;
+  } = opts;
 
   const subjectOf = (req: FastifyRequest): MfaSubjectRef => ({
-    subjectType: 'customer',
-    subjectId: resolveCustomerActor(req).customerAccountId,
+    subjectType,
+    subjectId: resolveSubjectId(req),
+  });
+
+  app.post(`${pathPrefix}/setup`, { preHandler: requireGuard }, async (request) => {
+    const subject = subjectOf(request);
+    const label =
+      (await opts.resolveAccountEmail?.(subjectType, subject.subjectId)) ?? subject.subjectId;
+    return { data: await enrolmentService.setup(subject, label) };
   });
 
   app.post(
-    '/api/v1/account/mfa/setup',
-    { preHandler: requireCustomer },
-    async (request) => {
-      const subject = subjectOf(request);
-      const label =
-        (await deps.resolveAccountEmail?.('customer', subject.subjectId)) ??
-        subject.subjectId;
-      const res = await enrolmentService.setup(subject, label);
-      return { data: res };
-    },
-  );
-
-  app.post(
-    '/api/v1/account/mfa/activate',
-    { preHandler: requireCustomer, schema: { body: mfaActivateRequestSchema } },
+    `${pathPrefix}/activate`,
+    { preHandler: requireGuard, schema: { body: mfaActivateRequestSchema } },
     async (request) => {
       const body = mfaActivateRequestSchema.parse(request.body);
       const subject = subjectOf(request);
       const res = await enrolmentService.activate(subject, body.code);
       await auditLogService.record({
         action: 'mfa.enabled',
-        objectType: 'customer_account',
+        objectType: auditObjectType,
         objectId: subject.subjectId,
         ...(request.ip ? { ipAddress: request.ip } : {}),
       });
@@ -85,16 +83,16 @@ export async function registerMfaAccountRoutes(
   );
 
   app.post(
-    '/api/v1/account/mfa/disable',
-    { preHandler: requireCustomer, schema: { body: mfaDisableRequestSchema } },
+    `${pathPrefix}/disable`,
+    { preHandler: requireGuard, schema: { body: mfaDisableRequestSchema } },
     async (request) => {
       const body = mfaDisableRequestSchema.parse(request.body);
       const subject = subjectOf(request);
-      await reauthenticate(deps, subject, body);
+      await reauthenticate(opts, subject, body);
       await enrolmentService.disable(subject);
       await auditLogService.record({
         action: 'mfa.disabled',
-        objectType: 'customer_account',
+        objectType: auditObjectType,
         objectId: subject.subjectId,
         ...(request.ip ? { ipAddress: request.ip } : {}),
       });
@@ -103,8 +101,8 @@ export async function registerMfaAccountRoutes(
   );
 
   app.post(
-    '/api/v1/account/mfa/recovery-codes/regenerate',
-    { preHandler: requireCustomer, schema: { body: mfaRegenerateRequestSchema } },
+    `${pathPrefix}/recovery-codes/regenerate`,
+    { preHandler: requireGuard, schema: { body: mfaRegenerateRequestSchema } },
     async (request) => {
       const body = mfaRegenerateRequestSchema.parse(request.body);
       const subject = subjectOf(request);
@@ -113,7 +111,7 @@ export async function registerMfaAccountRoutes(
       const res = await enrolmentService.regenerateRecoveryCodes(subject);
       await auditLogService.record({
         action: 'mfa.recovery_codes_regenerated',
-        objectType: 'customer_account',
+        objectType: auditObjectType,
         objectId: subject.subjectId,
         ...(request.ip ? { ipAddress: request.ip } : {}),
       });
@@ -121,47 +119,39 @@ export async function registerMfaAccountRoutes(
     },
   );
 
-  app.get(
-    '/api/v1/account/mfa/status',
-    { preHandler: requireCustomer },
-    async (request) => {
-      const actor = resolveCustomerActor(request);
-      const subject: MfaSubjectRef = {
-        subjectType: 'customer',
-        subjectId: actor.customerAccountId,
-      };
-      const status = await enrolmentService.status(subject);
-      const policy = await policyResolver.resolve(subject, {
-        salesChannelId:
-          (request as { salesChannel?: { id: string } }).salesChannel?.id ?? null,
-        organizationId: actor.organizationId,
-      });
-      return {
-        data: {
-          totpActive: status.totpActive,
-          recoveryCodesRemaining: status.recoveryCodesRemaining,
-          totpEnabledForScope: policy.totpEnabled,
-          totpEnforcedForScope: policy.totpEnforced,
-          socialLinks: [],
-        },
-      };
-    },
-  );
+  app.get(`${pathPrefix}/status`, { preHandler: requireGuard }, async (request) => {
+    const subject = subjectOf(request);
+    const status = await enrolmentService.status(subject);
+    const policy = await policyResolver.resolve(subject, {
+      salesChannelId:
+        (request as { salesChannel?: { id: string } }).salesChannel?.id ?? null,
+      organizationId: opts.resolveOrganizationId?.(request) ?? null,
+    });
+    return {
+      data: {
+        totpActive: status.totpActive,
+        recoveryCodesRemaining: status.recoveryCodesRemaining,
+        totpEnabledForScope: policy.totpEnabled,
+        totpEnforcedForScope: policy.totpEnforced,
+        socialLinks: [],
+      },
+    };
+  });
 }
 
 /** Re-auth on self-disable: a current TOTP/recovery code or the password. */
 async function reauthenticate(
-  deps: MfaAccountDeps,
+  opts: MfaSelfServiceOptions,
   subject: MfaSubjectRef,
   body: { code?: string | undefined; password?: string | undefined },
 ): Promise<void> {
   if (body.code) {
-    const ok = await deps.enrolmentService.verifySecondFactor(subject, body.code);
+    const ok = await opts.enrolmentService.verifySecondFactor(subject, body.code);
     if (ok) return;
     throw new HttpError(401, 'MFA_INVALID_CODE', 'The code is invalid or expired.');
   }
-  if (body.password && deps.verifyAccountPassword) {
-    const ok = await deps.verifyAccountPassword('customer', subject.subjectId, body.password);
+  if (body.password && opts.verifyAccountPassword) {
+    const ok = await opts.verifyAccountPassword(subject.subjectType, subject.subjectId, body.password);
     if (ok) return;
     throw new HttpError(401, 'INVALID_CREDENTIALS', 'The password is incorrect.');
   }
