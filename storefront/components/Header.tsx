@@ -15,7 +15,7 @@ import { LanguagePicker } from '../lib/dictionary/pickers/LanguagePicker';
  *   1) top utility strip (phone, shipping cutoff, Faktura VAT chip,
  *      NIP chip, currency/locale, B2B support),
  *   2) main header (brand mark + search + icon buttons + user pill),
- *   3) main nav (categories + status pill + Quick Order CTA).
+ *   3) main nav (categories + Quick Order CTA).
  *
  * The component is server-rendered; only the search autocomplete and
  * compare counter hydrate on the client.
@@ -133,11 +133,6 @@ export function Header(props: {
               the hardcoded per-category links. */}
           <CategoriesMega megamenu={props.megamenu ?? null} />
           <div className="industria-nav__right">
-            <span className="industria-nav__pill" role="status">
-              <span className="industria-nav__pill__dot" aria-hidden="true" />
-              System sprzedażowy aktywny
-            </span>
-            <Link href="/quote-requests" className="industria-nav__btn">RFQ</Link>
             <Link
               href="/quick-order"
               className="industria-nav__btn industria-nav__btn--primary"
