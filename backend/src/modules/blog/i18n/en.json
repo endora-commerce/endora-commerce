@@ -27,6 +27,7 @@
   "fields.enabledStorefrontVisible": "Enabled (storefront-visible)",
   "fields.mainImageAssetId": "Main image asset id (UUID, optional)",
   "fields.metaDescriptionPerLanguage": "Meta description (per language)",
+  "fields.editingLanguage": "Editing language",
   "fields.metaKeywordsPerLanguage": "Meta keywords (per language)",
   "fields.metaTitlePerLanguage": "Meta title (per language)",
   "fields.namePerLanguage": "Name (per language)",

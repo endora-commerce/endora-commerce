@@ -380,12 +380,25 @@ export function BlogPostEditor(): ReactNode {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
-            {post.publishedAt ? (
-              <>{t('postEditor.publishedAt', { date: new Date(post.publishedAt).toLocaleString() })}</>
-            ) : (
-              <>{t('postEditor.notPublished')}</>
-            )}
+          <CardContent className="space-y-3">
+            {/* The editing-language switcher drives every per-language surface
+                below (metadata fields + the content editor), so it lives in
+                this first card rather than buried in the metadata section. */}
+            <div className="space-y-1">
+              <Label>{t('fields.editingLanguage')}</Label>
+              <ContentLanguageTabs
+                languages={scope.languages}
+                activeLanguage={activeLanguage}
+                onChange={setActiveLanguage}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {post.publishedAt ? (
+                <>{t('postEditor.publishedAt', { date: new Date(post.publishedAt).toLocaleString() })}</>
+              ) : (
+                <>{t('postEditor.notPublished')}</>
+              )}
+            </p>
           </CardContent>
         </Card>
       ) : null}
@@ -415,11 +428,16 @@ export function BlogPostEditor(): ReactNode {
           <CardTitle className="text-base">{t('sections.metadata')}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <ContentLanguageTabs
-            languages={scope.languages}
-            activeLanguage={activeLanguage}
-            onChange={setActiveLanguage}
-          />
+          {/* In edit mode the editing-language switcher lives in the lifecycle
+              card above; a new post has no lifecycle card yet, so keep it here
+              for the create flow. */}
+          {isNew ? (
+            <ContentLanguageTabs
+              languages={scope.languages}
+              activeLanguage={activeLanguage}
+              onChange={setActiveLanguage}
+            />
+          ) : null}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
