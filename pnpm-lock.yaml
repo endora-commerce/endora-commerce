@@ -337,6 +337,9 @@ importers:
       '@tiptap/core':
         specifier: ^3.22.5
         version: 3.22.5(@tiptap/pm@3.22.5)
+      '@tiptap/extension-text-align':
+        specifier: 3.22.5
+        version: 3.22.5(@tiptap/core@3.22.5(@tiptap/pm@3.22.5))
       '@tiptap/react':
         specifier: ^3.22.5
         version: 3.22.5(@floating-ui/dom@1.7.6)(@tiptap/core@3.22.5(@tiptap/pm@3.22.5))(@tiptap/pm@3.22.5)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -346,6 +349,12 @@ importers:
       '@types/react':
         specifier: ^19.2.14
         version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.14)
+      react-dom:
+        specifier: ^19.2.5
+        version: 19.2.5(react@19.2.5)
       tailwindcss:
         specifier: '4'
         version: 4.2.4
@@ -4089,6 +4098,11 @@ packages:
 
   '@tiptap/extension-strike@3.22.5':
     resolution: {integrity: sha512-42WrrFK5gOom/0znH85x12Mw5IQ/6O6DWdyUWoRIrNA/qJpuHtU8oVU+bIgU2tuomMGHruRjIzgBQv5sBjEtww==}
+    peerDependencies:
+      '@tiptap/core': 3.22.5
+
+  '@tiptap/extension-text-align@3.22.5':
+    resolution: {integrity: sha512-LNUinhsZJC+/Vm7ugtghSjqlO64FQuww8oJkHq54Oh135fJ+kY2yBRakYFeH0P0gl4VPJH13AUetLF696CM2UQ==}
     peerDependencies:
       '@tiptap/core': 3.22.5
 
@@ -14654,6 +14668,10 @@ snapshots:
       '@tiptap/core': 3.22.5(@tiptap/pm@3.22.5)
 
   '@tiptap/extension-strike@3.22.5(@tiptap/core@3.22.5(@tiptap/pm@3.22.5))':
+    dependencies:
+      '@tiptap/core': 3.22.5(@tiptap/pm@3.22.5)
+
+  '@tiptap/extension-text-align@3.22.5(@tiptap/core@3.22.5(@tiptap/pm@3.22.5))':
     dependencies:
       '@tiptap/core': 3.22.5(@tiptap/pm@3.22.5)
 

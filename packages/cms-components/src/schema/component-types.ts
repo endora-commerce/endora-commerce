@@ -28,6 +28,11 @@ export interface TextProps {
   html: string;
 }
 
+export interface RichContentProps {
+  content: JSONContent | null;
+  html: string;
+}
+
 export interface ButtonProps {
   label: string;
   href: string;

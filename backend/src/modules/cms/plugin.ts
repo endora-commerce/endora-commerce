@@ -72,6 +72,7 @@ export function cmsModule(options: CmsModuleOptions): {
         },
       },
       Text: { fields: { tiptapHtml: { type: 'richtext', label: 'Text' } } },
+      RichContent: { fields: { content: { type: 'richtext', label: 'Content' } } },
       Heading: {
         fields: {
           level: {

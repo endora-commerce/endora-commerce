@@ -15,6 +15,7 @@ import { Heading } from './components/Heading.js';
 import { InsertBlock } from './components/InsertBlock.js';
 import { InsertTemplate } from './components/InsertTemplate.js';
 import { MissingComponentPlaceholder } from './components/MissingComponentPlaceholder.js';
+import { RichContent } from './components/RichContent.js';
 import { Row } from './components/Row.js';
 import { Text } from './components/Text.js';
 
@@ -24,6 +25,7 @@ export * from './components/Heading.js';
 export * from './components/InsertBlock.js';
 export * from './components/InsertTemplate.js';
 export * from './components/MissingComponentPlaceholder.js';
+export * from './components/RichContent.js';
 export * from './components/Row.js';
 export * from './components/Text.js';
 export * from './components/render-context.js';
@@ -39,7 +41,7 @@ export const defaultPageBuilderConfig: Config = {
     },
     content: {
       title: 'Content',
-      components: ['Heading', 'Text', 'Button'],
+      components: ['Heading', 'Text', 'RichContent', 'Button'],
       defaultExpanded: true,
     },
     embeds: {
@@ -51,6 +53,7 @@ export const defaultPageBuilderConfig: Config = {
     Row,
     Columns,
     Text,
+    RichContent,
     Heading,
     Button,
     InsertBlock,
