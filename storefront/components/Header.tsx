@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { I18nConfigResponse, ResolvedMegamenu } from '@b2b/contracts';
+import type { MeResult } from '../lib/api/account';
 import { tForLocale } from '../lib/i18n/messages';
 import { CategoriesMega } from './Megamenu/CategoriesMega';
 import { CompareCounterLink } from './CompareToggle';
@@ -28,6 +29,8 @@ export function Header(props: {
   cartItemCount?: number;
   /** Feature 015 — resolved megamenu powering the "Wszystkie kategorie" panel. */
   megamenu?: ResolvedMegamenu | null;
+  /** Logged-in customer + organization, or null when signed out. */
+  user?: MeResult | null;
 }): ReactNode {
   const t = tForLocale(props.locale);
   const apiBaseUrl =
@@ -118,14 +121,7 @@ export function Header(props: {
               emptyAriaLabel="Koszyk"
               itemsAriaLabelTemplate="Koszyk · {count} pozycji"
             />
-            <Link href="/account" className="industria-header__user">
-              <span className="industria-header__user__avatar">MK</span>
-              <span className="industria-header__user__name">
-                <strong>Marek Kowalski</strong>
-                <em>Stalmontaż Sp. z o.o.</em>
-              </span>
-              <ChevDownIcon />
-            </Link>
+            <UserPill user={props.user ?? null} loginLabel={t('nav.login')} />
           </div>
         </div>
       </header>
@@ -152,6 +148,56 @@ export function Header(props: {
         </div>
       </nav>
     </>
+  );
+}
+
+/** Two-letter initials from the customer's name (falls back to the email). */
+function initials(user: MeResult): string {
+  const { firstName, lastName, email } = user.customerAccount;
+  const a = firstName?.trim()?.[0] ?? '';
+  const b = lastName?.trim()?.[0] ?? '';
+  const fromName = `${a}${b}`.toUpperCase();
+  return fromName || (email?.trim()?.[0]?.toUpperCase() ?? '?');
+}
+
+/**
+ * Header user pill. Signed in → avatar initials, full name, and organization
+ * name (or email when the customer has no organization), linking to /account.
+ * Signed out → a "sign in" link to /login.
+ */
+function UserPill({
+  user,
+  loginLabel,
+}: {
+  user: MeResult | null;
+  loginLabel: string;
+}): ReactNode {
+  if (!user) {
+    return (
+      <Link href="/login" className="industria-header__user">
+        <span className="industria-header__user__avatar" aria-hidden="true">
+          <UserIcon />
+        </span>
+        <span className="industria-header__user__name">
+          <strong>{loginLabel}</strong>
+        </span>
+      </Link>
+    );
+  }
+
+  const { firstName, lastName, email } = user.customerAccount;
+  const fullName = `${firstName} ${lastName}`.trim() || email;
+  const subtitle = user.organization?.name ?? email;
+
+  return (
+    <Link href="/account" className="industria-header__user">
+      <span className="industria-header__user__avatar">{initials(user)}</span>
+      <span className="industria-header__user__name">
+        <strong>{fullName}</strong>
+        <em>{subtitle}</em>
+      </span>
+      <ChevDownIcon />
+    </Link>
   );
 }
 
@@ -272,6 +318,15 @@ function BellIcon(): ReactNode {
 }
 function ChevDownIcon(): ReactNode {
   return svg(<polyline points="6 9 12 15 18 9" />, 14);
+}
+function UserIcon(): ReactNode {
+  return svg(
+    <>
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </>,
+    17,
+  );
 }
 function LightningIcon(): ReactNode {
   return svg(<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />, 13);

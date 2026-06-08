@@ -15,6 +15,7 @@ type MessageKey =
   | 'nav.catalog'
   | 'nav.search'
   | 'nav.account'
+  | 'nav.login'
   | 'catalog.heading'
   | 'catalog.filters'
   | 'catalog.empty'
@@ -97,6 +98,7 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'nav.catalog': 'Catalog',
     'nav.search': 'Search',
     'nav.account': 'Account',
+    'nav.login': 'Sign in',
     'catalog.heading': 'Catalog',
     'catalog.filters': 'Filters',
     'catalog.empty': 'No products match your filters.',
@@ -182,6 +184,7 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'nav.catalog': 'Katalog',
     'nav.search': 'Wyszukiwanie',
     'nav.account': 'Konto',
+    'nav.login': 'Zaloguj się',
     'catalog.heading': 'Katalog',
     'catalog.filters': 'Filtry',
     'catalog.empty': 'Zaden produkt nie pasuje do filtrow.',
