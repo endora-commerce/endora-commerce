@@ -27,8 +27,11 @@ interface BindingsPanelProps {
   onChanged: () => void;
 }
 
+// GET /admin/sales-channels returns a paginated envelope (`items`), not a
+// `data` array — reading the wrong key set `channels` to undefined and crashed
+// the whole Megamenu editor on `channels.map`.
 interface SalesChannelsResponse {
-  data: SalesChannelSummary[];
+  items: SalesChannelSummary[];
 }
 
 export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProps): ReactNode {
@@ -42,8 +45,8 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
 
   useEffect(() => {
     apiClient
-      .get<SalesChannelsResponse>('/api/v1/admin/sales-channels')
-      .then((res) => setChannels(res.data))
+      .get<SalesChannelsResponse>('/api/v1/admin/sales-channels?pageSize=100')
+      .then((res) => setChannels(res.items ?? []))
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
 
