@@ -95,5 +95,10 @@
   "auditLog.setting_group.rescoped": "Zmieniono zakres grupy ustawień",
   "auditLog.setting_group.deleted": "Usunięto grupę ustawień",
   "editor.placeholder.json": "{\"klucz\": \"wartość\"}",
-  "editor.placeholder.stringList": "wartość1,wartość2,wartość3"
+  "editor.placeholder.stringList": "wartość1,wartość2,wartość3",
+  "editor.image.none": "Nie ustawiono obrazka.",
+  "editor.image.upload": "Prześlij obrazek",
+  "editor.image.remove": "Usuń",
+  "editor.image.toggleUrl": "Lub podaj adres URL obrazka",
+  "editor.image.urlPlaceholder": "https://example.com/obrazek.png"
 }
