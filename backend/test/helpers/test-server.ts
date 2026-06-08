@@ -858,6 +858,10 @@ export async function setupBackendServer(
       }
       return { adminUserId: request.testActor.adminUserId };
     },
+    resolveOrganizationCustomerIds: async (organizationId) => {
+      const rows = await em().find(CustomerAccount, { organizationId }, { fields: ['id'] });
+      return rows.map((r) => r.id);
+    },
   });
   testMfaLoginPort = mfa.handle().mfaLoginPort;
 

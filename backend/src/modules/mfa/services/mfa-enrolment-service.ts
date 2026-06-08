@@ -95,6 +95,20 @@ export class MfaEnrolmentService {
     return { recoveryCodes: codes };
   }
 
+  /**
+   * Admin reset — clear ALL enrolments (active + pending) for a subject.
+   * Recovery codes cascade. Returns whether anything was removed (so a bulk
+   * caller can report affected vs skipped). FR-025.
+   */
+  async reset(subject: MfaSubjectRef): Promise<boolean> {
+    const em = this.emFactory();
+    const affected = await em.nativeDelete(MfaEnrolment, {
+      subjectType: subject.subjectType,
+      subjectId: subject.subjectId,
+    });
+    return affected > 0;
+  }
+
   /** Disable 2FA for the subject (idempotent). Removes secret + recovery codes. */
   async disable(subject: MfaSubjectRef): Promise<void> {
     const em = this.emFactory();

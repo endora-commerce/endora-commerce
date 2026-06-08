@@ -416,6 +416,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       }
       return { adminUserId: request.actor.adminUserId };
     },
+    resolveOrganizationCustomerIds: async (organizationId) => {
+      const rows = await em().find(CustomerAccount, { organizationId }, { fields: ['id'] });
+      return rows.map((r) => r.id);
+    },
     resolveAccountEmail: async (subjectType, subjectId) => {
       const em2 = em();
       if (subjectType === 'admin') {

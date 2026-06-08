@@ -15,6 +15,7 @@ import { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
 import { SecretCipher } from './services/secret-cipher.js';
 import { registerMfaPublicRoutes } from './routes.public.js';
 import { registerMfaSelfServiceRoutes } from './routes.self-service.js';
+import { registerMfaAdminRoutes } from './routes.admin.js';
 
 type RequireAdminFactory = (
   permission?: string,
@@ -47,9 +48,11 @@ export interface MfaModuleOptions {
     customerAccountId: string;
     organizationId: string | null;
   };
-  /** Admin guard factory + actor resolver (for admin self-service routes, US2). */
+  /** Admin guard factory + actor resolver (admin self-service US2 + reset US6). */
   requireAdmin?: RequireAdminFactory;
   resolveAdminActor?: (req: FastifyRequest) => { adminUserId: string };
+  /** Lists an organization's customer-account ids (US6 bulk reset). */
+  resolveOrganizationCustomerIds?: (organizationId: string) => Promise<string[]>;
   resolveAccountEmail?: (
     subjectType: 'customer' | 'admin',
     subjectId: string,
@@ -118,7 +121,7 @@ export function mfaModule(options: MfaModuleOptions): {
       ...emailOpt,
       ...pwdOpt,
     });
-    // Admin user self-service (US2).
+    // Admin user self-service (US2) + admin reset (US6).
     const { requireAdmin, resolveAdminActor } = options;
     if (requireAdmin && resolveAdminActor) {
       await registerMfaSelfServiceRoutes(app, {
@@ -132,6 +135,14 @@ export function mfaModule(options: MfaModuleOptions): {
         auditLogService: options.auditLogService,
         ...emailOpt,
         ...pwdOpt,
+      });
+      await registerMfaAdminRoutes(app, {
+        enrolmentService,
+        auditLogService: options.auditLogService,
+        requireAdmin,
+        resolveAdminActor,
+        resolveOrganizationCustomerIds:
+          options.resolveOrganizationCustomerIds ?? (async () => []),
       });
     }
   };
