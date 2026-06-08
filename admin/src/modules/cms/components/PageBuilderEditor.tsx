@@ -193,7 +193,15 @@ export function PageBuilderEditor({
           fullscreen ? 'min-h-0 flex-1' : 'min-h-[640px]',
         )}
       >
-        <Puck config={config} data={editorData} onChange={onChange} onPublish={onChange} />
+        {/* Content is persisted by the surrounding editor's own Save actions, so
+            Puck's built-in "Publish" header button is redundant and misleading —
+            hide it by emptying the header-actions slot. */}
+        <Puck
+          config={config}
+          data={editorData}
+          onChange={onChange}
+          overrides={{ headerActions: () => <></> }}
+        />
       </div>
     </div>
   );
