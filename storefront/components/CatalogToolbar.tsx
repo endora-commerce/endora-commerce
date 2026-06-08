@@ -88,7 +88,7 @@ export function CatalogToolbar(props: {
           <option value="96">96 / strona</option>
         </select>
         <div
-          className="inline-flex h-[32px] overflow-hidden rounded-sm border border-line"
+          className="inline-flex h-[32px] items-center gap-[2px] rounded-sm border border-line bg-surface-alt p-[2px]"
           role="radiogroup"
           aria-label="Tryb widoku"
         >
@@ -97,8 +97,10 @@ export function CatalogToolbar(props: {
             role="radio"
             aria-checked={props.view === 'grid'}
             aria-label="Siatka"
-            className={`flex h-[32px] w-[32px] items-center justify-center ${
-              props.view === 'grid' ? 'bg-fg text-white' : 'bg-surface text-muted hover:text-fg'
+            className={`flex h-[26px] w-[28px] items-center justify-center rounded-[3px] transition-colors ${
+              props.view === 'grid'
+                ? 'bg-surface text-fg shadow-sm'
+                : 'text-muted hover:text-fg'
             }`}
             onClick={(): void => onViewChange('grid')}
           >
@@ -109,8 +111,10 @@ export function CatalogToolbar(props: {
             role="radio"
             aria-checked={props.view === 'list'}
             aria-label="Lista"
-            className={`flex h-[32px] w-[32px] items-center justify-center ${
-              props.view === 'list' ? 'bg-fg text-white' : 'bg-surface text-muted hover:text-fg'
+            className={`flex h-[26px] w-[28px] items-center justify-center rounded-[3px] transition-colors ${
+              props.view === 'list'
+                ? 'bg-surface text-fg shadow-sm'
+                : 'text-muted hover:text-fg'
             }`}
             onClick={(): void => onViewChange('list')}
           >
