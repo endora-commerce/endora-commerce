@@ -17,6 +17,8 @@ export interface RequestContext {
   salesChannelCode?: string | undefined;
   /** Effective storefront locale, e.g. `en-US`. */
   locale?: string | undefined;
+  /** Buyer-selected display currency (from the `currency` cookie), e.g. `EUR`. */
+  currency?: string | undefined;
 }
 
 export interface FetchOptions {

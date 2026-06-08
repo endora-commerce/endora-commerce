@@ -7,8 +7,7 @@ import { CategoriesMega } from './Megamenu/CategoriesMega';
 import { CompareCounterLink } from './CompareToggle';
 import { CartCounterBadge } from './CartCounterBadge';
 import { SearchAutocomplete } from './SearchAutocomplete';
-import { CurrencyPicker } from '../lib/dictionary/pickers/CurrencyPicker';
-import { LanguagePicker } from '../lib/dictionary/pickers/LanguagePicker';
+import { CurrencySwitcher, LocaleSwitcher } from './HeaderPreferenceSwitchers';
 
 /**
  * Industria-themed storefront header. Three rows:
@@ -23,6 +22,8 @@ import { LanguagePicker } from '../lib/dictionary/pickers/LanguagePicker';
 export function Header(props: {
   config: I18nConfigResponse;
   locale: string;
+  /** Currently-selected display currency (from the `currency` cookie), if any. */
+  currency?: string;
   /** Optional sales-channel code for the autocomplete's `X-Sales-Channel` header. */
   salesChannelCode?: string;
   /** Feature 027 — buyer's cart line count for the icon-btn badge. */
@@ -59,7 +60,7 @@ export function Header(props: {
             <span className="industria-topbar__chip">
               <strong>NIP</strong> 5252736418
             </span>
-            <CurrencySwitcher />
+            <CurrencySwitcher currency={props.currency} />
             <span className="industria-topbar__sep" aria-hidden="true" />
             <a href="/help" className="industria-topbar__item">
               <HelpIcon /> Wsparcie B2B
@@ -193,24 +194,6 @@ function UserPill({
       </span>
       <ChevDownIcon />
     </Link>
-  );
-}
-
-function LocaleSwitcher(props: { locale: string }): ReactNode {
-  return (
-    <form action="" method="GET" className="industria-topbar__switcher">
-      <label htmlFor="b2b-locale">Język:</label>
-      <LanguagePicker id="b2b-locale" name="lang" defaultValue={props.locale} />
-    </form>
-  );
-}
-
-function CurrencySwitcher(): ReactNode {
-  return (
-    <form action="" method="GET" className="industria-topbar__switcher">
-      <label htmlFor="b2b-currency">Waluta:</label>
-      <CurrencyPicker id="b2b-currency" name="currency" />
-    </form>
   );
 }
 
