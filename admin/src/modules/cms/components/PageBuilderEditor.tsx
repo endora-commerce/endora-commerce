@@ -24,21 +24,50 @@ const emptyData: Data = { root: { props: {} }, content: [] };
  * `MissingComponentPlaceholder` so the editor stays usable while the
  * contributing module's renderer is being built.
  */
-function mergeConfig(descriptor: CmsPageBuilderDescriptor | null, extensionTitle: string): Config {
+interface BlockOption {
+  label: string;
+  value: string;
+}
+
+function mergeConfig(
+  descriptor: CmsPageBuilderDescriptor | null,
+  extensionTitle: string,
+  blockOptions: BlockOption[],
+): Config {
   const base = defaultPageBuilderConfig;
-  if (!descriptor) return base;
 
   const components: Record<string, ComponentConfig> = {
     ...(base.components ?? {}),
   } as Record<string, ComponentConfig>;
-  for (const entry of descriptor.components) {
-    if (components[entry.name]) continue;
-    components[entry.name] = makeMissingComponentConfig(entry.name, entry.ownerModule);
+
+  // Replace InsertBlock's free-text "Block code" field with a dropdown of the
+  // available CMS blocks, so authors pick from a list instead of having to know
+  // and type a code by hand.
+  const insertBlock = components['InsertBlock'];
+  if (insertBlock) {
+    components['InsertBlock'] = {
+      ...insertBlock,
+      fields: {
+        ...insertBlock.fields,
+        code: {
+          type: 'select',
+          label: 'Block',
+          options: [{ label: '—', value: '' }, ...blockOptions],
+        },
+      },
+    } as ComponentConfig;
+  }
+
+  if (descriptor) {
+    for (const entry of descriptor.components) {
+      if (components[entry.name]) continue;
+      components[entry.name] = makeMissingComponentConfig(entry.name, entry.ownerModule);
+    }
   }
 
   const baseCategories = base.categories ?? {};
   const localNames = new Set(Object.keys(base.components ?? {}));
-  const extensionNames = descriptor.components
+  const extensionNames = (descriptor?.components ?? [])
     .filter((entry) => !localNames.has(entry.name))
     .map((entry) => entry.name);
 
@@ -64,6 +93,7 @@ export function PageBuilderEditor({
 }): ReactNode {
   const t = useTranslation('cms');
   const [descriptor, setDescriptor] = useState<CmsPageBuilderDescriptor | null>(null);
+  const [blockOptions, setBlockOptions] = useState<BlockOption[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
 
@@ -92,7 +122,33 @@ export function PageBuilderEditor({
     };
   }, []);
 
-  const config = useMemo(() => mergeConfig(descriptor, t('pageBuilder.extensions')), [descriptor, t]);
+  // Available CMS blocks power the InsertBlock dropdown. Best-effort: a failure
+  // leaves the dropdown empty rather than breaking the editor.
+  useEffect(() => {
+    let live = true;
+    cmsClient
+      .listBlocks()
+      .then((res) => {
+        if (!live) return;
+        setBlockOptions(
+          res.data.map((b) => ({
+            label: b.name ? `${b.name} (${b.code})` : b.code,
+            value: b.code,
+          })),
+        );
+      })
+      .catch(() => {
+        /* leave options empty on failure */
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const config = useMemo(
+    () => mergeConfig(descriptor, t('pageBuilder.extensions'), blockOptions),
+    [descriptor, t, blockOptions],
+  );
   const editorData = data ?? emptyData;
 
   return (
