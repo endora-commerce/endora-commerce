@@ -390,6 +390,24 @@ export function BlogPostEditor(): ReactNode {
         </Card>
       ) : null}
 
+      {/* Content card sits second (right after the lifecycle card) so the main
+          authoring surface is reachable without scrolling past metadata. */}
+      {!isNew && post && activeLanguage && draftData !== null ? (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <CardTitle className="text-base">
+              {t('postEditor.contentTitle', { language: activeLanguage })}
+            </CardTitle>
+            <Button type="button" size="sm" disabled={saving} onClick={() => void onSaveContent()}>
+              {saving ? t('common.saving') : t('common.saveContent')}
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <PageBuilderEditor data={draftData} onChange={setDraftData} />
+          </CardContent>
+        </Card>
+      ) : null}
+
       <ScopePicker value={scope} onChange={setScope} />
 
       <Card>
@@ -544,21 +562,6 @@ export function BlogPostEditor(): ReactNode {
         </Card>
       ) : null}
 
-      {!isNew && post && activeLanguage && draftData !== null ? (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2">
-            <CardTitle className="text-base">
-              {t('postEditor.contentTitle', { language: activeLanguage })}
-            </CardTitle>
-            <Button type="button" size="sm" disabled={saving} onClick={() => void onSaveContent()}>
-              {saving ? t('common.saving') : t('common.saveContent')}
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <PageBuilderEditor data={draftData} onChange={setDraftData} />
-          </CardContent>
-        </Card>
-      ) : null}
     </div>
   );
 }
