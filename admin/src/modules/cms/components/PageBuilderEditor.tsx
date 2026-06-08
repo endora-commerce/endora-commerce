@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Puck, type Config, type ComponentConfig, type Data } from '@measured/puck';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import '@measured/puck/puck.css';
 // Self-contained, prefix-isolated (`cmsc:`) stylesheet for the shared CMS components
 // (feature 041, FR-012b). This is the admin's ONLY change; it carries its own token
@@ -8,6 +9,8 @@ import '@b2b/cms-components/styles.css';
 import { defaultPageBuilderConfig, makeMissingComponentConfig } from '@b2b/cms-components';
 import type { CmsPageBuilderDescriptor } from '@b2b/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
 import { cmsClient } from '../api/cms-client';
 
@@ -62,6 +65,17 @@ export function PageBuilderEditor({
   const t = useTranslation('cms');
   const [descriptor, setDescriptor] = useState<CmsPageBuilderDescriptor | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+
+  // Allow exiting fullscreen with Escape.
+  useEffect(() => {
+    if (!fullscreen) return undefined;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setFullscreen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return (): void => window.removeEventListener('keydown', onKey);
+  }, [fullscreen]);
 
   useEffect(() => {
     let live = true;
@@ -82,7 +96,12 @@ export function PageBuilderEditor({
   const editorData = data ?? emptyData;
 
   return (
-    <div className="space-y-3">
+    <div
+      className={cn(
+        'space-y-3',
+        fullscreen && 'fixed inset-0 z-50 flex flex-col overflow-auto bg-background p-4',
+      )}
+    >
       {error ? (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
@@ -91,7 +110,33 @@ export function PageBuilderEditor({
       {!descriptor && !error ? (
         <p className="text-sm text-muted-foreground">{t('pageBuilder.loadingConfig')}</p>
       ) : null}
-      <div className="min-h-[640px] overflow-hidden rounded-md border">
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={(): void => setFullscreen((f) => !f)}
+          aria-pressed={fullscreen}
+        >
+          {fullscreen ? (
+            <>
+              <Minimize2 className="mr-1 h-4 w-4" />
+              {t('pageBuilder.fullscreen.exit')}
+            </>
+          ) : (
+            <>
+              <Maximize2 className="mr-1 h-4 w-4" />
+              {t('pageBuilder.fullscreen.enter')}
+            </>
+          )}
+        </Button>
+      </div>
+      <div
+        className={cn(
+          'overflow-hidden rounded-md border',
+          fullscreen ? 'min-h-0 flex-1' : 'min-h-[640px]',
+        )}
+      >
         <Puck config={config} data={editorData} onChange={onChange} onPublish={onChange} />
       </div>
     </div>

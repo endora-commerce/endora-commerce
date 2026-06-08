@@ -44,6 +44,8 @@
   "scope.selectChannel": "Wybierz co najmniej jeden kanał.",
   "pageBuilder.extensions": "Rozszerzenia",
   "pageBuilder.loadingConfig": "Ładowanie konfiguracji Page Builder...",
+  "pageBuilder.fullscreen.enter": "Pełny ekran",
+  "pageBuilder.fullscreen.exit": "Zamknij pełny ekran",
   "hookAttachments.addBlock": "Dodaj blok",
   "hookAttachments.empty": "Nie podłączono bloków.",
   "hookAttachments.loading": "Ładowanie załączników...",
