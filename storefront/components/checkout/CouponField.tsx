@@ -26,30 +26,39 @@ export function CouponField({
 }: CouponFieldProps): ReactNode {
   const t = tForLocale(locale);
   return (
-    <div className="b2b-auth__field">
-      <label htmlFor="couponCode">{t('checkout.coupon.label')}</label>
-      <input
-        id="couponCode"
-        name="couponCode"
-        maxLength={64}
-        defaultValue={applied?.code ?? ''}
-        placeholder=" "
-      />
-      <button type="submit" formAction={applyAction}>
-        {t('checkout.coupon.apply')}
-      </button>
+    <div>
+      <label
+        htmlFor="couponCode"
+        className="mb-1.5 block text-[12px] font-semibold uppercase tracking-[0.04em] text-muted"
+      >
+        {t('checkout.coupon.label')}
+      </label>
+      <div className="flex gap-1.5">
+        <input
+          id="couponCode"
+          name="couponCode"
+          maxLength={64}
+          defaultValue={applied?.code ?? ''}
+          className="h-[40px] min-w-0 flex-1 rounded-sm border border-line bg-surface px-[12px] text-[14px] text-fg outline-none transition-[border-color,box-shadow] duration-150 hover:border-line-strong focus:border-[color:var(--brand-600)] focus:shadow-[0_0_0_3px_rgba(37,99,235,0.16)]"
+        />
+        <button type="submit" formAction={applyAction} className="btn btn--dark shrink-0">
+          {t('checkout.coupon.apply')}
+        </button>
+      </div>
 
       {applied ? (
-        <p className="b2b-auth__success">
-          {t('checkout.coupon.appliedPrefix')}
-          <strong>{applied.code}</strong>{' '}
-          {`${t('checkout.coupon.appliedSuffix')}−${applied.amount.toFixed(2)} ${applied.currency} `}
-          <button type="submit" formAction={clearAction}>
+        <p className="b2b-auth__success mt-2 flex flex-wrap items-center gap-2">
+          <span>
+            {t('checkout.coupon.appliedPrefix')}
+            <strong>{applied.code}</strong>{' '}
+            {`${t('checkout.coupon.appliedSuffix')}−${applied.amount.toFixed(2)} ${applied.currency}`}
+          </span>
+          <button type="submit" formAction={clearAction} className="btn btn--ghost btn--sm">
             {t('checkout.coupon.remove')}
           </button>
         </p>
       ) : null}
-      {error ? <p className="b2b-auth__error">{error}</p> : null}
+      {error ? <p className="b2b-auth__error mt-2">{error}</p> : null}
     </div>
   );
 }
