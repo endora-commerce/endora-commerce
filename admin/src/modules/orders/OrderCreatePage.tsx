@@ -14,6 +14,7 @@ import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { CountrySelect } from '@/components/country-select';
 import { ProductPicker } from '@/modules/catalog/components/ProductPicker';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useUnsavedChangesPrompt } from '@/lib/use-unsaved-changes-prompt';
 
 interface ItemRow {
   productId: string;
@@ -383,6 +384,20 @@ export function OrderCreatePage(): ReactNode {
   const [items, setItems] = useState<ItemRow[]>([{ productId: '', quantity: 1 }]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+
+  // Warn before leaving with a partially-filled order draft.
+  const dirty =
+    !submitted &&
+    (customerAccountId !== '' ||
+      salesChannelId !== '' ||
+      deliveryMethodId !== '' ||
+      paymentMethodId !== '' ||
+      customerNote !== '' ||
+      addressHasContent(deliveryChoice) ||
+      addressHasContent(billingChoice) ||
+      items.some((it) => it.productId !== '' || it.quantity !== 1));
+  useUnsavedChangesPrompt(dirty);
 
   // Static reference lists, loaded once on mount.
   const [channelOptions, setChannelOptions] = useState<ComboboxOption<string>[]>([]);
@@ -576,6 +591,7 @@ export function OrderCreatePage(): ReactNode {
           .filter((it) => it.productId.trim() && it.quantity > 0)
           .map((it) => ({ productId: it.productId.trim(), quantity: it.quantity })),
       });
+      setSubmitted(true);
       navigate(`/orders/${res.data.id}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('orderCreate.error'));
