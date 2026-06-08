@@ -8,6 +8,12 @@ import type {
 import { MfaEnrolment } from '../entities/mfa-enrolment.entity.js';
 import type { ChallengeStore } from './challenge-store.js';
 import type { MfaPolicyResolver } from './mfa-policy-resolver.js';
+import type { MfaEnrolmentService } from './mfa-enrolment-service.js';
+
+/** Result of completing the second step. */
+export type MfaVerifyResult =
+  | { ok: true; subject: MfaSubjectRef }
+  | { ok: false; error: 'invalid_challenge' | 'invalid_code' | 'locked' };
 
 /**
  * Orchestrates the post-first-factor MFA decision (feature 042, R4).
@@ -24,6 +30,8 @@ export class MfaLoginService implements MfaLoginPort {
     private readonly emFactory: () => EntityManager,
     private readonly challengeStore: ChallengeStore,
     private readonly policyResolver: MfaPolicyResolver,
+    /** Present once the cipher key is configured; required by `verifyChallenge`. */
+    private readonly enrolmentService?: MfaEnrolmentService,
   ) {}
 
   async beginLogin(
@@ -55,6 +63,30 @@ export class MfaLoginService implements MfaLoginPort {
 
   async isTwoFactorActive(subject: MfaSubjectRef): Promise<boolean> {
     return (await this.findActiveEnrolment(subject)) !== null;
+  }
+
+  /**
+   * Complete the second step: verify the code against the challenge's subject.
+   * On failure, the attempt budget is decremented and the challenge burned when
+   * exhausted. On success the challenge is consumed and the subject returned so
+   * the route can mint the session.
+   */
+  async verifyChallenge(challengeId: string, code: string): Promise<MfaVerifyResult> {
+    if (!this.enrolmentService) return { ok: false, error: 'invalid_code' };
+    const challenge = await this.challengeStore.getChallenge(challengeId);
+    if (!challenge) return { ok: false, error: 'invalid_challenge' };
+
+    const subject: MfaSubjectRef = {
+      subjectType: challenge.subjectType,
+      subjectId: challenge.subjectId,
+    };
+    const ok = await this.enrolmentService.verifySecondFactor(subject, code);
+    if (!ok) {
+      const remaining = await this.challengeStore.recordFailedAttempt(challengeId);
+      return { ok: false, error: remaining <= 0 ? 'locked' : 'invalid_code' };
+    }
+    await this.challengeStore.consumeChallenge(challengeId);
+    return { ok: true, subject };
   }
 
   private async findActiveEnrolment(

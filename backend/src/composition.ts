@@ -53,6 +53,7 @@ import { QUICK_ORDER_SETTING_CODES } from './modules/quick_order/manifest.js';
 import { adminModule } from './modules/admin_users/plugin.js';
 import { mfaModule } from './modules/mfa/plugin.js';
 import type { MfaLoginPort } from './modules/auth/services/mfa-login-port.js';
+import { verifyPassword } from './modules/auth/services/password-hasher.js';
 import { inventoryModule } from './modules/inventory/plugin.js';
 import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
 import { creditLimitsModule } from './modules/credit_limits/plugin.js';
@@ -395,7 +396,36 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     redis,
     settingsService: settings.handle.settingsService,
     auditLogService,
+    sessionService,
     secretEncryptionKey: process.env['MFA_SECRET_ENCRYPTION_KEY'],
+    requireCustomer,
+    resolveCustomerActor: (request) => {
+      if (request.actor.kind !== 'customer') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+      }
+      return {
+        customerAccountId: request.actor.customerAccountId,
+        organizationId: request.actor.organizationId ?? null,
+      };
+    },
+    resolveAccountEmail: async (subjectType, subjectId) => {
+      const em2 = em();
+      if (subjectType === 'admin') {
+        const a = await em2.findOne(AdminUser, { id: subjectId });
+        return a?.email ?? null;
+      }
+      const c = await em2.findOne(CustomerAccount, { id: subjectId });
+      return c?.email ?? null;
+    },
+    verifyAccountPassword: async (subjectType, subjectId, password) => {
+      const em2 = em();
+      if (subjectType === 'admin') {
+        const a = await em2.findOne(AdminUser, { id: subjectId });
+        return a ? verifyPassword(a.passwordHash, password) : false;
+      }
+      const c = await em2.findOne(CustomerAccount, { id: subjectId });
+      return c ? verifyPassword(c.passwordHash, password) : false;
+    },
   });
   mfaLoginPort = mfa.handle().mfaLoginPort;
 

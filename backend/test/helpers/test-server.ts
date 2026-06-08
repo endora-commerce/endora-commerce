@@ -58,6 +58,8 @@ import { taxesModule } from '../../src/modules/taxes/plugin.js';
 import { promotionsModule } from '../../src/modules/promotions/plugin.js';
 import { settingsModule } from '../../src/modules/settings/plugin.js';
 import { settingsManifest as settingsModuleManifest } from '../../src/modules/settings/manifest.js';
+import { mfaModule } from '../../src/modules/mfa/plugin.js';
+import type { MfaLoginPort } from '../../src/modules/auth/services/mfa-login-port.js';
 import { salesChannelsModule } from '../../src/modules/sales_channels/plugin.js';
 import { searchModule } from '../../src/modules/search/plugin.js';
 import { createSuggestionPricingEnricher } from '../../src/modules/search/services/suggestion-pricing-enricher.js';
@@ -162,6 +164,11 @@ export interface BackendServerHandle {
 }
 
 const SEEDED_TABLES = [
+  // Feature 042 — MFA. Recovery codes cascade from enrolments.
+  'mfa_recovery_codes',
+  'mfa_enrolments',
+  'mfa_social_identities',
+  'mfa_organization_policies',
   'price_list_assignments',
   'price_list_items',
   'price_lists',
@@ -401,6 +408,11 @@ export async function setupBackendServer(
   // setter into the i18n module's PATCH route).
   const testAdminUserService = new AdminUserService(em);
 
+  // Feature 042 — late-bound MFA login port (the MFA module is built after
+  // `settings` below; mirrors composition.ts).
+  let testMfaLoginPort: MfaLoginPort | undefined;
+  const getTestMfaLoginPort = (): MfaLoginPort | undefined => testMfaLoginPort;
+
   // Build the admin module first so we can hand its handle (auditLogService,
   // permissionService) to other modules that need it.
   const admin = adminModule({
@@ -415,6 +427,7 @@ export async function setupBackendServer(
       adminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
     }),
+    getMfaLoginPort: getTestMfaLoginPort,
   });
 
   // Credit-limits module — its CreditLimitService is the driver passed into
@@ -714,6 +727,7 @@ export async function setupBackendServer(
           emFactory: em,
           eventBus,
           sessionService,
+          getMfaLoginPort: getTestMfaLoginPort,
           requireCustomer: requireTestCustomer(),
           requireAdmin: requireTestAdmin(permissionService),
           requireAdminAny,
@@ -817,8 +831,32 @@ export async function setupBackendServer(
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
     }),
   });
+  // Feature 042 — MFA module (mirrors composition.ts). Built after `settings`
+  // so it can read MFA settings; its login port is bound to the late-bound
+  // `testMfaLoginPort` captured by the auth services above.
+  const mfa = mfaModule({
+    emFactory: em,
+    redis,
+    settingsService: settings.handle.settingsService,
+    auditLogService,
+    sessionService,
+    secretEncryptionKey: process.env['MFA_SECRET_ENCRYPTION_KEY'],
+    requireCustomer: requireTestCustomer(),
+    resolveCustomerActor: (request) => {
+      if (request.testActor?.kind !== 'customer') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+      }
+      return {
+        customerAccountId: request.testActor.customerAccountId,
+        organizationId: request.testActor.organizationId ?? null,
+      };
+    },
+  });
+  testMfaLoginPort = mfa.handle().mfaLoginPort;
+
   modules.push(salesChannels.plugin);
   modules.push(settings.plugin);
+  modules.push(mfa.plugin);
 
   // Feature 019 — Admin UI i18n. Test wiring uses no lifecycle registry
   // (the boot-time bundle reconciler is skipped), so route-level tests

@@ -86,6 +86,13 @@ export default async function globalSetup(): Promise<void> {
     process.env['ASSETS_LIBRARY_HMAC_KEY'] =
       '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
   }
+  // Feature 042 — the MFA module's SecretCipher needs a base64 32-byte AES key
+  // to encrypt TOTP secrets. Supply a deterministic test key so enrolment
+  // routes work without loading backend/.env.
+  if (!process.env['MFA_SECRET_ENCRYPTION_KEY']) {
+    process.env['MFA_SECRET_ENCRYPTION_KEY'] =
+      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+  }
   await ensureDatabaseExists(testUrl);
   await applyMigrations();
 }

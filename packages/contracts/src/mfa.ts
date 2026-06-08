@@ -72,11 +72,11 @@ export const mfaActivateResponseSchema = z.object({
 });
 export type MfaActivateResponse = z.infer<typeof mfaActivateResponseSchema>;
 
-/** Re-auth for self-disable: current password or a current TOTP code. */
+/** Re-auth for self-disable: current password, or a current TOTP/recovery code. */
 export const mfaDisableRequestSchema = z
   .object({
     password: z.string().min(1).optional(),
-    code: z.string().length(6).optional(),
+    code: z.string().min(6).max(20).optional(),
   })
   .refine((v) => Boolean(v.password) || Boolean(v.code), {
     message: 'Either password or code is required to disable 2FA.',
