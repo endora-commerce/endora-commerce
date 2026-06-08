@@ -12,6 +12,7 @@ import { getServerContext } from '../lib/server-context';
 import { fetchDictionary } from '../lib/dictionary/client';
 import { DictionaryProvider } from '../lib/dictionary/DictionaryProvider';
 import { getCartItemCount } from '../lib/api/cart';
+import { getMe } from '../lib/api/account';
 import { getAnonCartCookie, getSessionCookie } from '../lib/session';
 import './globals.css';
 
@@ -53,12 +54,15 @@ export default async function RootLayout({
     ...(session ? { session } : {}),
     ...(anon ? { anon } : {}),
   };
-  const [megamenu, dictionary, cartItemCount] = await Promise.all([
+  const [megamenu, dictionary, cartItemCount, me] = await Promise.all([
     getActiveMegamenu(ctx),
     fetchDictionary({ ctx }),
     // Header cart-icon badge. Never blocks the render — getCartItemCount
     // swallows all errors and returns 0 on the worst case.
     session || anon ? getCartItemCount(cartJar) : Promise.resolve(0),
+    // Header user pill. Best-effort — a missing/expired session must render the
+    // signed-out state, never crash the layout, so swallow all errors → null.
+    session ? getMe(session).catch(() => null) : Promise.resolve(null),
   ]);
   return (
     <html lang={locale}>
@@ -79,6 +83,7 @@ export default async function RootLayout({
                     locale={locale}
                     cartItemCount={cartItemCount}
                     megamenu={megamenu}
+                    user={me}
                     {...(ctx.salesChannelCode !== undefined
                       ? { salesChannelCode: ctx.salesChannelCode }
                       : {})}
