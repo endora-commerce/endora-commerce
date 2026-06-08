@@ -44,6 +44,8 @@
   "scope.selectChannel": "Select at least one channel.",
   "pageBuilder.extensions": "Extensions",
   "pageBuilder.loadingConfig": "Loading Page Builder config...",
+  "pageBuilder.fullscreen.enter": "Fullscreen",
+  "pageBuilder.fullscreen.exit": "Exit fullscreen",
   "hookAttachments.addBlock": "Add block",
   "hookAttachments.empty": "No blocks attached.",
   "hookAttachments.loading": "Loading attachments...",
