@@ -31,8 +31,17 @@ export async function registerAdminPublicRoutes(
           ? { userAgent: request.headers['user-agent'] }
           : {}),
       });
+      // Feature 042 — two-step login (no session cookie until the second step).
+      if (result.status === 'mfaRequired') {
+        return { data: { status: 'mfaRequired', challengeId: result.challengeId } };
+      }
+      if (result.status === 'mfaSetupRequired') {
+        return { data: { status: 'mfaSetupRequired', setupTicket: result.setupTicket } };
+      }
       setSessionCookie(reply, result.sessionCookieValue, result.sessionExpiresAt);
-      return { data: { adminUser: serializeAdminUser(result.adminUser) } };
+      return {
+        data: { status: 'authenticated', adminUser: serializeAdminUser(result.adminUser) },
+      };
     },
   );
 

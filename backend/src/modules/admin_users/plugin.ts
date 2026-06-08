@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { SessionService } from '../auth/services/session-service.js';
+import type { MfaLoginPort } from '../auth/services/mfa-login-port.js';
 import { AdminAuthService } from './services/admin-auth-service.js';
 import { ImpersonationService } from './services/impersonation-service.js';
 import { AdminUserService } from './services/admin-user-service.js';
@@ -27,6 +28,8 @@ export interface AdminModuleOptions {
   /** Resolves the current admin's id from `request.actor` (prod) or
    *  `request.testActor` (test harness). Used by `GET /admin/me`. */
   resolveAdminContext: (req: FastifyRequest) => { adminUserId: string };
+  /** Feature 042 — lazily resolved MFA login port (absent ⇒ password-only). */
+  getMfaLoginPort?: () => MfaLoginPort | undefined;
 }
 
 export interface AdminModuleHandle {
@@ -43,7 +46,11 @@ export interface AdminModuleHandle {
 export function adminModule(
   options: AdminModuleOptions,
 ): { plugin: (app: FastifyInstance) => Promise<void>; handle: AdminModuleHandle } {
-  const adminAuthService = new AdminAuthService(options.emFactory, options.sessionService);
+  const adminAuthService = new AdminAuthService(
+    options.emFactory,
+    options.sessionService,
+    options.getMfaLoginPort,
+  );
   const impersonationService = new ImpersonationService(
     options.emFactory,
     options.sessionService,

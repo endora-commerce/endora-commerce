@@ -51,6 +51,8 @@ import { CUSTOMERS_SETTING_CODES } from './modules/customers/manifest.js';
 import type { OrderService } from './modules/orders/services/order-service.js';
 import { QUICK_ORDER_SETTING_CODES } from './modules/quick_order/manifest.js';
 import { adminModule } from './modules/admin_users/plugin.js';
+import { mfaModule } from './modules/mfa/plugin.js';
+import type { MfaLoginPort } from './modules/auth/services/mfa-login-port.js';
 import { inventoryModule } from './modules/inventory/plugin.js';
 import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
 import { creditLimitsModule } from './modules/credit_limits/plugin.js';
@@ -245,6 +247,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     });
   };
 
+  // Feature 042 — the MFA module is constructed after `settings` exists, so its
+  // login port is late-bound here and resolved lazily by the auth services.
+  let mfaLoginPort: MfaLoginPort | undefined;
+  const getMfaLoginPort = (): MfaLoginPort | undefined => mfaLoginPort;
+
   const admin = adminModule({
     emFactory: em,
     sessionService,
@@ -254,6 +261,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     adminRoleService,
     requireAdmin,
     resolveAdminContext: adminContextResolver,
+    getMfaLoginPort,
   });
 
   const creditLimits = creditLimitsModule({
@@ -378,6 +386,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       return { actorAdminUserId: request.actor.adminUserId };
     },
   });
+
+  // Feature 042 — MFA module. Constructed here (after `settings`) so it can
+  // read the per-scope MFA settings; its login port is bound to the late-bound
+  // `mfaLoginPort` captured by the auth services above. Plugin pushed below.
+  const mfa = mfaModule({
+    emFactory: em,
+    redis,
+    settingsService: settings.handle.settingsService,
+    auditLogService,
+    secretEncryptionKey: process.env['MFA_SECRET_ENCRYPTION_KEY'],
+  });
+  mfaLoginPort = mfa.handle().mfaLoginPort;
 
   // SEO module — needs the SettingsService port for the per-channel
   // `sales_channels.storefront_url` setting that the sitemap generator
@@ -813,6 +833,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       emFactory: em,
       eventBus,
       sessionService,
+      getMfaLoginPort,
       requireCustomer,
       requireAdmin,
       requireAdminAny,
@@ -939,6 +960,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // modules can read it at construction time. The boot-time reconciler
   // runs below before HTTP comes up.
   modules.push(settings.plugin);
+  modules.push(mfa.plugin);
 
   // Feature 013 — Assets Library. Phase 2 instantiates the module so its
   // manifest is reconciled and the AssetsLibraryService / referenceRegistry

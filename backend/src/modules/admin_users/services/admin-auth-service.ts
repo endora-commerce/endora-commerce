@@ -3,11 +3,14 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { hashPassword, verifyPassword } from '../../auth/services/password-hasher.js';
 import type { SessionService } from '../../auth/services/session-service.js';
+import type { MfaLoginPort } from '../../auth/services/mfa-login-port.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
 
 /**
- * AdminAuthService (T186). login → admin SessionService.createSession;
- * logout → destroy. changePassword mirrors the customer flow.
+ * AdminAuthService (T186; two-step login added in feature 042). login →
+ * first factor; when an `MfaLoginPort` is injected and the admin has active
+ * 2FA (or 2FA is enforced) it returns `mfaRequired` / `mfaSetupRequired`
+ * without a session. Absent port ⇒ password-only (FR-033).
  */
 export interface AdminLoginResult {
   adminUser: AdminUser;
@@ -15,10 +18,18 @@ export interface AdminLoginResult {
   sessionExpiresAt: Date;
 }
 
+/** Discriminated outcome of the first admin login step (feature 042). */
+export type AdminLoginOutcome =
+  | ({ status: 'authenticated' } & AdminLoginResult)
+  | { status: 'mfaRequired'; challengeId: string }
+  | { status: 'mfaSetupRequired'; setupTicket: string };
+
 export class AdminAuthService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly sessionService: SessionService,
+    /** Lazily resolved so composition can late-bind the MFA module. */
+    private readonly getMfaLoginPort?: () => MfaLoginPort | undefined,
   ) {}
 
   async login(input: {
@@ -26,7 +37,7 @@ export class AdminAuthService {
     password: string;
     ip?: string;
     userAgent?: string;
-  }): Promise<AdminLoginResult> {
+  }): Promise<AdminLoginOutcome> {
     const em = this.emFactory();
     const admin = await em.findOne(AdminUser, { email: input.email, deletedAt: null });
     if (!admin || admin.status !== 'active') {
@@ -36,6 +47,22 @@ export class AdminAuthService {
     if (!ok) {
       throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Invalid email or password.');
     }
+
+    // Second factor (feature 042). No session until it succeeds.
+    const mfaPort = this.getMfaLoginPort?.();
+    if (mfaPort) {
+      const decision = await mfaPort.beginLogin(
+        { subjectType: 'admin', subjectId: admin.id },
+        { salesChannelId: null, organizationId: null },
+      );
+      if (decision.kind === 'challenge') {
+        return { status: 'mfaRequired', challengeId: decision.challengeId };
+      }
+      if (decision.kind === 'setup') {
+        return { status: 'mfaSetupRequired', setupTicket: decision.setupTicket };
+      }
+    }
+
     const session = await this.sessionService.createSession({
       kind: 'admin',
       adminUserId: admin.id,
@@ -45,6 +72,7 @@ export class AdminAuthService {
     admin.lastLoginAt = new Date();
     await em.flush();
     return {
+      status: 'authenticated',
       adminUser: admin,
       sessionCookieValue: session.cookieValue,
       sessionExpiresAt: session.expiresAt,

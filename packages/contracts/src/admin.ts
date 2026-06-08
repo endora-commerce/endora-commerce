@@ -38,7 +38,6 @@ export type AdminRole = z.infer<typeof adminRoleSchema>;
 export const adminLoginRequestSchema = z.object({
   email: z.string().email(),
   password: z.string(),
-  twoFactorCode: z.string().optional(),
 });
 
 export const impersonationRequestSchema = z.object({

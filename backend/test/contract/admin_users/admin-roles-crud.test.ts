@@ -32,7 +32,9 @@ describe('Admin roles CRUD', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: Array<{ code: string; module: string }> };
-    expect(body.data.length).toBe(29);
+    // +2 for feature 042 MFA codes (mfa:reset, mfa:manage).
+    expect(body.data.length).toBe(31);
+    expect(body.data.some((p) => p.code === 'mfa:reset')).toBe(true);
     expect(body.data.some((p) => p.code === 'orders:read')).toBe(true);
     expect(body.data.some((p) => p.code === 'settings:read')).toBe(true);
     expect(body.data.some((p) => p.code === 'cms.read')).toBe(true);
