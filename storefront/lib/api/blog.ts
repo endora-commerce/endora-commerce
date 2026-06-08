@@ -19,14 +19,13 @@ export async function getBlogIndex(
   ctx: RequestContext,
 ): Promise<BlogIndexResponse | null> {
   try {
-    const res = await apiGet<{ data: BlogIndexResponse }>(
-      '/api/v1/blog/by-channel',
-      ctx,
-      {
-        revalidate: 300,
-        tags: ['blog:index'],
-      },
-    );
+    // No Next Data Cache (apiGet falls back to `no-store`): blog content is
+    // operator-driven and must reflect a publish immediately. The backend
+    // already serves these reads from a short-TTL Redis cache that is
+    // invalidated on every post/category write, so skipping the storefront-side
+    // time cache keeps the list fresh without a per-request DB hit. A 60s/300s
+    // Next cache previously hid newly published posts until it expired.
+    const res = await apiGet<{ data: BlogIndexResponse }>('/api/v1/blog/by-channel', ctx);
     return res.data;
   } catch (err) {
     if (err instanceof StorefrontApiError && err.status === 404) return null;
@@ -47,13 +46,10 @@ export async function getBlogBySlug(
   const qs = new URLSearchParams({ slug });
   if (page !== undefined) qs.set('page', String(page));
   try {
+    // Always-fresh (see getBlogIndex) — the backend Redis cache handles perf.
     const res = await apiGet<{ data: BlogBySlugResponse }>(
       `/api/v1/blog/by-slug?${qs.toString()}`,
       ctx,
-      {
-        revalidate: 60,
-        tags: ['blog:by-slug', `blog:slug:${slug}`],
-      },
     );
     return res.data;
   } catch (err) {
@@ -73,13 +69,10 @@ export async function getBlogTagByCode(
   const qs = new URLSearchParams({ code });
   if (page !== undefined) qs.set('page', String(page));
   try {
+    // Always-fresh (see getBlogIndex) — the backend Redis cache handles perf.
     const res = await apiGet<{ data: BlogTagByCodeResponse }>(
       `/api/v1/blog/tag-by-code?${qs.toString()}`,
       ctx,
-      {
-        revalidate: 60,
-        tags: ['blog:tag', `blog:tag:${code}`],
-      },
     );
     return res.data;
   } catch (err) {
