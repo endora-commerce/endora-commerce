@@ -40,5 +40,8 @@
   "displayMode.full": "Pełny",
   "displayMode.compact": "Kompaktowy",
   "displayMode.differences_only": "Tylko różnice",
-  "displayMode.differencesOnly": "Tylko różnice"
+  "displayMode.differencesOnly": "Tylko różnice",
+  "displayMode.all": "Wszystkie atrybuty",
+  "displayMode.common": "Wspólne atrybuty",
+  "displayMode.differences": "Różnice"
 }
