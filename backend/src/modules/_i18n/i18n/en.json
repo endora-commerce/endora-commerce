@@ -1323,6 +1323,8 @@
   "adminRoles.permission.rfqs:handle": "Handle quote requests",
   "adminRoles.permission.customers:read": "View customers",
   "adminRoles.permission.customers:impersonate": "Impersonate customers",
+  "adminRoles.permission.mfa:reset": "Reset a user's 2FA",
+  "adminRoles.permission.mfa:manage": "Manage 2FA policies and organization enforcement",
   "adminRoles.permission.integrations:manage": "Manage integrations",
   "adminRoles.permission.audit_log:read": "View audit log",
   "adminRoles.permission.admin_users:manage": "Manage admin users + roles",

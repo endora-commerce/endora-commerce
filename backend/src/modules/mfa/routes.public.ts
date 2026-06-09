@@ -7,6 +7,7 @@ import {
 import { HttpError } from '../../http/error-envelope.js';
 import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '../auth/plugin.js';
 import type { SessionService } from '../auth/services/session-service.js';
+import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { MfaLoginService } from './services/mfa-login-service.js';
 import type { ChallengeStore } from './services/challenge-store.js';
 import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
@@ -22,6 +23,7 @@ export interface MfaPublicDeps {
   sessionService: SessionService;
   challengeStore: ChallengeStore;
   enrolmentService: MfaEnrolmentService;
+  auditLogService: AuditLogService;
 }
 
 interface SurfaceCfg {
@@ -115,18 +117,33 @@ function registerVerifyRoute(
 ): void {
   app.post(cfg.path, { schema: { body: mfaVerifyRequestSchema } }, async (request, reply) => {
     const body = mfaVerifyRequestSchema.parse(request.body);
+    const objectType = cfg.subjectType === 'customer' ? 'customer_account' : 'admin_user';
     const result = await deps.loginService.verifyChallenge(body.challengeId, body.code);
     if (!result.ok) {
       if (result.error === 'invalid_challenge') {
         throw new HttpError(400, 'MFA_INVALID_CHALLENGE', 'This login attempt has expired. Please sign in again.');
       }
       if (result.error === 'locked') {
+        await deps.auditLogService.record({
+          action: 'mfa.second_step_locked',
+          objectType,
+          objectId: result.subject.subjectId,
+          ...(request.ip ? { ipAddress: request.ip } : {}),
+        });
         throw new HttpError(429, 'MFA_TOO_MANY_ATTEMPTS', 'Too many incorrect codes. Please sign in again.');
       }
       throw new HttpError(401, 'MFA_INVALID_CODE', 'The code is invalid or expired.');
     }
     if (result.subject.subjectType !== cfg.subjectType) {
       throw new HttpError(400, 'MFA_WRONG_SURFACE', 'This challenge is not valid here.');
+    }
+    if (result.factor === 'recovery') {
+      await deps.auditLogService.record({
+        action: 'mfa.recovery_code_used',
+        objectType,
+        objectId: result.subject.subjectId,
+        ...(request.ip ? { ipAddress: request.ip } : {}),
+      });
     }
     const session = await deps.sessionService.createSession(
       cfg.subjectType === 'customer'

@@ -31,6 +31,13 @@ describe('MFA US2 — admin enrol + two-step login', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    // FR-001 — 2FA must be enabled for the admin scope before self-enrolment.
+    await h.settings.adminService.setValueForAllChannels(
+      'mfa.admin.totp_enabled',
+      true,
+      null,
+      { actorAdminUserId: null },
+    );
   });
   afterAll(async () => {
     await teardownBackendServer(h);

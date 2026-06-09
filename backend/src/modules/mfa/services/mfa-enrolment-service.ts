@@ -169,29 +169,33 @@ export class MfaEnrolmentService {
   /**
    * Verify a second factor (TOTP or recovery code) for an active enrolment.
    * A 6-digit input is treated as a TOTP code (with replay guard); anything
-   * else is matched against unused recovery codes (single-use).
+   * else is matched against unused recovery codes (single-use). Reports which
+   * factor matched so callers can audit recovery-code use.
    */
-  async verifySecondFactor(subject: MfaSubjectRef, code: string): Promise<boolean> {
+  async verifySecondFactor(
+    subject: MfaSubjectRef,
+    code: string,
+  ): Promise<{ ok: boolean; factor?: 'totp' | 'recovery' }> {
     const em = this.emFactory();
     const active = await em.findOne(MfaEnrolment, {
       subjectType: subject.subjectType,
       subjectId: subject.subjectId,
       status: 'active',
     });
-    if (!active) return false;
+    if (!active) return { ok: false };
 
     const normalised = code.replace(/\s+/g, '');
     if (/^\d{6}$/.test(normalised)) {
       const secret = this.decryptSecret(active);
       const step = verifyTotpStep(secret, normalised);
-      if (step === null) return false;
+      if (step === null) return { ok: false };
       // Replay guard — a step at or before the last accepted one is rejected.
       if (active.lastAcceptedStep != null && Number(active.lastAcceptedStep) >= step) {
-        return false;
+        return { ok: false };
       }
       active.lastAcceptedStep = String(step);
       await em.flush();
-      return true;
+      return { ok: true, factor: 'totp' };
     }
 
     const rc = await em.findOne(MfaRecoveryCode, {
@@ -199,10 +203,10 @@ export class MfaEnrolmentService {
       codeHash: hashRecoveryCode(normalised),
       usedAt: null,
     });
-    if (!rc) return false;
+    if (!rc) return { ok: false };
     rc.usedAt = new Date();
     await em.flush();
-    return true;
+    return { ok: true, factor: 'recovery' };
   }
 
   private decryptSecret(enrolment: MfaEnrolment): string {

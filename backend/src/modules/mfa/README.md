@@ -9,11 +9,28 @@ contracts.
 
 ## Status
 
-Incremental implementation. **Phase 1 (Setup) + the additive parts of
-Phase 2 (Foundational)** are in place: tables, entities, contracts, settings
-manifest, permissions, and the pure services (`SecretCipher`, `ChallengeStore`).
-The breaking two-step login refactor and the per-surface routes/services land
-together with the US1 frontend changes (see `tasks.md`).
+Complete (US1–US6). Capabilities:
+
+- **TOTP 2FA** (enrol / activate / disable / regenerate / status) on both
+  surfaces, with single-use recovery codes and a replay-guarded second step.
+- **Two-step login** — credential step returns `authenticated` |
+  `mfaRequired` | `mfaSetupRequired`; a separate verify step issues the session.
+- **Enforcement** — per-scope settings (admin global; storefront global/channel)
+  and per-organization policy (org-admin + platform-admin); enforced-but-
+  unenrolled accounts enrol via a setup ticket at login.
+- **Federated sign-in** — Google / Microsoft (OIDC via `openid-client`);
+  storefront auto-creates a standalone account, admin matches existing only.
+- **Admin reset** — single account + organization-wide.
+
+Self-service setup is gated on the per-scope "2FA enabled" setting (FR-001).
+
+## Routes (by file)
+
+- `routes.public.ts` — second-step verify + setup-ticket begin/complete (both surfaces)
+- `routes.self-service.ts` — `/{account,admin/account}/mfa/*` (setup/activate/disable/regenerate/status)
+- `routes.oauth.ts` — `/auth/{customer,admin}/oauth/:provider/{start,callback}`
+- `routes.org.ts` — storefront org-admin enforcement
+- `routes.admin.ts` — platform-admin reset (single/bulk) + org enforcement
 
 ## Notable decisions
 

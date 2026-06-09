@@ -56,6 +56,12 @@ describe('MFA US6 — platform-admin reset', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    await h.settings.adminService.setValueForAllChannels(
+      'mfa.storefront.totp_enabled',
+      true,
+      null,
+      { actorAdminUserId: null },
+    );
   });
   afterAll(async () => {
     await teardownBackendServer(h);

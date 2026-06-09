@@ -124,6 +124,7 @@ export function mfaModule(options: MfaModuleOptions): {
       sessionService: options.sessionService,
       challengeStore,
       enrolmentService,
+      auditLogService: options.auditLogService,
     });
     const emailOpt = options.resolveAccountEmail
       ? { resolveAccountEmail: options.resolveAccountEmail }

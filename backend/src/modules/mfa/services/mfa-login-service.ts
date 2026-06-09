@@ -12,8 +12,9 @@ import type { MfaEnrolmentService } from './mfa-enrolment-service.js';
 
 /** Result of completing the second step. */
 export type MfaVerifyResult =
-  | { ok: true; subject: MfaSubjectRef }
-  | { ok: false; error: 'invalid_challenge' | 'invalid_code' | 'locked' };
+  | { ok: true; subject: MfaSubjectRef; factor: 'totp' | 'recovery' }
+  | { ok: false; error: 'invalid_challenge' }
+  | { ok: false; error: 'invalid_code' | 'locked'; subject: MfaSubjectRef };
 
 /**
  * Orchestrates the post-first-factor MFA decision (feature 042, R4).
@@ -72,7 +73,7 @@ export class MfaLoginService implements MfaLoginPort {
    * the route can mint the session.
    */
   async verifyChallenge(challengeId: string, code: string): Promise<MfaVerifyResult> {
-    if (!this.enrolmentService) return { ok: false, error: 'invalid_code' };
+    if (!this.enrolmentService) return { ok: false, error: 'invalid_challenge' };
     const challenge = await this.challengeStore.getChallenge(challengeId);
     if (!challenge) return { ok: false, error: 'invalid_challenge' };
 
@@ -80,13 +81,13 @@ export class MfaLoginService implements MfaLoginPort {
       subjectType: challenge.subjectType,
       subjectId: challenge.subjectId,
     };
-    const ok = await this.enrolmentService.verifySecondFactor(subject, code);
-    if (!ok) {
+    const verified = await this.enrolmentService.verifySecondFactor(subject, code);
+    if (!verified.ok) {
       const remaining = await this.challengeStore.recordFailedAttempt(challengeId);
-      return { ok: false, error: remaining <= 0 ? 'locked' : 'invalid_code' };
+      return { ok: false, error: remaining <= 0 ? 'locked' : 'invalid_code', subject };
     }
     await this.challengeStore.consumeChallenge(challengeId);
-    return { ok: true, subject };
+    return { ok: true, subject, factor: verified.factor ?? 'totp' };
   }
 
   private async findActiveEnrolment(

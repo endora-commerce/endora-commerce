@@ -1323,6 +1323,8 @@
   "adminRoles.permission.rfqs:handle": "Obsługa zapytań ofertowych",
   "adminRoles.permission.customers:read": "Wyświetlanie klientów",
   "adminRoles.permission.customers:impersonate": "Podszywanie się pod klientów",
+  "adminRoles.permission.mfa:reset": "Resetowanie 2FA użytkownika",
+  "adminRoles.permission.mfa:manage": "Zarządzanie politykami 2FA i wymuszaniem w Organizacji",
   "adminRoles.permission.integrations:manage": "Zarządzanie integracjami",
   "adminRoles.permission.audit_log:read": "Wyświetlanie dziennika audytu",
   "adminRoles.permission.admin_users:manage": "Zarządzanie użytkownikami admina i rolami",

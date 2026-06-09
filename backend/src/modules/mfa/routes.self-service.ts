@@ -60,6 +60,15 @@ export async function registerMfaSelfServiceRoutes(
 
   app.post(`${pathPrefix}/setup`, { preHandler: requireGuard }, async (request) => {
     const subject = subjectOf(request);
+    // FR-001 — enrolment is only permitted when 2FA is enabled for the scope.
+    const policy = await policyResolver.resolve(subject, {
+      salesChannelId:
+        (request as { salesChannel?: { id: string } }).salesChannel?.id ?? null,
+      organizationId: opts.resolveOrganizationId?.(request) ?? null,
+    });
+    if (!policy.totpEnabled) {
+      throw new HttpError(403, 'MFA_NOT_ENABLED', 'Two-factor authentication is not enabled for your account.');
+    }
     const label =
       (await opts.resolveAccountEmail?.(subjectType, subject.subjectId)) ?? subject.subjectId;
     return { data: await enrolmentService.setup(subject, label) };
@@ -106,8 +115,8 @@ export async function registerMfaSelfServiceRoutes(
     async (request) => {
       const body = mfaRegenerateRequestSchema.parse(request.body);
       const subject = subjectOf(request);
-      const ok = await enrolmentService.verifySecondFactor(subject, body.code);
-      if (!ok) throw new HttpError(401, 'MFA_INVALID_CODE', 'The code is invalid or expired.');
+      const verified = await enrolmentService.verifySecondFactor(subject, body.code);
+      if (!verified.ok) throw new HttpError(401, 'MFA_INVALID_CODE', 'The code is invalid or expired.');
       const res = await enrolmentService.regenerateRecoveryCodes(subject);
       await auditLogService.record({
         action: 'mfa.recovery_codes_regenerated',
@@ -146,8 +155,8 @@ async function reauthenticate(
   body: { code?: string | undefined; password?: string | undefined },
 ): Promise<void> {
   if (body.code) {
-    const ok = await opts.enrolmentService.verifySecondFactor(subject, body.code);
-    if (ok) return;
+    const verified = await opts.enrolmentService.verifySecondFactor(subject, body.code);
+    if (verified.ok) return;
     throw new HttpError(401, 'MFA_INVALID_CODE', 'The code is invalid or expired.');
   }
   if (body.password && opts.verifyAccountPassword) {
