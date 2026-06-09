@@ -61,7 +61,11 @@ export async function getResolvedPrice(
 ): Promise<ResolvedPrice | null> {
   const params = new URLSearchParams();
   params.set('quantity', String(query.quantity && query.quantity > 0 ? query.quantity : 1));
-  if (query.currency) params.set('currency', query.currency.toUpperCase());
+  // Fall back to the buyer's selected display currency (the `currency` cookie,
+  // threaded through the request context) when the caller doesn't pass one, so
+  // the header currency switcher reprices the resolved-price surfaces.
+  const currency = query.currency ?? ctx?.currency;
+  if (currency) params.set('currency', currency.toUpperCase());
   if (query.variantId) params.set('variantId', query.variantId);
   try {
     const res = await apiGet<ResolvedPriceResponse>(

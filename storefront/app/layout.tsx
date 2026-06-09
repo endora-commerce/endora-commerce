@@ -42,7 +42,7 @@ export default async function RootLayout({
 }: {
   children: ReactNode;
 }): Promise<ReactNode> {
-  const { config, locale, ctx } = await getServerContext();
+  const { config, locale, currency, ctx } = await getServerContext();
   // Feature 036 US5 — checkout uses a minimal, logo-only header. The full vs
   // minimal switch is decided per-route by the <HeaderSwitch> client component
   // (`usePathname`), because this Server-Component layout is NOT re-run on
@@ -81,6 +81,7 @@ export default async function RootLayout({
                   <Header
                     config={config}
                     locale={locale}
+                    {...(currency !== undefined ? { currency } : {})}
                     cartItemCount={cartItemCount}
                     megamenu={megamenu}
                     user={me}
