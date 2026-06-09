@@ -97,7 +97,7 @@ export function CatalogToolbar(props: {
             role="radio"
             aria-checked={props.view === 'grid'}
             aria-label="Siatka"
-            className={`flex h-[26px] w-[28px] items-center justify-center rounded-[3px] transition-colors ${
+            className={`flex h-[26px] w-[28px] items-center justify-center rounded-[3px] outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-600)] ${
               props.view === 'grid'
                 ? 'bg-surface text-fg shadow-sm'
                 : 'text-muted hover:text-fg'
@@ -111,7 +111,7 @@ export function CatalogToolbar(props: {
             role="radio"
             aria-checked={props.view === 'list'}
             aria-label="Lista"
-            className={`flex h-[26px] w-[28px] items-center justify-center rounded-[3px] transition-colors ${
+            className={`flex h-[26px] w-[28px] items-center justify-center rounded-[3px] outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-600)] ${
               props.view === 'list'
                 ? 'bg-surface text-fg shadow-sm'
                 : 'text-muted hover:text-fg'
