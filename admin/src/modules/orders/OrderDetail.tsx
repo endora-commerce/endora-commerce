@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   ClipboardList,
   Copy,
@@ -40,6 +40,8 @@ type OrderTab = 'overview' | 'payment' | 'delivery' | 'comments';
 interface OrderItem {
   id: string;
   productId: string;
+  productSnapshot: { sku: string; name: string; primaryAssetUrl: string | null };
+  variantSnapshot: { sku: string; label: string } | null;
   quantity: number;
   unitPrice: number;
   taxRate: number;
@@ -535,8 +537,17 @@ export function OrderDetail(): ReactNode {
                   <TableBody>
                     {order.items.map((it) => (
                       <TableRow key={it.id}>
-                        <TableCell className="font-mono text-xs">
-                          {it.productId.slice(0, 8)}
+                        <TableCell>
+                          <Link
+                            to={`/catalog/products/${it.productId}`}
+                            className="font-medium text-primary hover:underline"
+                          >
+                            {it.productSnapshot.name}
+                          </Link>
+                          <div className="font-mono text-xs text-muted-foreground">
+                            {it.variantSnapshot ? `${it.variantSnapshot.label} · ` : ''}
+                            {it.productSnapshot.sku}
+                          </div>
                         </TableCell>
                         <TableCell>{it.quantity}</TableCell>
                         <TableCell className="tabular-nums">
