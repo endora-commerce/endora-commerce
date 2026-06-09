@@ -36,22 +36,23 @@ import { manifest as manifest_28 } from '../inventory/manifest.js';
 import { manifest as manifest_29 } from '../invoices/manifest.js';
 import { manifest as manifest_30 } from '../languages/manifest.js';
 import { manifest as manifest_31 } from '../megamenu/manifest.js';
-import { manifest as manifest_32 } from '../orders/manifest.js';
-import { manifest as manifest_33 } from '../organizations/manifest.js';
-import { manifest as manifest_34 } from '../payment_methods/manifest.js';
-import { manifest as manifest_35 } from '../payments/manifest.js';
-import { manifest as manifest_36 } from '../price_lists/manifest.js';
-import { manifest as manifest_37 } from '../promotions/manifest.js';
-import { manifest as manifest_38 } from '../quick_order/manifest.js';
-import { manifest as manifest_39 } from '../quote_requests/manifest.js';
-import { manifest as manifest_40 } from '../sales_channels/manifest.js';
-import { manifest as manifest_41 } from '../search/manifest.js';
-import { manifest as manifest_42 } from '../seo/manifest.js';
-import { manifest as manifest_43 } from '../settings/manifest.js';
-import { manifest as manifest_44 } from '../shipments/manifest.js';
-import { manifest as manifest_45 } from '../shopping_lists/manifest.js';
-import { manifest as manifest_46 } from '../taxes/manifest.js';
-import { manifest as manifest_47 } from '../webhooks/manifest.js';
+import { manifest as manifest_32 } from '../mfa/manifest.js';
+import { manifest as manifest_33 } from '../orders/manifest.js';
+import { manifest as manifest_34 } from '../organizations/manifest.js';
+import { manifest as manifest_35 } from '../payment_methods/manifest.js';
+import { manifest as manifest_36 } from '../payments/manifest.js';
+import { manifest as manifest_37 } from '../price_lists/manifest.js';
+import { manifest as manifest_38 } from '../promotions/manifest.js';
+import { manifest as manifest_39 } from '../quick_order/manifest.js';
+import { manifest as manifest_40 } from '../quote_requests/manifest.js';
+import { manifest as manifest_41 } from '../sales_channels/manifest.js';
+import { manifest as manifest_42 } from '../search/manifest.js';
+import { manifest as manifest_43 } from '../seo/manifest.js';
+import { manifest as manifest_44 } from '../settings/manifest.js';
+import { manifest as manifest_45 } from '../shipments/manifest.js';
+import { manifest as manifest_46 } from '../shopping_lists/manifest.js';
+import { manifest as manifest_47 } from '../taxes/manifest.js';
+import { manifest as manifest_48 } from '../webhooks/manifest.js';
 
 export interface DiscoveredManifestEntry {
   id: string;
@@ -91,20 +92,21 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'invoices', manifest: manifest_29 },
   { id: 'languages', manifest: manifest_30 },
   { id: 'megamenu', manifest: manifest_31 },
-  { id: 'orders', manifest: manifest_32 },
-  { id: 'organizations', manifest: manifest_33 },
-  { id: 'payment_methods', manifest: manifest_34 },
-  { id: 'payments', manifest: manifest_35 },
-  { id: 'price_lists', manifest: manifest_36 },
-  { id: 'promotions', manifest: manifest_37 },
-  { id: 'quick_order', manifest: manifest_38 },
-  { id: 'quote_requests', manifest: manifest_39 },
-  { id: 'sales_channels', manifest: manifest_40 },
-  { id: 'search', manifest: manifest_41 },
-  { id: 'seo', manifest: manifest_42 },
-  { id: 'settings', manifest: manifest_43 },
-  { id: 'shipments', manifest: manifest_44 },
-  { id: 'shopping_lists', manifest: manifest_45 },
-  { id: 'taxes', manifest: manifest_46 },
-  { id: 'webhooks', manifest: manifest_47 },
+  { id: 'mfa', manifest: manifest_32 },
+  { id: 'orders', manifest: manifest_33 },
+  { id: 'organizations', manifest: manifest_34 },
+  { id: 'payment_methods', manifest: manifest_35 },
+  { id: 'payments', manifest: manifest_36 },
+  { id: 'price_lists', manifest: manifest_37 },
+  { id: 'promotions', manifest: manifest_38 },
+  { id: 'quick_order', manifest: manifest_39 },
+  { id: 'quote_requests', manifest: manifest_40 },
+  { id: 'sales_channels', manifest: manifest_41 },
+  { id: 'search', manifest: manifest_42 },
+  { id: 'seo', manifest: manifest_43 },
+  { id: 'settings', manifest: manifest_44 },
+  { id: 'shipments', manifest: manifest_45 },
+  { id: 'shopping_lists', manifest: manifest_46 },
+  { id: 'taxes', manifest: manifest_47 },
+  { id: 'webhooks', manifest: manifest_48 },
 ];
