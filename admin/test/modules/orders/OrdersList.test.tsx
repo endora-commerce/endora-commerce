@@ -87,14 +87,14 @@ function renderList(): void {
 describe('OrdersList (desktop)', () => {
   it('renders rows from the server with business IDs and customer names', async () => {
     renderList();
-    await waitFor(() => expect(screen.getByText('ORD-1')).toBeInTheDocument());
-    expect(screen.getByText('ORD-2')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('#ORD-1')).toBeInTheDocument());
+    expect(screen.getByText('#ORD-2')).toBeInTheDocument();
     expect(screen.getAllByText('Jan Kowalski').length).toBeGreaterThan(0);
   });
 
   it('sends the search term to the server (debounced)', async () => {
     renderList();
-    await waitFor(() => expect(screen.getByText('ORD-1')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('#ORD-1')).toBeInTheDocument());
     await userEvent.type(screen.getByLabelText('orders.field.search'), 'acme');
     await waitFor(() =>
       expect(getSpy.mock.calls.some(([p]) => typeof p === 'string' && p.includes('q=acme'))).toBe(true),

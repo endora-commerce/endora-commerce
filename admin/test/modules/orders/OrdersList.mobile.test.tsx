@@ -80,7 +80,7 @@ describe('OrdersList mobile', () => {
       BUNDLE,
     );
     await waitFor(() => {
-      expect(screen.getByText('ORD-1')).toBeInTheDocument();
+      expect(screen.getByText('#ORD-1')).toBeInTheDocument();
     });
     expect(screen.queryByRole('columnheader')).not.toBeInTheDocument();
   });

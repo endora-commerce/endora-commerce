@@ -1576,6 +1576,8 @@
   "orders.search.placeholder": "Numer zamówienia, klient…",
   "orders.field.status": "Status",
   "orders.filter.all": "Wszystkie statusy",
+  "orders.filter.toggle": "Filtry",
+  "orders.filter.clearAll": "Wyczyść wszystko",
   "orders.field.sort": "Sortuj",
   "orders.sort.newest": "Najnowsze",
   "orders.sort.oldest": "Najstarsze",
