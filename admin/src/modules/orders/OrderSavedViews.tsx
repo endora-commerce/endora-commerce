@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Save, Trash2 } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/i18n/useTranslation';
 
@@ -86,36 +85,34 @@ export function OrderSavedViews({ current, onLoad, onError }: Props): ReactNode 
   };
 
   return (
-    <div className="space-y-1">
-      <Label htmlFor="saved-views">{t('orders.views.label')}</Label>
-      <div className="flex items-center gap-2">
-        <Select
-          id="saved-views"
-          value={selectedId}
-          onChange={(e): void => handleLoad(e.target.value)}
-        >
-          <option value="">{t('orders.views.none')}</option>
-          {views.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name}
-              {v.shared ? ' ★' : ''}
-            </option>
-          ))}
-        </Select>
-        <Button type="button" variant="outline" size="sm" aria-label="save-view" onClick={(): void => void save()}>
-          <Save />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          aria-label="delete-view"
-          disabled={!selectedId}
-          onClick={(): void => void remove()}
-        >
-          <Trash2 />
-        </Button>
-      </div>
+    <div className="flex items-center gap-2">
+      <Select
+        id="saved-views"
+        aria-label={t('orders.views.label')}
+        value={selectedId}
+        onChange={(e): void => handleLoad(e.target.value)}
+      >
+        <option value="">{t('orders.views.none')}</option>
+        {views.map((v) => (
+          <option key={v.id} value={v.id}>
+            {v.name}
+            {v.shared ? ' ★' : ''}
+          </option>
+        ))}
+      </Select>
+      <Button type="button" variant="outline" size="sm" aria-label="save-view" onClick={(): void => void save()}>
+        <Save />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        aria-label="delete-view"
+        disabled={!selectedId}
+        onClick={(): void => void remove()}
+      >
+        <Trash2 />
+      </Button>
     </div>
   );
 }
