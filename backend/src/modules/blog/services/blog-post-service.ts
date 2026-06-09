@@ -535,7 +535,7 @@ export class BlogPostService {
     opts: { setPublishedAt: boolean },
   ): Promise<BlogPostDetail> {
     const em = this.emFactory();
-    return em.transactional(async (tx) => {
+    const detail = await em.transactional(async (tx) => {
       const existing = await this.findRow(tx, id);
       if (!existing) {
         throw new HttpError(404, ERROR_CODES.BLOG_POST_NOT_FOUND, 'Blog post not found.');
@@ -551,10 +551,16 @@ export class BlogPostService {
         `update blog_posts set ${sets.join(', ')} where id = ?`,
         params,
       );
-      const detail = await this.getByIdInTx(tx, id);
-      await this.invalidateCacheForPost(existing.slug, detail.slug);
-      return detail;
+      return this.getByIdInTx(tx, id);
     });
+    // Invalidate AFTER the transaction commits. Doing it inside the
+    // transaction (before commit) opens a race: a concurrent storefront read
+    // can repopulate the cache with the pre-commit row — e.g. the still-draft
+    // version excluded from published listings — and that stale entry then
+    // survives until the TTL, so a freshly published post stays invisible on
+    // the blog list. Publishing is exactly the transition users report here.
+    await this.invalidateCacheForPost(detail.slug, detail.slug);
+    return detail;
   }
 
   private async findRow(em: EntityManager, id: string): Promise<PostRow | null> {
