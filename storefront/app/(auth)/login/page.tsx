@@ -2,13 +2,17 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { loginCustomer } from '../../../lib/api/auth';
+import { beginMfaSetupTicket } from '../../../lib/api/mfa';
 import { StorefrontApiError } from '../../../lib/api/client';
 import {
   clearAnonCartCookie,
   setCartMergeFlash,
+  setMfaChallengeCookie,
+  setMfaSetupTicketCookie,
   setSessionCookie,
 } from '../../../lib/session';
 import { Hook } from '../../../components/Hook';
+import { SocialLoginButtons } from '../../../components/SocialLoginButtons';
 
 /**
  * Storefront login page (T151 / FR-040). Submits via a server action,
@@ -51,20 +55,14 @@ export default async function LoginPage({
               placeholder=" "
             />
           </div>
-          <div className="b2b-auth__field">
-            <label htmlFor="login-2fa">Two-factor code (if enabled)</label>
-            <input
-              id="login-2fa"
-              name="twoFactorCode"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              placeholder="123456"
-            />
-          </div>
           <div className="b2b-auth__actions">
             <button type="submit">Sign in</button>
           </div>
         </form>
+        <SocialLoginButtons
+          backendBaseUrl={process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001'}
+          next={nextPath}
+        />
         <p className="b2b-auth__hint">
           Forgot your password? <Link href="/password-reset/request">Reset it</Link>.
         </p>
@@ -81,7 +79,6 @@ async function loginAction(formData: FormData): Promise<void> {
   'use server';
   const email = (formData.get('email') as string) ?? '';
   const password = (formData.get('password') as string) ?? '';
-  const twoFactorCode = (formData.get('twoFactorCode') as string | null) || undefined;
   const next = sanitiseNext((formData.get('next') as string) ?? '/account');
 
   // Only the network/auth call is wrapped — the `redirect()` calls below must
@@ -89,15 +86,35 @@ async function loginAction(formData: FormData): Promise<void> {
   // is caught here and re-routed into the error branch, blanking the page.
   let result;
   try {
-    result = await loginCustomer({
-      email,
-      password,
-      ...(twoFactorCode ? { twoFactorCode } : {}),
-    });
+    result = await loginCustomer({ email, password });
   } catch (err) {
     const message =
       err instanceof StorefrontApiError ? err.detail : 'Sign-in failed. Please try again.';
     redirect(`/login?error=${encodeURIComponent(message)}&next=${encodeURIComponent(next)}`);
+  }
+  // Feature 042 — two-step login. An account with active 2FA gets routed to the
+  // second-step code screen; the opaque challenge id rides in an httpOnly cookie.
+  if (result.status === 'mfaRequired') {
+    await setMfaChallengeCookie(result.challengeId);
+    redirect(`/login/mfa?next=${encodeURIComponent(next)}`);
+  }
+  if (result.status === 'mfaSetupRequired') {
+    // Enforced-but-unenrolled — begin enrolment with the ticket and route to the
+    // forced-setup screen (the secret rides in an httpOnly cookie, not the URL).
+    let begun;
+    try {
+      begun = await beginMfaSetupTicket(result.setupTicket);
+    } catch {
+      redirect(
+        `/login?error=${encodeURIComponent('Could not start two-factor setup. Please try again.')}&next=${encodeURIComponent(next)}`,
+      );
+    }
+    await setMfaSetupTicketCookie({
+      setupTicket: result.setupTicket,
+      secret: begun.secret,
+      otpauthUri: begun.otpauthUri,
+    });
+    redirect(`/login/setup?next=${encodeURIComponent(next)}`);
   }
   if (!result.sessionCookieValue) {
     redirect(

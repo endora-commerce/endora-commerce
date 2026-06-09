@@ -19,6 +19,7 @@ describe('permission inventory (SC-001)', () => {
     const assignable = new Set(listAssignablePermissionCodes(REGISTERED_MANIFESTS));
     const missing = [...enforced].filter((code) => !assignable.has(code)).sort();
     expect(missing, `codes not in assignable catalogue: ${missing.join(', ')}`).toEqual([]);
-    expect(assignable.size).toBe(29);
+    // +2 for feature 042 MFA codes (mfa:reset, mfa:manage).
+    expect(assignable.size).toBe(31);
   });
 });

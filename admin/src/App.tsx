@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell.js';
 import { LoginPage } from './components/LoginPage.js';
+import { AdminSecuritySettings } from './modules/mfa/AdminSecuritySettings.js';
 import { IdleLogout } from './components/IdleLogout.js';
 import { useAuth } from './lib/auth.js';
 import { TranslationProvider } from './i18n/TranslationProvider.js';
@@ -133,6 +134,7 @@ export function App(): ReactNode {
         <Routes>
           <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
+        <Route path="/security" element={<AdminSecuritySettings />} />
         <Route path="/catalog/products" element={<ProductsList />} />
         <Route path="/catalog/products/:id" element={<ProductEditor />} />
         <Route path="/catalog/categories" element={<CategoriesTree />} />

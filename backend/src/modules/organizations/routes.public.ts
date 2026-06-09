@@ -122,14 +122,25 @@ export async function registerOrganizationsPublicRoutes(
     { schema: { body: customerLoginRequestSchema } },
     async (request, reply) => {
       const body = customerLoginRequestSchema.parse(request.body);
+      const channelId =
+        (request as { salesChannel?: { id: string } }).salesChannel?.id ?? null;
       const result = await customerAuthService.login({
         email: body.email,
         password: body.password,
+        salesChannelId: channelId,
         ...(request.ip ? { ip: request.ip } : {}),
         ...(typeof request.headers['user-agent'] === 'string'
           ? { userAgent: request.headers['user-agent'] }
           : {}),
       });
+      // Feature 042 — two-step login. The MFA cases carry no session cookie;
+      // the client completes the second step at the MFA verify endpoint.
+      if (result.status === 'mfaRequired') {
+        return { data: { status: 'mfaRequired', challengeId: result.challengeId } };
+      }
+      if (result.status === 'mfaSetupRequired') {
+        return { data: { status: 'mfaSetupRequired', setupTicket: result.setupTicket } };
+      }
       setSessionCookie(reply, result.sessionCookieValue, result.sessionExpiresAt);
       // Merge any anonymous cart the caller was carrying into the authenticated
       // cart (feature 027 R-09 / feature 037-cart-merge-on-login). The hook is
@@ -168,6 +179,7 @@ export async function registerOrganizationsPublicRoutes(
       }
       return {
         data: {
+          status: 'authenticated',
           customerAccount: serializeCustomerAccount(result.customerAccount),
           ...(cartMerge ? { cartMerge: narrowCartMergeForHttp(cartMerge) } : {}),
         },

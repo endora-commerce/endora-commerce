@@ -3,14 +3,18 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { hashPassword, verifyPassword } from '../../auth/services/password-hasher.js';
 import type { SessionService } from '../../auth/services/session-service.js';
+import type { MfaLoginPort } from '../../auth/services/mfa-login-port.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 
 /**
- * Customer-side auth flows (T119).
+ * Customer-side auth flows (T119; two-step login added in feature 042).
  *
- * - login: email + password → opaque session cookie (via SessionService).
- *   2FA is not exercised in US2 (covered by T030 enablement and the
- *   organizations.contract.md 2FA paths — those tests ship in US2 extension).
+ * - login: email + password → first factor. When an `MfaLoginPort` is injected
+ *   and the account has active 2FA (or 2FA is enforced for the scope), login
+ *   returns an `mfaRequired` / `mfaSetupRequired` outcome WITHOUT a session;
+ *   the second step is completed by the MFA module's verify endpoint. When no
+ *   port is present (or it returns `proceed`), login issues the session exactly
+ *   as before (password-only fallback, FR-033).
  * - logout: destroy session.
  * - changePassword: argon2 verify of `currentPassword`; reject with
  *   401 CURRENT_PASSWORD_INVALID otherwise; rehash + persist.
@@ -22,13 +26,27 @@ export interface LoginResult {
   sessionExpiresAt: Date;
 }
 
+/** Discriminated outcome of the first login step (feature 042). */
+export type CustomerLoginOutcome =
+  | ({ status: 'authenticated' } & LoginResult)
+  | { status: 'mfaRequired'; challengeId: string }
+  | { status: 'mfaSetupRequired'; setupTicket: string };
+
 export class CustomerAuthService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly sessionService: SessionService,
+    /** Lazily resolved so composition can late-bind the MFA module. */
+    private readonly getMfaLoginPort?: () => MfaLoginPort | undefined,
   ) {}
 
-  async login(input: { email: string; password: string; ip?: string; userAgent?: string }): Promise<LoginResult> {
+  async login(input: {
+    email: string;
+    password: string;
+    ip?: string;
+    userAgent?: string;
+    salesChannelId?: string | null;
+  }): Promise<CustomerLoginOutcome> {
     const em = this.emFactory();
     const customer = await em.findOne(CustomerAccount, { email: input.email });
     if (!customer) {
@@ -52,6 +70,24 @@ export class CustomerAuthService {
       throw new HttpError(401, ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email or password.');
     }
 
+    // Second factor (feature 042). No session is issued until it succeeds.
+    const mfaPort = this.getMfaLoginPort?.();
+    if (mfaPort) {
+      const decision = await mfaPort.beginLogin(
+        { subjectType: 'customer', subjectId: customer.id },
+        {
+          salesChannelId: input.salesChannelId ?? null,
+          organizationId: customer.organizationId ?? null,
+        },
+      );
+      if (decision.kind === 'challenge') {
+        return { status: 'mfaRequired', challengeId: decision.challengeId };
+      }
+      if (decision.kind === 'setup') {
+        return { status: 'mfaSetupRequired', setupTicket: decision.setupTicket };
+      }
+    }
+
     const session = await this.sessionService.createSession({
       kind: 'customer',
       customerAccountId: customer.id,
@@ -63,6 +99,7 @@ export class CustomerAuthService {
     await em.flush();
 
     return {
+      status: 'authenticated',
       customerAccount: customer,
       sessionCookieValue: session.cookieValue,
       sessionExpiresAt: session.expiresAt,

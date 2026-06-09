@@ -13,6 +13,134 @@ import { cookies } from 'next/headers';
 const SESSION_COOKIE = 'b2b_session';
 const ANON_CART_COOKIE = 'b2b_cart_anon';
 const CART_MERGE_FLASH_COOKIE = 'b2b_cart_merge_flash';
+const MFA_CHALLENGE_COOKIE = 'b2b_mfa_challenge';
+
+/**
+ * Feature 042 — short-lived, httpOnly cookie holding the opaque second-step
+ * challenge id between the password step and the code screen. Never exposed in
+ * a URL; cleared once the second step completes (or the attempt is abandoned).
+ */
+export async function setMfaChallengeCookie(challengeId: string): Promise<void> {
+  const jar = await cookies();
+  jar.set(MFA_CHALLENGE_COOKIE, challengeId, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env['NODE_ENV'] === 'production',
+    maxAge: 5 * 60,
+  });
+}
+
+export async function getMfaChallengeCookie(): Promise<string | null> {
+  const jar = await cookies();
+  return jar.get(MFA_CHALLENGE_COOKIE)?.value ?? null;
+}
+
+export async function clearMfaChallengeCookie(): Promise<void> {
+  const jar = await cookies();
+  jar.delete(MFA_CHALLENGE_COOKIE);
+}
+
+const MFA_SETUP_COOKIE = 'b2b_mfa_setup';
+const MFA_RECOVERY_FLASH_COOKIE = 'b2b_mfa_recovery_flash';
+const MFA_SETUP_TICKET_COOKIE = 'b2b_mfa_setup_ticket';
+
+/**
+ * Feature 042 US3 — carries the enforced-setup ticket + the secret to display
+ * between the password step and the forced-setup screen (no session yet).
+ */
+export async function setMfaSetupTicketCookie(value: {
+  setupTicket: string;
+  secret: string;
+  otpauthUri: string;
+}): Promise<void> {
+  const jar = await cookies();
+  jar.set(MFA_SETUP_TICKET_COOKIE, JSON.stringify(value), {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env['NODE_ENV'] === 'production',
+    maxAge: 10 * 60,
+  });
+}
+
+export async function getMfaSetupTicketCookie(): Promise<{
+  setupTicket: string;
+  secret: string;
+  otpauthUri: string;
+} | null> {
+  const jar = await cookies();
+  const raw = jar.get(MFA_SETUP_TICKET_COOKIE)?.value;
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as { setupTicket: string; secret: string; otpauthUri: string };
+  } catch {
+    return null;
+  }
+}
+
+export async function clearMfaSetupTicketCookie(): Promise<void> {
+  const jar = await cookies();
+  jar.delete(MFA_SETUP_TICKET_COOKIE);
+}
+
+/** Holds the pending enrolment secret between "start setup" and "confirm". */
+export async function setMfaSetupCookie(value: {
+  secret: string;
+  otpauthUri: string;
+}): Promise<void> {
+  const jar = await cookies();
+  jar.set(MFA_SETUP_COOKIE, JSON.stringify(value), {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env['NODE_ENV'] === 'production',
+    maxAge: 10 * 60,
+  });
+}
+
+export async function getMfaSetupCookie(): Promise<{
+  secret: string;
+  otpauthUri: string;
+} | null> {
+  const jar = await cookies();
+  const raw = jar.get(MFA_SETUP_COOKIE)?.value;
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as { secret: string; otpauthUri: string };
+  } catch {
+    return null;
+  }
+}
+
+export async function clearMfaSetupCookie(): Promise<void> {
+  const jar = await cookies();
+  jar.delete(MFA_SETUP_COOKIE);
+}
+
+/** One-shot delivery of freshly issued recovery codes to the "done" view. */
+export async function setMfaRecoveryFlash(codes: string[]): Promise<void> {
+  const jar = await cookies();
+  jar.set(MFA_RECOVERY_FLASH_COOKIE, JSON.stringify(codes), {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env['NODE_ENV'] === 'production',
+    maxAge: 10 * 60,
+  });
+}
+
+export async function readAndClearMfaRecoveryFlash(): Promise<string[] | null> {
+  const jar = await cookies();
+  const raw = jar.get(MFA_RECOVERY_FLASH_COOKIE)?.value;
+  if (!raw) return null;
+  jar.delete(MFA_RECOVERY_FLASH_COOKIE);
+  try {
+    return JSON.parse(raw) as string[];
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Feature 037-cart-merge-on-login — buyer-facing outcomes that warrant a

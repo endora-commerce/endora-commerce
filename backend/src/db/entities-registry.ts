@@ -36,6 +36,10 @@ import { OrganizationWarehouseLink } from '../modules/organizations/entities/org
 import { AdminNotification } from '../modules/admin_notifications/entities/admin-notification.entity.js';
 import { AdminNotificationRead } from '../modules/admin_notifications/entities/admin-notification-read.entity.js';
 import { QuickOrderDefaultPreference } from '../modules/quick_order/entities/quick-order-default-preference.entity.js';
+import { MfaEnrolment } from '../modules/mfa/entities/mfa-enrolment.entity.js';
+import { MfaRecoveryCode } from '../modules/mfa/entities/mfa-recovery-code.entity.js';
+import { MfaSocialIdentity } from '../modules/mfa/entities/mfa-social-identity.entity.js';
+import { MfaOrganizationPolicy } from '../modules/mfa/entities/mfa-organization-policy.entity.js';
 import { Cart } from '../modules/carts/entities/cart.entity.js';
 import { CartItem } from '../modules/carts/entities/cart-item.entity.js';
 import { CartAuditEntry } from '../modules/carts/entities/cart-audit-entry.entity.js';
@@ -289,4 +293,9 @@ export const ALL_ENTITIES = [
   AdminNotificationRead,
   // quick-order default ordering preferences (feature 039)
   QuickOrderDefaultPreference,
+  // MFA — 2FA enrolment, recovery codes, social identities, org policy (feature 042)
+  MfaEnrolment,
+  MfaRecoveryCode,
+  MfaSocialIdentity,
+  MfaOrganizationPolicy,
 ] as const;

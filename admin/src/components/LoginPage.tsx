@@ -8,6 +8,9 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/lib/auth';
 import { loginCopy } from '@/i18n/preauth-login-copy';
 
+const adminApiBaseUrl =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
+
 /**
  * Admin login screen. Rendered by App when no session is active; the
  * AuthProvider re-fetches `/admin/me` after a successful POST and the
@@ -17,10 +20,75 @@ import { loginCopy } from '@/i18n/preauth-login-copy';
  *   pnpm --filter backend run admin:create -- --email=… --password=… --first-name=… --last-name=…
  */
 export function LoginPage(): ReactNode {
-  const { login, lastLoginError, status } = useAuth();
+  const { login, verifyMfa, cancelMfa, lastLoginError, status, mfaChallengeId } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Feature 042 — second-step screen, shown when the password step returned
+  // `mfaRequired`. Mirrors the login card layout (Principle IX).
+  if (mfaChallengeId) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-muted/40 px-4 py-8" style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}>
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <LogIn className="size-5 text-primary" />
+              Two-step verification
+            </CardTitle>
+            <CardDescription>
+              Enter the 6-digit code from your authenticator app, or a recovery code.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {lastLoginError ? (
+              <Alert variant="destructive">
+                <ShieldAlert className="size-4" />
+                <AlertTitle>{loginCopy.failed}</AlertTitle>
+                <AlertDescription>{lastLoginError}</AlertDescription>
+              </Alert>
+            ) : null}
+            <form
+              className="space-y-4"
+              onSubmit={(e: FormEvent): void => {
+                e.preventDefault();
+                setSubmitting(true);
+                void verifyMfa(code).finally(() => {
+                  setSubmitting(false);
+                  setCode('');
+                });
+              }}
+            >
+              <div className="space-y-2">
+                <Label htmlFor="mfa-code">Authentication code</Label>
+                <Input
+                  id="mfa-code"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  required
+                  value={code}
+                  onChange={(e): void => setCode(e.target.value)}
+                  placeholder="123456"
+                />
+              </div>
+              <Button type="submit" className="w-full min-h-11" disabled={submitting}>
+                {submitting ? loginCopy.submitting : 'Verify'}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={(): void => cancelMfa()}
+              >
+                Back to sign in
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="grid min-h-screen place-items-center bg-muted/40 px-4 py-8" style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}>
@@ -78,6 +146,23 @@ export function LoginPage(): ReactNode {
               {submitting ? loginCopy.submitting : loginCopy.submit}
             </Button>
           </form>
+          {/* Feature 042 US5 — federated sign-in (existing admin users only). */}
+          <div className="flex flex-col gap-2">
+            <a
+              className="inline-flex min-h-11 items-center justify-center rounded-md border px-4 text-sm"
+              href={`${adminApiBaseUrl}/api/v1/auth/admin/oauth/google/start`}
+              data-provider="google"
+            >
+              Continue with Google
+            </a>
+            <a
+              className="inline-flex min-h-11 items-center justify-center rounded-md border px-4 text-sm"
+              href={`${adminApiBaseUrl}/api/v1/auth/admin/oauth/microsoft/start`}
+              data-provider="microsoft"
+            >
+              Continue with Microsoft
+            </a>
+          </div>
           <p className="text-xs text-muted-foreground">
             {loginCopy.footerPrefix}{' '}
             <code className="rounded bg-muted px-1 py-0.5 text-[0.7rem]">

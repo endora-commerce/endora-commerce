@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { randomUUID } from 'crypto';
 import Redis from 'ioredis';
 import { z } from 'zod';
 import { CustomerAccount } from './modules/customer_accounts/entities/customer-account.entity.js';
@@ -51,6 +52,14 @@ import { CUSTOMERS_SETTING_CODES } from './modules/customers/manifest.js';
 import type { OrderService } from './modules/orders/services/order-service.js';
 import { QUICK_ORDER_SETTING_CODES } from './modules/quick_order/manifest.js';
 import { adminModule } from './modules/admin_users/plugin.js';
+import { mfaModule } from './modules/mfa/plugin.js';
+import type { MfaLoginPort } from './modules/auth/services/mfa-login-port.js';
+import { verifyPassword, hashPassword } from './modules/auth/services/password-hasher.js';
+import {
+  OpenIdOAuthProvider,
+  readOAuthConfigFromEnv,
+  type OAuthProviderPort,
+} from './modules/mfa/services/oauth-provider-service.js';
 import { inventoryModule } from './modules/inventory/plugin.js';
 import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
 import { creditLimitsModule } from './modules/credit_limits/plugin.js';
@@ -245,6 +254,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     });
   };
 
+  // Feature 042 — the MFA module is constructed after `settings` exists, so its
+  // login port is late-bound here and resolved lazily by the auth services.
+  let mfaLoginPort: MfaLoginPort | undefined;
+  const getMfaLoginPort = (): MfaLoginPort | undefined => mfaLoginPort;
+
   const admin = adminModule({
     emFactory: em,
     sessionService,
@@ -254,6 +268,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     adminRoleService,
     requireAdmin,
     resolveAdminContext: adminContextResolver,
+    getMfaLoginPort,
   });
 
   const creditLimits = creditLimitsModule({
@@ -378,6 +393,120 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       return { actorAdminUserId: request.actor.adminUserId };
     },
   });
+
+  // Feature 042 — MFA module. Constructed here (after `settings`) so it can
+  // read the per-scope MFA settings; its login port is bound to the late-bound
+  // `mfaLoginPort` captured by the auth services above. Plugin pushed below.
+  // Feature 042 US4/US5 — federated sign-in. Wire the OIDC provider only when
+  // at least one provider is configured via env; otherwise the OAuth routes
+  // are simply not registered.
+  const oauthConfig = readOAuthConfigFromEnv();
+  const oauthProvider: OAuthProviderPort | undefined =
+    oauthConfig.google || oauthConfig.microsoft
+      ? new OpenIdOAuthProvider(oauthConfig)
+      : undefined;
+  const mfaSocialResolvers = {
+    resolveCustomerByEmail: async (email: string) => {
+      const c = await em().findOne(CustomerAccount, { email, deletedAt: null });
+      return c ? { id: c.id } : null;
+    },
+    autoCreateCustomer: async (email: string) => {
+      let allowed = false;
+      try {
+        const { z } = await import('zod');
+        allowed = await settings.handle.settingsService.get(
+          'customers.allow_registration_without_organization',
+          'default',
+          z.boolean(),
+        );
+      } catch {
+        allowed = false;
+      }
+      if (!allowed) return null;
+      const account = em().create(CustomerAccount, {
+        email,
+        passwordHash: await hashPassword(randomUUID() + randomUUID()),
+        firstName: '',
+        lastName: '',
+        role: 'regular_user',
+        organizationId: null,
+        emailVerifiedAt: new Date(),
+      });
+      await em().persistAndFlush(account);
+      return { id: account.id };
+    },
+    resolveAdminByEmail: async (email: string) => {
+      const a = await em().findOne(AdminUser, { email, deletedAt: null, status: 'active' });
+      return a ? { id: a.id } : null;
+    },
+  };
+
+  const mfa = mfaModule({
+    emFactory: em,
+    redis,
+    settingsService: settings.handle.settingsService,
+    auditLogService,
+    sessionService,
+    resolveDefaultChannelId: async () =>
+      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null,
+    secretEncryptionKey: process.env['MFA_SECRET_ENCRYPTION_KEY'],
+    ...(oauthProvider ? { oauthProvider } : {}),
+    socialAccountResolvers: mfaSocialResolvers,
+    ...(process.env['BACKEND_PUBLIC_URL'] ? { backendBaseUrl: process.env['BACKEND_PUBLIC_URL'] } : {}),
+    ...(process.env['STOREFRONT_BASE_URL'] ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] } : {}),
+    ...(process.env['ADMIN_BASE_URL'] ? { adminBaseUrl: process.env['ADMIN_BASE_URL'] } : {}),
+    requireCustomer,
+    requireAdmin,
+    resolveCustomerActor: (request) => {
+      if (request.actor.kind !== 'customer') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+      }
+      return {
+        customerAccountId: request.actor.customerAccountId,
+        organizationId: request.actor.organizationId ?? null,
+      };
+    },
+    resolveAdminActor: (request) => {
+      promoteAdminActor(request);
+      if (request.actor.kind !== 'admin') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+      }
+      return { adminUserId: request.actor.adminUserId };
+    },
+    resolveOrganizationCustomerIds: async (organizationId) => {
+      const rows = await em().find(CustomerAccount, { organizationId }, { fields: ['id'] });
+      return rows.map((r) => r.id);
+    },
+    resolveOrgAdmin: async (request) => {
+      if (request.actor.kind !== 'customer') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+      }
+      const c = await em().findOne(CustomerAccount, { id: request.actor.customerAccountId });
+      if (!c || c.role !== 'organization_admin' || !c.organizationId) {
+        throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization administrator role required.');
+      }
+      return { organizationId: c.organizationId, actor: c.id };
+    },
+    resolveAccountEmail: async (subjectType, subjectId) => {
+      const em2 = em();
+      if (subjectType === 'admin') {
+        const a = await em2.findOne(AdminUser, { id: subjectId });
+        return a?.email ?? null;
+      }
+      const c = await em2.findOne(CustomerAccount, { id: subjectId });
+      return c?.email ?? null;
+    },
+    verifyAccountPassword: async (subjectType, subjectId, password) => {
+      const em2 = em();
+      if (subjectType === 'admin') {
+        const a = await em2.findOne(AdminUser, { id: subjectId });
+        return a ? verifyPassword(a.passwordHash, password) : false;
+      }
+      const c = await em2.findOne(CustomerAccount, { id: subjectId });
+      return c ? verifyPassword(c.passwordHash, password) : false;
+    },
+  });
+  mfaLoginPort = mfa.handle().mfaLoginPort;
 
   // SEO module — needs the SettingsService port for the per-channel
   // `sales_channels.storefront_url` setting that the sitemap generator
@@ -813,6 +942,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       emFactory: em,
       eventBus,
       sessionService,
+      getMfaLoginPort,
       requireCustomer,
       requireAdmin,
       requireAdminAny,
@@ -939,6 +1069,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // modules can read it at construction time. The boot-time reconciler
   // runs below before HTTP comes up.
   modules.push(settings.plugin);
+  modules.push(mfa.plugin);
 
   // Feature 013 — Assets Library. Phase 2 instantiates the module so its
   // manifest is reconciled and the AssetsLibraryService / referenceRegistry

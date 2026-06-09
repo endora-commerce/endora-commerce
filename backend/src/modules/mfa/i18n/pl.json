@@ -1,0 +1,4 @@
+{
+  "adminRoles.permission.mfa:reset": "Resetowanie 2FA użytkownika",
+  "adminRoles.permission.mfa:manage": "Zarządzanie politykami 2FA i wymuszaniem w Organizacji"
+}

@@ -160,6 +160,15 @@ export function CustomerDetail(): ReactNode {
             {t('detail.action.passwordReset')}
           </Button>
 
+          {/* Feature 042 — Platform-Admin 2FA reset (gated by mfa:reset). */}
+          <Button
+            variant="outline"
+            disabled={busy || c.deleted}
+            onClick={(): void => void act(() => apiClient.post(`/api/v1/admin/customers/${id}/mfa/reset`, {}))}
+          >
+            {t('detail.action.resetMfa')}
+          </Button>
+
           <Button
             variant="outline"
             disabled={busy || c.deleted}

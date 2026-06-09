@@ -135,7 +135,6 @@ export const passwordResetConfirmSchema = z.object({
 export const customerLoginRequestSchema = z.object({
   email: z.string().email(),
   password: z.string(),
-  twoFactorCode: z.string().optional(),
 });
 
 /**

@@ -58,6 +58,11 @@ import { taxesModule } from '../../src/modules/taxes/plugin.js';
 import { promotionsModule } from '../../src/modules/promotions/plugin.js';
 import { settingsModule } from '../../src/modules/settings/plugin.js';
 import { settingsManifest as settingsModuleManifest } from '../../src/modules/settings/manifest.js';
+import { mfaModule } from '../../src/modules/mfa/plugin.js';
+import { mfaSettingsManifest } from '../../src/modules/mfa/manifest.js';
+import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
+import type { MfaLoginPort } from '../../src/modules/auth/services/mfa-login-port.js';
+import type { OAuthProviderPort } from '../../src/modules/mfa/services/oauth-provider-service.js';
 import { salesChannelsModule } from '../../src/modules/sales_channels/plugin.js';
 import { searchModule } from '../../src/modules/search/plugin.js';
 import { createSuggestionPricingEnricher } from '../../src/modules/search/services/suggestion-pricing-enricher.js';
@@ -161,7 +166,34 @@ export interface BackendServerHandle {
   cartService: () => CartService | null;
 }
 
+/**
+ * Feature 042 US4/US5 — deterministic fake OIDC provider for tests. The
+ * resolved email is the `code` query value; `unverified@example.com` → an
+ * unverified email. The authorization URL echoes `state` so callback tests can
+ * read it from the redirect Location.
+ */
+const fakeOAuthProvider: OAuthProviderPort = {
+  isEnabled: () => true,
+  buildAuthorizationUrl: async (provider, { state }) =>
+    `https://oauth.test/${provider}/authorize?state=${encodeURIComponent(state)}`,
+  exchangeCode: async (provider, { code }) => ({
+    provider,
+    sub: `sub-${code}`,
+    email: code,
+    emailVerified: code !== 'unverified@example.com',
+  }),
+};
+
+function hashTestPassword(): Promise<string> {
+  return hashPassword('social-login-no-password-placeholder');
+}
+
 const SEEDED_TABLES = [
+  // Feature 042 — MFA. Recovery codes cascade from enrolments.
+  'mfa_recovery_codes',
+  'mfa_enrolments',
+  'mfa_social_identities',
+  'mfa_organization_policies',
   'price_list_assignments',
   'price_list_items',
   'price_lists',
@@ -401,6 +433,11 @@ export async function setupBackendServer(
   // setter into the i18n module's PATCH route).
   const testAdminUserService = new AdminUserService(em);
 
+  // Feature 042 — late-bound MFA login port (the MFA module is built after
+  // `settings` below; mirrors composition.ts).
+  let testMfaLoginPort: MfaLoginPort | undefined;
+  const getTestMfaLoginPort = (): MfaLoginPort | undefined => testMfaLoginPort;
+
   // Build the admin module first so we can hand its handle (auditLogService,
   // permissionService) to other modules that need it.
   const admin = adminModule({
@@ -415,6 +452,7 @@ export async function setupBackendServer(
       adminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
     }),
+    getMfaLoginPort: getTestMfaLoginPort,
   });
 
   // Credit-limits module — its CreditLimitService is the driver passed into
@@ -714,6 +752,7 @@ export async function setupBackendServer(
           emFactory: em,
           eventBus,
           sessionService,
+          getMfaLoginPort: getTestMfaLoginPort,
           requireCustomer: requireTestCustomer(),
           requireAdmin: requireTestAdmin(permissionService),
           requireAdminAny,
@@ -817,8 +856,85 @@ export async function setupBackendServer(
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
     }),
   });
+  // Feature 042 — MFA module (mirrors composition.ts). Built after `settings`
+  // so it can read MFA settings; its login port is bound to the late-bound
+  // `testMfaLoginPort` captured by the auth services above.
+  const mfa = mfaModule({
+    emFactory: em,
+    redis,
+    settingsService: settings.handle.settingsService,
+    auditLogService,
+    sessionService,
+    resolveDefaultChannelId: async () =>
+      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null,
+    secretEncryptionKey: process.env['MFA_SECRET_ENCRYPTION_KEY'],
+    requireCustomer: requireTestCustomer(),
+    requireAdmin: requireTestAdmin(permissionService),
+    resolveCustomerActor: (request) => {
+      if (request.testActor?.kind !== 'customer') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+      }
+      return {
+        customerAccountId: request.testActor.customerAccountId,
+        organizationId: request.testActor.organizationId ?? null,
+      };
+    },
+    resolveAdminActor: (request) => {
+      if (request.testActor?.kind !== 'admin') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+      }
+      return { adminUserId: request.testActor.adminUserId };
+    },
+    resolveOrganizationCustomerIds: async (organizationId) => {
+      const rows = await em().find(CustomerAccount, { organizationId }, { fields: ['id'] });
+      return rows.map((r) => r.id);
+    },
+    resolveOrgAdmin: async (request) => {
+      if (request.testActor?.kind !== 'customer') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+      }
+      const c = await em().findOne(CustomerAccount, { id: request.testActor.customerAccountId });
+      if (!c || c.role !== 'organization_admin' || !c.organizationId) {
+        throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization administrator role required.');
+      }
+      return { organizationId: c.organizationId, actor: c.id };
+    },
+    // Feature 042 US4/US5 — deterministic fake provider. `exchangeCode` derives
+    // the identity from the `code` query so tests control the resolved email;
+    // `unverified@example.com` simulates an unverified provider email.
+    oauthProvider: fakeOAuthProvider,
+    backendBaseUrl: 'http://localhost',
+    storefrontBaseUrl: 'http://localhost:3000',
+    adminBaseUrl: 'http://localhost:3002',
+    socialAccountResolvers: {
+      resolveCustomerByEmail: async (email) => {
+        const c = await em().findOne(CustomerAccount, { email, deletedAt: null });
+        return c ? { id: c.id } : null;
+      },
+      autoCreateCustomer: async (email) => {
+        const account = em().create(CustomerAccount, {
+          email,
+          passwordHash: await hashTestPassword(),
+          firstName: '',
+          lastName: '',
+          role: 'regular_user',
+          organizationId: null,
+          emailVerifiedAt: new Date(),
+        });
+        await em().persistAndFlush(account);
+        return { id: account.id };
+      },
+      resolveAdminByEmail: async (email) => {
+        const a = await em().findOne(AdminUser, { email, deletedAt: null, status: 'active' });
+        return a ? { id: a.id } : null;
+      },
+    },
+  });
+  testMfaLoginPort = mfa.handle().mfaLoginPort;
+
   modules.push(salesChannels.plugin);
   modules.push(settings.plugin);
+  modules.push(mfa.plugin);
 
   // Feature 019 — Admin UI i18n. Test wiring uses no lifecycle registry
   // (the boot-time bundle reconciler is skipped), so route-level tests
@@ -1172,6 +1288,7 @@ export async function setupBackendServer(
     priceListsManifest,
     assetsLibraryManifest,
     blogManifest,
+    mfaSettingsManifest,
   ]);
 
   const app = await buildServer({

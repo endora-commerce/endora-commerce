@@ -125,6 +125,8 @@ describe('CustomerModerationService', () => {
     expect(reloaded!.blockedAt).toBeNull();
     const auth = new CustomerAuthService(() => em, sessions);
     const res = await auth.login({ email: customer.email, password: 'a-very-strong-pass' });
+    // Feature 042 — login returns a discriminated outcome; no MFA port here.
+    if (res.status !== 'authenticated') throw new Error('expected authenticated login');
     expect(res.customerAccount.id).toBe(customer.id);
     const entries = await em.find(AuditLogEntry, {
       action: 'customer_account.unblocked',

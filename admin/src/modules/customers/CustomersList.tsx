@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { ResponsiveTable } from '@/components/ResponsiveTable';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useAuth } from '@/lib/auth';
 
 interface AdminCustomerListItem {
   id: string;
@@ -33,11 +34,16 @@ const STATUSES = ['active', 'blocked', 'deleted'] as const;
 
 export function CustomersList(): ReactNode {
   const t = useTranslation('customers');
+  const { hasPermission } = useAuth();
   const [rows, setRows] = useState<AdminCustomerListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<'' | (typeof STATUSES)[number]>('');
   const [q, setQ] = useState('');
+  const [organizationId, setOrganizationId] = useState('');
+  const [orgs, setOrgs] = useState<{ id: string; name: string }[]>([]);
+  const [resetMsg, setResetMsg] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -46,6 +52,7 @@ export function CustomersList(): ReactNode {
       const params = new URLSearchParams();
       if (status) params.set('status', status);
       if (q) params.set('q', q);
+      if (organizationId) params.set('organizationId', organizationId);
       const path =
         '/api/v1/admin/customers' + (params.toString() ? `?${params.toString()}` : '');
       const res = await apiClient.get<{ data: AdminCustomerListItem[] }>(path);
@@ -55,11 +62,42 @@ export function CustomersList(): ReactNode {
     } finally {
       setLoading(false);
     }
-  }, [status, q, t]);
+  }, [status, q, organizationId, t]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Load organizations once to populate the filter (feature 042 US6).
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await apiClient.get<{ data: { id: string; name: string }[] }>(
+          '/api/v1/admin/organizations',
+        );
+        setOrgs(res.data);
+      } catch {
+        // Filter just won't populate — non-fatal.
+      }
+    })();
+  }, []);
+
+  // Feature 042 US6 — reset 2FA for every account in the selected organization.
+  const resetOrgMfa = useCallback(async (): Promise<void> => {
+    if (!organizationId) return;
+    setResetting(true);
+    setResetMsg(null);
+    try {
+      const res = await apiClient.post<{
+        data: { requested: number; affected: number; skipped: number };
+      }>('/api/v1/admin/mfa/reset-bulk', { organizationId });
+      setResetMsg(`${t('list.action.resetOrgMfaDone')}: ${res.data.affected}/${res.data.requested}`);
+    } catch (err) {
+      setResetMsg(err instanceof ApiError ? err.envelope.error.message : t('list.error'));
+    } finally {
+      setResetting(false);
+    }
+  }, [organizationId, t]);
 
   return (
     <>
@@ -72,7 +110,7 @@ export function CustomersList(): ReactNode {
       ) : null}
 
       <Card className="mb-4">
-        <CardContent className="grid gap-4 pt-6 md:grid-cols-2">
+        <CardContent className="grid gap-4 pt-6 md:grid-cols-3">
           <div className="space-y-2">
             <Label htmlFor="cstatus">{t('list.field.status')}</Label>
             <Select
@@ -89,11 +127,37 @@ export function CustomersList(): ReactNode {
             </Select>
           </div>
           <div className="space-y-2">
+            <Label htmlFor="corg">{t('list.field.organization')}</Label>
+            <Select
+              id="corg"
+              value={organizationId}
+              onChange={(e): void => setOrganizationId(e.target.value)}
+            >
+              <option value="">{t('list.filter.allOrgs')}</option>
+              {orgs.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="cq">{t('list.field.search')}</Label>
             <Input id="cq" value={q} onChange={(e): void => setQ(e.target.value)} />
           </div>
         </CardContent>
       </Card>
+
+      {organizationId && hasPermission('mfa:reset') ? (
+        <Card className="mb-4">
+          <CardContent className="flex flex-wrap items-center gap-3 pt-6">
+            <Button variant="outline" disabled={resetting} onClick={(): void => void resetOrgMfa()}>
+              {t('list.action.resetOrgMfa')}
+            </Button>
+            {resetMsg ? <span className="text-sm text-muted-foreground">{resetMsg}</span> : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardContent className="pt-6">

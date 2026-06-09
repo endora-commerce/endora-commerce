@@ -1,0 +1,4 @@
+{
+  "adminRoles.permission.mfa:reset": "Reset a user's 2FA",
+  "adminRoles.permission.mfa:manage": "Manage 2FA policies and organization enforcement"
+}
