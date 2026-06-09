@@ -282,8 +282,10 @@
   /* The closed control sits on the dark topbar, but the native option popup
      renders on the OS surface — `text-white` there left white text on a light
      background (unreadable). Pin the popup options to a light surface with
-     dark ink so the expanded dropdown stays legible. */
-  .industria-topbar__switcher select option { @apply bg-white text-[color:var(--ink-900)]; }
+     dark ink so the expanded dropdown stays legible. The colours are pinned
+     (not theme tokens): the option popup is light in both themes, so the ink
+     must stay dark even when the dark theme inverts --ink-900 to a light value. */
+  .industria-topbar__switcher select option { @apply bg-white text-[#18181b]; }
   .industria-topbar a { @apply text-inherit opacity-85; }
   .industria-topbar a:hover { @apply opacity-100; }
 }
