@@ -26,6 +26,7 @@
   "fields.activeWhenPublished": "Aktywny (widoczny w sklepie po publikacji)",
   "fields.enabledStorefrontVisible": "Włączona (widoczna w sklepie)",
   "fields.mainImageAssetId": "ID zasobu obrazu głównego (UUID, opcjonalnie)",
+  "fields.editingLanguage": "Język edycji",
   "fields.metaDescriptionPerLanguage": "Opis meta (na język)",
   "fields.metaKeywordsPerLanguage": "Słowa kluczowe meta (na język)",
   "fields.metaTitlePerLanguage": "Tytuł meta (na język)",
