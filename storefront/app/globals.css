@@ -279,6 +279,11 @@
   .industria-topbar__switcher { @apply inline-flex items-center gap-[6px] text-[#b8c0cf]; }
   .industria-topbar__switcher label { @apply text-[11px] opacity-85; }
   .industria-topbar__switcher select { @apply rounded border border-white/16 bg-transparent px-[6px] py-[2px] text-[11px] text-white; }
+  /* The closed control sits on the dark topbar, but the native option popup
+     renders on the OS surface — `text-white` there left white text on a light
+     background (unreadable). Pin the popup options to a light surface with
+     dark ink so the expanded dropdown stays legible. */
+  .industria-topbar__switcher select option { @apply bg-white text-[color:var(--ink-900)]; }
   .industria-topbar a { @apply text-inherit opacity-85; }
   .industria-topbar a:hover { @apply opacity-100; }
 }
