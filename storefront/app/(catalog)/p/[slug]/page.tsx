@@ -157,7 +157,9 @@ export default async function ProductPage({
           <small className="muted">SKU: {product.sku}</small>
           <p>{product.description}</p>
 
-          <div className="mt-4 flex items-center justify-between gap-2">
+          {/* Keep the stock badge directly beside the price (not pushed to the
+              opposite edge) so availability reads as part of the price block. */}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <PriceTag
               price={product.price}
               resolved={resolvedPrice}
