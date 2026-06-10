@@ -1,8 +1,7 @@
-import { Render } from '@measured/puck';
-import { defaultPageBuilderConfig } from '@b2b/cms-components';
 import type { ReactNode } from 'react';
 import { getCmsHookByCode } from '../lib/api/cms';
 import { getServerContext } from '../lib/server-context';
+import { PageBuilderRender } from './PageBuilderRender';
 
 export async function Hook({ code }: { code: string }): Promise<ReactNode> {
   try {
@@ -12,11 +11,7 @@ export async function Hook({ code }: { code: string }): Promise<ReactNode> {
     return (
       <>
         {hook.blocks.map((block) => (
-          <Render
-            key={block.id}
-            config={defaultPageBuilderConfig}
-            data={block.content.data as never}
-          />
+          <PageBuilderRender key={block.id} data={block.content.data} />
         ))}
       </>
     );
