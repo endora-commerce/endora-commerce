@@ -1,8 +1,11 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { listProducts, getCategoryTree } from '../lib/api/catalog';
+import { getCmsPageBySlug } from '../lib/api/cms';
+import { getHomepageConfig } from '../lib/api/homepage';
 import { getServerContext } from '../lib/server-context';
 import { ProductCard } from '../components/ProductCard';
+import { CmsPageRenderer } from '../components/CmsPageRenderer';
 import { Hook } from '../components/Hook';
 
 interface CatTile {
@@ -12,12 +15,25 @@ interface CatTile {
 }
 
 /**
- * Industria-themed landing page. Hero + 6-tile category grid + features +
- * bestseller product grid. Categories and products come from the backend;
- * the rest is editorial copy that ships with the theme.
+ * Storefront home page.
+ *
+ * When an operator has chosen a CMS page as the home page (Settings → General
+ * → "Home page CMS page"), that page is rendered here. Otherwise we fall back
+ * to the built-in Industria-themed landing page below.
  */
 export default async function HomePage(): Promise<ReactNode> {
   const { ctx, locale } = await getServerContext();
+
+  // Operator-selected CMS home page takes precedence when it resolves to a
+  // published page; any miss (unset, unpublished, deleted) falls through to
+  // the built-in landing page so the home page always renders.
+  const { cmsPageSlug } = await getHomepageConfig(ctx);
+  if (cmsPageSlug) {
+    const cmsPage = await getCmsPageBySlug(cmsPageSlug, ctx).catch(() => null);
+    if (cmsPage) {
+      return <CmsPageRenderer page={cmsPage} />;
+    }
+  }
 
   // Fetch real catalog data; if the backend is empty, the home page still
   // renders the marketing chrome.
