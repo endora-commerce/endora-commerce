@@ -294,10 +294,10 @@ function toViewModel(it: CartItem): CartLineViewModel {
     productId: it.productId,
     variantId: it.variantId,
     // Backend resolves `productName` from Product.name against the
-    // request's Accept-Language. When unknown (race with a deleted
-    // product, or backwards-compatibility) we fall back to the SKU,
-    // then to the productId — never blank.
-    productName: it.productName || it.productSku || it.productId,
+    // request's Accept-Language. Feature 043 — prefer `displayName`, which
+    // already appends the packaging-unit name (e.g. "… (Paleta)"). When
+    // unknown (race with a deleted product) fall back to SKU then productId.
+    productName: it.displayName || it.productName || it.productSku || it.productId,
     sku: it.productSku ?? null,
     quantity: it.quantity,
     unitPrice: it.unitPrice,

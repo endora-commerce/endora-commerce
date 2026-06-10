@@ -34,6 +34,13 @@ export interface CartItem {
   productSlug?: string | null;
   /** Feature 027 — surfaced above the name for buyer reference. */
   productSku?: string | null;
+  /**
+   * Feature 043 — set when the line was added as a packaging unit (pallet).
+   * `displayName` already appends the unit name (e.g. "… (Paleta)").
+   */
+  packagingUnitName?: string | null;
+  packagingUnitBaseQuantity?: number | null;
+  displayName?: string | null;
 }
 
 export interface CartSummary {
@@ -144,7 +151,7 @@ export async function getCart(jar: CartCookieJar, ctx?: RequestContext): Promise
 
 export async function addCartItem(
   jar: CartCookieJar,
-  payload: { productId: string; variantId?: string; quantity: number },
+  payload: { productId: string; variantId?: string; quantity: number; packagingUnitId?: string },
   ctx?: RequestContext,
 ): Promise<CartResult> {
   const result = await apiMutate<CartSummary>({

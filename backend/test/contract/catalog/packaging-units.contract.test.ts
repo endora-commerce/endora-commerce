@@ -126,6 +126,12 @@ describe('Admin packaging units contract (043)', () => {
     const zero = await h.app.inject({ method: 'POST', url: base(productId), payload: { name: 'Zero', baseQuantity: 0 }, cookies: adminCookie });
     expect(zero.statusCode).toBe(400);
 
+    const blank = await h.app.inject({ method: 'POST', url: base(productId), payload: { name: '   ', baseQuantity: 5 }, cookies: adminCookie });
+    expect(blank.statusCode).toBe(400);
+
+    const fractional = await h.app.inject({ method: 'POST', url: base(productId), payload: { name: 'Frac', baseQuantity: 1.5 }, cookies: adminCookie });
+    expect(fractional.statusCode).toBe(400);
+
     await h.app.inject({ method: 'POST', url: base(productId), payload: { name: 'Paleta', baseQuantity: 480 }, cookies: adminCookie });
     const dup = await h.app.inject({ method: 'POST', url: base(productId), payload: { name: 'Paleta', baseQuantity: 100 }, cookies: adminCookie });
     expect(dup.statusCode).toBe(409);
