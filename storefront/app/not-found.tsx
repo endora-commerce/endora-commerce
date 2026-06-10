@@ -69,7 +69,7 @@ export default async function NotFound(): Promise<ReactNode> {
               id="not-found-q"
               name="q"
               type="search"
-              placeholder="Wyszukaj produkt, SKU, producenta…"
+              placeholder="Znajdź produkt, którego szukasz…"
               autoComplete="off"
               className="min-w-0 flex-1 rounded-md border border-line bg-surface px-[14px] py-[12px] text-fg placeholder:text-subtle"
             />
