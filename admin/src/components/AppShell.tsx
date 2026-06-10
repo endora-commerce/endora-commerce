@@ -54,8 +54,9 @@ import { useViewportTier } from './hooks/useViewportTier.js';
 import { NotificationBell } from './notifications';
 import { useAdminActions } from '@/lib/admin-actions/useAdminActions';
 import { resolveIcon } from '@/lib/admin-actions/icon-map';
-import { getPromptCapability } from '@/lib/prompt-actions/api';
+import { getPromptCapability, listUnseenPromptRequests } from '@/lib/prompt-actions/api';
 import { PromptModePanel } from './prompt-actions/PromptModePanel';
+import type { PromptActionRequestDto } from '@b2b/contracts';
 
 interface NavItem {
   to: string;
@@ -1150,6 +1151,10 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
   const [cursor, setCursor] = useState(0);
   const [mode, setMode] = useState<'search' | 'prompt'>('search');
   const [assistantReady, setAssistantReady] = useState(promptCapabilityCache === 'ready');
+  const [unseen, setUnseen] = useState<PromptActionRequestDto[]>([]);
+  const [initialRequest, setInitialRequest] = useState<PromptActionRequestDto | undefined>(
+    undefined,
+  );
   const inputRef = useRef<HTMLInputElement | null>(null);
   const { actions: registryActions } = useAdminActions(query);
 
@@ -1168,6 +1173,18 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
         promptCapabilityCache = 'unavailable';
       });
   }, [open, mayUseAssistant]);
+
+  // FR-018 — completion notice: prompts that finished while the palette was
+  // closed surface on the next open until acknowledged.
+  useEffect(() => {
+    if (!open || !mayUseAssistant || !assistantReady) {
+      setUnseen([]);
+      return;
+    }
+    void listUnseenPromptRequests()
+      .then(setUnseen)
+      .catch(() => setUnseen([]));
+  }, [open, mayUseAssistant, assistantReady]);
 
   // Map registry-supplied actions into the local PaletteItem shape so
   // the rendering loop stays uniform across Navigate (static) and
@@ -1254,6 +1271,7 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
     if (!open) {
       setQuery('');
       setMode('search');
+      setInitialRequest(undefined);
     }
   }, [open]);
 
@@ -1298,7 +1316,13 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
       <>
         <div className="b2b-scrim" onClick={onClose} />
         <div className="b2b-palette" role="dialog" aria-modal="true">
-          <PromptModePanel onExit={(): void => setMode('search')} />
+          <PromptModePanel
+            onExit={(): void => {
+              setInitialRequest(undefined);
+              setMode('search');
+            }}
+            {...(initialRequest ? { initialRequest } : {})}
+          />
         </div>
       </>
     );
@@ -1320,6 +1344,23 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
           <span className="b2b-kbd-sm">esc</span>
         </div>
         <div className="b2b-palette__list">
+          {unseen.length > 0 ? (
+            <div
+              data-testid="prompt-unseen-notice"
+              className="b2b-palette__item"
+              style={{ cursor: 'pointer' }}
+              onClick={(): void => {
+                setInitialRequest(unseen[0]);
+                setUnseen((u) => u.slice(1));
+                setMode('prompt');
+              }}
+            >
+              <Sparkles size={16} />
+              <div>
+                <div>{tp('panel.unseenNotice')}</div>
+              </div>
+            </div>
+          ) : null}
           {items.length === 0 ? (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--fg-muted)', fontSize: 13 }}>
               {t('appShell.search.noMatches')}

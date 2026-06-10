@@ -49,8 +49,9 @@ describe('prompt-actions admin endpoints (T024)', () => {
       passwordHash: 'x',
       firstName: 'Second',
       lastName: 'Admin',
-      adminRoleId: (await em.findOneOrFail(AdminUser, { id: '00000000-0000-4000-8000-0000000000b1' }))
-        .adminRoleId,
+      adminRoleId:
+        (await em.findOneOrFail(AdminUser, { id: '00000000-0000-4000-8000-0000000000b1' }))
+          .adminRoleId ?? null,
       status: 'active',
     });
     await em.flush();
@@ -110,13 +111,17 @@ describe('prompt-actions admin endpoints (T024)', () => {
       ['POST', `/api/v1/admin/prompt-actions/requests/${randomUUID()}/confirm`],
       ['POST', `/api/v1/admin/prompt-actions/requests/${randomUUID()}/cancel`],
     ] as const) {
-      const unauth = await h.app.inject({ method, url, payload: method === 'POST' ? {} : undefined });
+      const unauth = await h.app.inject({
+        method,
+        url,
+        ...(method === 'POST' ? { payload: {} } : {}),
+      });
       expect([401, 400].includes(unauth.statusCode), `${method} ${url} unauth`).toBe(true);
       const forbidden = await h.app.inject({
         method,
         url,
         cookies: restrictedCookie,
-        payload: method === 'POST' ? { prompt: 'x' } : undefined,
+        ...(method === 'POST' ? { payload: { prompt: 'x' } } : {}),
       });
       expect(forbidden.statusCode, `${method} ${url} forbidden`).toBe(403);
     }

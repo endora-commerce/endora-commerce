@@ -46,6 +46,21 @@ export function isDelegatedExecution(value: unknown): value is DelegatedExecutio
   );
 }
 
+function extractSummary(value: unknown): ResultOperation['summary'] | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const summary = (value as { summary?: unknown }).summary;
+  if (typeof summary !== 'object' || summary === null) return null;
+  const s = summary as { total?: unknown; succeeded?: unknown; failed?: unknown };
+  if (
+    typeof s.total !== 'number' ||
+    typeof s.succeeded !== 'number' ||
+    typeof s.failed !== 'number'
+  ) {
+    return null;
+  }
+  return summary as ResultOperation['summary'];
+}
+
 export interface ExecutePlanResult {
   result: PromptActionResult;
   /** Set when at least one operation was delegated to the bulk machinery. */
@@ -116,7 +131,14 @@ export class PlanExecutorService {
             bulkOperationId: value.bulkOperationId,
           });
         } else {
-          operations.push({ toolId: op.toolId, status: 'succeeded' });
+          // Bulk handlers report per-item outcomes (FR-011) via a `summary`
+          // payload; single-record handlers return plain data.
+          const summary = extractSummary(value);
+          operations.push({
+            toolId: op.toolId,
+            status: 'succeeded',
+            ...(summary ? { summary } : {}),
+          });
         }
       } catch (err) {
         operations.push({
@@ -127,12 +149,13 @@ export class PlanExecutorService {
       }
     }
 
-    const failed = operations.filter((o) => o.status === 'failed').length;
+    const failedOps = operations.filter((o) => o.status === 'failed').length;
+    const partialFailures = operations.reduce((n, o) => n + (o.summary?.failed ?? 0), 0);
     const outcome: PromptActionResult['outcome'] =
-      failed === 0
-        ? 'completed'
-        : failed === operations.length
-          ? 'failed'
+      failedOps === operations.length && operations.length > 0
+        ? 'failed'
+        : failedOps === 0 && partialFailures === 0
+          ? 'completed'
           : 'completed_with_errors';
 
     return { result: { outcome, operations }, bulkOperationId };

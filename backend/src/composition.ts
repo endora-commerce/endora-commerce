@@ -94,7 +94,11 @@ import { quoteRequestsManifest, QUOTE_REQUESTS_SETTING_CODES } from './modules/q
 import { inventoryManifest } from './modules/inventory/manifest.js';
 import { promptActionsModule } from './modules/prompt_actions/plugin.js';
 import { promptActionsSettingsManifest } from './modules/prompt_actions/manifest.js';
-import { catalogPromptResolverTools } from './modules/catalog/prompt-tools.js';
+import {
+  catalogBulkProgressResolver,
+  catalogPromptMutationTools,
+  catalogPromptResolverTools,
+} from './modules/catalog/prompt-tools.js';
 import { inventoryPromptTools } from './modules/inventory/prompt-tools.js';
 import { priceListsManifest } from './modules/price_lists/manifest.js';
 import { assetsLibraryManifest } from './modules/assets_library/manifest.js';
@@ -1552,6 +1556,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 043 — prompt assistant for the admin command palette. The module
   // owns the registry port; catalog/inventory contribute their tool handlers
   // here (adapter-registry pattern — Principle I).
+  const catalogToolDeps = {
+    emFactory: em,
+    events: eventBus,
+    auditLogService,
+    salesChannelMembership: salesChannels.handle.membershipService,
+    redis,
+  };
   const promptActions = promptActionsModule({
     emFactory: em,
     settings: settings.handle.settingsService,
@@ -1562,9 +1573,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdmin,
     resolveAdminContext: adminContextResolver,
     auditLogService,
+    bulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
   });
   for (const tool of [
-    ...catalogPromptResolverTools({ emFactory: em, events: eventBus, auditLogService }),
+    ...catalogPromptResolverTools(catalogToolDeps),
+    ...catalogPromptMutationTools(catalogToolDeps),
     ...inventoryPromptTools({ emFactory: em, eventBus, auditLogService }),
   ]) {
     promptActions.handle.registry.register(tool);

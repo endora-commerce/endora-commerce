@@ -54,6 +54,8 @@ export interface UsePromptRequest extends PromptRequestState {
   confirm: () => Promise<void>;
   cancel: () => Promise<void>;
   reset: () => void;
+  /** Load an existing request (FR-018 completion notice) into the panel. */
+  load: (request: PromptActionRequestDto) => void;
 }
 
 export function usePromptRequest(): UsePromptRequest {
@@ -160,5 +162,9 @@ export function usePromptRequest(): UsePromptRequest {
     setState({ phase: 'idle', request: null, errorCode: null });
   }, [stopPolling]);
 
-  return { ...state, submit, clarify, confirm, cancel, reset };
+  const load = useCallback((request: PromptActionRequestDto): void => {
+    setState({ phase: phaseFor(request), request, errorCode: null });
+  }, []);
+
+  return { ...state, submit, clarify, confirm, cancel, reset, load };
 }

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Loader2, Sparkles } from 'lucide-react';
-import type { ResultOperation } from '@b2b/contracts';
+import type { PromptActionRequestDto, ResultOperation } from '@b2b/contracts';
 import { Button } from '@/components/ui/button';
 import { useTranslation } from '@/i18n/useTranslation';
+import { markPromptRequestSeen } from '@/lib/prompt-actions/api';
 import { usePromptRequest } from '@/lib/prompt-actions/usePromptRequest';
 import { PromptPlanPreview } from './PromptPlanPreview';
 
@@ -18,15 +19,24 @@ import { PromptPlanPreview } from './PromptPlanPreview';
 
 interface Props {
   onExit: () => void;
+  /** FR-018: a finished request opened from the completion notice. */
+  initialRequest?: PromptActionRequestDto;
 }
 
-export function PromptModePanel({ onExit }: Props): ReactNode {
+export function PromptModePanel({ onExit, initialRequest }: Props): ReactNode {
   const t = useTranslation('prompt_actions');
   const [prompt, setPrompt] = useState('');
   const [freeText, setFreeText] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const { phase, request, errorCode, submit, clarify, confirm, cancel, reset } =
+  const { phase, request, errorCode, submit, clarify, confirm, cancel, reset, load } =
     usePromptRequest();
+
+  useEffect(() => {
+    if (!initialRequest) return;
+    load(initialRequest);
+    // Opening the outcome acknowledges the notice.
+    void markPromptRequestSeen(initialRequest.id).catch(() => undefined);
+  }, [initialRequest, load]);
 
   useEffect(() => {
     inputRef.current?.focus();

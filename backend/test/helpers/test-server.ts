@@ -69,7 +69,11 @@ import { createSuggestionPricingEnricher } from '../../src/modules/search/servic
 import { searchManifest } from '../../src/modules/search/manifest.js';
 import { promptActionsModule, type PromptActionsModuleOptions } from '../../src/modules/prompt_actions/plugin.js';
 import { promptActionsSettingsManifest } from '../../src/modules/prompt_actions/manifest.js';
-import { catalogPromptResolverTools } from '../../src/modules/catalog/prompt-tools.js';
+import {
+  catalogBulkProgressResolver,
+  catalogPromptMutationTools,
+  catalogPromptResolverTools,
+} from '../../src/modules/catalog/prompt-tools.js';
 import { inventoryPromptTools } from '../../src/modules/inventory/prompt-tools.js';
 import { comparisonsModule } from '../../src/modules/comparisons/plugin.js';
 import { comparisonsManifest } from '../../src/modules/comparisons/manifest.js';
@@ -987,6 +991,13 @@ export async function setupBackendServer(
 
   // Feature 043 — prompt assistant (mirrors composition.ts). Tool handlers
   // contributed by catalog/inventory; provider HTTP is injected by tests.
+  const catalogToolDeps = {
+    emFactory: em,
+    events: eventBus,
+    auditLogService,
+    salesChannelMembership: salesChannels.handle.membershipService,
+    redis,
+  };
   const promptActions = promptActionsModule({
     emFactory: em,
     settings: settings.handle.settingsService,
@@ -1002,6 +1013,7 @@ export async function setupBackendServer(
           : TEST_ADMIN_ID,
     }),
     auditLogService,
+    bulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
     ...(options.promptActionsLlmFetch !== undefined
       ? { llmFetch: options.promptActionsLlmFetch }
       : {}),
@@ -1011,7 +1023,8 @@ export async function setupBackendServer(
       : {}),
   });
   for (const tool of [
-    ...catalogPromptResolverTools({ emFactory: em, events: eventBus, auditLogService }),
+    ...catalogPromptResolverTools(catalogToolDeps),
+    ...catalogPromptMutationTools(catalogToolDeps),
     ...inventoryPromptTools({ emFactory: em, eventBus, auditLogService }),
   ]) {
     promptActions.handle.registry.register(tool);
