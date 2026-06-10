@@ -32,5 +32,6 @@
   "panel.bulkLimitExceeded": "To polecenie objęłoby więcej rekordów niż ustawiony limit ({limit}). Zawęź polecenie i spróbuj ponownie.",
   "panel.planExpired": "Ten plan wygasł bez potwierdzenia. Wyślij polecenie ponownie.",
   "capability.disabled": "Asystent promptów jest wyłączony na tej platformie.",
-  "capability.notConfigured": "Asystent promptów nie jest jeszcze skonfigurowany — ustaw dostawcę i klucz API w Ustawieniach."
+  "capability.notConfigured": "Asystent promptów nie jest jeszcze skonfigurowany — ustaw dostawcę i klucz API w Ustawieniach.",
+  "palette.group.label": "Asystent"
 }

@@ -37,6 +37,7 @@ import {
   ShieldCheck,
   Store,
   Tag,
+  Sparkles,
   TrendingDown,
   Truck,
   Upload,
@@ -53,6 +54,8 @@ import { useViewportTier } from './hooks/useViewportTier.js';
 import { NotificationBell } from './notifications';
 import { useAdminActions } from '@/lib/admin-actions/useAdminActions';
 import { resolveIcon } from '@/lib/admin-actions/icon-map';
+import { getPromptCapability } from '@/lib/prompt-actions/api';
+import { PromptModePanel } from './prompt-actions/PromptModePanel';
 
 interface NavItem {
   to: string;
@@ -568,7 +571,7 @@ function buildCrumbs(pathname: string): Crumb[] {
 }
 
 interface PaletteItem {
-  group: 'Navigate' | 'Actions';
+  group: 'Navigate' | 'Actions' | 'Assistant';
   /**
    * For static Navigate items: a translation key under the `core` scope.
    * For registry-driven Actions items (feature 020): an already-resolved
@@ -1131,13 +1134,40 @@ interface CommandPaletteProps {
   onNavigate: (to: string) => void;
 }
 
+/** Sentinel route for the assistant entry row — switches the palette mode
+ *  instead of navigating (feature 043; module_actions are navigation-only). */
+const PROMPT_MODE_SENTINEL = '__prompt_actions_mode__';
+
+/** Module-level capability cache: one fetch per session unless it failed. */
+let promptCapabilityCache: 'ready' | 'unavailable' | null = null;
+
 function CommandPalette(props: CommandPaletteProps): ReactNode {
   const { open, onClose, onNavigate } = props;
   const t = useTranslation('core');
+  const tp = useTranslation('prompt_actions');
+  const { hasPermission } = useAuth();
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
+  const [mode, setMode] = useState<'search' | 'prompt'>('search');
+  const [assistantReady, setAssistantReady] = useState(promptCapabilityCache === 'ready');
   const inputRef = useRef<HTMLInputElement | null>(null);
   const { actions: registryActions } = useAdminActions(query);
+
+  // Feature 043 — capability probe, only when the operator may use the
+  // assistant. With the feature disabled/unconfigured (or the permission
+  // missing) the palette renders exactly as before (FR-015/FR-020, SC-006).
+  const mayUseAssistant = hasPermission('prompt_actions:use');
+  useEffect(() => {
+    if (!open || !mayUseAssistant || promptCapabilityCache !== null) return;
+    void getPromptCapability()
+      .then((cap) => {
+        promptCapabilityCache = cap.status === 'ready' ? 'ready' : 'unavailable';
+        setAssistantReady(promptCapabilityCache === 'ready');
+      })
+      .catch(() => {
+        promptCapabilityCache = 'unavailable';
+      });
+  }, [open, mayUseAssistant]);
 
   // Map registry-supplied actions into the local PaletteItem shape so
   // the rendering loop stays uniform across Navigate (static) and
@@ -1166,9 +1196,32 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
   const resolveSub = (it: PaletteItem): string =>
     it.labelMode === 'key' ? t(it.sub) : it.sub;
 
+  // Feature 043 — pinned assistant entry (only when enabled + configured +
+  // permitted). Always listed first; matched generously while typing.
+  const assistantItems = useMemo<PaletteItem[]>(() => {
+    if (!mayUseAssistant || !assistantReady) return [];
+    return [
+      {
+        group: 'Assistant',
+        labelMode: 'literal',
+        label: tp('palette.entry.label'),
+        sub: tp('palette.entry.description'),
+        icon: Sparkles,
+        to: PROMPT_MODE_SENTINEL,
+        keywords: 'assistant ai prompt ask asystent zapytaj',
+      },
+    ];
+  }, [mayUseAssistant, assistantReady, tp]);
+
   const items = useMemo(() => {
-    if (!query.trim()) return [...PALETTE_ITEMS, ...actionItems];
+    if (!query.trim()) return [...assistantItems, ...PALETTE_ITEMS, ...actionItems];
     const q = query.toLowerCase();
+    const filteredAssistant = assistantItems.filter(
+      (i) =>
+        i.label.toLowerCase().includes(q) ||
+        i.sub.toLowerCase().includes(q) ||
+        i.keywords.includes(q),
+    );
     // Navigate group: filter against the *translated* label + sub plus
     // the raw keywords list so a Polish user can search in Polish and
     // an English user in English.
@@ -1177,19 +1230,47 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
       const sub = resolveSub(i).toLowerCase();
       return label.includes(q) || sub.includes(q) || i.keywords.includes(q);
     });
-    return [...filteredNav, ...actionItems];
-  }, [query, actionItems]);
+    return [...filteredAssistant, ...filteredNav, ...actionItems];
+  }, [query, actionItems, assistantItems]);
+
+  // Activating the assistant row switches the palette body instead of
+  // navigating (feature 043); everything else keeps the navigation path.
+  const activate = useCallback(
+    (to: string): void => {
+      if (to === PROMPT_MODE_SENTINEL) {
+        setMode('prompt');
+        return;
+      }
+      onNavigate(to);
+    },
+    [onNavigate],
+  );
 
   useEffect(() => {
     setCursor(0);
   }, [query, open]);
 
   useEffect(() => {
-    if (!open) setQuery('');
+    if (!open) {
+      setQuery('');
+      setMode('search');
+    }
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
+    if (mode === 'prompt') {
+      // Prompt mode owns its own inputs; only Esc is handled here — it
+      // returns to the classic palette rather than closing (research §R9).
+      const onKey = (e: KeyboardEvent): void => {
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          setMode('search');
+        }
+      };
+      window.addEventListener('keydown', onKey);
+      return (): void => window.removeEventListener('keydown', onKey);
+    }
     inputRef.current?.focus();
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'ArrowDown') {
@@ -1201,16 +1282,27 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
       } else if (e.key === 'Enter') {
         e.preventDefault();
         const it = items[cursor];
-        if (it) onNavigate(it.to);
+        if (it) activate(it.to);
       } else if (e.key === 'Escape') {
         onClose();
       }
     };
     window.addEventListener('keydown', onKey);
     return (): void => window.removeEventListener('keydown', onKey);
-  }, [open, items, cursor, onClose, onNavigate]);
+  }, [open, mode, items, cursor, onClose, activate]);
 
   if (!open) return null;
+
+  if (mode === 'prompt') {
+    return (
+      <>
+        <div className="b2b-scrim" onClick={onClose} />
+        <div className="b2b-palette" role="dialog" aria-modal="true">
+          <PromptModePanel onExit={(): void => setMode('search')} />
+        </div>
+      </>
+    );
+  }
 
   let lastGroup = '';
   return (
@@ -1240,7 +1332,9 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
               const groupHeader =
                 it.group === 'Navigate'
                   ? t('appShell.palette.group.navigate')
-                  : t('appShell.palette.group.actions');
+                  : it.group === 'Assistant'
+                    ? tp('palette.group.label')
+                    : t('appShell.palette.group.actions');
               const label = resolveLabel(it);
               const sub = resolveSub(it);
               return (
@@ -1249,7 +1343,7 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
                   <div
                     className={cn('b2b-palette__item', i === cursor && 'is-cur')}
                     onMouseEnter={(): void => setCursor(i)}
-                    onClick={(): void => onNavigate(it.to)}
+                    onClick={(): void => activate(it.to)}
                   >
                     <Icon size={16} />
                     <div>

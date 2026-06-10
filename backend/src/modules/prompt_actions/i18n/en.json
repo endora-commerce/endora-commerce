@@ -32,5 +32,6 @@
   "panel.bulkLimitExceeded": "This prompt would affect more records than the configured limit ({limit}). Narrow the instruction and try again.",
   "panel.planExpired": "This plan has expired without confirmation. Submit the prompt again.",
   "capability.disabled": "The prompt assistant is disabled on this platform.",
-  "capability.notConfigured": "The prompt assistant is not configured yet — set the provider and API key in Settings."
+  "capability.notConfigured": "The prompt assistant is not configured yet — set the provider and API key in Settings.",
+  "palette.group.label": "Assistant"
 }
