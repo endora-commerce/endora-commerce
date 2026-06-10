@@ -40,6 +40,7 @@ import { MfaEnrolment } from '../modules/mfa/entities/mfa-enrolment.entity.js';
 import { MfaRecoveryCode } from '../modules/mfa/entities/mfa-recovery-code.entity.js';
 import { MfaSocialIdentity } from '../modules/mfa/entities/mfa-social-identity.entity.js';
 import { MfaOrganizationPolicy } from '../modules/mfa/entities/mfa-organization-policy.entity.js';
+import { PromptActionRequest } from '../modules/prompt_actions/entities/prompt-action-request.entity.js';
 import { Cart } from '../modules/carts/entities/cart.entity.js';
 import { CartItem } from '../modules/carts/entities/cart-item.entity.js';
 import { CartAuditEntry } from '../modules/carts/entities/cart-audit-entry.entity.js';
@@ -298,4 +299,5 @@ export const ALL_ENTITIES = [
   MfaRecoveryCode,
   MfaSocialIdentity,
   MfaOrganizationPolicy,
+  PromptActionRequest,
 ] as const;

@@ -100,5 +100,9 @@
   "editor.image.upload": "Prześlij obrazek",
   "editor.image.remove": "Usuń",
   "editor.image.toggleUrl": "Lub podaj adres URL obrazka",
-  "editor.image.urlPlaceholder": "https://example.com/obrazek.png"
+  "editor.image.urlPlaceholder": "https://example.com/obrazek.png",
+  "editor.placeholder.secretSet": "Wartość jest ustawiona — wpisz nową, aby ją zastąpić",
+  "editor.placeholder.secretUnset": "Wpisz wartość sekretu",
+  "editor.secretIsSet": "Sekret jest ustawiony (tylko do zapisu, nigdy nie jest wyświetlany)",
+  "editor.secretNotSet": "Sekret nie jest ustawiony"
 }

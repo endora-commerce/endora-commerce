@@ -850,6 +850,9 @@ export async function setupBackendServer(
     auditLogService,
     redis,
     requireAdmin: requireTestAdmin(permissionService),
+    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
+      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
+      : {}),
     dictionaryValidator: dictionaries.handle.validator,
     resolveAdminAuditContext: (request) => ({
       actorAdminUserId:

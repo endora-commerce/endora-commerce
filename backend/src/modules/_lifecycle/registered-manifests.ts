@@ -23,6 +23,8 @@ import { manifest as cmsManifest } from '../cms/manifest.js';
 import { manifest as megamenuManifest } from '../megamenu/manifest.js';
 import { manifest as dictionariesManifest } from '../dictionaries/manifest.js';
 import { manifest as mfaManifest } from '../mfa/manifest.js';
+// Feature 043 — natural-language prompt actions in the admin command palette.
+import { manifest as promptActionsManifest } from '../prompt_actions/manifest.js';
 // Pass C retrofit — manifest backfills for every remaining legacy module.
 // These predate the lifecycle system; the manifest is the static record
 // required for the module to be considered active. A module on disk that
@@ -121,6 +123,8 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   { manifest: dictionariesManifest, filePath: pathFor('dictionaries') },
   // Feature 042 — MFA (2FA + Google/Microsoft sign-in).
   { manifest: mfaManifest, filePath: pathFor('mfa') },
+  // Feature 043 — prompt assistant for the admin command palette.
+  { manifest: promptActionsManifest, filePath: pathFor('prompt_actions') },
   // Pass C retrofit — every remaining legacy module gets a manifest so
   // none of them are treated as inactive. Sort: alphabetical by id.
   { manifest: addressesManifest, filePath: pathFor('addresses') },

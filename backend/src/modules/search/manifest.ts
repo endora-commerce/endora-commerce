@@ -82,9 +82,9 @@ const settings = defineModuleSettingsManifest({
       code: SEARCH_SETTING_CODES.LLM_EMBEDDER_API_KEY,
       name: 'LLM-augmented search — embedder API key',
       description:
-        'Secret credential Meilisearch presents to the embedder service. The admin UI masks the input; the value is still readable through the universal-getter for the indexer.',
+        'Secret credential Meilisearch presents to the embedder service. Write-only: the admin API never returns the value after saving (feature 043 secret value type); the indexer still reads it through the universal getter.',
       groupCode: 'search',
-      valueType: 'string',
+      valueType: 'secret',
       defaultValue: '',
     },
     {

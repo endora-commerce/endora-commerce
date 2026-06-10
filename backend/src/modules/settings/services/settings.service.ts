@@ -4,6 +4,7 @@ import { Setting } from '../entities/setting.entity.js';
 import { SettingValue } from '../entities/setting-value.entity.js';
 import type { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import type { SettingsCache } from './settings-cache.js';
+import { decryptSecretValue, isSecretEnvelope } from './secret-value-codec.js';
 
 /**
  * SettingsService — the universal getter (US3 / T049).
@@ -64,6 +65,12 @@ export class SettingsService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly cache?: SettingsCache,
+    /**
+     * Base64 32-byte key for the `secret` value type (feature 043). The
+     * cache stores ciphertext envelopes; decryption happens per read in this
+     * process so plaintext never sits in Redis.
+     */
+    private readonly secretEncryptionKey?: string,
   ) {}
 
   async get<T>(
@@ -76,7 +83,7 @@ export class SettingsService {
       const cached = await this.cache.get(code, salesChannelId);
       if (cached.hit) {
         if (cached.notRegistered) throw new SettingNotRegistered(code);
-        return this.validate(code, cached.value, schema);
+        return this.validate(code, this.maybeDecrypt(cached.value), schema);
       }
     }
 
@@ -104,7 +111,7 @@ export class SettingsService {
 
     const resolved = resolveEffectiveValue(setting, value);
     if (this.cache) await this.cache.set(code, salesChannelId, resolved);
-    return this.validate(code, resolved, schema);
+    return this.validate(code, this.maybeDecrypt(resolved), schema);
   }
 
   /**
@@ -147,7 +154,7 @@ export class SettingsService {
       const cached = await this.cache.get(code, salesChannelId);
       if (cached.hit) {
         if (cached.notRegistered) throw new SettingNotRegistered(code);
-        return cached.value;
+        return this.maybeDecrypt(cached.value);
       }
     }
 
@@ -173,13 +180,23 @@ export class SettingsService {
     );
     const resolved = resolveEffectiveValue(setting, value);
     if (this.cache) await this.cache.set(code, salesChannelId, resolved);
-    return resolved;
+    return this.maybeDecrypt(resolved);
   }
 
   private validate<T>(code: string, value: unknown, schema: z.ZodType<T>): T {
     const r = schema.safeParse(value);
     if (!r.success) throw new SettingValueShapeMismatch(code, r.error.issues);
     return r.data;
+  }
+
+  /**
+   * Secret settings (feature 043) resolve to a ciphertext envelope; backend
+   * consumers receive the plaintext. Non-envelope values (every other value
+   * type, plus legacy plaintext secrets) pass through untouched.
+   */
+  private maybeDecrypt(value: unknown): unknown {
+    if (!isSecretEnvelope(value)) return value;
+    return decryptSecretValue(value, this.secretEncryptionKey);
   }
 }
 

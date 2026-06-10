@@ -100,5 +100,9 @@
   "editor.image.upload": "Upload image",
   "editor.image.remove": "Remove",
   "editor.image.toggleUrl": "Or enter an image URL",
-  "editor.image.urlPlaceholder": "https://example.com/image.png"
+  "editor.image.urlPlaceholder": "https://example.com/image.png",
+  "editor.placeholder.secretSet": "Value is set — enter a new value to replace it",
+  "editor.placeholder.secretUnset": "Enter the secret value",
+  "editor.secretIsSet": "Secret value is set (write-only, never displayed)",
+  "editor.secretNotSet": "No secret value set"
 }

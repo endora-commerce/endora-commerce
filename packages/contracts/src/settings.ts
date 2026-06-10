@@ -19,6 +19,7 @@ export const SettingValueTypeSchema = z.enum([
   'boolean',
   'json',
   'string_list',
+  'secret',
 ]);
 export type SettingValueType = z.infer<typeof SettingValueTypeSchema>;
 
@@ -26,6 +27,9 @@ export type SettingValueType = z.infer<typeof SettingValueTypeSchema>;
  * Returns the Zod schema corresponding to a setting's declared `valueType`.
  * Callers supplying their own narrower schema to `SettingsService.get<T>()`
  * still get the looser per-type validation through this helper at write time.
+ *
+ * `secret` accepts a plain string on write (the backend encrypts before
+ * persisting — feature 043 / FR-021); read endpoints never return it.
  */
 export function valueSchemaForType(t: SettingValueType): z.ZodType<unknown> {
   switch (t) {
@@ -39,6 +43,8 @@ export function valueSchemaForType(t: SettingValueType): z.ZodType<unknown> {
       return z.unknown();
     case 'string_list':
       return z.array(z.string());
+    case 'secret':
+      return z.string();
   }
 }
 
@@ -66,16 +72,22 @@ export const GroupManifestEntrySchema = z.object({
 });
 export type GroupManifestEntry = z.infer<typeof GroupManifestEntrySchema>;
 
-export const SettingManifestEntrySchema = z.object({
-  code: z.string().regex(settingCodeRe),
-  name: z.string().min(1).max(200),
-  description: z.string().max(2000).optional(),
-  /** Defaults to `'general'` when omitted. */
-  groupCode: z.string().optional(),
-  valueType: SettingValueTypeSchema,
-  defaultValue: z.unknown(),
-  salesChannelCodes: z.array(z.string()).optional(),
-});
+export const SettingManifestEntrySchema = z
+  .object({
+    code: z.string().regex(settingCodeRe),
+    name: z.string().min(1).max(200),
+    description: z.string().max(2000).optional(),
+    /** Defaults to `'general'` when omitted. */
+    groupCode: z.string().optional(),
+    valueType: SettingValueTypeSchema,
+    defaultValue: z.unknown(),
+    salesChannelCodes: z.array(z.string()).optional(),
+  })
+  .refine((s) => s.valueType !== 'secret' || s.defaultValue === '', {
+    message:
+      "A 'secret' setting's defaultValue must be the empty string — manifests can never ship a real credential.",
+    path: ['defaultValue'],
+  });
 export type SettingManifestEntry = z.infer<typeof SettingManifestEntrySchema>;
 
 export const ModuleSettingsManifestSchema = z.object({
@@ -104,6 +116,12 @@ export const SettingValueByChannelSchema = z.object({
   salesChannelId: z.uuid(),
   salesChannelCode: z.string(),
   value: z.unknown(),
+  /**
+   * Secret settings only (feature 043 / FR-021): `value` is redacted to
+   * `null` on every read; `isSet` tells the UI whether a value exists.
+   * Absent for non-secret settings.
+   */
+  isSet: z.boolean().optional(),
   updatedAt: z.iso.datetime(),
 });
 
@@ -127,6 +145,12 @@ export const SettingDtoSchema = z.object({
    * rows untouched.
    */
   globalValue: z.unknown().nullable(),
+  /**
+   * Secret settings only (feature 043 / FR-021): `defaultValue` and
+   * `globalValue` are redacted to `null` on every read; this flag tells the
+   * UI whether a global override exists. Absent for non-secret settings.
+   */
+  globalValueIsSet: z.boolean().optional(),
   valuesByChannel: z.array(SettingValueByChannelSchema),
   /**
    * Server-computed effective version (= `max(setting.updatedAt,

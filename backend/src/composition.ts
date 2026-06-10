@@ -387,6 +387,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     auditLogService,
     requireAdmin,
     redis,
+    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
+      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
+      : {}),
     dictionaryValidator: dictionaries.handle.validator,
     resolveAdminAuditContext: (request) => {
       if (request.actor.kind !== 'admin') return { actorAdminUserId: null };

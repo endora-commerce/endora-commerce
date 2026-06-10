@@ -12,6 +12,7 @@ import type { SettingsAdminService, AdminAuditContext } from './services/setting
 import type { Setting } from './entities/setting.entity.js';
 import type { SettingGroup } from './entities/setting-group.entity.js';
 import type { SettingValue } from './entities/setting-value.entity.js';
+import { secretValueIsSet } from './services/secret-value-codec.js';
 
 /**
  * Admin HTTP surface — feature 004 / US2 (T035).
@@ -64,6 +65,10 @@ export async function registerSettingsAdminRoutes(
   }
 
   function serializeSetting(setting: Setting, values: SettingValue[]): Record<string, unknown> {
+    // Secret settings are write-only (feature 043, FR-021): every read
+    // replaces stored values with null + isSet indicators. The plaintext (or
+    // its ciphertext envelope) never leaves the backend through this API.
+    const isSecret = setting.valueType === 'secret';
     return {
       id: setting.id,
       code: setting.code,
@@ -72,12 +77,14 @@ export async function registerSettingsAdminRoutes(
       valueType: setting.valueType,
       ownerModule: setting.ownerModule,
       salesChannelCodes: setting.salesChannels.getItems().map((c) => c.code),
-      defaultValue: setting.defaultValue,
-      globalValue: setting.globalValue ?? null,
+      defaultValue: isSecret ? null : setting.defaultValue,
+      globalValue: isSecret ? null : setting.globalValue ?? null,
+      ...(isSecret ? { globalValueIsSet: secretValueIsSet(setting.globalValue) } : {}),
       valuesByChannel: values.map((v) => ({
         salesChannelId: v.salesChannel.id,
         salesChannelCode: v.salesChannel.code,
-        value: v.value,
+        value: isSecret ? null : v.value,
+        ...(isSecret ? { isSet: secretValueIsSet(v.value) } : {}),
         updatedAt: v.updatedAt.toISOString(),
       })),
       version: adminService.computeSettingVersion(setting, values),
