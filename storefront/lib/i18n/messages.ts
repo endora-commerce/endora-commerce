@@ -23,6 +23,7 @@ type MessageKey =
   | 'product.outOfStock'
   | 'product.requestQuote'
   | 'product.addToCart'
+  | 'product.details'
   | 'product.inStock'
   | 'product.stockBand.high'
   | 'product.stockBand.medium'
@@ -106,6 +107,7 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'product.outOfStock': 'Out of stock',
     'product.requestQuote': 'Request a quote',
     'product.addToCart': 'Add to cart',
+    'product.details': 'Details',
     'product.inStock': 'In stock',
     'product.stockBand.high': 'In stock — plenty',
     'product.stockBand.medium': 'In stock',
@@ -192,6 +194,7 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'product.outOfStock': 'Brak w magazynie',
     'product.requestQuote': 'Zapytaj o oferte',
     'product.addToCart': 'Dodaj do koszyka',
+    'product.details': 'Szczegóły',
     'product.inStock': 'Dostepny',
     'product.stockBand.high': 'Duzo w magazynie',
     'product.stockBand.medium': 'Sredni stan',
