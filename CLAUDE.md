@@ -1,6 +1,6 @@
 # b2b-platform Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-06-08
+Auto-generated from all feature plans. Last updated: 2026-06-10
 
 ## Active Technologies
 - TypeScript 5.x (strict mode) na Node.js LTS (≥ 22.17, jak w README po update foundation 001). + bez nowych runtime — wszystkie wymagane już są: (002-catalog-module)
@@ -69,6 +69,8 @@ Auto-generated from all feature plans. Last updated: 2026-06-08
 - N/A — no database, no backend change. Design tokens are style-layer CSS custom properties. (041-storefront-tailwind)
 - TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend); Next.js 15.5 App Router + React 19 (storefront); React 19 + Vite + react-router-dom 7 (admin). + Fastify, MikroORM (PostgreSQL driver), Zod (`@b2b/contracts`), ioredis (challenge/pending-login state + OAuth `state`/PKCE + Settings cache), in-process `EventBus`, `argon2` (existing), `otpauth` (existing — TOTP), `@b2b/api-client` + `lucide-react` (admin). **One new runtime dependency (backend-only): `openid-client`** for Google + Microsoft Entra OIDC (authorization-code flow, discovery, ID-token signature/claims validation) — justified in Complexity Tracking and research §R2. (042-mfa-authentication)
 - PostgreSQL via MikroORM. One new module-scoped migration `067_mfa_init.ts` in `backend/src/modules/mfa/migrations/` (next sequential after the highest existing `066_*`) creating `mfa_enrolments`, `mfa_recovery_codes`, `mfa_social_identities`, `mfa_organization_policies`; plus a data backfill from the legacy `customer_accounts.two_factor_secret` / `admin_users.two_factor_secret` columns into `mfa_enrolments`. Redis holds the short-lived pending-login challenge tickets, setup tickets, and OAuth `state`/PKCE verifiers (TTL-bounded). The TOTP secret is stored **encrypted at rest** (AES-256-GCM, app key from config); recovery codes are stored as **SHA-256 hashes** only. (042-mfa-authentication)
+- TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend); React 19 + Vite + react-router-dom 7 (admin); Next.js 15.5 App Router + React 19 (storefront). + Fastify, MikroORM (PostgreSQL driver), Zod (`@b2b/contracts`), ioredis (existing settings/cache), `@b2b/api-client` + `lucide-react` (admin). **No new runtime dependency.** (043-product-packaging-units)
+- PostgreSQL via MikroORM. One new catalog module-scoped migration `067_product_packaging_units.ts` creating `product_packaging_units`; three additive column migrations owned by their modules — `carts` (`cart_items`: `packaging_unit_id`, `packaging_unit_name`, `packaging_unit_base_quantity`), `orders` (`order_items`: `packaging_unit_snapshot` JSONB), `quote_requests` (`quote_request_items`: `packaging_unit_name`, `packaging_unit_base_quantity`). (043-product-packaging-units)
 
 - TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x) + MikroORM (PostgreSQL driver) for persistence; Zod for boundary validation; Next.js for the storefront; React for the admin panel; Meilisearch client; Redis client (cache + BullMQ-class queue). Backend HTTP layer intentionally minimal (a small, well-known Node/TypeScript HTTP router; choice deferred to Phase 0 research with a bias toward the smallest dependency footprint compatible with TDD, Zod, and modular routing). (001-b2b-platform-foundation)
 
@@ -88,9 +90,9 @@ npm test && npm run lint
 TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x): Follow standard conventions
 
 ## Recent Changes
+- 043-product-packaging-units: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend); React 19 + Vite + react-router-dom 7 (admin); Next.js 15.5 App Router + React 19 (storefront). + Fastify, MikroORM (PostgreSQL driver), Zod (`@b2b/contracts`), ioredis (existing settings/cache), `@b2b/api-client` + `lucide-react` (admin). **No new runtime dependency.**
 - 042-mfa-authentication: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend); Next.js 15.5 App Router + React 19 (storefront); React 19 + Vite + react-router-dom 7 (admin). + Fastify, MikroORM (PostgreSQL driver), Zod (`@b2b/contracts`), ioredis (challenge/pending-login state + OAuth `state`/PKCE + Settings cache), in-process `EventBus`, `argon2` (existing), `otpauth` (existing — TOTP), `@b2b/api-client` + `lucide-react` (admin). **One new runtime dependency (backend-only): `openid-client`** for Google + Microsoft Entra OIDC (authorization-code flow, discovery, ID-token signature/claims validation) — justified in Complexity Tracking and research §R2.
 - 041-storefront-tailwind: Added TypeScript 5.9 (strict), Node.js ≥ 22.17 + Next.js 15.5 (App Router, webpack — no Turbopack), React 19. **New (build-time)**: `tailwindcss` v4 + `@tailwindcss/postcss`. **New (dev/test)**: `@playwright/test` for visual regression. cms-components build: `tailwindcss` CLI (or equivalent) to emit the package stylesheet.
-- 040-customers-module: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend); evergreen browser target via Vite (admin); Next.js App Router (storefront). + Fastify, MikroORM (PostgreSQL driver), Zod (`@b2b/contracts`), ioredis (cache + presence + pub/sub), BullMQ-class repeatable job (anonymization sweep — same pattern as `quote_requests/rfq-expiry-worker.ts` and the carts abandonment sweep), in-process `EventBus` (`backend/src/events/bus.ts`); React 19 + Vite + react-router-dom 7 + `@b2b/api-client` + `lucide-react` (admin); Next.js Server Components + server actions (storefront). **No new runtime dependency.**
 
 
 <!-- MANUAL ADDITIONS START -->
