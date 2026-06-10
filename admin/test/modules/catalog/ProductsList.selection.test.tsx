@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { BULK_EDIT_HARD_MAX } from '../../../src/modules/catalog/lib/resolve-product-selection';
 
 const getSpy = vi.fn();
 const postSpy = vi.fn();
@@ -51,7 +52,7 @@ const BUNDLE = passthroughBundle('catalog', [
   'productsList.selection.scopeCollection',
   'productsList.selection.selectAllMatching',
   'productsList.selection.allPageSelected',
-  'productsList.selection.bulkEditLimit',
+  'productsList.selection.bulkEditHardLimit',
   'productsList.error.load',
 ]);
 
@@ -146,8 +147,12 @@ describe('ProductsList — collection selection (feature 033)', () => {
     expect(postSpy).not.toHaveBeenCalled();
   });
 
-  it('blocks bulk edit when collection resolves to more than 200 ids', async () => {
-    const manyIds = Array.from({ length: 201 }, (_, i) =>
+  it('blocks bulk edit when the collection exceeds the hard maximum', async () => {
+    // Below the hard maximum, large selections are delegated to a background
+    // bulk operation rather than rejected; only the contract hard maximum is
+    // enforced client-side.
+    const overLimit = BULK_EDIT_HARD_MAX + 1;
+    const manyIds = Array.from({ length: overLimit }, (_, i) =>
       `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
     );
     getSpy.mockResolvedValue({
@@ -155,10 +160,10 @@ describe('ProductsList — collection selection (feature 033)', () => {
         row('00000000-0000-4000-8000-000000000001', 'One'),
         row('00000000-0000-4000-8000-000000000002', 'Two'),
       ],
-      pagination: { page: 0, pageSize: 2, total: 250 },
-      counts: { all: 250, active: 250, draft: 0, archived: 0 },
+      pagination: { page: 0, pageSize: 2, total: overLimit },
+      counts: { all: overLimit, active: overLimit, draft: 0, archived: 0 },
     });
-    postSpy.mockResolvedValue({ data: { productIds: manyIds, total: 201 } });
+    postSpy.mockResolvedValue({ data: { productIds: manyIds, total: overLimit } });
 
     renderWithI18n(
       <MemoryRouter>
@@ -175,7 +180,7 @@ describe('ProductsList — collection selection (feature 033)', () => {
     await user.click(screen.getByText('productsList.bulk.edit'));
 
     await waitFor(() =>
-      expect(screen.getByText('productsList.selection.bulkEditLimit')).toBeInTheDocument(),
+      expect(screen.getByText('productsList.selection.bulkEditHardLimit')).toBeInTheDocument(),
     );
   });
 });
