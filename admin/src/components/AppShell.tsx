@@ -1142,6 +1142,11 @@ const PROMPT_MODE_SENTINEL = '__prompt_actions_mode__';
 /** Module-level capability cache: one fetch per session unless it failed. */
 let promptCapabilityCache: 'ready' | 'unavailable' | null = null;
 
+/** Test seam — interaction tests exercise multiple capability states. */
+export function __resetPromptCapabilityCacheForTesting(): void {
+  promptCapabilityCache = null;
+}
+
 function CommandPalette(props: CommandPaletteProps): ReactNode {
   const { open, onClose, onNavigate } = props;
   const t = useTranslation('core');
