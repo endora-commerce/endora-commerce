@@ -13,7 +13,8 @@ describe('CheckoutHeader (minimal chrome)', () => {
     const html = renderToString(<CheckoutHeader />);
     expect(html).toContain('role="banner"');
     expect(html).toContain('href="/"');
-    expect(html).toContain('B2B Platform');
+    // Brand mark shown in the minimal checkout chrome (Industria theme).
+    expect(html).toContain('Industria');
   });
 
   it('contains no navigation, search, megamenu, or cart-icon affordances', () => {
