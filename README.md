@@ -120,6 +120,10 @@ Values in the examples are safe defaults for local development against the Docke
 
 **Assets Library (backend, feature 013)** — **`ASSETS_LIBRARY_HMAC_KEY`** signs short-lived URLs for `private`-visibility assets served from the local-FS adapter via `/assets/file/:assetId?token=&exp=`. Generate per environment with `openssl rand -hex 32`; rotating invalidates every outstanding private URL. Cloud adapters (S3, GCS) use their own native signed URLs and ignore this key. The local-FS adapter writes uploaded files under the platform-relative directory configured by the `assets.local.base_dir` setting (default `var/assets`); make sure the backend process can read and write that location. Active adapter selection (`local | s3 | gcs`) and per-adapter configuration (bucket, region, credentials, prefix, public-base URL) live in the Settings module under the `storage` group.
 
+**Secret settings (backend, feature 043)** — **`SETTINGS_SECRET_ENCRYPTION_KEY`** is a base64-encoded 32-byte AES key (generate with `openssl rand -base64 32`) that encrypts `secret`-typed settings at rest — e.g. the prompt assistant's LLM API key (`prompt_actions.api_key`) and the search embedder key (`search.llm.embedder_api_key`). Secret settings are write-only through the admin API: reads return only an `isSet` flag, never the value. Writing a secret without this key fails with `SETTING_SECRET_KEY_MISSING`; reads of legacy plaintext values keep working without it. Rotating the key invalidates previously encrypted values (re-enter them in Settings).
+
+**Prompt assistant (backend, feature 043)** — the admin command palette's natural-language prompt mode (module `prompt_actions`) is configured entirely through the Settings module (`prompt_actions.enabled`, `.provider` — `anthropic`/`google`/`openai`, `.model`, `.api_key`, `.bulk_limit`); no additional env vars beyond the secret-settings key above. The capability is off by default and gated by the `prompt_actions:use` admin permission.
+
 ## Running the stack
 
 ```bash

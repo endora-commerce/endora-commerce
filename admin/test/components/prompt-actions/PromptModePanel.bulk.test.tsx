@@ -12,7 +12,7 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
 
 const submitSpy = vi.fn();
 const confirmSpy = vi.fn();
-const seenSpy = vi.fn(async () => undefined);
+const seenSpy = vi.fn(async (_id: string) => undefined);
 
 vi.mock('@/lib/prompt-actions/api', () => ({
   getPromptCapability: vi.fn(async () => ({ status: 'ready', bulkLimit: 500 })),

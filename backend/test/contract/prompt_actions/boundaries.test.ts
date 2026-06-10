@@ -1,6 +1,5 @@
 import { randomBytes } from 'crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@b2b/contracts';
 import {
   setupBackendServer,
   type BackendServerHandle,

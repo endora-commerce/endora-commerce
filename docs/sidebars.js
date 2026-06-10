@@ -110,6 +110,11 @@ const sidebars = {
         'modules/payment_methods',
         'modules/payments',
         'modules/price_lists',
+        {
+          type: 'doc',
+          id: 'modules/prompt-actions',
+          label: 'Prompt Actions (AI assistant)',
+        },
         'modules/promotions',
         'modules/quote_requests',
         'modules/quick_order',

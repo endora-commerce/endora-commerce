@@ -52,7 +52,7 @@ vi.mock('@/lib/prompt-actions/api', () => ({
 }));
 
 const shellModule = await import('../../src/components/AppShell');
-const { AppShell, __resetPromptCapabilityCacheForTesting } = shellModule;
+const { AppShell, resetPromptCapabilityCacheForTesting } = shellModule;
 
 const coreBundle = {
   ...passthroughBundle('core', [
@@ -99,7 +99,7 @@ function paletteItemLabels(): string[] {
 
 describe('AppShell palette — assistant gating (T056)', () => {
   beforeEach(() => {
-    __resetPromptCapabilityCacheForTesting();
+    resetPromptCapabilityCacheForTesting();
     capabilitySpy.mockClear();
     unseenSpy.mockClear();
     permissionGranted = true;
@@ -140,7 +140,7 @@ describe('AppShell palette — assistant gating (T056)', () => {
     document.body.innerHTML = '';
 
     // Feature present but disabled via settings: identical output.
-    __resetPromptCapabilityCacheForTesting();
+    resetPromptCapabilityCacheForTesting();
     permissionGranted = true;
     capabilityStatus = 'disabled';
     renderShell();

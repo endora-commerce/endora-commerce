@@ -233,6 +233,18 @@ function resolveTarget(
       const url = productId ? `/catalog/products/${productId}` : '/inventory/low-stock';
       return { targetDisplayName: display, targetUrl: url };
     }
+    case 'prompt_action_request': {
+      // Feature 043 — prompt-assistant execution summary. The snapshot
+      // carries the original prompt; surface a trimmed form of it.
+      const prompt = pickStr(after, 'prompt');
+      const display = prompt
+        ? prompt.length > 80
+          ? `${prompt.slice(0, 77)}…`
+          : prompt
+        : 'prompt action';
+      // No standalone detail page in v1 — outcomes live in the palette.
+      return { targetDisplayName: display, targetUrl: null };
+    }
     case 'bulk_operation': {
       const fileName = pickStr(after, 'fileName');
       const warehouseCode =

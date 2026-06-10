@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import type { z } from 'zod';
 import type { PromptActionsProvider } from '@b2b/contracts';
 import type { LlmToolDefinition } from '../tool-registry.js';
 

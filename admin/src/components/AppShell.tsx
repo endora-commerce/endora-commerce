@@ -1143,7 +1143,7 @@ const PROMPT_MODE_SENTINEL = '__prompt_actions_mode__';
 let promptCapabilityCache: 'ready' | 'unavailable' | null = null;
 
 /** Test seam — interaction tests exercise multiple capability states. */
-export function __resetPromptCapabilityCacheForTesting(): void {
+export function resetPromptCapabilityCacheForTesting(): void {
   promptCapabilityCache = null;
 }
 

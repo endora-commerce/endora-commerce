@@ -9,7 +9,8 @@
  * token cannot accidentally leak onto the dashboard until it is
  * intentionally added to this file.
  *
- * Scope is fixed to three source modules: Catalog, Inventory, Price Lists.
+ * Source modules: Catalog, Inventory, Price Lists, and (feature 043) the
+ * prompt assistant's execution summaries.
  */
 
 export const RECENT_ACTIVITY_ACTIONS = [
@@ -39,11 +40,13 @@ export const RECENT_ACTIVITY_ACTIONS = [
   'price_list.expire',
   'price_list.products_replace',
   'price_list.bracket_update',
+  // prompt assistant (feature 043)
+  'prompt_action.execute',
 ] as const;
 
 export type RecentActivityAction = (typeof RECENT_ACTIVITY_ACTIONS)[number];
 
-export type RecentActivityModule = 'catalog' | 'inventory' | 'price_lists';
+export type RecentActivityModule = 'catalog' | 'inventory' | 'price_lists' | 'prompt_actions';
 
 const PREFIX_TO_MODULE: ReadonlyArray<readonly [string, RecentActivityModule]> = [
   ['product.', 'catalog'],
@@ -51,6 +54,7 @@ const PREFIX_TO_MODULE: ReadonlyArray<readonly [string, RecentActivityModule]> =
   ['stock_level.', 'inventory'],
   ['low_stock_threshold.', 'inventory'],
   ['price_list.', 'price_lists'],
+  ['prompt_action.', 'prompt_actions'],
 ];
 
 /**
