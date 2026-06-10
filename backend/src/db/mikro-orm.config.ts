@@ -70,6 +70,10 @@ import { Migration064OrderSavedViewColumns } from '../modules/orders/migrations/
 import { Migration065CatalogBulkOperations } from '../modules/catalog/migrations/065_catalog_bulk_operations.js';
 import { Migration066BulkOperationLogs } from '../modules/catalog/migrations/066_bulk_operation_logs.js';
 import { Migration067MfaInit } from '../modules/mfa/migrations/067_mfa_init.js';
+import { Migration068ProductPackagingUnits } from '../modules/catalog/migrations/068_product_packaging_units.js';
+import { Migration069CartItemPackaging } from '../modules/carts/migrations/069_cart_item_packaging.js';
+import { Migration070OrderItemPackaging } from '../modules/orders/migrations/070_order_item_packaging.js';
+import { Migration071QrItemPackaging } from '../modules/quote_requests/migrations/071_qr_item_packaging.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -321,6 +325,22 @@ export default defineConfig({
       {
         name: 'Migration067MfaInit',
         class: Migration067MfaInit,
+      },
+      {
+        name: 'Migration068ProductPackagingUnits',
+        class: Migration068ProductPackagingUnits,
+      },
+      {
+        name: 'Migration069CartItemPackaging',
+        class: Migration069CartItemPackaging,
+      },
+      {
+        name: 'Migration070OrderItemPackaging',
+        class: Migration070OrderItemPackaging,
+      },
+      {
+        name: 'Migration071QrItemPackaging',
+        class: Migration071QrItemPackaging,
       },
     ],
     transactional: true,

@@ -817,14 +817,29 @@ export class OrderService {
 
       const orderItems = items.map((item) => {
         const product = productById.get(item.productId);
+        // Feature 043 — when the line was ordered as a packaging unit, append
+        // the unit name to the snapshot name so every order-derived document
+        // shows it, and keep a structured snapshot for programmatic use.
+        const baseName = product ? this.anyValue(product.name) : '';
+        const snapshotName = item.packagingUnitName
+          ? `${baseName} (${item.packagingUnitName})`
+          : baseName;
         return tx.create(OrderItem, {
           orderId: order.id,
           productId: item.productId,
           productSnapshot: {
             sku: product?.sku ?? '',
-            name: product ? this.anyValue(product.name) : '',
+            name: snapshotName,
             primaryAssetUrl: null,
           },
+          ...(item.packagingUnitName && item.packagingUnitBaseQuantity != null
+            ? {
+                packagingUnitSnapshot: {
+                  name: item.packagingUnitName,
+                  baseQuantity: item.packagingUnitBaseQuantity,
+                },
+              }
+            : {}),
           ...(item.variantId ? { variantId: item.variantId } : {}),
           quantity: item.quantity,
           unitPrice: item.unitPrice,

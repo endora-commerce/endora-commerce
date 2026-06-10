@@ -86,6 +86,12 @@ export class CartConversionService {
         productId: it.productId,
         ...(it.variantId ? { variantId: it.variantId } : {}),
         quantity: it.quantity,
+        // Feature 043 — carry the packaging-unit snapshot so the RFQ line
+        // shows "<name> (Paleta)" like the cart did.
+        ...(it.packagingUnitName ? { packagingUnitName: it.packagingUnitName } : {}),
+        ...(it.packagingUnitBaseQuantity != null
+          ? { packagingUnitBaseQuantity: it.packagingUnitBaseQuantity }
+          : {}),
         // Carry the buyer's currently-snapshotted unit price as the
         // reference price on the QR line — sales sees what the cart
         // would have cost without negotiation.

@@ -5,6 +5,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
+import { ProductPackagingUnit } from '../../catalog/entities/product-packaging-unit.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import type { PricingService } from '../../price_lists/services/pricing-service.js';
@@ -128,7 +129,7 @@ export class CartService {
 
   async addItem(
     actor: { customer?: CustomerContext; anonymousToken?: string },
-    input: { productId: string; variantId?: string; quantity: number },
+    input: { productId: string; variantId?: string; quantity: number; packagingUnitId?: string },
   ): Promise<{ cart: Cart; items: CartItem[] }> {
     const em = this.emFactory();
     const cart = actor.customer
@@ -151,14 +152,38 @@ export class CartService {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
 
-    // If the same product+variant is already in the cart, bump quantity.
+    // Feature 043 — ordering by a packaging unit (e.g. a pallet): the line is
+    // measured in base pieces (`baseQuantity × units`) and snapshots the unit
+    // name so the cart/order/RFQ can append it to the product name.
+    let packagingUnit: ProductPackagingUnit | null = null;
+    if (input.packagingUnitId) {
+      packagingUnit = await em.findOne(ProductPackagingUnit, {
+        id: input.packagingUnitId,
+        productId: product.id,
+      });
+      if (!packagingUnit) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.PACKAGING_UNIT_NOT_FOUND,
+          'Packaging unit not found for this product.',
+        );
+      }
+    }
+    const effectiveQuantity = packagingUnit
+      ? packagingUnit.baseQuantity * input.quantity
+      : input.quantity;
+
+    // If the same product+variant+packaging-unit is already in the cart, bump
+    // quantity. A packaging-unit line and a single-piece line of the same
+    // product stay distinct (different `packagingUnitId`).
     const existing = await em.findOne(CartItem, {
       cartId: cart.id,
       productId: product.id,
       variantId: input.variantId ?? null,
+      packagingUnitId: input.packagingUnitId ?? null,
     });
     if (existing) {
-      existing.quantity += input.quantity;
+      existing.quantity += effectiveQuantity;
       cart.lastActivityAt = new Date();
       await em.flush();
     } else {
@@ -176,7 +201,7 @@ export class CartService {
       const resolved = await this.#resolveLineUnitPrice(em, {
         product,
         organizationId: actor.customer?.organizationId ?? null,
-        quantity: input.quantity,
+        quantity: effectiveQuantity,
         variantId: input.variantId ?? null,
       });
       // T084 — defence-in-depth: refuse the line when the resolver says
@@ -192,7 +217,14 @@ export class CartService {
         cartId: cart.id,
         productId: product.id,
         ...(input.variantId ? { variantId: input.variantId } : {}),
-        quantity: input.quantity,
+        ...(packagingUnit
+          ? {
+              packagingUnitId: packagingUnit.id,
+              packagingUnitName: packagingUnit.name,
+              packagingUnitBaseQuantity: packagingUnit.baseQuantity,
+            }
+          : {}),
+        quantity: effectiveQuantity,
         unitPrice: resolved
           ? Number(resolved.amount).toFixed(2)
           : (Number(

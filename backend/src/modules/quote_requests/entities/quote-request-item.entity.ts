@@ -21,7 +21,9 @@ export class QuoteRequestItem {
     | 'lineNote'
     | 'desiredUnitPrice'
     | 'agreedUnitPrice'
-    | 'discountPercent';
+    | 'discountPercent'
+    | 'packagingUnitName'
+    | 'packagingUnitBaseQuantity';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -47,6 +49,16 @@ export class QuoteRequestItem {
 
   @Property({ type: 'integer' })
   quantity!: number;
+
+  /**
+   * Feature 043 — set when the line was added as a packaging unit. The unit
+   * name is also appended to `productName` so RFQ views show the suffix.
+   */
+  @Property({ type: 'string', length: 160, nullable: true })
+  packagingUnitName?: string | null;
+
+  @Property({ type: 'integer', nullable: true })
+  packagingUnitBaseQuantity?: number | null;
 
   @Property({ type: 'text', nullable: true })
   lineNote?: string | null;

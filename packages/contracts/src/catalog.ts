@@ -363,6 +363,22 @@ export const productDetailSchema = productSummarySchema.extend({
       }),
     )
     .optional(),
+  /**
+   * Feature 043 — named packaging units (e.g. "Paleta" = 480 pieces) the
+   * buyer can order by. Present only for eligible product types
+   * (simple / configurable); omitted or empty otherwise.
+   */
+  packagingUnits: z
+    .array(
+      z.object({
+        id: uuidSchema,
+        name: z.string(),
+        baseQuantity: z.number().int().positive(),
+        position: z.number().int().nonnegative(),
+        isDefault: z.boolean(),
+      }),
+    )
+    .optional(),
 });
 export type ProductDetail = z.infer<typeof productDetailSchema>;
 
@@ -1127,6 +1143,52 @@ export const updateAttachmentRequestSchema = z
   })
   .strict();
 export type UpdateAttachmentRequest = z.infer<typeof updateAttachmentRequestSchema>;
+
+// --- Packaging Units (Feature 043) ------------------------------------------
+
+/**
+ * A named ordering unit attached to a product (e.g. "Paleta" = 480 pieces).
+ * Managed in the Inventory section of the admin product card; surfaced on the
+ * storefront product page so buyers can order by the unit.
+ */
+export const packagingUnitSchema = z.object({
+  id: uuidSchema,
+  productId: uuidSchema,
+  name: z.string().min(1).max(160),
+  baseQuantity: z.number().int().positive(),
+  position: z.number().int().nonnegative(),
+  isDefault: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type PackagingUnitDto = z.infer<typeof packagingUnitSchema>;
+
+export const createPackagingUnitRequestSchema = z
+  .object({
+    name: z.string().trim().min(1).max(160),
+    baseQuantity: z.number().int().positive(),
+    isDefault: z.boolean().optional(),
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type CreatePackagingUnitRequest = z.infer<typeof createPackagingUnitRequestSchema>;
+
+export const updatePackagingUnitRequestSchema = z
+  .object({
+    name: z.string().trim().min(1).max(160).optional(),
+    baseQuantity: z.number().int().positive().optional(),
+    isDefault: z.boolean().optional(),
+    position: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type UpdatePackagingUnitRequest = z.infer<typeof updatePackagingUnitRequestSchema>;
+
+export const reorderPackagingUnitsRequestSchema = z
+  .object({
+    orderedIds: z.array(uuidSchema).min(1),
+  })
+  .strict();
+export type ReorderPackagingUnitsRequest = z.infer<typeof reorderPackagingUnitsRequestSchema>;
 
 // --- Product Links (Feature 002 US4) ----------------------------------------
 

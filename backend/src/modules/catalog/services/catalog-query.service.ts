@@ -12,6 +12,7 @@ import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity
 import { Asset } from '../../assets_library/entities/asset.entity.js';
 import type { ProductLinkService } from './product-link.service.js';
 import { GroupedItem } from '../entities/grouped-item.entity.js';
+import { ProductPackagingUnit } from '../entities/product-packaging-unit.entity.js';
 import { BundleSlot } from '../entities/bundle-slot.entity.js';
 import { BundleSlotOption } from '../entities/bundle-slot-option.entity.js';
 import {
@@ -539,6 +540,25 @@ export class CatalogQueryService {
         downloadAssetId: product.downloadAssetId ?? null,
         downloadUrl: product.downloadUrl ?? null,
       };
+    }
+
+    // Feature 043 — packaging units (only meaningful for the eligible types,
+    // which are also the only ones that can have rows).
+    if (product.type === 'simple' || product.type === 'configurable') {
+      const packagingUnits = await em.find(
+        ProductPackagingUnit,
+        { productId: product.id },
+        { orderBy: { position: 'asc', name: 'asc' } },
+      );
+      if (packagingUnits.length > 0) {
+        detail.packagingUnits = packagingUnits.map((u) => ({
+          id: u.id,
+          name: u.name,
+          baseQuantity: u.baseQuantity,
+          position: u.position,
+          isDefault: u.isDefault,
+        }));
+      }
     }
 
     return detail;
