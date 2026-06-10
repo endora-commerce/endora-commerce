@@ -85,6 +85,9 @@ const settings = defineModuleSettingsManifest({
   ],
 });
 
+/** Settings-only export consumed by the boot-time ManifestReconciler lists. */
+export const promptActionsSettingsManifest = settings;
+
 export const manifest = defineModuleManifest({
   id: 'prompt_actions',
   name: 'Prompt Actions',
