@@ -12,6 +12,8 @@ import {
   type SettingsCacheInvalidatorHandle,
 } from './services/settings-cache-invalidator.js';
 import { registerSettingsAdminRoutes } from './routes.admin.js';
+import { registerSettingsCacheRoutes } from './routes.cache.js';
+import { CacheAdminService } from './services/cache-admin.service.js';
 
 /**
  * Composition root for the settings module — feature 004.
@@ -46,6 +48,7 @@ export interface SettingsModuleOptions {
 export interface SettingsModuleHandle {
   adminService: SettingsAdminService;
   settingsService: SettingsService;
+  cacheAdminService: CacheAdminService;
   /** Released for tests; in production it lives until process exit. */
   cacheInvalidator?: SettingsCacheInvalidatorHandle;
 }
@@ -66,6 +69,7 @@ export function settingsModule(
 
   const cache = options.redis ? new SettingsCache(options.redis) : undefined;
   const settingsService = new SettingsService(options.emFactory, cache);
+  const cacheAdminService = new CacheAdminService(options.redis);
   const cacheInvalidator = cache
     ? attachSettingsCacheInvalidator(options.eventBus, cache)
     : undefined;
@@ -79,6 +83,7 @@ export function settingsModule(
     handle: {
       adminService,
       settingsService,
+      cacheAdminService,
       ...(cacheInvalidator !== undefined ? { cacheInvalidator } : {}),
     },
     plugin: async (app) => {
@@ -89,6 +94,10 @@ export function settingsModule(
         ...(options.resolveAdminAuditContext !== undefined
           ? { resolveAdminAuditContext: options.resolveAdminAuditContext }
           : {}),
+      });
+      await registerSettingsCacheRoutes(app, {
+        cacheAdminService,
+        requireAdmin: requireAdminFn,
       });
     },
   };

@@ -30,6 +30,7 @@
     "seed:dev": "pnpm run migration:up && tsx --env-file-if-exists=.env src/modules/catalog/seeds/dev-catalog-seed.ts",
     "search:reindex": "tsx --env-file-if-exists=.env src/modules/search/scripts/reindex.ts",
     "cart:abandonment-sweep": "tsx --env-file-if-exists=.env src/modules/carts/scripts/abandonment-sweep.ts",
+    "cache:clear": "tsx --env-file-if-exists=.env src/modules/settings/scripts/cache-clear.ts",
     "admin:create": "tsx --env-file-if-exists=.env src/modules/admin_users/scripts/create-admin.ts",
     "modules:install": "tsx --env-file-if-exists=.env src/modules/settings/scripts/modules-install.ts",
     "modules:uninstall": "tsx --env-file-if-exists=.env src/modules/settings/scripts/modules-uninstall.ts",
