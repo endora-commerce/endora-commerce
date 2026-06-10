@@ -193,6 +193,30 @@ export const GroupUpdateRequestSchema = z.object({
 export const SettingDetailResponseSchema = SettingDtoSchema;
 
 // ---------------------------------------------------------------------------
+// (4) Storefront shop-information surface
+// ---------------------------------------------------------------------------
+
+/**
+ * Public shop / company contact information resolved for the active sales
+ * channel. Backs the storefront footer, the 404 "need help?" block and the
+ * contact form. Every field is a string; an unset (or not-yet-registered)
+ * setting resolves to an empty string so the storefront can decide what to
+ * render. The contact-form recipient list is intentionally omitted — it is
+ * an internal routing concern, not public information.
+ */
+export const ShopInfoSchema = z.object({
+  name: z.string(),
+  address: z.string(),
+  contactEmail: z.string(),
+  supportEmail: z.string(),
+  phone: z.string(),
+});
+export type ShopInfo = z.infer<typeof ShopInfoSchema>;
+
+export const ShopInfoResponseSchema = z.object({ data: ShopInfoSchema });
+export type ShopInfoResponse = z.infer<typeof ShopInfoResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // (5) Cache administration (maintenance)
 // ---------------------------------------------------------------------------
 

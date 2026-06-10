@@ -56,6 +56,9 @@ const BUNDLE = passthroughBundle('catalog', [
   'attributes.error.update',
   'attributes.error.create',
   'attributes.action.create',
+  'attributes.action.save',
+  'attributes.action.cancel',
+  'attributes.batch.unsaved',
 ]);
 
 const seedAttribute = (massEditable: boolean): unknown => ({
@@ -88,7 +91,7 @@ describe('AttributesManager — Mass-editable toggle (T027)', () => {
     vi.clearAllMocks();
   });
 
-  it('renders the Mass-editable column and patches the attribute when clicked', async () => {
+  it('patches the attribute when the Mass-editable flag is toggled and saved', async () => {
     getSpy.mockResolvedValue({ data: [seedAttribute(false)] });
     patchSpy.mockResolvedValue({ data: seedAttribute(true) });
 
@@ -112,9 +115,15 @@ describe('AttributesManager — Mass-editable toggle (T027)', () => {
     const user = userEvent.setup();
     await user.click(massEditableCheckbox);
 
+    // Flag edits are staged locally and flushed in one batch on Save.
+    const saveButton = await screen.findByText('attributes.action.save');
+    await user.click(saveButton);
+
     await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
     expect(patchSpy.mock.calls[0]![0]).toBe('/api/v1/admin/catalog/attributes/brand');
-    expect(patchSpy.mock.calls[0]![1]).toEqual({ massEditable: true });
+    expect(patchSpy.mock.calls[0]![1]).toEqual(
+      expect.objectContaining({ massEditable: true }),
+    );
   });
 
   it('renders the checkbox as checked when the attribute is already flagged', async () => {

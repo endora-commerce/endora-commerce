@@ -153,9 +153,25 @@ export default async function ProductPage({
           />
         )}
         <div>
-          <h1>{product.name}</h1>
-          <small className="muted">SKU: {product.sku}</small>
-          <p>{product.description}</p>
+          {/* Industria PDP identity header: category eyebrow, title, and a
+              monospace id-strip — mirrors `.pdp__brand` / `.pdp__title` /
+              `.pdp__id-strip` from the design. */}
+          {primaryCategory ? (
+            <div className="font-mono text-[11px] uppercase tracking-[0.08em] text-subtle">
+              {primaryCategory.name}
+            </div>
+          ) : null}
+          <h1 className="mt-[4px] mb-[12px] text-[26px] font-semibold leading-[1.25] tracking-[-0.015em] text-fg">
+            {product.name}
+          </h1>
+          <div className="mb-[16px] flex flex-wrap items-center gap-x-[18px] gap-y-[6px] border-y border-line py-[10px] font-mono text-[12px] text-muted">
+            <span className="inline-flex gap-[6px]">
+              SKU: <strong className="font-medium text-fg">{product.sku}</strong>
+            </span>
+          </div>
+          {product.description ? (
+            <p className="mb-4 text-[15px] leading-[1.55] text-muted">{product.description}</p>
+          ) : null}
 
           {/* Keep the stock badge directly beside the price (not pushed to the
               opposite edge) so availability reads as part of the price block. */}

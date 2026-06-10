@@ -12,6 +12,8 @@ import {
   type SettingsCacheInvalidatorHandle,
 } from './services/settings-cache-invalidator.js';
 import { registerSettingsAdminRoutes } from './routes.admin.js';
+import { registerSettingsStorefrontRoutes } from './routes.storefront.js';
+import { ShopInfoResolver } from './services/shop-info-resolver.js';
 import { registerSettingsCacheRoutes } from './routes.cache.js';
 import { CacheAdminService } from './services/cache-admin.service.js';
 
@@ -48,6 +50,7 @@ export interface SettingsModuleOptions {
 export interface SettingsModuleHandle {
   adminService: SettingsAdminService;
   settingsService: SettingsService;
+  shopInfoResolver: ShopInfoResolver;
   cacheAdminService: CacheAdminService;
   /** Released for tests; in production it lives until process exit. */
   cacheInvalidator?: SettingsCacheInvalidatorHandle;
@@ -69,6 +72,7 @@ export function settingsModule(
 
   const cache = options.redis ? new SettingsCache(options.redis) : undefined;
   const settingsService = new SettingsService(options.emFactory, cache);
+  const shopInfoResolver = new ShopInfoResolver(options.emFactory, settingsService);
   const cacheAdminService = new CacheAdminService(options.redis);
   const cacheInvalidator = cache
     ? attachSettingsCacheInvalidator(options.eventBus, cache)
@@ -83,6 +87,7 @@ export function settingsModule(
     handle: {
       adminService,
       settingsService,
+      shopInfoResolver,
       cacheAdminService,
       ...(cacheInvalidator !== undefined ? { cacheInvalidator } : {}),
     },
@@ -95,6 +100,7 @@ export function settingsModule(
           ? { resolveAdminAuditContext: options.resolveAdminAuditContext }
           : {}),
       });
+      await registerSettingsStorefrontRoutes(app, { shopInfoResolver });
       await registerSettingsCacheRoutes(app, {
         cacheAdminService,
         requireAdmin: requireAdminFn,

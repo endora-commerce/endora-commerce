@@ -103,6 +103,53 @@ describe('storefront blog by-slug contract (T049)', () => {
     expect(body.posts?.pagination.perPage).toBe(12); // documented default
   });
 
+  it('resolves a published post authored only in a non-default language (no 404)', async () => {
+    // Regression: a post published with content only in a language that is
+    // neither the requested language nor the channel default used to 404 on
+    // the post-detail endpoint while still appearing in the index/category
+    // listings. A published post must always be reachable, degrading only its
+    // display language.
+    const slug = `foreign-lang-${Date.now()}`;
+    const create = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/blog/posts',
+      headers: { 'content-type': 'application/json' },
+      cookies: adminCookie,
+      payload: JSON.stringify({
+        name: { 'pl-PL': 'Witaj' },
+        slug,
+        salesChannelIds: [defaultChannelId],
+        languages: ['pl-PL'],
+        categoryIds: [],
+      }),
+    });
+    expect(create.statusCode).toBe(201);
+    const data = (create.json() as { data: { id: string; version: number } }).data;
+    await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/blog/posts/${data.id}/publish`,
+      headers: { 'content-type': 'application/json' },
+      cookies: adminCookie,
+      payload: JSON.stringify({ version: data.version }),
+    });
+    if (h.blog.cache) await h.blog.cache.invalidateAll();
+
+    // Requested + channel-default language is en-US, but the post is authored
+    // only in pl-PL — previously a 404.
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/blog/by-slug?slug=${slug}`,
+      headers: { 'x-sales-channel': defaultChannelCode, 'x-blog-language': 'en-US' },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = (res.json() as {
+      data: { kind: string; post?: { slug: string; name: string } };
+    }).data;
+    expect(body.kind).toBe('post');
+    expect(body.post?.slug).toBe(slug);
+    expect(body.post?.name).toBe('Witaj');
+  });
+
   it('returns 404 for an unknown slug', async () => {
     const res = await h.app.inject({
       method: 'GET',
