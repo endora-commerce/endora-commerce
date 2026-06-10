@@ -152,13 +152,25 @@ export class RfqService {
     const items: QuoteRequestItem[] = [];
     for (const lineInput of input.items) {
       const product = productById.get(lineInput.productId)!;
+      // Feature 043 — append the packaging-unit name to the snapshot name so
+      // RFQ views show "<name> (Paleta)", and persist the structured snapshot.
+      const baseName = anyLocaleValue(product.name);
+      const productName = lineInput.packagingUnitName
+        ? `${baseName} (${lineInput.packagingUnitName})`
+        : baseName;
       const item = em.create(QuoteRequestItem, {
         quoteRequestId: rfq.id,
         productId: product.id,
-        productName: anyLocaleValue(product.name),
+        productName,
         productSlug: product.slug,
         variantId: lineInput.variantId ?? null,
         quantity: lineInput.quantity,
+        ...(lineInput.packagingUnitName
+          ? { packagingUnitName: lineInput.packagingUnitName }
+          : {}),
+        ...(lineInput.packagingUnitBaseQuantity != null
+          ? { packagingUnitBaseQuantity: lineInput.packagingUnitBaseQuantity }
+          : {}),
         desiredUnitPrice:
           lineInput.desiredUnitPrice !== undefined ? lineInput.desiredUnitPrice.toFixed(2) : null,
         lineNote: lineInput.lineNote ?? null,

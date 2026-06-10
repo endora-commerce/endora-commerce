@@ -191,6 +191,9 @@ export const createQuoteRequestLineSchema = z.object({
   quantity: z.number().int().positive(),
   desiredUnitPrice: z.number().finite().nonnegative().optional(),
   lineNote: z.string().max(2000).optional(),
+  /** Feature 043 — snapshot when the line was added as a packaging unit. */
+  packagingUnitName: z.string().max(160).optional(),
+  packagingUnitBaseQuantity: z.number().int().positive().optional(),
 });
 export type CreateQuoteRequestLine = z.infer<typeof createQuoteRequestLineSchema>;
 

@@ -22,6 +22,7 @@ import { CategoryAdminService } from './services/category-admin.service.js';
 import { AttributeSetService } from './services/attribute-set.service.js';
 import { GalleryService } from './services/gallery.service.js';
 import { AttachmentService } from './services/attachment.service.js';
+import { PackagingUnitService } from './services/packaging-unit.service.js';
 import { ProductLinkService } from './services/product-link.service.js';
 import { GroupedService } from './services/grouped.service.js';
 import { BundleService } from './services/bundle.service.js';
@@ -208,6 +209,7 @@ export function catalogModule(options: CatalogModuleOptions) {
     const attributeSetService = new AttributeSetService(options.emFactory);
     const galleryService = new GalleryService(options.emFactory);
     const attachmentService = new AttachmentService(options.emFactory);
+    const packagingUnitService = new PackagingUnitService(options.emFactory);
     const productLinkService = new ProductLinkService(options.emFactory);
     const groupedService = new GroupedService(options.emFactory);
     const bundleService = new BundleService(options.emFactory);
@@ -247,6 +249,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       attributeSetService,
       galleryService,
       attachmentService,
+      packagingUnitService,
       productLinkService,
       groupedService,
       bundleService,

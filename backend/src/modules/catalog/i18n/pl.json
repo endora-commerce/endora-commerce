@@ -571,5 +571,22 @@
   "auditLog.bundle_slot.update": "Zaktualizowano slot zestawu",
   "auditLog.bundle_slot.delete": "Usunięto slot zestawu",
   "auditLog.bundle_slot_option.create": "Utworzono opcję slotu zestawu",
-  "auditLog.bundle_slot_option.delete": "Usunięto opcję slotu zestawu"
+  "auditLog.bundle_slot_option.delete": "Usunięto opcję slotu zestawu",
+  "packagingUnits.title": "Jednostki opakowaniowe",
+  "packagingUnits.help": "Zdefiniuj jednostki, którymi klienci mogą zamawiać (np. paleta = 480 szt.). Zamówienie jednostki dodaje tyle sztuk do koszyka z dopiskiem nazwy jednostki.",
+  "packagingUnits.loading": "Wczytywanie jednostek opakowaniowych…",
+  "packagingUnits.empty": "Brak jednostek opakowaniowych.",
+  "packagingUnits.newName": "Nazwa jednostki (np. Paleta)",
+  "packagingUnits.newQuantity": "Sztuk",
+  "packagingUnits.col.name": "Nazwa",
+  "packagingUnits.col.baseQuantity": "Sztuk w jednostce",
+  "packagingUnits.col.default": "Domyślna",
+  "packagingUnits.col.order": "Kolejność",
+  "packagingUnits.action.add": "Dodaj",
+  "packagingUnits.action.remove": "Usuń",
+  "packagingUnits.action.moveUp": "W górę",
+  "packagingUnits.action.moveDown": "W dół",
+  "packagingUnits.error.load": "Nie udało się wczytać jednostek opakowaniowych.",
+  "packagingUnits.error.save": "Zapis nie powiódł się.",
+  "packagingUnits.error.invalid": "Podaj nazwę i całkowitą liczbę sztuk (co najmniej 1)."
 }

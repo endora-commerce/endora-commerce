@@ -18,6 +18,7 @@ import { AttachmentType } from '../modules/catalog/entities/attachment-type.enti
 import { ProductAttachment } from '../modules/catalog/entities/product-attachment.entity.js';
 import { ProductLink } from '../modules/catalog/entities/product-link.entity.js';
 import { GroupedItem } from '../modules/catalog/entities/grouped-item.entity.js';
+import { ProductPackagingUnit } from '../modules/catalog/entities/product-packaging-unit.entity.js';
 import { BundleSlot } from '../modules/catalog/entities/bundle-slot.entity.js';
 import { BundleSlotOption } from '../modules/catalog/entities/bundle-slot-option.entity.js';
 import { SalesChannel } from '../modules/sales_channels/entities/sales-channel.entity.js';
@@ -166,6 +167,8 @@ export const ALL_ENTITIES = [
   ProductAttachment,
   ProductLink,
   GroupedItem,
+  // Packaging units (feature 043)
+  ProductPackagingUnit,
   BundleSlot,
   BundleSlotOption,
   SalesChannel,

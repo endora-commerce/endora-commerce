@@ -8,6 +8,9 @@ import {
   createAttributeSetRequestSchema,
   createCategoryRequestSchema,
   createAttachmentRequestSchema,
+  createPackagingUnitRequestSchema,
+  updatePackagingUnitRequestSchema,
+  reorderPackagingUnitsRequestSchema,
   createAttachmentTypeRequestSchema,
   createGalleryItemRequestSchema,
   createProductRequestSchema,
@@ -41,6 +44,7 @@ import type { CategoryAdminService } from './services/category-admin.service.js'
 import type { AttributeSetService } from './services/attribute-set.service.js';
 import type { GalleryService } from './services/gallery.service.js';
 import type { AttachmentService } from './services/attachment.service.js';
+import type { PackagingUnitService } from './services/packaging-unit.service.js';
 import type { ProductLinkService } from './services/product-link.service.js';
 import type { GroupedService } from './services/grouped.service.js';
 import type { BundleService } from './services/bundle.service.js';
@@ -101,6 +105,8 @@ export interface CatalogAdminDeps {
   galleryService?: GalleryService;
   /** Feature 002 — Attachments admin CRUD (US3). */
   attachmentService?: AttachmentService;
+  /** Feature 043 — Packaging units admin CRUD. */
+  packagingUnitService?: PackagingUnitService;
   /** Feature 002 — Product Links admin CRUD (US4). */
   productLinkService?: ProductLinkService;
   /** Feature 002 — Grouped product children admin CRUD (US5). */
@@ -1290,6 +1296,93 @@ export async function registerCatalogAdminRoutes(
           objectId: request.params.attachmentId,
         });
         reply.status(204).send();
+      },
+    );
+  }
+
+  // ===== Feature 043 — Packaging units admin CRUD ===========================
+  if (deps.packagingUnitService) {
+    const pkg = deps.packagingUnitService;
+
+    app.get<{ Params: { productId: string } }>(
+      '/api/v1/admin/catalog/products/:productId/packaging-units',
+      { preHandler: requireAdmin('catalog:read') },
+      async (request) => {
+        const data = await pkg.list(request.params.productId);
+        return { data };
+      },
+    );
+
+    app.post<{ Params: { productId: string } }>(
+      '/api/v1/admin/catalog/products/:productId/packaging-units',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: createPackagingUnitRequestSchema },
+      },
+      async (request, reply) => {
+        const body = createPackagingUnitRequestSchema.parse(request.body);
+        const unit = await pkg.create(request.params.productId, body);
+        reply.status(201);
+        await auditEmit(request, {
+          action: 'packaging_unit.create',
+          objectType: 'product_packaging_unit',
+          objectId: unit.id,
+        });
+        return { data: unit };
+      },
+    );
+
+    app.patch<{ Params: { productId: string; unitId: string } }>(
+      '/api/v1/admin/catalog/products/:productId/packaging-units/:unitId',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: updatePackagingUnitRequestSchema },
+      },
+      async (request) => {
+        const body = updatePackagingUnitRequestSchema.parse(request.body);
+        const unit = await pkg.update(
+          request.params.productId,
+          request.params.unitId,
+          body,
+        );
+        await auditEmit(request, {
+          action: 'packaging_unit.update',
+          objectType: 'product_packaging_unit',
+          objectId: request.params.unitId,
+        });
+        return { data: unit };
+      },
+    );
+
+    app.delete<{ Params: { productId: string; unitId: string } }>(
+      '/api/v1/admin/catalog/products/:productId/packaging-units/:unitId',
+      { preHandler: requireAdmin('catalog:write') },
+      async (request, reply) => {
+        await pkg.delete(request.params.productId, request.params.unitId);
+        await auditEmit(request, {
+          action: 'packaging_unit.delete',
+          objectType: 'product_packaging_unit',
+          objectId: request.params.unitId,
+        });
+        reply.status(204).send();
+      },
+    );
+
+    app.patch<{ Params: { productId: string } }>(
+      '/api/v1/admin/catalog/products/:productId/packaging-units/reorder',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: reorderPackagingUnitsRequestSchema },
+      },
+      async (request) => {
+        const body = reorderPackagingUnitsRequestSchema.parse(request.body);
+        const data = await pkg.reorder(request.params.productId, body);
+        await auditEmit(request, {
+          action: 'packaging_unit.reorder',
+          objectType: 'product',
+          objectId: request.params.productId,
+        });
+        return { data };
       },
     );
   }

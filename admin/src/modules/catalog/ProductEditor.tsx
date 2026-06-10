@@ -49,6 +49,7 @@ import {
 } from '@/components/ui/table';
 import { EntityChannelMembership } from '../sales_channels/components/EntityChannelMembership';
 import { ProductInventoryTab } from './ProductInventoryTab';
+import { PackagingUnitsEditor } from './components/PackagingUnitsEditor';
 import { ProductAttributesTab } from './ProductAttributesTab';
 import { LinkedPriceListsPanel } from '../price_lists/LinkedPriceListsPanel';
 import { ProductPicker } from './components/ProductPicker';
@@ -729,7 +730,14 @@ export function ProductEditor(): ReactNode {
 
           {activeTab === 'media' && id ? <GallerySection productId={id} /> : null}
 
-          {activeTab === 'inventory' && id ? <ProductInventoryTab productId={id} /> : null}
+          {activeTab === 'inventory' && id ? (
+            <div className="b2b-col" style={{ gap: 16 }}>
+              <ProductInventoryTab productId={id} />
+              {type === 'simple' || type === 'configurable' ? (
+                <PackagingUnitsEditor productId={id} />
+              ) : null}
+            </div>
+          ) : null}
 
           {activeTab === 'attachments' && id ? <AttachmentsSection productId={id} /> : null}
 

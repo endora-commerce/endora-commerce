@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 
 @Entity({ tableName: 'order_items' })
 export class OrderItem {
-  [OptionalProps]?: 'id' | 'createdAt' | 'variantId' | 'variantSnapshot';
+  [OptionalProps]?: 'id' | 'createdAt' | 'variantId' | 'variantSnapshot' | 'packagingUnitSnapshot';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -27,6 +27,14 @@ export class OrderItem {
 
   @Property({ type: 'json', nullable: true })
   variantSnapshot?: { sku: string; label: string } | null;
+
+  /**
+   * Feature 043 — set when the line was ordered as a packaging unit. The unit
+   * name is also appended to `productSnapshot.name`, so all order-derived
+   * documents (detail, invoice, CSV, email) show the suffix automatically.
+   */
+  @Property({ type: 'json', nullable: true })
+  packagingUnitSnapshot?: { name: string; baseQuantity: number } | null;
 
   @Property({ type: 'integer' })
   quantity!: number;

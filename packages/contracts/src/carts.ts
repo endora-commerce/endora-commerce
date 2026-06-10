@@ -58,7 +58,14 @@ export type Cart = z.infer<typeof cartSchema>;
 export const addCartItemRequestSchema = z.object({
   productId: uuidSchema,
   variantId: uuidSchema.optional(),
+  /**
+   * Without `packagingUnitId` this is the number of base pieces. With
+   * `packagingUnitId` it is the number of packaging units, and the resulting
+   * line quantity is `unit.baseQuantity × quantity` (feature 043).
+   */
   quantity: z.number().int().positive(),
+  /** Feature 043 — order by a packaging unit (e.g. a pallet) of this product. */
+  packagingUnitId: uuidSchema.optional(),
 });
 export type AddCartItemRequest = z.infer<typeof addCartItemRequestSchema>;
 
@@ -145,6 +152,13 @@ export const cartViewLineSchema = z.object({
   lineTotal: moneySchema,
   unavailable: z.boolean(),
   unavailableReason: cartLineUnavailableReasonSchema.nullable(),
+  /**
+   * Feature 043 — set when the line was added as a packaging unit (e.g. a
+   * pallet). `displayName` already includes the appended unit name.
+   */
+  packagingUnitName: z.string().nullable().optional(),
+  packagingUnitBaseQuantity: z.number().int().positive().nullable().optional(),
+  displayName: z.string().nullable().optional(),
 });
 export type CartViewLine = z.infer<typeof cartViewLineSchema>;
 

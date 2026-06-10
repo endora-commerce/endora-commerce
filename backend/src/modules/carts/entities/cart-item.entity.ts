@@ -21,7 +21,10 @@ export class CartItem {
     | 'variantId'
     | 'recomputedUnitPrice'
     | 'recomputedAt'
-    | 'recomputedCurrency';
+    | 'recomputedCurrency'
+    | 'packagingUnitId'
+    | 'packagingUnitName'
+    | 'packagingUnitBaseQuantity';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -59,6 +62,20 @@ export class CartItem {
 
   @Property({ type: 'string', length: 3, nullable: true })
   recomputedCurrency?: string | null;
+
+  /**
+   * Feature 043 — when this line was added as a packaging unit (e.g. a
+   * pallet), these snapshot the unit it came from. `quantity` above already
+   * holds the resulting base-piece count. Null for plain single-piece lines.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  packagingUnitId?: string | null;
+
+  @Property({ type: 'string', length: 160, nullable: true })
+  packagingUnitName?: string | null;
+
+  @Property({ type: 'integer', nullable: true })
+  packagingUnitBaseQuantity?: number | null;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

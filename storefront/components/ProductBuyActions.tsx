@@ -6,11 +6,18 @@ import { useState, type ReactNode } from 'react';
  * PDP purchase row: a single styled quantity input shared by both the
  * "Add to quote" and "Add to cart" actions, rendered in that order.
  *
- * Previously the PDP showed two separate quantity inputs (an unstyled one in
- * the add-to-cart form and a styled one in the RFQ form). This consolidates
- * them into one client-owned quantity that both server actions read via a
- * hidden field.
+ * Feature 043 — when the product has packaging units (e.g. a pallet), a
+ * selector lets the buyer order by the unit. The quantity input then counts
+ * units, and the resulting line is `baseQuantity × units` pieces (resolved on
+ * the server from the selected `packagingUnitId`).
  */
+export interface ProductPackagingUnitOption {
+  id: string;
+  name: string;
+  baseQuantity: number;
+  isDefault: boolean;
+}
+
 export interface ProductBuyActionsProps {
   productId: string;
   productSlug: string;
@@ -19,6 +26,12 @@ export interface ProductBuyActionsProps {
   showCart: boolean;
   /** Show the "Add to quote" button (RFQ enabled for this storefront). */
   showQuote: boolean;
+  /** Feature 043 — packaging units available for this product (may be empty). */
+  packagingUnits?: ProductPackagingUnitOption[] | undefined;
+  /** Localized "single piece" option label for the packaging selector. */
+  singlePieceLabel?: string | undefined;
+  /** Localized pieces unit word (e.g. "szt."). */
+  piecesLabel?: string | undefined;
   addToCartAction: (formData: FormData) => void | Promise<void>;
   addToQuoteAction: (formData: FormData) => void | Promise<void>;
   addToCartLabel: string;
@@ -30,15 +43,42 @@ export function ProductBuyActions({
   variantId,
   showCart,
   showQuote,
+  packagingUnits,
+  singlePieceLabel = 'szt.',
+  piecesLabel = 'szt.',
   addToCartAction,
   addToQuoteAction,
   addToCartLabel,
 }: ProductBuyActionsProps): ReactNode {
+  const units = packagingUnits ?? [];
+  const defaultUnit = units.find((u) => u.isDefault) ?? null;
+  // Default the selector to the operator's default unit when present, else to
+  // single pieces (empty string).
+  const [unitId, setUnitId] = useState<string>(defaultUnit?.id ?? '');
   const [qty, setQty] = useState(1);
   if (!showCart && !showQuote) return null;
 
+  const selectedUnit = units.find((u) => u.id === unitId) ?? null;
+  const resultingPieces = selectedUnit ? selectedUnit.baseQuantity * qty : null;
+
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
+      {units.length > 0 ? (
+        <select
+          aria-label="Jednostka"
+          value={unitId}
+          onChange={(e): void => setUnitId(e.target.value)}
+          className="rounded-sm border border-line px-[8px] py-[6px] text-[13px]"
+        >
+          <option value="">{singlePieceLabel}</option>
+          {units.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.name} ({u.baseQuantity} {piecesLabel})
+            </option>
+          ))}
+        </select>
+      ) : null}
+
       <label htmlFor={`buy-qty-${productId}`} className="text-[12px]">
         Ilość
       </label>
@@ -55,12 +95,21 @@ export function ProductBuyActions({
         className="w-[5rem] rounded-sm border border-line px-[8px] py-[6px]"
       />
 
+      {resultingPieces !== null ? (
+        <span className="text-[12px] text-muted">
+          = {resultingPieces.toLocaleString('pl-PL')} {piecesLabel}
+        </span>
+      ) : null}
+
       {showQuote ? (
+        // The direct "add to quote" path is piece-based: when a packaging unit
+        // is selected it submits the resulting piece count (labelled RFQ lines
+        // come from the cart → quote-request conversion instead).
         <form action={addToQuoteAction}>
           <input type="hidden" name="productId" value={productId} />
           <input type="hidden" name="productSlug" value={productSlug} />
           {variantId ? <input type="hidden" name="variantId" value={variantId} /> : null}
-          <input type="hidden" name="quantity" value={qty} />
+          <input type="hidden" name="quantity" value={resultingPieces ?? qty} />
           <button type="submit" className="btn btn--outline btn--sm">
             Dodaj do zapytania
           </button>
@@ -71,6 +120,9 @@ export function ProductBuyActions({
         <form action={addToCartAction}>
           <input type="hidden" name="productId" value={productId} />
           {variantId ? <input type="hidden" name="variantId" value={variantId} /> : null}
+          {selectedUnit ? (
+            <input type="hidden" name="packagingUnitId" value={selectedUnit.id} />
+          ) : null}
           <input type="hidden" name="quantity" value={qty} />
           <button type="submit" className="b2b-cta">
             {addToCartLabel}

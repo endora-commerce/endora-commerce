@@ -237,6 +237,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         productId: body.productId,
         ...(body.variantId ? { variantId: body.variantId } : {}),
         quantity: body.quantity,
+        ...(body.packagingUnitId ? { packagingUnitId: body.packagingUnitId } : {}),
       });
       return { data: serializeCart(result.cart, result.items) };
     },
@@ -628,6 +629,14 @@ function serializeCart(
     if (currency === 'PLN' && lineCurrency !== 'PLN') currency = lineCurrency;
     subtotal += unitPriceAmount * it.quantity;
     const meta = productMeta.get(it.productId) ?? null;
+    // Feature 043 — append the packaging-unit name to the display name when the
+    // line was added as a packaging unit (e.g. "<name> (Paleta)").
+    const packagingUnitName = it.packagingUnitName ?? null;
+    const baseName = meta?.name ?? null;
+    const displayName =
+      baseName !== null && packagingUnitName
+        ? `${baseName} (${packagingUnitName})`
+        : baseName;
     return {
       id: it.id,
       productId: it.productId,
@@ -637,9 +646,12 @@ function serializeCart(
       lineTotal: { amount: unitPriceAmount * it.quantity, currency: lineCurrency },
       unavailable: false,
       unavailableReason: null,
-      productName: meta?.name ?? null,
+      productName: baseName,
       productSlug: meta?.slug ?? null,
       productSku: meta?.sku ?? null,
+      packagingUnitName,
+      packagingUnitBaseQuantity: it.packagingUnitBaseQuantity ?? null,
+      displayName,
     };
   });
   return {

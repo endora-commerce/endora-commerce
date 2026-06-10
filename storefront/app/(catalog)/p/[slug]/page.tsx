@@ -224,6 +224,9 @@ export default async function ProductPage({
                       {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
                       showCart={!!product.price && !stock?.showNotifyButton}
                       showQuote={rfqSettings.showAddToQuoteOnPdp}
+                      packagingUnits={product.packagingUnits}
+                      singlePieceLabel={t('product.packaging.singlePiece')}
+                      piecesLabel={t('product.packaging.pieces')}
                       addToCartAction={addToCartAction}
                       addToQuoteAction={addToQuoteAction}
                       addToCartLabel={t('product.addToCart')}
@@ -423,6 +426,7 @@ async function addToCartAction(formData: FormData): Promise<void> {
   'use server';
   const productId = ((formData.get('productId') as string) ?? '').trim();
   const variantId = ((formData.get('variantId') as string) ?? '').trim();
+  const packagingUnitId = ((formData.get('packagingUnitId') as string) ?? '').trim();
   const quantity = Number(formData.get('quantity') ?? '1');
   if (!productId) redirect('/cart?error=missing-product');
   const qty = Number.isFinite(quantity) && quantity >= 1 ? Math.floor(quantity) : 1;
@@ -430,6 +434,7 @@ async function addToCartAction(formData: FormData): Promise<void> {
     const result = await addCartItem(await readCartJar(), {
       productId,
       ...(variantId ? { variantId } : {}),
+      ...(packagingUnitId ? { packagingUnitId } : {}),
       quantity: qty,
     });
     if (result.newAnonCookie) await setAnonCartCookie(result.newAnonCookie);

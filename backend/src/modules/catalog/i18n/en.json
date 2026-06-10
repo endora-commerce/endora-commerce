@@ -571,5 +571,22 @@
   "auditLog.bundle_slot.update": "Bundle slot updated",
   "auditLog.bundle_slot.delete": "Bundle slot deleted",
   "auditLog.bundle_slot_option.create": "Bundle slot option created",
-  "auditLog.bundle_slot_option.delete": "Bundle slot option deleted"
+  "auditLog.bundle_slot_option.delete": "Bundle slot option deleted",
+  "packagingUnits.title": "Packaging units",
+  "packagingUnits.help": "Define units buyers can order by (e.g. a pallet of 480 pieces). Ordering a unit adds that many pieces to the cart, labelled with the unit name.",
+  "packagingUnits.loading": "Loading packaging units…",
+  "packagingUnits.empty": "No packaging units yet.",
+  "packagingUnits.newName": "Unit name (e.g. Paleta)",
+  "packagingUnits.newQuantity": "Pieces",
+  "packagingUnits.col.name": "Name",
+  "packagingUnits.col.baseQuantity": "Pieces per unit",
+  "packagingUnits.col.default": "Default",
+  "packagingUnits.col.order": "Order",
+  "packagingUnits.action.add": "Add",
+  "packagingUnits.action.remove": "Remove",
+  "packagingUnits.action.moveUp": "Move up",
+  "packagingUnits.action.moveDown": "Move down",
+  "packagingUnits.error.load": "Failed to load packaging units.",
+  "packagingUnits.error.save": "Save failed.",
+  "packagingUnits.error.invalid": "Enter a name and a whole number of pieces (at least 1)."
 }
