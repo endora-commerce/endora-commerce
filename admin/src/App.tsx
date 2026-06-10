@@ -77,6 +77,7 @@ import { WarehouseEditor } from './modules/warehouses/WarehouseEditor.js';
 import { CreditLimitsPage } from './modules/credit_limits/CreditLimitsPage.js';
 import { SettingsPage } from './modules/settings/pages/SettingsPage.js';
 import { GroupsPage as SettingsGroupsPage } from './modules/settings/pages/GroupsPage.js';
+import { CachePage } from './modules/settings/pages/CachePage.js';
 import { SalesChannelsListPage } from './modules/sales_channels/pages/SalesChannelsListPage.js';
 import { SalesChannelEditPage } from './modules/sales_channels/pages/SalesChannelEditPage.js';
 import { ComparisonsListPage } from './modules/comparisons/pages/ComparisonsListPage.js';
@@ -210,6 +211,7 @@ export function App(): ReactNode {
         <Route path="/blog/tags" element={<BlogTagListPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/groups" element={<SettingsGroupsPage />} />
+        <Route path="/settings/cache" element={<CachePage />} />
         <Route path="/sales-channels" element={<SalesChannelsListPage />} />
         <Route path="/sales-channels/new" element={<SalesChannelEditPage />} />
         <Route path="/sales-channels/:code" element={<SalesChannelEditPage />} />

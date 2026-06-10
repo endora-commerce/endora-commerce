@@ -215,3 +215,46 @@ export type ShopInfo = z.infer<typeof ShopInfoSchema>;
 
 export const ShopInfoResponseSchema = z.object({ data: ShopInfoSchema });
 export type ShopInfoResponse = z.infer<typeof ShopInfoResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// (5) Cache administration (maintenance)
+// ---------------------------------------------------------------------------
+
+/**
+ * A clearable cache namespace surfaced in the admin "Clear cache" page. `key`
+ * is the stable identifier the client sends back to clear it; `label` and
+ * `description` are human-readable (English defaults — the admin localises via
+ * the `settings.cache.namespace.<key>.*` i18n keys).
+ */
+export const CacheNamespaceDtoSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  description: z.string(),
+});
+export type CacheNamespaceDto = z.infer<typeof CacheNamespaceDtoSchema>;
+
+export const CacheNamespacesResponseSchema = z.object({
+  data: z.array(CacheNamespaceDtoSchema),
+  /** False when no Redis cache is wired (clearing is a no-op). */
+  cacheEnabled: z.boolean(),
+});
+export type CacheNamespacesResponse = z.infer<typeof CacheNamespacesResponseSchema>;
+
+export const ClearCacheRequestSchema = z.object({
+  /** Namespace keys to clear, or the literal `"all"` for every namespace. */
+  namespaces: z.union([z.literal('all'), z.array(z.string()).min(1)]),
+});
+export type ClearCacheRequest = z.infer<typeof ClearCacheRequestSchema>;
+
+export const ClearedCacheNamespaceSchema = z.object({
+  key: z.string(),
+  deletedKeysCount: z.number().int().nonnegative(),
+});
+
+export const ClearCacheResultSchema = z.object({
+  data: z.object({
+    cleared: z.array(ClearedCacheNamespaceSchema),
+    totalDeletedKeys: z.number().int().nonnegative(),
+  }),
+});
+export type ClearCacheResult = z.infer<typeof ClearCacheResultSchema>;
