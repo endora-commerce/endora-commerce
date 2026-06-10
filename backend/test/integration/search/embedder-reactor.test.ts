@@ -29,6 +29,11 @@ describe('LLM reactor — settings.value_changed → embedder attach/detach (T02
   let unsubscribe: (() => void) | null = null;
 
   beforeAll(async () => {
+    // Feature 043: search.llm.embedder_api_key is a `secret` setting now —
+    // writing it through the admin API requires the encryption key.
+    process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] =
+      process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] ??
+      Buffer.from(Array.from({ length: 32 }, (_, i) => i + 1)).toString('base64');
     h = await setupBackendServer();
 
     // Replace the reactor's indexer with a recording fake so the test

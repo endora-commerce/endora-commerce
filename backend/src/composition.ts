@@ -92,6 +92,14 @@ import { comparisonsModule } from './modules/comparisons/plugin.js';
 import { comparisonsManifest } from './modules/comparisons/manifest.js';
 import { quoteRequestsManifest, QUOTE_REQUESTS_SETTING_CODES } from './modules/quote_requests/manifest.js';
 import { inventoryManifest } from './modules/inventory/manifest.js';
+import { promptActionsModule } from './modules/prompt_actions/plugin.js';
+import { promptActionsSettingsManifest } from './modules/prompt_actions/manifest.js';
+import {
+  catalogBulkProgressResolver,
+  catalogPromptMutationTools,
+  catalogPromptResolverTools,
+} from './modules/catalog/prompt-tools.js';
+import { inventoryPromptTools } from './modules/inventory/prompt-tools.js';
 import { priceListsManifest } from './modules/price_lists/manifest.js';
 import { assetsLibraryManifest } from './modules/assets_library/manifest.js';
 import { assetsLibraryModule } from './modules/assets_library/plugin.js';
@@ -387,6 +395,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     auditLogService,
     requireAdmin,
     redis,
+    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
+      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
+      : {}),
     dictionaryValidator: dictionaries.handle.validator,
     resolveAdminAuditContext: (request) => {
       if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
@@ -1542,6 +1553,37 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   modules.push(adminI18n.plugin);
   modules.push(adminActions.plugin);
 
+  // Feature 043 — prompt assistant for the admin command palette. The module
+  // owns the registry port; catalog/inventory contribute their tool handlers
+  // here (adapter-registry pattern — Principle I).
+  const catalogToolDeps = {
+    emFactory: em,
+    events: eventBus,
+    auditLogService,
+    salesChannelMembership: salesChannels.handle.membershipService,
+    redis,
+  };
+  const promptActions = promptActionsModule({
+    emFactory: em,
+    settings: settings.handle.settingsService,
+    resolveSettingsChannelId: async () =>
+      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+    permissionService,
+    isModuleInstalled: (moduleId) => registryCache.isEnabled(moduleId),
+    requireAdmin,
+    resolveAdminContext: adminContextResolver,
+    auditLogService,
+    bulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
+  });
+  for (const tool of [
+    ...catalogPromptResolverTools(catalogToolDeps),
+    ...catalogPromptMutationTools(catalogToolDeps),
+    ...inventoryPromptTools({ emFactory: em, eventBus, auditLogService }),
+  ]) {
+    promptActions.handle.registry.register(tool);
+  }
+  modules.push(promptActions.plugin);
+
   // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every
   // module's settings manifest and inserts any missing groups/settings
   // idempotently before the HTTP layer starts serving requests. NEVER deletes
@@ -1556,6 +1598,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     priceListsManifest,
     assetsLibraryManifest,
     blogManifest,
+    promptActionsSettingsManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();

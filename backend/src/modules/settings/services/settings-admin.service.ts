@@ -7,6 +7,7 @@ import { SettingGroup } from '../entities/setting-group.entity.js';
 import { Setting } from '../entities/setting.entity.js';
 import { SettingValue } from '../entities/setting-value.entity.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
+import { SecretKeyMissing, encryptSecretValue } from './secret-value-codec.js';
 
 /**
  * SettingsAdminService — feature 004 / US2 (T034).
@@ -40,6 +41,8 @@ export class SettingsAdminService {
     private readonly emFactory: () => EntityManager,
     private readonly eventBus: EventBus,
     private readonly auditLogService?: AuditLogService,
+    /** Base64 32-byte key for `secret` settings (feature 043, FR-021). */
+    private readonly secretEncryptionKey?: string,
   ) {}
 
   // ------------------------------------------------------------------------
@@ -177,6 +180,24 @@ export class SettingsAdminService {
       );
     }
 
+    // Secret settings (feature 043, FR-021): persist a ciphertext envelope,
+    // never the plaintext. An empty string clears the value (stored as '' so
+    // the redacted DTO reports isSet=false). No silent plaintext fallback —
+    // a missing key is a hard configuration error.
+    const isSecret = setting.valueType === 'secret';
+    let storedValue: unknown = parsed.data;
+    if (isSecret) {
+      const plaintext = parsed.data as string;
+      try {
+        storedValue = plaintext === '' ? '' : encryptSecretValue(plaintext, this.secretEncryptionKey);
+      } catch (err) {
+        if (err instanceof SecretKeyMissing) {
+          throw new HttpError(500, ERROR_CODES.SETTING_SECRET_KEY_MISSING, err.message);
+        }
+        throw err;
+      }
+    }
+
     const existingValues = await em.find(
       SettingValue,
       { setting },
@@ -192,7 +213,7 @@ export class SettingsAdminService {
       // that already carry their own per-channel `SettingValue` row keep it
       // (their override wins over global). Channels without an explicit
       // override now inherit this new global value via the resolver.
-      setting.globalValue = parsed.data;
+      setting.globalValue = storedValue;
       globalValueUpdated = true;
     } else {
       // Per-channel overrides. Validate the requested codes are real channels
@@ -236,12 +257,12 @@ export class SettingsAdminService {
       for (const channel of targetChannels) {
         const existing = valuesByChannelId.get(channel.id);
         if (existing) {
-          existing.value = parsed.data;
+          existing.value = storedValue;
         } else {
           em.create(SettingValue, {
             setting,
             salesChannel: channel,
-            value: parsed.data,
+            value: storedValue,
           });
         }
         affectedChannelIds.push(channel.id);
@@ -268,7 +289,8 @@ export class SettingsAdminService {
           objectId: setting.id,
           stateAfter: {
             settingCode: setting.code,
-            value: parsed.data,
+            // Secret plaintext never lands in the audit log (FR-021).
+            value: isSecret ? '[redacted]' : parsed.data,
             valueType: setting.valueType,
           },
           ...(actor.requestId !== undefined ? { requestId: actor.requestId } : {}),
@@ -283,7 +305,7 @@ export class SettingsAdminService {
           stateAfter: {
             settingCode: setting.code,
             salesChannelId: channelId,
-            value: parsed.data,
+            value: isSecret ? '[redacted]' : parsed.data,
             valueType: setting.valueType,
           },
           ...(actor.requestId !== undefined ? { requestId: actor.requestId } : {}),

@@ -23,6 +23,11 @@ describe('POST /api/v1/admin/search/llm/toggle (T022)', () => {
   let h: BackendServerHandle;
 
   beforeAll(async () => {
+    // Feature 043: search.llm.embedder_api_key is a `secret` setting now —
+    // writing it through the admin API requires the encryption key.
+    process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] =
+      process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] ??
+      Buffer.from(Array.from({ length: 32 }, (_, i) => i + 1)).toString('base64');
     h = await setupBackendServer();
   });
 

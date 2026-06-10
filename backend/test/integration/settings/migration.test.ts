@@ -37,7 +37,7 @@ describe('settings migration (T006 — 005_settings_init)', () => {
     ]);
   });
 
-  it('creates the setting_value_type enum with the five expected values', async () => {
+  it('creates the setting_value_type enum with the six expected values', async () => {
     const conn = db.orm.em.getConnection();
     const rows = await conn.execute<Array<{ enumlabel: string }>>(
       `select e.enumlabel
@@ -46,12 +46,14 @@ describe('settings migration (T006 — 005_settings_init)', () => {
        where t.typname = 'setting_value_type'
        order by e.enumsortorder`,
     );
+    // 'secret' appended by migration 069 (feature 043 — write-only settings).
     expect(rows.map((r) => r.enumlabel)).toEqual([
       'string',
       'number',
       'boolean',
       'json',
       'string_list',
+      'secret',
     ]);
   });
 

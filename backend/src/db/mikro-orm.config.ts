@@ -70,6 +70,8 @@ import { Migration064OrderSavedViewColumns } from '../modules/orders/migrations/
 import { Migration065CatalogBulkOperations } from '../modules/catalog/migrations/065_catalog_bulk_operations.js';
 import { Migration066BulkOperationLogs } from '../modules/catalog/migrations/066_bulk_operation_logs.js';
 import { Migration067MfaInit } from '../modules/mfa/migrations/067_mfa_init.js';
+import { Migration068PromptActionsInit } from '../modules/prompt_actions/migrations/068_prompt_actions_init.js';
+import { Migration069SettingsSecretValueType } from '../modules/settings/migrations/069_settings_secret_value_type.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -321,6 +323,14 @@ export default defineConfig({
       {
         name: 'Migration067MfaInit',
         class: Migration067MfaInit,
+      },
+      {
+        name: 'Migration068PromptActionsInit',
+        class: Migration068PromptActionsInit,
+      },
+      {
+        name: 'Migration069SettingsSecretValueType',
+        class: Migration069SettingsSecretValueType,
       },
     ],
     transactional: true,

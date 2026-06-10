@@ -63,13 +63,15 @@ describe('ModuleSettingsManifestSchema', () => {
     expect(m.settings[0]!.code).toBe('sales_channels.base_url');
   });
 
-  it('exposes the five expected value types', () => {
+  it('exposes the six expected value types', () => {
+    // 'secret' added by feature 043 (write-only settings).
     expect(SettingValueTypeSchema.options).toEqual([
       'string',
       'number',
       'boolean',
       'json',
       'string_list',
+      'secret',
     ]);
   });
 });

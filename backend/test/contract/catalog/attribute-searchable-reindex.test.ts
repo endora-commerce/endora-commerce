@@ -65,14 +65,17 @@ describe('Attribute searchable flip → search_reindex bulk operation', () => {
   }
 
   async function countReindexOps(): Promise<number> {
-    const list = await h.app.inject({
-      method: 'GET',
-      url: '/api/v1/admin/catalog/bulk-operations?limit=100',
-      cookies: adminCookie,
-    });
-    expect(list.statusCode).toBe(200);
-    const body = list.json() as { data: Array<{ type: string; status: string }> };
-    return body.data.filter((r) => r.type === 'search_reindex').length;
+    // Counted straight from the DB: the HTTP list is windowed (limit ≤ 100),
+    // so on the long-lived shared test database the windowed count saturates
+    // once enough newer bulk operations accumulate, turning the `before + 1`
+    // assertions flaky. The list endpoint's shape is still asserted below.
+    const rows = await h
+      .em()
+      .getConnection()
+      .execute<{ count: string | number }[]>(
+        `select count(*) as count from catalog_bulk_operations where type = 'search_reindex'`,
+      );
+    return Number(rows[0]?.count ?? 0);
   }
 
   it('enqueues a search_reindex op when isSearchable flips false → true', async () => {

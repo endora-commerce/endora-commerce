@@ -47,6 +47,13 @@ export interface SettingsModuleOptions {
   dictionaryValidator?: DictionaryValidator;
   /** When omitted, the universal getter runs without a cache. */
   redis?: Redis;
+  /**
+   * Base64 32-byte key for the `secret` value type (feature 043, FR-021).
+   * Sourced from `SETTINGS_SECRET_ENCRYPTION_KEY`. When omitted, writing a
+   * secret setting fails with SETTING_SECRET_KEY_MISSING; legacy plaintext
+   * reads keep working.
+   */
+  secretEncryptionKey?: string;
 }
 
 export interface SettingsModuleHandle {
@@ -71,10 +78,15 @@ export function settingsModule(
     options.emFactory,
     options.eventBus,
     options.auditLogService,
+    options.secretEncryptionKey,
   );
 
   const cache = options.redis ? new SettingsCache(options.redis) : undefined;
-  const settingsService = new SettingsService(options.emFactory, cache);
+  const settingsService = new SettingsService(
+    options.emFactory,
+    cache,
+    options.secretEncryptionKey,
+  );
   const shopInfoResolver = new ShopInfoResolver(options.emFactory, settingsService);
   const cacheAdminService = new CacheAdminService(options.redis);
   const homepageResolver = new HomepageResolver(options.emFactory, settingsService);

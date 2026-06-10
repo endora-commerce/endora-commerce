@@ -251,7 +251,18 @@ export class ManifestReconciler {
           throw new SettingCodeConflict(entry.code, existing.ownerModule, moduleCode);
         }
         const valueType: SettingValueType = entry.valueType;
-        if (existing.valueType !== valueType && !options.force) {
+        // `string` → `secret` is the ONE sanctioned non-breaking valueType
+        // upgrade (feature 043): the write schema is unchanged (plain
+        // string), stored plaintext values keep resolving through the
+        // codec's legacy passthrough and are re-encrypted on the next
+        // write. Auto-applying it here lets pre-043 rows (or test
+        // databases reseeded out of band) self-heal at boot instead of
+        // failing the whole reconciliation.
+        const isSanctionedSecretUpgrade =
+          existing.valueType === 'string' && valueType === 'secret';
+        if (isSanctionedSecretUpgrade) {
+          existing.valueType = valueType;
+        } else if (existing.valueType !== valueType && !options.force) {
           throw new BreakingChangeRejected(
             entry.code,
             'valueType',

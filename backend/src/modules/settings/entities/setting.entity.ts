@@ -20,6 +20,7 @@ export const SETTING_VALUE_TYPES = [
   'boolean',
   'json',
   'string_list',
+  'secret',
 ] as const;
 export type SettingValueTypeDb = (typeof SETTING_VALUE_TYPES)[number];
 
