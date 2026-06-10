@@ -405,6 +405,22 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
   });
 
+  // Secret settings (e.g. prompt_actions API keys) are AES-256-GCM encrypted
+  // at rest with SETTINGS_SECRET_ENCRYPTION_KEY. The key is read from the
+  // environment once at boot — so a value added to `.env` only takes effect
+  // after the backend is restarted (the dev watcher does not reload on `.env`
+  // changes). Warn loudly here so a missing/unloaded key is obvious instead of
+  // surfacing only as a 500 ("…is not configured…") when an operator tries to
+  // save a secret.
+  if (!process.env['SETTINGS_SECRET_ENCRYPTION_KEY']) {
+    // Boot-time logging path; the Fastify logger is not yet available here.
+    console.warn(
+      '[settings] SETTINGS_SECRET_ENCRYPTION_KEY is not set — secret settings ' +
+        '(e.g. prompt_actions API keys) cannot be saved. Set a base64 32-byte key ' +
+        '(openssl rand -base64 32) in backend/.env (see .env.example) and restart the backend.',
+    );
+  }
+
   // Feature 042 — MFA module. Constructed here (after `settings`) so it can
   // read the per-scope MFA settings; its login port is bound to the late-bound
   // `mfaLoginPort` captured by the auth services above. Plugin pushed below.
