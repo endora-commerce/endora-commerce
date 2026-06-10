@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useTranslation } from '@/i18n/useTranslation';
+import { normalize } from '@/lib/admin-actions/normalize';
 import { ContentLanguageTabs } from '../components/ContentLanguageTabs';
 import { PageBuilderEditor } from '../components/PageBuilderEditor';
 import { ScopePicker, type CmsScopeValue } from '../components/ScopePicker';
@@ -36,6 +37,20 @@ const blankForm: FormState = {
   metaKeywords: '',
 };
 
+/**
+ * Build a URL slug from a free-text page name. Reuses the diacritic-folding
+ * `normalize` helper (so Polish "Łatwy poradnik" → "latwy-poradnik"), then
+ * collapses any run of non-alphanumerics to a single hyphen and trims to the
+ * 180-char limit enforced by the CMS slug validation regex.
+ */
+function slugify(input: string): string {
+  return normalize(input)
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+/, '')
+    .slice(0, 180)
+    .replace(/-+$/, '');
+}
+
 function dataFor(page: CmsPageDetail | null, language: string | null): Data | null {
   if (!page || !language) return null;
   const data = page.content.languages[language];
@@ -55,6 +70,9 @@ export function PageEditor(): ReactNode {
   const [draftData, setDraftData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // For a new page the slug is auto-derived from the name until the operator
+  // edits the slug field themselves, after which it is left untouched.
+  const [slugEdited, setSlugEdited] = useState(false);
 
   const load = useCallback(async () => {
     if (isNew || !id) return;
@@ -214,11 +232,29 @@ export function PageEditor(): ReactNode {
             <CardContent className="space-y-3">
               <div className="space-y-1">
                 <Label>{t('fields.name')}</Label>
-                <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+                <Input
+                  value={form.name}
+                  onChange={(event) => {
+                    const name = event.target.value;
+                    setForm((f) => ({
+                      ...f,
+                      name,
+                      // Keep the slug in sync with the name on new pages until
+                      // the operator overrides it.
+                      ...(isNew && !slugEdited ? { slug: slugify(name) } : {}),
+                    }));
+                  }}
+                />
               </div>
               <div className="space-y-1">
                 <Label>{t('fields.slug')}</Label>
-                <Input value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} />
+                <Input
+                  value={form.slug}
+                  onChange={(event) => {
+                    setSlugEdited(true);
+                    setForm((f) => ({ ...f, slug: event.target.value.toLowerCase() }));
+                  }}
+                />
               </div>
               <div className="space-y-1">
                 <Label>{t('fields.status')}</Label>

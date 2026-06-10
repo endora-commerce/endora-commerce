@@ -12,8 +12,8 @@ import {
  * the type guard. This is a pure-function test; no DB, no fixtures.
  */
 describe('audit_logs action-catalog', () => {
-  it('classifies every allowlisted token into catalog / inventory / price_lists', () => {
-    const valid: ReadonlyArray<RecentActivityModule> = ['catalog', 'inventory', 'price_lists'];
+  it('classifies every allowlisted token into a known source module', () => {
+    const valid: ReadonlyArray<RecentActivityModule> = ['catalog', 'inventory', 'price_lists', 'prompt_actions'];
     for (const action of RECENT_ACTIVITY_ACTIONS) {
       const mod = moduleForAction(action);
       expect(valid).toContain(mod);

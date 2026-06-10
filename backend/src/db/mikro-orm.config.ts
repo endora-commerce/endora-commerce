@@ -70,6 +70,8 @@ import { Migration064OrderSavedViewColumns } from '../modules/orders/migrations/
 import { Migration065CatalogBulkOperations } from '../modules/catalog/migrations/065_catalog_bulk_operations.js';
 import { Migration066BulkOperationLogs } from '../modules/catalog/migrations/066_bulk_operation_logs.js';
 import { Migration067MfaInit } from '../modules/mfa/migrations/067_mfa_init.js';
+import { Migration068PromptActionsInit } from '../modules/prompt_actions/migrations/068_prompt_actions_init.js';
+import { Migration069SettingsSecretValueType } from '../modules/settings/migrations/069_settings_secret_value_type.js';
 import { Migration068ProductPackagingUnits } from '../modules/catalog/migrations/068_product_packaging_units.js';
 import { Migration069CartItemPackaging } from '../modules/carts/migrations/069_cart_item_packaging.js';
 import { Migration070OrderItemPackaging } from '../modules/orders/migrations/070_order_item_packaging.js';
@@ -325,6 +327,14 @@ export default defineConfig({
       {
         name: 'Migration067MfaInit',
         class: Migration067MfaInit,
+      },
+      {
+        name: 'Migration068PromptActionsInit',
+        class: Migration068PromptActionsInit,
+      },
+      {
+        name: 'Migration069SettingsSecretValueType',
+        class: Migration069SettingsSecretValueType,
       },
       {
         name: 'Migration068ProductPackagingUnits',

@@ -67,6 +67,14 @@ import { salesChannelsModule } from '../../src/modules/sales_channels/plugin.js'
 import { searchModule } from '../../src/modules/search/plugin.js';
 import { createSuggestionPricingEnricher } from '../../src/modules/search/services/suggestion-pricing-enricher.js';
 import { searchManifest } from '../../src/modules/search/manifest.js';
+import { promptActionsModule, type PromptActionsModuleOptions } from '../../src/modules/prompt_actions/plugin.js';
+import { promptActionsSettingsManifest } from '../../src/modules/prompt_actions/manifest.js';
+import {
+  catalogBulkProgressResolver,
+  catalogPromptMutationTools,
+  catalogPromptResolverTools,
+} from '../../src/modules/catalog/prompt-tools.js';
+import { inventoryPromptTools } from '../../src/modules/inventory/prompt-tools.js';
 import { comparisonsModule } from '../../src/modules/comparisons/plugin.js';
 import { comparisonsManifest } from '../../src/modules/comparisons/manifest.js';
 import { quoteRequestsManifest } from '../../src/modules/quote_requests/manifest.js';
@@ -113,6 +121,10 @@ export interface BackendServerOptions {
   extraModules?: ModulePlugin[];
   /** When set, injected into `organizationsModule` so tests can assert outbound mail (verification + invitations). */
   organizationsMailer?: Mailer;
+  /** Feature 043 — scripted LLM fetch + clock/TTL seams for prompt-action tests. */
+  promptActionsLlmFetch?: PromptActionsModuleOptions['llmFetch'];
+  promptActionsNow?: () => Date;
+  promptActionsTtlMinutes?: number;
 }
 
 export interface BackendServerHandle {
@@ -127,6 +139,8 @@ export interface BackendServerHandle {
   permissionCatalogueService: PermissionCatalogueService;
   /** Feature 004 — exposes the universal getter and cache invalidator for tests. */
   settings: ReturnType<typeof settingsModule>['handle'];
+  /** Feature 043 — prompt assistant handle (registry + request service). */
+  promptActions: ReturnType<typeof promptActionsModule>['handle'];
   /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
   salesChannels: ReturnType<typeof salesChannelsModule>['handle'];
   /** Feature 006 — exposes the indexer + suggest service for tests that
@@ -850,6 +864,9 @@ export async function setupBackendServer(
     auditLogService,
     redis,
     requireAdmin: requireTestAdmin(permissionService),
+    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
+      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
+      : {}),
     dictionaryValidator: dictionaries.handle.validator,
     resolveAdminAuditContext: (request) => ({
       actorAdminUserId:
@@ -971,6 +988,48 @@ export async function setupBackendServer(
     }),
   });
   modules.push(adminActions.plugin);
+
+  // Feature 043 — prompt assistant (mirrors composition.ts). Tool handlers
+  // contributed by catalog/inventory; provider HTTP is injected by tests.
+  const catalogToolDeps = {
+    emFactory: em,
+    events: eventBus,
+    auditLogService,
+    salesChannelMembership: salesChannels.handle.membershipService,
+    redis,
+  };
+  const promptActions = promptActionsModule({
+    emFactory: em,
+    settings: settings.handle.settingsService,
+    resolveSettingsChannelId: async () =>
+      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
+    permissionService,
+    isModuleInstalled: (moduleId) => registryCache.isEnabled(moduleId),
+    requireAdmin: requireTestAdmin(permissionService),
+    resolveAdminContext: (request) => ({
+      adminUserId:
+        request.testActor?.kind === 'admin'
+          ? request.testActor.adminUserId
+          : TEST_ADMIN_ID,
+    }),
+    auditLogService,
+    bulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
+    ...(options.promptActionsLlmFetch !== undefined
+      ? { llmFetch: options.promptActionsLlmFetch }
+      : {}),
+    ...(options.promptActionsNow !== undefined ? { now: options.promptActionsNow } : {}),
+    ...(options.promptActionsTtlMinutes !== undefined
+      ? { ttlMinutes: options.promptActionsTtlMinutes }
+      : {}),
+  });
+  for (const tool of [
+    ...catalogPromptResolverTools(catalogToolDeps),
+    ...catalogPromptMutationTools(catalogToolDeps),
+    ...inventoryPromptTools({ emFactory: em, eventBus, auditLogService }),
+  ]) {
+    promptActions.handle.registry.register(tool);
+  }
+  modules.push(promptActions.plugin);
 
   // Feature 013 — Assets Library. Routes mount under /api/v1/admin/assets/*
   // and /assets/file/:assetId.
@@ -1289,6 +1348,7 @@ export async function setupBackendServer(
     assetsLibraryManifest,
     blogManifest,
     mfaSettingsManifest,
+    promptActionsSettingsManifest,
   ]);
 
   const app = await buildServer({
@@ -1335,6 +1395,7 @@ export async function setupBackendServer(
     redis,
     sessionService,
     auditLogService,
+    promptActions: promptActions.handle,
     permissionService,
     permissionCatalogueService,
     settings: settings.handle,

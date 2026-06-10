@@ -66,10 +66,14 @@ export function SettingRowEditor({
 }: Props): ReactNode {
   const t = useTranslation('settings');
   const isDirty = isDraftDirty(draft);
+  const isSecret = setting.valueType === 'secret';
   const overrideCount = setting.valuesByChannel.length;
   const source = effectiveSource(setting, channelContext);
-  const hasGlobalOverride =
-    setting.globalValue !== null && setting.globalValue !== undefined;
+  // Secret settings are redacted server-side (value === null); presence is
+  // signalled through the isSet flags instead (feature 043, FR-021).
+  const hasGlobalOverride = isSecret
+    ? setting.globalValueIsSet === true
+    : setting.globalValue !== null && setting.globalValue !== undefined;
 
   const setText = useCallback(
     (next: string) => onChange({ text: next }),
@@ -169,21 +173,42 @@ export function SettingRowEditor({
       <div>
         {isImageUrlSetting(setting) ? (
           <ImageSettingInput value={draft.text} onChange={setText} />
+        ) : isSecret ? (
+          <Input
+            type="password"
+            autoComplete="new-password"
+            value={draft.text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={
+              hasGlobalOverride || setting.valuesByChannel.some((v) => v.isSet)
+                ? t('editor.placeholder.secretSet')
+                : t('editor.placeholder.secretUnset')
+            }
+          />
         ) : (
           renderInput(setting.valueType, draft.text, setText, t)
         )}
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
-        <span>
-          {t('editor.defaultPrefix')} <code className="font-mono">{formatPreview(setting.defaultValue)}</code>
-        </span>
-        {hasGlobalOverride && (
+        {isSecret ? (
+          // No value previews for secrets — only the set / not-set fact.
+          <span>
+            {hasGlobalOverride ? t('editor.secretIsSet') : t('editor.secretNotSet')}
+          </span>
+        ) : (
           <>
-            <span>·</span>
             <span>
-              {t('editor.globalPrefix')} <code className="font-mono">{formatPreview(setting.globalValue)}</code>
+              {t('editor.defaultPrefix')} <code className="font-mono">{formatPreview(setting.defaultValue)}</code>
             </span>
+            {hasGlobalOverride && (
+              <>
+                <span>·</span>
+                <span>
+                  {t('editor.globalPrefix')} <code className="font-mono">{formatPreview(setting.globalValue)}</code>
+                </span>
+              </>
+            )}
           </>
         )}
         <span>·</span>
@@ -263,6 +288,9 @@ export function deriveDisplayValue(
   setting: SettingDto,
   channelContext: string | null,
 ): string {
+  // Secrets never round-trip back into the input — the server redacts the
+  // value, and the editor is write-only ("enter a new value to replace").
+  if (setting.valueType === 'secret') return '';
   const v = resolveEffective(setting, channelContext);
   if (v === null || v === undefined) return '';
   if (typeof v === 'string') return v;
@@ -291,11 +319,15 @@ export function effectiveSource(
   setting: SettingDto,
   channelContext: string | null,
 ): EffectiveSource {
+  const isSecret = setting.valueType === 'secret';
   if (channelContext !== null) {
-    const has = setting.valuesByChannel.some(
-      (entry) => entry.salesChannelCode === channelContext,
+    const entry = setting.valuesByChannel.find(
+      (e) => e.salesChannelCode === channelContext,
     );
-    if (has) return 'channel-override';
+    if (entry && (!isSecret || entry.isSet === true)) return 'channel-override';
+  }
+  if (isSecret) {
+    return setting.globalValueIsSet === true ? 'global' : 'default';
   }
   if (setting.globalValue !== null && setting.globalValue !== undefined) {
     return 'global';
@@ -309,6 +341,7 @@ export function parseValue(
 ): unknown {
   switch (valueType) {
     case 'string':
+    case 'secret':
       return text;
     case 'number':
       return Number(text);
