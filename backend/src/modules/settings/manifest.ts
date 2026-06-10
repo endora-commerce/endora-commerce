@@ -58,6 +58,20 @@ const settings = defineModuleSettingsManifest({
       defaultValue: 60,
     },
     {
+      // Slug (URL path) of the CMS page to serve as the storefront home page.
+      // Empty ⇒ the storefront falls back to its built-in landing page. Can be
+      // overridden per sales channel.
+      code: 'homepage_cms_page_slug',
+      name: 'Home page CMS page',
+      description:
+        'Slug (URL path) of the CMS page to use as the storefront home page, ' +
+        'e.g. "welcome". Leave empty to use the built-in landing page. Can be ' +
+        'overridden per sales channel.',
+      groupCode: 'general',
+      valueType: 'string',
+      defaultValue: '',
+    },
+    {
       code: 'shop.name',
       name: 'Shop name',
       description: 'Public name of the shop, shown across the storefront.',

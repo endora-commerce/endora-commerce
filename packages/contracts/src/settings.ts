@@ -258,3 +258,21 @@ export const ClearCacheResultSchema = z.object({
   }),
 });
 export type ClearCacheResult = z.infer<typeof ClearCacheResultSchema>;
+
+// ---------------------------------------------------------------------------
+// (6) Storefront home-page configuration
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolved storefront home-page configuration for the active sales channel.
+ * `cmsPageSlug` is the CMS page slug an operator chose as the home page, or
+ * null when none is configured (the storefront then renders its built-in
+ * landing page).
+ */
+export const HomepageConfigSchema = z.object({
+  cmsPageSlug: z.string().nullable(),
+});
+export type HomepageConfig = z.infer<typeof HomepageConfigSchema>;
+
+export const HomepageConfigResponseSchema = z.object({ data: HomepageConfigSchema });
+export type HomepageConfigResponse = z.infer<typeof HomepageConfigResponseSchema>;
