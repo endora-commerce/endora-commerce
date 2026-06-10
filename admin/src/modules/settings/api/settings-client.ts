@@ -1,4 +1,7 @@
 import type {
+  CacheNamespacesResponse,
+  ClearCacheRequest,
+  ClearCacheResult,
   SetValueRequest,
   SettingDto,
   SettingGroupDto,
@@ -79,5 +82,13 @@ export const settingsClient = {
 
   deleteGroup(code: string): Promise<void> {
     return apiClient.delete<void>(`/api/v1/admin/settings/groups/${encodeURIComponent(code)}`);
+  },
+
+  listCacheNamespaces(): Promise<CacheNamespacesResponse> {
+    return apiClient.get<CacheNamespacesResponse>('/api/v1/admin/cache/namespaces');
+  },
+
+  clearCache(body: ClearCacheRequest): Promise<ClearCacheResult> {
+    return apiClient.post<ClearCacheResult>('/api/v1/admin/cache/clear', body);
   },
 };

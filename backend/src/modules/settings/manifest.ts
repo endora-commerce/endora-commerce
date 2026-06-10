@@ -20,6 +20,14 @@ const settings = defineModuleSettingsManifest({
       isSystemProtected: true,
       // Empty salesChannelCodes ⇒ applies to every sales channel.
     },
+    {
+      // Shop / company contact information surfaced across the storefront
+      // (footer, 404 "need help?" block, contact form recipients, etc.).
+      code: 'shop',
+      name: 'Shop information',
+      // Empty salesChannelCodes ⇒ applies to every sales channel; values can
+      // still be overridden per channel via the standard scope mechanism.
+    },
   ],
   settings: [
     {
@@ -60,6 +68,58 @@ const settings = defineModuleSettingsManifest({
         'e.g. "welcome". Leave empty to use the built-in landing page. Can be ' +
         'overridden per sales channel.',
       groupCode: 'general',
+      valueType: 'string',
+      defaultValue: '',
+    },
+    {
+      code: 'shop.name',
+      name: 'Shop name',
+      description: 'Public name of the shop, shown across the storefront.',
+      groupCode: 'shop',
+      valueType: 'string',
+      defaultValue: '',
+    },
+    {
+      code: 'shop.address',
+      name: 'Shop address',
+      description: 'Postal address of the shop, shown across the storefront.',
+      groupCode: 'shop',
+      valueType: 'string',
+      defaultValue: '',
+    },
+    {
+      code: 'shop.contact_email',
+      name: 'Main contact email',
+      description: 'Primary email address used for general contact.',
+      groupCode: 'shop',
+      valueType: 'string',
+      defaultValue: '',
+    },
+    {
+      code: 'shop.support_email',
+      name: 'Support / customer service email',
+      description:
+        'Email address of the support / customer service desk. Shown to ' +
+        'customers when they need help (e.g. on the 404 page).',
+      groupCode: 'shop',
+      valueType: 'string',
+      defaultValue: '',
+    },
+    {
+      code: 'shop.phone',
+      name: 'Shop phone number',
+      description: 'Contact phone number for the shop. May be left empty.',
+      groupCode: 'shop',
+      valueType: 'string',
+      defaultValue: '',
+    },
+    {
+      code: 'shop.contact_form_recipient_emails',
+      name: 'Contact form recipient emails',
+      description:
+        'Recipient email address(es) for the storefront contact form. ' +
+        'Multiple addresses can be provided, separated by commas.',
+      groupCode: 'shop',
       valueType: 'string',
       defaultValue: '',
     },

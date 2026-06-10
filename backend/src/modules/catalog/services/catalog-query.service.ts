@@ -665,8 +665,8 @@ export class CatalogQueryService {
     const channel = await this.resolveChannel(em, ctx);
     const rows = await em.find(Category, { deletedAt: null }, { orderBy: { sortOrder: 'asc' } });
 
-    // productCount per category — restricted to products visible on the channel.
-    const counts = await this.productCountsByCategory(em, channel);
+    // Directly-assigned, channel-visible products per category.
+    const directSets = await this.directProductSetsByCategory(em, channel);
 
     const byParent = new Map<string | null, Category[]>();
     for (const row of rows) {
@@ -676,6 +676,22 @@ export class CatalogQueryService {
       byParent.set(key, list);
     }
 
+    // Roll up to a *distinct* product count over each category's whole subtree
+    // (self + descendants). A parent category — e.g. the catalog root — would
+    // otherwise show 0 because products are assigned to its leaf categories,
+    // not to it directly. Counting a Set de-duplicates products that sit in
+    // more than one branch of the subtree.
+    const subtreeCounts = new Map<string, number>();
+    const collectSubtree = (categoryId: string): Set<string> => {
+      const acc = new Set<string>(directSets.get(categoryId) ?? []);
+      for (const child of byParent.get(categoryId) ?? []) {
+        for (const pid of collectSubtree(child.id)) acc.add(pid);
+      }
+      subtreeCounts.set(categoryId, acc.size);
+      return acc;
+    };
+    for (const root of byParent.get(null) ?? []) collectSubtree(root.id);
+
     const build = (parentId: string | null): CategoryNode[] => {
       const children = byParent.get(parentId) ?? [];
       return children.map((c) => ({
@@ -683,7 +699,7 @@ export class CatalogQueryService {
         name: this.pickLang(c.name, ctx.preferredLanguage, channel),
         slug: c.slug,
         sortOrder: c.sortOrder,
-        productCount: counts.get(c.id) ?? 0,
+        productCount: subtreeCounts.get(c.id) ?? 0,
         children: build(c.id),
       }));
     };
@@ -1073,10 +1089,15 @@ export class CatalogQueryService {
     return new Set(rows.map((r) => r.product_id));
   }
 
-  private async productCountsByCategory(
+  /**
+   * Set of channel-visible product ids directly assigned to each category
+   * (i.e. via a `product_categories` row). Subtree roll-up to ancestors is
+   * done by the caller, which has the parent map to walk.
+   */
+  private async directProductSetsByCategory(
     em: EntityManager,
     channel: SalesChannel | null,
-  ): Promise<Map<string, number>> {
+  ): Promise<Map<string, Set<string>>> {
     const base = await em.getConnection().execute<{ category_id: string; product_id: string }[]>(
       `select category_id, product_id from product_categories`,
     );
@@ -1088,12 +1109,17 @@ export class CatalogQueryService {
       base.map((r) => r.product_id),
       channel,
     );
-    const counts = new Map<string, number>();
+    const sets = new Map<string, Set<string>>();
     for (const row of base) {
       if (!visibleIds.has(row.product_id)) continue;
-      counts.set(row.category_id, (counts.get(row.category_id) ?? 0) + 1);
+      let set = sets.get(row.category_id);
+      if (!set) {
+        set = new Set<string>();
+        sets.set(row.category_id, set);
+      }
+      set.add(row.product_id);
     }
-    return counts;
+    return sets;
   }
 
   private async toSummary(

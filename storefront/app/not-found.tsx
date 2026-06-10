@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { getCategoryTree } from '../lib/api/catalog';
+import { getShopInfo } from '../lib/api/shop';
 import { getServerContext } from '../lib/server-context';
 
 export const metadata = {
@@ -25,13 +26,22 @@ const FALLBACK_CATEGORIES: PopularCategory[] = [
 
 export default async function NotFound(): Promise<ReactNode> {
   const { ctx } = await getServerContext();
-  const tree = await getCategoryTree(ctx).catch(
-    () => [] as Awaited<ReturnType<typeof getCategoryTree>>,
-  );
+  const [tree, shop] = await Promise.all([
+    getCategoryTree(ctx).catch(
+      () => [] as Awaited<ReturnType<typeof getCategoryTree>>,
+    ),
+    getShopInfo(ctx),
+  ]);
   const popular: PopularCategory[] =
     tree.length > 0
       ? tree.slice(0, 6).map((c) => ({ slug: c.slug, name: c.name, count: c.productCount }))
       : FALLBACK_CATEGORIES;
+
+  // Support contact lines are settings-driven (Settings → Shop information).
+  // Prefer the dedicated support address, fall back to the main contact email.
+  const supportEmail = shop.supportEmail || shop.contactEmail;
+  const phone = shop.phone;
+  const hasHelpContact = supportEmail !== '' || phone !== '';
 
   return (
     <section className="mx-auto max-w-[1360px] px-[24px] section pt-[48px] pb-[80px]">
@@ -69,7 +79,7 @@ export default async function NotFound(): Promise<ReactNode> {
               id="not-found-q"
               name="q"
               type="search"
-              placeholder="Wyszukaj produkt, SKU, producenta…"
+              placeholder="Znajdź produkt, którego szukasz…"
               autoComplete="off"
               className="min-w-0 flex-1 rounded-md border border-line bg-surface px-[14px] py-[12px] text-fg placeholder:text-subtle"
             />
@@ -114,22 +124,33 @@ export default async function NotFound(): Promise<ReactNode> {
             ))}
           </ul>
 
-          <div className="border-t border-line pt-[16px]">
-            <h3 className="mb-[10px] font-mono text-[14px] uppercase tracking-[0.06em] text-muted">
-              Potrzebujesz pomocy?
-            </h3>
-            <p className="my-[4px] text-[13px]">
-              <a href="mailto:bok@b2b-platform.local" className="font-medium text-fg hover:text-accent">
-                bok@b2b-platform.local
-              </a>
-            </p>
-            <p className="my-[4px] text-[13px]">
-              <a href="tel:+48800000000" className="font-medium text-fg hover:text-accent">
-                +48 800 000 000
-              </a>
-              <span className="text-muted"> · pn–pt 8:00–17:00</span>
-            </p>
-          </div>
+          {hasHelpContact ? (
+            <div className="border-t border-line pt-[16px]">
+              <h3 className="mb-[10px] font-mono text-[14px] uppercase tracking-[0.06em] text-muted">
+                Potrzebujesz pomocy?
+              </h3>
+              {supportEmail !== '' ? (
+                <p className="my-[4px] text-[13px]">
+                  <a
+                    href={`mailto:${supportEmail}`}
+                    className="font-medium text-fg hover:text-accent"
+                  >
+                    {supportEmail}
+                  </a>
+                </p>
+              ) : null}
+              {phone !== '' ? (
+                <p className="my-[4px] text-[13px]">
+                  <a
+                    href={`tel:${phone.replace(/\s+/g, '')}`}
+                    className="font-medium text-fg hover:text-accent"
+                  >
+                    {phone}
+                  </a>
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </aside>
       </div>
     </section>
