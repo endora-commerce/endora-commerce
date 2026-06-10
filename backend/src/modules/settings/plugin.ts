@@ -12,6 +12,12 @@ import {
   type SettingsCacheInvalidatorHandle,
 } from './services/settings-cache-invalidator.js';
 import { registerSettingsAdminRoutes } from './routes.admin.js';
+import { registerSettingsStorefrontRoutes } from './routes.storefront.js';
+import { ShopInfoResolver } from './services/shop-info-resolver.js';
+import { registerSettingsCacheRoutes } from './routes.cache.js';
+import { CacheAdminService } from './services/cache-admin.service.js';
+import { registerSettingsHomepageRoutes } from './routes.homepage.js';
+import { HomepageResolver } from './services/homepage-resolver.js';
 
 /**
  * Composition root for the settings module — feature 004.
@@ -53,6 +59,9 @@ export interface SettingsModuleOptions {
 export interface SettingsModuleHandle {
   adminService: SettingsAdminService;
   settingsService: SettingsService;
+  shopInfoResolver: ShopInfoResolver;
+  cacheAdminService: CacheAdminService;
+  homepageResolver: HomepageResolver;
   /** Released for tests; in production it lives until process exit. */
   cacheInvalidator?: SettingsCacheInvalidatorHandle;
 }
@@ -78,6 +87,9 @@ export function settingsModule(
     cache,
     options.secretEncryptionKey,
   );
+  const shopInfoResolver = new ShopInfoResolver(options.emFactory, settingsService);
+  const cacheAdminService = new CacheAdminService(options.redis);
+  const homepageResolver = new HomepageResolver(options.emFactory, settingsService);
   const cacheInvalidator = cache
     ? attachSettingsCacheInvalidator(options.eventBus, cache)
     : undefined;
@@ -91,6 +103,9 @@ export function settingsModule(
     handle: {
       adminService,
       settingsService,
+      shopInfoResolver,
+      cacheAdminService,
+      homepageResolver,
       ...(cacheInvalidator !== undefined ? { cacheInvalidator } : {}),
     },
     plugin: async (app) => {
@@ -102,6 +117,12 @@ export function settingsModule(
           ? { resolveAdminAuditContext: options.resolveAdminAuditContext }
           : {}),
       });
+      await registerSettingsStorefrontRoutes(app, { shopInfoResolver });
+      await registerSettingsCacheRoutes(app, {
+        cacheAdminService,
+        requireAdmin: requireAdminFn,
+      });
+      await registerSettingsHomepageRoutes(app, { homepageResolver });
     },
   };
 }

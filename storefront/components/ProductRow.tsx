@@ -18,16 +18,20 @@ export function ProductRow(props: {
   const { product, locale } = props;
   const t = tForLocale(locale);
 
-  const priceFmt = product.price
-    ? new Intl.NumberFormat(locale, {
-        style: 'currency',
-        currency: product.price.currency,
-        minimumFractionDigits: 2,
-      }).format(product.price.amount)
-    : null;
+  const fmtCurrency = (amount: number): string =>
+    new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: product.price!.currency,
+      minimumFractionDigits: 2,
+    }).format(amount);
+
+  const priceFmt = product.price ? fmtCurrency(product.price.amount) : null;
+  // Gross is derived the same way the grid card derives it (standard 23% VAT)
+  // so the list and grid views show consistent price detail.
+  const grossFmt = product.price ? fmtCurrency(product.price.amount * 1.23) : null;
 
   return (
-    <article className="grid grid-cols-[88px_minmax(0,1fr)_180px_200px] items-center gap-[20px] rounded-md border border-line bg-surface p-[16px] transition hover:border-[var(--ink-700)] hover:shadow-sm max-[920px]:grid-cols-[64px_minmax(0,1fr)]">
+    <article className="grid grid-cols-[88px_minmax(0,1fr)_170px_170px_130px] items-center gap-[20px] rounded-md border border-line bg-surface p-[16px] transition hover:border-[var(--ink-700)] hover:shadow-sm max-[920px]:grid-cols-[64px_minmax(0,1fr)]">
       <Link
         href={`/p/${product.slug}`}
         className="grid h-[88px] w-[88px] place-items-center overflow-hidden rounded-sm border border-line bg-surface-alt"
@@ -53,16 +57,29 @@ export function ProductRow(props: {
         </h3>
       </div>
       <div className="max-[920px]:col-start-2">{renderStock(product, t)}</div>
-      <div className="text-right max-[920px]:col-start-2">
+      <div className="text-right max-[920px]:col-start-2 max-[920px]:text-left">
         {priceFmt ? (
-          <div className="font-mono text-[16px] font-semibold tracking-[-0.01em] text-fg">
-            {priceFmt}
-          </div>
+          <>
+            <div className="font-mono text-[10px] uppercase tracking-[0.04em] text-subtle">
+              od / szt.
+            </div>
+            <div className="font-mono text-[16px] font-semibold tracking-[-0.01em] text-fg">
+              {priceFmt}
+            </div>
+            {grossFmt ? (
+              <div className="font-mono text-[11px] text-muted">brutto {grossFmt}</div>
+            ) : null}
+          </>
         ) : (
           <div className="font-mono text-[13px] font-semibold tracking-[-0.01em] text-fg">
             {t('product.requestQuote')}
           </div>
         )}
+      </div>
+      <div className="flex justify-end max-[920px]:col-start-2 max-[920px]:justify-start">
+        <Link href={`/p/${product.slug}`} className="btn btn--outline btn--sm">
+          {t('product.details')}
+        </Link>
       </div>
     </article>
   );

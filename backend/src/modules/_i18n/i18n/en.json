@@ -195,6 +195,7 @@
   "appShell.nav.importExport": "Import / Export",
   "appShell.nav.settings": "Settings",
   "appShell.nav.settingGroups": "Setting groups",
+  "appShell.nav.cache": "Clear cache",
   "appShell.crumb.editor": "Editor",
   "appShell.crumb.detail": "Detail",
   "appShell.crumb.edit": "Edit",

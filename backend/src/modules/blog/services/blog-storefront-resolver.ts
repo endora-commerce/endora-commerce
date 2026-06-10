@@ -278,7 +278,7 @@ export class BlogStorefrontResolver {
 
       const resolvedCategory: BlogResolvedCategory = {
         id: category.id,
-        name: this.pickLanguage(category.name, language, channelDefault) ?? category.slug,
+        name: this.pickName(category.name, language, channelDefault) ?? category.slug,
         slug: category.slug,
         mainImageUrl: await this.maybeAssetUrl(category.main_image_asset_id),
         description: this.normaliseDescription(category.description),
@@ -290,7 +290,7 @@ export class BlogStorefrontResolver {
         ),
         breadcrumb: [
           { name: 'Blog', url: `/${settings.urlPrefix}` },
-          { name: this.pickLanguage(category.name, language, channelDefault) ?? category.slug, url: `/${settings.urlPrefix}/${category.slug}` },
+          { name: this.pickName(category.name, language, channelDefault) ?? category.slug, url: `/${settings.urlPrefix}/${category.slug}` },
         ],
       };
 
@@ -454,6 +454,34 @@ export class BlogStorefrontResolver {
     return null;
   }
 
+  /**
+   * Resolve a human-readable name for a published entity. Applies the
+   * standard language fallback (requested → channel default) and, when that
+   * is exhausted, falls back to the first language actually authored on the
+   * entity rather than giving up.
+   *
+   * This keeps a *published* post/category viewable even when its content
+   * was authored only in a language other than the channel's default — the
+   * alternative (returning null) made the post-detail resolver 404 while the
+   * index/category resolvers still listed the post (via their `?? slug`
+   * fallback), an inconsistency that surfaced as "the post is in the list but
+   * its page 404s". A published entity is always reachable; only its display
+   * language degrades.
+   */
+  private pickName(
+    map: Record<string, string> | null | undefined,
+    language: string,
+    channelDefault: string,
+  ): string | null {
+    const resolved = this.pickLanguage(map, language, channelDefault);
+    if (resolved !== null) return resolved;
+    if (!map) return null;
+    for (const value of Object.values(map)) {
+      if (value) return value;
+    }
+    return null;
+  }
+
   private async toPostCard(
     em: EntityManager,
     row: PostRow,
@@ -474,7 +502,7 @@ export class BlogStorefrontResolver {
     )) as Array<{ slug: string }>;
     const primaryCategorySlug = catRows[0]?.slug ?? null;
 
-    const name = this.pickLanguage(row.name, language, channelDefault) ?? row.slug;
+    const name = this.pickName(row.name, language, channelDefault) ?? row.slug;
     const excerpt =
       this.pickLanguage(row.meta_description, language, channelDefault) ??
       this.firstParagraph(row.content, language, channelDefault);
@@ -497,7 +525,7 @@ export class BlogStorefrontResolver {
   ): Promise<BlogCategoryTile> {
     return {
       id: row.id,
-      name: this.pickLanguage(row.name, language, channelDefault) ?? row.slug,
+      name: this.pickName(row.name, language, channelDefault) ?? row.slug,
       slug: row.slug,
       mainImageUrl: await this.maybeAssetUrl(row.main_image_asset_id),
     };
@@ -511,8 +539,12 @@ export class BlogStorefrontResolver {
     channelDefault: string,
     urlPrefix: string,
   ): Promise<BlogResolvedPost | null> {
-    const name = this.pickLanguage(post.name, language, channelDefault);
-    if (name === null) return null; // language-fallback exhausted → 404
+    // A published post is always reachable; fall back to any authored
+    // language (then the slug) rather than 404 when the channel default is
+    // missing. Keeps the post-detail page consistent with the index/category
+    // listings, which already surface the post via their own slug fallback.
+    const name =
+      this.pickName(post.name, language, channelDefault) ?? post.slug;
     const conn = em.getConnection();
 
     // Tags (ordered).
@@ -572,7 +604,7 @@ export class BlogStorefrontResolver {
 
     const categories = categoryRows.map((c) => ({
       id: c.id,
-      name: this.pickLanguage(c.name, language, channelDefault) ?? c.slug,
+      name: this.pickName(c.name, language, channelDefault) ?? c.slug,
       slug: c.slug,
     }));
 
