@@ -370,12 +370,27 @@ export class StorefrontResolver {
     channelDefault: string,
   ): string | null {
     const available = page.content.languages ?? {};
-    if (requested && page.languages.includes(requested) && available[requested] !== undefined) {
+    const hasContent = (lang: string): boolean =>
+      page.languages.includes(lang) && available[lang] !== undefined;
+    if (requested && hasContent(requested)) {
       return requested;
     }
-    if (page.languages.includes(channelDefault) && available[channelDefault] !== undefined) {
+    if (hasContent(channelDefault)) {
       return channelDefault;
     }
-    return null;
+    // Final fallback: render in whatever language actually carries content so a
+    // published, channel-assigned page still resolves instead of 404-ing. This
+    // covers pages authored only in a non-default language (e.g. en-US content
+    // on a pl-PL-default channel) — without it, selecting such a page as the
+    // storefront home page silently falls back to the built-in landing page.
+    const firstDeclaredWithContent = page.languages.find(
+      (lang) => available[lang] !== undefined,
+    );
+    if (firstDeclaredWithContent) {
+      return firstDeclaredWithContent;
+    }
+    // Last resort for legacy data whose content keys are not mirrored in the
+    // `languages` array: fall back to the first populated content language.
+    return Object.keys(available)[0] ?? null;
   }
 }
