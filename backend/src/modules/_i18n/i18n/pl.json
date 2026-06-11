@@ -1427,6 +1427,7 @@
   "legacyMethods.columns.status": "Status",
   "legacyMethods.delivery.deleteConfirm": "Usunąć tę metodę dostawy?",
   "legacyMethods.delivery.description": "Koszt jest zapisywany przy składaniu zamówienia; późniejsze edycje nie zmieniają historii.",
+  "legacyMethods.delivery.editTitle": "Edytuj metodę {code}",
   "legacyMethods.delivery.empty": "Brak metod dostawy.",
   "legacyMethods.delivery.title": "Metody dostawy",
   "legacyMethods.errors.delete": "Usuwanie nie powiodło się.",

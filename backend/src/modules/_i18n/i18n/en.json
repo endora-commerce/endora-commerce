@@ -1427,6 +1427,7 @@
   "legacyMethods.columns.status": "Status",
   "legacyMethods.delivery.deleteConfirm": "Delete this delivery method?",
   "legacyMethods.delivery.description": "Cost is captured per-order at placement; later edits don't rewrite history.",
+  "legacyMethods.delivery.editTitle": "Edit method {code}",
   "legacyMethods.delivery.empty": "No delivery methods yet.",
   "legacyMethods.delivery.title": "Delivery methods",
   "legacyMethods.errors.delete": "Delete failed.",
