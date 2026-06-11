@@ -47,6 +47,7 @@ import { SmtpMailer } from './modules/email/services/smtp-mailer.js';
 import { commerceModule } from './modules/orders/plugin.js';
 import { AddressService } from './modules/addresses/services/address-service.js';
 import type { OrderListService } from './modules/orders/services/order-list-service.js';
+import type { OrderTransitionService } from './modules/orders/services/order-transition-service.js';
 import { customersModule } from './modules/customers/plugin.js';
 import { CUSTOMERS_SETTING_CODES } from './modules/customers/manifest.js';
 import type { OrderService } from './modules/orders/services/order-service.js';
@@ -560,6 +561,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // Feature 040 — late-bound OrderListService for the customers module's
   // self-service + admin order-history panels.
   let orderListServiceForCustomers: OrderListService | null = null;
+  // Feature 043 — late-bound OrderTransitionService for the orders
+  // prompt-action status tools.
+  let orderTransitionServiceForPrompts: OrderTransitionService | null = null;
 
   const organizationsSmtpUrl = resolveSmtpUrlFromEnv();
   const organizationsMailer = organizationsSmtpUrl
@@ -900,6 +904,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // Feature 040 — expose OrderListService for the customers module.
       exposeOrderListService: (svc) => {
         orderListServiceForCustomers = svc;
+      },
+      // Feature 043 — capture the configured transition engine for the orders
+      // prompt-action tools (reuses its guards + cancel side-effects).
+      exposeOrderTransitionService: (svc) => {
+        orderTransitionServiceForPrompts = svc;
       },
       appendShoppingListToCart: async (input) => {
         if (!shoppingListService) {
@@ -1604,7 +1613,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     ...catalogPromptResolverTools(catalogToolDeps),
     ...catalogPromptMutationTools(catalogToolDeps),
     ...inventoryPromptTools({ emFactory: em, eventBus, auditLogService }),
-    ...ordersPromptTools({ emFactory: em }),
+    ...ordersPromptTools({
+      emFactory: em,
+      getTransitionService: () => orderTransitionServiceForPrompts,
+    }),
   ];
   for (const tool of promptActionToolProviders) {
     promptActions.handle.registry.register(tool);

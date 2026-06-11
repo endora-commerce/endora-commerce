@@ -54,6 +54,6 @@ the operator confirms the plan.
 
 | Module | File | Tools |
 | --- | --- | --- |
-| catalog | `catalog/prompt-tools.ts` | `search_products`, `search_categories`, `assign_products_to_category` |
+| catalog | `catalog/prompt-tools.ts` | `search_products`, `search_categories`, `assign_products_to_category`, `set_product_status`, `set_products_visibility` |
 | inventory | `inventory/prompt-tools.ts` | `search_warehouses`, `set_stock_level` |
-| orders | `orders/prompt-tools.ts` | `search_orders` |
+| orders | `orders/prompt-tools.ts` | `search_orders`, `set_order_status`, `bulk_set_order_status` |
