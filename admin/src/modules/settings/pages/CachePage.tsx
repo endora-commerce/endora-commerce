@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Eraser, RefreshCw } from 'lucide-react';
+import { Eraser, Languages, RefreshCw } from 'lucide-react';
 import type { CacheNamespaceDto } from '@b2b/contracts';
 import { ApiError } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PageHeader } from '@/components/ui/page-header';
 import { useTranslation } from '@/i18n/useTranslation';
+import { reloadBundles } from '@/i18n/language-storage';
 import { settingsClient } from '../api/settings-client';
 
 /**
@@ -81,6 +82,21 @@ export function CachePage(): ReactNode {
     setSelected((prev) =>
       prev.size === namespaces.length ? new Set() : new Set(namespaces.map((n) => n.key)),
     );
+  };
+
+  const reloadTranslations = async (): Promise<void> => {
+    setBusy(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await reloadBundles();
+      setResult(t('cache.i18n.done', { installed: res.installed }));
+      // Refresh so the TranslationProvider refetches the new admin bundles.
+      window.setTimeout(() => window.location.reload(), 800);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('cache.i18n.error'));
+      setBusy(false);
+    }
   };
 
   const clear = async (which: 'all' | string[]): Promise<void> => {
@@ -171,6 +187,19 @@ export function CachePage(): ReactNode {
           {t('cache.refresh')}
         </Button>
       </div>
+
+      <Card>
+        <CardContent className="space-y-3 p-4">
+          <div>
+            <h2 className="text-sm font-medium">{t('cache.i18n.title')}</h2>
+            <p className="text-xs text-muted-foreground">{t('cache.i18n.description')}</p>
+          </div>
+          <Button variant="outline" onClick={() => void reloadTranslations()} disabled={busy}>
+            <Languages className="mr-2 h-4 w-4" />
+            {t('cache.i18n.button')}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

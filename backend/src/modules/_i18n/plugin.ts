@@ -53,6 +53,13 @@ export interface I18nModuleDeps {
   log?: { info(msg: string): void; warn(msg: string): void };
 }
 
+/** Aggregate outcome of a reconcile/reload pass over every module's bundles. */
+export interface I18nReconcileResult {
+  installed: number;
+  skipped: number;
+  failed: number;
+}
+
 export interface I18nModuleHandle {
   i18nService: I18nService;
   /**
@@ -68,6 +75,14 @@ export interface I18nModuleHandle {
     }): Promise<{ installed: string[] }>;
     remove(moduleId: string): Promise<{ removed: number }>;
   };
+  /**
+   * Re-read every module's on-disk i18n JSON bundles into
+   * `translation_bundles` (bumping each row's version) without a backend
+   * restart. The in-process cache is invalidated for affected languages, and
+   * the version bump makes any reader rebuild on its next request. Backs the
+   * `POST /api/v1/admin/i18n/reload` endpoint and the `i18n:reload` CLI.
+   */
+  reloadAll(): Promise<I18nReconcileResult>;
 }
 
 export interface I18nModule {
@@ -79,17 +94,26 @@ export function i18nModule(deps: I18nModuleDeps): I18nModule {
   const i18nService = new I18nService({ em: deps.emFactory });
   const log = deps.log ?? { info: () => {}, warn: (msg) => console.warn(msg) };
 
+  const resolveRegistry = (): LoadedManifestRegistry | undefined =>
+    typeof deps.registry === 'function' ? deps.registry() : deps.registry;
+
+  const reloadAll = async (): Promise<I18nReconcileResult> => {
+    const registry = resolveRegistry();
+    if (!registry) return { installed: 0, skipped: 0, failed: 0 };
+    return reconcileBundles(registry.modules.values(), i18nService, log);
+  };
+
   const plugin: ModulePlugin = async (app) => {
-    const registry =
-      typeof deps.registry === 'function' ? deps.registry() : deps.registry;
+    const registry = resolveRegistry();
     if (registry) {
-      await reconcileBundles(registry, i18nService, log);
+      await reconcileBundles(registry.modules.values(), i18nService, log);
     }
     await registerI18nAdminRoutes(app, {
       i18nService,
       adminUserService: deps.adminUserService,
       requireAdmin: deps.requireAdmin,
       resolveAdminContext: deps.resolveAdminContext,
+      reload: reloadAll,
     });
   };
 
@@ -107,6 +131,7 @@ export function i18nModule(deps: I18nModuleDeps): I18nModule {
         },
         remove: async (moduleId) => i18nService.removeBundlesForModule(moduleId),
       },
+      reloadAll,
     },
     plugin,
   };
@@ -120,15 +145,21 @@ export function i18nModule(deps: I18nModuleDeps): I18nModule {
  * bad bundle should not take down the platform; the gap surfaces via
  * FR-014's diagnostic surface and the platform keeps serving.
  */
-async function reconcileBundles(
-  registry: LoadedManifestRegistry,
+/** One module's manifest + on-disk location, as the reconciler needs it. */
+interface I18nReconcileEntry {
+  manifest: { id: string; i18n?: { bundlesDir: string } | undefined };
+  filePath: string;
+}
+
+export async function reconcileBundles(
+  entries: Iterable<I18nReconcileEntry>,
   i18nService: I18nService,
   log: { info(msg: string): void; warn(msg: string): void },
-): Promise<void> {
+): Promise<I18nReconcileResult> {
   let installed = 0;
   let skipped = 0;
   let failed = 0;
-  for (const entry of registry.modules.values()) {
+  for (const entry of entries) {
     const i18n = entry.manifest.i18n;
     if (!i18n) {
       skipped += 1;
@@ -159,4 +190,5 @@ async function reconcileBundles(
   log.info(
     `[i18n] reconcile complete — installed=${installed} skipped=${skipped} failed=${failed}`,
   );
+  return { installed, skipped, failed };
 }

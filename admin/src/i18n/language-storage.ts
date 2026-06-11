@@ -21,6 +21,22 @@ export async function getBundles(
   return res.data;
 }
 
+/**
+ * Hot-reload translations: re-reads every module's on-disk i18n bundles into
+ * the DB (feature: i18n reload). The caller should refresh the page afterwards
+ * so the new strings are fetched.
+ */
+export async function reloadBundles(): Promise<{
+  installed: number;
+  skipped: number;
+  failed: number;
+}> {
+  const res = await apiClient.post<{
+    data: { installed: number; skipped: number; failed: number };
+  }>('/api/v1/admin/i18n/reload', {});
+  return res.data;
+}
+
 export async function setPreferredLanguage(
   preferredLanguage: SupportedAdminLanguage | null,
 ): Promise<{ preferredLanguage: SupportedAdminLanguage | null }> {
