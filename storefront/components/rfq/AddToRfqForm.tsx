@@ -64,6 +64,7 @@ export async function addToQuoteAction(formData: FormData): Promise<void> {
   if (!Number.isFinite(quantity) || quantity < 1) {
     redirect(`/p/${encodeURIComponent(productSlug)}?rfqError=invalid-quantity`);
   }
+  let createdId: string;
   try {
     const created = await createRfq(session, {
       items: [
@@ -74,9 +75,13 @@ export async function addToQuoteAction(formData: FormData): Promise<void> {
         },
       ],
     });
-    redirect(`/account/quote-requests/${created.id}`);
+    createdId = created.id;
   } catch (err) {
+    // NB: `redirect()` throws NEXT_REDIRECT, so the success redirect MUST live
+    // outside this try — otherwise it is caught here and reported as a failure
+    // even though the quote request was created.
     const message = err instanceof StorefrontApiError ? err.message : 'Nie udało się dodać do zapytania.';
     redirect(`/p/${encodeURIComponent(productSlug)}?rfqError=${encodeURIComponent(message)}`);
   }
+  redirect(`/quote-requests/${createdId}`);
 }
