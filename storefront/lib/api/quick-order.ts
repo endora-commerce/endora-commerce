@@ -52,6 +52,7 @@ export interface QuickOrderBuildResponse {
   cartId?: string;
   checkoutUrl?: string;
   quoteRequestId?: string;
+  quoteRequestBusinessId?: string;
 }
 
 export interface QuickOrderSearchResult {

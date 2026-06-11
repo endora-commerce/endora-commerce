@@ -28,6 +28,7 @@ import type { RfqNotificationService} from './rfq-notification-service.js';
 import { type NotificationRecipient } from './rfq-notification-service.js';
 import type { SalesRepAssignmentService } from '../../organizations/services/sales-rep-assignment-service.js';
 import { AdminUser } from '../../admin_users/entities/admin-user.entity.js';
+import type { QuoteRequestBusinessIdGenerator } from './quote-request-business-id-generator.js';
 
 /**
  * Customer-facing Quote Requests service — feature 008 workflow.
@@ -68,10 +69,25 @@ export interface RfqServiceDeps {
   revisionService: RfqRevisionService;
   notificationService: RfqNotificationService;
   salesRepAssignment: SalesRepAssignmentService;
+  /**
+   * Generates the customer-facing business Quote Request ID. Optional so
+   * legacy/test compositions that don't wire it fall back to the entity's
+   * placeholder default.
+   */
+  businessId?: QuoteRequestBusinessIdGenerator;
 }
 
 export class RfqService {
   constructor(private readonly deps: RfqServiceDeps) {}
+
+  /**
+   * Draws the next business Quote Request ID, or `undefined` when no generator
+   * is wired (so the entity placeholder default applies). Shared with
+   * RfqAdminService so admin-created RFQs are numbered identically.
+   */
+  async generateBusinessId(em: EntityManager): Promise<string | undefined> {
+    return this.deps.businessId ? this.deps.businessId.generate(em) : undefined;
+  }
 
   // -------------------------------------------------------------------------
   // Read paths
@@ -138,7 +154,9 @@ export class RfqService {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'One or more products do not exist.');
     }
 
+    const businessId = await this.generateBusinessId(em);
     const rfq = em.create(QuoteRequest, {
+      ...(businessId ? { businessId } : {}),
       organizationId: ctx.organizationId,
       customerAccountId: ctx.customerAccountId,
       status: 'Pending' satisfies QuoteRequestStatus,
@@ -673,6 +691,7 @@ export class RfqService {
 
     return {
       id: rfq.id,
+      businessId: rfq.businessId,
       organizationId: rfq.organizationId,
       customerAccountId: rfq.customerAccountId,
       createdByAdminUserId: rfq.createdByAdminUserId ?? null,
@@ -750,6 +769,7 @@ function summarize(
   const currency = items[0]?.lineCurrency ?? 'PLN';
   return {
     id: rfq.id,
+    businessId: rfq.businessId,
     organizationId: rfq.organizationId,
     customerAccountId: rfq.customerAccountId,
     status: rfq.status,

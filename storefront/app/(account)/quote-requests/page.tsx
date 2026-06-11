@@ -56,7 +56,7 @@ export default async function QuoteRequestsPage(): Promise<ReactNode> {
               {rfqs.map((r) => (
                 <tr key={r.id}>
                   <td>
-                    <strong>{r.id.slice(0, 8)}</strong>
+                    <strong>#{r.businessId}</strong>
                   </td>
                   <td>{new Date(r.createdAt).toLocaleDateString('pl-PL')}</td>
                   <td>{r.lineCount}</td>

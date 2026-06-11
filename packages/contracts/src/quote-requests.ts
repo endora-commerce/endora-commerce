@@ -129,6 +129,13 @@ export type RfqComparisonAgainstLastSeen = z.infer<typeof rfqComparisonAgainstLa
 
 export const quoteRequestSchema = z.object({
   id: uuidSchema,
+  /**
+   * Customer-facing business Quote Request ID, distinct from the internal
+   * UUID `id`: `${prefix}${sequence}${suffix}`, where prefix/suffix come from
+   * the `quote_requests.business_id.*` settings. This is the identifier shown
+   * to the Customer; `id` stays internal. Mirrors `orders.businessId`.
+   */
+  businessId: z.string(),
   organizationId: uuidSchema,
   customerAccountId: uuidSchema,
   createdByAdminUserId: uuidSchema.nullable(),
@@ -182,6 +189,7 @@ export type QuoteRequest = z.infer<typeof quoteRequestSchema>;
 
 export const quoteRequestSummarySchema = z.object({
   id: uuidSchema,
+  businessId: z.string(),
   organizationId: uuidSchema,
   customerAccountId: uuidSchema,
   status: rfqStatusSchema,

@@ -122,6 +122,8 @@ export const quickOrderBuildResponseSchema = z.object({
   cartId: uuidSchema.optional(),
   checkoutUrl: z.string().optional(),
   quoteRequestId: uuidSchema.optional(),
+  /** Customer-facing business Quote Request ID (shown in confirmations). */
+  quoteRequestBusinessId: z.string().optional(),
 });
 export type QuickOrderBuildResponse = z.infer<typeof quickOrderBuildResponseSchema>;
 
