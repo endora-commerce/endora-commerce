@@ -57,6 +57,7 @@ import { useAdminActions } from '@/lib/admin-actions/useAdminActions';
 import { resolveIcon } from '@/lib/admin-actions/icon-map';
 import { getPromptCapability, listUnseenPromptRequests } from '@/lib/prompt-actions/api';
 import { PromptModePanel } from './prompt-actions/PromptModePanel';
+import { SpeechToTextButton } from './SpeechToTextButton';
 import type { PromptActionRequestDto } from '@b2b/contracts';
 
 interface NavItem {
@@ -1376,6 +1377,14 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
             placeholder={t('appShell.search.commandPalettePlaceholder')}
             value={query}
             onChange={(e): void => handleQueryChange(e.target.value)}
+          />
+          <SpeechToTextButton
+            startTitle={t('appShell.search.voiceInput')}
+            stopTitle={t('appShell.search.voiceInputStop')}
+            onTranscript={(text): void => {
+              setQuery((q) => (q ? `${q} ${text}` : text));
+              inputRef.current?.focus();
+            }}
           />
           <span className="b2b-kbd-sm">esc</span>
         </div>

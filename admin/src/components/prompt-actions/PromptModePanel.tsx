@@ -6,6 +6,7 @@ import { useTranslation } from '@/i18n/useTranslation';
 import { markPromptRequestSeen } from '@/lib/prompt-actions/api';
 import { usePromptRequest } from '@/lib/prompt-actions/usePromptRequest';
 import { PromptPlanPreview } from './PromptPlanPreview';
+import { SpeechToTextButton } from '../SpeechToTextButton';
 
 /**
  * The palette's prompt mode (feature 043, research §R9): input →
@@ -146,6 +147,16 @@ export function PromptModePanel({ onExit, initialRequest, initialPrompt }: Props
             }
           }}
         />
+        {!busy && phase !== 'awaiting_confirmation' ? (
+          <SpeechToTextButton
+            startTitle={t('panel.voiceInput')}
+            stopTitle={t('panel.voiceInputStop')}
+            onTranscript={(text): void => {
+              setPrompt((p) => (p ? `${p} ${text}` : text));
+              inputRef.current?.focus();
+            }}
+          />
+        ) : null}
         <span className="b2b-kbd-sm">esc</span>
       </div>
 

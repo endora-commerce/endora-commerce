@@ -21,6 +21,8 @@
   "appShell.collapse.expand": "Rozwiń",
   "appShell.search.openPalette": "Szukaj (⌘K)",
   "appShell.search.commandPalettePlaceholder": "Szukaj produktów, organizacji, akcji…",
+  "appShell.search.voiceInput": "Dyktowanie (mowa na tekst)",
+  "appShell.search.voiceInputStop": "Zatrzymaj dyktowanie",
   "appShell.search.noMatches": "Brak wyników.",
   "appShell.brand.text": "Endora B2B",
   "appShell.brand.dashboardLink": "Przejdź do pulpitu",
