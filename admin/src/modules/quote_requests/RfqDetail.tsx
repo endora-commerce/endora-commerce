@@ -131,6 +131,7 @@ export function RfqDetail(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState('');
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<RfqTab>('overview');
 
@@ -188,6 +189,7 @@ export function RfqDetail(): ReactNode {
       );
       setInfo(t('rfq.detail.info.canceled'));
       setCancelReason('');
+      setCancelOpen(false);
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('rfq.detail.error.cancel'));
@@ -345,23 +347,18 @@ export function RfqDetail(): ReactNode {
             <>
               {!isTerminal ? (
                 <Section title={t('rfq.detail.sections.status')}>
-                  <div className="flex flex-wrap items-end gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
                     {rfq.status === 'Pending' ? (
                       <Button onClick={(): void => void approve()} disabled={busy}>
                         <Check size={14} className="mr-1" /> {t('rfq.detail.approve')}
                       </Button>
                     ) : null}
-                    <div className="min-w-[240px] flex-1 space-y-2">
-                      <Label htmlFor="cancel-reason">{t('rfq.detail.cancelReason')}</Label>
-                      <Textarea
-                        id="cancel-reason"
-                        value={cancelReason}
-                        onChange={(e): void => setCancelReason(e.target.value)}
-                        placeholder={t('rfq.detail.cancelReasonPlaceholder')}
-                        rows={2}
-                      />
-                    </div>
-                    <Button variant="destructive" onClick={(): void => void cancel()} disabled={busy}>
+                    <Button
+                      variant="outline"
+                      className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                      onClick={(): void => setCancelOpen(true)}
+                      disabled={busy}
+                    >
                       <XCircle size={14} className="mr-1" /> {t('rfq.detail.cancelRfq')}
                     </Button>
                   </div>
@@ -504,7 +501,65 @@ export function RfqDetail(): ReactNode {
           ) : null}
         </CardContent>
       </Card>
+
+      {cancelOpen ? (
+        <CancelDialog
+          reason={cancelReason}
+          onReasonChange={setCancelReason}
+          onConfirm={(): void => void cancel()}
+          onClose={(): void => setCancelOpen(false)}
+          busy={busy}
+        />
+      ) : null}
     </>
+  );
+}
+
+/**
+ * Cancellation modal — captures the (optional) cancellation reason on an
+ * overlay rather than stretching the status row, then confirms the cancel.
+ */
+function CancelDialog(props: {
+  reason: string;
+  onReasonChange: (v: string) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+  busy: boolean;
+}): ReactNode {
+  const t = useTranslation('core');
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={props.onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-lg border bg-card p-5 shadow-lg"
+        onClick={(e): void => e.stopPropagation()}
+      >
+        <h2 className="mb-3 text-base font-semibold">{t('rfq.detail.cancelDialog.title')}</h2>
+        <div className="space-y-2">
+          <Label htmlFor="cancel-reason">{t('rfq.detail.cancelReason')}</Label>
+          <Textarea
+            id="cancel-reason"
+            autoFocus
+            value={props.reason}
+            onChange={(e): void => props.onReasonChange(e.target.value)}
+            placeholder={t('rfq.detail.cancelReasonPlaceholder')}
+            rows={3}
+          />
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="outline" onClick={props.onClose} disabled={props.busy}>
+            {t('rfq.detail.cancelDialog.dismiss')}
+          </Button>
+          <Button variant="destructive" onClick={props.onConfirm} disabled={props.busy}>
+            <XCircle size={14} className="mr-1" /> {t('rfq.detail.cancelDialog.confirm')}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -594,6 +649,19 @@ function ModifyCard({
     setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
   };
 
+  // Reference data from the current revision: the customer's desired unit price
+  // and the line currency, keyed by product so each modify row can show a price
+  // even before an agreed price is typed.
+  const originalByProduct = new Map(rfq.items.map((it) => [it.productId, it]));
+  const currency = rfq.items[0]?.lineCurrency ?? 'PLN';
+  const fmt = (n: number): string =>
+    `${n.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} ${currency}`;
+
+  // A plain grid (not <Table>, which wraps in an overflow-auto container that
+  // would clip the product dropdown) so the picker's options overlay outside
+  // the row instead of being trapped inside it.
+  const gridCols = 'grid-cols-[minmax(180px,1fr)_88px_120px_110px_120px_auto]';
+
   return (
     <Section title={t('rfq.detail.modify.title')}>
       <div className="space-y-3">
@@ -606,57 +674,75 @@ function ModifyCard({
             rows={2}
           />
         </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('rfq.detail.modify.productId')}</TableHead>
-              <TableHead>{t('rfq.detail.modify.quantity')}</TableHead>
-              <TableHead>{t('rfq.detail.modify.agreedUnitPrice')}</TableHead>
-              <TableHead></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {lines.map((l, i) => (
-              <TableRow key={i}>
-                <TableCell>
-                  <ProductPicker
-                    mode="select"
-                    value={l.productId || null}
-                    onChange={(v): void => updateLine(i, { productId: v ?? '' })}
-                  />
-                </TableCell>
-                <TableCell>
-                  <input
-                    type="number"
-                    min={1}
-                    value={l.quantity}
-                    onChange={(e): void => updateLine(i, { quantity: e.target.value })}
-                    style={{ width: 80, padding: 6, border: '1px solid var(--border)', borderRadius: 4 }}
-                  />
-                </TableCell>
-                <TableCell>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min={0}
-                    value={l.agreedUnitPrice}
-                    onChange={(e): void => updateLine(i, { agreedUnitPrice: e.target.value })}
-                    style={{ width: 100, padding: 6, border: '1px solid var(--border)', borderRadius: 4 }}
-                  />
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(): void => setLines((prev) => prev.filter((_, j) => j !== i))}
-                  >
-                    {t('rfq.detail.modify.remove')}
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <div className="space-y-2">
+          <div
+            className={cn(
+              'hidden gap-3 px-1 text-xs font-medium text-muted-foreground md:grid',
+              gridCols,
+            )}
+          >
+            <span>{t('rfq.detail.modify.productId')}</span>
+            <span>{t('rfq.detail.modify.quantity')}</span>
+            <span>{t('rfq.detail.modify.agreedUnitPrice')}</span>
+            <span>{t('rfq.detail.modify.desiredPrice')}</span>
+            <span>{t('rfq.detail.modify.lineTotal')}</span>
+            <span />
+          </div>
+          {lines.map((l, i) => {
+            const orig = l.productId ? originalByProduct.get(l.productId) : undefined;
+            const desired = orig?.desiredUnitPrice ?? null;
+            const qtyNum = Number(l.quantity);
+            const agreedNum = Number(l.agreedUnitPrice);
+            const lineTotal =
+              l.agreedUnitPrice.trim().length > 0 && Number.isFinite(agreedNum) && qtyNum > 0
+                ? agreedNum * qtyNum
+                : desired !== null && qtyNum > 0
+                  ? desired * qtyNum
+                  : null;
+            return (
+              <div
+                key={i}
+                className={cn('grid items-center gap-3 md:grid', gridCols)}
+              >
+                <ProductPicker
+                  mode="select"
+                  value={l.productId || null}
+                  onChange={(v): void => updateLine(i, { productId: v ?? '' })}
+                />
+                <input
+                  type="number"
+                  min={1}
+                  aria-label={t('rfq.detail.modify.quantity')}
+                  value={l.quantity}
+                  onChange={(e): void => updateLine(i, { quantity: e.target.value })}
+                  style={{ width: 80, padding: 6, border: '1px solid var(--border)', borderRadius: 4 }}
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  aria-label={t('rfq.detail.modify.agreedUnitPrice')}
+                  value={l.agreedUnitPrice}
+                  onChange={(e): void => updateLine(i, { agreedUnitPrice: e.target.value })}
+                  style={{ width: 110, padding: 6, border: '1px solid var(--border)', borderRadius: 4 }}
+                />
+                <span className="text-sm tabular-nums text-muted-foreground">
+                  {desired !== null ? fmt(desired) : '—'}
+                </span>
+                <span className="text-sm font-medium tabular-nums">
+                  {lineTotal !== null ? fmt(lineTotal) : '—'}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(): void => setLines((prev) => prev.filter((_, j) => j !== i))}
+                >
+                  {t('rfq.detail.modify.remove')}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
         <div className="flex gap-2">
           <Button
             variant="outline"
