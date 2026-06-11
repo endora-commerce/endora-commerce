@@ -19,13 +19,13 @@ describe('ProductBuyActions — packaging units', () => {
       <ProductBuyActions
         productId="p1"
         productSlug="p-slug"
+        productName="Product 1"
         showCart
         showQuote={false}
         packagingUnits={UNITS}
         singlePieceLabel="Single piece"
         piecesLabel="pcs"
         addToCartAction={noop}
-        addToQuoteAction={noop}
         addToCartLabel="Add to cart"
       />,
     );
@@ -43,10 +43,10 @@ describe('ProductBuyActions — packaging units', () => {
       <ProductBuyActions
         productId="p1"
         productSlug="p-slug"
+        productName="Product 1"
         showCart
         showQuote={false}
         addToCartAction={noop}
-        addToQuoteAction={noop}
         addToCartLabel="Add to cart"
       />,
     );

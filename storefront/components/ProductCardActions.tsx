@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
+import { addRfqDraftItem } from '../lib/rfqDraft';
 
 /**
  * Product-card action buttons (add to cart / add to shopping list / add to
@@ -42,12 +42,17 @@ export function ProductCardActions(props: {
   apiBase: string;
   productId: string;
   productSlug: string;
+  /** Display name carried into the client-side quote-request draft. */
+  productName: string;
+  /** Optional catalogue unit price snapshot, stored on the RFQ draft line. */
+  unitPrice?: { amount: number; currency: string } | null;
   /** True for a simple, directly-purchasable product (shows "add to cart"). */
   buyable: boolean;
 }): ReactNode {
   const [cfg, setCfg] = useState<ButtonsConfig | null>(null);
   const [cartState, setCartState] = useState<ActionState>('idle');
   const [listState, setListState] = useState<ActionState>('idle');
+  const [quoteState, setQuoteState] = useState<ActionState>('idle');
 
   useEffect(() => {
     let cancelled = false;
@@ -101,6 +106,18 @@ export function ProductCardActions(props: {
     }
   };
 
+  const addToQuote = (): void => {
+    addRfqDraftItem({
+      productId: props.productId,
+      slug: props.productSlug,
+      name: props.productName,
+      unitPrice: props.unitPrice ?? null,
+      quantity: 1,
+    });
+    setQuoteState('done');
+    window.setTimeout(() => setQuoteState('idle'), 1500);
+  };
+
   const anyVisible =
     (cfg.showAddToCart && props.buyable) || cfg.showAddToShoppingList || cfg.showAddToQuote;
   if (!anyVisible) return null;
@@ -119,6 +136,7 @@ export function ProductCardActions(props: {
       : cartState === 'error'
         ? 'Nie udało się dodać'
         : 'Dodaj do koszyka';
+  const quoteTooltip = quoteState === 'done' ? 'Dodano do zapytania' : 'Dodaj do zapytania';
 
   return (
     <div className="mt-[10px] flex flex-wrap gap-[6px]">
@@ -136,14 +154,15 @@ export function ProductCardActions(props: {
         </WithTooltip>
       ) : null}
       {cfg.showAddToQuote ? (
-        <WithTooltip label="Dodaj do zapytania">
-          <Link
-            href={`/p/${encodeURIComponent(props.productSlug)}#quote`}
+        <WithTooltip label={quoteTooltip}>
+          <button
+            type="button"
+            onClick={addToQuote}
             className="icon-btn"
             aria-label="Dodaj do zapytania"
           >
-            <QuoteIcon />
-          </Link>
+            <QuoteIcon filled={quoteState === 'done'} />
+          </button>
         </WithTooltip>
       ) : null}
       {cfg.showAddToCart && props.buyable ? (
@@ -202,14 +221,14 @@ function HeartIcon({ filled }: { filled: boolean }): ReactNode {
   );
 }
 
-function QuoteIcon(): ReactNode {
+function QuoteIcon({ filled = false }: { filled?: boolean }): ReactNode {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
       width={18}
       height={18}
       viewBox="0 0 24 24"
-      fill="none"
+      fill={filled ? 'currentColor' : 'none'}
       stroke="currentColor"
       strokeWidth={1.7}
       strokeLinecap="round"
