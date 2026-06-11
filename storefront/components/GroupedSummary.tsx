@@ -24,11 +24,17 @@ export interface GroupedSummaryItem {
 export function GroupedSummary(props: {
   items: GroupedSummaryItem[];
   addToCartLabel: string;
+  /**
+   * Server action that adds the whole set to the cart. Each child is submitted
+   * as a hidden `item` field encoded `productId:quantity`; the action loops
+   * over them and adds one cart line per child.
+   */
+  addToCartAction: (formData: FormData) => void | Promise<void>;
 }): ReactNode {
   if (props.items.length === 0) return null;
 
   return (
-    <div className="flex flex-col gap-3">
+    <form action={props.addToCartAction} className="flex flex-col gap-3">
       <ul className="m-0 flex list-none flex-col gap-2 rounded-md border border-line p-[12px]">
         {props.items.map((item) => (
           <li key={item.id} className="flex items-center gap-2 text-[13px]">
@@ -45,9 +51,17 @@ export function GroupedSummary(props: {
           </li>
         ))}
       </ul>
-      <a href="/cart" className="b2b-cta">
+      {props.items.map((item) => (
+        <input
+          key={item.id}
+          type="hidden"
+          name="item"
+          value={`${item.product.id}:${item.quantity}`}
+        />
+      ))}
+      <button type="submit" className="b2b-cta">
         {props.addToCartLabel}
-      </a>
-    </div>
+      </button>
+    </form>
   );
 }

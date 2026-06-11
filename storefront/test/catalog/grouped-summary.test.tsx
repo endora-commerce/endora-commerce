@@ -25,6 +25,8 @@ type Item = {
   };
 };
 
+const noopAction = (): void => {};
+
 const item = (id: string, qty: number, slug: string, name: string): Item => ({
   id,
   position: Number(id),
@@ -42,7 +44,7 @@ const item = (id: string, qty: number, slug: string, name: string): Item => ({
 describe('GroupedSummary — SSR contract', () => {
   it('renders nothing when items array is empty', () => {
     const html = renderToString(
-      <GroupedSummary items={[]} addToCartLabel="Add bundle to cart" />,
+      <GroupedSummary items={[]} addToCartLabel="Add bundle to cart" addToCartAction={noopAction} />,
     );
     expect(html).toBe('');
   });
@@ -52,6 +54,7 @@ describe('GroupedSummary — SSR contract', () => {
       <GroupedSummary
         items={[item('1', 2, 'red-widget', 'Red widget'), item('2', 1, 'blue-widget', 'Blue widget')]}
         addToCartLabel="Add bundle to cart"
+        addToCartAction={noopAction}
       />,
     );
     expect(html).toContain('href="/p/red-widget"');
@@ -69,6 +72,7 @@ describe('GroupedSummary — SSR contract', () => {
       <GroupedSummary
         items={[item('1', 1, 'a', 'A')]}
         addToCartLabel="Add bundle to cart"
+        addToCartAction={noopAction}
       />,
     );
     expect(html.match(/Add bundle to cart/g)?.length ?? 0).toBe(1);

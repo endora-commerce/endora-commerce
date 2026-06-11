@@ -290,6 +290,7 @@ export default async function ProductPage({
             <GroupedSummary
               items={product.groupedItems}
               addToCartLabel={t('product.grouped.addBundleToCart')}
+              addToCartAction={addGroupedToCartAction}
             />
           ) : null}
 
@@ -432,6 +433,40 @@ async function oneClickAction(formData: FormData): Promise<void> {
     redirect(result!.nextAction.url);
   }
   redirect(`/orders/${result!.order.id}`);
+}
+
+async function addGroupedToCartAction(formData: FormData): Promise<void> {
+  'use server';
+  // Each child of the grouped product is submitted as `item=productId:quantity`.
+  // A grouped product is a fixed set, so we add one cart line per child rather
+  // than the (price-less) container product itself.
+  const entries = (formData.getAll('item') as string[])
+    .map((e) => e.trim())
+    .filter(Boolean);
+  if (entries.length === 0) redirect('/cart?error=missing-product');
+  const jar = await readCartJar();
+  let anon: string | null = jar.anon ?? null;
+  try {
+    for (const entry of entries) {
+      const [productId, qtyRaw] = entry.split(':');
+      if (!productId) continue;
+      const quantity = Number(qtyRaw ?? '1');
+      const qty = Number.isFinite(quantity) && quantity >= 1 ? Math.floor(quantity) : 1;
+      const result = await addCartItem(
+        { ...jar, anon },
+        { productId, quantity: qty },
+      );
+      // Reuse the freshly-minted anon cart for the remaining children so every
+      // line lands in the same cart.
+      if (result.newAnonCookie) anon = result.newAnonCookie;
+    }
+    if (anon && anon !== (jar.anon ?? null)) await setAnonCartCookie(anon);
+  } catch (err) {
+    const message =
+      err instanceof StorefrontApiError ? err.message : 'Could not add to cart.';
+    redirect(`/cart?error=${encodeURIComponent(message)}`);
+  }
+  redirect('/cart');
 }
 
 async function addToCartAction(formData: FormData): Promise<void> {
