@@ -131,6 +131,8 @@ export default async function CheckoutPage({
           locale={locale}
           preferredShippingAddressId={defaults?.shippingAddressId ?? null}
           preferredBillingAddressId={defaults?.billingAddressId ?? null}
+          organizationName={me?.organization?.legalName || me?.organization?.name || null}
+          organizationTaxId={me?.organization?.taxId ?? null}
         />
 
         <ShippingMethods methods={deliveryMethods} preferredId={defaults?.deliveryMethodId ?? null} />
@@ -288,6 +290,8 @@ async function submitAction(formData: FormData): Promise<void> {
         ? deliveryAddressId
         : await resolveAddress('billing', 'billing');
 
+    const billingCompanyName = field('billingCompanyName');
+    const billingTaxId = field('billingTaxId');
     order = await placeOrder(session, {
       deliveryAddressId,
       billingAddressId,
@@ -295,6 +299,8 @@ async function submitAction(formData: FormData): Promise<void> {
       paymentMethodId: (formData.get('paymentMethodId') as string) ?? '',
       ...(promo ? { promotionCode: promo } : {}),
       ...(note ? { customerNote: note } : {}),
+      ...(billingCompanyName ? { billingCompanyName } : {}),
+      ...(billingTaxId ? { billingTaxId } : {}),
     });
   } catch (err) {
     // Feature 036 (US4) — placement failed: the transaction rolled back, so the

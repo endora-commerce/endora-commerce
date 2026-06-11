@@ -93,7 +93,11 @@ type MessageKey =
   | 'checkout.address.postalCode'
   | 'checkout.address.city'
   | 'checkout.address.country'
-  | 'checkout.address.phone';
+  | 'checkout.address.phone'
+  | 'checkout.address.billingCompanyTitle'
+  | 'checkout.address.billingCompanyHint'
+  | 'checkout.address.companyName'
+  | 'checkout.address.taxId';
 
 const MESSAGES: Record<string, Record<MessageKey, string>> = {
   'en-US': {
@@ -184,6 +188,11 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'checkout.address.city': 'City',
     'checkout.address.country': 'Country (e.g. PL)',
     'checkout.address.phone': 'Phone (optional)',
+    'checkout.address.billingCompanyTitle': 'Billing company details',
+    'checkout.address.billingCompanyHint':
+      'Defaults to your organization. Override for this order if needed.',
+    'checkout.address.companyName': 'Company name',
+    'checkout.address.taxId': 'Tax ID (NIP)',
   },
   'pl-PL': {
     'nav.home': 'Strona glowna',
@@ -273,6 +282,11 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'checkout.address.city': 'Miasto',
     'checkout.address.country': 'Kraj (np. PL)',
     'checkout.address.phone': 'Telefon (opcjonalnie)',
+    'checkout.address.billingCompanyTitle': 'Dane firmy do rozliczenia',
+    'checkout.address.billingCompanyHint':
+      'Domyslnie dane Twojej organizacji. Mozesz je nadpisac dla tego zamowienia.',
+    'checkout.address.companyName': 'Nazwa firmy',
+    'checkout.address.taxId': 'NIP',
   },
 };
 

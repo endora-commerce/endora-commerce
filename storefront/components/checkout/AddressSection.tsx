@@ -25,6 +25,10 @@ export interface AddressSectionProps {
   preferredShippingAddressId?: string | null;
   /** Feature 039 — resolved default billing address to pre-select, if any. */
   preferredBillingAddressId?: string | null;
+  /** Organization name used as the default billing company (overridable). */
+  organizationName?: string | null;
+  /** Organization tax-id (NIP) used as the default billing tax-id (overridable). */
+  organizationTaxId?: string | null;
 }
 
 function defaultAddressId(
@@ -103,6 +107,8 @@ export function AddressSection({
   locale,
   preferredShippingAddressId,
   preferredBillingAddressId,
+  organizationName,
+  organizationTaxId,
 }: AddressSectionProps): React.ReactNode {
   const t = tForLocale(locale);
   const [shippingMode, setShippingMode] = useState<'saved' | 'new'>(
@@ -153,6 +159,32 @@ export function AddressSection({
         ) : (
           <NewAddressFields prefix="delivery" required={shippingMode === 'new'} locale={locale} />
         )}
+      </fieldset>
+
+      {/* Billing company details — defaults to the buyer's organization name +
+          NIP; either may be overridden for this order only. Always visible so
+          the override is reachable even when billing == shipping. */}
+      <fieldset className="b2b-auth__form" style={{ border: 0, padding: 0 }}>
+        <legend style={{ fontWeight: 600 }}>
+          {t('checkout.address.billingCompanyTitle')}
+        </legend>
+        <p className="b2b-auth__hint" style={{ margin: 0 }}>
+          {t('checkout.address.billingCompanyHint')}
+        </p>
+        <input
+          name="billingCompanyName"
+          placeholder={t('checkout.address.companyName')}
+          defaultValue={organizationName ?? ''}
+          maxLength={255}
+          className={FIELD_CLASS}
+        />
+        <input
+          name="billingTaxId"
+          placeholder={t('checkout.address.taxId')}
+          defaultValue={organizationTaxId ?? ''}
+          maxLength={32}
+          className={FIELD_CLASS}
+        />
       </fieldset>
 
       <label style={{ display: 'block', margin: 'var(--b2b-spacing, 12px) 0' }}>

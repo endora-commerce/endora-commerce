@@ -81,6 +81,10 @@ export interface PlaceOrderPayload {
   promotionCode?: string;
   customerNote?: string;
   idempotencyKey?: string;
+  /** Optional billing-company override; defaults from the Organization. */
+  billingCompanyName?: string;
+  /** Optional billing tax-id (NIP) override; defaults from the Organization. */
+  billingTaxId?: string;
 }
 
 export async function placeOrder(

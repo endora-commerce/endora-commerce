@@ -44,6 +44,17 @@ export const addressSnapshotSchema = z.object({
   postalCode: z.string().max(20),
   country: z.string().length(2).describe('ISO-3166-1 alpha-2 country code'),
   phone: z.string().max(32).optional(),
+  /**
+   * Optional company name captured on a billing snapshot. Defaults from the
+   * Organization at order placement; the buyer may override it at checkout.
+   */
+  companyName: z.string().max(255).optional(),
+  /**
+   * Optional tax identifier (Polish NIP by default) captured on a billing
+   * snapshot. Defaults from the Organization at placement; overridable at
+   * checkout.
+   */
+  taxId: z.string().max(32).optional(),
 });
 export type AddressSnapshot = z.infer<typeof addressSnapshotSchema>;
 
