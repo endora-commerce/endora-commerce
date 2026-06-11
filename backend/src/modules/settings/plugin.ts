@@ -18,6 +18,8 @@ import { registerSettingsCacheRoutes } from './routes.cache.js';
 import { CacheAdminService } from './services/cache-admin.service.js';
 import { registerSettingsHomepageRoutes } from './routes.homepage.js';
 import { HomepageResolver } from './services/homepage-resolver.js';
+import { registerSettingsProductCardButtonsRoutes } from './routes.product-card-buttons.js';
+import { ProductCardButtonsResolver } from './services/product-card-buttons-resolver.js';
 import { registerSettingsSpeculationRulesRoutes } from './routes.speculation-rules.js';
 import { SpeculationRulesResolver } from './services/speculation-rules-resolver.js';
 
@@ -64,6 +66,7 @@ export interface SettingsModuleHandle {
   shopInfoResolver: ShopInfoResolver;
   cacheAdminService: CacheAdminService;
   homepageResolver: HomepageResolver;
+  productCardButtonsResolver: ProductCardButtonsResolver;
   speculationRulesResolver: SpeculationRulesResolver;
   /** Released for tests; in production it lives until process exit. */
   cacheInvalidator?: SettingsCacheInvalidatorHandle;
@@ -93,6 +96,10 @@ export function settingsModule(
   const shopInfoResolver = new ShopInfoResolver(options.emFactory, settingsService);
   const cacheAdminService = new CacheAdminService(options.redis);
   const homepageResolver = new HomepageResolver(options.emFactory, settingsService);
+  const productCardButtonsResolver = new ProductCardButtonsResolver(
+    options.emFactory,
+    settingsService,
+  );
   const speculationRulesResolver = new SpeculationRulesResolver(options.emFactory, settingsService);
   const cacheInvalidator = cache
     ? attachSettingsCacheInvalidator(options.eventBus, cache)
@@ -110,6 +117,7 @@ export function settingsModule(
       shopInfoResolver,
       cacheAdminService,
       homepageResolver,
+      productCardButtonsResolver,
       speculationRulesResolver,
       ...(cacheInvalidator !== undefined ? { cacheInvalidator } : {}),
     },
@@ -128,6 +136,7 @@ export function settingsModule(
         requireAdmin: requireAdminFn,
       });
       await registerSettingsHomepageRoutes(app, { homepageResolver });
+      await registerSettingsProductCardButtonsRoutes(app, { productCardButtonsResolver });
       await registerSettingsSpeculationRulesRoutes(app, { speculationRulesResolver });
     },
   };

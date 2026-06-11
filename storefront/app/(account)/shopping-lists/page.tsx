@@ -5,6 +5,7 @@ import {
   createShoppingList,
   deleteShoppingList,
   listShoppingLists,
+  setDefaultShoppingList,
 } from '../../../lib/api/shopping-lists';
 import { getSessionCookie } from '../../../lib/session';
 import { StorefrontApiError } from '../../../lib/api/client';
@@ -53,6 +54,7 @@ export default async function ShoppingListsPage({
               <th>Name</th>
               <th>Items</th>
               <th>Updated</th>
+              <th>Default</th>
               <th></th>
             </tr>
           </thead>
@@ -64,6 +66,18 @@ export default async function ShoppingListsPage({
                 </td>
                 <td>{l.items.length}</td>
                 <td>{new Date(l.updatedAt).toLocaleString()}</td>
+                <td>
+                  {l.isDefault ? (
+                    <span className="industria-status industria-status--paid">Domyślna</span>
+                  ) : (
+                    <form action={setDefaultAction} style={{ display: 'inline' }}>
+                      <input type="hidden" name="id" value={l.id} />
+                      <button type="submit" className="btn btn--outline btn--sm">
+                        Ustaw jako domyślną
+                      </button>
+                    </form>
+                  )}
+                </td>
                 <td>
                   <form action={deleteAction} style={{ display: 'inline' }}>
                     <input type="hidden" name="id" value={l.id} />
@@ -108,4 +122,19 @@ async function deleteAction(formData: FormData): Promise<void> {
     redirect(`/shopping-lists?error=${encodeURIComponent(message)}`);
   }
   redirect(`/shopping-lists`);
+}
+
+async function setDefaultAction(formData: FormData): Promise<void> {
+  'use server';
+  const session = await getSessionCookie();
+  if (!session) redirect('/login');
+  const id = (formData.get('id') as string) ?? '';
+  try {
+    await setDefaultShoppingList(session, id);
+  } catch (err) {
+    const message =
+      err instanceof StorefrontApiError ? err.message : 'Could not set the default list.';
+    redirect(`/shopping-lists?error=${encodeURIComponent(message)}`);
+  }
+  redirect('/shopping-lists');
 }

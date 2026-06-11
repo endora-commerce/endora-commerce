@@ -58,12 +58,52 @@ export async function registerShoppingListRoutes(
     },
   );
 
+  // Default-list endpoints. Fastify's radix router prioritises the static
+  // `default` segment over the parametric `:id`, so ordering vs `/:id` is
+  // irrelevant.
+  app.get('/api/v1/shopping-lists/default', { preHandler: requireCustomer }, async (request) => {
+    const ctx = resolveCustomerContext(request);
+    const list = await service.ensureDefault(ctx);
+    const em = emFactory();
+    const itemCount = await em.count(ShoppingListItem, { shoppingListId: list.id });
+    return { data: { id: list.id, name: list.name, itemCount } };
+  });
+
+  app.post(
+    '/api/v1/shopping-lists/default/items',
+    { preHandler: requireCustomer, schema: { body: addShoppingListItemRequestSchema } },
+    async (request, reply) => {
+      const ctx = resolveCustomerContext(request);
+      const body = addShoppingListItemRequestSchema.parse(request.body);
+      const { list, itemCount } = await service.addItemToDefault(ctx, {
+        productId: body.productId,
+        ...(body.variantId ? { variantId: body.variantId } : {}),
+        quantity: body.quantity,
+        ...(body.note ? { note: body.note } : {}),
+      });
+      reply.status(201);
+      return { data: { id: list.id, name: list.name, itemCount } };
+    },
+  );
+
   app.get<{ Params: { id: string } }>(
     '/api/v1/shopping-lists/:id',
     { preHandler: requireCustomer },
     async (request) => {
       const ctx = resolveCustomerContext(request);
       const { list, items } = await service.getByIdWithItems(ctx, request.params.id);
+      return { data: serializeWithItems(list, items) };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/shopping-lists/:id/set-default',
+    { preHandler: requireCustomer },
+    async (request) => {
+      const ctx = resolveCustomerContext(request);
+      const list = await service.setDefault(ctx, request.params.id);
+      const em = emFactory();
+      const items = await em.find(ShoppingListItem, { shoppingListId: list.id });
       return { data: serializeWithItems(list, items) };
     },
   );
@@ -163,6 +203,7 @@ function serializeWithItems(list: ShoppingList, items: ShoppingListItem[]): Reco
     organizationId: list.organizationId,
     customerAccountId: list.customerAccountId,
     name: list.name,
+    isDefault: list.isDefault,
     items: items.map((it) => ({
       id: it.id,
       shoppingListId: it.shoppingListId,

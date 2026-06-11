@@ -6,6 +6,7 @@ import { tForLocale } from '../lib/i18n/messages';
 import { CategoriesMega } from './Megamenu/CategoriesMega';
 import { CompareCounterLink } from './CompareToggle';
 import { CartCounterBadge } from './CartCounterBadge';
+import { ShoppingListHeartBadge } from './ShoppingListHeartBadge';
 import { SearchAutocomplete } from './SearchAutocomplete';
 import { CurrencySwitcher, LocaleSwitcher } from './HeaderPreferenceSwitchers';
 
@@ -105,9 +106,11 @@ export function Header(props: {
             />
           </form>
           <div className="industria-header__actions">
-            <Link href="/account/wishlist" className="icon-btn" aria-label="Ulubione">
-              <HeartIcon />
-            </Link>
+            <ShoppingListHeartBadge
+              apiBase={apiBaseUrl}
+              loggedIn={Boolean(props.user)}
+              ariaLabel="Lista zakupowa"
+            />
             <CompareCounterLink
               href="/compare"
               ariaLabel="Porównaj produkty"
@@ -261,12 +264,6 @@ function SearchIcon(): ReactNode {
       <line x1="21" y1="21" x2="16.65" y2="16.65" />
     </>,
     17,
-  );
-}
-function HeartIcon(): ReactNode {
-  return svg(
-    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />,
-    19,
   );
 }
 function CompareIcon(): ReactNode {

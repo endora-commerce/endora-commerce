@@ -159,6 +159,31 @@ const settings = defineModuleSettingsManifest({
       valueType: 'string',
       defaultValue: 'moderate',
     },
+    {
+      // Whether the storefront product card shows an "Add to cart" button.
+      code: 'storefront.product_card.show_add_to_cart',
+      name: 'Show "Add to cart" on product cards',
+      description:
+        'Toggles the "Add to cart" button on storefront product card listings. ' +
+        'Only has an effect if the active Storefront UI theme renders the button.',
+      groupCode: 'general',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
+      // Whether the storefront product card shows an "Add to shopping list"
+      // button (adds the product to the customer's default shopping list).
+      code: 'storefront.product_card.show_add_to_shopping_list',
+      name: 'Show "Add to shopping list" on product cards',
+      description:
+        'Toggles the "Add to shopping list" button on storefront product card ' +
+        'listings; clicking it adds the product to the customer\'s default ' +
+        'shopping list. Only has an effect if the active Storefront UI theme ' +
+        'renders the button.',
+      groupCode: 'general',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
   ],
 });
 
