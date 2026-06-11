@@ -63,6 +63,64 @@ describe('ModuleSettingsManifestSchema', () => {
     expect(m.settings[0]!.code).toBe('sales_channels.base_url');
   });
 
+  it('accepts a string setting with enumOptions and a matching default', () => {
+    const m = defineModuleSettingsManifest({
+      moduleCode: 'settings',
+      groups: [{ code: 'storefront', name: 'Storefront' }],
+      settings: [
+        {
+          code: 'storefront.speculation_rules.eagerness',
+          name: 'Eagerness',
+          groupCode: 'storefront',
+          valueType: 'string',
+          defaultValue: 'moderate',
+          enumOptions: ['conservative', 'moderate', 'eager'],
+        },
+      ],
+    });
+    expect(m.settings[0]!.enumOptions).toEqual([
+      'conservative',
+      'moderate',
+      'eager',
+    ]);
+  });
+
+  it('rejects enumOptions whose list excludes the defaultValue', () => {
+    const result = ModuleSettingsManifestSchema.safeParse({
+      moduleCode: 'settings',
+      groups: [{ code: 'storefront', name: 'Storefront' }],
+      settings: [
+        {
+          code: 'storefront.x',
+          name: 'X',
+          groupCode: 'storefront',
+          valueType: 'string',
+          defaultValue: 'nope',
+          enumOptions: ['a', 'b'],
+        },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects enumOptions on a non-string valueType', () => {
+    const result = ModuleSettingsManifestSchema.safeParse({
+      moduleCode: 'settings',
+      groups: [{ code: 'storefront', name: 'Storefront' }],
+      settings: [
+        {
+          code: 'storefront.y',
+          name: 'Y',
+          groupCode: 'storefront',
+          valueType: 'number',
+          defaultValue: 1,
+          enumOptions: ['a', 'b'],
+        },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('exposes the six expected value types', () => {
     // 'secret' added by feature 043 (write-only settings).
     expect(SettingValueTypeSchema.options).toEqual([

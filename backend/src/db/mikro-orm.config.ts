@@ -79,6 +79,7 @@ import { Migration071QrItemPackaging } from '../modules/quote_requests/migration
 import { Migration074ShoppingListsDefault } from '../modules/shopping_lists/migrations/074_shopping_lists_default.js';
 import { Migration072FixInPersonPickupAdapter } from '../modules/delivery_methods/migrations/072_fix_in_person_pickup_adapter.js';
 import { Migration073QuoteRequestsBusinessId } from '../modules/quote_requests/migrations/073_quote_requests_business_id.js';
+import { Migration075SettingsEnumOptions } from '../modules/settings/migrations/075_settings_enum_options.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -366,6 +367,10 @@ export default defineConfig({
       {
         name: 'Migration074ShoppingListsDefault',
         class: Migration074ShoppingListsDefault,
+      },
+      {
+        name: 'Migration075SettingsEnumOptions',
+        class: Migration075SettingsEnumOptions,
       },
     ],
     transactional: true,

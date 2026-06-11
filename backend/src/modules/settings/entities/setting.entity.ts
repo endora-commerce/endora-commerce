@@ -33,7 +33,13 @@ export type SettingValueTypeDb = (typeof SETTING_VALUE_TYPES)[number];
  */
 @Entity({ tableName: 'settings' })
 export class Setting {
-  [OptionalProps]?: 'id' | 'createdAt' | 'updatedAt' | 'description' | 'globalValue';
+  [OptionalProps]?:
+    | 'id'
+    | 'createdAt'
+    | 'updatedAt'
+    | 'description'
+    | 'globalValue'
+    | 'enumOptions';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -69,6 +75,14 @@ export class Setting {
    */
   @Property({ type: 'json', nullable: true, fieldName: 'global_value' })
   globalValue?: unknown | null;
+
+  /**
+   * Closed list of allowed values for an enum-style `string` setting (manifest
+   * `enumOptions`). NULL ⇒ ordinary free-text setting. When set, the admin
+   * renders a dropdown and value writes are constrained to these options.
+   */
+  @Property({ type: 'json', nullable: true, fieldName: 'enum_options' })
+  enumOptions?: string[] | null;
 
   /**
    * Sales-channel scope. Empty collection ⇒ "applies to all sales channels"

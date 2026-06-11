@@ -158,6 +158,7 @@ const settings = defineModuleSettingsManifest({
       groupCode: 'storefront',
       valueType: 'string',
       defaultValue: 'moderate',
+      enumOptions: ['conservative', 'moderate', 'eager'],
     },
     {
       // Whether the storefront product card shows an "Add to cart" button.
