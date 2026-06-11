@@ -209,3 +209,14 @@ export const AssignProductsToCategoryParamsSchema = z.object({
   categoryId: z.uuid().describe('ID of the target category, resolved via catalog.search_categories.'),
 });
 export type AssignProductsToCategoryParams = z.infer<typeof AssignProductsToCategoryParamsSchema>;
+
+export const SearchOrdersParamsSchema = z.object({
+  q: z
+    .string()
+    .min(1)
+    .max(200)
+    .describe(
+      'Order business ID, customer name or organization name fragment to search for (case-insensitive).',
+    ),
+});
+export type SearchOrdersParams = z.infer<typeof SearchOrdersParamsSchema>;
