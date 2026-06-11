@@ -18,6 +18,8 @@ import { registerSettingsCacheRoutes } from './routes.cache.js';
 import { CacheAdminService } from './services/cache-admin.service.js';
 import { registerSettingsHomepageRoutes } from './routes.homepage.js';
 import { HomepageResolver } from './services/homepage-resolver.js';
+import { registerSettingsSpeculationRulesRoutes } from './routes.speculation-rules.js';
+import { SpeculationRulesResolver } from './services/speculation-rules-resolver.js';
 
 /**
  * Composition root for the settings module — feature 004.
@@ -62,6 +64,7 @@ export interface SettingsModuleHandle {
   shopInfoResolver: ShopInfoResolver;
   cacheAdminService: CacheAdminService;
   homepageResolver: HomepageResolver;
+  speculationRulesResolver: SpeculationRulesResolver;
   /** Released for tests; in production it lives until process exit. */
   cacheInvalidator?: SettingsCacheInvalidatorHandle;
 }
@@ -90,6 +93,7 @@ export function settingsModule(
   const shopInfoResolver = new ShopInfoResolver(options.emFactory, settingsService);
   const cacheAdminService = new CacheAdminService(options.redis);
   const homepageResolver = new HomepageResolver(options.emFactory, settingsService);
+  const speculationRulesResolver = new SpeculationRulesResolver(options.emFactory, settingsService);
   const cacheInvalidator = cache
     ? attachSettingsCacheInvalidator(options.eventBus, cache)
     : undefined;
@@ -106,6 +110,7 @@ export function settingsModule(
       shopInfoResolver,
       cacheAdminService,
       homepageResolver,
+      speculationRulesResolver,
       ...(cacheInvalidator !== undefined ? { cacheInvalidator } : {}),
     },
     plugin: async (app) => {
@@ -123,6 +128,7 @@ export function settingsModule(
         requireAdmin: requireAdminFn,
       });
       await registerSettingsHomepageRoutes(app, { homepageResolver });
+      await registerSettingsSpeculationRulesRoutes(app, { speculationRulesResolver });
     },
   };
 }

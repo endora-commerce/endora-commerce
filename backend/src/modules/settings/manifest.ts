@@ -28,6 +28,11 @@ const settings = defineModuleSettingsManifest({
       // Empty salesChannelCodes ⇒ applies to every sales channel; values can
       // still be overridden per channel via the standard scope mechanism.
     },
+    {
+      // Storefront-template behaviour toggles (performance hints, etc.).
+      code: 'storefront',
+      name: 'Storefront',
+    },
   ],
   settings: [
     {
@@ -122,6 +127,37 @@ const settings = defineModuleSettingsManifest({
       groupCode: 'shop',
       valueType: 'string',
       defaultValue: '',
+    },
+    {
+      // Speculation Rules (prerender/prefetch) hint emitted by the storefront
+      // template for near-instant navigations.
+      code: 'storefront.speculation_rules.enabled',
+      name: 'Enable Speculation Rules',
+      description:
+        'Emit a Speculation Rules script in the storefront so the browser can ' +
+        'prerender/prefetch likely next pages for near-instant navigation. ' +
+        'Note: this setting only has an effect if the active Storefront UI ' +
+        'theme supports the Speculation Rules mechanism; themes that do not ' +
+        'implement it will ignore the toggle.',
+      groupCode: 'storefront',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
+      // Eagerness level for the Speculation Rules above. "moderate" prerenders
+      // on hover/pointer intent — the recommended balance between instant
+      // navigation and resource use; "eager" speculates aggressively on every
+      // eligible link, "conservative" only on pointer-down.
+      code: 'storefront.speculation_rules.eagerness',
+      name: 'Speculation Rules eagerness',
+      description:
+        'Eagerness for the storefront Speculation Rules: "conservative" ' +
+        '(on pointer-down), "moderate" (on hover — recommended), or "eager" ' +
+        '(as soon as links are discovered). Only applies when Speculation ' +
+        'Rules are enabled and supported by the active Storefront UI theme.',
+      groupCode: 'storefront',
+      valueType: 'string',
+      defaultValue: 'moderate',
     },
   ],
 });
