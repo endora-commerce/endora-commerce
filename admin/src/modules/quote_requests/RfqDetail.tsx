@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Textarea } from '@/components/ui/textarea';
@@ -311,7 +312,10 @@ export function RfqDetail(): ReactNode {
         </Alert>
       ) : null}
 
-      <Card className="mb-4 overflow-hidden">
+      {/* `overflow-hidden` rounds the tab strip's corners, but it also clips the
+          Modify tab's product-picker dropdown. Drop the clip while the Modify
+          tab is active so the dropdown can overlay outside the card. */}
+      <Card className={cn('mb-4', tab !== 'modify' && 'overflow-hidden')}>
         <div style={{ padding: '4px 4px 0', overflow: 'hidden' }}>
           <div className="b2b-tabs-scroll">
             <div className="b2b-tabs" role="tablist">
@@ -590,6 +594,26 @@ interface ModifyLineDraft {
   agreedUnitPrice: string;
 }
 
+/**
+ * Resolves a product's current price-list unit price (sale price preferred,
+ * else base) via the canonical resolver. Used to prefill the agreed unit price
+ * so the operator starts from the price-list value and only edits the
+ * negotiated delta. Returns null when no price is published for the product.
+ */
+async function resolvePriceListPrice(productId: string): Promise<number | null> {
+  try {
+    const res = await apiClient.get<{
+      data: { basePrice: { amount: string } | null; salePrice: { amount: string } | null };
+    }>(`/api/v1/storefront/products/${productId}/resolved-price`);
+    const raw = res.data.salePrice?.amount ?? res.data.basePrice?.amount ?? null;
+    if (raw === null) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
 function ModifyCard({
   rfq,
   onSaved,
@@ -611,6 +635,32 @@ function ModifyCard({
     })),
   );
   const [busy, setBusy] = useState(false);
+
+  // Prefill an empty "agreed unit price" with the product's price-list price so
+  // the operator starts from the catalogue value and only edits the negotiated
+  // delta. Never clobbers a value already present (an existing agreed price, or
+  // one the operator just typed).
+  const prefillAgreed = useCallback((idx: number, productId: string): void => {
+    void resolvePriceListPrice(productId).then((price) => {
+      if (price === null) return;
+      setLines((prev) =>
+        prev.map((l, i) =>
+          i === idx && l.productId === productId && l.agreedUnitPrice.trim() === ''
+            ? { ...l, agreedUnitPrice: price.toFixed(2) }
+            : l,
+        ),
+      );
+    });
+  }, []);
+
+  // On mount, prefill the price-list price for any line that has no agreed price
+  // yet (so a freshly-submitted RFQ opens with catalogue prices ready to tweak).
+  useEffect(() => {
+    rfq.items.forEach((it, idx) => {
+      if (it.productId && it.agreedUnitPrice === null) prefillAgreed(idx, it.productId);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const save = async (): Promise<void> => {
     setBusy(true);
@@ -660,7 +710,7 @@ function ModifyCard({
   // A plain grid (not <Table>, which wraps in an overflow-auto container that
   // would clip the product dropdown) so the picker's options overlay outside
   // the row instead of being trapped inside it.
-  const gridCols = 'grid-cols-[minmax(180px,1fr)_88px_120px_110px_120px_auto]';
+  const gridCols = 'grid-cols-[minmax(200px,1fr)_96px_140px_130px_140px_auto]';
 
   return (
     <Section title={t('rfq.detail.modify.title')}>
@@ -707,29 +757,34 @@ function ModifyCard({
                 <ProductPicker
                   mode="select"
                   value={l.productId || null}
-                  onChange={(v): void => updateLine(i, { productId: v ?? '' })}
+                  onChange={(v): void => {
+                    // Switching products invalidates any prior agreed price; clear
+                    // it and let the price-list value prefill for the new product.
+                    updateLine(i, { productId: v ?? '', agreedUnitPrice: '' });
+                    if (v) prefillAgreed(i, v);
+                  }}
                 />
-                <input
+                <Input
                   type="number"
                   min={1}
                   aria-label={t('rfq.detail.modify.quantity')}
                   value={l.quantity}
                   onChange={(e): void => updateLine(i, { quantity: e.target.value })}
-                  style={{ width: 80, padding: 6, border: '1px solid var(--border)', borderRadius: 4 }}
+                  className="tabular-nums"
                 />
-                <input
+                <Input
                   type="number"
                   step="0.01"
                   min={0}
                   aria-label={t('rfq.detail.modify.agreedUnitPrice')}
                   value={l.agreedUnitPrice}
                   onChange={(e): void => updateLine(i, { agreedUnitPrice: e.target.value })}
-                  style={{ width: 110, padding: 6, border: '1px solid var(--border)', borderRadius: 4 }}
+                  className="tabular-nums"
                 />
-                <span className="text-sm tabular-nums text-muted-foreground">
+                <span className="self-center text-sm tabular-nums text-muted-foreground">
                   {desired !== null ? fmt(desired) : '—'}
                 </span>
-                <span className="text-sm font-medium tabular-nums">
+                <span className="self-center text-sm font-medium tabular-nums">
                   {lineTotal !== null ? fmt(lineTotal) : '—'}
                 </span>
                 <Button
