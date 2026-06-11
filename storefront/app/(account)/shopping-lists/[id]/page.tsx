@@ -11,6 +11,15 @@ import {
 } from '../../../../lib/api/shopping-lists';
 import { getSessionCookie } from '../../../../lib/session';
 import { StorefrontApiError } from '../../../../lib/api/client';
+import { getServerContext } from '../../../../lib/server-context';
+import { getProductBySlug } from '../../../../lib/api/catalog';
+
+/** Minimal product info shown for a shopping-list row. */
+interface ResolvedProduct {
+  name: string;
+  sku: string;
+  slug: string;
+}
 
 /**
  * Shopping list detail (T205). Items can be edited inline; "Convert all
@@ -53,6 +62,24 @@ export default async function ShoppingListDetailPage({
     throw err;
   }
 
+  // Resolve each item's product so the table can show a name + SKU and link to
+  // the product card (the item row only carries the product UUID). The detail
+  // endpoint accepts an id or a slug; failures (archived / removed) fall back
+  // to the raw id so the row still renders.
+  const { ctx } = await getServerContext();
+  const uniqueProductIds = [...new Set(list.items.map((it) => it.productId))];
+  const resolvedEntries = await Promise.all(
+    uniqueProductIds.map(async (pid): Promise<[string, ResolvedProduct | null]> => {
+      try {
+        const product = await getProductBySlug(pid, ctx);
+        return [pid, { name: product.name, sku: product.sku, slug: product.slug }];
+      } catch {
+        return [pid, null];
+      }
+    }),
+  );
+  const productsById = new Map<string, ResolvedProduct | null>(resolvedEntries);
+
   return (
     <>
       <h2>{list.name}</h2>
@@ -79,18 +106,27 @@ export default async function ShoppingListDetailPage({
         </p>
       ) : null}
 
-      <form action={renameAction} className="b2b-auth__form">
+      <form action={renameAction} className="flex items-end gap-2">
         <input type="hidden" name="listId" value={list.id} />
-        <div className="b2b-auth__field">
-          <label htmlFor="rename">Rename list</label>
-          <input id="rename" name="name" defaultValue={list.name} required maxLength={160} />
+        <div className="flex flex-1 flex-col gap-1">
+          <label htmlFor="rename" className="text-sm text-fg-soft">
+            Rename list
+          </label>
+          <input
+            id="rename"
+            name="name"
+            defaultValue={list.name}
+            required
+            maxLength={160}
+            className="w-full rounded-md border border-line px-3 py-2 text-sm"
+          />
         </div>
-        <div className="b2b-auth__actions">
-          <button type="submit">Rename</button>
-        </div>
+        <button type="submit" className="btn btn--outline">
+          Rename
+        </button>
       </form>
 
-      <h3>Items</h3>
+      <h3 className="mt-10 mb-4">Items</h3>
       {list.items.length === 0 ? (
         <p className="muted">
           No items yet. Find a product on the <Link href="/catalog">catalog</Link> and add it from
@@ -116,8 +152,25 @@ export default async function ShoppingListDetailPage({
                     <input type="checkbox" name="itemIds" value={it.id} />
                   </td>
                   <td>
-                    <Link href={`/p/${it.productId}`}>{it.productId.slice(0, 8)}</Link>
-                    {it.variantId ? <> · variant {it.variantId.slice(0, 8)}</> : null}
+                    {(() => {
+                      const product = productsById.get(it.productId);
+                      if (!product) {
+                        return (
+                          <span className="text-fg-soft">
+                            {it.productId.slice(0, 8)}
+                          </span>
+                        );
+                      }
+                      return (
+                        <Link href={`/p/${product.slug}`} className="flex flex-col">
+                          <span className="font-medium text-fg">{product.name}</span>
+                          <span className="text-xs text-fg-soft">SKU: {product.sku}</span>
+                        </Link>
+                      );
+                    })()}
+                    {it.variantId ? (
+                      <span className="text-xs text-fg-soft"> · variant {it.variantId.slice(0, 8)}</span>
+                    ) : null}
                   </td>
                   <td>
                     <UpdateQtyForm listId={list.id} itemId={it.id} qty={it.quantity} />
@@ -130,15 +183,17 @@ export default async function ShoppingListDetailPage({
               ))}
             </tbody>
           </table>
-          <div className="b2b-auth__actions">
-            <button type="submit" formAction={convertAllToCartAction}>
+          <div className="mt-6 mb-10 flex flex-wrap gap-2">
+            <button type="submit" formAction={convertAllToCartAction} className="btn btn--primary">
               Convert all to cart
             </button>
-            <button type="submit">Convert selected to cart</button>
-            <button type="submit" formAction={convertAllToRfqAction}>
+            <button type="submit" className="btn btn--outline">
+              Convert selected to cart
+            </button>
+            <button type="submit" formAction={convertAllToRfqAction} className="btn btn--outline">
               Convert all to RFQ
             </button>
-            <button type="submit" formAction={convertSelectedToRfqAction}>
+            <button type="submit" formAction={convertSelectedToRfqAction} className="btn btn--outline">
               Convert selected to RFQ
             </button>
           </div>
@@ -167,9 +222,12 @@ function UpdateQtyForm({
         min={1}
         max={9999}
         defaultValue={qty}
+        className="rounded-md border border-line px-2 py-1 text-sm"
         style={{ width: '4rem' }}
       />
-      <button type="submit">Save</button>
+      <button type="submit" className="btn btn--outline btn--sm">
+        Save
+      </button>
     </form>
   );
 }
@@ -179,7 +237,9 @@ function RemoveItemForm({ listId, itemId }: { listId: string; itemId: string }):
     <form action={removeAction} style={{ display: 'inline' }}>
       <input type="hidden" name="listId" value={listId} />
       <input type="hidden" name="itemId" value={itemId} />
-      <button type="submit">Remove</button>
+      <button type="submit" className="btn btn--outline btn--sm">
+        Remove
+      </button>
     </form>
   );
 }
