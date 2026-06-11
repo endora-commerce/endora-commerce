@@ -181,7 +181,8 @@ export function AdminUsersPage(): ReactNode {
               </TableHeader>
               <TableBody>
                 {users.map((u) => (
-                  <TableRow key={u.id}>
+                  // Anchor target for deep-links (e.g. the audit-log actor column).
+                  <TableRow key={u.id} id={`admin-user-${u.id}`} className="scroll-mt-24">
                     <TableCell className="font-medium">{u.email}</TableCell>
                     <TableCell>
                       {u.firstName} {u.lastName}

@@ -86,6 +86,15 @@ export function adminModule(
       await registerAuditLogAdminRoutes(app, {
         auditLogService: options.auditLogService,
         requireAdmin: options.requireAdmin,
+        resolveActors: async (ids) => {
+          const users = await adminUserService.listByIds(ids);
+          return users.map((u) => ({
+            id: u.id,
+            firstName: u.firstName,
+            lastName: u.lastName,
+            email: u.email,
+          }));
+        },
       });
       await registerRecentActivityRoutes(app, {
         recentActivityService,

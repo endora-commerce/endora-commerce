@@ -136,6 +136,18 @@ export class AdminUserService {
     return row;
   }
 
+  /**
+   * Batch lookup for display enrichment (e.g. the audit-log actor column):
+   * returns the found admin users for the given ids, tolerating unknown or
+   * soft-deleted ids (they are simply omitted). Order is not guaranteed.
+   */
+  async listByIds(ids: string[]): Promise<AdminUser[]> {
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (unique.length === 0) return [];
+    const em = this.emFactory();
+    return em.find(AdminUser, { id: { $in: unique } });
+  }
+
   async create(input: CreateAdminUserInput): Promise<AdminUser> {
     const em = this.emFactory();
     if (input.adminRoleId) await this.#assertRoleExists(em, input.adminRoleId);
