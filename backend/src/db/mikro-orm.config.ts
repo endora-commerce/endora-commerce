@@ -14,7 +14,7 @@ import { Migration009Us7Init } from '../modules/webhooks/migrations/009_us7_init
 import { Migration010AnalyticsInit } from '../modules/analytics/migrations/010_analytics_init.js';
 import { Migration011SeoInit } from '../modules/seo/migrations/011_seo_init.js';
 import { Migration012LanguagesCurrenciesInit } from '../modules/languages/migrations/012_languages_currencies_init.js';
-import { Migration013CmsPagesInit } from './migrations/013_cms_pages_init.js';
+import { Migration013CmsPagesInit } from '../modules/cms/migrations/013_cms_pages_init.js';
 import { Migration014PricingInit } from '../modules/price_lists/migrations/014_pricing_init.js';
 import { Migration015TaxesPromotionsInit } from '../modules/taxes/migrations/015_taxes_promotions_init.js';
 import { Migration016ShoppingListsInit } from '../modules/shopping_lists/migrations/016_shopping_lists_init.js';
@@ -25,7 +25,7 @@ import { Migration020GalleryItemsAndLabels } from '../modules/catalog/migrations
 import { Migration021ProductAttachments } from '../modules/catalog/migrations/021_product_attachments.js';
 import { Migration022ProductLinks } from '../modules/catalog/migrations/022_product_links.js';
 import { Migration023GroupedAndBundle } from '../modules/catalog/migrations/023_grouped_and_bundle.js';
-import { Migration024SettingsInit } from './migrations/024_settings_init.js';
+import { Migration024SettingsInit } from '../modules/settings/migrations/024_settings_init.js';
 import { Migration025SalesChannelsPromote } from '../modules/sales_channels/migrations/025_sales_channels_promote.js';
 import { Migration026SearchPhraseRecordsInit } from '../modules/search/migrations/026_search_phrase_records_init.js';
 import { Migration027ComparisonsInit } from '../modules/comparisons/migrations/027_comparisons_init.js';
@@ -35,18 +35,18 @@ import { Migration030InventoryWorkflow } from '../modules/inventory/migrations/0
 import { Migration031PriceListsEngine } from '../modules/price_lists/migrations/031_price_lists_engine.js';
 import { Migration032AttributeOptionsAndFlags } from '../modules/catalog/migrations/032_attribute_options_and_flags.js';
 import { Migration033PromotionsCriteria } from '../modules/promotions/migrations/033_promotions_criteria.js';
-import { Migration034AssetsLibraryInit } from './migrations/034_assets_library_init.js';
-import { Migration035CmsInit } from './migrations/035_cms_init.js';
-import { Migration036MegamenuInit } from './migrations/036_megamenu_init.js';
-import { Migration037BlogInit } from './migrations/037_blog_init.js';
-import { Migration038DictionaryInit } from './migrations/038_dictionary_init.js';
+import { Migration034AssetsLibraryInit } from '../modules/assets_library/migrations/034_assets_library_init.js';
+import { Migration035CmsInit } from '../modules/cms/migrations/035_cms_init.js';
+import { Migration036MegamenuInit } from '../modules/megamenu/migrations/036_megamenu_init.js';
+import { Migration037BlogInit } from '../modules/blog/migrations/037_blog_init.js';
+import { Migration038DictionaryInit } from '../modules/dictionaries/migrations/038_dictionary_init.js';
 import { Migration039ModuleLifecycleInit } from './migrations/039_module_lifecycle_init.js';
-import { Migration040AdminI18nInit } from './migrations/040_admin_i18n_init.js';
-import { Migration041AdminActionsInit } from './migrations/041_admin_actions_init.js';
-import { Migration042SettingsGlobalValue } from './migrations/042_settings_global_value.js';
+import { Migration040AdminI18nInit } from '../modules/_i18n/migrations/040_admin_i18n_init.js';
+import { Migration041AdminActionsInit } from '../modules/admin_actions/migrations/041_admin_actions_init.js';
+import { Migration042SettingsGlobalValue } from '../modules/settings/migrations/042_settings_global_value.js';
 import { Migration043AttributeMassEditable } from '../modules/catalog/migrations/043_attribute_mass_editable.js';
 import { Migration044ProductStatusInactive } from '../modules/catalog/migrations/044_product_status_inactive.js';
-import { Migration044ProductValueOverridesInit } from './migrations/044_product_value_overrides_init.js';
+import { Migration044ProductValueOverridesInit } from '../modules/catalog/migrations/044_product_value_overrides_init.js';
 import { Migration045WarehouseDefaultLowStockThreshold } from '../modules/inventory/migrations/045_warehouse_default_low_stock_threshold.js';
 import { Migration046PerWarehouseLowStockThresholds } from '../modules/inventory/migrations/046_per_warehouse_low_stock_thresholds.js';
 import { Migration047OrganizationsConsolidation } from '../modules/organizations/migrations/047_organizations_consolidation.js';
@@ -87,11 +87,19 @@ import { Migration075SettingsEnumOptions } from '../modules/settings/migrations/
  * - PostgreSQL driver (constitutional stack).
  * - Plural snake_case table names + snake_case columns (Principle VI) via the
  *   custom naming strategy in ./pluralizing-naming-strategy.ts (R-04).
- * - Each module owns its own migrations under
- *   src/modules/<module>/migrations/. This config globs them so modules plug in
- *   without editing a shared registry.
- * - Entities glob works the same way — a new module under src/modules/ is
- *   discovered without touching this file.
+ * - Migration ownership is module-local: each module keeps its migration files
+ *   under src/modules/<module>/migrations/. Only the few genuinely cross-cutting
+ *   bootstrap migrations (foundation/commerce init, module-lifecycle) live in
+ *   src/db/migrations/. Adding a migration means dropping a file in the owning
+ *   module's migrations/ dir and adding one import + `migrationsList` entry here.
+ * - The `migrationsList` below stays an explicit list rather than a filesystem
+ *   glob: glob discovery needs runtime dynamic `import()` of .ts files, which
+ *   Node's ESM loader cannot transform and which breaks under Vitest (same
+ *   reason entities are listed in src/db/entities-registry.ts). The
+ *   "registered ⇔ on-disk" round-trip is enforced by
+ *   test/unit/db/migrations-registry.test.ts, which scans every module's
+ *   migrations/ dir, so a file that is moved/added without a registry entry
+ *   fails CI instead of silently disappearing from the migrator.
  */
 
 const databaseUrl =
