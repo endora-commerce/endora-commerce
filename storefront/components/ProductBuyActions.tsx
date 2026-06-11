@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import { addRfqDraftItem } from '../lib/rfqDraft';
 
 /**
  * PDP purchase row: a single styled quantity input shared by both the
@@ -21,6 +22,10 @@ export interface ProductPackagingUnitOption {
 export interface ProductBuyActionsProps {
   productId: string;
   productSlug: string;
+  /** Display name carried into the client-side quote-request draft. */
+  productName: string;
+  /** Optional catalogue unit-price snapshot stored on the RFQ draft line. */
+  unitPrice?: { amount: number; currency: string } | null;
   variantId?: string | undefined;
   /** Show the "Add to cart" button (product is purchasable / in stock). */
   showCart: boolean;
@@ -33,7 +38,6 @@ export interface ProductBuyActionsProps {
   /** Localized pieces unit word (e.g. "szt."). */
   piecesLabel?: string | undefined;
   addToCartAction: (formData: FormData) => void | Promise<void>;
-  addToQuoteAction: (formData: FormData) => void | Promise<void>;
   addToCartLabel: string;
   /**
    * Optional action rendered as the first button in the row, before "Add to
@@ -45,6 +49,8 @@ export interface ProductBuyActionsProps {
 export function ProductBuyActions({
   productId,
   productSlug,
+  productName,
+  unitPrice,
   variantId,
   showCart,
   showQuote,
@@ -52,7 +58,6 @@ export function ProductBuyActions({
   singlePieceLabel = 'szt.',
   piecesLabel = 'szt.',
   addToCartAction,
-  addToQuoteAction,
   addToCartLabel,
   leadingAction,
 }: ProductBuyActionsProps): ReactNode {
@@ -62,10 +67,26 @@ export function ProductBuyActions({
   // single pieces (empty string).
   const [unitId, setUnitId] = useState<string>(defaultUnit?.id ?? '');
   const [qty, setQty] = useState(1);
+  const [quoteAdded, setQuoteAdded] = useState(false);
   if (!showCart && !showQuote) return null;
 
   const selectedUnit = units.find((u) => u.id === unitId) ?? null;
   const resultingPieces = selectedUnit ? selectedUnit.baseQuantity * qty : null;
+
+  const addToQuote = (): void => {
+    // Piece-based: when a packaging unit is selected we add the resulting
+    // piece count to the draft (labelled packaging lines come from the
+    // cart → quote-request conversion instead).
+    addRfqDraftItem({
+      productId,
+      slug: productSlug,
+      name: productName,
+      unitPrice: unitPrice ?? null,
+      quantity: resultingPieces ?? qty,
+    });
+    setQuoteAdded(true);
+    window.setTimeout(() => setQuoteAdded(false), 1500);
+  };
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -110,18 +131,9 @@ export function ProductBuyActions({
       {leadingAction ?? null}
 
       {showQuote ? (
-        // The direct "add to quote" path is piece-based: when a packaging unit
-        // is selected it submits the resulting piece count (labelled RFQ lines
-        // come from the cart → quote-request conversion instead).
-        <form action={addToQuoteAction}>
-          <input type="hidden" name="productId" value={productId} />
-          <input type="hidden" name="productSlug" value={productSlug} />
-          {variantId ? <input type="hidden" name="variantId" value={variantId} /> : null}
-          <input type="hidden" name="quantity" value={resultingPieces ?? qty} />
-          <button type="submit" className="btn btn--outline btn--sm">
-            Dodaj do zapytania
-          </button>
-        </form>
+        <button type="button" onClick={addToQuote} className="btn btn--outline btn--sm">
+          {quoteAdded ? 'Dodano ✓' : 'Dodaj do zapytania'}
+        </button>
       ) : null}
 
       {showCart ? (
