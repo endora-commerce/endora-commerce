@@ -1,0 +1,173 @@
+# GitLab CI/CD — quality gates, build + push Docker images, deploy to the VPS.
+#
+# Pipeline:
+#   quality  → typecheck + lint (fast, every push/MR)
+#   test     → migrate + full vitest with postgres/redis/meilisearch services
+#   build    → build & push backend/storefront/admin images to the Container Registry
+#   deploy   → SSH to the VPS, pull tagged images, run migrations, recreate the stack
+#
+# build + deploy run on the default branch only; deploy is a MANUAL gate.
+#
+# Required CI/CD variables (Settings → CI/CD → Variables):
+#   Build/runtime (public, baked into the frontend bundles at build time):
+#     API_DOMAIN              e.g. api.example.com
+#     STOREFRONT_DOMAIN       e.g. example.com
+#     ADMIN_DOMAIN            e.g. admin.example.com
+#     SALES_CHANNEL_CODE      e.g. pl_default        (NEXT_PUBLIC_SALES_CHANNEL_CODE)
+#     DEFAULT_LOCALE          e.g. en-US             (NEXT_PUBLIC_DEFAULT_LOCALE)
+#   Deploy (protected + masked):
+#     SSH_PRIVATE_KEY         deploy key with access to the VPS user
+#     SSH_KNOWN_HOSTS         output of `ssh-keyscan <vps-host>`
+#     DEPLOY_HOST             VPS hostname/IP
+#     DEPLOY_USER             VPS ssh user (member of the docker group)
+#     DEPLOY_PATH             dir on the VPS holding compose.prod.yml + .env (e.g. /opt/b2b)
+
+stages:
+  - quality
+  - test
+  - build
+  - deploy
+
+default:
+  interruptible: true
+
+variables:
+  IMAGE_TAG: $CI_COMMIT_SHORT_SHA
+
+# ---------------------------------------------------------------------------
+# Quality — typecheck + lint
+# ---------------------------------------------------------------------------
+quality:
+  stage: quality
+  image: node:22.17-slim
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+  script:
+    - pnpm -r run typecheck
+    - pnpm -r run lint
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# ---------------------------------------------------------------------------
+# Test — full suite against real services (mirrors .github/workflows/ci.yml)
+# ---------------------------------------------------------------------------
+test:
+  stage: test
+  image: node:22.17-slim
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+    - name: getmeili/meilisearch:v1.11
+      alias: meilisearch
+  variables:
+    POSTGRES_USER: b2b
+    POSTGRES_PASSWORD: b2b
+    POSTGRES_DB: b2b
+    MEILI_MASTER_KEY: devMasterKeyChangeMe
+    MEILI_ENV: development
+    MEILI_NO_ANALYTICS: 'true'
+    DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b
+    REDIS_URL: redis://redis:6379
+    MEILISEARCH_URL: http://meilisearch:7700
+    MEILISEARCH_API_KEY: devMasterKeyChangeMe
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+  script:
+    - pnpm --filter backend run migration:up
+    - pnpm -r run test
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# ---------------------------------------------------------------------------
+# Build — Docker images → GitLab Container Registry
+# ---------------------------------------------------------------------------
+.build-base:
+  stage: build
+  image: docker:27
+  services:
+    - docker:27-dind
+  variables:
+    DOCKER_TLS_CERTDIR: '/certs'
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+build:backend:
+  extends: .build-base
+  script:
+    - docker build -f backend/Dockerfile
+      -t "$CI_REGISTRY_IMAGE/backend:$IMAGE_TAG"
+      -t "$CI_REGISTRY_IMAGE/backend:latest" .
+    - docker push "$CI_REGISTRY_IMAGE/backend:$IMAGE_TAG"
+    - docker push "$CI_REGISTRY_IMAGE/backend:latest"
+
+build:storefront:
+  extends: .build-base
+  script:
+    - docker build -f storefront/Dockerfile
+      --build-arg NEXT_PUBLIC_API_BASE_URL="https://$API_DOMAIN"
+      --build-arg NEXT_PUBLIC_SALES_CHANNEL_CODE="$SALES_CHANNEL_CODE"
+      --build-arg NEXT_PUBLIC_DEFAULT_LOCALE="$DEFAULT_LOCALE"
+      -t "$CI_REGISTRY_IMAGE/storefront:$IMAGE_TAG"
+      -t "$CI_REGISTRY_IMAGE/storefront:latest" .
+    - docker push "$CI_REGISTRY_IMAGE/storefront:$IMAGE_TAG"
+    - docker push "$CI_REGISTRY_IMAGE/storefront:latest"
+
+build:admin:
+  extends: .build-base
+  script:
+    - docker build -f admin/Dockerfile
+      --build-arg VITE_API_BASE_URL="https://$API_DOMAIN"
+      -t "$CI_REGISTRY_IMAGE/admin:$IMAGE_TAG"
+      -t "$CI_REGISTRY_IMAGE/admin:latest" .
+    - docker push "$CI_REGISTRY_IMAGE/admin:$IMAGE_TAG"
+    - docker push "$CI_REGISTRY_IMAGE/admin:latest"
+
+# ---------------------------------------------------------------------------
+# Deploy — SSH to the VPS, pull tagged images, recreate the stack
+# ---------------------------------------------------------------------------
+deploy:
+  stage: deploy
+  image: alpine:3.20
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval "$(ssh-agent -s)"
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
+  script:
+    # Ship the latest compose + Caddyfile (secrets/.env stay on the VPS).
+    - scp deploy/compose.prod.yml deploy/Caddyfile "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+    - ssh "$DEPLOY_USER@$DEPLOY_HOST"
+      "cd $DEPLOY_PATH &&
+       echo '$CI_JOB_TOKEN' | docker login -u gitlab-ci-token --password-stdin $CI_REGISTRY &&
+       export IMAGE_TAG=$IMAGE_TAG &&
+       docker compose --env-file .env -f compose.prod.yml pull &&
+       docker compose --env-file .env -f compose.prod.yml up -d --remove-orphans &&
+       docker image prune -f"
+  environment:
+    name: production
+    url: https://$STOREFRONT_DOMAIN
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+  allow_failure: false
