@@ -171,7 +171,19 @@ export function SettingRowEditor({
       </div>
 
       <div>
-        {isImageUrlSetting(setting) ? (
+        {setting.enumOptions && setting.enumOptions.length > 0 ? (
+          <select
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+            value={draft.text}
+            onChange={(e) => setText(e.target.value)}
+          >
+            {setting.enumOptions.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        ) : isImageUrlSetting(setting) ? (
           <ImageSettingInput value={draft.text} onChange={setText} />
         ) : isSecret ? (
           <Input

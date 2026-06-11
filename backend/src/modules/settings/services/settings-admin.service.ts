@@ -180,6 +180,20 @@ export class SettingsAdminService {
       );
     }
 
+    // Enum settings: the value must be one of the manifest-declared options.
+    if (setting.enumOptions && setting.enumOptions.length > 0) {
+      if (
+        typeof parsed.data !== 'string' ||
+        !setting.enumOptions.includes(parsed.data)
+      ) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.SETTING_VALUE_SHAPE_MISMATCH,
+          `Value must be one of: ${setting.enumOptions.join(', ')}.`,
+        );
+      }
+    }
+
     // Secret settings (feature 043, FR-021): persist a ciphertext envelope,
     // never the plaintext. An empty string clears the value (stored as '' so
     // the redacted DTO reports isSet=false). No silent plaintext fallback —

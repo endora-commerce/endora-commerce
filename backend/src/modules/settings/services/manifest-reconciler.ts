@@ -295,6 +295,13 @@ export class ManifestReconciler {
           existing.group = group;
           changed = true;
         }
+        // enumOptions is manifest-driven config (not admin data): keep it in
+        // sync with the manifest on every reconciliation.
+        const nextEnumOptions = entry.enumOptions ?? null;
+        if (!isJsonEqual(existing.enumOptions ?? null, nextEnumOptions)) {
+          existing.enumOptions = nextEnumOptions;
+          changed = true;
+        }
         if (options.force) {
           if (existing.valueType !== valueType) {
             existing.valueType = valueType;
@@ -326,6 +333,7 @@ export class ManifestReconciler {
           defaultValue: entry.defaultValue,
           ownerModule: moduleCode,
           description: entry.description ?? null,
+          enumOptions: entry.enumOptions ?? null,
         });
         if (entry.salesChannelCodes && entry.salesChannelCodes.length > 0) {
           for (const code of entry.salesChannelCodes) {

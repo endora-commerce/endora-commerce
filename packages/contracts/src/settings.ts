@@ -82,12 +82,33 @@ export const SettingManifestEntrySchema = z
     valueType: SettingValueTypeSchema,
     defaultValue: z.unknown(),
     salesChannelCodes: z.array(z.string()).optional(),
+    /**
+     * Closed list of allowed values for a `string` setting. When present the
+     * setting behaves like an enum: the admin renders a dropdown instead of a
+     * free-text input and the backend rejects any value outside the list. Only
+     * valid for `valueType: 'string'`; the `defaultValue` must be one of the
+     * options.
+     */
+    enumOptions: z.array(z.string().min(1)).min(1).optional(),
   })
   .refine((s) => s.valueType !== 'secret' || s.defaultValue === '', {
     message:
       "A 'secret' setting's defaultValue must be the empty string — manifests can never ship a real credential.",
     path: ['defaultValue'],
-  });
+  })
+  .refine((s) => s.enumOptions === undefined || s.valueType === 'string', {
+    message: "enumOptions is only supported for valueType 'string'.",
+    path: ['enumOptions'],
+  })
+  .refine(
+    (s) =>
+      s.enumOptions === undefined ||
+      (typeof s.defaultValue === 'string' && s.enumOptions.includes(s.defaultValue)),
+    {
+      message: 'An enum setting defaultValue must be one of its enumOptions.',
+      path: ['defaultValue'],
+    },
+  );
 export type SettingManifestEntry = z.infer<typeof SettingManifestEntrySchema>;
 
 export const ModuleSettingsManifestSchema = z.object({
@@ -133,6 +154,12 @@ export const SettingDtoSchema = z.object({
   valueType: SettingValueTypeSchema,
   ownerModule: z.string(),
   salesChannelCodes: z.array(z.string()),
+  /**
+   * Closed list of allowed values for an enum-style `string` setting (manifest
+   * `enumOptions`). Empty/absent for ordinary free-text settings; when present
+   * the admin renders a dropdown bound to these values.
+   */
+  enumOptions: z.array(z.string()).nullish(),
   /**
    * Manifest-declared default value (immutable; surfaces in `defaultValue`).
    */
