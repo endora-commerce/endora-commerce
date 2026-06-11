@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
@@ -118,6 +118,32 @@ describe('AppShell palette — assistant gating (T056)', () => {
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByTestId('prompt-mode-panel')).toBeNull());
     expect(document.querySelector('.b2b-palette')).not.toBeNull();
+  });
+
+  it('opens prompt mode and seeds the input when typing the /ai shortcut', async () => {
+    renderShell();
+    await openPalette();
+    await waitFor(() => expect(screen.getByText('palette.entry.label')).toBeTruthy());
+
+    const input = document.querySelector('.b2b-palette__input input') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '/ai Update Gloves 0198 stock to 110' } });
+
+    await waitFor(() => expect(screen.getByTestId('prompt-mode-panel')).toBeTruthy());
+    const promptInput = screen.getByTestId('prompt-input') as HTMLInputElement;
+    expect(promptInput.value).toBe('Update Gloves 0198 stock to 110');
+  });
+
+  it('does not hijack /ai when the assistant is unavailable', async () => {
+    permissionGranted = false;
+    renderShell();
+    await openPalette();
+    await waitFor(() => expect(document.querySelector('.b2b-palette')).not.toBeNull());
+
+    const input = document.querySelector('.b2b-palette__input input') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '/ai do something' } });
+
+    expect(screen.queryByTestId('prompt-mode-panel')).toBeNull();
+    expect(input.value).toBe('/ai do something');
   });
 
   it('hides the entry without the permission — and never even probes the capability', async () => {

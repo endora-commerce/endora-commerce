@@ -1167,6 +1167,8 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
   const [initialRequest, setInitialRequest] = useState<PromptActionRequestDto | undefined>(
     undefined,
   );
+  // Seed text carried into prompt mode by the `/ai <command>` palette shortcut.
+  const [initialPrompt, setInitialPrompt] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
   const { actions: registryActions } = useAdminActions(query);
 
@@ -1267,12 +1269,31 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
   const activate = useCallback(
     (to: string): void => {
       if (to === PROMPT_MODE_SENTINEL) {
+        setInitialPrompt('');
         setMode('prompt');
         return;
       }
       onNavigate(to);
     },
     [onNavigate],
+  );
+
+  // `/ai` shortcut: typing `/ai` (optionally followed by a command) in the
+  // palette input launches prompt mode directly, carrying any typed command
+  // into the assistant input — equivalent to opening "Ask the assistant" and
+  // typing it. Only intercepts when the assistant is actually usable.
+  const handleQueryChange = useCallback(
+    (value: string): void => {
+      const match = /^\/ai(?:\s+(.*))?$/i.exec(value);
+      if (match && mayUseAssistant && assistantReady) {
+        setQuery('');
+        setInitialPrompt(match[1] ?? '');
+        setMode('prompt');
+        return;
+      }
+      setQuery(value);
+    },
+    [mayUseAssistant, assistantReady],
   );
 
   useEffect(() => {
@@ -1284,6 +1305,7 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
       setQuery('');
       setMode('search');
       setInitialRequest(undefined);
+      setInitialPrompt('');
     }
   }, [open]);
 
@@ -1331,9 +1353,11 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
           <PromptModePanel
             onExit={(): void => {
               setInitialRequest(undefined);
+              setInitialPrompt('');
               setMode('search');
             }}
             {...(initialRequest ? { initialRequest } : {})}
+            {...(initialPrompt ? { initialPrompt } : {})}
           />
         </div>
       </>
@@ -1351,7 +1375,7 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
             ref={inputRef}
             placeholder={t('appShell.search.commandPalettePlaceholder')}
             value={query}
-            onChange={(e): void => setQuery(e.target.value)}
+            onChange={(e): void => handleQueryChange(e.target.value)}
           />
           <span className="b2b-kbd-sm">esc</span>
         </div>
