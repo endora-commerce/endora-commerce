@@ -172,7 +172,16 @@ export default async function CheckoutPage({
             {cart.items.map((it) => (
               <tr key={it.id}>
                 <td style={{ fontFamily: 'var(--font-sans)' }}>
-                  {it.productName ?? it.productId}
+                  {/* Feature 043 — `displayName` carries the packaging-unit
+                      suffix (e.g. "… (Paleta)"); prefer it over the bare
+                      `productName`. Surface the SKU beneath for buyer
+                      reference, matching the cart line. */}
+                  <div>{it.displayName || it.productName || it.productId}</div>
+                  {it.productSku ? (
+                    <div className="font-mono text-[11px] uppercase text-muted">
+                      {it.productSku}
+                    </div>
+                  ) : null}
                 </td>
                 <td className="text-right">x {it.quantity}</td>
                 <td className="text-right">
