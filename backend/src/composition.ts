@@ -100,6 +100,8 @@ import {
   catalogPromptResolverTools,
 } from './modules/catalog/prompt-tools.js';
 import { inventoryPromptTools } from './modules/inventory/prompt-tools.js';
+import { ordersPromptTools } from './modules/orders/prompt-tools.js';
+import type { PromptActionTool } from './modules/prompt_actions/services/tool-registry.js';
 import { priceListsManifest } from './modules/price_lists/manifest.js';
 import { assetsLibraryManifest } from './modules/assets_library/manifest.js';
 import { assetsLibraryModule } from './modules/assets_library/plugin.js';
@@ -1591,11 +1593,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     auditLogService,
     bulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
   });
-  for (const tool of [
+  // Feature 043 — per-module AI-assistant command registration.
+  //
+  // Each module contributes its prompt-action tools (resolvers + mutations) as
+  // a flat `PromptActionTool[]`; the registry validates `<moduleId>.*` id
+  // prefixing, uniqueness, and the mutation-preview rule on `register()`.
+  // Onboarding a new module's assistant commands is exactly one entry here —
+  // see `prompt_actions/PROMPT_TOOLS.md` for the contribution contract.
+  const promptActionToolProviders: PromptActionTool[] = [
     ...catalogPromptResolverTools(catalogToolDeps),
     ...catalogPromptMutationTools(catalogToolDeps),
     ...inventoryPromptTools({ emFactory: em, eventBus, auditLogService }),
-  ]) {
+    ...ordersPromptTools({ emFactory: em }),
+  ];
+  for (const tool of promptActionToolProviders) {
     promptActions.handle.registry.register(tool);
   }
   modules.push(promptActions.plugin);
