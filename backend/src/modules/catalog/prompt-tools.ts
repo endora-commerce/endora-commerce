@@ -2,9 +2,13 @@ import {
   AssignProductsToCategoryParamsSchema,
   SearchCategoriesParamsSchema,
   SearchProductsParamsSchema,
+  SetProductStatusParamsSchema,
+  SetProductsVisibilityParamsSchema,
   type AssignProductsToCategoryParams,
   type SearchCategoriesParams,
   type SearchProductsParams,
+  type SetProductStatusParams,
+  type SetProductsVisibilityParams,
 } from '@b2b/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
@@ -148,8 +152,61 @@ function buildBulkServices(deps: CatalogPromptToolsDeps): {
   return { bulkOperationService, bulkUpdateService };
 }
 
+/** Shared bulk-fields execution: ≤ threshold runs sync; larger delegates to the queue. */
+async function runBulkFieldsUpdate(
+  services: { bulkOperationService: BulkOperationService; bulkUpdateService: CatalogBulkUpdateService },
+  fields: Record<string, unknown>,
+  productIds: string[],
+  ctx: ToolContext,
+): Promise<unknown> {
+  const request = { productIds, fields };
+  if (productIds.length > BULK_ASYNC_THRESHOLD) {
+    const op = await services.bulkOperationService.create({
+      requestedByAdminUserId: ctx.adminUserId,
+      payload: request,
+    });
+    return { delegated: true, bulkOperationId: op.id };
+  }
+  const result = await services.bulkUpdateService.bulkUpdate(request, {
+    actorAdminUserId: ctx.adminUserId,
+    impersonatedCustomerAccountId: null,
+    ipAddress: ctx.auditCtx.ipAddress ?? null,
+    userAgent: ctx.auditCtx.userAgent ?? null,
+    requestId: ctx.auditCtx.requestId ?? null,
+  });
+  return {
+    summary: {
+      total: result.summary.total,
+      succeeded: result.summary.succeeded,
+      failed: result.summary.failed + result.summary.skipped,
+      failures: result.results
+        .filter((r) => r.status !== 'succeeded')
+        .slice(0, 50)
+        .map((r) => ({ id: r.productId, reason: r.details?.message ?? r.reason ?? 'failed' })),
+    },
+  };
+}
+
+/** Shared preview: validate all ids exist and build the affected-count + sample. */
+async function previewProducts(
+  em: EntityManager,
+  productIds: string[],
+  headline: string,
+): Promise<{ headline: string; affectedCount: number; sample: Array<{ id: string; label: string }> }> {
+  const products = await em.find(Product, { id: { $in: productIds } }, { fields: ['id', 'name', 'sku'] });
+  if (products.length !== productIds.length) {
+    throw new HttpError(404, 'PRODUCT_NOT_FOUND', 'One or more products were not found.');
+  }
+  return {
+    headline,
+    affectedCount: products.length,
+    sample: products.slice(0, 10).map((p) => ({ id: p.id, label: localizedLabel(p.name) })),
+  };
+}
+
 export function catalogPromptMutationTools(deps: CatalogPromptToolsDeps): PromptActionTool[] {
-  const { bulkOperationService, bulkUpdateService } = buildBulkServices(deps);
+  const services = buildBulkServices(deps);
+  const { bulkOperationService, bulkUpdateService } = services;
 
   const assignToCategory: PromptActionTool<AssignProductsToCategoryParams> = {
     id: 'catalog.assign_products_to_category',
@@ -219,7 +276,47 @@ export function catalogPromptMutationTools(deps: CatalogPromptToolsDeps): Prompt
     },
   };
 
-  return [assignToCategory as PromptActionTool];
+  const setProductStatus: PromptActionTool<SetProductStatusParams> = {
+    id: 'catalog.set_product_status',
+    moduleId: 'catalog',
+    kind: 'mutation',
+    description:
+      'Set the status (draft | active | inactive) of one or more products. Resolve products via catalog.search_products first. Captured into a plan the operator must confirm; not executed immediately.',
+    requiredPermission: 'catalog:write',
+    paramsSchema: SetProductStatusParamsSchema,
+    preview: async (params, ctx: ToolContext) =>
+      previewProducts(
+        ctx.em,
+        params.productIds,
+        `Set status of ${params.productIds.length} product(s) to "${params.status}"`,
+      ),
+    execute: async (params, ctx: ToolContext) =>
+      runBulkFieldsUpdate(services, { status: params.status }, params.productIds, ctx),
+  };
+
+  const setProductsVisibility: PromptActionTool<SetProductsVisibilityParams> = {
+    id: 'catalog.set_products_visibility',
+    moduleId: 'catalog',
+    kind: 'mutation',
+    description:
+      'Set the storefront visibility (public | logged_in_only | organization_restricted) of one or more products as a bulk action. Resolve products via catalog.search_products first. Captured into a plan the operator must confirm; not executed immediately.',
+    requiredPermission: 'catalog:write',
+    paramsSchema: SetProductsVisibilityParamsSchema,
+    preview: async (params, ctx: ToolContext) =>
+      previewProducts(
+        ctx.em,
+        params.productIds,
+        `Set visibility of ${params.productIds.length} product(s) to "${params.visibility}"`,
+      ),
+    execute: async (params, ctx: ToolContext) =>
+      runBulkFieldsUpdate(services, { visibility: params.visibility }, params.productIds, ctx),
+  };
+
+  return [
+    assignToCategory as PromptActionTool,
+    setProductStatus as PromptActionTool,
+    setProductsVisibility as PromptActionTool,
+  ];
 }
 
 /**

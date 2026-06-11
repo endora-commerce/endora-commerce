@@ -183,6 +183,13 @@ export interface OrdersModuleOptions {
    */
   exposeOrderListService?: (service: OrderListService) => void;
   /**
+   * Feature 043 — exposes the configured OrderTransitionService (with its
+   * cancellation side-effects + veto guards) so the orders prompt-action
+   * tools route status changes through the exact same engine the admin
+   * routes use, instead of a fresh, guard-less instance.
+   */
+  exposeOrderTransitionService?: (service: OrderTransitionService) => void;
+  /**
    * Feature 027 US3 — port that appends a Shopping List's lines to the
    * buyer's cart. Wired by composition to ShoppingListService.convertToCart.
    */
@@ -388,6 +395,11 @@ export function commerceModule(options: OrdersModuleOptions) {
         }
       },
     );
+    // Feature 043 — hand the configured transition engine to composition so the
+    // orders prompt-action tools reuse it (guards + cancel side-effects).
+    if (options.exposeOrderTransitionService) {
+      options.exposeOrderTransitionService(orderTransitionService);
+    }
     // Feature 038 US2 — orders list query, saved views, CSV export.
     const orderListService = new OrderListService(options.emFactory, orderStatusGraphService);
     if (options.exposeOrderListService) options.exposeOrderListService(orderListService);

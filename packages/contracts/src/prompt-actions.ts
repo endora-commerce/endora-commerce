@@ -220,3 +220,54 @@ export const SearchOrdersParamsSchema = z.object({
     ),
 });
 export type SearchOrdersParams = z.infer<typeof SearchOrdersParamsSchema>;
+
+export const SetProductStatusParamsSchema = z.object({
+  productIds: z
+    .array(z.uuid())
+    .min(1)
+    .describe('IDs of the products to update, resolved via catalog.search_products.'),
+  status: z
+    .enum(['draft', 'active', 'inactive'])
+    .describe('New product status to apply to every listed product.'),
+});
+export type SetProductStatusParams = z.infer<typeof SetProductStatusParamsSchema>;
+
+export const SetProductsVisibilityParamsSchema = z.object({
+  productIds: z
+    .array(z.uuid())
+    .min(1)
+    .describe('IDs of the products to update, resolved via catalog.search_products.'),
+  visibility: z
+    .enum(['public', 'logged_in_only', 'organization_restricted'])
+    .describe('New storefront visibility to apply to every listed product.'),
+});
+export type SetProductsVisibilityParams = z.infer<typeof SetProductsVisibilityParamsSchema>;
+
+export const SetOrderStatusParamsSchema = z.object({
+  orderId: z.uuid().describe('ID of the order, resolved via orders.search_orders.'),
+  toStatusCode: z
+    .string()
+    .min(1)
+    .max(64)
+    .describe(
+      'Target order status code (e.g. "processing", "shipment_sent", "cancelled"). Must be a status reachable from the order\'s current status by the configured transition graph.',
+    ),
+  reason: z.string().max(500).optional().describe('Optional note recorded with the status change.'),
+});
+export type SetOrderStatusParams = z.infer<typeof SetOrderStatusParamsSchema>;
+
+export const BulkSetOrderStatusParamsSchema = z.object({
+  orderIds: z
+    .array(z.uuid())
+    .min(1)
+    .describe('IDs of the orders to update, resolved via orders.search_orders.'),
+  toStatusCode: z
+    .string()
+    .min(1)
+    .max(64)
+    .describe(
+      'Target order status code applied to every order for which the transition is valid; orders whose current status cannot reach it are skipped.',
+    ),
+  reason: z.string().max(500).optional().describe('Optional note recorded with each status change.'),
+});
+export type BulkSetOrderStatusParams = z.infer<typeof BulkSetOrderStatusParamsSchema>;

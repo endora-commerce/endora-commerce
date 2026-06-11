@@ -34,4 +34,24 @@ describe('ordersPromptTools — per-module registration', () => {
     expect(searchOrders!.paramsSchema.safeParse({ q: 'ORD-1' }).success).toBe(true);
     expect(searchOrders!.paramsSchema.safeParse({ q: '' }).success).toBe(false);
   });
+
+  it('exposes status-change mutations with a preview and write permission', () => {
+    const ids = ordersPromptTools(deps).map((t) => t.id);
+    expect(ids).toContain('orders.set_order_status');
+    expect(ids).toContain('orders.bulk_set_order_status');
+    for (const tool of ordersPromptTools(deps).filter((t) => t.kind === 'mutation')) {
+      expect(typeof tool.preview).toBe('function');
+      expect(tool.requiredPermission).toBe('orders:write');
+    }
+  });
+
+  it('set_order_status fails clearly at execute time when the engine is unavailable', async () => {
+    const setOrderStatus = ordersPromptTools(deps).find((t) => t.id === 'orders.set_order_status');
+    await expect(
+      setOrderStatus!.execute(
+        { orderId: '00000000-0000-0000-0000-000000000000', toStatusCode: 'cancelled' },
+        { adminUserId: 'a', requestId: 'r', em: {} as never, auditCtx: {} },
+      ),
+    ).rejects.toThrow(/not available/i);
+  });
 });
