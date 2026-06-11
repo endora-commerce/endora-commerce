@@ -33,7 +33,7 @@ export default async function QuoteRequestDetailPage({
 }): Promise<ReactNode> {
   const session = await getSessionCookie();
   const { id } = await params;
-  if (!session) redirect(`/login?next=/account/quote-requests/${id}`);
+  if (!session) redirect(`/login?next=/quote-requests/${id}`);
 
   let rfq: RfqDetail;
   try {
@@ -43,7 +43,7 @@ export default async function QuoteRequestDetailPage({
       return (
         <div className="mx-auto max-w-[1360px] px-[24px]" style={{ paddingTop: 24, paddingBottom: 48 }}>
           <p className="muted">Nie znaleziono zapytania ofertowego.</p>
-          <Link href="/account/quote-requests" className="btn btn--outline btn--sm">
+          <Link href="/quote-requests" className="btn btn--outline btn--sm">
             ← Lista zapytań
           </Link>
         </div>
@@ -62,7 +62,7 @@ export default async function QuoteRequestDetailPage({
 
   return (
     <div className="mx-auto max-w-[1360px] px-[24px]" style={{ paddingTop: 24, paddingBottom: 48 }}>
-      <Link href="/account/quote-requests" className="btn btn--ghost btn--sm" style={{ marginBottom: 8 }}>
+      <Link href="/quote-requests" className="btn btn--ghost btn--sm" style={{ marginBottom: 8 }}>
         ← Lista zapytań
       </Link>
 
@@ -357,9 +357,9 @@ async function acceptAction(formData: FormData): Promise<void> {
     await acceptRevision(session, rfqId, expectedRevisionNumber);
   } catch (err) {
     const msg = err instanceof StorefrontApiError ? err.message : 'Nie udało się zaakceptować zmian.';
-    redirect(`/account/quote-requests/${rfqId}?error=${encodeURIComponent(msg)}`);
+    redirect(`/quote-requests/${rfqId}?error=${encodeURIComponent(msg)}`);
   }
-  redirect(`/account/quote-requests/${rfqId}`);
+  redirect(`/quote-requests/${rfqId}`);
 }
 
 async function rejectAction(formData: FormData): Promise<void> {
@@ -373,9 +373,9 @@ async function rejectAction(formData: FormData): Promise<void> {
     await rejectRevision(session, rfqId, expectedRevisionNumber, reason || undefined);
   } catch (err) {
     const msg = err instanceof StorefrontApiError ? err.message : 'Nie udało się odrzucić zmian.';
-    redirect(`/account/quote-requests/${rfqId}?error=${encodeURIComponent(msg)}`);
+    redirect(`/quote-requests/${rfqId}?error=${encodeURIComponent(msg)}`);
   }
-  redirect(`/account/quote-requests/${rfqId}`);
+  redirect(`/quote-requests/${rfqId}`);
 }
 
 async function convertAction(formData: FormData): Promise<void> {
@@ -388,7 +388,7 @@ async function convertAction(formData: FormData): Promise<void> {
     redirect(checkoutUrl);
   } catch (err) {
     if (err instanceof StorefrontApiError) {
-      redirect(`/account/quote-requests/${rfqId}?error=${encodeURIComponent(err.message)}`);
+      redirect(`/quote-requests/${rfqId}?error=${encodeURIComponent(err.message)}`);
     }
     throw err;
   }
@@ -401,9 +401,9 @@ async function resubmitAction(formData: FormData): Promise<void> {
   if (!session) redirect('/login');
   try {
     const created = await resubmitRfq(session, rfqId);
-    redirect(`/account/quote-requests/${created.id}`);
+    redirect(`/quote-requests/${created.id}`);
   } catch (err) {
     const msg = err instanceof StorefrontApiError ? err.message : 'Nie udało się złożyć ponownie.';
-    redirect(`/account/quote-requests/${rfqId}?error=${encodeURIComponent(msg)}`);
+    redirect(`/quote-requests/${rfqId}?error=${encodeURIComponent(msg)}`);
   }
 }

@@ -263,5 +263,5 @@ async function reorderToQuoteAction(formData: FormData): Promise<void> {
     const message = err instanceof StorefrontApiError ? err.message : 'Could not create quote request.';
     redirect(`/orders/${id}?error=${encodeURIComponent(message)}`);
   }
-  redirect('/account/quote-requests');
+  redirect('/quote-requests');
 }

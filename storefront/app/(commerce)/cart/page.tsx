@@ -491,7 +491,7 @@ async function convertToQrAction(formData: FormData): Promise<void> {
   const note = ((formData.get('note') as string) ?? '').trim() || null;
   try {
     const result = await convertCartToQuoteRequest(await readJar(), note);
-    redirect(`/account/quote-requests/${result.quoteRequestSlug}?from=cart`);
+    redirect(`/quote-requests/${result.quoteRequestSlug}?from=cart`);
   } catch (err) {
     const message =
       err instanceof StorefrontApiError
