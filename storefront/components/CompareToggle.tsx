@@ -69,28 +69,64 @@ export function CompareToggle(props: { productId: string }): ReactNode {
     }
   };
 
+  const compareLabel = active ? 'Usuń z porównania' : 'Dodaj do porównania';
+
   return (
     <>
-      <button
-        type="button"
-        className={`absolute right-[10px] top-[10px] z-[2] cursor-pointer rounded-[6px] border px-[9px] py-[5px] font-mono text-[11px] transition disabled:cursor-wait disabled:opacity-50 ${
-          active
-            ? 'border-accent bg-accent text-white'
-            : 'border-line bg-surface text-fg-soft hover:border-[var(--ink-700)] hover:text-fg'
-        }`}
-        aria-pressed={active}
-        disabled={busy}
-        onClick={(): void => void onClick()}
-        title={active ? 'Remove from comparison' : 'Add to comparison'}
-      >
-        {active ? '✓ Compared' : 'Compare'}
-      </button>
+      <div className="group absolute right-[10px] top-[10px] z-[2]">
+        <button
+          type="button"
+          className={`flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-[6px] border transition disabled:cursor-wait disabled:opacity-50 ${
+            active
+              ? 'border-accent bg-accent text-white'
+              : 'border-line bg-surface text-fg-soft hover:border-[var(--ink-700)] hover:text-fg'
+          }`}
+          aria-pressed={active}
+          disabled={busy}
+          onClick={(): void => void onClick()}
+          aria-label={compareLabel}
+          title={compareLabel}
+        >
+          <CompareIcon />
+        </button>
+        <span
+          role="tooltip"
+          className="pointer-events-none absolute right-0 top-full z-10 mt-1 whitespace-nowrap rounded-md bg-[color:var(--ink-900)] px-2 py-1 text-[11px] text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+        >
+          {compareLabel}
+        </span>
+      </div>
       {error ? (
         <span className="absolute bottom-[8px] left-[8px] right-[8px] block rounded bg-bad-soft px-[6px] py-[4px] text-[10px] text-bad">
           {error}
         </span>
       ) : null}
     </>
+  );
+}
+
+function CompareIcon(): ReactNode {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={16}
+      height={16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M3 6h13" />
+      <path d="M3 6l4-4" />
+      <path d="M3 6l4 4" />
+      <path d="M21 18H8" />
+      <path d="M21 18l-4-4" />
+      <path d="M21 18l-4 4" />
+    </svg>
   );
 }
 
