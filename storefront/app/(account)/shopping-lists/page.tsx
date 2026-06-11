@@ -35,14 +35,23 @@ export default async function ShoppingListsPage({
       </p>
       {params.error ? <p className="b2b-auth__error">{params.error}</p> : null}
 
-      <form action={createAction} className="b2b-auth__form">
-        <div className="b2b-auth__field">
-          <label htmlFor="new-name">Create a new list</label>
-          <input id="new-name" name="name" required maxLength={160} placeholder="Weekly restock" />
+      <form action={createAction} className="flex items-end gap-2">
+        <div className="flex flex-1 flex-col gap-1">
+          <label htmlFor="new-name" className="text-sm text-fg-soft">
+            Create a new list
+          </label>
+          <input
+            id="new-name"
+            name="name"
+            required
+            maxLength={160}
+            placeholder="Weekly restock"
+            className="w-full rounded-md border border-line px-3 py-2 text-sm"
+          />
         </div>
-        <div className="b2b-auth__actions">
-          <button type="submit">Create list</button>
-        </div>
+        <button type="submit" className="btn btn--primary">
+          Create list
+        </button>
       </form>
 
       {lists.length === 0 ? (
@@ -81,7 +90,9 @@ export default async function ShoppingListsPage({
                 <td>
                   <form action={deleteAction} style={{ display: 'inline' }}>
                     <input type="hidden" name="id" value={l.id} />
-                    <button type="submit">Delete</button>
+                    <button type="submit" className="btn btn--outline btn--sm">
+                      Delete
+                    </button>
                   </form>
                 </td>
               </tr>
