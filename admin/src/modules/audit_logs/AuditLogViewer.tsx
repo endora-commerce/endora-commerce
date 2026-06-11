@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -30,6 +31,10 @@ import {
 interface AuditLogRow {
   id: string;
   actorAdminUserId: string | null;
+  /** Enriched by the backend — actor's full name, when resolvable. */
+  actorName: string | null;
+  /** Enriched by the backend — actor's email, when resolvable. */
+  actorEmail: string | null;
   impersonatedCustomerAccountId: string | null;
   actedAt: string;
   action: string;
@@ -190,7 +195,7 @@ export function AuditLogViewer(): ReactNode {
                     <TableRow>
                       <TableCell>{formatDateTime(r.actedAt)}</TableCell>
                       <TableCell>
-                        {r.actorAdminUserId ? r.actorAdminUserId.slice(0, 8) : t('auditLog.actor.system')}
+                        <ActorCell row={r} />
                       </TableCell>
                       <TableCell>{translateAuditAction(translate, r)}</TableCell>
                       <TableCell>
@@ -250,6 +255,34 @@ export function AuditLogViewer(): ReactNode {
         </CardContent>
       </Card>
     </>
+  );
+}
+
+/**
+ * Renders the actor column: an admin user's name + email (linked to the
+ * users admin page) when resolvable, the bare id as a fallback, or the
+ * "system" label when there is no actor.
+ */
+function ActorCell({ row }: { row: AuditLogRow }): ReactNode {
+  const t = useTranslation('core');
+  if (!row.actorAdminUserId) {
+    return <span className="text-muted-foreground">{t('auditLog.actor.system')}</span>;
+  }
+  const name = row.actorName?.trim();
+  if (!name) {
+    // Unknown / deleted admin user — keep the id so the row is still traceable.
+    return <span className="font-mono text-xs">{row.actorAdminUserId.slice(0, 8)}</span>;
+  }
+  return (
+    <Link
+      to={`/admin-users#admin-user-${row.actorAdminUserId}`}
+      className="underline underline-offset-2"
+    >
+      {name}
+      {row.actorEmail ? (
+        <span className="text-muted-foreground"> ({row.actorEmail})</span>
+      ) : null}
+    </Link>
   );
 }
 

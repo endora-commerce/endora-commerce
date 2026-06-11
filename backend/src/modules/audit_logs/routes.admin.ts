@@ -11,16 +11,30 @@ import type { RequireAdminFactory } from '../catalog/routes.admin.js';
  * default `limit=100` keeps the page lightweight, capped at 500.
  */
 
+/** Minimal actor identity used to enrich the audit-log actor column. */
+export interface AuditActorIdentity {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
 export interface AuditLogAdminDeps {
   auditLogService: AuditLogService;
   requireAdmin: RequireAdminFactory;
+  /**
+   * Resolves admin-user identities for the actor column (name + email instead
+   * of a bare id). Unknown ids may be omitted. Optional — when absent the
+   * column falls back to the raw id.
+   */
+  resolveActors?: (ids: string[]) => Promise<AuditActorIdentity[]>;
 }
 
 export async function registerAuditLogAdminRoutes(
   app: FastifyInstance,
   deps: AuditLogAdminDeps,
 ): Promise<void> {
-  const { auditLogService, requireAdmin } = deps;
+  const { auditLogService, requireAdmin, resolveActors } = deps;
 
   app.get(
     '/api/v1/admin/audit-log',
@@ -38,18 +52,27 @@ export async function registerAuditLogAdminRoutes(
         ...(q['filter[objectId]'] ? { objectId: q['filter[objectId]']! } : {}),
         ...(limitNum !== undefined && Number.isFinite(limitNum) ? { limit: limitNum } : {}),
       });
+      // Enrich the actor column with name + email (one batched lookup).
+      const actorIds = entries
+        .map((e) => e.actorAdminUserId)
+        .filter((id): id is string => Boolean(id));
+      const actors = resolveActors ? await resolveActors(actorIds) : [];
+      const actorById = new Map(actors.map((a) => [a.id, a]));
       return {
-        data: entries.map(serialize),
+        data: entries.map((e) => serialize(e, actorById)),
         pagination: { cursor: null, hasMore: false, limit: entries.length },
       };
     },
   );
 }
 
-function serialize(e: AuditLogEntry) {
+function serialize(e: AuditLogEntry, actorById: Map<string, AuditActorIdentity>) {
+  const actor = e.actorAdminUserId ? actorById.get(e.actorAdminUserId) : undefined;
   return {
     id: e.id,
     actorAdminUserId: e.actorAdminUserId ?? null,
+    actorName: actor ? `${actor.firstName} ${actor.lastName}`.trim() : null,
+    actorEmail: actor?.email ?? null,
     impersonatedCustomerAccountId: e.impersonatedCustomerAccountId ?? null,
     actedAt: e.actedAt.toISOString(),
     action: e.action,
