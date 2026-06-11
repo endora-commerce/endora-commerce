@@ -21,11 +21,16 @@ interface Props {
   onExit: () => void;
   /** FR-018: a finished request opened from the completion notice. */
   initialRequest?: PromptActionRequestDto;
+  /**
+   * Pre-fills the prompt input — used when the operator opened prompt mode via
+   * the `/ai <command>` palette shortcut so the typed command carries over.
+   */
+  initialPrompt?: string;
 }
 
-export function PromptModePanel({ onExit, initialRequest }: Props): ReactNode {
+export function PromptModePanel({ onExit, initialRequest, initialPrompt }: Props): ReactNode {
   const t = useTranslation('prompt_actions');
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState(initialPrompt ?? '');
   const [freeText, setFreeText] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
   const { phase, request, errorCode, submit, clarify, confirm, cancel, reset, load } =
