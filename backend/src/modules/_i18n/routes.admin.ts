@@ -34,6 +34,11 @@ export interface I18nAdminDeps {
   requireAdmin: RequireAdminFactory;
   /** Resolves the calling admin's id; reads `request.actor` in production. */
   resolveAdminContext: (req: FastifyRequest) => { adminUserId: string };
+  /**
+   * Re-reads every module's on-disk i18n bundles into the DB without a
+   * restart. Optional — when absent the reload endpoint is not registered.
+   */
+  reload?: () => Promise<{ installed: number; skipped: number; failed: number }>;
 }
 
 export async function registerI18nAdminRoutes(
@@ -65,6 +70,22 @@ export async function registerI18nAdminRoutes(
       return { data: GetBundlesResponseSchema.parse(payload) };
     },
   );
+
+  // --- E-4 POST reload bundles (hot-reload on-disk translations) -----------
+  // Re-reads every module's i18n JSON into `translation_bundles` (bumping
+  // versions) so edited translations appear without a backend restart. Any
+  // authenticated admin may trigger it, matching the other i18n endpoints.
+  if (deps.reload) {
+    const reload = deps.reload;
+    app.post(
+      '/api/v1/admin/i18n/reload',
+      { preHandler: deps.requireAdmin() },
+      async (): Promise<{ data: { installed: number; skipped: number; failed: number } }> => {
+        const result = await reload();
+        return { data: result };
+      },
+    );
+  }
 
   // --- E-2 PATCH self preferred-language ----------------------------------
   app.patch(
