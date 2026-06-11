@@ -718,7 +718,7 @@ export function AppShell(): ReactNode {
           aria-label={t('appShell.brand.dashboardLink')}
           title={railMode ? t('appShell.brand.text') : undefined}
         >
-          <span className="b2b-sidebar__brand-logo">B2</span>
+          <span className="b2b-sidebar__brand-logo">EC</span>
           <span className="b2b-sidebar__brand-text">{t('appShell.brand.text')}</span>
         </NavLink>
 
