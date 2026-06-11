@@ -201,9 +201,7 @@ export function AuditLogViewer(): ReactNode {
                       <TableCell>
                         {r.objectType}
                         <br />
-                        <span className="text-xs text-muted-foreground">
-                          {r.objectId.slice(0, 8)}
-                        </span>
+                        <ObjectIdCell objectType={r.objectType} objectId={r.objectId} />
                       </TableCell>
                       <TableCell>
                         <Button
@@ -255,6 +253,51 @@ export function AuditLogViewer(): ReactNode {
         </CardContent>
       </Card>
     </>
+  );
+}
+
+/**
+ * Maps an audit-log `objectType` to its admin detail route, when one exists.
+ * Only id-addressable detail pages are listed — object types without a
+ * standalone page (or whose route keys on a code/slug rather than the audit
+ * `objectId`) are intentionally omitted so we never produce a broken link.
+ */
+const OBJECT_ROUTE: Record<string, (id: string) => string> = {
+  product: (id) => `/catalog/products/${id}`,
+  order: (id) => `/orders/${id}`,
+  organization: (id) => `/organizations/${id}`,
+  customer_account: (id) => `/customers/${id}`,
+  price_list: (id) => `/price-lists/${id}`,
+  warehouse: (id) => `/warehouses/${id}`,
+  cart: (id) => `/carts/${id}`,
+  bulk_operation: (id) => `/catalog/bulk-operations/${id}`,
+  admin_user: (id) => `/admin-users#admin-user-${id}`,
+};
+
+/**
+ * Renders the object id, linked to the object's admin detail page when its
+ * type has one; otherwise a plain truncated id.
+ */
+function ObjectIdCell({
+  objectType,
+  objectId,
+}: {
+  objectType: string;
+  objectId: string;
+}): ReactNode {
+  const build = OBJECT_ROUTE[objectType];
+  const short = objectId.slice(0, 8);
+  if (!build) {
+    return <span className="text-xs text-muted-foreground">{short}</span>;
+  }
+  return (
+    <Link
+      to={build(objectId)}
+      className="text-xs text-muted-foreground underline underline-offset-2"
+      title={objectId}
+    >
+      {short}
+    </Link>
   );
 }
 
