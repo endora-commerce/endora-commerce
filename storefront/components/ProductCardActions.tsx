@@ -105,37 +105,142 @@ export function ProductCardActions(props: {
     (cfg.showAddToCart && props.buyable) || cfg.showAddToShoppingList || cfg.showAddToQuote;
   if (!anyVisible) return null;
 
+  // Order: shopping list → quote → cart. Each action is an icon button (icons
+  // consistent with the header) and reveals its label as a tooltip on hover.
+  const listTooltip =
+    listState === 'done'
+      ? 'Dodano do listy'
+      : listState === 'error'
+        ? 'Nie udało się dodać'
+        : 'Dodaj do listy zakupowej';
+  const cartTooltip =
+    cartState === 'done'
+      ? 'Dodano do koszyka'
+      : cartState === 'error'
+        ? 'Nie udało się dodać'
+        : 'Dodaj do koszyka';
+
   return (
     <div className="mt-[10px] flex flex-wrap gap-[6px]">
-      {cfg.showAddToCart && props.buyable ? (
-        <button
-          type="button"
-          onClick={(): void => void addToCart()}
-          disabled={cartState === 'busy'}
-          className="btn btn--sm b2b-cta"
-        >
-          {cartState === 'done' ? '✓' : cartState === 'error' ? '!' : 'Do koszyka'}
-        </button>
-      ) : null}
       {cfg.showAddToShoppingList ? (
-        <button
-          type="button"
-          onClick={(): void => void addToList()}
-          disabled={listState === 'busy'}
-          className="btn btn--outline btn--sm"
-          aria-label="Dodaj do listy zakupowej"
-        >
-          {listState === 'done' ? '✓ Lista' : listState === 'error' ? '!' : '♡ Lista'}
-        </button>
+        <WithTooltip label={listTooltip}>
+          <button
+            type="button"
+            onClick={(): void => void addToList()}
+            disabled={listState === 'busy'}
+            className="icon-btn"
+            aria-label="Dodaj do listy zakupowej"
+            title="Dodaj do listy zakupowej"
+          >
+            <HeartIcon filled={listState === 'done'} />
+          </button>
+        </WithTooltip>
       ) : null}
       {cfg.showAddToQuote ? (
-        <Link
-          href={`/p/${encodeURIComponent(props.productSlug)}#quote`}
-          className="btn btn--outline btn--sm"
-        >
-          Zapytanie
-        </Link>
+        <WithTooltip label="Dodaj do zapytania">
+          <Link
+            href={`/p/${encodeURIComponent(props.productSlug)}#quote`}
+            className="icon-btn"
+            aria-label="Dodaj do zapytania"
+            title="Dodaj do zapytania"
+          >
+            <QuoteIcon />
+          </Link>
+        </WithTooltip>
+      ) : null}
+      {cfg.showAddToCart && props.buyable ? (
+        <WithTooltip label={cartTooltip}>
+          <button
+            type="button"
+            onClick={(): void => void addToCart()}
+            disabled={cartState === 'busy'}
+            className="icon-btn"
+            aria-label="Dodaj do koszyka"
+            title="Dodaj do koszyka"
+          >
+            <CartIcon />
+          </button>
+        </WithTooltip>
       ) : null}
     </div>
+  );
+}
+
+function WithTooltip({ label, children }: { label: string; children: ReactNode }): ReactNode {
+  return (
+    <span className="group relative inline-flex">
+      {children}
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-[color:var(--ink-900)] px-2 py-1 text-[11px] text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+      >
+        {label}
+      </span>
+    </span>
+  );
+}
+
+function HeartIcon({ filled }: { filled: boolean }): ReactNode {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth={1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  );
+}
+
+function QuoteIcon(): ReactNode {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="8" y1="13" x2="16" y2="13" />
+      <line x1="8" y1="17" x2="16" y2="17" />
+    </svg>
+  );
+}
+
+function CartIcon(): ReactNode {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="9" cy="21" r="1" />
+      <circle cx="20" cy="21" r="1" />
+      <path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6" />
+    </svg>
   );
 }
