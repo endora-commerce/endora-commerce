@@ -154,7 +154,37 @@ export class RfqAdminService {
   async getById(ctx: AdminContext, rfqId: string): Promise<RfqDto> {
     const em = this.deps.emFactory();
     const rfq = await this.findVisibleForAdmin(em, ctx, rfqId);
-    return this.deps.rfqService.serializeFull(em, rfq, /* includeFullActorIdentity */ true);
+    const dto = await this.deps.rfqService.serializeFull(
+      em,
+      rfq,
+      /* includeFullActorIdentity */ true,
+    );
+    // Enrich with Organization + Customer display fields so the admin detail
+    // can render them by name (parity with the Order detail view).
+    const [org, customer] = await Promise.all([
+      em.findOne(Organization, { id: rfq.organizationId }),
+      em.findOne(CustomerAccount, { id: rfq.customerAccountId }),
+    ]);
+    return {
+      ...dto,
+      organization: org
+        ? {
+            id: org.id,
+            name: org.name,
+            legalName: org.legalName ?? null,
+            taxId: org.taxId,
+            vatStatus: org.vatStatus,
+          }
+        : null,
+      customer: customer
+        ? {
+            id: customer.id,
+            firstName: customer.firstName ?? null,
+            lastName: customer.lastName ?? null,
+            email: customer.email,
+          }
+        : null,
+    };
   }
 
   // -------------------------------------------------------------------------

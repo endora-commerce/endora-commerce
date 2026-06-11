@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { ApiError } from '@/lib/api-client';
 import {
   deliveryMethodsClient,
@@ -33,6 +33,7 @@ export function DeliveryMethodsPage(): ReactNode {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [editing, setEditing] = useState<AdminDeliveryMethod | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -81,6 +82,7 @@ export function DeliveryMethodsPage(): ReactNode {
           ...(input.statusOnFailure ? { statusOnFailure: input.statusOnFailure } : {}),
         });
         setInfo(t('legacyMethods.messages.saved', { code: input.code }));
+        setEditing(null);
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('legacyMethods.errors.save'));
@@ -88,6 +90,13 @@ export function DeliveryMethodsPage(): ReactNode {
     },
     [refresh],
   );
+
+  const handleEdit = useCallback((row: AdminDeliveryMethod): void => {
+    setEditing(row);
+    setInfo(null);
+    setError(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
@@ -122,10 +131,20 @@ export function DeliveryMethodsPage(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>{t('legacyMethods.formTitle')}</CardTitle>
+          <CardTitle>
+            {editing
+              ? t('legacyMethods.delivery.editTitle', { code: editing.code })
+              : t('legacyMethods.formTitle')}
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <UpsertForm onSubmit={handleUpsert} orderStatuses={orderStatuses} />
+          <UpsertForm
+            key={editing?.id ?? 'new'}
+            editing={editing}
+            onSubmit={handleUpsert}
+            onCancel={(): void => setEditing(null)}
+            orderStatuses={orderStatuses}
+          />
         </CardContent>
       </Card>
 
@@ -170,15 +189,26 @@ export function DeliveryMethodsPage(): ReactNode {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        type="button"
-                        onClick={(): void => void handleDelete(r.id)}
-                      >
-                        <Trash2 />
-                        {t('common.action.delete')}
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          onClick={(): void => handleEdit(r)}
+                        >
+                          <Pencil />
+                          {t('common.action.edit')}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          type="button"
+                          onClick={(): void => void handleDelete(r.id)}
+                        >
+                          <Trash2 />
+                          {t('common.action.delete')}
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -192,9 +222,12 @@ export function DeliveryMethodsPage(): ReactNode {
 }
 
 function UpsertForm({
+  editing,
   onSubmit,
+  onCancel,
   orderStatuses,
 }: {
+  editing: AdminDeliveryMethod | null;
   onSubmit: (input: {
     code: string;
     nameEn: string;
@@ -205,17 +238,18 @@ function UpsertForm({
     statusOnSuccess: string;
     statusOnFailure: string;
   }) => Promise<void>;
+  onCancel: () => void;
   orderStatuses: OrderStatusOption[];
 }): ReactNode {
   const t = useTranslation('core');
-  const [code, setCode] = useState('');
-  const [nameEn, setNameEn] = useState('');
-  const [namePl, setNamePl] = useState('');
-  const [cost, setCost] = useState('0');
-  const [currency, setCurrency] = useState('PLN');
-  const [status, setStatus] = useState<'active' | 'inactive'>('active');
-  const [statusOnSuccess, setStatusOnSuccess] = useState('');
-  const [statusOnFailure, setStatusOnFailure] = useState('');
+  const [code, setCode] = useState(editing?.code ?? '');
+  const [nameEn, setNameEn] = useState(editing?.name['en-US'] ?? '');
+  const [namePl, setNamePl] = useState(editing?.name['pl-PL'] ?? '');
+  const [cost, setCost] = useState(editing ? String(editing.cost.amount) : '0');
+  const [currency, setCurrency] = useState(editing?.cost.currency ?? 'PLN');
+  const [status, setStatus] = useState<'active' | 'inactive'>(editing?.status ?? 'active');
+  const [statusOnSuccess, setStatusOnSuccess] = useState(editing?.statusOnSuccess ?? '');
+  const [statusOnFailure, setStatusOnFailure] = useState(editing?.statusOnFailure ?? '');
   return (
     <form
       className="space-y-4"
@@ -241,6 +275,8 @@ function UpsertForm({
             value={code}
             onChange={(e): void => setCode(e.target.value)}
             required
+            disabled={editing !== null}
+            readOnly={editing !== null}
           />
         </div>
         <div className="space-y-2">
@@ -313,7 +349,14 @@ function UpsertForm({
           </Select>
         </div>
       </div>
-      <Button type="submit">{t('common.action.save')}</Button>
+      <div className="flex gap-2">
+        <Button type="submit">{t('common.action.save')}</Button>
+        {editing ? (
+          <Button type="button" variant="outline" onClick={onCancel}>
+            {t('common.action.cancel')}
+          </Button>
+        ) : null}
+      </div>
     </form>
   );
 }
