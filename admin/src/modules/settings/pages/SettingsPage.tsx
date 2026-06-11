@@ -562,6 +562,12 @@ function filterGroupsForContext(
     ) {
       continue;
     }
+    // A query may match the section (group) title itself — e.g. "assistant"
+    // matching "Prompt actions (AI assistant)". When it does, surface every
+    // channel-passing setting in the group rather than requiring a per-setting
+    // match.
+    const groupMatches =
+      q !== '' && (g.name.toLowerCase().includes(q) || g.code.toLowerCase().includes(q));
     const filtered = g.settings.filter((s) => {
       if (
         channelContext !== null &&
@@ -570,6 +576,7 @@ function filterGroupsForContext(
       ) {
         return false;
       }
+      if (groupMatches) return true;
       if (q && !settingMatches(s, q)) return false;
       return true;
     });
