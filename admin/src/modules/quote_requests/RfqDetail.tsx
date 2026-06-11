@@ -248,6 +248,55 @@ export function RfqDetail(): ReactNode {
     : null;
   const currency = rfq.items[0]?.lineCurrency ?? 'PLN';
 
+  // Action buttons live in the PageHeader's top-right slot — mirroring the
+  // Order detail view — rather than in an in-body status row.
+  const headerActions: ReactNode[] = [];
+  if (rfq.status === 'Pending') {
+    headerActions.push(
+      <Button
+        key="approve"
+        variant="outline"
+        size="sm"
+        className="bg-card"
+        onClick={(): void => void approve()}
+        disabled={busy}
+      >
+        <Check />
+        {t('rfq.detail.approve')}
+      </Button>,
+    );
+  }
+  if (rfq.status === 'Approved') {
+    headerActions.push(
+      <Button
+        key="convert"
+        variant="outline"
+        size="sm"
+        className="bg-card"
+        onClick={(): void => void convert()}
+        disabled={busy}
+      >
+        <FileText />
+        {t('rfq.detail.convert.placeOrder')}
+      </Button>,
+    );
+  }
+  if (!isTerminal) {
+    headerActions.push(
+      <Button
+        key="cancel"
+        variant="outline"
+        size="sm"
+        className="bg-card border-destructive/40 text-destructive hover:bg-destructive/10"
+        onClick={(): void => setCancelOpen(true)}
+        disabled={busy}
+      >
+        <XCircle />
+        {t('rfq.detail.cancelRfq')}
+      </Button>,
+    );
+  }
+
   return (
     <>
       <PageHeader
@@ -282,14 +331,7 @@ export function RfqDetail(): ReactNode {
             <code className="font-mono text-xs">({rfq.id})</code>
           </span>
         }
-        actions={
-          rfq.status === 'Approved' ? (
-            <Button variant="outline" size="sm" className="bg-card" onClick={(): void => void convert()} disabled={busy}>
-              <FileText />
-              {t('rfq.detail.convert.placeOrder')}
-            </Button>
-          ) : null
-        }
+        actions={headerActions.length > 0 ? headerActions : null}
       />
 
       {error ? (
@@ -345,26 +387,6 @@ export function RfqDetail(): ReactNode {
         <CardContent className="divide-y divide-border pt-6 [&>*]:py-6 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
           {tab === 'overview' ? (
             <>
-              {!isTerminal ? (
-                <Section title={t('rfq.detail.sections.status')}>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {rfq.status === 'Pending' ? (
-                      <Button onClick={(): void => void approve()} disabled={busy}>
-                        <Check size={14} className="mr-1" /> {t('rfq.detail.approve')}
-                      </Button>
-                    ) : null}
-                    <Button
-                      variant="outline"
-                      className="border-destructive/40 text-destructive hover:bg-destructive/10"
-                      onClick={(): void => setCancelOpen(true)}
-                      disabled={busy}
-                    >
-                      <XCircle size={14} className="mr-1" /> {t('rfq.detail.cancelRfq')}
-                    </Button>
-                  </div>
-                </Section>
-              ) : null}
-
               <div className="grid gap-6 md:grid-cols-2">
                 <Section title={t('rfq.detail.sections.organization')}>
                   {rfq.organization ? (
