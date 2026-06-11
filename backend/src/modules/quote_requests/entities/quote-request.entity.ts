@@ -1,4 +1,4 @@
-import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { randomUUID } from 'crypto';
 
 /**
@@ -28,6 +28,7 @@ export type QuoteRequestStatus =
 export class QuoteRequest {
   [OptionalProps]?:
     | 'id'
+    | 'businessId'
     | 'createdAt'
     | 'updatedAt'
     | 'status'
@@ -49,6 +50,17 @@ export class QuoteRequest {
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
+
+  /**
+   * Customer-facing business Quote Request ID, distinct from `id`. Real RFQs
+   * are stamped by RfqService / RfqAdminService via the business-ID sequence +
+   * prefix/suffix settings. The placeholder default keeps direct
+   * `em.create(QuoteRequest, …)` fixtures unique without forcing every caller
+   * to pass it (mirrors `Order.businessId`).
+   */
+  @Property({ type: 'string', length: 128 })
+  @Unique()
+  businessId: string = `QR-${randomUUID()}`;
 
   @Property({ type: 'uuid' })
   @Index()

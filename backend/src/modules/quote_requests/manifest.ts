@@ -6,16 +6,20 @@ import {
 /**
  * Settings manifest for the Quote Requests module — feature 008.
  *
- * Three settings keys (FR-031 / FR-032 / FR-033):
+ * Settings keys:
  *   - quote_requests.expiryDays      (integer, default 0 = never)
  *   - quote_requests.showAddToQuoteOnCard (boolean, default true)
  *   - quote_requests.showAddToQuoteOnPdp  (boolean, default true)
+ *   - quote_requests.business_id.prefix   (string, default '')
+ *   - quote_requests.business_id.suffix   (string, default '')
  */
 
 export const QUOTE_REQUESTS_SETTING_CODES = {
   EXPIRY_DAYS: 'quote_requests.expiry_days',
   SHOW_ADD_TO_QUOTE_ON_CARD: 'quote_requests.show_add_to_quote_on_card',
   SHOW_ADD_TO_QUOTE_ON_PDP: 'quote_requests.show_add_to_quote_on_pdp',
+  BUSINESS_ID_PREFIX: 'quote_requests.business_id.prefix',
+  BUSINESS_ID_SUFFIX: 'quote_requests.business_id.suffix',
 } as const;
 
 export const DEFAULT_QUOTE_REQUESTS_EXPIRY_DAYS = 0;
@@ -53,6 +57,24 @@ const settings = defineModuleSettingsManifest({
       groupCode: 'quote_requests',
       valueType: 'boolean',
       defaultValue: true,
+    },
+    {
+      code: QUOTE_REQUESTS_SETTING_CODES.BUSINESS_ID_PREFIX,
+      name: 'Business Quote Request ID prefix',
+      description:
+        'Text prepended to the generated business Quote Request ID shown to the Customer (e.g. "QR-"). Empty = no prefix.',
+      groupCode: 'quote_requests',
+      valueType: 'string',
+      defaultValue: '',
+    },
+    {
+      code: QUOTE_REQUESTS_SETTING_CODES.BUSINESS_ID_SUFFIX,
+      name: 'Business Quote Request ID suffix',
+      description:
+        'Text appended to the generated business Quote Request ID shown to the Customer (e.g. "-2026"). Empty = no suffix.',
+      groupCode: 'quote_requests',
+      valueType: 'string',
+      defaultValue: '',
     },
   ],
 });

@@ -67,7 +67,7 @@ export default async function QuoteRequestDetailPage({
       </Link>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-        <h1>Zapytanie {rfq.id.slice(0, 8)}</h1>
+        <h1>Zapytanie #{rfq.businessId}</h1>
         <RfqStatusBadge
           status={rfq.status}
           awaiting={rfq.awaitingCustomerRevisionAcceptance}

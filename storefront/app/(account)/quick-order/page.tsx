@@ -384,7 +384,7 @@ async function confirmAction(formData: FormData): Promise<void> {
     redirect('/quick-order?error=Nothing+to+build.');
   }
 
-  let rfqId: string | undefined;
+  let rfqRef: string | undefined;
   try {
     const result = await buildQuickOrder(
       session,
@@ -395,13 +395,14 @@ async function confirmAction(formData: FormData): Promise<void> {
         quantity: r.quantity,
       })),
     );
-    rfqId = result.quoteRequestId;
+    // Show the customer-facing business ID in the confirmation banner.
+    rfqRef = result.quoteRequestBusinessId ?? result.quoteRequestId;
   } catch (err) {
     const message = err instanceof StorefrontApiError ? err.message : 'Build failed.';
     redirect(`/quick-order?error=${encodeURIComponent(message)}`);
   }
   if (target === 'quote_request') {
-    redirect(`/quick-order?built=quote${rfqId ? `&rfq=${encodeURIComponent(rfqId)}` : ''}`);
+    redirect(`/quick-order?built=quote${rfqRef ? `&rfq=${encodeURIComponent(rfqRef)}` : ''}`);
   }
   redirect('/quick-order?built=cart');
 }

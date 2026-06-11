@@ -78,6 +78,7 @@ import { Migration070OrderItemPackaging } from '../modules/orders/migrations/070
 import { Migration071QrItemPackaging } from '../modules/quote_requests/migrations/071_qr_item_packaging.js';
 import { Migration074ShoppingListsDefault } from '../modules/shopping_lists/migrations/074_shopping_lists_default.js';
 import { Migration072FixInPersonPickupAdapter } from '../modules/delivery_methods/migrations/072_fix_in_person_pickup_adapter.js';
+import { Migration073QuoteRequestsBusinessId } from '../modules/quote_requests/migrations/073_quote_requests_business_id.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -357,6 +358,10 @@ export default defineConfig({
       {
         name: 'Migration072FixInPersonPickupAdapter',
         class: Migration072FixInPersonPickupAdapter,
+      },
+      {
+        name: 'Migration073QuoteRequestsBusinessId',
+        class: Migration073QuoteRequestsBusinessId,
       },
       {
         name: 'Migration074ShoppingListsDefault',
