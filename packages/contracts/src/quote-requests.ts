@@ -149,6 +149,31 @@ export const quoteRequestSchema = z.object({
   expiredAt: isoDateTimeSchema.nullable(),
   expiresAt: isoDateTimeSchema.nullable(),
   convertedOrderId: uuidSchema.nullable(),
+  /**
+   * Admin-detail enrichment (optional): the requesting Organization and
+   * Customer resolved to display fields, so the admin RFQ detail can show
+   * them by name the same way the Order detail does. Absent on the
+   * storefront/customer serialization.
+   */
+  organization: z
+    .object({
+      id: uuidSchema,
+      name: z.string(),
+      legalName: z.string().nullable(),
+      taxId: z.string(),
+      vatStatus: z.string(),
+    })
+    .nullable()
+    .optional(),
+  customer: z
+    .object({
+      id: uuidSchema,
+      firstName: z.string().nullable(),
+      lastName: z.string().nullable(),
+      email: z.string(),
+    })
+    .nullable()
+    .optional(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
   version: z.number().int().nonnegative(),

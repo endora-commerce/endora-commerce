@@ -116,9 +116,6 @@ export function Header(props: {
               ariaLabel="Porównaj produkty"
               icon={<CompareIcon />}
             />
-            <Link href="/account/notifications" className="icon-btn" aria-label="Powiadomienia">
-              <BellIcon />
-            </Link>
             <CartCounterBadge
               initialCount={props.cartItemCount ?? 0}
               apiBase={apiBaseUrl}
@@ -278,15 +275,6 @@ function CompareIcon(): ReactNode {
       <path d="M21 18H8" />
       <path d="M21 18l-4-4" />
       <path d="M21 18l-4 4" />
-    </>,
-    19,
-  );
-}
-function BellIcon(): ReactNode {
-  return svg(
-    <>
-      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
     </>,
     19,
   );

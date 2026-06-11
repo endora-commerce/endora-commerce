@@ -20,6 +20,8 @@ import { registerSettingsHomepageRoutes } from './routes.homepage.js';
 import { HomepageResolver } from './services/homepage-resolver.js';
 import { registerSettingsProductCardButtonsRoutes } from './routes.product-card-buttons.js';
 import { ProductCardButtonsResolver } from './services/product-card-buttons-resolver.js';
+import { registerSettingsSpeculationRulesRoutes } from './routes.speculation-rules.js';
+import { SpeculationRulesResolver } from './services/speculation-rules-resolver.js';
 
 /**
  * Composition root for the settings module — feature 004.
@@ -65,6 +67,7 @@ export interface SettingsModuleHandle {
   cacheAdminService: CacheAdminService;
   homepageResolver: HomepageResolver;
   productCardButtonsResolver: ProductCardButtonsResolver;
+  speculationRulesResolver: SpeculationRulesResolver;
   /** Released for tests; in production it lives until process exit. */
   cacheInvalidator?: SettingsCacheInvalidatorHandle;
 }
@@ -97,6 +100,7 @@ export function settingsModule(
     options.emFactory,
     settingsService,
   );
+  const speculationRulesResolver = new SpeculationRulesResolver(options.emFactory, settingsService);
   const cacheInvalidator = cache
     ? attachSettingsCacheInvalidator(options.eventBus, cache)
     : undefined;
@@ -114,6 +118,7 @@ export function settingsModule(
       cacheAdminService,
       homepageResolver,
       productCardButtonsResolver,
+      speculationRulesResolver,
       ...(cacheInvalidator !== undefined ? { cacheInvalidator } : {}),
     },
     plugin: async (app) => {
@@ -132,6 +137,7 @@ export function settingsModule(
       });
       await registerSettingsHomepageRoutes(app, { homepageResolver });
       await registerSettingsProductCardButtonsRoutes(app, { productCardButtonsResolver });
+      await registerSettingsSpeculationRulesRoutes(app, { speculationRulesResolver });
     },
   };
 }

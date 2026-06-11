@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Check, XCircle } from 'lucide-react';
+import { useParams } from 'react-router-dom';
+import { Check, ClipboardList, Copy, FileText, History, PencilLine, XCircle } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Textarea } from '@/components/ui/textarea';
 import { ProductPicker } from '@/modules/catalog/components/ProductPicker';
+import { Section } from '@/modules/orders/Section';
 import {
   Table,
   TableBody,
@@ -22,10 +24,12 @@ import {
 import { useTranslation } from '@/i18n/useTranslation';
 
 /**
- * Admin Quote Request detail (feature 008 / T043). Renders status,
- * line items, change history, and exposes Approve / Cancel actions
- * for Pending and Created from admin RFQs. The modify pane (US3) is
- * accessible through the same approve/cancel scaffold once added.
+ * Admin Quote Request detail (feature 008 / T043). Restructured to mirror the
+ * Order detail view: a PageHeader (back + title + status badge) above a single
+ * tabbed Card whose body is a set of titled Sections — Overview (status +
+ * actions, organization, customer, line items), Modify (negotiation), and
+ * History — omitting the Order-only payment/delivery/comments tabs that do not
+ * apply to a Quote Request.
  */
 
 type RfqStatus =
@@ -35,6 +39,8 @@ type RfqStatus =
   | 'Approved'
   | 'Completed'
   | 'Expired';
+
+type RfqTab = 'overview' | 'modify' | 'history';
 
 interface AdminRfqItem {
   id: string;
@@ -60,10 +66,28 @@ interface AdminRfqEvent {
   createdAt: string;
 }
 
+interface RfqOrganization {
+  id: string;
+  name: string;
+  legalName: string | null;
+  taxId: string;
+  vatStatus: string;
+}
+interface RfqCustomer {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+}
+
 interface AdminRfqDetail {
   id: string;
+  /** Customer-facing business ID (feature: quote-request businessId). */
+  businessId?: string;
   organizationId: string;
   customerAccountId: string;
+  organization?: RfqOrganization | null;
+  customer?: RfqCustomer | null;
   createdByAdminUserId: string | null;
   assignedAdminUserId: string | null;
   status: RfqStatus;
@@ -80,6 +104,7 @@ interface AdminRfqDetail {
   expiredAt: string | null;
   expiresAt: string | null;
   convertedOrderId: string | null;
+  createdAt: string;
   updatedAt: string;
   version: number;
 }
@@ -107,6 +132,7 @@ export function RfqDetail(): ReactNode {
   const [info, setInfo] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<RfqTab>('overview');
 
   const refresh = useCallback(async (): Promise<void> => {
     if (!id) return;
@@ -170,229 +196,336 @@ export function RfqDetail(): ReactNode {
     }
   };
 
-  if (loading)
-    return (
-      <div className="b2b-page b2b-page--wide">
-        <p style={{ padding: 32, color: 'var(--b2b-muted)' }}>{t('rfq.detail.loading')}</p>
-      </div>
-    );
+  const convert = async (): Promise<void> => {
+    if (!rfq) return;
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const res = await apiClient.post<{ data: { cartId: string; checkoutUrl: string } }>(
+        `/api/v1/quote-requests/${rfq.id}/convert-to-order`,
+        {},
+      );
+      setInfo(
+        t('rfq.detail.convert.success', {
+          cartId: res.data.cartId.slice(0, 8),
+          url: res.data.checkoutUrl,
+        }),
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : t('rfq.detail.convert.error'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copyId = useCallback(async (): Promise<void> => {
+    if (!rfq) return;
+    const ref = rfq.businessId ?? rfq.id;
+    try {
+      await navigator.clipboard.writeText(ref);
+      setInfo(t('rfq.detail.copied', { id: ref }));
+    } catch {
+      setError(t('rfq.detail.copyError'));
+    }
+  }, [rfq, t]);
+
+  if (loading) return <p className="text-sm text-muted-foreground">{t('rfq.detail.loading')}</p>;
 
   if (!rfq)
     return (
-      <div className="b2b-page b2b-page--wide">
-        <Alert variant="destructive">
-          <AlertDescription>{error ?? t('rfq.detail.notFound')}</AlertDescription>
-        </Alert>
-      </div>
+      <Alert variant="destructive">
+        <AlertDescription>{error ?? t('rfq.detail.notFound')}</AlertDescription>
+      </Alert>
     );
 
+  const displayId = rfq.businessId ?? rfq.id.slice(0, 8);
   const isTerminal = TERMINAL.includes(rfq.status);
   const total = rfq.items.every((it) => it.agreedUnitPrice !== null)
     ? rfq.items.reduce((s, it) => s + (it.agreedUnitPrice ?? 0) * it.quantity, 0)
     : null;
+  const currency = rfq.items[0]?.lineCurrency ?? 'PLN';
 
   return (
-    <div className="b2b-page b2b-page--wide">
-      <Button asChild variant="ghost" size="sm" style={{ marginBottom: 8 }}>
-        <Link to="/quote-requests">
-          <ArrowLeft size={14} style={{ marginRight: 4 }} /> {t('rfq.detail.backToList')}
-        </Link>
-      </Button>
-
+    <>
       <PageHeader
-        title={t('rfq.detail.title', { id: rfq.id.slice(0, 8) })}
-        description={t('rfq.detail.description', {
-          orgId: rfq.organizationId.slice(0, 8),
-          customerId: rfq.customerAccountId.slice(0, 8),
-        })}
+        back={{ label: t('rfq.list.title'), to: '/quote-requests' }}
+        title={
+          <>
+            <button
+              type="button"
+              onClick={(): void => void copyId()}
+              title={t('rfq.detail.copyHint')}
+              className="inline-flex items-center gap-1.5 hover:opacity-80"
+            >
+              {t('rfq.detail.title', { id: displayId })}
+              <Copy className="size-3.5 opacity-60" />
+            </button>
+            <Badge variant={STATUS_VARIANT[rfq.status]} className="text-xs font-medium">
+              {rfq.status}
+            </Badge>
+            {rfq.awaitingCustomerRevisionAcceptance ? (
+              <Badge variant="warning" className="text-xs font-medium">
+                {t('rfq.detail.badge.awaitingRevision')}
+              </Badge>
+            ) : null}
+          </>
+        }
+        description={
+          <span>
+            {t('rfq.detail.meta.created', { date: formatDateTime(rfq.createdAt) })}
+            {rfq.submittedAt
+              ? ` · ${t('rfq.detail.meta.submitted', { date: formatDateTime(rfq.submittedAt) })}`
+              : ''}{' '}
+            <code className="font-mono text-xs">({rfq.id})</code>
+          </span>
+        }
+        actions={
+          rfq.status === 'Approved' ? (
+            <Button variant="outline" size="sm" className="bg-card" onClick={(): void => void convert()} disabled={busy}>
+              <FileText />
+              {t('rfq.detail.convert.placeOrder')}
+            </Button>
+          ) : null
+        }
       />
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <Badge variant={STATUS_VARIANT[rfq.status]}>{rfq.status}</Badge>
-        {rfq.awaitingCustomerRevisionAcceptance ? (
-          <Badge variant="warning">{t('rfq.detail.badge.awaitingRevision')}</Badge>
-        ) : null}
-        {rfq.cancellationReason ? (
-          <Badge variant="destructive">{t('rfq.detail.badge.cancelReason', { reason: rfq.cancellationReason })}</Badge>
-        ) : null}
-      </div>
-
       {error ? (
-        <Alert variant="destructive" style={{ marginBottom: 16 }}>
+        <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
       {info ? (
-        <Alert variant="default" style={{ marginBottom: 16 }}>
+        <Alert variant="success" className="mb-4">
           <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
 
-      {rfq.headerNote ? (
-        <Card style={{ marginBottom: 16 }}>
-          <CardHeader>
-            <CardTitle>{t('rfq.detail.headerNote')}</CardTitle>
-          </CardHeader>
-          <CardContent>{rfq.headerNote}</CardContent>
-        </Card>
+      {rfq.cancellationReason ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>
+            {t('rfq.detail.badge.cancelReason', { reason: rfq.cancellationReason })}
+          </AlertDescription>
+        </Alert>
       ) : null}
 
-      <Card style={{ marginBottom: 16 }}>
-        <CardHeader>
-          <CardTitle>{t('rfq.detail.lineItems', { count: rfq.items.length })}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('rfq.detail.column.product')}</TableHead>
-                <TableHead>{t('rfq.detail.column.qty')}</TableHead>
-                <TableHead>{t('rfq.detail.column.desired')}</TableHead>
-                <TableHead>{t('rfq.detail.column.agreed')}</TableHead>
-                <TableHead>{t('rfq.detail.column.lineTotal')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rfq.items.map((it) => {
-                const lineTotal =
-                  it.agreedUnitPrice !== null
-                    ? it.agreedUnitPrice * it.quantity
-                    : it.desiredUnitPrice !== null
-                      ? it.desiredUnitPrice * it.quantity
-                      : null;
-                return (
-                  <TableRow key={it.id}>
-                    <TableCell>
-                      <strong>{it.productName}</strong>
-                      {it.variantLabel ? <small> ({it.variantLabel})</small> : null}
-                      {it.lineNote ? <div style={{ fontSize: 11, color: 'var(--b2b-muted)' }}>{it.lineNote}</div> : null}
-                    </TableCell>
-                    <TableCell>{it.quantity}</TableCell>
-                    <TableCell>{it.desiredUnitPrice !== null ? it.desiredUnitPrice.toFixed(2) : '—'}</TableCell>
-                    <TableCell>{it.agreedUnitPrice !== null ? it.agreedUnitPrice.toFixed(2) : '—'}</TableCell>
-                    <TableCell>
-                      {lineTotal !== null
-                        ? `${lineTotal.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} ${it.lineCurrency}`
-                        : '—'}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-              {total !== null ? (
-                <TableRow>
-                  <TableCell colSpan={4} style={{ textAlign: 'right', fontWeight: 600 }}>
-                    {t('rfq.detail.totalLabel')}
-                  </TableCell>
-                  <TableCell style={{ fontWeight: 600 }}>
-                    {total.toLocaleString('pl-PL', { minimumFractionDigits: 2 })}{' '}
-                    {rfq.items[0]?.lineCurrency}
-                  </TableCell>
-                </TableRow>
-              ) : null}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {!isTerminal ? (
-        <Card style={{ marginBottom: 16 }}>
-          <CardHeader>
-            <CardTitle>{t('rfq.detail.actions')}</CardTitle>
-          </CardHeader>
-          <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {rfq.status === 'Pending' ? (
-              <Button onClick={(): void => void approve()} disabled={busy}>
-                <Check size={14} style={{ marginRight: 4 }} /> {t('rfq.detail.approve')}
-              </Button>
-            ) : null}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-              <div style={{ flex: 1 }}>
-                <Label htmlFor="cancel-reason">{t('rfq.detail.cancelReason')}</Label>
-                <Textarea
-                  id="cancel-reason"
-                  value={cancelReason}
-                  onChange={(e): void => setCancelReason(e.target.value)}
-                  placeholder={t('rfq.detail.cancelReasonPlaceholder')}
-                  rows={2}
+      <Card className="mb-4 overflow-hidden">
+        <div style={{ padding: '4px 4px 0', overflow: 'hidden' }}>
+          <div className="b2b-tabs-scroll">
+            <div className="b2b-tabs" role="tablist">
+              <TabBtn
+                id="overview"
+                label={t('rfq.detail.tabs.overview')}
+                icon={<ClipboardList size={14} />}
+                active={tab}
+                onChange={setTab}
+              />
+              {!isTerminal ? (
+                <TabBtn
+                  id="modify"
+                  label={t('rfq.detail.tabs.modify')}
+                  icon={<PencilLine size={14} />}
+                  active={tab}
+                  onChange={setTab}
                 />
-              </div>
-              <Button variant="destructive" onClick={(): void => void cancel()} disabled={busy}>
-                <XCircle size={14} style={{ marginRight: 4 }} /> {t('rfq.detail.cancelRfq')}
-              </Button>
+              ) : null}
+              <TabBtn
+                id="history"
+                label={t('rfq.detail.tabs.history')}
+                icon={<History size={14} />}
+                active={tab}
+                onChange={setTab}
+              />
             </div>
-          </CardContent>
-        </Card>
-      ) : null}
+          </div>
+        </div>
 
-      {!isTerminal ? (
-        <ModifyCard rfq={rfq} onSaved={refresh} setError={setError} setInfo={setInfo} />
-      ) : null}
-
-      {rfq.status === 'Approved' ? (
-        <Card style={{ marginBottom: 16 }}>
-          <CardHeader>
-            <CardTitle>{t('rfq.detail.convert.title')}</CardTitle>
-          </CardHeader>
-          <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <p style={{ fontSize: 13, color: 'var(--b2b-muted)', margin: 0 }}>
-              {t('rfq.detail.convert.description')}
-            </p>
-            <div>
-              <Button
-                onClick={async (): Promise<void> => {
-                  setBusy(true);
-                  setError(null);
-                  setInfo(null);
-                  try {
-                    const res = await apiClient.post<{ data: { cartId: string; checkoutUrl: string } }>(
-                      `/api/v1/quote-requests/${rfq.id}/convert-to-order`,
-                      {},
-                    );
-                    setInfo(t('rfq.detail.convert.success', {
-                      cartId: res.data.cartId.slice(0, 8),
-                      url: res.data.checkoutUrl,
-                    }));
-                  } catch (err) {
-                    setError(err instanceof ApiError ? err.envelope.error.message : t('rfq.detail.convert.error'));
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                disabled={busy}
-              >
-                {t('rfq.detail.convert.placeOrder')}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('rfq.detail.history.title')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {rfq.events.length === 0 ? (
-            <p style={{ color: 'var(--b2b-muted)' }}>{t('rfq.detail.history.empty')}</p>
-          ) : (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-              {rfq.events.map((e) => (
-                <li
-                  key={e.id}
-                  style={{ padding: '8px 0', borderBottom: '1px dashed var(--b2b-border, #e5e7eb)' }}
-                >
-                  <div style={{ fontSize: 11, color: 'var(--b2b-muted)' }}>
-                    {formatDateTime(e.createdAt)}
-                    {e.actorRoleLabel ? ` · ${e.actorRoleLabel}` : null}
+        <CardContent className="divide-y divide-border pt-6 [&>*]:py-6 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
+          {tab === 'overview' ? (
+            <>
+              {!isTerminal ? (
+                <Section title={t('rfq.detail.sections.status')}>
+                  <div className="flex flex-wrap items-end gap-3">
+                    {rfq.status === 'Pending' ? (
+                      <Button onClick={(): void => void approve()} disabled={busy}>
+                        <Check size={14} className="mr-1" /> {t('rfq.detail.approve')}
+                      </Button>
+                    ) : null}
+                    <div className="min-w-[240px] flex-1 space-y-2">
+                      <Label htmlFor="cancel-reason">{t('rfq.detail.cancelReason')}</Label>
+                      <Textarea
+                        id="cancel-reason"
+                        value={cancelReason}
+                        onChange={(e): void => setCancelReason(e.target.value)}
+                        placeholder={t('rfq.detail.cancelReasonPlaceholder')}
+                        rows={2}
+                      />
+                    </div>
+                    <Button variant="destructive" onClick={(): void => void cancel()} disabled={busy}>
+                      <XCircle size={14} className="mr-1" /> {t('rfq.detail.cancelRfq')}
+                    </Button>
                   </div>
-                  <div style={{ fontWeight: 500 }}>{e.eventType}</div>
-                </li>
-              ))}
-            </ul>
-          )}
+                </Section>
+              ) : null}
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <Section title={t('rfq.detail.sections.organization')}>
+                  {rfq.organization ? (
+                    <div className="space-y-1 text-sm">
+                      <p className="font-medium">{rfq.organization.name}</p>
+                      {rfq.organization.legalName &&
+                      rfq.organization.legalName !== rfq.organization.name ? (
+                        <p className="text-muted-foreground">{rfq.organization.legalName}</p>
+                      ) : null}
+                      <p className="text-muted-foreground">
+                        {t('rfq.detail.org.taxId')}: <strong>{rfq.organization.taxId}</strong>
+                      </p>
+                      <p className="text-muted-foreground">
+                        {t('rfq.detail.org.vat')}:{' '}
+                        {t(`rfq.detail.vatStatus.${rfq.organization.vatStatus}`)}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      <code className="font-mono text-xs">{rfq.organizationId}</code>
+                    </p>
+                  )}
+                </Section>
+                <Section title={t('rfq.detail.sections.customer')}>
+                  {rfq.customer ? (
+                    <div className="space-y-1 text-sm">
+                      <p className="font-medium">
+                        {`${rfq.customer.firstName ?? ''} ${rfq.customer.lastName ?? ''}`.trim() ||
+                          rfq.customer.email}
+                      </p>
+                      <p className="text-muted-foreground">
+                        <a className="underline underline-offset-2" href={`mailto:${rfq.customer.email}`}>
+                          {rfq.customer.email}
+                        </a>
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      <code className="font-mono text-xs">{rfq.customerAccountId}</code>
+                    </p>
+                  )}
+                </Section>
+              </div>
+
+              {rfq.headerNote ? (
+                <Section title={t('rfq.detail.sections.buyerNote')}>
+                  <p className="text-sm">{rfq.headerNote}</p>
+                </Section>
+              ) : null}
+
+              <Section title={t('rfq.detail.sections.items')}>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('rfq.detail.column.product')}</TableHead>
+                      <TableHead>{t('rfq.detail.column.qty')}</TableHead>
+                      <TableHead>{t('rfq.detail.column.desired')}</TableHead>
+                      <TableHead>{t('rfq.detail.column.agreed')}</TableHead>
+                      <TableHead className="text-right">{t('rfq.detail.column.lineTotal')}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rfq.items.map((it) => {
+                      const lineTotal =
+                        it.agreedUnitPrice !== null
+                          ? it.agreedUnitPrice * it.quantity
+                          : it.desiredUnitPrice !== null
+                            ? it.desiredUnitPrice * it.quantity
+                            : null;
+                      return (
+                        <TableRow key={it.id}>
+                          <TableCell>
+                            <strong>{it.productName}</strong>
+                            {it.variantLabel ? <small> ({it.variantLabel})</small> : null}
+                            {it.lineNote ? (
+                              <div className="text-xs text-muted-foreground">{it.lineNote}</div>
+                            ) : null}
+                          </TableCell>
+                          <TableCell>{it.quantity}</TableCell>
+                          <TableCell className="tabular-nums">
+                            {it.desiredUnitPrice !== null ? it.desiredUnitPrice.toFixed(2) : '—'}
+                          </TableCell>
+                          <TableCell className="tabular-nums">
+                            {it.agreedUnitPrice !== null ? it.agreedUnitPrice.toFixed(2) : '—'}
+                          </TableCell>
+                          <TableCell className="tabular-nums text-right">
+                            {lineTotal !== null
+                              ? `${lineTotal.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} ${it.lineCurrency}`
+                              : '—'}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                  {total !== null ? (
+                    <tfoot className="border-t [&_td]:p-2 [&_th]:p-2">
+                      <tr>
+                        <th colSpan={4} className="text-right font-semibold">
+                          {t('rfq.detail.totalLabel')}
+                        </th>
+                        <td className="tabular-nums text-right font-semibold">
+                          {total.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} {currency}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  ) : null}
+                </Table>
+              </Section>
+            </>
+          ) : null}
+
+          {tab === 'modify' && !isTerminal ? (
+            <ModifyCard rfq={rfq} onSaved={refresh} setError={setError} setInfo={setInfo} />
+          ) : null}
+
+          {tab === 'history' ? (
+            <Section title={t('rfq.detail.history.title')}>
+              {rfq.events.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t('rfq.detail.history.empty')}</p>
+              ) : (
+                <ul className="space-y-2">
+                  {rfq.events.map((e) => (
+                    <li key={e.id} className="rounded-md border p-3 text-sm">
+                      <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>{formatDateTime(e.createdAt)}</span>
+                        {e.actorRoleLabel ? <span>· {e.actorRoleLabel}</span> : null}
+                      </div>
+                      <p className="font-medium">{e.eventType}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Section>
+          ) : null}
         </CardContent>
       </Card>
-    </div>
+    </>
+  );
+}
+
+function TabBtn(props: {
+  id: RfqTab;
+  label: string;
+  icon: ReactNode;
+  active: RfqTab;
+  onChange: (id: RfqTab) => void;
+}): ReactNode {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={props.active === props.id}
+      className={cn('b2b-tab', props.active === props.id && 'is-active')}
+      onClick={(): void => props.onChange(props.id)}
+    >
+      {props.icon}
+      {props.label}
+    </button>
   );
 }
 
@@ -462,12 +595,9 @@ function ModifyCard({
   };
 
   return (
-    <Card style={{ marginBottom: 16 }}>
-      <CardHeader>
-        <CardTitle>{t('rfq.detail.modify.title')}</CardTitle>
-      </CardHeader>
-      <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div>
+    <Section title={t('rfq.detail.modify.title')}>
+      <div className="space-y-3">
+        <div className="space-y-2">
           <Label htmlFor="modify-note">{t('rfq.detail.modify.headerNote')}</Label>
           <Textarea
             id="modify-note"
@@ -527,7 +657,7 @@ function ModifyCard({
             ))}
           </TableBody>
         </Table>
-        <div>
+        <div className="flex gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -543,7 +673,7 @@ function ModifyCard({
             {t('rfq.detail.modify.saveRevision')}
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </Section>
   );
 }

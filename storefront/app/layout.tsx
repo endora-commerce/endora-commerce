@@ -3,6 +3,7 @@ import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import { Hook } from '../components/Hook';
 import { PwaRegister } from '../components/PwaRegister';
+import { SpeculationRules } from '../components/SpeculationRules';
 import { RouteTransition } from '../components/RouteTransition';
 import { CartMergeToast } from '../components/CartMergeToast';
 import { CheckoutHeader } from '../components/checkout/CheckoutHeader';
@@ -13,6 +14,7 @@ import { fetchDictionary } from '../lib/dictionary/client';
 import { DictionaryProvider } from '../lib/dictionary/DictionaryProvider';
 import { getCartItemCount } from '../lib/api/cart';
 import { getMe } from '../lib/api/account';
+import { getSpeculationRulesConfig } from '../lib/api/speculation-rules';
 import { getAnonCartCookie, getSessionCookie } from '../lib/session';
 import './globals.css';
 
@@ -54,7 +56,7 @@ export default async function RootLayout({
     ...(session ? { session } : {}),
     ...(anon ? { anon } : {}),
   };
-  const [megamenu, dictionary, cartItemCount, me] = await Promise.all([
+  const [megamenu, dictionary, cartItemCount, me, speculation] = await Promise.all([
     getActiveMegamenu(ctx),
     fetchDictionary({ ctx }),
     // Header cart-icon badge. Never blocks the render — getCartItemCount
@@ -63,6 +65,9 @@ export default async function RootLayout({
     // Header user pill. Best-effort — a missing/expired session must render the
     // signed-out state, never crash the layout, so swallow all errors → null.
     session ? getMe(session).catch(() => null) : Promise.resolve(null),
+    // Speculation Rules toggle (Settings module). Best-effort — defaults to
+    // enabled + 'moderate' on any read error.
+    getSpeculationRulesConfig(),
   ]);
   return (
     <html lang={locale}>
@@ -115,6 +120,7 @@ export default async function RootLayout({
           </div>
         </DictionaryProvider>
         <PwaRegister />
+        <SpeculationRules enabled={speculation.enabled} eagerness={speculation.eagerness} />
       </body>
     </html>
   );
