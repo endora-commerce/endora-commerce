@@ -3,6 +3,8 @@
   "palette.entry.label": "Zapytaj asystenta…",
   "palette.entry.description": "Opisz, co chcesz zrobić, własnymi słowami",
   "panel.inputPlaceholder": "np. Dla produktu \"Bolts 0193\" zwiększ stan magazynowy w magazynie \"Default\" na 120 sztuk",
+  "panel.voiceInput": "Dyktowanie (mowa na tekst)",
+  "panel.voiceInputStop": "Zatrzymaj dyktowanie",
   "panel.submit": "Interpretuj",
   "panel.interpreting": "Interpretuję polecenie…",
   "panel.executing": "Wykonuję…",

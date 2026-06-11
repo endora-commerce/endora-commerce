@@ -3,6 +3,8 @@
   "palette.entry.label": "Ask the assistant…",
   "palette.entry.description": "Describe what you want to do in plain language",
   "panel.inputPlaceholder": "e.g. Set the stock of \"Bolts 0193\" in warehouse \"Default\" to 120",
+  "panel.voiceInput": "Dictate (speech-to-text)",
+  "panel.voiceInputStop": "Stop dictation",
   "panel.submit": "Interpret",
   "panel.interpreting": "Interpreting your instruction…",
   "panel.executing": "Executing…",
