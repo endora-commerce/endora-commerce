@@ -131,6 +131,7 @@ export class RfqAdminService {
         : null;
       return {
         id: rfq.id,
+        businessId: rfq.businessId,
         organizationId: rfq.organizationId,
         customerAccountId: rfq.customerAccountId,
         status: rfq.status,
@@ -416,7 +417,9 @@ export class RfqAdminService {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'One or more products do not exist.');
     }
 
+    const businessId = await this.deps.rfqService.generateBusinessId(em);
     const rfq = em.create(QuoteRequest, {
+      ...(businessId ? { businessId } : {}),
       organizationId: body.organizationId,
       customerAccountId: body.customerAccountId,
       createdByAdminUserId: ctx.adminUserId,

@@ -1366,6 +1366,32 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return true;
       }
     },
+    // Business Quote Request ID prefix/suffix — global (not Sales-Channel
+    // scoped). Missing settings resolve to '' (bare numeric ID).
+    resolveBusinessIdPrefix: async () => {
+      try {
+        const { z } = await import('zod');
+        return await settings.handle.settingsService.get(
+          QUOTE_REQUESTS_SETTING_CODES.BUSINESS_ID_PREFIX,
+          'default',
+          z.string(),
+        );
+      } catch {
+        return '';
+      }
+    },
+    resolveBusinessIdSuffix: async () => {
+      try {
+        const { z } = await import('zod');
+        return await settings.handle.settingsService.get(
+          QUOTE_REQUESTS_SETTING_CODES.BUSINESS_ID_SUFFIX,
+          'default',
+          z.string(),
+        );
+      } catch {
+        return '';
+      }
+    },
     assertOrganizationCanTransact,
   });
   modules.push(quoteRequests.register);

@@ -41,6 +41,7 @@ type AssignmentScope = 'mine' | 'unassigned' | 'all';
 
 interface AdminRfqRow {
   id: string;
+  businessId: string;
   organizationId: string;
   organizationName?: string;
   customerAccountId: string;
@@ -186,7 +187,7 @@ export function RfqList(): ReactNode {
                   id: 'rfq',
                   header: t('rfq.list.column.rfq'),
                   primary: true,
-                  render: (r) => <code>{r.id.slice(0, 8)}</code>,
+                  render: (r) => <code>#{r.businessId}</code>,
                   meta: (r) => formatDateTime(r.updatedAt),
                 },
                 {

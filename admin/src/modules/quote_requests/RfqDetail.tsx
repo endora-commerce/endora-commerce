@@ -62,6 +62,7 @@ interface AdminRfqEvent {
 
 interface AdminRfqDetail {
   id: string;
+  businessId: string;
   organizationId: string;
   customerAccountId: string;
   createdByAdminUserId: string | null;
@@ -200,7 +201,7 @@ export function RfqDetail(): ReactNode {
       </Button>
 
       <PageHeader
-        title={t('rfq.detail.title', { id: rfq.id.slice(0, 8) })}
+        title={t('rfq.detail.title', { id: rfq.businessId })}
         description={t('rfq.detail.description', {
           orgId: rfq.organizationId.slice(0, 8),
           customerId: rfq.customerAccountId.slice(0, 8),

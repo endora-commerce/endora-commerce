@@ -91,6 +91,10 @@ export class QuickOrderBuildService {
         })),
       },
     );
-    return { target: 'quote_request', quoteRequestId: rfq.id };
+    return {
+      target: 'quote_request',
+      quoteRequestId: rfq.id,
+      quoteRequestBusinessId: rfq.businessId,
+    };
   }
 }

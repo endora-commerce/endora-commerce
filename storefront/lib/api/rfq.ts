@@ -81,6 +81,7 @@ export interface RfqComparison {
 
 export interface RfqDetail {
   id: string;
+  businessId: string;
   organizationId: string;
   customerAccountId: string;
   createdByAdminUserId: string | null;
@@ -108,6 +109,7 @@ export interface RfqDetail {
 
 export interface RfqSummary {
   id: string;
+  businessId: string;
   organizationId: string;
   customerAccountId: string;
   status: RfqStatus;

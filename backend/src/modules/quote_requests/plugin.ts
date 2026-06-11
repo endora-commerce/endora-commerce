@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
 import { RfqService, type RfqEventBus } from './services/rfq-service.js';
+import { createQuoteRequestBusinessIdGenerator } from './services/quote-request-business-id-generator.js';
 import { RfqAdminService } from './services/rfq-admin-service.js';
 import { RfqEventService } from './services/rfq-event-service.js';
 import { RfqRevisionService } from './services/rfq-revision-service.js';
@@ -34,6 +35,13 @@ export interface QuoteRequestsModuleOptions {
   /** Reads the storefront-visibility flags from settings. */
   resolveBoolSetting: (key: 'show_add_to_quote_on_card' | 'show_add_to_quote_on_pdp') => Promise<boolean>;
   /**
+   * Reads the business Quote Request ID prefix/suffix from settings
+   * (`quote_requests.business_id.*`). Optional — when omitted, generated IDs
+   * are the bare sequence number.
+   */
+  resolveBusinessIdPrefix?: () => Promise<string>;
+  resolveBusinessIdSuffix?: () => Promise<string>;
+  /**
    * Feature 026 — refuses RFQ submission when the Customer's Organization is
    * not `active`.
    */
@@ -56,6 +64,18 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
   const notificationService = new RfqNotificationService(options.emFactory);
   const salesRepAssignment = new SalesRepAssignmentService(options.emFactory);
 
+  // Business Quote Request ID generator — adapts the composition-wired
+  // prefix/suffix resolver closures (SettingsService-backed) to the
+  // generator's settings port; the generator itself draws the sequence.
+  const businessIdGenerator = createQuoteRequestBusinessIdGenerator(
+    options.resolveBusinessIdPrefix || options.resolveBusinessIdSuffix
+      ? {
+          resolvePrefix: () => options.resolveBusinessIdPrefix?.() ?? Promise.resolve(''),
+          resolveSuffix: () => options.resolveBusinessIdSuffix?.() ?? Promise.resolve(''),
+        }
+      : undefined,
+  );
+
   const rfqService = new RfqService({
     emFactory: options.emFactory,
     events: options.eventBus as RfqEventBus,
@@ -63,6 +83,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     revisionService,
     notificationService,
     salesRepAssignment,
+    businessId: businessIdGenerator,
   });
 
   const adminService = new RfqAdminService({
