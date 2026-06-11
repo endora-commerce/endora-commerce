@@ -26,6 +26,8 @@ export interface CartLineViewModel {
   productName: string;
   /** Optional SKU surfaced above the name. */
   sku?: string | null;
+  /** Optional PDP slug — when set the name links back to the product card. */
+  productSlug?: string | null;
 }
 
 interface CartLineProps {
@@ -84,9 +86,18 @@ export function CartLine({
         {line.sku ? (
           <span className="truncate font-mono text-[11px] uppercase text-muted">{line.sku}</span>
         ) : null}
-        <span className="line-clamp-2 text-[14px] font-semibold leading-[1.3] text-fg">
-          {line.productName}
-        </span>
+        {line.productSlug ? (
+          <a
+            href={`/p/${encodeURIComponent(line.productSlug)}`}
+            className="line-clamp-2 text-[14px] font-semibold leading-[1.3] text-fg no-underline hover:underline"
+          >
+            {line.productName}
+          </a>
+        ) : (
+          <span className="line-clamp-2 text-[14px] font-semibold leading-[1.3] text-fg">
+            {line.productName}
+          </span>
+        )}
         {unavailableLabel ? (
           <span className="mt-[2px] text-[11px] text-muted">{unavailableLabel}</span>
         ) : null}

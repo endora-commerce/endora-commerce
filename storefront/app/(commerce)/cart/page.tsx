@@ -299,6 +299,7 @@ function toViewModel(it: CartItem): CartLineViewModel {
     // unknown (race with a deleted product) fall back to SKU then productId.
     productName: it.displayName || it.productName || it.productSku || it.productId,
     sku: it.productSku ?? null,
+    productSlug: it.productSlug ?? null,
     quantity: it.quantity,
     unitPrice: it.unitPrice,
     lineTotal: it.lineTotal ?? {
