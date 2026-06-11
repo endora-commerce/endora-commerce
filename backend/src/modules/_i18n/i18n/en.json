@@ -1540,6 +1540,7 @@
   "orderDetail.orderStatus.new": "new",
   "orderDetail.orderStatus.shipped": "shipped",
   "orderDetail.paidBy": "paid by",
+  "orderDetail.taxId": "Tax ID",
   "orderDetail.paymentStatus.awaiting_payment": "awaiting payment",
   "orderDetail.paymentStatus.deferred": "deferred",
   "orderDetail.paymentStatus.failed": "failed",

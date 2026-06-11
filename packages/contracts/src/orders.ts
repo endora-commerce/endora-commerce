@@ -127,6 +127,18 @@ export const placeOrderRequestSchema = z.object({
   promotionCode: z.string().optional(),
   customerNote: z.string().max(4000).optional(),
   idempotencyKey: z.string().optional(),
+  /**
+   * Optional billing-company override. When provided (non-empty), it
+   * replaces the Organization name on the order's billing snapshot; otherwise
+   * the snapshot defaults to the Organization's legal/display name.
+   */
+  billingCompanyName: z.string().max(255).optional(),
+  /**
+   * Optional billing tax-id (NIP) override. When provided (non-empty), it
+   * replaces the Organization tax-id on the order's billing snapshot;
+   * otherwise the snapshot defaults to the Organization's tax-id.
+   */
+  billingTaxId: z.string().max(32).optional(),
 });
 export type PlaceOrderRequest = z.infer<typeof placeOrderRequestSchema>;
 

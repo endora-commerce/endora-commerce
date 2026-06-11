@@ -55,6 +55,9 @@ interface OrderAddress {
   postalCode: string;
   country: string;
   phone?: string | null;
+  /** Billing snapshot only — company name + tax-id captured at placement. */
+  companyName?: string | null;
+  taxId?: string | null;
 }
 interface OrderOrganization {
   id: string;
@@ -497,9 +500,21 @@ export function OrderDetail(): ReactNode {
                 <Section title={t('orderDetail.sections.billing')}>
                   <div className="space-y-2 text-sm">
                     <p>
+                      {order.billingAddress.companyName ? (
+                        <>
+                          <strong>{order.billingAddress.companyName}</strong>
+                          <br />
+                        </>
+                      ) : null}
+                      {order.billingAddress.taxId ? (
+                        <>
+                          {t('orderDetail.taxId')}: {order.billingAddress.taxId}
+                          <br />
+                        </>
+                      ) : null}
                       {order.billingAddress.recipientName ? (
                         <>
-                          <strong>{order.billingAddress.recipientName}</strong>
+                          {order.billingAddress.recipientName}
                           <br />
                         </>
                       ) : null}

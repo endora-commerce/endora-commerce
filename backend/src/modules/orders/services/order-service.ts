@@ -778,6 +778,10 @@ export class OrderService {
           postalCode: billing.postalCode,
           country: billing.country,
           phone: billing.phone ?? null,
+          // Default the billing company + tax-id from the Organization; the
+          // buyer may override either at checkout for this order only.
+          companyName: req.billingCompanyName?.trim() || org.legalName || org.name,
+          taxId: req.billingTaxId?.trim() || org.taxId,
         },
         deliveryMethodId: deliveryMethod.id,
         deliveryMethodSnapshot: {

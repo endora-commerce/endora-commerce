@@ -1540,6 +1540,7 @@
   "orderDetail.orderStatus.new": "nowe",
   "orderDetail.orderStatus.shipped": "wysłane",
   "orderDetail.paidBy": "opłacone przez",
+  "orderDetail.taxId": "NIP",
   "orderDetail.paymentStatus.awaiting_payment": "oczekuje na płatność",
   "orderDetail.paymentStatus.deferred": "odroczona",
   "orderDetail.paymentStatus.failed": "nieudana",

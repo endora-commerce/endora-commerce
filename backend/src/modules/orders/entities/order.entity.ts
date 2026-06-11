@@ -97,6 +97,12 @@ export class Order {
     postalCode: string;
     country: string;
     phone?: string | null;
+    /**
+     * Billing company name + tax-id (NIP) captured at placement. Default from
+     * the Organization; overridable at checkout (feature: billing org override).
+     */
+    companyName?: string | null;
+    taxId?: string | null;
   };
 
   @Property({ type: 'uuid' })

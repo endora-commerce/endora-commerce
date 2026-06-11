@@ -18,6 +18,9 @@ export interface OrderConfirmationAddress {
   postalCode: string;
   country: string;
   phone?: string | null;
+  /** Billing snapshot only — company name + tax-id captured at placement. */
+  companyName?: string | null;
+  taxId?: string | null;
 }
 
 export interface BuildOrderConfirmationEmailInput {
@@ -61,7 +64,10 @@ function money(value: string | number, currency: string): string {
 }
 
 function formatAddress(a: OrderConfirmationAddress): string {
-  const lines = [a.recipientName, a.street, `${a.postalCode} ${a.city}`, a.country];
+  const lines: string[] = [];
+  if (a.companyName) lines.push(a.companyName);
+  if (a.taxId) lines.push(`NIP: ${a.taxId}`);
+  lines.push(a.recipientName, a.street, `${a.postalCode} ${a.city}`, a.country);
   if (a.phone) lines.push(`tel. ${a.phone}`);
   return lines.map((l) => `  ${l}`).join('\n');
 }
