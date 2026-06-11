@@ -35,6 +35,11 @@ export interface ProductBuyActionsProps {
   addToCartAction: (formData: FormData) => void | Promise<void>;
   addToQuoteAction: (formData: FormData) => void | Promise<void>;
   addToCartLabel: string;
+  /**
+   * Optional action rendered as the first button in the row, before "Add to
+   * quote" (e.g. the Add-to-shopping-list heart button).
+   */
+  leadingAction?: ReactNode;
 }
 
 export function ProductBuyActions({
@@ -49,6 +54,7 @@ export function ProductBuyActions({
   addToCartAction,
   addToQuoteAction,
   addToCartLabel,
+  leadingAction,
 }: ProductBuyActionsProps): ReactNode {
   const units = packagingUnits ?? [];
   const defaultUnit = units.find((u) => u.isDefault) ?? null;
@@ -100,6 +106,8 @@ export function ProductBuyActions({
           = {resultingPieces.toLocaleString('pl-PL')} {piecesLabel}
         </span>
       ) : null}
+
+      {leadingAction ?? null}
 
       {showQuote ? (
         // The direct "add to quote" path is piece-based: when a packaging unit

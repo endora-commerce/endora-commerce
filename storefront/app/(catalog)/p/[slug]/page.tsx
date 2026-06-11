@@ -236,14 +236,26 @@ export default async function ProductPage({
                       addToCartAction={addToCartAction}
                       addToQuoteAction={addToQuoteAction}
                       addToCartLabel={t('product.addToCart')}
+                      // First action in the row, right before "Dodaj do zapytania".
+                      leadingAction={
+                        <AddToShoppingListButton
+                          apiBase={PDP_API_BASE}
+                          productId={product.id}
+                          {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
+                          label="Dodaj do listy zakupowej"
+                        />
+                      }
                     />
-                  ) : null}
-                  <AddToShoppingListButton
-                    apiBase={PDP_API_BASE}
-                    productId={product.id}
-                    {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
-                    label="Dodaj do listy zakupowej"
-                  />
+                  ) : (
+                    // No buy-actions row (no price and RFQ-on-PDP off): still
+                    // offer the shopping-list heart on its own.
+                    <AddToShoppingListButton
+                      apiBase={PDP_API_BASE}
+                      productId={product.id}
+                      {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
+                      label="Dodaj do listy zakupowej"
+                    />
+                  )}
                   {oneClickEnabled && product.price ? (
                     <form action={oneClickAction} style={{ display: 'inline-flex', gap: 8 }}>
                       <input type="hidden" name="productId" value={product.id} />
