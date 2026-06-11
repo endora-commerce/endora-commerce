@@ -5,7 +5,13 @@ import { tForLocale } from '../lib/i18n/messages';
 import { CompareToggle } from './CompareToggle';
 import { BaseSalePriceBlock } from './pricing/BaseSalePriceBlock';
 import { QuoteRequestCta } from './pricing/QuoteRequestCta';
+import { ProductCardActions } from './ProductCardActions';
 import type { ResolvedPrice } from '../lib/api/pricing';
+
+const CARD_API_BASE =
+  process.env['NEXT_PUBLIC_BACKEND_BASE_URL'] ??
+  process.env['BACKEND_BASE_URL'] ??
+  'http://localhost:3001';
 
 /**
  * Industria-themed product card. Renders the brand/SKU strip, name,
@@ -84,6 +90,12 @@ export function ProductCard(props: {
           <div>{renderPriceSlot({ product, locale, resolved, t })}</div>
           {stockNode}
         </div>
+        <ProductCardActions
+          apiBase={CARD_API_BASE}
+          productId={product.id}
+          productSlug={product.slug}
+          buyable={resolved ? resolved.displayMode !== 'none' : product.price != null}
+        />
       </div>
     </article>
   );

@@ -8,7 +8,7 @@ import { randomUUID } from 'crypto';
  */
 @Entity({ tableName: 'shopping_lists' })
 export class ShoppingList {
-  [OptionalProps]?: 'id' | 'createdAt' | 'updatedAt';
+  [OptionalProps]?: 'id' | 'createdAt' | 'updatedAt' | 'isDefault';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -23,6 +23,14 @@ export class ShoppingList {
 
   @Property({ type: 'string', length: 160 })
   name!: string;
+
+  /**
+   * The customer's default shopping list. At most one list per
+   * (organization, customer) carries this flag; the storefront "add to
+   * shopping list" affordances target it.
+   */
+  @Property({ type: 'boolean' })
+  isDefault: boolean = false;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

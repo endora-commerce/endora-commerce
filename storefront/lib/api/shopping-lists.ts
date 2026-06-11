@@ -21,9 +21,16 @@ export interface ShoppingList {
   organizationId: string;
   customerAccountId: string;
   name: string;
+  isDefault: boolean;
   items: ShoppingListItem[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface DefaultShoppingListSummary {
+  id: string;
+  name: string;
+  itemCount: number;
 }
 
 export interface ConversionSkip {
@@ -134,6 +141,28 @@ export async function removeShoppingListItem(
   await apiMutate<null>({
     method: 'DELETE',
     path: `/api/v1/shopping-lists/${listId}/items/${itemId}`,
+    sessionCookie,
+  });
+}
+
+export async function setDefaultShoppingList(
+  sessionCookie: string,
+  id: string,
+): Promise<ShoppingList> {
+  const res = await apiMutate<ShoppingList>({
+    method: 'POST',
+    path: `/api/v1/shopping-lists/${id}/set-default`,
+    body: {},
+    sessionCookie,
+  });
+  return res.data!;
+}
+
+export async function getDefaultShoppingList(
+  sessionCookie: string,
+): Promise<DefaultShoppingListSummary> {
+  return apiGetAuthed<DefaultShoppingListSummary>({
+    path: '/api/v1/shopping-lists/default',
     sessionCookie,
   });
 }

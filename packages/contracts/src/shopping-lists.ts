@@ -30,14 +30,24 @@ export type ShoppingListItem = z.infer<typeof shoppingListItemSchema>;
 
 export const shoppingListSchema = z.object({
   id: uuidSchema,
-  organizationId: uuidSchema,
+  organizationId: z.string(),
   customerAccountId: uuidSchema,
   name: z.string().min(1).max(160),
+  /** Whether this is the customer's default shopping list (exactly one per customer). */
+  isDefault: z.boolean(),
   items: z.array(shoppingListItemSchema),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
 export type ShoppingList = z.infer<typeof shoppingListSchema>;
+
+/** Lightweight default-list view for the storefront header heart badge. */
+export const defaultShoppingListSummarySchema = z.object({
+  id: uuidSchema,
+  name: z.string(),
+  itemCount: z.number().int().nonnegative(),
+});
+export type DefaultShoppingListSummary = z.infer<typeof defaultShoppingListSummarySchema>;
 
 // --- Requests --------------------------------------------------------------
 

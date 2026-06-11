@@ -76,6 +76,7 @@ import { Migration068ProductPackagingUnits } from '../modules/catalog/migrations
 import { Migration069CartItemPackaging } from '../modules/carts/migrations/069_cart_item_packaging.js';
 import { Migration070OrderItemPackaging } from '../modules/orders/migrations/070_order_item_packaging.js';
 import { Migration071QrItemPackaging } from '../modules/quote_requests/migrations/071_qr_item_packaging.js';
+import { Migration074ShoppingListsDefault } from '../modules/shopping_lists/migrations/074_shopping_lists_default.js';
 import { Migration072FixInPersonPickupAdapter } from '../modules/delivery_methods/migrations/072_fix_in_person_pickup_adapter.js';
 
 /**
@@ -356,6 +357,10 @@ export default defineConfig({
       {
         name: 'Migration072FixInPersonPickupAdapter',
         class: Migration072FixInPersonPickupAdapter,
+      },
+      {
+        name: 'Migration074ShoppingListsDefault',
+        class: Migration074ShoppingListsDefault,
       },
     ],
     transactional: true,

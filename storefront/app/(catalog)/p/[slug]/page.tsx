@@ -16,7 +16,13 @@ import { NotifyWhenAvailableDialog } from '../../../../components/inventory/Noti
 import { BackorderHint } from '../../../../components/inventory/BackorderHint';
 import { addToQuoteAction } from '../../../../components/rfq/AddToRfqForm';
 import { ProductBuyActions } from '../../../../components/ProductBuyActions';
+import { AddToShoppingListButton } from '../../../../components/AddToShoppingListButton';
 import { QuoteRequestCta } from '../../../../components/pricing/QuoteRequestCta';
+
+const PDP_API_BASE =
+  process.env['NEXT_PUBLIC_BACKEND_BASE_URL'] ??
+  process.env['BACKEND_BASE_URL'] ??
+  'http://localhost:3001';
 import { ParametryTab } from '../../../../components/attributes/ParametryTab';
 import { Hook } from '../../../../components/Hook';
 import { getStorefrontQuoteRequestSettings } from '../../../../lib/api/rfq';
@@ -232,6 +238,12 @@ export default async function ProductPage({
                       addToCartLabel={t('product.addToCart')}
                     />
                   ) : null}
+                  <AddToShoppingListButton
+                    apiBase={PDP_API_BASE}
+                    productId={product.id}
+                    {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
+                    label="Dodaj do listy zakupowej"
+                  />
                   {oneClickEnabled && product.price ? (
                     <form action={oneClickAction} style={{ display: 'inline-flex', gap: 8 }}>
                       <input type="hidden" name="productId" value={product.id} />

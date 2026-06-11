@@ -74,13 +74,76 @@ export class ShoppingListService {
 
   async create(ctx: CustomerContext, input: { name: string }): Promise<ShoppingList> {
     const em = this.emFactory();
+    // The customer's first list automatically becomes their default.
+    const existingCount = await em.count(ShoppingList, {
+      organizationId: ctx.organizationId,
+      customerAccountId: ctx.customerAccountId,
+    });
     const list = em.create(ShoppingList, {
       organizationId: ctx.organizationId,
       customerAccountId: ctx.customerAccountId,
       name: input.name,
+      isDefault: existingCount === 0,
     });
     await em.persistAndFlush(list);
     return list;
+  }
+
+  /**
+   * Resolves the customer's default shopping list, creating/repairing it as
+   * needed so every customer always has exactly one default:
+   *   - returns the flagged default when present;
+   *   - else promotes the earliest existing list to default;
+   *   - else creates a "Default" list.
+   * Idempotent — safe to call on every storefront default-list read.
+   */
+  async ensureDefault(ctx: CustomerContext): Promise<ShoppingList> {
+    const em = this.emFactory();
+    const where = {
+      organizationId: ctx.organizationId,
+      customerAccountId: ctx.customerAccountId,
+    };
+    const flagged = await em.findOne(ShoppingList, { ...where, isDefault: true });
+    if (flagged) return flagged;
+
+    const earliest = await em.findOne(ShoppingList, where, { orderBy: { createdAt: 'asc' } });
+    if (earliest) {
+      earliest.isDefault = true;
+      await em.flush();
+      return earliest;
+    }
+
+    const created = em.create(ShoppingList, { ...where, name: 'Default', isDefault: true });
+    await em.persistAndFlush(created);
+    return created;
+  }
+
+  /** Marks `listId` as the customer's default, clearing the flag on the rest. */
+  async setDefault(ctx: CustomerContext, listId: string): Promise<ShoppingList> {
+    const em = this.emFactory();
+    const list = await this.#owned(em, ctx, listId);
+    const others = await em.find(ShoppingList, {
+      organizationId: ctx.organizationId,
+      customerAccountId: ctx.customerAccountId,
+      isDefault: true,
+      id: { $ne: listId },
+    });
+    for (const o of others) o.isDefault = false;
+    list.isDefault = true;
+    await em.flush();
+    return list;
+  }
+
+  /** Adds an item to the customer's default list, creating it if necessary. */
+  async addItemToDefault(
+    ctx: CustomerContext,
+    input: { productId: string; variantId?: string; quantity: number; note?: string },
+  ): Promise<{ list: ShoppingList; itemCount: number }> {
+    const list = await this.ensureDefault(ctx);
+    await this.addItem(ctx, list.id, input);
+    const em = this.emFactory();
+    const itemCount = await em.count(ShoppingListItem, { shoppingListId: list.id });
+    return { list, itemCount };
   }
 
   async rename(ctx: CustomerContext, listId: string, name: string): Promise<ShoppingList> {
@@ -94,7 +157,21 @@ export class ShoppingListService {
   async remove(ctx: CustomerContext, listId: string): Promise<void> {
     const em = this.emFactory();
     const list = await this.#owned(em, ctx, listId);
+    const wasDefault = list.isDefault;
     await em.removeAndFlush(list);
+    // Keep the "exactly one default" invariant: promote the earliest remaining
+    // list when the deleted one was the default.
+    if (wasDefault) {
+      const next = await em.findOne(
+        ShoppingList,
+        { organizationId: ctx.organizationId, customerAccountId: ctx.customerAccountId },
+        { orderBy: { createdAt: 'asc' } },
+      );
+      if (next) {
+        next.isDefault = true;
+        await em.flush();
+      }
+    }
   }
 
   async addItem(
