@@ -164,6 +164,16 @@ export async function registerShoppingListRoutes(
     },
   );
 
+  app.delete<{ Params: { id: string } }>(
+    '/api/v1/shopping-lists/:id/items',
+    { preHandler: requireCustomer },
+    async (request, reply) => {
+      const ctx = resolveCustomerContext(request);
+      await service.clearItems(ctx, request.params.id);
+      reply.status(204).send();
+    },
+  );
+
   app.delete<{ Params: { id: string; itemId: string } }>(
     '/api/v1/shopping-lists/:id/items/:itemId',
     { preHandler: requireCustomer },

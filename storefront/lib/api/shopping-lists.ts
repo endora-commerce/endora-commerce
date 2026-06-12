@@ -145,6 +145,18 @@ export async function removeShoppingListItem(
   });
 }
 
+/** Removes every item from a list, keeping the list itself. */
+export async function clearShoppingListItems(
+  sessionCookie: string,
+  listId: string,
+): Promise<void> {
+  await apiMutate<null>({
+    method: 'DELETE',
+    path: `/api/v1/shopping-lists/${listId}/items`,
+    sessionCookie,
+  });
+}
+
 export async function setDefaultShoppingList(
   sessionCookie: string,
   id: string,

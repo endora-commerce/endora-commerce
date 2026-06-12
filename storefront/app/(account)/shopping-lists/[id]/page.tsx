@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
+  clearShoppingListItems,
   convertShoppingListToCart,
   convertShoppingListToRfq,
   getShoppingList,
@@ -13,6 +14,7 @@ import { getSessionCookie } from '../../../../lib/session';
 import { StorefrontApiError } from '../../../../lib/api/client';
 import { getServerContext } from '../../../../lib/server-context';
 import { getProductBySlug } from '../../../../lib/api/catalog';
+import { ClearListButton } from '../../../../components/shopping-lists/ClearListButton';
 
 /** Minimal product info shown for a shopping-list row. */
 interface ResolvedProduct {
@@ -133,6 +135,7 @@ export default async function ShoppingListDetailPage({
           its detail page (coming next).
         </p>
       ) : (
+        <>
         <form action={convertSelectedToCartAction}>
           <input type="hidden" name="listId" value={list.id} />
           <table className="b2b-account__table">
@@ -198,6 +201,10 @@ export default async function ShoppingListDetailPage({
             </button>
           </div>
         </form>
+        <div className="mb-10 flex flex-wrap gap-2 border-t border-line pt-6">
+          <ClearListButton listId={list.id} clearAction={clearListAction} />
+        </div>
+        </>
       )}
     </>
   );
@@ -285,6 +292,20 @@ async function removeAction(formData: FormData): Promise<void> {
     await removeShoppingListItem(session, listId, itemId);
   } catch (err) {
     const message = err instanceof StorefrontApiError ? err.message : 'Remove failed.';
+    redirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
+  }
+  redirect(`/shopping-lists/${listId}`);
+}
+
+async function clearListAction(formData: FormData): Promise<void> {
+  'use server';
+  const session = await getSessionCookie();
+  if (!session) redirect('/login');
+  const listId = (formData.get('listId') as string) ?? '';
+  try {
+    await clearShoppingListItems(session, listId);
+  } catch (err) {
+    const message = err instanceof StorefrontApiError ? err.message : 'Clear failed.';
     redirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
   }
   redirect(`/shopping-lists/${listId}`);

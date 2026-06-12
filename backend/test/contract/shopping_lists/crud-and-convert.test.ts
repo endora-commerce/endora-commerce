@@ -66,6 +66,49 @@ describe('Shopping list CRUD + convert-to-cart', () => {
     expect(result.skipped).toEqual([]);
   });
 
+  it('clears all items from a list while keeping the list', async () => {
+    const create = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/shopping-lists',
+      cookies: { b2b_session: 'stub-customer-session' },
+      payload: { name: 'To be cleared' },
+    });
+    const list = (create.json() as { data: { id: string } }).data;
+
+    const addItem = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/shopping-lists/${list.id}/items`,
+      cookies: { b2b_session: 'stub-customer-session' },
+      payload: { productId: SEED_PRODUCT_101_ID, quantity: 2 },
+    });
+    expect(addItem.statusCode).toBe(201);
+    expect((addItem.json() as { data: { items: unknown[] } }).data.items.length).toBe(1);
+
+    const clear = await h.app.inject({
+      method: 'DELETE',
+      url: `/api/v1/shopping-lists/${list.id}/items`,
+      cookies: { b2b_session: 'stub-customer-session' },
+    });
+    expect(clear.statusCode).toBe(204);
+
+    // The list still exists but is now empty.
+    const after = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/shopping-lists/${list.id}`,
+      cookies: { b2b_session: 'stub-customer-session' },
+    });
+    expect(after.statusCode).toBe(200);
+    expect((after.json() as { data: { items: unknown[] } }).data.items.length).toBe(0);
+
+    // Clearing an already-empty list is idempotent.
+    const clearAgain = await h.app.inject({
+      method: 'DELETE',
+      url: `/api/v1/shopping-lists/${list.id}/items`,
+      cookies: { b2b_session: 'stub-customer-session' },
+    });
+    expect(clearAgain.statusCode).toBe(204);
+  });
+
   it('renames + deletes a list', async () => {
     const create = await h.app.inject({
       method: 'POST',
