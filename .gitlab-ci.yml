@@ -69,16 +69,18 @@ quality:
 # Backend: ~2000 DB-backed tests, run SERIALLY per process (vitest singleFork).
 # Sharded across `parallel` job instances — each instance gets its OWN
 # postgres/redis/meilisearch services, and `vitest --shard` splits the test files
-# between them. 4 shards ≈ ¼ wall-clock.
+# between them. 2 shards ≈ ½ wall-clock.
 #
 # NOTE: the speedup is bounded by the runner's `concurrent` setting — N shards
 # only run at once if the runner can execute N jobs concurrently. With
-# concurrent=1 the shards queue and you gain nothing (and pay per-shard setup);
-# lower `parallel` or raise the runner's concurrency to match.
+# concurrent=1 the shards queue and you gain nothing (and pay per-shard setup).
+# Sized for a 4 vCPU / 8 GB runner: parallel=2 pairs with `concurrent = 2` in the
+# runner config (each shard ≈ 2–2.5 GB incl. its 3 services). Raise both together
+# only on a bigger runner.
 test:backend:
   stage: test
   image: node:22.17-slim
-  parallel: 4
+  parallel: 2
   services:
     - name: postgres:16-alpine
       alias: postgres
