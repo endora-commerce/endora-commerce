@@ -7,6 +7,7 @@ import {
   clearRfqDraft,
   readRfqDraft,
   removeRfqDraftItem,
+  setRfqDraftProposedPrice,
   setRfqDraftQuantity,
   RFQ_DRAFT_CHANGED_EVENT,
   RFQ_DRAFT_STORAGE_KEY,
@@ -51,9 +52,15 @@ export function RfqDraftView(props: { apiBase: string; locale: string }): ReactN
   }, []);
 
   const currency = items.find((i) => i.unitPrice)?.unitPrice?.currency ?? null;
-  const allPriced = items.length > 0 && items.every((i) => i.unitPrice);
+  // A line counts as priced when the buyer proposed a price or the catalogue
+  // carries one; the subtotal then uses the proposed price where given.
+  const allPriced =
+    items.length > 0 && items.every((i) => i.proposedUnitPrice != null || i.unitPrice);
   const subtotal = allPriced
-    ? items.reduce((sum, i) => sum + (i.unitPrice?.amount ?? 0) * i.quantity, 0)
+    ? items.reduce(
+        (sum, i) => sum + (i.proposedUnitPrice ?? i.unitPrice?.amount ?? 0) * i.quantity,
+        0,
+      )
     : null;
 
   const submit = async (): Promise<void> => {
@@ -67,7 +74,11 @@ export function RfqDraftView(props: { apiBase: string; locale: string }): ReactN
         headers: { 'content-type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({
           ...(note.trim() ? { headerNote: note.trim() } : {}),
-          items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          items: items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            ...(i.proposedUnitPrice != null ? { desiredUnitPrice: i.proposedUnitPrice } : {}),
+          })),
         }),
       });
       if (res.status === 401) {
@@ -153,6 +164,9 @@ export function RfqDraftView(props: { apiBase: string; locale: string }): ReactN
               line={line}
               t={t}
               onQty={(q): void => setItems(setRfqDraftQuantity(line.productId, q))}
+              onProposedPrice={(p): void =>
+                setItems(setRfqDraftProposedPrice(line.productId, p))
+              }
               onRemove={(): void => setItems(removeRfqDraftItem(line.productId))}
             />
           ))}
@@ -223,16 +237,22 @@ function DraftLine({
   line,
   t,
   onQty,
+  onProposedPrice,
   onRemove,
 }: {
   line: RfqDraftItem;
   t: Strings;
   onQty: (q: number) => void;
+  onProposedPrice: (price: number | null) => void;
   onRemove: () => void;
 }): ReactNode {
-  const lineTotal = line.unitPrice ? line.unitPrice.amount * line.quantity : null;
+  // The line total reflects the buyer's proposed price when given, otherwise
+  // the catalogue snapshot — so it tracks whatever they actually want quoted.
+  const effectiveUnit = line.proposedUnitPrice ?? line.unitPrice?.amount ?? null;
+  const currency = line.unitPrice?.currency ?? 'PLN';
+  const lineTotal = effectiveUnit !== null ? effectiveUnit * line.quantity : null;
   return (
-    <div className="grid grid-cols-[56px_1fr_130px_130px_28px] items-center gap-[14px] border-b border-line px-[22px] py-[14px] last:border-b-0 max-[720px]:grid-cols-[56px_1fr_auto]">
+    <div className="grid grid-cols-[56px_1fr_130px_140px_120px_28px] items-center gap-[14px] border-b border-line px-[22px] py-[14px] last:border-b-0 max-[720px]:grid-cols-[56px_1fr_auto]">
       <div
         className="grid h-[56px] w-[56px] place-items-center rounded-sm bg-surface-alt text-line-strong [&_svg]:h-[60%] [&_svg]:w-[60%]"
         aria-hidden="true"
@@ -283,8 +303,36 @@ function DraftLine({
         </button>
       </div>
 
+      <label className="flex flex-col gap-[3px]">
+        <span className="text-[10px] font-medium uppercase tracking-[0.04em] text-muted">
+          {t.proposedPriceLabel}
+        </span>
+        <span className="flex items-center gap-[6px] rounded-sm border border-line px-[8px] py-[6px] focus-within:border-line-strong">
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            inputMode="decimal"
+            value={line.proposedUnitPrice ?? ''}
+            placeholder={line.unitPrice ? line.unitPrice.amount.toFixed(2) : '—'}
+            aria-label={t.proposedPriceLabel}
+            className="w-full min-w-0 border-0 bg-transparent p-0 text-right font-mono text-[14px] text-fg outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            onChange={(e): void => {
+              const raw = e.target.value.trim();
+              if (raw === '') {
+                onProposedPrice(null);
+                return;
+              }
+              const n = Number(raw);
+              onProposedPrice(Number.isFinite(n) && n >= 0 ? n : null);
+            }}
+          />
+          <span className="font-mono text-[11px] text-muted">{currency}</span>
+        </span>
+      </label>
+
       <span className="text-right font-mono text-[14px] font-semibold text-fg max-[720px]:hidden" aria-label={t.lineTotalLabel}>
-        {lineTotal !== null && line.unitPrice ? formatMoney(lineTotal, line.unitPrice.currency) : '—'}
+        {lineTotal !== null ? formatMoney(lineTotal, currency) : '—'}
       </span>
 
       <button
@@ -342,6 +390,7 @@ interface Strings {
   onRequest: string;
   unit: string;
   qtyLabel: string;
+  proposedPriceLabel: string;
   lineTotalLabel: string;
   removeLabel: string;
   noteLabel: string;
@@ -371,6 +420,7 @@ function strings(pl: boolean): Strings {
       onRequest: 'Cena na zapytanie',
       unit: 'szt.',
       qtyLabel: 'Ilość',
+      proposedPriceLabel: 'Proponowana cena',
       lineTotalLabel: 'Wartość pozycji',
       removeLabel: 'Usuń',
       noteLabel: 'Uwagi do zapytania (opcjonalnie)',
@@ -398,6 +448,7 @@ function strings(pl: boolean): Strings {
     onRequest: 'Price on request',
     unit: 'pc.',
     qtyLabel: 'Quantity',
+    proposedPriceLabel: 'Proposed price',
     lineTotalLabel: 'Line total',
     removeLabel: 'Remove',
     noteLabel: 'Notes for sales (optional)',
