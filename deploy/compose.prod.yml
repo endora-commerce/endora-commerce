@@ -3,12 +3,17 @@
 # Runs on the server, NOT in CI. Images are built + pushed by GitLab CI to the
 # Container Registry; this file pulls them by tag and wires the runtime topology:
 #
-#   caddy ──┬─ https://${STOREFRONT_DOMAIN} → storefront:3000
-#           ├─ https://${ADMIN_DOMAIN}      → admin:80
-#           └─ https://${API_DOMAIN}        → backend:3001
+#   host nginx ──┬─ https://${STOREFRONT_DOMAIN} → 127.0.0.1:3000 → storefront:3000
+#                ├─ https://${ADMIN_DOMAIN}      → 127.0.0.1:8080 → admin:80
+#                └─ https://${API_DOMAIN}        → 127.0.0.1:3001 → backend:3001
+#
+# This stack does NOT terminate TLS. The VPS already runs nginx as a reverse
+# proxy handling SSL + Let's Encrypt certificates; the three apps are published
+# on loopback host ports (127.0.0.1 only — never exposed publicly) and the host
+# nginx proxies the public (sub)domains to them. See deploy/nginx.example.conf.
 #
 # Stateful services (postgres / redis / meilisearch) live on the same host with
-# named volumes. Caddy terminates TLS (Let's Encrypt, automatic).
+# named volumes.
 #
 # Usage on the VPS (see deploy/README.md):
 #   IMAGE_TAG=<sha> docker compose --env-file .env -f compose.prod.yml up -d
@@ -99,6 +104,9 @@ services:
     image: ${REGISTRY_IMAGE}/backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment: *backend-env
+    # Published on loopback only — the host nginx proxies ${API_DOMAIN} here.
+    ports:
+      - '${API_HOST_PORT:-127.0.0.1:3001}:3001'
     volumes:
       # Local-FS assets adapter writes under backend/var — persist it.
       - backend-assets:/app/backend/var
@@ -128,6 +136,9 @@ services:
       HOSTNAME: 0.0.0.0
       # Server-side fetcher → internal backend (NEXT_PUBLIC_* were baked at build).
       BACKEND_BASE_URL: http://backend:3001
+    # Published on loopback only — the host nginx proxies ${STOREFRONT_DOMAIN} here.
+    ports:
+      - '${STOREFRONT_HOST_PORT:-127.0.0.1:3000}:3000'
     depends_on:
       backend:
         condition: service_healthy
@@ -142,31 +153,14 @@ services:
   admin:
     image: ${REGISTRY_IMAGE}/admin:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    # Published on loopback only — the host nginx proxies ${ADMIN_DOMAIN} here.
+    ports:
+      - '${ADMIN_HOST_PORT:-127.0.0.1:8080}:80'
     healthcheck:
       test: ['CMD', 'wget', '--quiet', '--spider', 'http://localhost:80/']
       interval: 10s
       timeout: 3s
       retries: 6
-
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - '80:80'
-      - '443:443'
-    environment:
-      STOREFRONT_DOMAIN: ${STOREFRONT_DOMAIN}
-      ADMIN_DOMAIN: ${ADMIN_DOMAIN}
-      API_DOMAIN: ${API_DOMAIN}
-      ACME_EMAIL: ${ACME_EMAIL}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
-    depends_on:
-      - storefront
-      - admin
-      - backend
 
   # Optional: seed demo/test catalog data. Run on demand, not on every deploy:
   #   IMAGE_TAG=<sha> docker compose --env-file .env -f compose.prod.yml \
@@ -186,5 +180,3 @@ volumes:
   redis-data:
   meilisearch-data:
   backend-assets:
-  caddy-data:
-  caddy-config:

@@ -155,8 +155,9 @@ deploy:
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh
     - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
   script:
-    # Ship the latest compose + Caddyfile (secrets/.env stay on the VPS).
-    - scp deploy/compose.prod.yml deploy/Caddyfile "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+    # Ship the latest compose file (secrets/.env + host nginx config stay on the
+    # VPS; TLS is terminated by the host's existing nginx, not this stack).
+    - scp deploy/compose.prod.yml "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
     - ssh "$DEPLOY_USER@$DEPLOY_HOST"
       "cd $DEPLOY_PATH &&
        echo '$CI_JOB_TOKEN' | docker login -u gitlab-ci-token --password-stdin $CI_REGISTRY &&

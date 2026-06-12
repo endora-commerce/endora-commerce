@@ -1,27 +1,32 @@
 # Single-VPS deployment
 
 Deploys the whole platform (backend API + co-located workers, storefront, admin)
-plus its stateful services (PostgreSQL, Redis, Meilisearch) onto **one VPS**,
-fronted by **Caddy** with automatic HTTPS. Images are built and pushed by
+plus its stateful services (PostgreSQL, Redis, Meilisearch) onto **one VPS**.
+TLS is **not** handled by this stack — the VPS's **existing host nginx** already
+terminates SSL (Let's Encrypt) and reverse-proxies the public domains to the
+apps, which are published on loopback host ports. Images are built and pushed by
 **GitLab CI/CD**; the VPS only pulls and runs them.
 
 ```
-                 ┌──────────────── VPS ────────────────┐
- Internet ──▶ Caddy (:80/:443, Let's Encrypt)          │
-                 ├─ example.com        → storefront:3000 (Next.js SSR)
-                 ├─ admin.example.com  → admin:80        (nginx static SPA)
-                 └─ api.example.com    → backend:3001    (Fastify + workers)
+                 ┌──────────────────────── VPS ────────────────────────┐
+ Internet ──▶ host nginx (:80/:443, Let's Encrypt — already installed)  │
+                 ├─ example.com        → 127.0.0.1:3000 → storefront:3000 (Next.js SSR)
+                 ├─ admin.example.com  → 127.0.0.1:8080 → admin:80        (nginx static SPA)
+                 └─ api.example.com    → 127.0.0.1:3001 → backend:3001    (Fastify + workers)
                       backend ─▶ postgres / redis / meilisearch (named volumes)
-                 └─────────────────────────────────────┘
+                 └─────────────────────────────────────────────────────┘
 ```
+
+The Docker stack binds the three apps to `127.0.0.1` only, so they are reachable
+**solely** through the host nginx — never directly from the internet.
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `compose.prod.yml` | Runtime topology — pulls images by tag, wires services |
-| `Caddyfile` | Reverse proxy + automatic HTTPS for the three (sub)domains |
-| `.env.prod.example` | Template for `deploy/.env` (secrets, domains, registry) — **copied to the VPS, never committed** |
+| `compose.prod.yml` | Runtime topology — pulls images by tag, wires services, publishes apps on loopback ports |
+| `nginx.example.conf` | **Template** server blocks for the host nginx (proxy + certbot TLS) — copied & adapted on the VPS, **not** applied by CI |
+| `.env.prod.example` | Template for `deploy/.env` (secrets, domains, registry, host ports) — **copied to the VPS, never committed** |
 | `../.gitlab-ci.yml` | quality → test → build → deploy pipeline |
 | `../backend/Dockerfile` `../storefront/Dockerfile` `../admin/Dockerfile` | per-app images |
 
@@ -36,7 +41,8 @@ The backend runs API **and** BullMQ workers in one process (`BACKEND_ROLE=all`).
    Let's Encrypt issuance fails until DNS resolves.
 
 2. **Host packages** — install Docker Engine + the compose plugin; add the
-   deploy user to the `docker` group.
+   deploy user to the `docker` group. nginx + certbot are assumed already
+   present (this is the existing reverse proxy).
 
 3. **Deploy dir + secrets**:
    ```bash
@@ -44,16 +50,32 @@ The backend runs API **and** BullMQ workers in one process (`BACKEND_ROLE=all`).
    cd /opt/b2b
    # copy deploy/.env.prod.example here as .env, then fill in every value:
    #   - REGISTRY_IMAGE = your $CI_REGISTRY_IMAGE (e.g. registry.gitlab.com/group/project)
-   #   - the three domains + ACME_EMAIL
+   #   - the three domains (no ACME email — the host nginx owns TLS)
+   #   - keep the *_HOST_PORT loopback binds unless a port clashes on the host
    #   - generate each secret:  openssl rand -hex 32   /   openssl rand -base64 32
    chmod 600 .env
    ```
 
-4. **Registry access** — the deploy job logs the VPS into the registry with the
+4. **Host nginx vhosts** — wire the existing nginx to the loopback ports and let
+   certbot issue/attach the certs. `deploy/nginx.example.conf` is a ready
+   template:
+   ```bash
+   sudo cp /opt/b2b/nginx.example.conf /etc/nginx/sites-available/b2b   # or copy from the repo
+   # edit the three server_name lines to your real domains
+   sudo ln -s /etc/nginx/sites-available/b2b /etc/nginx/sites-enabled/b2b
+   sudo nginx -t && sudo systemctl reload nginx
+   sudo certbot --nginx -d example.com -d admin.example.com -d api.example.com
+   ```
+   certbot rewrites each block to add `listen 443 ssl` + the cert paths + an
+   HTTP→HTTPS redirect, and sets up auto-renewal. The compose stack must be up
+   (so the loopback ports answer) before `nginx -t` passes a proxied request,
+   but certbot's HTTP-01 challenge on :80 does not need the apps running.
+
+5. **Registry access** — the deploy job logs the VPS into the registry with the
    pipeline job token automatically. For manual `pull`s, run once:
    `docker login registry.gitlab.com`.
 
-5. **GitLab CI/CD variables** — set the variables listed at the top of
+6. **GitLab CI/CD variables** — set the variables listed at the top of
    `../.gitlab-ci.yml` (domains + `SALES_CHANNEL_CODE`/`DEFAULT_LOCALE` as plain;
    the `SSH_*` and `DEPLOY_*` as protected/masked).
 
@@ -63,8 +85,9 @@ The backend runs API **and** BullMQ workers in one process (`BACKEND_ROLE=all`).
 
 1. Push to the default branch → `quality`, `test`, `build` run automatically and
    push `:$CI_COMMIT_SHORT_SHA` + `:latest` images.
-2. Run the manual **`deploy`** job. It ships `compose.prod.yml` + `Caddyfile`,
-   pulls the tagged images, runs migrations (`backend-migrate`), and starts the stack.
+2. Run the manual **`deploy`** job. It ships `compose.prod.yml` (the host nginx
+   config stays on the VPS, owned by the operator), pulls the tagged images, runs
+   migrations (`backend-migrate`), and starts the stack.
 3. **Seed test data** + **create an admin user** (once), on the VPS:
    ```bash
    cd /opt/b2b
