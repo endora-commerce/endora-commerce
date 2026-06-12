@@ -656,11 +656,18 @@ function ModifyCard({
   const t = useTranslation('core');
   const [headerNote, setHeaderNote] = useState(rfq.headerNote ?? '');
   const [lines, setLines] = useState<ModifyLineDraft[]>(
-    rfq.items.map((it) => ({
-      productId: it.productId,
-      quantity: String(it.quantity),
-      agreedUnitPrice: it.agreedUnitPrice !== null ? it.agreedUnitPrice.toFixed(2) : '',
-    })),
+    rfq.items.map((it) => {
+      // Open on the request's current state: start the agreed price from the
+      // price already defined in the quote request — the agreed price if the
+      // operator set one, otherwise the customer's desired price — so the
+      // modification is a delta on the existing offer, not a blank slate.
+      const definedPrice = it.agreedUnitPrice ?? it.desiredUnitPrice;
+      return {
+        productId: it.productId,
+        quantity: String(it.quantity),
+        agreedUnitPrice: definedPrice !== null ? definedPrice.toFixed(2) : '',
+      };
+    }),
   );
   const [busy, setBusy] = useState(false);
 
@@ -681,11 +688,14 @@ function ModifyCard({
     });
   }, []);
 
-  // On mount, prefill the price-list price for any line that has no agreed price
-  // yet (so a freshly-submitted RFQ opens with catalogue prices ready to tweak).
+  // On mount, fall back to the catalogue price only for lines where the request
+  // itself defines no price (neither agreed nor desired). Lines that already
+  // carry a request-defined price keep it as the modification's starting point.
   useEffect(() => {
     rfq.items.forEach((it, idx) => {
-      if (it.productId && it.agreedUnitPrice === null) prefillAgreed(idx, it.productId);
+      if (it.productId && it.agreedUnitPrice === null && it.desiredUnitPrice === null) {
+        prefillAgreed(idx, it.productId);
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
