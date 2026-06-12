@@ -1,11 +1,11 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   invalidateShoppingListMembership,
   loadShoppingListMembership,
 } from '../lib/shoppingListMembership';
+import { addRfqDraftItem } from '../lib/rfqDraft';
 
 /**
  * Product-card action buttons (add to cart / add to shopping list / add to
@@ -46,6 +46,10 @@ export function ProductCardActions(props: {
   apiBase: string;
   productId: string;
   productSlug: string;
+  /** Display name carried into the client-side quote-request draft. */
+  productName: string;
+  /** Optional catalogue unit price snapshot, stored on the RFQ draft line. */
+  unitPrice?: { amount: number; currency: string } | null;
   /** True for a simple, directly-purchasable product (shows "add to cart"). */
   buyable: boolean;
 }): ReactNode {
@@ -54,6 +58,7 @@ export function ProductCardActions(props: {
   const [listState, setListState] = useState<ActionState>('idle');
   /** Whether this product is currently in the customer's default list. */
   const [inList, setInList] = useState(false);
+  const [quoteState, setQuoteState] = useState<ActionState>('idle');
 
   useEffect(() => {
     let cancelled = false;
@@ -148,6 +153,18 @@ export function ProductCardActions(props: {
     }
   };
 
+  const addToQuote = (): void => {
+    addRfqDraftItem({
+      productId: props.productId,
+      slug: props.productSlug,
+      name: props.productName,
+      unitPrice: props.unitPrice ?? null,
+      quantity: 1,
+    });
+    setQuoteState('done');
+    window.setTimeout(() => setQuoteState('idle'), 1500);
+  };
+
   const anyVisible =
     (cfg.showAddToCart && props.buyable) || cfg.showAddToShoppingList || cfg.showAddToQuote;
   if (!anyVisible) return null;
@@ -166,6 +183,7 @@ export function ProductCardActions(props: {
       : cartState === 'error'
         ? 'Nie udało się dodać'
         : 'Dodaj do koszyka';
+  const quoteTooltip = quoteState === 'done' ? 'Dodano do zapytania' : 'Dodaj do zapytania';
 
   return (
     <div className="mt-[10px] flex flex-wrap gap-[6px]">
@@ -185,15 +203,15 @@ export function ProductCardActions(props: {
         </WithTooltip>
       ) : null}
       {cfg.showAddToQuote ? (
-        <WithTooltip label="Dodaj do zapytania">
-          <Link
-            href={`/p/${encodeURIComponent(props.productSlug)}#quote`}
+        <WithTooltip label={quoteTooltip}>
+          <button
+            type="button"
+            onClick={addToQuote}
             className="icon-btn"
             aria-label="Dodaj do zapytania"
-            title="Dodaj do zapytania"
           >
-            <QuoteIcon />
-          </Link>
+            <QuoteIcon filled={quoteState === 'done'} />
+          </button>
         </WithTooltip>
       ) : null}
       {cfg.showAddToCart && props.buyable ? (
@@ -204,7 +222,6 @@ export function ProductCardActions(props: {
             disabled={cartState === 'busy'}
             className="icon-btn"
             aria-label="Dodaj do koszyka"
-            title="Dodaj do koszyka"
           >
             <CartIcon />
           </button>
@@ -215,12 +232,17 @@ export function ProductCardActions(props: {
 }
 
 function WithTooltip({ label, children }: { label: string; children: ReactNode }): ReactNode {
+  // Named group (`group/tip`) so the tooltip reveals ONLY when its own button is
+  // hovered/focused — not when hovering anywhere on the surrounding product card,
+  // whose `<article>` also carries the unnamed `group` class. A 1s appear-delay
+  // (applied only while hovered) keeps the tooltip from flashing on a quick pass;
+  // it still hides instantly when the pointer leaves.
   return (
-    <span className="group relative inline-flex">
+    <span className="group/tip relative inline-flex">
       {children}
       <span
         role="tooltip"
-        className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-[color:var(--ink-900)] px-2 py-1 text-[11px] text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+        className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-[color:var(--ink-900)] px-2 py-1 text-[11px] text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover/tip:opacity-100 group-hover/tip:delay-1000 group-focus-within/tip:opacity-100"
       >
         {label}
       </span>
@@ -248,14 +270,14 @@ function HeartIcon({ filled }: { filled: boolean }): ReactNode {
   );
 }
 
-function QuoteIcon(): ReactNode {
+function QuoteIcon({ filled = false }: { filled?: boolean }): ReactNode {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
       width={18}
       height={18}
       viewBox="0 0 24 24"
-      fill="none"
+      fill={filled ? 'currentColor' : 'none'}
       stroke="currentColor"
       strokeWidth={1.7}
       strokeLinecap="round"

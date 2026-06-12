@@ -82,7 +82,7 @@ export default async function QuickOrderPage({
       {sp.built === 'quote' ? (
         <p className="b2b-auth__success">
           Quote request created{sp.rfq ? ` (#${sp.rfq})` : ''}.{' '}
-          <Link href="/account/quote-requests">View quote requests</Link>.
+          <Link href="/quote-requests">View quote requests</Link>.
         </p>
       ) : null}
 

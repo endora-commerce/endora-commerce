@@ -94,6 +94,8 @@ export function ProductCard(props: {
           apiBase={CARD_API_BASE}
           productId={product.id}
           productSlug={product.slug}
+          productName={product.name}
+          unitPrice={product.price ?? null}
           buyable={resolved ? resolved.displayMode !== 'none' : product.price != null}
         />
       </div>
@@ -111,7 +113,14 @@ function renderPriceSlot(args: {
 
   if (resolved) {
     if (resolved.displayMode === 'none') {
-      return <QuoteRequestCta productId={product.id} productSlug={product.slug} variant="card" />;
+      return (
+        <QuoteRequestCta
+          productId={product.id}
+          productSlug={product.slug}
+          productName={product.name}
+          variant="card"
+        />
+      );
     }
     return (
       <>

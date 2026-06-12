@@ -56,7 +56,10 @@ export function HomePage(): ReactNode {
             next[0]!.value = String(counts.active);
           }
         }),
-        fetchKpi('/api/v1/admin/quote-requests?status=submitted', (data: unknown) => {
+        // Count only Pending requests (matching this KPI's drill-down link).
+        // `submitted` is not a valid RFQ status, so the backend rejected the
+        // filter and returned every request — Canceled/Approved/etc. included.
+        fetchKpi('/api/v1/admin/quote-requests?status=Pending', (data: unknown) => {
           const arr = (data as { data?: unknown[] }).data ?? [];
           next[1]!.value = String(arr.length);
         }),

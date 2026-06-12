@@ -11,7 +11,7 @@ import { getSessionCookie } from '../../../lib/session';
  */
 export default async function QuoteRequestsPage(): Promise<ReactNode> {
   const session = await getSessionCookie();
-  if (!session) redirect('/login?next=/account/quote-requests');
+  if (!session) redirect('/login?next=/quote-requests');
   const rfqs = await listRfqs(session);
 
   return (
@@ -69,7 +69,7 @@ export default async function QuoteRequestsPage(): Promise<ReactNode> {
                   </td>
                   <td>
                     <Link
-                      href={`/account/quote-requests/${r.id}`}
+                      href={`/quote-requests/${r.id}`}
                       className="btn btn--outline btn--sm"
                     >
                       Szczegóły

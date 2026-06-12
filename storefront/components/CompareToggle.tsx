@@ -73,7 +73,7 @@ export function CompareToggle(props: { productId: string }): ReactNode {
 
   return (
     <>
-      <div className="group absolute right-[10px] top-[10px] z-[2]">
+      <div className="group/tip absolute right-[10px] top-[10px] z-[2]">
         <button
           type="button"
           className={`flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-[6px] border transition disabled:cursor-wait disabled:opacity-50 ${
@@ -85,13 +85,12 @@ export function CompareToggle(props: { productId: string }): ReactNode {
           disabled={busy}
           onClick={(): void => void onClick()}
           aria-label={compareLabel}
-          title={compareLabel}
         >
           <CompareIcon />
         </button>
         <span
           role="tooltip"
-          className="pointer-events-none absolute right-0 top-full z-10 mt-1 whitespace-nowrap rounded-md bg-[color:var(--ink-900)] px-2 py-1 text-[11px] text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+          className="pointer-events-none absolute right-0 top-full z-10 mt-1 whitespace-nowrap rounded-md bg-[color:var(--ink-900)] px-2 py-1 text-[11px] text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover/tip:opacity-100 group-hover/tip:delay-1000 group-focus-within/tip:opacity-100"
         >
           {compareLabel}
         </span>

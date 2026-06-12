@@ -14,7 +14,6 @@ import { PriceTag } from '../../../../components/PriceTag';
 import { StockBadge } from '../../../../components/StockBadge';
 import { NotifyWhenAvailableDialog } from '../../../../components/inventory/NotifyWhenAvailableDialog';
 import { BackorderHint } from '../../../../components/inventory/BackorderHint';
-import { addToQuoteAction } from '../../../../components/rfq/AddToRfqForm';
 import { ProductBuyActions } from '../../../../components/ProductBuyActions';
 import { AddToShoppingListButton } from '../../../../components/AddToShoppingListButton';
 import { QuoteRequestCta } from '../../../../components/pricing/QuoteRequestCta';
@@ -204,7 +203,13 @@ export default async function ProductPage({
               */}
             {product.type === 'simple' || product.type === 'configurable' ? (
               isQuoteOnly ? (
-                <QuoteRequestCta productId={product.id} productSlug={product.slug} variant="pdp" />
+                <QuoteRequestCta
+                  productId={product.id}
+                  productSlug={product.slug}
+                  productName={product.name}
+                  unitPrice={product.price ?? null}
+                  variant="pdp"
+                />
               ) : (
                 <>
                   {stock?.showNotifyButton ? (
@@ -227,6 +232,8 @@ export default async function ProductPage({
                     <ProductBuyActions
                       productId={product.id}
                       productSlug={product.slug}
+                      productName={product.name}
+                      unitPrice={product.price ?? null}
                       {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
                       showCart={!!product.price && !stock?.showNotifyButton}
                       showQuote={rfqSettings.showAddToQuoteOnPdp}
@@ -234,7 +241,6 @@ export default async function ProductPage({
                       singlePieceLabel={t('product.packaging.singlePiece')}
                       piecesLabel={t('product.packaging.pieces')}
                       addToCartAction={addToCartAction}
-                      addToQuoteAction={addToQuoteAction}
                       addToCartLabel={t('product.addToCart')}
                       // First action in the row, right before "Dodaj do zapytania".
                       leadingAction={
