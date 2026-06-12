@@ -625,9 +625,15 @@ interface ModifyLineDraft {
 async function resolvePriceListPrice(productId: string): Promise<number | null> {
   try {
     const res = await apiClient.get<{
-      data: { basePrice: { amount: string } | null; salePrice: { amount: string } | null };
+      data: {
+        resolvedPrice: {
+          basePrice: { amount: string } | null;
+          salePrice: { amount: string } | null;
+        };
+      };
     }>(`/api/v1/storefront/products/${productId}/resolved-price`);
-    const raw = res.data.salePrice?.amount ?? res.data.basePrice?.amount ?? null;
+    const resolved = res.data.resolvedPrice;
+    const raw = resolved.salePrice?.amount ?? resolved.basePrice?.amount ?? null;
     if (raw === null) return null;
     const n = Number(raw);
     return Number.isFinite(n) ? n : null;
@@ -731,8 +737,10 @@ function ModifyCard({
 
   // A plain grid (not <Table>, which wraps in an overflow-auto container that
   // would clip the product dropdown) so the picker's options overlay outside
-  // the row instead of being trapped inside it.
-  const gridCols = 'grid-cols-[minmax(200px,1fr)_96px_140px_130px_140px_auto]';
+  // the row instead of being trapped inside it. The fixed-width columns only
+  // engage at md+ (where the header is visible); on narrower widths the row
+  // stacks so the trailing actions column can't overflow and break the layout.
+  const gridCols = 'md:grid-cols-[minmax(200px,1fr)_96px_140px_130px_140px_auto]';
 
   return (
     <Section title={t('rfq.detail.modify.title')}>
@@ -774,7 +782,7 @@ function ModifyCard({
             return (
               <div
                 key={i}
-                className={cn('grid items-center gap-3 md:grid', gridCols)}
+                className={cn('grid grid-cols-1 items-center gap-3', gridCols)}
               >
                 <ProductPicker
                   mode="select"
