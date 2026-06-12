@@ -22,6 +22,13 @@ vi.mock('@/lib/api-client', async () => {
   };
 });
 
+// OrganizationPicker pulls in useOrganizationsQuery → usePageSizePreference →
+// useAuth, which needs an AuthProvider this layout-only test doesn't mount.
+// Stub it out — this test only asserts the mobile card layout, not the picker.
+vi.mock('@/components/organization-picker/OrganizationPicker', () => ({
+  OrganizationPicker: () => null,
+}));
+
 const { RfqList } = await import('../../../src/modules/quote_requests/RfqList');
 
 const BUNDLE = passthroughBundle('core', [
