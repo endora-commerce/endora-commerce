@@ -80,6 +80,11 @@ test:
     MEILI_ENV: development
     MEILI_NO_ANALYTICS: 'true'
     DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b
+    # The vitest suite uses its own dedicated DB via TEST_DATABASE_URL (created +
+    # migrated by backend/test/global-setup.ts). Unlike GitHub Actions, the GitLab
+    # docker executor reaches services by their alias host (postgres), NOT
+    # 127.0.0.1 — without this, tests fall back to localhost and ECONNREFUSED.
+    TEST_DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_test
     REDIS_URL: redis://redis:6379
     MEILISEARCH_URL: http://meilisearch:7700
     MEILISEARCH_API_KEY: devMasterKeyChangeMe
