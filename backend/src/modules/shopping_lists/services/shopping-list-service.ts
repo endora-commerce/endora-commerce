@@ -224,6 +224,22 @@ export class ShoppingListService {
   }
 
   /**
+   * Removes every item from the list, keeping the list itself. Idempotent: an
+   * already-empty list is a no-op. Returns the number of rows removed so the
+   * caller can report it.
+   */
+  async clearItems(ctx: CustomerContext, listId: string): Promise<number> {
+    const em = this.emFactory();
+    const list = await this.#owned(em, ctx, listId);
+    const removed = await em.nativeDelete(ShoppingListItem, { shoppingListId: list.id });
+    if (removed > 0) {
+      list.updatedAt = new Date();
+      await em.flush();
+    }
+    return removed;
+  }
+
+  /**
    * Adds the given items (or every item on the list when itemIds is omitted)
    * to the customer's authenticated cart. Archived products are skipped and
    * reported in `skipped`.
