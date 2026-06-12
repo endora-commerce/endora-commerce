@@ -21,9 +21,10 @@ import {
  * "Submit quote request" to create the actual server-side Quote Request via
  * `POST /api/v1/quote-requests` (one-shot, full `items[]` payload).
  *
- * On success the draft is cleared and the buyer is routed to the created
- * request's detail page. Anonymous buyers (401) are bounced to /login first,
- * keeping their draft intact so they can finish after signing in.
+ * On success the draft is cleared and the buyer is routed to the quote-request
+ * success page (`/quote-requests/success?id=…`). Anonymous buyers (401) are
+ * bounced to /login first, keeping their draft intact so they can finish after
+ * signing in.
  */
 export function RfqDraftView(props: { apiBase: string; locale: string }): ReactNode {
   const pl = props.locale.startsWith('pl');
@@ -98,7 +99,7 @@ export function RfqDraftView(props: { apiBase: string; locale: string }): ReactN
       const body = (await res.json()) as { data?: { id?: string } };
       const id = body.data?.id;
       clearRfqDraft();
-      router.push(id ? `/quote-requests/${id}` : '/quote-requests');
+      router.push(id ? `/quote-requests/success?id=${id}` : '/quote-requests');
     } catch (err) {
       setError(err instanceof Error ? err.message : t.errorGeneric);
       setSubmitting(false);
