@@ -26,6 +26,12 @@ export interface RfqDraftItem {
   name: string;
   /** Optional catalogue unit-price snapshot, shown for reference only. */
   unitPrice?: { amount: number; currency: string } | null;
+  /**
+   * Buyer's proposed unit price (the price they would like to negotiate).
+   * `null`/absent means "no proposal — price on request". Submitted to the
+   * backend as the line's `desiredUnitPrice`.
+   */
+  proposedUnitPrice?: number | null;
   quantity: number;
 }
 
@@ -52,6 +58,10 @@ export function readRfqDraft(): RfqDraftItem[] {
         slug: typeof x.slug === 'string' ? x.slug : '',
         name: typeof x.name === 'string' ? x.name : x.productId,
         unitPrice: x.unitPrice ?? null,
+        proposedUnitPrice:
+          typeof x.proposedUnitPrice === 'number' && Number.isFinite(x.proposedUnitPrice)
+            ? x.proposedUnitPrice
+            : null,
         quantity: Math.max(1, Math.floor(x.quantity)),
       }));
   } catch {
@@ -85,6 +95,7 @@ export function addRfqDraftItem(
       slug: item.slug,
       name: item.name,
       unitPrice: item.unitPrice ?? null,
+      proposedUnitPrice: item.proposedUnitPrice ?? null,
       quantity: qty,
     });
   }
@@ -96,6 +107,23 @@ export function setRfqDraftQuantity(productId: string, quantity: number): RfqDra
   const qty = Math.max(1, Math.floor(Number.isFinite(quantity) ? quantity : 1));
   const items = readRfqDraft().map((i) =>
     i.productId === productId ? { ...i, quantity: qty } : i,
+  );
+  writeRfqDraft(items);
+  return items;
+}
+
+/**
+ * Sets (or clears) the buyer's proposed unit price for a line. Pass `null` to
+ * clear the proposal (back to "price on request").
+ */
+export function setRfqDraftProposedPrice(
+  productId: string,
+  price: number | null,
+): RfqDraftItem[] {
+  const normalized =
+    price !== null && Number.isFinite(price) && price >= 0 ? price : null;
+  const items = readRfqDraft().map((i) =>
+    i.productId === productId ? { ...i, proposedUnitPrice: normalized } : i,
   );
   writeRfqDraft(items);
   return items;

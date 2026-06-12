@@ -5,6 +5,7 @@ import {
   readRfqDraft,
   removeRfqDraftItem,
   rfqDraftCount,
+  setRfqDraftProposedPrice,
   setRfqDraftQuantity,
   RFQ_DRAFT_STORAGE_KEY,
 } from '../../lib/rfqDraft';
@@ -72,6 +73,19 @@ describe('rfqDraft store', () => {
     expect(readRfqDraft()[0]?.quantity).toBe(1);
     setRfqDraftQuantity('p1', 4.9);
     expect(readRfqDraft()[0]?.quantity).toBe(4);
+  });
+
+  it('sets, clamps, and clears the buyer-proposed unit price', () => {
+    addRfqDraftItem({ ...base });
+    expect(readRfqDraft()[0]?.proposedUnitPrice ?? null).toBeNull();
+    setRfqDraftProposedPrice('p1', 7.25);
+    expect(readRfqDraft()[0]?.proposedUnitPrice).toBe(7.25);
+    // Negative / non-finite proposals are rejected back to "no proposal".
+    setRfqDraftProposedPrice('p1', -3);
+    expect(readRfqDraft()[0]?.proposedUnitPrice ?? null).toBeNull();
+    setRfqDraftProposedPrice('p1', 5);
+    setRfqDraftProposedPrice('p1', null);
+    expect(readRfqDraft()[0]?.proposedUnitPrice ?? null).toBeNull();
   });
 
   it('removes a line and clears the whole draft', () => {
