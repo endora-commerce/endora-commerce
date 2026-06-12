@@ -107,7 +107,9 @@ test:backend:
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
   script:
-    - pnpm --filter backend run test -- --shard=$CI_NODE_INDEX/$CI_NODE_TOTAL
+    # `exec vitest` (not `run test --`) — pnpm leaks the literal `--` into the
+    # script args, which makes vitest ignore --shard and run the whole suite.
+    - pnpm --filter backend exec vitest run --shard=$CI_NODE_INDEX/$CI_NODE_TOTAL
   cache:
     key:
       files:

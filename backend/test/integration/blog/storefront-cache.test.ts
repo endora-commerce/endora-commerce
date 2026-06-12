@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { setupBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
 import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
 import { BlogCacheService } from '../../../src/modules/blog/services/blog-cache.js';
@@ -114,11 +114,13 @@ describe('blog storefront cache (T089)', () => {
     });
     expect(setOff.statusCode).toBe(200);
 
-    // The eventBus subscriber (R9) wipes the cache asynchronously. Give
-    // the bus a microtick to flush.
-    await new Promise((r) => setImmediate(r));
-
-    expect(await h.blog.cache!.get(indexKey)).toBeNull();
+    // The eventBus subscriber (R9) wipes the cache asynchronously. Poll until
+    // the namespace is cleared instead of assuming a single microtick is enough
+    // — one setImmediate is racy under load (the async Redis wipe may not have
+    // flushed yet), which made this assertion flaky on CI.
+    await vi.waitFor(async () => {
+      expect(await h.blog.cache!.get(indexKey)).toBeNull();
+    });
 
     // Restore.
     await h.app.inject({
