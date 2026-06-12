@@ -60,11 +60,25 @@ quality:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
 # ---------------------------------------------------------------------------
-# Test — full suite against real services (mirrors .github/workflows/ci.yml)
+# Test — split into the DB-backed backend suite (sharded) and the fast,
+# service-less frontend/contract suites, to keep MR wall-clock low while staying
+# a required gate. The GitHub workflow (.github/workflows/ci.yml) still runs the
+# whole suite in one job; this split is GitLab-runner specific.
 # ---------------------------------------------------------------------------
-test:
+
+# Backend: ~2000 DB-backed tests, run SERIALLY per process (vitest singleFork).
+# Sharded across `parallel` job instances — each instance gets its OWN
+# postgres/redis/meilisearch services, and `vitest --shard` splits the test files
+# between them. 4 shards ≈ ¼ wall-clock.
+#
+# NOTE: the speedup is bounded by the runner's `concurrent` setting — N shards
+# only run at once if the runner can execute N jobs concurrently. With
+# concurrent=1 the shards queue and you gain nothing (and pay per-shard setup);
+# lower `parallel` or raise the runner's concurrency to match.
+test:backend:
   stage: test
   image: node:22.17-slim
+  parallel: 4
   services:
     - name: postgres:16-alpine
       alias: postgres
@@ -79,11 +93,10 @@ test:
     MEILI_MASTER_KEY: devMasterKeyChangeMe
     MEILI_ENV: development
     MEILI_NO_ANALYTICS: 'true'
-    DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b
-    # The vitest suite uses its own dedicated DB via TEST_DATABASE_URL (created +
-    # migrated by backend/test/global-setup.ts). Unlike GitHub Actions, the GitLab
-    # docker executor reaches services by their alias host (postgres), NOT
-    # 127.0.0.1 — without this, tests fall back to localhost and ECONNREFUSED.
+    # global-setup.ts creates + migrates this dedicated DB (and exercises every
+    # migration, so a separate migration:up step is redundant). GitLab's docker
+    # executor reaches services by their alias host (postgres), NOT 127.0.0.1 —
+    # without this, tests fall back to localhost and ECONNREFUSED.
     TEST_DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_test
     REDIS_URL: redis://redis:6379
     MEILISEARCH_URL: http://meilisearch:7700
@@ -92,8 +105,35 @@ test:
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
   script:
-    - pnpm --filter backend run migration:up
-    - pnpm -r run test
+    - pnpm --filter backend run test -- --shard=$CI_NODE_INDEX/$CI_NODE_TOTAL
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    # On the default branch always run — this is what gets deployed.
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    # On MRs, only when something that can affect the backend changed.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - backend/**/*
+        - packages/**/*
+        - pnpm-lock.yaml
+        - tsconfig.base.json
+        - .gitlab-ci.yml
+
+# Frontend + contracts: jsdom / pure-node, no external services. Cheap enough to
+# run on every pipeline without sharding or scoping.
+test:frontend:
+  stage: test
+  image: node:22.17-slim
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+  script:
+    - pnpm --filter '!backend' run test
   cache:
     key:
       files:
