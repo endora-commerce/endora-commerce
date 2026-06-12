@@ -196,7 +196,6 @@ export function ProductCardActions(props: {
             aria-pressed={inList}
             className="icon-btn"
             aria-label={listTooltip}
-            title={listTooltip}
           >
             <HeartIcon filled={inList} />
           </button>
@@ -234,7 +233,7 @@ export function ProductCardActions(props: {
 function WithTooltip({ label, children }: { label: string; children: ReactNode }): ReactNode {
   // Named group (`group/tip`) so the tooltip reveals ONLY when its own button is
   // hovered/focused — not when hovering anywhere on the surrounding product card,
-  // whose `<article>` also carries the unnamed `group` class. A 1s appear-delay
+  // whose `<article>` also carries the unnamed `group` class. A 700ms appear-delay
   // (applied only while hovered) keeps the tooltip from flashing on a quick pass;
   // it still hides instantly when the pointer leaves.
   return (
@@ -242,7 +241,7 @@ function WithTooltip({ label, children }: { label: string; children: ReactNode }
       {children}
       <span
         role="tooltip"
-        className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-[color:var(--ink-900)] px-2 py-1 text-[11px] text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover/tip:opacity-100 group-hover/tip:delay-1000 group-focus-within/tip:opacity-100"
+        className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-[color:var(--ink-900)] px-2 py-1 text-[11px] text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover/tip:opacity-100 group-hover/tip:delay-700 group-focus-within/tip:opacity-100"
       >
         {label}
       </span>

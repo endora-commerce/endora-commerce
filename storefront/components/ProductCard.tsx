@@ -50,10 +50,10 @@ export function ProductCard(props: {
   const stockNode = stock ? renderFromStorefrontStock(stock, locale, t) : stockFor(product, t);
 
   return (
-    <article className="group relative flex flex-col overflow-hidden rounded-lg border border-line bg-surface transition hover:-translate-y-[3px] hover:border-[var(--ink-700)] hover:shadow-md">
+    <article className="group relative flex flex-col rounded-lg border border-line bg-surface transition hover:-translate-y-[3px] hover:border-[var(--ink-700)] hover:shadow-md">
       <Link
         href={`/p/${product.slug}`}
-        className="relative flex aspect-square items-center justify-center border-b border-line bg-surface-alt"
+        className="relative flex aspect-square items-center justify-center overflow-hidden rounded-t-lg border-b border-line bg-surface-alt"
         aria-label={product.name}
       >
         {product.primaryAssetUrl ? (
