@@ -1,0 +1,189 @@
+# Production stack for a single VPS.
+#
+# Runs on the server, NOT in CI. Images are built + pushed by GitLab CI to the
+# Container Registry; this file pulls them by tag and wires the runtime topology:
+#
+#   host nginx ──┬─ https://${STOREFRONT_DOMAIN} → 127.0.0.1:3000 → storefront:3000
+#                ├─ https://${ADMIN_DOMAIN}      → 127.0.0.1:8080 → admin:80
+#                └─ https://${API_DOMAIN}        → 127.0.0.1:3001 → backend:3001
+#
+# This stack does NOT terminate TLS. The VPS already runs nginx as a reverse
+# proxy handling SSL + Let's Encrypt certificates; the three apps are published
+# on loopback host ports (127.0.0.1 only — never exposed publicly) and the host
+# nginx proxies the public (sub)domains to them. See deploy/nginx.example.conf.
+#
+# Stateful services (postgres / redis / meilisearch) live on the same host with
+# named volumes.
+#
+# Usage on the VPS (see deploy/README.md):
+#   IMAGE_TAG=<sha> docker compose --env-file .env -f compose.prod.yml up -d
+#
+# `.env` (next to this file, never committed) supplies secrets + domains +
+# REGISTRY_IMAGE; IMAGE_TAG is supplied per-deploy by the CD job.
+
+x-backend-env: &backend-env
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  PORT: "3001"
+  DATABASE_URL: postgresql://${POSTGRES_USER:-b2b}:${POSTGRES_PASSWORD:-b2b}@postgres:5432/${POSTGRES_DB:-b2b}
+  REDIS_URL: redis://redis:6379
+  MEILISEARCH_URL: http://meilisearch:7700
+  MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY}
+  # Public URLs (OAuth redirects, email links, CORS).
+  BACKEND_PUBLIC_URL: https://${API_DOMAIN}
+  ADMIN_BASE_URL: https://${ADMIN_DOMAIN}
+  STOREFRONT_BASE_URL: https://${STOREFRONT_DOMAIN}
+  CORS_ALLOWED_ORIGINS: https://${STOREFRONT_DOMAIN},https://${ADMIN_DOMAIN}
+  # Secrets — generate per environment, see deploy/.env.prod.example.
+  SESSION_COOKIE_SECRET: ${SESSION_COOKIE_SECRET}
+  SETTINGS_SECRET_ENCRYPTION_KEY: ${SETTINGS_SECRET_ENCRYPTION_KEY}
+  MFA_SECRET_ENCRYPTION_KEY: ${MFA_SECRET_ENCRYPTION_KEY}
+  ASSETS_LIBRARY_HMAC_KEY: ${ASSETS_LIBRARY_HMAC_KEY}
+  INTEGRATIONS_ENCRYPTION_KEY: ${INTEGRATIONS_ENCRYPTION_KEY:-}
+  # Sales channels.
+  DEFAULT_SALES_CHANNEL_CODE: ${DEFAULT_SALES_CHANNEL_CODE:-default}
+  SALES_CHANNEL_HOST_MAP: ${SALES_CHANNEL_HOST_MAP:-}
+  # Email (optional — unset SMTP_URL falls back to a console mailer).
+  SMTP_URL: ${SMTP_URL:-}
+  SMTP_FROM: ${SMTP_FROM:-no-reply@${STOREFRONT_DOMAIN}}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: endora-commerce-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-b2b}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-b2b}
+      POSTGRES_DB: ${POSTGRES_DB:-b2b}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-b2b} -d ${POSTGRES_DB:-b2b}']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    container_name: endora-commerce-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.11
+    container_name: endora-commerce-meilisearch
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_ENV: production
+      MEILI_NO_ANALYTICS: 'true'
+    volumes:
+      - meilisearch-data:/meili_data
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--spider', 'http://localhost:7700/health']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  # One-shot: apply DB migrations before the API starts. Exits 0 on success.
+  backend-migrate:
+    image: ${REGISTRY_IMAGE}/backend:${IMAGE_TAG:-latest}
+    container_name: endora-commerce-backend-migrate
+    command: ['pnpm', 'exec', 'tsx', 'src/db/migrate.ts', 'up']
+    environment: *backend-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  backend:
+    image: ${REGISTRY_IMAGE}/backend:${IMAGE_TAG:-latest}
+    container_name: endora-commerce-backend
+    restart: unless-stopped
+    environment: *backend-env
+    # Published on loopback only — the host nginx proxies ${API_DOMAIN} here.
+    ports:
+      - '${API_HOST_PORT:-127.0.0.1:3001}:3001'
+    volumes:
+      # Local-FS assets adapter writes under backend/var — persist it.
+      - backend-assets:/app/backend/var
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+      backend-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3001/api/v1/_health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  storefront:
+    image: ${REGISTRY_IMAGE}/storefront:${IMAGE_TAG:-latest}
+    container_name: endora-commerce-storefront
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      HOSTNAME: 0.0.0.0
+      # Server-side fetcher → internal backend (NEXT_PUBLIC_* were baked at build).
+      BACKEND_BASE_URL: http://backend:3001
+    # Published on loopback only — the host nginx proxies ${STOREFRONT_DOMAIN} here.
+    ports:
+      - '${STOREFRONT_HOST_PORT:-127.0.0.1:3000}:3000'
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  admin:
+    image: ${REGISTRY_IMAGE}/admin:${IMAGE_TAG:-latest}
+    container_name: endora-commerce-admin
+    restart: unless-stopped
+    # Published on loopback only — the host nginx proxies ${ADMIN_DOMAIN} here.
+    ports:
+      - '${ADMIN_HOST_PORT:-127.0.0.1:8080}:80'
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--spider', 'http://localhost:80/']
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  # Optional: seed demo/test catalog data. Run on demand, not on every deploy:
+  #   IMAGE_TAG=<sha> docker compose --env-file .env -f compose.prod.yml \
+  #     --profile seed run --rm seed
+  seed:
+    image: ${REGISTRY_IMAGE}/backend:${IMAGE_TAG:-latest}
+    command: ['pnpm', 'exec', 'tsx', 'src/modules/catalog/seeds/dev-catalog-seed.ts']
+    environment: *backend-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+    profiles: ['seed']
+
+volumes:
+  postgres-data:
+  redis-data:
+  meilisearch-data:
+  backend-assets:
