@@ -76,8 +76,11 @@ The backend runs API **and** BullMQ workers in one process (`BACKEND_ROLE=all`).
    `docker login registry.gitlab.com`.
 
 6. **GitLab CI/CD variables** — set the variables listed at the top of
-   `../.gitlab-ci.yml` (domains + `SALES_CHANNEL_CODE`/`DEFAULT_LOCALE` as plain;
-   the `SSH_*` and `DEPLOY_*` as protected/masked).
+   `../.gitlab-ci.yml`: domains + `SALES_CHANNEL_CODE`/`DEFAULT_LOCALE` as plain;
+   `DEPLOY_*` as protected/masked. `SSH_PRIVATE_KEY` and `SSH_KNOWN_HOSTS` must be
+   **type `File`** (not `Variable`) — masked variables cannot hold the newlines an
+   SSH key / `known_hosts` contain. When pasting the key, keep the **trailing
+   newline** or `ssh-add` rejects it.
 
 ---
 

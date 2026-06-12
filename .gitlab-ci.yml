@@ -15,12 +15,15 @@
 #     ADMIN_DOMAIN            e.g. admin.example.com
 #     SALES_CHANNEL_CODE      e.g. pl_default        (NEXT_PUBLIC_SALES_CHANNEL_CODE)
 #     DEFAULT_LOCALE          e.g. en-US             (NEXT_PUBLIC_DEFAULT_LOCALE)
-#   Deploy (protected + masked):
-#     SSH_PRIVATE_KEY         deploy key with access to the VPS user
-#     SSH_KNOWN_HOSTS         output of `ssh-keyscan <vps-host>`
-#     DEPLOY_HOST             VPS hostname/IP
-#     DEPLOY_USER             VPS ssh user (member of the docker group)
-#     DEPLOY_PATH             dir on the VPS holding compose.prod.yml + .env (e.g. /opt/b2b)
+#   Deploy:
+#     SSH_PRIVATE_KEY  (type File, protected)  deploy key for the VPS user.
+#                      Masked type rejects multi-line values, so use type=File:
+#                      the variable then resolves to a PATH to the key file.
+#                      End the value with a trailing newline or ssh-add fails.
+#     SSH_KNOWN_HOSTS  (type File, protected)  output of `ssh-keyscan <vps-host>`.
+#     DEPLOY_HOST      (protected, masked)     VPS hostname/IP
+#     DEPLOY_USER      (protected, masked)     VPS ssh user (member of the docker group)
+#     DEPLOY_PATH      (protected)             dir on the VPS holding compose.prod.yml + .env (e.g. /opt/b2b)
 
 stages:
   - quality
@@ -149,11 +152,15 @@ deploy:
   stage: deploy
   image: alpine:3.20
   before_script:
+    # SSH_PRIVATE_KEY and SSH_KNOWN_HOSTS are "File" type CI/CD variables (masked
+    # Variables reject the newlines an SSH key / known_hosts contain), so each
+    # variable resolves to a PATH to a file holding the content — not the content.
     - apk add --no-cache openssh-client
-    - eval "$(ssh-agent -s)"
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh
-    - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
+    - cp "$SSH_KNOWN_HOSTS" ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
+    - eval "$(ssh-agent -s)"
+    - chmod 600 "$SSH_PRIVATE_KEY"
+    - ssh-add "$SSH_PRIVATE_KEY"
   script:
     # Ship the latest compose file (secrets/.env + host nginx config stay on the
     # VPS; TLS is terminated by the host's existing nginx, not this stack).
