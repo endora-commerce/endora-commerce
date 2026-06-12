@@ -22,9 +22,21 @@ vi.mock('@/lib/api-client', async () => {
   };
 });
 
-// OrganizationPicker pulls in useOrganizationsQuery → usePageSizePreference →
-// useAuth, which needs an AuthProvider this layout-only test doesn't mount.
-// Stub it out — this test only asserts the mobile card layout, not the picker.
+// RfqList calls useAuth() and usePageSizePreference() directly, plus renders
+// OrganizationPicker (which pulls the same chain). None of them have an
+// AuthProvider mounted in this layout-only test, so stub them out — mirrors the
+// pattern in OrdersList.mobile / AppShell.mobile tests.
+vi.mock('@/lib/auth', () => ({
+  useAuth: () => ({ me: { role: { code: 'platform_admin' } } }),
+}));
+
+vi.mock('@/lib/use-page-size-preference', async () => {
+  const actual = await vi.importActual<typeof import('../../../src/lib/use-page-size-preference')>(
+    '@/lib/use-page-size-preference',
+  );
+  return { ...actual, usePageSizePreference: () => ({ pageSize: 20 as const, setPageSize: vi.fn() }) };
+});
+
 vi.mock('@/components/organization-picker/OrganizationPicker', () => ({
   OrganizationPicker: () => null,
 }));
