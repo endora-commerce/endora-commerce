@@ -59,10 +59,18 @@ export function HomePage(): ReactNode {
         // Count only Pending requests (matching this KPI's drill-down link).
         // `submitted` is not a valid RFQ status, so the backend rejected the
         // filter and returned every request — Canceled/Approved/etc. included.
-        fetchKpi('/api/v1/admin/quote-requests?status=Pending', (data: unknown) => {
-          const arr = (data as { data?: unknown[] }).data ?? [];
-          next[1]!.value = String(arr.length);
-        }),
+        // A platform admin owns no per-user assignments, so scope the count to
+        // "all" for them (parity with the list's default Visibility filter);
+        // otherwise the tile would read 0 even with pending requests waiting.
+        fetchKpi(
+          `/api/v1/admin/quote-requests?status=Pending${
+            me?.role?.code === 'platform_admin' ? '&assignmentScope=all' : ''
+          }`,
+          (data: unknown) => {
+            const arr = (data as { data?: unknown[] }).data ?? [];
+            next[1]!.value = String(arr.length);
+          },
+        ),
         fetchKpi('/api/v1/admin/orders?status=new', (data: unknown) => {
           const arr = (data as { data?: unknown[] }).data ?? [];
           next[2]!.value = String(arr.length);

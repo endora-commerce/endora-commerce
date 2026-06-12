@@ -15,6 +15,7 @@ import { OrganizationPicker } from '@/components/organization-picker/Organizatio
 import { ResponsiveTable, type ResponsiveColumn } from '@/components/ResponsiveTable';
 import { PaginationFooter } from '@/components/PaginationFooter';
 import { usePageSizePreference } from '@/lib/use-page-size-preference';
+import { useAuth } from '@/lib/auth';
 import { useTranslation } from '@/i18n/useTranslation';
 
 /**
@@ -103,8 +104,13 @@ function formatTotal(r: AdminRfqRow): string {
 
 export function RfqList(): ReactNode {
   const t = useTranslation('core');
+  const { me } = useAuth();
   const { pageSize, setPageSize } = usePageSizePreference('quote-requests');
   const [searchParams] = useSearchParams();
+
+  // A platform admin sees every organization's requests, so the per-user "mine"
+  // scope would show them nothing — default their Visibility filter to "all".
+  const isPlatformAdmin = me?.role?.code === 'platform_admin';
 
   const [rows, setRows] = useState<AdminRfqRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,7 +120,8 @@ export function RfqList(): ReactNode {
   // Server-side filters (bound caller visibility / dataset size).
   const [scope, setScope] = useState<AssignmentScope>(() => {
     const fromUrl = searchParams.get('scope');
-    return fromUrl === 'all' || fromUrl === 'unassigned' || fromUrl === 'mine' ? fromUrl : 'mine';
+    if (fromUrl === 'all' || fromUrl === 'unassigned' || fromUrl === 'mine') return fromUrl;
+    return isPlatformAdmin ? 'all' : 'mine';
   });
   const [organizationId, setOrganizationId] = useState<string>('');
 
