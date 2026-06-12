@@ -97,7 +97,15 @@ type MessageKey =
   | 'checkout.address.billingCompanyTitle'
   | 'checkout.address.billingCompanyHint'
   | 'checkout.address.companyName'
-  | 'checkout.address.taxId';
+  | 'checkout.address.taxId'
+  // Feature 008 — Quote Request success page (parallel to checkout success).
+  | 'quoteRequest.success.title'
+  | 'quoteRequest.success.numberPrefix'
+  | 'quoteRequest.success.confirmationSent'
+  | 'quoteRequest.success.nextStepsHint'
+  | 'quoteRequest.success.viewRequest'
+  | 'quoteRequest.success.allRequests'
+  | 'quoteRequest.success.continueShopping';
 
 const MESSAGES: Record<string, Record<MessageKey, string>> = {
   'en-US': {
@@ -193,6 +201,16 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Defaults to your organization. Override for this order if needed.',
     'checkout.address.companyName': 'Company name',
     'checkout.address.taxId': 'Tax ID (NIP)',
+    // Feature 008 — Quote Request success page.
+    'quoteRequest.success.title': 'Thank you — your quote request is submitted',
+    'quoteRequest.success.numberPrefix': 'Your quote request number is ',
+    'quoteRequest.success.confirmationSent':
+      'We have received it and sent a confirmation e-mail.',
+    'quoteRequest.success.nextStepsHint':
+      'Our sales team will review your request and prepare a quote with prices and terms. You will be notified when the offer is ready.',
+    'quoteRequest.success.viewRequest': 'View quote request',
+    'quoteRequest.success.allRequests': 'All quote requests',
+    'quoteRequest.success.continueShopping': 'Continue shopping',
   },
   'pl-PL': {
     'nav.home': 'Strona glowna',
@@ -287,6 +305,16 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Domyslnie dane Twojej organizacji. Mozesz je nadpisac dla tego zamowienia.',
     'checkout.address.companyName': 'Nazwa firmy',
     'checkout.address.taxId': 'NIP',
+    // Feature 008 — Quote Request success page.
+    'quoteRequest.success.title': 'Dziekujemy — Twoje zapytanie ofertowe zostalo zlozone',
+    'quoteRequest.success.numberPrefix': 'Numer Twojego zapytania ofertowego: ',
+    'quoteRequest.success.confirmationSent':
+      'Otrzymalismy je i wyslalismy e-mail z potwierdzeniem.',
+    'quoteRequest.success.nextStepsHint':
+      'Dzial sprzedazy przeanalizuje zapytanie i przygotuje oferte z cenami oraz warunkami. Powiadomimy Cie, gdy oferta bedzie gotowa.',
+    'quoteRequest.success.viewRequest': 'Zobacz zapytanie ofertowe',
+    'quoteRequest.success.allRequests': 'Wszystkie zapytania ofertowe',
+    'quoteRequest.success.continueShopping': 'Kontynuuj zakupy',
   },
 };
 
