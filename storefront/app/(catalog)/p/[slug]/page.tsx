@@ -249,6 +249,7 @@ export default async function ProductPage({
                           productId={product.id}
                           {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
                           label="Dodaj do listy zakupowej"
+                          removeLabel="Usuń z listy zakupowej"
                         />
                       }
                     />
@@ -260,6 +261,7 @@ export default async function ProductPage({
                       productId={product.id}
                       {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
                       label="Dodaj do listy zakupowej"
+                      removeLabel="Usuń z listy zakupowej"
                     />
                   )}
                   {oneClickEnabled && product.price ? (

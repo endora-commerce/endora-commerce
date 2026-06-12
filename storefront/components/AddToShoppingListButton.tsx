@@ -1,68 +1,118 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import {
+  invalidateShoppingListMembership,
+  loadShoppingListMembership,
+} from '../lib/shoppingListMembership';
 
 /**
- * Adds a product to the customer's default shopping list and dispatches
- * `b2b:shopping-list:changed` so the header heart badge updates live. Used on
- * the product detail page (and reusable elsewhere). Signed-out visitors are
- * redirected to login.
+ * Heart toggle for the customer's default shopping list. A first click adds the
+ * product, a second click removes it, and the filled heart reflects the current
+ * default-list membership — the same behaviour as the product-card heart. State
+ * is the authoritative server membership, shared across cards/PDP via the
+ * membership cache, and kept in sync through `b2b:shopping-list:changed`.
  *
- * Rendered as a heart icon-button (matching the header heart) with a hover
- * tooltip carrying the label, so it sits inline with the other PDP action
- * buttons without a wide text label.
+ * Used on the product detail page (and reusable elsewhere). Signed-out visitors
+ * are redirected to login. Rendered as a heart icon-button (matching the header
+ * heart) with a hover tooltip carrying the label.
  */
 export function AddToShoppingListButton(props: {
   apiBase: string;
   productId: string;
   variantId?: string | null;
   quantity?: number;
+  /** Label shown when the product is NOT yet in the list (e.g. "Add to list"). */
   label: string;
+  /** Optional label shown when the product IS in the list (e.g. "Remove from list"). */
+  removeLabel?: string;
   className?: string;
 }): ReactNode {
-  const [state, setState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle');
+  const [state, setState] = useState<'idle' | 'busy' | 'error'>('idle');
+  /** Whether this product is currently in the customer's default list. */
+  const [inList, setInList] = useState(false);
 
-  const add = async (): Promise<void> => {
+  // Reflect default-list membership on the heart, and keep it in sync when any
+  // card (or the header) changes the list via `b2b:shopping-list:changed`.
+  useEffect(() => {
+    let cancelled = false;
+    const sync = (): void => {
+      void loadShoppingListMembership(props.apiBase).then((m) => {
+        if (!cancelled) setInList(m.byProduct.has(props.productId));
+      });
+    };
+    sync();
+    window.addEventListener('b2b:shopping-list:changed', sync);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('b2b:shopping-list:changed', sync);
+    };
+  }, [props.apiBase, props.productId]);
+
+  // First click adds, second click removes. Membership (and the filled heart)
+  // is the authoritative server state shared across the page via the cache.
+  const toggle = async (): Promise<void> => {
     setState('busy');
     try {
-      const res = await fetch(`${props.apiBase}/api/v1/shopping-lists/default/items`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'content-type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({
-          productId: props.productId,
-          ...(props.variantId ? { variantId: props.variantId } : {}),
-          quantity: props.quantity && props.quantity > 0 ? Math.floor(props.quantity) : 1,
-        }),
-      });
-      if (res.status === 401) {
-        window.location.href = '/login?next=/shopping-lists';
-        return;
+      const membership = await loadShoppingListMembership(props.apiBase);
+      const existingItemId = membership.byProduct.get(props.productId);
+
+      if (existingItemId && membership.listId) {
+        const res = await fetch(
+          `${props.apiBase}/api/v1/shopping-lists/${membership.listId}/items/${existingItemId}`,
+          { method: 'DELETE', credentials: 'include', headers: { Accept: 'application/json' } },
+        );
+        if (res.status === 401) {
+          window.location.href = '/login?next=/shopping-lists';
+          return;
+        }
+        if (!res.ok && res.status !== 404) throw new Error('list');
+        membership.byProduct.delete(props.productId);
+        setInList(false);
+      } else {
+        const res = await fetch(`${props.apiBase}/api/v1/shopping-lists/default/items`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({
+            productId: props.productId,
+            ...(props.variantId ? { variantId: props.variantId } : {}),
+            quantity: props.quantity && props.quantity > 0 ? Math.floor(props.quantity) : 1,
+          }),
+        });
+        if (res.status === 401) {
+          window.location.href = '/login?next=/shopping-lists';
+          return;
+        }
+        if (!res.ok) throw new Error('list');
+        // The add response doesn't carry the new item id, so refetch the
+        // membership map to learn it for a later removal.
+        invalidateShoppingListMembership();
+        const fresh = await loadShoppingListMembership(props.apiBase, true);
+        setInList(fresh.byProduct.has(props.productId));
       }
-      if (!res.ok) throw new Error('list');
       window.dispatchEvent(new CustomEvent('b2b:shopping-list:changed'));
-      setState('done');
-      window.setTimeout(() => setState('idle'), 1800);
+      setState('idle');
     } catch {
       setState('error');
       window.setTimeout(() => setState('idle'), 2200);
     }
   };
 
-  const tooltip =
-    state === 'done' ? 'Dodano do listy' : state === 'error' ? 'Nie udało się dodać' : props.label;
+  const activeLabel = inList ? (props.removeLabel ?? 'Usuń z listy zakupowej') : props.label;
+  const tooltip = state === 'error' ? 'Nie udało się zmienić listy' : activeLabel;
 
   return (
     <span className="group relative inline-flex">
       <button
         type="button"
-        onClick={(): void => void add()}
+        onClick={(): void => void toggle()}
         disabled={state === 'busy'}
+        aria-pressed={inList}
         className={props.className ?? 'icon-btn'}
-        aria-label={props.label}
-        title={props.label}
+        aria-label={activeLabel}
       >
-        <HeartIcon filled={state === 'done'} />
+        <HeartIcon filled={inList} />
       </button>
       <span
         role="tooltip"
