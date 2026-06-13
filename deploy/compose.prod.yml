@@ -3,14 +3,21 @@
 # Runs on the server, NOT in CI. Images are built + pushed by GitLab CI to the
 # Container Registry; this file pulls them by tag and wires the runtime topology:
 #
-#   host nginx ──┬─ https://${STOREFRONT_DOMAIN} → 127.0.0.1:3000 → storefront:3000
-#                ├─ https://${ADMIN_DOMAIN}      → 127.0.0.1:8080 → admin:80
-#                └─ https://${API_DOMAIN}        → 127.0.0.1:3001 → backend:3001
+#   central-nginx-proxy ─┬─ https://${STOREFRONT_DOMAIN} → endora-commerce-storefront:3000
+#   (on `public_proxy`)  ├─ https://${ADMIN_DOMAIN}      → endora-commerce-admin:80
+#                        └─ https://${API_DOMAIN}        → endora-commerce-backend:3001
 #
-# This stack does NOT terminate TLS. The VPS already runs nginx as a reverse
-# proxy handling SSL + Let's Encrypt certificates; the three apps are published
-# on loopback host ports (127.0.0.1 only — never exposed publicly) and the host
-# nginx proxies the public (sub)domains to them. See deploy/nginx.example.conf.
+# This stack does NOT terminate TLS. A separate, host-level `central-nginx-proxy`
+# container (the `global-proxy` compose project) handles SSL + Let's Encrypt and
+# reverse-proxies the public (sub)domains. It reaches backend/storefront/admin by
+# container name over the shared external `public_proxy` Docker network — so those
+# three services join `public_proxy` in addition to the stack-private `internal`
+# network (postgres/redis/meilisearch stay on `internal` only, never exposed to
+# the proxy). The loopback host ports below are kept for optional direct host
+# access/debugging; public routing no longer depends on them.
+#
+# Prereq: the shared proxy network must exist on the host before `up`:
+#   docker network create public_proxy
 #
 # Stateful services (postgres / redis / meilisearch) live on the same host with
 # named volumes.
@@ -58,6 +65,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-b2b}
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    networks:
+      - internal
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-b2b} -d ${POSTGRES_DB:-b2b}']
       interval: 5s
@@ -71,6 +80,8 @@ services:
     command: ['redis-server', '--appendonly', 'yes']
     volumes:
       - redis-data:/data
+    networks:
+      - internal
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
@@ -87,6 +98,8 @@ services:
       MEILI_NO_ANALYTICS: 'true'
     volumes:
       - meilisearch-data:/meili_data
+    networks:
+      - internal
     healthcheck:
       # NB: 127.0.0.1, not localhost — the image's /etc/hosts maps localhost to
       # ::1 too, and meilisearch binds IPv4 only (0.0.0.0:7700). busybox wget
@@ -103,6 +116,8 @@ services:
     container_name: endora-commerce-backend-migrate
     command: ['pnpm', 'exec', 'tsx', 'src/db/migrate.ts', 'up']
     environment: *backend-env
+    networks:
+      - internal
     depends_on:
       postgres:
         condition: service_healthy
@@ -119,6 +134,11 @@ services:
     volumes:
       # Local-FS assets adapter writes under backend/var — persist it.
       - backend-assets:/app/backend/var
+    networks:
+      # internal → reach postgres/redis/meilisearch; public_proxy → reachable by
+      # central-nginx-proxy as endora-commerce-backend:3001.
+      - internal
+      - public_proxy
     depends_on:
       postgres:
         condition: service_healthy
@@ -149,6 +169,11 @@ services:
     # Published on loopback only — the host nginx proxies ${STOREFRONT_DOMAIN} here.
     ports:
       - '${STOREFRONT_HOST_PORT:-127.0.0.1:3000}:3000'
+    networks:
+      # internal → server-side fetch to backend:3001; public_proxy → reachable by
+      # central-nginx-proxy as endora-commerce-storefront:3000.
+      - internal
+      - public_proxy
     depends_on:
       backend:
         condition: service_healthy
@@ -167,6 +192,11 @@ services:
     # Published on loopback only — the host nginx proxies ${ADMIN_DOMAIN} here.
     ports:
       - '${ADMIN_HOST_PORT:-127.0.0.1:8080}:80'
+    networks:
+      # admin is a static SPA (talks to the API from the browser); public_proxy
+      # makes it reachable by central-nginx-proxy as endora-commerce-admin:80.
+      - internal
+      - public_proxy
     healthcheck:
       test: ['CMD', 'wget', '--quiet', '--spider', 'http://127.0.0.1:80/']
       interval: 10s
@@ -180,11 +210,23 @@ services:
     image: ${REGISTRY_IMAGE}/backend:${IMAGE_TAG:-latest}
     command: ['pnpm', 'exec', 'tsx', 'src/modules/catalog/seeds/dev-catalog-seed.ts']
     environment: *backend-env
+    networks:
+      - internal
     depends_on:
       postgres:
         condition: service_healthy
     restart: 'no'
     profiles: ['seed']
+
+networks:
+  # Stack-private network for all services (DB/cache/search + apps talk here).
+  internal:
+    driver: bridge
+  # Shared, host-level network owned by the `global-proxy` compose project
+  # (central-nginx-proxy). Must already exist: `docker network create public_proxy`.
+  # backend/storefront/admin join it so the proxy resolves them by container name.
+  public_proxy:
+    external: true
 
 volumes:
   postgres-data:
