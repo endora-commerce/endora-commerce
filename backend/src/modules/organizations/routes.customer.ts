@@ -88,7 +88,7 @@ export async function registerOrganizationsCustomerRoutes(
         body.currentPassword,
         body.newPassword,
       );
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
@@ -148,7 +148,7 @@ export async function registerOrganizationsCustomerRoutes(
     async (request, reply) => {
       const ctx = resolveCustomerContext(request);
       await addressService.deleteAddress(ctx.organizationId, request.params.id);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
@@ -170,7 +170,7 @@ export async function registerOrganizationsCustomerRoutes(
       const ctx = resolveCustomerContext(request);
       const body = twoFactorCodeBodySchema.parse(request.body);
       await totpEnrolmentService.confirm(ctx.customerAccountId, body.code);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
@@ -181,7 +181,7 @@ export async function registerOrganizationsCustomerRoutes(
       const ctx = resolveCustomerContext(request);
       const body = twoFactorCodeBodySchema.parse(request.body);
       await totpEnrolmentService.disable(ctx.customerAccountId, body.code);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 }

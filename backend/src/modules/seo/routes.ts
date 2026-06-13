@@ -221,7 +221,7 @@ export async function registerSeoRoutes(
         entityId: request.params.entityId,
         locale,
       });
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 }

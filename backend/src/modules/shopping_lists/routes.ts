@@ -127,7 +127,7 @@ export async function registerShoppingListRoutes(
     async (request, reply) => {
       const ctx = resolveCustomerContext(request);
       await service.remove(ctx, request.params.id);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
@@ -170,7 +170,7 @@ export async function registerShoppingListRoutes(
     async (request, reply) => {
       const ctx = resolveCustomerContext(request);
       await service.clearItems(ctx, request.params.id);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
@@ -180,7 +180,7 @@ export async function registerShoppingListRoutes(
     async (request, reply) => {
       const ctx = resolveCustomerContext(request);
       await service.removeItem(ctx, request.params.id, request.params.itemId);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 

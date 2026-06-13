@@ -118,7 +118,7 @@ export async function registerDictionaryAdminRoutes(
     { preHandler: gate },
     async (request, reply) => {
       await deps.countryService.remove(request.params.code);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
@@ -171,7 +171,7 @@ export async function registerDictionaryAdminRoutes(
     { preHandler: gate },
     async (request, reply) => {
       await deps.currencyService.remove(request.params.code);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
@@ -232,7 +232,7 @@ export async function registerDictionaryAdminRoutes(
     { preHandler: gate },
     async (request, reply) => {
       await deps.languageService.remove(request.params.code);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
@@ -275,7 +275,7 @@ export async function registerDictionaryAdminRoutes(
         request.params.entryCode,
         request.params.languageCode,
       );
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
@@ -303,7 +303,7 @@ export async function registerDictionaryAdminRoutes(
         request.params.languageCode,
         request.params.countryCode,
       );
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 }

@@ -198,7 +198,7 @@ export async function registerOrganizationsPublicRoutes(
         deps.latestTokenByEmail.set('__latest_reset__', result.rawToken);
       }
       // Always 202 — defends against account enumeration.
-      reply.status(202).send();
+      return reply.status(202).send();
     },
   );
 
@@ -208,7 +208,7 @@ export async function registerOrganizationsPublicRoutes(
     async (request, reply) => {
       const body = passwordResetConfirmSchema.parse(request.body);
       await passwordResetService.confirmReset(body.token, body.newPassword);
-      reply.status(200).send({ data: { ok: true } });
+      return reply.status(200).send({ data: { ok: true } });
     },
   );
 
@@ -225,7 +225,7 @@ export async function registerOrganizationsPublicRoutes(
       }
     }
     reply.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
-    reply.status(204).send();
+    return reply.status(204).send();
   });
 
   // Test-only probe for the register→verify integration test.

@@ -64,7 +64,7 @@ export async function registerWebhooksAdminRoutes(
     { preHandler: requireAdmin('integrations:manage') },
     async (request, reply) => {
       await webhookService.remove(request.params.id);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 

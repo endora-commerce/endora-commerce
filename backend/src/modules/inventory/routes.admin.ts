@@ -168,7 +168,7 @@ export async function registerInventoryAdminRoutes(
         productId: body.productId,
         entries: body.thresholds,
       });
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 

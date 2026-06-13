@@ -94,7 +94,7 @@ export async function registerPromotionRoutes(
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
       await promotionService.remove(request.params.id);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 

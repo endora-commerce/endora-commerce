@@ -70,7 +70,7 @@ export async function registerMembersRoutes(app: FastifyInstance, deps: MembersD
         { organizationId: ctx.organizationId },
         request.params.id,
       );
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
@@ -120,7 +120,7 @@ export async function registerMembersRoutes(app: FastifyInstance, deps: MembersD
       await assertOrganizationAdmin(deps.emFactory(), ctx.customerAccountId);
       const params = memberRoleParamSchema.parse(request.params);
       await roleService.removeMember(ctx.organizationId, params.id);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 

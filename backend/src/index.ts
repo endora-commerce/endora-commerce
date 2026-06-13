@@ -17,7 +17,22 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const composition = await composeApp();
+  // composeApp() wires every module and instantiates services eagerly (cipher
+  // keys, registries, queue consumers). A misconfiguration (bad secret, missing
+  // env) throws here — outside the listen try/catch below — which would surface
+  // as an unhandled rejection with no context. Catch it and fail loud + clean.
+  let composition: Awaited<ReturnType<typeof composeApp>>;
+  try {
+    composition = await composeApp();
+  } catch (err) {
+    console.error(
+      '[boot] composeApp() failed — the backend cannot start. ' +
+        'This is almost always a configuration problem (a required secret/env var ' +
+        'missing or malformed). Original error follows:',
+    );
+    console.error(err);
+    process.exit(1);
+  }
 
   // Rate-limit knobs:
   //   BACKEND_RATE_LIMIT_DISABLED=true → bypass the limiter entirely
@@ -31,18 +46,26 @@ async function main(): Promise<void> {
   const rateLimitMaxEnv = process.env['BACKEND_RATE_LIMIT_MAX'];
   const rateLimitMax = rateLimitMaxEnv ? Number(rateLimitMaxEnv) : undefined;
 
-  const app = await buildServer({
-    sessionCookieSecret,
-    openApi: {
-      title: 'B2B Platform API',
-      version: '0.0.0',
-      serverUrl: `http://localhost:${port}`,
-    },
-    modules: composition.modules,
-    errorEnvelope: composition.errorEnvelope,
-    ...(disableRateLimit ? { disableRateLimit: true } : {}),
-    ...(rateLimitMax && Number.isFinite(rateLimitMax) ? { rateLimitMax } : {}),
-  });
+  let app: Awaited<ReturnType<typeof buildServer>>;
+  try {
+    app = await buildServer({
+      sessionCookieSecret,
+      openApi: {
+        title: 'B2B Platform API',
+        version: '0.0.0',
+        serverUrl: `http://localhost:${port}`,
+      },
+      modules: composition.modules,
+      errorEnvelope: composition.errorEnvelope,
+      ...(disableRateLimit ? { disableRateLimit: true } : {}),
+      ...(rateLimitMax && Number.isFinite(rateLimitMax) ? { rateLimitMax } : {}),
+    });
+  } catch (err) {
+    console.error('[boot] buildServer() failed — backend cannot start. Original error follows:');
+    console.error(err);
+    await composition.dispose();
+    process.exit(1);
+  }
 
   const shutdown = async (signal: string): Promise<void> => {
     app.log.info({ signal }, 'shutting down backend');

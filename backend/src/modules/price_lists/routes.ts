@@ -98,7 +98,7 @@ export async function registerPricingRoutes(
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
       await customerGroupService.remove(request.params.id);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
@@ -226,7 +226,7 @@ export async function registerPricingRoutes(
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
       await priceListService.remove(request.params.id);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
@@ -277,7 +277,7 @@ export async function registerPricingRoutes(
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
       await priceListService.removeProduct(request.params.id, request.params.productId);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
@@ -539,8 +539,7 @@ export async function registerPricingRoutes(
         body.mode,
       );
       if (!row) {
-        reply.status(204).send();
-        return;
+        return reply.status(204).send();
       }
       return {
         data: {
