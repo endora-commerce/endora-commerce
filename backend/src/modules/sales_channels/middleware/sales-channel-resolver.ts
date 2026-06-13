@@ -57,7 +57,7 @@ const HEADER_NAME = 'x-sales-channel';
 const ECHO_HEADER = 'x-sales-channel';
 const ADMIN_PATH_PREFIX = '/api/v1/admin/';
 const API_PATH_PREFIX = '/api/v1/';
-const HEALTH_PATH = '/api/v1/health';
+const HEALTH_PATH = '/api/v1/_health';
 
 function shouldResolve(path: string): boolean {
   if (!path.startsWith(API_PATH_PREFIX)) return false;
