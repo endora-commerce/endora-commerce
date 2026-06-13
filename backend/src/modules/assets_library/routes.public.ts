@@ -88,8 +88,7 @@ export async function registerAssetsLibraryPublicRoutes(
       const etag = `"${a.id}-${Math.floor(a.updatedAt.getTime() / 1000)}"`;
       const ifNoneMatch = req.headers['if-none-match'];
       if (typeof ifNoneMatch === 'string' && ifNoneMatch === etag) {
-        reply.status(304).send();
-        return;
+        return reply.status(304).send();
       }
 
       // Stream open. open() throws on missing file → 404 ASSET_FILE_MISSING.

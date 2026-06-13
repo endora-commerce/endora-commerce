@@ -56,7 +56,7 @@ export async function registerAdminPublicRoutes(
       }
     }
     reply.clearCookie(ADMIN_SESSION_COOKIE_NAME, { path: '/' });
-    reply.status(204).send();
+    return reply.status(204).send();
   });
 }
 

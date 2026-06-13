@@ -86,7 +86,7 @@ export async function registerI18nRoutes(
     async (request, reply) => {
       await languageService.remove(request.params.code);
       onConfigChange?.();
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
@@ -136,7 +136,7 @@ export async function registerI18nRoutes(
     async (request, reply) => {
       await currencyService.remove(request.params.code);
       onConfigChange?.();
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 }

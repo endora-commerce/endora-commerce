@@ -54,7 +54,7 @@ export async function registerApiKeysAdminRoutes(
     { preHandler: requireAdmin('integrations:manage') },
     async (request, reply) => {
       await apiKeyService.revoke(request.params.id);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 }

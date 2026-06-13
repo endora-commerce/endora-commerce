@@ -189,7 +189,7 @@ export async function registerDeliveryMethodsAdminRoutes(
         );
       }
       await em.removeAndFlush(row);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 }

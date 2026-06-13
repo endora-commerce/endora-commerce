@@ -88,7 +88,7 @@ export async function registerAdminNotificationsRoutes(
         }
         throw err;
       }
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 

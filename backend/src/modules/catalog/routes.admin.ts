@@ -299,7 +299,7 @@ export async function registerCatalogAdminRoutes(
             }
           : undefined,
       );
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
@@ -807,7 +807,7 @@ export async function registerCatalogAdminRoutes(
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
       await adminService.deleteAttribute(request.params.idOrKey);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
@@ -902,7 +902,7 @@ export async function registerCatalogAdminRoutes(
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
       await adminService.removeAttributeOption(request.params.optionId);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
@@ -962,7 +962,7 @@ export async function registerCatalogAdminRoutes(
       { preHandler: requireAdmin('catalog:write') },
       async (request, reply) => {
         await categoryService.softDelete(request.params.id);
-        reply.status(204).send();
+        return reply.status(204).send();
       },
     );
   }
@@ -1039,7 +1039,7 @@ export async function registerCatalogAdminRoutes(
           objectType: 'attribute_set',
           objectId: request.params.id,
         });
-        reply.status(204).send();
+        return reply.status(204).send();
       },
     );
 
@@ -1074,7 +1074,7 @@ export async function registerCatalogAdminRoutes(
           objectType: 'attribute_set',
           objectId: request.params.id,
         });
-        reply.status(204).send();
+        return reply.status(204).send();
       },
     );
   }
@@ -1149,7 +1149,7 @@ export async function registerCatalogAdminRoutes(
           objectType: 'gallery_item',
           objectId: request.params.itemId,
         });
-        reply.status(204).send();
+        return reply.status(204).send();
       },
     );
 
@@ -1167,7 +1167,7 @@ export async function registerCatalogAdminRoutes(
           objectType: 'product',
           objectId: request.params.productId,
         });
-        reply.status(204).send();
+        return reply.status(204).send();
       },
     );
   }
@@ -1229,7 +1229,7 @@ export async function registerCatalogAdminRoutes(
           objectType: 'attachment_type',
           objectId: request.params.id,
         });
-        reply.status(204).send();
+        return reply.status(204).send();
       },
     );
 
@@ -1295,7 +1295,7 @@ export async function registerCatalogAdminRoutes(
           objectType: 'product_attachment',
           objectId: request.params.attachmentId,
         });
-        reply.status(204).send();
+        return reply.status(204).send();
       },
     );
   }
@@ -1364,7 +1364,7 @@ export async function registerCatalogAdminRoutes(
           objectType: 'product_packaging_unit',
           objectId: request.params.unitId,
         });
-        reply.status(204).send();
+        return reply.status(204).send();
       },
     );
 
@@ -1431,7 +1431,7 @@ export async function registerCatalogAdminRoutes(
         request.params.productId,
         request.params.variantId,
       );
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
@@ -1488,7 +1488,7 @@ export async function registerCatalogAdminRoutes(
           objectType: 'product_link',
           objectId: request.params.linkId,
         });
-        reply.status(204).send();
+        return reply.status(204).send();
       },
     );
 
@@ -1590,7 +1590,7 @@ export async function registerCatalogAdminRoutes(
           objectType: 'grouped_item',
           objectId: request.params.itemId,
         });
-        reply.status(204).send();
+        return reply.status(204).send();
       },
     );
   }
@@ -1670,7 +1670,7 @@ export async function registerCatalogAdminRoutes(
           objectType: 'bundle_slot',
           objectId: request.params.slotId,
         });
-        reply.status(204).send();
+        return reply.status(204).send();
       },
     );
 
@@ -1721,7 +1721,7 @@ export async function registerCatalogAdminRoutes(
           objectType: 'bundle_slot_option',
           objectId: request.params.optionId,
         });
-        reply.status(204).send();
+        return reply.status(204).send();
       },
     );
   }

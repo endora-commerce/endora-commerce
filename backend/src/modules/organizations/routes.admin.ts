@@ -650,7 +650,7 @@ export async function registerOrganizationsAdminRoutes(
         before as Record<string, unknown>,
         null,
       );
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 

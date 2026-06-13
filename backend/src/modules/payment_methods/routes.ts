@@ -190,7 +190,7 @@ export async function registerPaymentMethodsAdminRoutes(
         );
       }
       await em.removeAndFlush(row);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 }

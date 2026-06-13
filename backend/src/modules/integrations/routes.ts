@@ -81,7 +81,7 @@ export async function registerIntegrationsAdminRoutes(
     { preHandler: requireAdmin('integrations:manage') },
     async (request, reply) => {
       await integrationService.remove(request.params.id);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 

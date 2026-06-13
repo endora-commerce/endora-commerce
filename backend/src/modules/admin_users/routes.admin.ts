@@ -162,7 +162,7 @@ export async function registerAdminUsersAdminRoutes(
     { preHandler: requireAdmin('admin_users:manage') },
     async (request, reply) => {
       await adminUserService.softDelete(request.params.id);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
@@ -201,7 +201,7 @@ export async function registerAdminUsersAdminRoutes(
     { preHandler: requireAdmin('admin_users:manage') },
     async (request, reply) => {
       await adminRoleService.remove(request.params.id);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 }

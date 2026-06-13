@@ -53,7 +53,7 @@ export async function registerTaxRoutes(
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
       await taxService.remove(request.params.id);
-      reply.status(204).send();
+      return reply.status(204).send();
     },
   );
 
