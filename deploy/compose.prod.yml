@@ -88,7 +88,11 @@ services:
     volumes:
       - meilisearch-data:/meili_data
     healthcheck:
-      test: ['CMD', 'wget', '--quiet', '--spider', 'http://localhost:7700/health']
+      # NB: 127.0.0.1, not localhost — the image's /etc/hosts maps localhost to
+      # ::1 too, and meilisearch binds IPv4 only (0.0.0.0:7700). busybox wget
+      # hits ::1 first, gets ECONNREFUSED and gives up (curl would fall back to
+      # IPv4, busybox wget does not) → the check always reports unhealthy.
+      test: ['CMD', 'wget', '--quiet', '--spider', 'http://127.0.0.1:7700/health']
       interval: 5s
       timeout: 3s
       retries: 12
@@ -164,7 +168,7 @@ services:
     ports:
       - '${ADMIN_HOST_PORT:-127.0.0.1:8080}:80'
     healthcheck:
-      test: ['CMD', 'wget', '--quiet', '--spider', 'http://localhost:80/']
+      test: ['CMD', 'wget', '--quiet', '--spider', 'http://127.0.0.1:80/']
       interval: 10s
       timeout: 3s
       retries: 6
