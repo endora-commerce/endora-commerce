@@ -39,7 +39,10 @@ export async function registerHealthRoutes(app: FastifyInstance, deps: HealthDep
       version: process.env['npm_package_version'] ?? '0.0.0',
       uptimeSeconds: Math.round(process.uptime()),
     };
-    reply.status(allOk ? 200 : 503).send(body);
+    // Return the reply (not a bare `reply.send()` in an async handler) — Fastify
+    // v5 otherwise treats the resolved `undefined` as a second payload and the
+    // onSend chain double-writes headers (ERR_HTTP_HEADERS_SENT → process crash).
+    return reply.status(allOk ? 200 : 503).send(body);
   });
 }
 
