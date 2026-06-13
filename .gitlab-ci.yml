@@ -157,7 +157,12 @@ test:frontend:
   services:
     - docker:27-dind
   variables:
-    DOCKER_TLS_CERTDIR: '/certs'
+    # dind without TLS — the daemon listens on plain 2375 and the client targets
+    # it directly. TLS (DOCKER_TLS_CERTDIR=/certs → daemon on 2376) would need the
+    # /certs/client volume shared in the runner config; not worth it for a
+    # self-hosted runner on a trusted host. Both sides must agree on 2375.
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ''
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   rules:
