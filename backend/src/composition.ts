@@ -9,6 +9,7 @@ import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
+import { registerHealthRoutes } from './modules/health_checks/routes.js';
 import type { ErrorEnvelopeOptions } from './http/error-envelope.js';
 import { initOrm, closeOrm } from './db/index.js';
 import { EventBus } from './events/bus.js';
@@ -731,7 +732,28 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     await organizationModerationService.handleNewlyRegistered(orgId);
   });
 
+  // Liveness/readiness endpoint (`/api/v1/_health`). The health_checks module
+  // ships the route factory but never wired it in — register it here with live
+  // pings to Postgres/Redis/Meilisearch. Orchestrators (compose healthcheck)
+  // depend on this returning 200; without it the route 404s and the backend
+  // container is reported unhealthy forever.
+  const healthPlugin: ModulePlugin = async (app) => {
+    await registerHealthRoutes(app, {
+      pingDatabase: async () => {
+        await orm.em.getConnection().execute('select 1');
+        return true;
+      },
+      pingRedis: async () => (await redis.ping()) === 'PONG',
+      pingMeilisearch: async () => {
+        const base = process.env['MEILISEARCH_URL'] ?? 'http://localhost:7700';
+        const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(2000) });
+        return res.ok;
+      },
+    });
+  };
+
   const modules: ModulePlugin[] = [
+    healthPlugin,
     authModulePlugin,
     admin.plugin,
     creditLimits.plugin,
