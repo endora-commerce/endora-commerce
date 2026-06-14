@@ -57,8 +57,16 @@ interface SeedRow<T> {
 }
 
 function mustBeNonProduction(): void {
-  if (process.env['NODE_ENV'] === 'production') {
-    throw new Error('refusing to run dev-catalog-seed in NODE_ENV=production');
+  // The seed is destructive (it truncates the public catalog/business tables),
+  // so it refuses NODE_ENV=production by default. A deliberate demo deployment
+  // can opt in with ALLOW_DEV_SEED_IN_PRODUCTION=true — this is intentionally a
+  // separate, explicit flag so an accidental run never wipes real data.
+  const forced = process.env['ALLOW_DEV_SEED_IN_PRODUCTION'] === 'true';
+  if (process.env['NODE_ENV'] === 'production' && !forced) {
+    throw new Error(
+      'refusing to run dev-catalog-seed in NODE_ENV=production ' +
+        '(set ALLOW_DEV_SEED_IN_PRODUCTION=true to override — this WIPES business data)',
+    );
   }
   const url = process.env['DATABASE_URL'] ?? 'postgresql://b2b:b2b@localhost:5432/b2b';
   if (!/localhost|127\.0\.0\.1|postgres(?::\d+)?/.test(url)) {
