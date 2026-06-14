@@ -209,7 +209,12 @@ services:
   seed:
     image: ${REGISTRY_IMAGE}/backend:${IMAGE_TAG:-latest}
     command: ['pnpm', 'exec', 'tsx', 'src/modules/catalog/seeds/dev-catalog-seed.ts']
-    environment: *backend-env
+    environment:
+      <<: *backend-env
+      # Opt in to running the destructive demo seed despite NODE_ENV=production.
+      # Scoped to this one-shot service only — backend/backend-migrate never get
+      # it, so an accidental run cannot wipe business data.
+      ALLOW_DEV_SEED_IN_PRODUCTION: 'true'
     networks:
       - internal
     depends_on:
