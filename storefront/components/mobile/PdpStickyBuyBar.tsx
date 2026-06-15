@@ -48,7 +48,11 @@ export function PdpStickyBuyBar(props: {
           +
         </button>
       </div>
-      <button type="submit" className="btn btn--dark" style={{ flex: 1, height: 44 }}>
+      <button
+        type="submit"
+        className="btn btn--dark justify-center"
+        style={{ flex: 1, height: 44 }}
+      >
         <CartIcon /> {props.addToCartLabel}
       </button>
       {props.datasheetHref ? (

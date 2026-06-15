@@ -1140,3 +1140,41 @@ select:focus-visible {
 @keyframes m-slide-in-left { from { transform: translateX(-12%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes m-fade-slide { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes m-level-in { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
+
+/* Mobile mega-menu drawer — ported 1:1 from the Industria Mobile design
+   (specs/b2b-platform-storefront-ui/project/industria-mobile.css .mm*). Token
+   references (--ink-*, --surface, --line, --brand-*) re-theme in dark mode. */
+@layer components {
+  .mm { display: flex; flex-direction: column; height: 100%; background: var(--surface); }
+  .mm__head { display: flex; align-items: center; gap: 12px; padding: 8px 14px 14px; border-bottom: 1px solid var(--line); }
+  .mm__back { display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 0; color: var(--ink-800); font-size: 15px; font-weight: 600; padding: 8px 4px; cursor: pointer; }
+  .mm__title { font-size: 15px; font-weight: 600; color: var(--ink-900); }
+  .mm__close { margin-left: auto; width: 38px; height: 38px; border-radius: 10px; background: var(--surface-alt); border: 0; display: grid; place-items: center; color: var(--ink-600); cursor: pointer; }
+  .mm__crumb { padding: 11px 16px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-400); background: var(--surface-alt); border-bottom: 1px solid var(--line); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .mm__scroll { flex: 1; min-height: 0; overflow-y: auto; }
+  .mm__list { list-style: none; margin: 0; padding: 0; }
+  .mm__row { display: flex; align-items: center; gap: 13px; padding: 15px 16px; border-bottom: 1px solid var(--line); width: 100%; background: transparent; border-left: 0; border-right: 0; border-top: 0; text-align: left; color: var(--ink-800); cursor: pointer; transition: background-color 0.12s ease; }
+  .mm__row:hover, .mm__row:active { background: var(--surface-alt); }
+  .mm__row__ic { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 9px; background: var(--surface-alt); display: grid; place-items: center; color: var(--ink-700); }
+  .mm__row__ic svg { width: 20px; height: 20px; }
+  .mm__row__ic img { width: 20px; height: 20px; object-fit: contain; }
+  .mm__row__main { flex: 1; min-width: 0; }
+  .mm__row__main b { display: block; font-size: 14px; font-weight: 500; color: var(--ink-900); }
+  .mm__row__main span { display: block; font-size: 11px; color: var(--ink-400); font-family: var(--font-mono); }
+  .mm__row__chev { display: inline-flex; color: var(--ink-300); }
+  .mm__row.feat { background: var(--ink-900); color: #fff; border-radius: 12px; margin: 14px 16px; border: 0; padding: 16px; }
+  .mm__row.feat:hover, .mm__row.feat:active { background: var(--ink-800); }
+  .mm__row.feat .mm__row__ic { background: rgba(255, 255, 255, 0.12); color: #fff; }
+  .mm__row.feat .mm__row__main b { color: #fff; }
+  .mm__row.feat .mm__row__main span { color: #9fb4f5; }
+  .mm__promo { margin: 14px 16px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 9px; }
+  .mm__promo__head { display: inline-flex; align-items: center; gap: 8px; color: var(--brand-700); }
+  .mm__promo b { font-size: 14px; color: var(--ink-900); }
+  .mm__promo p { margin: 0; font-size: 12px; color: var(--ink-500); line-height: 1.5; }
+  .mm__promo__cta { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--brand-700); }
+  .mm__foot { padding: 14px 16px; border-top: 1px solid var(--line); display: flex; gap: 10px; align-items: center; }
+  .mm__login { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+  .mm__login__av { width: 36px; height: 36px; flex: 0 0 36px; border-radius: 9px; background: var(--brand-50); color: var(--brand-700); display: grid; place-items: center; font-family: var(--font-mono); font-weight: 600; font-size: 12px; }
+  .mm__login b { display: block; font-size: 13px; color: var(--ink-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mm__login span { display: block; font-size: 11px; color: var(--ink-400); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}

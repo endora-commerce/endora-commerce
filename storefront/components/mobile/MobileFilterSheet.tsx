@@ -80,7 +80,12 @@ export function MobileFilterSheet(props: {
             >
               {props.labels.clear}
             </Link>
-            <button type="button" className="btn btn--dark" style={{ flex: 1 }} onClick={apply}>
+            <button
+              type="button"
+              className="btn btn--dark justify-center"
+              style={{ flex: 1 }}
+              onClick={apply}
+            >
               {applyLabel}
             </button>
           </>

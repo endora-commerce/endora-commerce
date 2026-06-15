@@ -1,28 +1,27 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import type { ResolvedMegamenu, ResolvedMenuItem } from '@b2b/contracts';
 import { MenuAsset } from './MenuAsset';
 import { MenuButton } from './MenuButton';
 import { MenuCmsBlockEmbed } from './MenuCmsBlockEmbed';
-import { MenuLink } from './MenuLink';
 
 interface MegamenuMobileDrawerProps {
   megamenu: ResolvedMegamenu;
+  /** Logged-in buyer summary for the footer (null when signed out). */
+  account?: { initials: string; name: string; subtitle: string } | null;
 }
 
 /**
- * Mobile-first drill-down drawer (feature 015 / US6, refined in feature 044 /
- * US4 to the Industria Mobile design §02). The trigger is an icon-button that
- * matches the rest of the mobile header; each level is a stacked list with
- * hover/active affordances. A drilled-in level shows a breadcrumb and an
- * "All <department>" shortcut; the root shows a Quick Order promo + account
- * footer.
- *
- * Purely client-side state — navigating to another page dismisses it.
+ * Mobile drill-down mega-menu drawer (feature 015 / US6, restyled in feature
+ * 044 to the Industria Mobile design §02 — `.mm*` in globals.css). The trigger
+ * is an icon-button in the header; the panel slides in, each level animates,
+ * and rows render as icon + name + chevron. The root shows a Quick Order promo
+ * and an account footer; a drilled-in level shows a breadcrumb and a featured
+ * "All <department>" shortcut.
  */
-export function MegamenuMobileDrawer({ megamenu }: MegamenuMobileDrawerProps): ReactNode {
+export function MegamenuMobileDrawer({ megamenu, account }: MegamenuMobileDrawerProps): ReactNode {
   const [open, setOpen] = useState(false);
   const [stack, setStack] = useState<ResolvedMenuItem[]>([]);
 
@@ -30,12 +29,10 @@ export function MegamenuMobileDrawer({ megamenu }: MegamenuMobileDrawerProps): R
     setOpen(false);
     setStack([]);
   };
-
   const drillInto = (item: ResolvedMenuItem): void => {
     if (item.children.length === 0) return;
     setStack((prev) => [...prev, item]);
   };
-
   const back = (): void => setStack((prev) => prev.slice(0, -1));
 
   const currentLevel = stack[stack.length - 1];
@@ -48,83 +45,89 @@ export function MegamenuMobileDrawer({ megamenu }: MegamenuMobileDrawerProps): R
         <MenuIcon />
       </button>
       {open ? (
-        <div
-          className="m-drawer fixed inset-0 z-[60] flex flex-col bg-surface"
-          role="dialog"
-          aria-modal="true"
-        >
-          <header className="flex items-center justify-between gap-2 border-b border-line px-[12px] py-[10px]">
+        <div className="m-drawer mm fixed inset-0 z-[60]" role="dialog" aria-modal="true">
+          <div className="mm__head">
             {currentLevel ? (
-              <button
-                type="button"
-                className="inline-flex h-[40px] items-center gap-1 rounded-md px-[8px] text-[14px] font-semibold text-fg hover:bg-surface-alt"
-                onClick={back}
-              >
+              <button type="button" className="mm__back" onClick={back}>
                 <ChevLeftIcon /> {currentLevel.label}
               </button>
             ) : (
-              <span className="px-[8px] text-[15px] font-semibold text-fg">
-                {megamenu.name || 'Wszystkie kategorie'}
-              </span>
+              <span className="mm__title">{megamenu.name || 'Wszystkie kategorie'}</span>
             )}
-            <button type="button" className="icon-btn" onClick={reset} aria-label="Zamknij">
+            <button type="button" className="mm__close" onClick={reset} aria-label="Zamknij">
               <XIcon />
             </button>
-          </header>
+          </div>
 
           {currentLevel ? (
-            <div className="border-b border-line px-[16px] py-[10px] font-mono text-[11px] text-subtle">
+            <div className="mm__crumb">
               Kategorie
               {stack.map((s) => (
-                <span key={s.id}> › {s.label}</span>
+                <Fragment key={s.id}>
+                  <ChevRightIcon size={11} /> {s.label}
+                </Fragment>
               ))}
             </div>
           ) : null}
 
-          <ul key={stack.length} className="m-drawer__level flex-1 list-none overflow-y-auto p-0">
-            {currentLevel && currentLevel.url ? (
-              <li className="border-b border-line">
-                <Link
-                  href={currentLevel.url}
-                  className="flex items-center justify-between bg-accent-soft px-[16px] py-[13px] text-[14px] font-semibold text-accent hover:brightness-95"
-                  onClick={reset}
-                >
-                  Wszystkie: {currentLevel.label}
-                  <ArrowRightIcon />
+          <div className="mm__scroll">
+            <ul key={stack.length} className="m-drawer__level mm__list">
+              {currentLevel && currentLevel.url ? (
+                <li>
+                  <Link href={currentLevel.url} className="mm__row feat" onClick={reset}>
+                    <span className="mm__row__ic">
+                      <LayersIcon />
+                    </span>
+                    <span className="mm__row__main">
+                      <b>Wszystkie: {currentLevel.label}</b>
+                      <span>Zobacz wszystko →</span>
+                    </span>
+                  </Link>
+                </li>
+              ) : null}
+              {items.map((item) => (
+                <li key={item.id}>{renderRow(item, drillInto, reset)}</li>
+              ))}
+            </ul>
+
+            {atRoot ? (
+              <div className="mm__promo">
+                <span className="mm__promo__head">
+                  <LightningIcon />
+                  <b>Quick Order</b>
+                </span>
+                <p>Wklej listę SKU + ilości z ERP/CSV i utwórz zamówienie w 30 sekund.</p>
+                <Link href="/quick-order" className="mm__promo__cta" onClick={reset}>
+                  Otwórz Quick Order <ArrowRightIcon />
                 </Link>
-              </li>
+              </div>
             ) : null}
-            {items.map((item) => (
-              <li key={item.id} className="border-b border-line">
-                {renderRow(item, drillInto, reset)}
-              </li>
-            ))}
-          </ul>
+          </div>
 
           {atRoot ? (
-            <div className="border-t border-line">
-              <Link
-                href="/quick-order"
-                className="flex items-start gap-3 bg-accent-soft px-[16px] py-[14px] hover:brightness-95"
-                onClick={reset}
-              >
-                <span className="mt-[2px] text-accent" aria-hidden="true">
-                  <LightningIcon />
-                </span>
-                <span className="flex flex-col gap-[2px]">
-                  <strong className="text-[13px] text-accent">Quick Order</strong>
-                  <span className="text-[12px] leading-[1.4] text-muted">
-                    Wklej listę SKU + ilości z ERP/CSV i utwórz zamówienie w 30 sekund.
-                  </span>
-                </span>
-              </Link>
-              <Link
-                href="/account"
-                className="flex items-center gap-2 border-t border-line px-[16px] py-[13px] text-[14px] font-medium text-fg hover:bg-surface-alt"
-                onClick={reset}
-              >
-                <UserIcon /> Konto
-              </Link>
+            <div className="mm__foot">
+              {account ? (
+                <>
+                  <Link href="/account" className="mm__login" onClick={reset}>
+                    <span className="mm__login__av">{account.initials}</span>
+                    <span className="min-w-0">
+                      <b>{account.name}</b>
+                      <span>{account.subtitle}</span>
+                    </span>
+                  </Link>
+                  <Link href="/account" className="btn btn--ghost btn--sm" onClick={reset}>
+                    <UserIcon /> Konto
+                  </Link>
+                </>
+              ) : (
+                <Link
+                  href="/login"
+                  className="btn btn--outline btn--sm w-full justify-center"
+                  onClick={reset}
+                >
+                  <UserIcon /> Zaloguj się
+                </Link>
+              )}
             </div>
           ) : null}
         </div>
@@ -145,24 +148,34 @@ function renderRow(
     case 'external-link':
       if (hasChildren) {
         return (
-          <button
-            type="button"
-            className="flex w-full items-center justify-between px-[16px] py-[13px] text-[14px] text-fg transition-colors duration-100 hover:bg-surface-alt active:bg-surface-alt"
-            onClick={() => drillInto(item)}
-          >
-            <span>{item.label}</span>
-            <span className="text-subtle transition-transform duration-150 group-active:translate-x-[2px]" aria-hidden="true">
+          <button type="button" className="mm__row" onClick={() => drillInto(item)}>
+            <span className="mm__row__ic">
+              <RowIcon item={item} />
+            </span>
+            <span className="mm__row__main">
+              <b>{item.label}</b>
+              {item.description ? <span>{item.description}</span> : null}
+            </span>
+            <span className="mm__row__chev">
               <ChevRightIcon />
             </span>
           </button>
         );
       }
+      if (!item.url) return null;
       return (
-        <MenuLink
-          item={item}
-          className="w-full px-[16px] py-[13px] text-[14px] text-fg transition-colors duration-100 hover:bg-surface-alt"
-          onClick={onNavigate}
-        />
+        <a href={item.url} className="mm__row" onClick={onNavigate}>
+          <span className="mm__row__ic">
+            <RowIcon item={item} />
+          </span>
+          <span className="mm__row__main">
+            <b>{item.label}</b>
+            {item.description ? <span>{item.description}</span> : null}
+          </span>
+          <span className="mm__row__chev">
+            <ArrowUpRightIcon />
+          </span>
+        </a>
       );
     case 'button':
       return (
@@ -183,6 +196,15 @@ function renderRow(
         </div>
       );
   }
+}
+
+/** Row icon: the item's resolved icon image when set, else a default glyph. */
+function RowIcon({ item }: { item: ResolvedMenuItem }): ReactNode {
+  if (item.icon?.url) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={item.icon.url} alt="" />;
+  }
+  return <TagIcon />;
 }
 
 /* Inline SVG icons — consistent stroke set with the Industria header icons. */
@@ -218,8 +240,8 @@ function MenuIcon(): ReactNode {
 function ChevLeftIcon(): ReactNode {
   return svg(<polyline points="15 18 9 12 15 6" />, 20);
 }
-function ChevRightIcon(): ReactNode {
-  return svg(<polyline points="9 18 15 12 9 6" />, 18);
+function ChevRightIcon({ size = 18 }: { size?: number } = {}): ReactNode {
+  return svg(<polyline points="9 18 15 12 9 6" />, size);
 }
 function XIcon(): ReactNode {
   return svg(
@@ -227,8 +249,28 @@ function XIcon(): ReactNode {
       <line x1="18" y1="6" x2="6" y2="18" />
       <line x1="6" y1="6" x2="18" y2="18" />
     </>,
-    20,
+    18,
   );
+}
+function LayersIcon(): ReactNode {
+  return svg(
+    <>
+      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+      <polyline points="2 17 12 22 22 17" />
+      <polyline points="2 12 12 17 22 12" />
+    </>,
+  );
+}
+function TagIcon(): ReactNode {
+  return svg(
+    <>
+      <path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+      <line x1="7" y1="7" x2="7.01" y2="7" />
+    </>,
+  );
+}
+function LightningIcon(): ReactNode {
+  return svg(<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />, 18);
 }
 function ArrowRightIcon(): ReactNode {
   return svg(
@@ -236,11 +278,17 @@ function ArrowRightIcon(): ReactNode {
       <line x1="5" y1="12" x2="19" y2="12" />
       <polyline points="12 5 19 12 12 19" />
     </>,
-    16,
+    14,
   );
 }
-function LightningIcon(): ReactNode {
-  return svg(<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />, 18);
+function ArrowUpRightIcon(): ReactNode {
+  return svg(
+    <>
+      <line x1="7" y1="17" x2="17" y2="7" />
+      <polyline points="7 7 17 7 17 17" />
+    </>,
+    16,
+  );
 }
 function UserIcon(): ReactNode {
   return svg(

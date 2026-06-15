@@ -49,6 +49,17 @@ export function Header(props: {
     .slice(0, 6)
     .map((i) => ({ label: i.label, href: i.url }));
 
+  // Logged-in buyer summary for the mobile mega-menu footer.
+  const drawerAccount = props.user
+    ? {
+        initials: initials(props.user),
+        name:
+          `${props.user.customerAccount.firstName} ${props.user.customerAccount.lastName}`.trim() ||
+          props.user.customerAccount.email,
+        subtitle: props.user.organization?.name ?? props.user.customerAccount.email,
+      }
+    : null;
+
   return (
     <>
       <div className="industria-topbar max-md:hidden">
@@ -145,7 +156,7 @@ export function Header(props: {
         <div className="md:hidden">
           <div className="flex h-[56px] items-center gap-[6px] px-[16px]">
             {props.megamenu ? (
-              <MegamenuMobileDrawer megamenu={props.megamenu} />
+              <MegamenuMobileDrawer megamenu={props.megamenu} account={drawerAccount} />
             ) : (
               <Link href="/catalog" className="icon-btn" aria-label={t('nav.catalog')}>
                 <MenuIcon />
