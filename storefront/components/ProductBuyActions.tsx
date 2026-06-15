@@ -44,6 +44,13 @@ export interface ProductBuyActionsProps {
    * quote" (e.g. the Add-to-shopping-list heart button).
    */
   leadingAction?: ReactNode;
+  /**
+   * Feature 044 / US3 — on phones the PDP shows a sticky add-to-cart bar with
+   * its own quantity stepper + cart button. When that bar is present this hides
+   * the inline quantity cluster + cart button on mobile (keeping the
+   * shopping-list / quote actions) so the controls are not duplicated.
+   */
+  hideQuantityCartOnMobile?: boolean;
 }
 
 export function ProductBuyActions({
@@ -60,6 +67,7 @@ export function ProductBuyActions({
   addToCartAction,
   addToCartLabel,
   leadingAction,
+  hideQuantityCartOnMobile = false,
 }: ProductBuyActionsProps): ReactNode {
   const units = packagingUnits ?? [];
   const defaultUnit = units.find((u) => u.isDefault) ?? null;
@@ -72,6 +80,9 @@ export function ProductBuyActions({
 
   const selectedUnit = units.find((u) => u.id === unitId) ?? null;
   const resultingPieces = selectedUnit ? selectedUnit.baseQuantity * qty : null;
+  // When the mobile sticky buy bar owns the quantity + cart, hide those inline
+  // controls on phones to avoid the duplicated row the buyer would otherwise see.
+  const mobileHide = hideQuantityCartOnMobile ? ' max-md:hidden' : '';
 
   const addToQuote = (): void => {
     // Piece-based: when a packaging unit is selected we add the resulting
@@ -95,7 +106,7 @@ export function ProductBuyActions({
           aria-label="Jednostka"
           value={unitId}
           onChange={(e): void => setUnitId(e.target.value)}
-          className="rounded-sm border border-line px-[8px] py-[6px] text-[13px]"
+          className={`rounded-sm border border-line px-[8px] py-[6px] text-[13px]${mobileHide}`}
         >
           <option value="">{singlePieceLabel}</option>
           {units.map((u) => (
@@ -106,7 +117,7 @@ export function ProductBuyActions({
         </select>
       ) : null}
 
-      <label htmlFor={`buy-qty-${productId}`} className="text-[12px]">
+      <label htmlFor={`buy-qty-${productId}`} className={`text-[12px]${mobileHide}`}>
         Ilość
       </label>
       <input
@@ -119,11 +130,11 @@ export function ProductBuyActions({
           const n = Number(e.target.value);
           setQty(Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1);
         }}
-        className="w-[5rem] rounded-sm border border-line px-[8px] py-[6px]"
+        className={`w-[5rem] rounded-sm border border-line px-[8px] py-[6px]${mobileHide}`}
       />
 
       {resultingPieces !== null ? (
-        <span className="text-[12px] text-muted">
+        <span className={`text-[12px] text-muted${mobileHide}`}>
           = {resultingPieces.toLocaleString('pl-PL')} {piecesLabel}
         </span>
       ) : null}
@@ -137,7 +148,7 @@ export function ProductBuyActions({
       ) : null}
 
       {showCart ? (
-        <form action={addToCartAction}>
+        <form action={addToCartAction} className={mobileHide ? 'max-md:hidden' : undefined}>
           <input type="hidden" name="productId" value={productId} />
           {variantId ? <input type="hidden" name="variantId" value={variantId} /> : null}
           {selectedUnit ? (

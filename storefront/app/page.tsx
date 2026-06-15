@@ -6,6 +6,7 @@ import { getHomepageConfig } from '../lib/api/homepage';
 import { getServerContext } from '../lib/server-context';
 import { ProductCard } from '../components/ProductCard';
 import { CmsPageRenderer } from '../components/CmsPageRenderer';
+import { HomeMobileStrip } from '../components/mobile/HomeMobileStrip';
 import { Hook } from '../components/Hook';
 
 interface CatTile {
@@ -57,10 +58,24 @@ export default async function HomePage(): Promise<ReactNode> {
         count: c.count,
       }));
 
+  const mobileChips = [
+    { label: 'Wszystko', href: '/catalog', active: true },
+    ...categoryTiles.slice(0, 4).map((c) => ({ label: c.name, href: c.href })),
+  ];
+
   return (
     <>
       <Hook code="homepage.top" />
-      <section className="border-b border-line bg-surface bg-[radial-gradient(ellipse_at_top_right,rgba(29,78,216,0.04),transparent_60%)] pt-[56px] pb-[72px]">
+      {/* Feature 044 / US1 — mobile-only benefit strip + category chips. */}
+      <HomeMobileStrip
+        benefits={[
+          { icon: 'truck', label: 'Wysyłka dziś' },
+          { icon: 'wallet', label: 'Limit kredytowy' },
+          { icon: 'doc', label: 'Faktura VAT' },
+        ]}
+        chips={mobileChips}
+      />
+      <section className="border-b border-line bg-surface bg-[radial-gradient(ellipse_at_top_right,rgba(29,78,216,0.04),transparent_60%)] pt-[56px] pb-[72px] max-md:pt-[28px] max-md:pb-[40px]">
         <div className="mx-auto grid max-w-[1360px] grid-cols-[minmax(0,5fr)_minmax(0,4fr)] items-center gap-[56px] px-[24px] max-[920px]:grid-cols-1">
           <div>
             <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-line bg-surface-alt px-[10px] py-[6px] font-mono text-[11px] tracking-[0.04em] text-muted">
@@ -240,7 +255,7 @@ export default async function HomePage(): Promise<ReactNode> {
               Cały bestseller <ArrowRightIcon />
             </Link>
           </div>
-          <ul className="m-0 grid list-none grid-cols-4 gap-[16px] p-0 max-[1100px]:grid-cols-2 max-[540px]:grid-cols-1">
+          <ul className="m-0 grid list-none grid-cols-4 gap-[16px] p-0 max-[1100px]:grid-cols-2">
             {products.data.map((p) => (
               <li key={p.id}>
                 <ProductCard product={p} locale={locale} />

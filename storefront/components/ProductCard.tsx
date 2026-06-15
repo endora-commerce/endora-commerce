@@ -77,7 +77,7 @@ export function ProductCard(props: {
         </span>
       ) : null}
 
-      <div className="flex flex-1 flex-col gap-[6px] p-[14px] pb-[16px]">
+      <div className="flex flex-1 flex-col gap-[6px] p-[14px] pb-[16px] max-md:gap-[5px] max-md:p-[10px] max-md:pb-[12px]">
         <div className="flex gap-[6px] font-mono text-[11px] text-muted">
           <span className="font-medium text-fg-soft">{product.sku}</span>
         </div>

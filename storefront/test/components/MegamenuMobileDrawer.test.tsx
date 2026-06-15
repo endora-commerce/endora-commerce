@@ -44,9 +44,10 @@ const fixture: ResolvedMegamenu = {
 };
 
 describe('MegamenuMobileDrawer — SSR initial render', () => {
-  it('renders the burger trigger and is marked md:hidden on the wrapper', () => {
+  it('renders the burger trigger (icon-button) and is marked md:hidden on the wrapper', () => {
     const html = renderToString(<MegamenuMobileDrawer megamenu={fixture} />);
-    expect(html).toContain('☰ Menu');
+    expect(html).toContain('aria-label="Menu"');
+    expect(html).toContain('icon-btn');
     expect(html).toContain('md:hidden');
   });
 
@@ -56,5 +57,13 @@ describe('MegamenuMobileDrawer — SSR initial render', () => {
     // state hides the body so neither label appears in the SSR output.
     expect(html).not.toContain('Catalog');
     expect(html).not.toContain('Phone');
+  });
+
+  it('gates the feature-044 chrome (Quick Order promo, breadcrumb) behind the open state', () => {
+    const html = renderToString(<MegamenuMobileDrawer megamenu={fixture} />);
+    // The root promo + the drill-down breadcrumb only exist once the drawer is
+    // opened (client interaction, exercised on device); closed → neither shows.
+    expect(html).not.toContain('Quick Order');
+    expect(html).not.toContain('Kategorie ›');
   });
 });

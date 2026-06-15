@@ -21,15 +21,28 @@ export function FilterPanel(props: {
   baseQuery: Record<string, string>;
   basePath: string;
   locale: string;
+  /**
+   * Feature 044 / US2 — when reused inside the mobile filter sheet the
+   * sheet's footer owns the apply action, so the panel's own submit button
+   * and the sticky/border chrome are suppressed to avoid a double control.
+   */
+  variant?: 'sidebar' | 'sheet';
 }): ReactNode {
   const t = tForLocale(props.locale);
   if (props.filters.length === 0) return null;
 
+  const inSheet = props.variant === 'sheet';
   const activeChips = collectActiveChips(props.filters, props.selected);
   const clearAllHref = buildHref(props.basePath, props.baseQuery);
 
   return (
-    <aside className="sticky top-[132px] self-start rounded-lg border border-line bg-surface p-[18px]">
+    <aside
+      className={
+        inSheet
+          ? 'self-start'
+          : 'sticky top-[132px] self-start rounded-lg border border-line bg-surface p-[18px]'
+      }
+    >
       <div className="mb-[14px] flex items-center justify-between">
         <h3 className="text-[14px]">{t('catalog.filters')}</h3>
         {activeChips.length > 0 ? (
@@ -110,9 +123,11 @@ export function FilterPanel(props: {
           </div>
         ))}
 
-        <button type="submit" className="btn btn--dark btn--block mt-[14px]">
-          {t('common.searchAction')}
-        </button>
+        {inSheet ? null : (
+          <button type="submit" className="btn btn--dark btn--block mt-[14px]">
+            {t('common.searchAction')}
+          </button>
+        )}
       </form>
     </aside>
   );

@@ -301,7 +301,12 @@ function EmptyState(): ReactNode {
   );
 }
 
-function filterRowsByMode(
+/**
+ * Filter comparison rows by the active display mode. Exported for unit testing
+ * the "show only differences" behaviour (feature 044 / US6) — the table itself
+ * fetches on mount, so the toggle is otherwise device-verified.
+ */
+export function filterRowsByMode(
   rows: ComparisonAttributeRow[],
   mode: ComparisonDisplayMode,
 ): ComparisonAttributeRow[] {

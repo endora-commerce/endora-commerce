@@ -533,6 +533,22 @@
 .industria-switch.is-on::after { transform: translateX(14px); }
 .industria-compare-table tbody td.is-best::before { content: 'BEST'; position: absolute; top: 8px; right: 8px; font-size: 9px; font-family: var(--font-mono); color: var(--ok-700); letter-spacing: 0.08em; }
 
+/* Feature 044 / US6 — on phones the parameter-name column sticks to the left
+   while the product columns scroll horizontally; the sticky thead pins to the
+   scroll container's own top (not the desktop header offset). */
+@media (max-width: 767px) {
+  .industria-compare-table tbody th,
+  .industria-compare-table thead th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    width: 132px;
+    min-width: 132px;
+  }
+  .industria-compare-table thead th { top: 0; }
+  .industria-compare-table thead th:first-child { z-index: 3; }
+}
+
 /* ------------------------------------------------------------------ */
 /* Quick Order                                                              */
 /* ------------------------------------------------------------------ */
@@ -1022,3 +1038,143 @@ select:focus-visible {
   color: var(--ink-900);
 }
 .cart-empty p { margin: 0 0 18px; color: var(--ink-500); font-size: 14px; }
+
+/* ================================================================== */
+/* Mobile UI (feature 044)                                              */
+/* ------------------------------------------------------------------ */
+/* Conventions for the phone experience (Industria Mobile, 390px ref): */
+/*   - "Mobile" = viewport < md (768px), the same boundary the megamenu */
+/*     drawer already pivots on. New mobile chrome is shown with        */
+/*     Tailwind `md:hidden` and hidden on desktop with `max-md:hidden`. */
+/*   - Fixed top/bottom chrome MUST respect device safe-area insets and */
+/*     MUST reserve its own space so it never hides content (no CLS,    */
+/*     Principle VII). The bottom tab bar publishes its height into     */
+/*     `--m-tabbar-h`; the layout spacer + sticky bars read it.         */
+/*   - Component-level styling lives inline in components/mobile/* as    */
+/*     Tailwind utilities (feature 041 direction); only the shared      */
+/*     safe-area + space-reservation primitives live here.             */
+/* ------------------------------------------------------------------ */
+:root {
+  /* Height the bottom tab bar reserves at the page foot on mobile.
+     0 on desktop; the tab bar (md:hidden) sets the real value below. */
+  --m-tabbar-h: 0px;
+  /* Safe-area inset helpers (0 on browsers without env() support). */
+  --m-safe-top: env(safe-area-inset-top, 0px);
+  --m-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* No horizontal page overflow anywhere on the mobile band (SC-001/002). */
+@media (max-width: 767px) {
+  /* The fixed bottom tab bar (md:hidden) is ~56px tall; reserve that much
+     at the page foot so the last row + footer stay reachable (SC-007). */
+  :root { --m-tabbar-h: 56px; }
+  html, body { overflow-x: hidden; }
+  body { padding-bottom: calc(var(--m-tabbar-h) + var(--m-safe-bottom)); }
+  /* Touch-target floor: header icon buttons are 40px on desktop; bump to the
+     44px minimum on phones (FR-004 / SC-003). */
+  .icon-btn { min-height: 44px; min-width: 44px; }
+}
+
+@layer components {
+  /* Fixed bottom tab bar — primary thumb navigation (design §01). On
+     desktop it is `md:hidden`; the wrapper sets --m-tabbar-h so the page
+     reserves matching bottom padding (rule above). */
+  .m-tabbar {
+    @apply fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-line bg-surface md:hidden;
+    padding-bottom: var(--m-safe-bottom);
+  }
+  .m-tabbar__item {
+    @apply relative flex min-h-[52px] flex-col items-center justify-center gap-[3px]
+      px-1 pt-[6px] pb-[4px] text-[10px] font-medium text-subtle;
+  }
+  .m-tabbar__item.is-active { @apply text-accent; }
+  .m-tabbar__badge {
+    @apply absolute right-[calc(50%-22px)] top-[5px] inline-flex h-[16px] min-w-[16px]
+      items-center justify-center rounded-full border-2 border-surface bg-accent px-[4px]
+      font-mono text-[9px] font-semibold leading-none text-white;
+  }
+
+  /* Sticky action bar shared by PDP buy-bar + quick-order total bar.
+     Sits just above the tab bar and reserves the home-indicator inset. */
+  .m-actionbar {
+    @apply fixed inset-x-0 z-30 flex items-center gap-2 border-t border-line bg-surface
+      px-[16px] py-[10px] shadow-[0_-4px_16px_-8px_rgba(24,24,27,0.18)] md:hidden;
+    bottom: calc(var(--m-tabbar-h) + var(--m-safe-bottom));
+  }
+
+  /* Bottom sheet primitive (filters) — dim backdrop + grab handle + pinned
+     footer. The body scrolls; the footer respects the home-indicator inset. */
+  .m-sheet-dim {
+    @apply fixed inset-0 z-50 bg-[rgba(10,13,18,0.45)] md:hidden;
+    animation: m-fade-in 200ms ease;
+  }
+  .m-sheet {
+    @apply fixed inset-x-0 bottom-0 z-50 flex max-h-[85vh] flex-col rounded-t-xl
+      border-t border-line bg-surface md:hidden;
+    padding-bottom: var(--m-safe-bottom);
+    animation: m-slide-up 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .m-sheet__grab { @apply mx-auto mt-[8px] mb-[4px] h-[4px] w-[40px] rounded-full bg-line-strong; }
+  .m-sheet__head { @apply flex items-center justify-between px-[16px] py-[12px]; }
+  .m-sheet__body { @apply min-h-0 flex-1 overflow-y-auto px-[16px] pb-[12px]; }
+  .m-sheet__foot { @apply flex items-center gap-2 border-t border-line px-[16px] py-[12px]; }
+
+  /* Full-screen mobile search overlay (design §01). */
+  .m-search-overlay {
+    @apply fixed inset-0 z-[60] flex flex-col bg-surface md:hidden;
+    padding-top: var(--m-safe-top);
+    animation: m-fade-slide 200ms ease;
+  }
+
+  /* Full-screen drill-down drawer (mega menu). The panel slides in from the
+     left; each drill-down level fades+slides in (keyed remount in the JSX). */
+  .m-drawer { animation: m-slide-in-left 260ms cubic-bezier(0.22, 1, 0.36, 1); }
+  .m-drawer__level { animation: m-level-in 200ms ease; }
+  .m-tap { @apply transition-colors duration-100 active:bg-surface-alt; }
+}
+
+/* Mobile micro-interactions (feature 044). Transform/opacity only (cheap, no
+   layout). Disabled by the prefers-reduced-motion guard later in this file. */
+@keyframes m-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes m-slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes m-slide-in-left { from { transform: translateX(-12%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes m-fade-slide { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes m-level-in { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
+
+/* Mobile mega-menu drawer — ported 1:1 from the Industria Mobile design
+   (specs/b2b-platform-storefront-ui/project/industria-mobile.css .mm*). Token
+   references (--ink-*, --surface, --line, --brand-*) re-theme in dark mode. */
+@layer components {
+  .mm { display: flex; flex-direction: column; height: 100%; background: var(--surface); }
+  .mm__head { display: flex; align-items: center; gap: 12px; padding: 8px 14px 14px; border-bottom: 1px solid var(--line); }
+  .mm__back { display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 0; color: var(--ink-800); font-size: 15px; font-weight: 600; padding: 8px 4px; cursor: pointer; }
+  .mm__title { font-size: 15px; font-weight: 600; color: var(--ink-900); }
+  .mm__close { margin-left: auto; width: 38px; height: 38px; border-radius: 10px; background: var(--surface-alt); border: 0; display: grid; place-items: center; color: var(--ink-600); cursor: pointer; }
+  .mm__crumb { padding: 11px 16px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-400); background: var(--surface-alt); border-bottom: 1px solid var(--line); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .mm__scroll { flex: 1; min-height: 0; overflow-y: auto; }
+  .mm__list { list-style: none; margin: 0; padding: 0; }
+  .mm__row { display: flex; align-items: center; gap: 13px; padding: 15px 16px; border-bottom: 1px solid var(--line); width: 100%; background: transparent; border-left: 0; border-right: 0; border-top: 0; text-align: left; color: var(--ink-800); cursor: pointer; transition: background-color 0.12s ease; }
+  .mm__row:hover, .mm__row:active { background: var(--surface-alt); }
+  .mm__row__ic { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 9px; background: var(--surface-alt); display: grid; place-items: center; color: var(--ink-700); }
+  .mm__row__ic svg { width: 20px; height: 20px; }
+  .mm__row__ic img { width: 20px; height: 20px; object-fit: contain; }
+  .mm__row__main { flex: 1; min-width: 0; }
+  .mm__row__main b { display: block; font-size: 14px; font-weight: 500; color: var(--ink-900); }
+  .mm__row__main span { display: block; font-size: 11px; color: var(--ink-400); font-family: var(--font-mono); }
+  .mm__row__chev { display: inline-flex; color: var(--ink-300); }
+  .mm__row.feat { background: var(--ink-900); color: #fff; border-radius: 12px; margin: 14px 16px; border: 0; padding: 16px; }
+  .mm__row.feat:hover, .mm__row.feat:active { background: var(--ink-800); }
+  .mm__row.feat .mm__row__ic { background: rgba(255, 255, 255, 0.12); color: #fff; }
+  .mm__row.feat .mm__row__main b { color: #fff; }
+  .mm__row.feat .mm__row__main span { color: #9fb4f5; }
+  .mm__promo { margin: 14px 16px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-alt); display: flex; flex-direction: column; gap: 9px; }
+  .mm__promo__head { display: inline-flex; align-items: center; gap: 8px; color: var(--brand-700); }
+  .mm__promo b { font-size: 14px; color: var(--ink-900); }
+  .mm__promo p { margin: 0; font-size: 12px; color: var(--ink-500); line-height: 1.5; }
+  .mm__promo__cta { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--brand-700); }
+  .mm__foot { padding: 14px 16px; border-top: 1px solid var(--line); display: flex; gap: 10px; align-items: center; }
+  .mm__login { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+  .mm__login__av { width: 36px; height: 36px; flex: 0 0 36px; border-radius: 9px; background: var(--brand-50); color: var(--brand-700); display: grid; place-items: center; font-family: var(--font-mono); font-weight: 600; font-size: 12px; }
+  .mm__login b { display: block; font-size: 13px; color: var(--ink-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mm__login span { display: block; font-size: 11px; color: var(--ink-400); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}

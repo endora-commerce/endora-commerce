@@ -11,6 +11,8 @@ import { GroupedSummary } from '../../../../components/GroupedSummary';
 import { VirtualCta } from '../../../../components/VirtualCta';
 import { VariantPicker } from '../../../../components/VariantPicker';
 import { PriceTag } from '../../../../components/PriceTag';
+import { PdpPriceToggle } from '../../../../components/pricing/PdpPriceToggle';
+import { PdpStickyBuyBar } from '../../../../components/mobile/PdpStickyBuyBar';
 import { StockBadge } from '../../../../components/StockBadge';
 import { NotifyWhenAvailableDialog } from '../../../../components/inventory/NotifyWhenAvailableDialog';
 import { BackorderHint } from '../../../../components/inventory/BackorderHint';
@@ -133,8 +135,22 @@ export default async function ProductPage({
       ? product.variants.find((v) => v.sku === selectedVariantSku)?.id ?? null
       : null;
 
+  // Feature 044 / US3 — mobile sticky add-to-cart bar visibility mirrors the
+  // inline "Add to cart" conditions (simple/configurable, priced, not
+  // quote-only, not notify-only). The datasheet shortcut points at the first
+  // attachment, when present.
+  const showStickyBuyBar =
+    (product.type === 'simple' || product.type === 'configurable') &&
+    !isQuoteOnly &&
+    !!product.price &&
+    !stock?.showNotifyButton &&
+    // The sticky bar has no packaging-unit selector; for packaging products keep
+    // the full inline buy row (which does) as the single control on mobile.
+    (product.packagingUnits?.length ?? 0) === 0;
+  const datasheetHref = product.attachments?.[0]?.asset.url;
+
   return (
-    <div className="mx-auto max-w-[1360px] px-[24px] pt-[18px] pb-[64px]">
+    <div className="mx-auto max-w-[1360px] px-[24px] pt-[18px] pb-[64px] max-md:pb-[96px]">
       <Breadcrumbs
         crumbs={[
           { href: '/', label: t('nav.home') },
@@ -181,12 +197,21 @@ export default async function ProductPage({
           {/* Keep the stock badge directly beside the price (not pushed to the
               opposite edge) so availability reads as part of the price block. */}
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <PriceTag
-              price={product.price}
-              resolved={resolvedPrice}
-              locale={locale}
-              variant="pdp"
-            />
+            {resolvedPrice && resolvedPrice.displayMode === 'both' ? (
+              <PdpPriceToggle
+                basePrice={resolvedPrice.basePrice}
+                salePrice={resolvedPrice.salePrice}
+                locale={locale}
+                labels={{ net: 'NETTO', gross: 'BRUTTO' }}
+              />
+            ) : (
+              <PriceTag
+                price={product.price}
+                resolved={resolvedPrice}
+                locale={locale}
+                variant="pdp"
+              />
+            )}
             <StockBadge product={product} stock={stock} locale={locale} />
           </div>
 
@@ -242,6 +267,7 @@ export default async function ProductPage({
                       piecesLabel={t('product.packaging.pieces')}
                       addToCartAction={addToCartAction}
                       addToCartLabel={t('product.addToCart')}
+                      hideQuantityCartOnMobile={showStickyBuyBar}
                       // First action in the row, right before "Dodaj do zapytania".
                       leadingAction={
                         <AddToShoppingListButton
@@ -387,6 +413,16 @@ export default async function ProductPage({
         />
       ) : null}
       <Hook code="product.bottom" />
+
+      {showStickyBuyBar ? (
+        <PdpStickyBuyBar
+          productId={product.id}
+          {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
+          addToCartAction={addToCartAction}
+          addToCartLabel={t('product.addToCart')}
+          {...(datasheetHref ? { datasheetHref } : {})}
+        />
+      ) : null}
 
       <script
         type="application/ld+json"

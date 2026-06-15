@@ -4,6 +4,12 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useMemo, useTransition, type ChangeEvent, type ReactNode } from 'react';
 
 /**
+ * Optional mobile-only Filters trigger (the `MobileFilterSheet` element)
+ * rendered at the start of the toolbar. It is `md:hidden` on its own, so it
+ * never affects the desktop toolbar.
+ */
+
+/**
  * Bordered toolbar that sits between the catalog title and the product
  * grid. Mirrors `.toolbar` from the Industria design:
  *   left  — "Pokazuję X–Y" hint (mono numerals)
@@ -22,6 +28,8 @@ export function CatalogToolbar(props: {
   limit: 24 | 48 | 96;
   view: 'grid' | 'list';
   baseQuery: Record<string, string>;
+  /** Feature 044 / US2 — mobile Filters trigger rendered at the toolbar start. */
+  filtersSlot?: ReactNode;
 }): ReactNode {
   const router = useRouter();
   const pathname = usePathname() ?? '/catalog';
@@ -57,11 +65,15 @@ export function CatalogToolbar(props: {
 
   return (
     <div
-      className="mb-[14px] flex flex-wrap items-center justify-between gap-3 rounded-md border border-line bg-surface px-[16px] py-[12px]"
+      className="mb-[14px] flex flex-wrap items-center justify-between gap-3 rounded-md border border-line bg-surface px-[16px] py-[12px] max-md:sticky max-md:top-[108px] max-md:z-20 max-md:px-[12px] max-md:py-[8px]"
       aria-busy={pending ? 'true' : undefined}
     >
       <div className="flex items-center gap-3 text-[13px] text-muted">
-        Pokazuję <strong className="font-mono font-semibold text-fg">1–{props.shown}</strong> wyników
+        {props.filtersSlot}
+        <span className="max-md:text-[12px]">
+          Pokazuję <strong className="font-mono font-semibold text-fg">1–{props.shown}</strong>{' '}
+          <span className="max-md:hidden">wyników</span>
+        </span>
       </div>
       <div className="flex items-center gap-2">
         <select
@@ -77,7 +89,7 @@ export function CatalogToolbar(props: {
           <option value="-name">Nazwa Z–A</option>
         </select>
         <select
-          className="industria-select"
+          className="industria-select max-md:hidden"
           name="limit"
           value={String(props.limit)}
           onChange={onLimitChange}
@@ -88,7 +100,7 @@ export function CatalogToolbar(props: {
           <option value="96">96 / strona</option>
         </select>
         <div
-          className="inline-flex h-[32px] items-center gap-[2px] rounded-sm border border-line bg-surface-alt p-[2px]"
+          className="inline-flex h-[32px] items-center gap-[2px] rounded-sm border border-line bg-surface-alt p-[2px] max-md:hidden"
           role="radiogroup"
           aria-label="Tryb widoku"
         >

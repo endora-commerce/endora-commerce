@@ -32,11 +32,17 @@ export function GallerySwitcher(props: {
   return (
     <div>
       <img className="w-full rounded-md" src={primary.asset.url} alt={props.alt} loading="eager" />
-      <ul className="m-0 mt-3 flex list-none gap-2 p-0">
+      {/* Feature 044 / US3 — thumbnail strip scrolls horizontally on phones so
+          a long gallery never overflows the viewport (Industria Mobile §04). */}
+      <ul className="m-0 mt-3 flex list-none gap-2 overflow-x-auto p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {props.gallery.map((item) => {
           const isSmall = item.labels.includes('small_image');
           return (
-            <li key={item.id} {...(isSmall ? { 'data-small-image': 'true' } : {})}>
+            <li
+              key={item.id}
+              className="shrink-0"
+              {...(isSmall ? { 'data-small-image': 'true' } : {})}
+            >
               <a href={`#gallery-${item.id}`}>
                 <img
                   className="h-[64px] w-[64px] rounded-sm border border-line object-contain"
