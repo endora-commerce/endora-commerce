@@ -9,6 +9,10 @@ import { CustomerAccount } from '../../customer_accounts/entities/customer-accou
 import { OrganizationInvitation } from '../entities/organization-invitation.entity.js';
 import type { Mailer } from '../../email/services/mailer.js';
 import { buildInvitationEmail } from '../email-templates/invitation.js';
+import {
+  emitCustomerAccountCreated,
+  type OrganizationEventBus,
+} from './registration-service.js';
 
 /**
  * InvitationService (T173, FR-043).
@@ -45,6 +49,7 @@ export class InvitationService {
     private readonly emFactory: () => EntityManager,
     mailer?: Mailer | null,
     options?: InvitationServiceOptions,
+    private readonly events?: OrganizationEventBus,
   ) {
     this.mailer = mailer ?? null;
     this.acceptBaseUrl = options?.acceptBaseUrl ?? 'https://storefront.local';
@@ -229,6 +234,10 @@ export class InvitationService {
     });
     invitation.consumedAt = new Date();
     await em.persistAndFlush([customer, invitation]);
+
+    if (this.events) {
+      emitCustomerAccountCreated(this.events, customer.id, invitation.organizationId);
+    }
 
     return { customerAccount: customer };
   }

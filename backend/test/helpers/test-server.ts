@@ -1302,6 +1302,7 @@ export async function setupBackendServer(
       rfqService: quoteRequests.handle().rfqService,
       requireCustomer: requireTestCustomer(),
       resolveCustomerContext: customerResolver,
+      eventBus,
       exposeShoppingListService: (svc) => {
         shoppingListServiceRef = svc;
       },

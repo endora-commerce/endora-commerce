@@ -1526,6 +1526,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       rfqService: quoteRequests.handle().rfqService,
       requireCustomer,
       resolveCustomerContext: customerResolver,
+      // Provision the customer's default shopping list eagerly on creation.
+      eventBus,
       // Feature 027 — late-bind the service for the carts module's
       // save-to-list bridge (commerceModule's pushLineToShoppingList).
       exposeShoppingListService: (svc) => {
