@@ -57,7 +57,7 @@ export default async function AccountLayout({
         */}
         {me.organization ? (
           <>
-            <Link href="/account/orders">Orders</Link>
+            <Link href="/orders">Orders</Link>
             <Link href="/quote-requests">Quote requests</Link>
             <Link href="/shopping-lists">Shopping lists</Link>
             <Link href="/quick-order">Quick order</Link>
