@@ -44,7 +44,8 @@ export interface OrderItem {
   unitPrice: number;
   taxRate: number;
   lineTotal: number;
-  productSnapshot: Record<string, unknown>;
+  productSnapshot: { sku: string; name: string; primaryAssetUrl: string | null };
+  variantSnapshot: { sku: string; label: string } | null;
 }
 
 export interface OrderSummary {
