@@ -71,6 +71,24 @@ export default async function OrderConfirmationPage({
         </p>
       ) : null}
 
+      <div className="mb-6 flex flex-wrap gap-2">
+        <form action={reorderAction} className="inline">
+          <input type="hidden" name="id" value={order.id} />
+          <button type="submit" className="btn btn--outline btn--sm">
+            Order again → cart
+          </button>
+        </form>
+        <form action={reorderToQuoteAction} className="inline">
+          <input type="hidden" name="id" value={order.id} />
+          <button type="submit" className="btn btn--outline btn--sm">
+            Order again → quote request
+          </button>
+        </form>
+        <Link href="/orders" className="btn btn--ghost btn--sm">
+          See all orders
+        </Link>
+      </div>
+
       <h2>Status</h2>
       <table className="b2b-account__table">
         <tbody>
@@ -170,23 +188,6 @@ export default async function OrderConfirmationPage({
         </p>
       ) : null}
 
-      <h2>Order again</h2>
-      <p className="b2b-auth__hint">
-        Recreate this order&apos;s items at current prices — as a new cart, or as a quote request.
-      </p>
-      <form action={reorderAction} className="inline">
-        <input type="hidden" name="id" value={order.id} />
-        <button type="submit" className="btn btn--outline btn--sm">
-          Order again → cart
-        </button>
-      </form>{' '}
-      <form action={reorderToQuoteAction} className="inline">
-        <input type="hidden" name="id" value={order.id} />
-        <button type="submit" className="btn btn--outline btn--sm">
-          Order again → quote request
-        </button>
-      </form>
-
       <h2>Comments</h2>
       {comments.length === 0 ? (
         <p className="b2b-auth__hint">No comments yet.</p>
@@ -203,18 +204,14 @@ export default async function OrderConfirmationPage({
       {isTerminal ? (
         <p className="b2b-auth__hint">Commenting is closed for this order.</p>
       ) : (
-        <form action={addCommentAction}>
+        <form action={addCommentAction} className="mt-3">
           <input type="hidden" name="id" value={order.id} />
           <textarea name="body" required aria-label="Add a comment" rows={3} />
-          <button type="submit" className="btn btn--outline btn--sm">
+          <button type="submit" className="btn btn--outline btn--sm mt-2">
             Add comment
           </button>
         </form>
       )}
-
-      <p className="b2b-auth__hint">
-        <Link href="/account/orders">See all orders</Link>
-      </p>
     </div>
   );
 }
