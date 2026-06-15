@@ -20,10 +20,12 @@ import { ProductBuyActions } from '../../../../components/ProductBuyActions';
 import { AddToShoppingListButton } from '../../../../components/AddToShoppingListButton';
 import { QuoteRequestCta } from '../../../../components/pricing/QuoteRequestCta';
 
+// Handed to client components (shopping-list heart, buy actions) that fetch
+// from the browser, so it must be the public, build-time-baked
+// `NEXT_PUBLIC_API_BASE_URL` — never the server-only `BACKEND_BASE_URL`
+// (internal `http://backend:3001`) that triggers a Mixed Content block.
 const PDP_API_BASE =
-  process.env['NEXT_PUBLIC_BACKEND_BASE_URL'] ??
-  process.env['BACKEND_BASE_URL'] ??
-  'http://localhost:3001';
+  process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'http://localhost:3001';
 import { ParametryTab } from '../../../../components/attributes/ParametryTab';
 import { Hook } from '../../../../components/Hook';
 import { getStorefrontQuoteRequestSettings } from '../../../../lib/api/rfq';

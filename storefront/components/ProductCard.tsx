@@ -8,10 +8,13 @@ import { QuoteRequestCta } from './pricing/QuoteRequestCta';
 import { ProductCardActions } from './ProductCardActions';
 import type { ResolvedPrice } from '../lib/api/pricing';
 
+// Handed to the client `<ProductCardActions>` (shopping-list heart + add to
+// cart), which fetches from the browser — so it must be the public,
+// build-time-baked `NEXT_PUBLIC_API_BASE_URL`, never the server-only
+// `BACKEND_BASE_URL` (internal `http://backend:3001`) that triggers a Mixed
+// Content block over HTTPS.
 const CARD_API_BASE =
-  process.env['NEXT_PUBLIC_BACKEND_BASE_URL'] ??
-  process.env['BACKEND_BASE_URL'] ??
-  'http://localhost:3001';
+  process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'http://localhost:3001';
 
 /**
  * Industria-themed product card. Renders the brand/SKU strip, name,
