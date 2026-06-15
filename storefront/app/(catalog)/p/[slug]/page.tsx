@@ -16,6 +16,7 @@ import { NotifyWhenAvailableDialog } from '../../../../components/inventory/Noti
 import { BackorderHint } from '../../../../components/inventory/BackorderHint';
 import { ProductBuyActions } from '../../../../components/ProductBuyActions';
 import { AddToShoppingListButton } from '../../../../components/AddToShoppingListButton';
+import { CompareToggle } from '../../../../components/CompareToggle';
 import { QuoteRequestCta } from '../../../../components/pricing/QuoteRequestCta';
 
 const PDP_API_BASE =
@@ -287,6 +288,9 @@ export default async function ProductPage({
                 }}
               />
             ) : null}
+          </div>
+          <div className="mt-3">
+            <CompareToggle productId={product.id} variant="inline" />
           </div>
           <Hook code="product.buttons.after" />
 
