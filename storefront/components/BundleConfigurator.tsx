@@ -44,17 +44,21 @@ export function BundleConfigurator(props: {
   slots: BundleConfiguratorSlot[];
   labels: BundleConfiguratorLabels;
   locale: string;
+  /**
+   * Server action that resolves the selected slot options and adds them to
+   * the cart. The bundle is "exploded" into one cart line per selected slot
+   * (mirrors grouped products) because the cart API has no native bundle
+   * line. Each slot submits `slot_<slotId>_product` (the option's product id)
+   * and `slot_<slotId>_qty`.
+   */
+  addToCartAction: (formData: FormData) => void | Promise<void>;
 }): ReactNode {
   if (props.slots.length === 0) return null;
 
   const hasRequiredSlot = props.slots.some((s) => s.minQuantity > 0);
 
   return (
-    <form
-      className="flex flex-col gap-4"
-      action={`/p/${props.productSlug}/configure`}
-      method="post"
-    >
+    <form className="flex flex-col gap-4" action={props.addToCartAction}>
       {props.slots.map((slot) => {
         const slotName = localize(slot.name, props.locale);
         const required = slot.minQuantity > 0;
@@ -73,13 +77,13 @@ export function BundleConfigurator(props: {
               {slotName}
               <select
                 id={`slot-${slot.id}-option`}
-                name={`slot[${slot.id}][optionId]`}
+                name={`slot_${slot.id}_product`}
                 className="mt-1 w-full rounded-sm border border-line px-[8px] py-[6px]"
                 {...(required ? { required: true } : {})}
               >
-                {required ? <option value="">—</option> : <option value="">—</option>}
+                <option value="">—</option>
                 {slot.options.map((opt) => (
-                  <option key={opt.id} value={opt.id}>
+                  <option key={opt.id} value={opt.product.id}>
                     {opt.product.name}
                   </option>
                 ))}
@@ -88,7 +92,7 @@ export function BundleConfigurator(props: {
             <label htmlFor={`slot-${slot.id}-quantity`} className="mt-2 block">
               <input
                 id={`slot-${slot.id}-quantity`}
-                name={`slot[${slot.id}][quantity]`}
+                name={`slot_${slot.id}_qty`}
                 type="number"
                 min={String(slot.minQuantity)}
                 max={String(slot.maxQuantity)}

@@ -39,6 +39,8 @@ type Slot = {
   }>;
 };
 
+const noop = (): void => undefined;
+
 const product = (id: string, sku: string, name: string, price = 19.99) => ({
   id,
   sku,
@@ -70,6 +72,7 @@ describe('BundleConfigurator — SSR contract', () => {
         productSlug="bundle-x"
         slots={[]}
         labels={{ addToCart: 'Add to cart', requiredSlot: 'Required' }}
+        addToCartAction={noop}
         locale="en-US"
       />,
     );
@@ -87,6 +90,7 @@ describe('BundleConfigurator — SSR contract', () => {
           ]),
         ]}
         labels={{ addToCart: 'Add to cart', requiredSlot: 'Required' }}
+        addToCartAction={noop}
         locale="en-US"
       />,
     );
@@ -106,6 +110,7 @@ describe('BundleConfigurator — SSR contract', () => {
           ]),
         ]}
         labels={{ addToCart: 'Add to cart', requiredSlot: 'Required' }}
+        addToCartAction={noop}
         locale="en-US"
       />,
     );
@@ -123,6 +128,7 @@ describe('BundleConfigurator — SSR contract', () => {
           ]),
         ]}
         labels={{ addToCart: 'Add to cart', requiredSlot: 'Required' }}
+        addToCartAction={noop}
         locale="en-US"
       />,
     );
@@ -141,6 +147,7 @@ describe('BundleConfigurator — SSR contract', () => {
           ]),
         ]}
         labels={{ addToCart: 'Add to cart', requiredSlot: 'Required' }}
+        addToCartAction={noop}
         locale="en-US"
       />,
     );
@@ -157,6 +164,7 @@ describe('BundleConfigurator — SSR contract', () => {
           ]),
         ]}
         labels={{ addToCart: 'Add to cart', requiredSlot: 'Required' }}
+        addToCartAction={noop}
         locale="pl-PL"
       />,
     );
