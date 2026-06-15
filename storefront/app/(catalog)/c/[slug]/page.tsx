@@ -5,6 +5,7 @@ import { FilterPanel } from '../../../../components/FilterPanel';
 import { ProductGrid } from '../../../../components/ProductGrid';
 import { Pagination } from '../../../../components/Pagination';
 import { CatalogToolbar } from '../../../../components/CatalogToolbar';
+import { MobileFilterSheet } from '../../../../components/mobile/MobileFilterSheet';
 import { Hook } from '../../../../components/Hook';
 import {
   getCategoryTree,
@@ -49,24 +50,39 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
     ctx,
   );
 
+  const basePath = `/c/${node.slug}`;
+  const activeFilterCount = Object.values(attributeFilters).reduce((n, vs) => n + vs.length, 0);
+  const clearParams = new URLSearchParams(
+    Object.entries(parsed.baseQuery).filter(([k]) => k !== 'cursor'),
+  );
+  const clearHref = clearParams.toString() ? `${basePath}?${clearParams.toString()}` : basePath;
+  const filterLabels = {
+    filters: t('catalog.filters'),
+    clear: 'Wyczyść',
+    applyTemplate: 'Pokaż {count} wyników',
+    close: 'Zamknij',
+  };
+
   return (
     <div className="mx-auto max-w-[1360px] px-[24px]">
       <Breadcrumbs
         crumbs={[
           { href: '/', label: t('nav.home') },
           { href: '/catalog', label: t('catalog.heading') },
-          { href: `/c/${node.slug}`, label: node.name },
+          { href: basePath, label: node.name },
         ]}
       />
       <Hook code="category.top" />
       <div className="industria-catalog">
-        <FilterPanel
-          filters={filters}
-          selected={attributeFilters}
-          baseQuery={parsed.baseQuery}
-          basePath={`/c/${node.slug}`}
-          locale={locale}
-        />
+        <div className="max-md:hidden">
+          <FilterPanel
+            filters={filters}
+            selected={attributeFilters}
+            baseQuery={parsed.baseQuery}
+            basePath={basePath}
+            locale={locale}
+          />
+        </div>
         <div>
           <div className="industria-catalog__title">
             <div>
@@ -80,6 +96,23 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
             limit={parsed.limit ?? 24}
             view={parsed.view}
             baseQuery={parsed.baseQuery}
+            filtersSlot={
+              <MobileFilterSheet
+                resultCount={products.data.length}
+                activeFilterCount={activeFilterCount}
+                clearHref={clearHref}
+                labels={filterLabels}
+              >
+                <FilterPanel
+                  filters={filters}
+                  selected={attributeFilters}
+                  baseQuery={parsed.baseQuery}
+                  basePath={basePath}
+                  locale={locale}
+                  variant="sheet"
+                />
+              </MobileFilterSheet>
+            }
           />
           <ProductGrid
             products={products.data}

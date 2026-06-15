@@ -30,7 +30,9 @@ export function ProductGrid(props: {
     );
   }
   const gridCols = props.columns === 3 ? 'grid-cols-3' : 'grid-cols-4';
-  const cls = `grid ${gridCols} gap-[16px] m-0 p-0 list-none max-[1100px]:grid-cols-2 max-[540px]:grid-cols-1`;
+  // Feature 044 / US2 — keep two columns on phones (Industria Mobile §03)
+  // instead of collapsing to one; the gap tightens at the smallest widths.
+  const cls = `grid ${gridCols} gap-[16px] m-0 p-0 list-none max-[1100px]:grid-cols-2 max-[540px]:gap-[10px]`;
   return (
     <ul className={cls}>
       {props.products.map((p) => (

@@ -4,6 +4,7 @@ import { FilterPanel } from '../../../components/FilterPanel';
 import { Pagination } from '../../../components/Pagination';
 import { Breadcrumbs } from '../../../components/Breadcrumbs';
 import { CatalogToolbar } from '../../../components/CatalogToolbar';
+import { MobileFilterSheet } from '../../../components/mobile/MobileFilterSheet';
 import { listProducts, getFilters } from '../../../lib/api/catalog';
 import { getServerContext } from '../../../lib/server-context';
 import { tForLocale } from '../../../lib/i18n/messages';
@@ -32,6 +33,16 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
     ? `${t('common.searchAction')}: ${query.list.q}`
     : t('catalog.heading');
 
+  const selectedFilters = query.list.attributeFilters ?? {};
+  const activeFilterCount = Object.values(selectedFilters).reduce((n, vs) => n + vs.length, 0);
+  const clearHref = buildClearHref('/catalog', query.baseQuery);
+  const filterLabels = {
+    filters: t('catalog.filters'),
+    clear: 'Wyczyść',
+    applyTemplate: 'Pokaż {count} wyników',
+    close: 'Zamknij',
+  };
+
   return (
     <div className="mx-auto max-w-[1360px] px-[24px]">
       <Breadcrumbs
@@ -41,13 +52,15 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
         ]}
       />
       <div className="industria-catalog">
-        <FilterPanel
-          filters={filters}
-          selected={query.list.attributeFilters ?? {}}
-          baseQuery={query.baseQuery}
-          basePath="/catalog"
-          locale={locale}
-        />
+        <div className="max-md:hidden">
+          <FilterPanel
+            filters={filters}
+            selected={selectedFilters}
+            baseQuery={query.baseQuery}
+            basePath="/catalog"
+            locale={locale}
+          />
+        </div>
         <div>
           <div className="industria-catalog__title">
             <div>
@@ -61,6 +74,23 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
             limit={query.list.limit ?? 24}
             view={query.view}
             baseQuery={query.baseQuery}
+            filtersSlot={
+              <MobileFilterSheet
+                resultCount={products.data.length}
+                activeFilterCount={activeFilterCount}
+                clearHref={clearHref}
+                labels={filterLabels}
+              >
+                <FilterPanel
+                  filters={filters}
+                  selected={selectedFilters}
+                  baseQuery={query.baseQuery}
+                  basePath="/catalog"
+                  locale={locale}
+                  variant="sheet"
+                />
+              </MobileFilterSheet>
+            }
           />
           <ProductGrid
             products={products.data}
@@ -79,6 +109,18 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
       </div>
     </div>
   );
+}
+
+/**
+ * Build the "clear all filters" href: keep the chrome query (sort/limit/q)
+ * but drop the pagination cursor and every applied attribute filter.
+ */
+function buildClearHref(basePath: string, baseQuery: Record<string, string>): string {
+  const params = new URLSearchParams(
+    Object.entries(baseQuery).filter(([k]) => k !== 'cursor'),
+  );
+  const qs = params.toString();
+  return qs ? `${basePath}?${qs}` : basePath;
 }
 
 function parseQuery(raw: Record<string, string | string[] | undefined>): {
