@@ -57,4 +57,12 @@ describe('MegamenuMobileDrawer — SSR initial render', () => {
     expect(html).not.toContain('Catalog');
     expect(html).not.toContain('Phone');
   });
+
+  it('gates the feature-044 chrome (Quick Order promo, breadcrumb) behind the open state', () => {
+    const html = renderToString(<MegamenuMobileDrawer megamenu={fixture} />);
+    // The root promo + the drill-down breadcrumb only exist once the drawer is
+    // opened (client interaction, exercised on device); closed → neither shows.
+    expect(html).not.toContain('Quick Order');
+    expect(html).not.toContain('Kategorie ›');
+  });
 });
