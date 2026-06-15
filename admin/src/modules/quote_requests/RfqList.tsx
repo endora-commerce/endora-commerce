@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowRight, Columns3, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowRight, Columns3, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -302,7 +302,18 @@ export function RfqList(): ReactNode {
 
   return (
     <>
-      <PageHeader title={t('rfq.list.title')} description={t('rfq.list.description')} />
+      <PageHeader
+        title={t('rfq.list.title')}
+        description={t('rfq.list.description')}
+        actions={
+          <Button asChild>
+            <Link to="/quote-requests/new">
+              <Plus />
+              {t('rfq.list.create')}
+            </Link>
+          </Button>
+        }
+      />
 
       {error ? (
         <Alert variant="destructive" className="mb-4">
