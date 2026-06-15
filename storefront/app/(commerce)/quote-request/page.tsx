@@ -10,9 +10,12 @@ import { getServerContext } from '../../../lib/server-context';
  */
 export default async function QuoteRequestDraftPage(): Promise<ReactNode> {
   const { locale } = await getServerContext();
+  // This URL is handed to a client component (`<RfqDraftView>`) that fetches
+  // from the browser, so it must be the public, build-time-baked
+  // `NEXT_PUBLIC_API_BASE_URL` — never the server-only `BACKEND_BASE_URL`
+  // (the internal `http://backend:3001`), which triggers a Mixed Content block
+  // when the page is served over HTTPS.
   const apiBase =
-    process.env['NEXT_PUBLIC_BACKEND_BASE_URL'] ??
-    process.env['BACKEND_BASE_URL'] ??
-    'http://localhost:3001';
+    process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'http://localhost:3001';
   return <RfqDraftView apiBase={apiBase} locale={locale} />;
 }
