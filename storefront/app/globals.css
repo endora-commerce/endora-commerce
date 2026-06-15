@@ -533,6 +533,22 @@
 .industria-switch.is-on::after { transform: translateX(14px); }
 .industria-compare-table tbody td.is-best::before { content: 'BEST'; position: absolute; top: 8px; right: 8px; font-size: 9px; font-family: var(--font-mono); color: var(--ok-700); letter-spacing: 0.08em; }
 
+/* Feature 044 / US6 — on phones the parameter-name column sticks to the left
+   while the product columns scroll horizontally; the sticky thead pins to the
+   scroll container's own top (not the desktop header offset). */
+@media (max-width: 767px) {
+  .industria-compare-table tbody th,
+  .industria-compare-table thead th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    width: 132px;
+    min-width: 132px;
+  }
+  .industria-compare-table thead th { top: 0; }
+  .industria-compare-table thead th:first-child { z-index: 3; }
+}
+
 /* ------------------------------------------------------------------ */
 /* Quick Order                                                              */
 /* ------------------------------------------------------------------ */
