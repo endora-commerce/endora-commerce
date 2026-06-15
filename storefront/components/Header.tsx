@@ -4,6 +4,7 @@ import type { I18nConfigResponse, ResolvedMegamenu } from '@b2b/contracts';
 import type { MeResult } from '../lib/api/account';
 import { tForLocale } from '../lib/i18n/messages';
 import { CategoriesMega } from './Megamenu/CategoriesMega';
+import { MegamenuMobileDrawer } from './Megamenu/MegamenuMobileDrawer';
 import { CompareCounterLink } from './CompareToggle';
 import { CartCounterBadge } from './CartCounterBadge';
 import { RfqDraftBadge } from './rfq/RfqDraftBadge';
@@ -43,7 +44,7 @@ export function Header(props: {
 
   return (
     <>
-      <div className="industria-topbar">
+      <div className="industria-topbar max-md:hidden">
         <div className="mx-auto max-w-[1360px] px-[24px] industria-topbar__inner">
           <div className="industria-topbar__left">
             <span className="industria-topbar__item">
@@ -75,7 +76,7 @@ export function Header(props: {
       </div>
 
       <header className="industria-header">
-        <div className="mx-auto max-w-[1360px] px-[24px] industria-header__inner">
+        <div className="mx-auto max-w-[1360px] px-[24px] industria-header__inner max-md:hidden">
           <Link href="/" className="industria-header__brand">
             <span className="industria-header__mark">IN</span>
             <span className="industria-header__brand__name">
@@ -130,9 +131,58 @@ export function Header(props: {
             <UserPill user={props.user ?? null} loginLabel={t('nav.login')} />
           </div>
         </div>
+
+        {/* Mobile header (feature 044 / US1) — hamburger drawer, compact brand,
+            compare + cart badges, and a tappable search entry on a second row.
+            Shown only on phones; the desktop rows above are `max-md:hidden`. */}
+        <div className="md:hidden">
+          <div className="flex h-[56px] items-center gap-[6px] px-[16px]">
+            {props.megamenu ? (
+              <MegamenuMobileDrawer megamenu={props.megamenu} />
+            ) : (
+              <Link href="/catalog" className="icon-btn" aria-label={t('nav.catalog')}>
+                <MenuIcon />
+              </Link>
+            )}
+            <Link href="/" className="mr-auto inline-flex items-center gap-[8px]">
+              <span className="industria-header__mark">IN</span>
+              <span className="flex flex-col leading-none">
+                <span className="text-[15px] font-bold text-fg">Industria</span>
+                <small className="mt-[2px] text-[9px] font-medium uppercase tracking-[0.12em] text-subtle">
+                  Komponenty B2B
+                </small>
+              </span>
+            </Link>
+            <CompareCounterLink
+              href="/compare"
+              ariaLabel="Porównaj produkty"
+              icon={<CompareIcon />}
+            />
+            <CartCounterBadge
+              initialCount={props.cartItemCount ?? 0}
+              apiBase={apiBaseUrl}
+              emptyAriaLabel="Koszyk"
+              itemsAriaLabelTemplate="Koszyk · {count} pozycji"
+            />
+          </div>
+          <div className="px-[16px] pb-[10px]">
+            <Link
+              href="/search"
+              className="industria-search items-center"
+              aria-label={t('common.searchAction')}
+            >
+              <span className="industria-search__icon" aria-hidden="true">
+                <SearchIcon />
+              </span>
+              <span className="flex flex-1 items-center px-[8px] text-[14px] text-subtle">
+                {t('search.placeholder')}
+              </span>
+            </Link>
+          </div>
+        </div>
       </header>
 
-      <nav className="industria-nav" aria-label="Primary">
+      <nav className="industria-nav max-md:hidden" aria-label="Primary">
         <div className="mx-auto max-w-[1360px] px-[24px] industria-nav__inner">
           {/* Data-driven "Wszystkie kategorie" trigger + mega panel
               (seeded "Main navigation"). Replaces the old static link and
@@ -298,4 +348,14 @@ function UserIcon(): ReactNode {
 }
 function LightningIcon(): ReactNode {
   return svg(<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />, 13);
+}
+function MenuIcon(): ReactNode {
+  return svg(
+    <>
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </>,
+    22,
+  );
 }

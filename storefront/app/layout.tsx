@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react';
+import type { Viewport } from 'next';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
+import { MobileTabBar } from '../components/mobile/MobileTabBar';
+import { tForLocale } from '../lib/i18n/messages';
 import { Hook } from '../components/Hook';
 import { PwaRegister } from '../components/PwaRegister';
 import { SpeculationRules } from '../components/SpeculationRules';
@@ -26,6 +29,18 @@ export const metadata = {
 };
 
 /**
+ * Feature 044 — the mobile experience uses fixed top/bottom chrome (bottom
+ * tab bar, sticky action bars). `viewportFit: 'cover'` lets `env(safe-area-inset-*)`
+ * resolve to real notch / home-indicator insets so that chrome is neither
+ * clipped nor floating over content on notched devices.
+ */
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+};
+
+/**
  * Force dynamic rendering tree-wide. The reference theme is SSR-first
  * (Principle VII) and every page reads request headers (locale, sales
  * channel) before fetching the backend. Themes that want a static
@@ -45,6 +60,11 @@ export default async function RootLayout({
   children: ReactNode;
 }): Promise<ReactNode> {
   const { config, locale, currency, ctx } = await getServerContext();
+  const t = tForLocale(locale);
+  const apiBaseUrl =
+    process.env['NEXT_PUBLIC_BACKEND_BASE_URL'] ??
+    process.env['BACKEND_BASE_URL'] ??
+    'http://localhost:3001';
   // Feature 036 US5 — checkout uses a minimal, logo-only header. The full vs
   // minimal switch is decided per-route by the <HeaderSwitch> client component
   // (`usePathname`), because this Server-Component layout is NOT re-run on
@@ -117,6 +137,20 @@ export default async function RootLayout({
               copyright={<Hook code="footer.copyright" />}
             />
             <Hook code="footer.after" />
+            {/* Feature 044 / US1 — fixed bottom tab bar (md:hidden). Renders on
+                every route; the body reserves its height on the mobile band so
+                it never covers content (globals.css). */}
+            <MobileTabBar
+              cartItemCount={cartItemCount}
+              apiBase={apiBaseUrl}
+              labels={{
+                home: t('nav.home'),
+                catalog: t('nav.catalog'),
+                quickOrder: t('nav.quickOrder'),
+                cart: t('nav.cart'),
+                account: t('nav.account'),
+              }}
+            />
           </div>
         </DictionaryProvider>
         <PwaRegister />

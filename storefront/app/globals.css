@@ -1022,3 +1022,86 @@ select:focus-visible {
   color: var(--ink-900);
 }
 .cart-empty p { margin: 0 0 18px; color: var(--ink-500); font-size: 14px; }
+
+/* ================================================================== */
+/* Mobile UI (feature 044)                                              */
+/* ------------------------------------------------------------------ */
+/* Conventions for the phone experience (Industria Mobile, 390px ref): */
+/*   - "Mobile" = viewport < md (768px), the same boundary the megamenu */
+/*     drawer already pivots on. New mobile chrome is shown with        */
+/*     Tailwind `md:hidden` and hidden on desktop with `max-md:hidden`. */
+/*   - Fixed top/bottom chrome MUST respect device safe-area insets and */
+/*     MUST reserve its own space so it never hides content (no CLS,    */
+/*     Principle VII). The bottom tab bar publishes its height into     */
+/*     `--m-tabbar-h`; the layout spacer + sticky bars read it.         */
+/*   - Component-level styling lives inline in components/mobile/* as    */
+/*     Tailwind utilities (feature 041 direction); only the shared      */
+/*     safe-area + space-reservation primitives live here.             */
+/* ------------------------------------------------------------------ */
+:root {
+  /* Height the bottom tab bar reserves at the page foot on mobile.
+     0 on desktop; the tab bar (md:hidden) sets the real value below. */
+  --m-tabbar-h: 0px;
+  /* Safe-area inset helpers (0 on browsers without env() support). */
+  --m-safe-top: env(safe-area-inset-top, 0px);
+  --m-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* No horizontal page overflow anywhere on the mobile band (SC-001/002). */
+@media (max-width: 767px) {
+  /* The fixed bottom tab bar (md:hidden) is ~56px tall; reserve that much
+     at the page foot so the last row + footer stay reachable (SC-007). */
+  :root { --m-tabbar-h: 56px; }
+  html, body { overflow-x: hidden; }
+  body { padding-bottom: calc(var(--m-tabbar-h) + var(--m-safe-bottom)); }
+  /* Touch-target floor: header icon buttons are 40px on desktop; bump to the
+     44px minimum on phones (FR-004 / SC-003). */
+  .icon-btn { min-height: 44px; min-width: 44px; }
+}
+
+@layer components {
+  /* Fixed bottom tab bar — primary thumb navigation (design §01). On
+     desktop it is `md:hidden`; the wrapper sets --m-tabbar-h so the page
+     reserves matching bottom padding (rule above). */
+  .m-tabbar {
+    @apply fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-line bg-surface md:hidden;
+    padding-bottom: var(--m-safe-bottom);
+  }
+  .m-tabbar__item {
+    @apply relative flex min-h-[52px] flex-col items-center justify-center gap-[3px]
+      px-1 pt-[6px] pb-[4px] text-[10px] font-medium text-subtle;
+  }
+  .m-tabbar__item.is-active { @apply text-accent; }
+  .m-tabbar__badge {
+    @apply absolute right-[calc(50%-22px)] top-[5px] inline-flex h-[16px] min-w-[16px]
+      items-center justify-center rounded-full border-2 border-surface bg-accent px-[4px]
+      font-mono text-[9px] font-semibold leading-none text-white;
+  }
+
+  /* Sticky action bar shared by PDP buy-bar + quick-order total bar.
+     Sits just above the tab bar and reserves the home-indicator inset. */
+  .m-actionbar {
+    @apply fixed inset-x-0 z-30 flex items-center gap-2 border-t border-line bg-surface
+      px-[16px] py-[10px] shadow-[0_-4px_16px_-8px_rgba(24,24,27,0.18)] md:hidden;
+    bottom: calc(var(--m-tabbar-h) + var(--m-safe-bottom));
+  }
+
+  /* Bottom sheet primitive (filters) — dim backdrop + grab handle + pinned
+     footer. The body scrolls; the footer respects the home-indicator inset. */
+  .m-sheet-dim { @apply fixed inset-0 z-50 bg-[rgba(10,13,18,0.45)] md:hidden; }
+  .m-sheet {
+    @apply fixed inset-x-0 bottom-0 z-50 flex max-h-[85vh] flex-col rounded-t-xl
+      border-t border-line bg-surface md:hidden;
+    padding-bottom: var(--m-safe-bottom);
+  }
+  .m-sheet__grab { @apply mx-auto mt-[8px] mb-[4px] h-[4px] w-[40px] rounded-full bg-line-strong; }
+  .m-sheet__head { @apply flex items-center justify-between px-[16px] py-[12px]; }
+  .m-sheet__body { @apply min-h-0 flex-1 overflow-y-auto px-[16px] pb-[12px]; }
+  .m-sheet__foot { @apply flex items-center gap-2 border-t border-line px-[16px] py-[12px]; }
+
+  /* Full-screen mobile search overlay (design §01). */
+  .m-search-overlay {
+    @apply fixed inset-0 z-[60] flex flex-col bg-surface md:hidden;
+    padding-top: var(--m-safe-top);
+  }
+}
