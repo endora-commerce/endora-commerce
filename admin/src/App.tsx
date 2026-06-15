@@ -34,6 +34,7 @@ import { BlogCategoryTreePage } from './modules/blog/pages/BlogCategoryTreePage.
 import { BlogCategoryEditor } from './modules/blog/pages/BlogCategoryEditor.js';
 import { BlogTagListPage } from './modules/blog/pages/BlogTagListPage.js';
 import { RfqList } from './modules/quote_requests/RfqList.js';
+import { RfqCreatePage } from './modules/quote_requests/RfqCreatePage.js';
 import { RfqDetail } from './modules/quote_requests/RfqDetail.js';
 import { AdminUsersPage } from './modules/admin_users/AdminUsersPage.js';
 import { AdminRolesPage } from './modules/admin_users/AdminRolesPage.js';
@@ -174,6 +175,7 @@ export function App(): ReactNode {
         <Route path="/warehouses/:id" element={<WarehouseEditor />} />
         <Route path="/credit-limits" element={<CreditLimitsPage />} />
         <Route path="/quote-requests" element={<RfqList />} />
+        <Route path="/quote-requests/new" element={<RfqCreatePage />} />
         <Route path="/quote-requests/:id" element={<RfqDetail />} />
         <Route path="/comparisons" element={<ComparisonsListPage />} />
         <Route path="/comparisons/:id" element={<ComparisonDetailPage />} />
