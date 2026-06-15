@@ -69,26 +69,18 @@ quality:
 # Backend: ~2000 DB-backed tests, run SERIALLY per process (vitest singleFork).
 # Sharded across `parallel` job instances — each instance gets its OWN
 # postgres/redis/meilisearch services, and `vitest --shard` splits the test files
-# between them. 4 shards on a concurrent=2 runner ⇒ 2 waves.
+# between them. 2 shards ≈ ½ wall-clock.
 #
 # NOTE: the speedup is bounded by the runner's `concurrent` setting — N shards
 # only run at once if the runner can execute N jobs concurrently. With
 # concurrent=1 the shards queue and you gain nothing (and pay per-shard setup).
-# Sized for a 4 vCPU / 8 GB runner with `concurrent = 2`.
-#
-# Memory: the singleFork worker accumulates ~10 MB of retained heap PER test
-# file (each file rebuilds the whole module graph and the fork never fully
-# reclaims it). At ~130 files/shard that climbs past 1.5 GB and the worker
-# either gets OOM-killed by the host or hits the heap cap below. Fix: run 4
-# shards so each handles ~65 files and peaks well under the cap. With
-# concurrent=2 they run in 2 waves, so peak concurrent host memory is unchanged
-# (still 2 live shards + their services) while per-shard heap roughly halves.
-# The proper long-term fix is to plug the per-file leak in the test harness;
-# until then, add shards as the suite grows.
+# Sized for a 4 vCPU / 8 GB runner: parallel=2 pairs with `concurrent = 2` in the
+# runner config (each shard ≈ 2–2.5 GB incl. its 3 services). Raise both together
+# only on a bigger runner.
 test:backend:
   stage: test
   image: node:22.17-slim
-  parallel: 4
+  parallel: 2
   services:
     - name: postgres:16-alpine
       alias: postgres
