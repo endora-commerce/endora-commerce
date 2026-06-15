@@ -20,7 +20,15 @@ import {
  * Renders inert SSR-side so non-JS visitors never see a non-functional
  * control (Constitution Principle VII).
  */
-export function CompareToggle(props: { productId: string }): ReactNode {
+export function CompareToggle(props: {
+  productId: string;
+  /**
+   * `'card'` (default) floats a compact icon button over a product-card media
+   * block (absolutely positioned). `'inline'` renders a labelled button that
+   * sits in a normal flow row — used in the PDP action zone.
+   */
+  variant?: 'card' | 'inline';
+}): ReactNode {
   const [hydrated, setHydrated] = useState(false);
   const [active, setActive] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -70,6 +78,33 @@ export function CompareToggle(props: { productId: string }): ReactNode {
   };
 
   const compareLabel = active ? 'Usuń z porównania' : 'Dodaj do porównania';
+
+  if (props.variant === 'inline') {
+    return (
+      <span className="inline-flex flex-col gap-1">
+        <button
+          type="button"
+          className={`inline-flex items-center gap-2 rounded-[6px] border px-[14px] py-[9px] text-[13px] font-medium transition disabled:cursor-wait disabled:opacity-50 ${
+            active
+              ? 'border-accent bg-accent text-white'
+              : 'border-line bg-surface text-fg-soft hover:border-[var(--ink-700)] hover:text-fg'
+          }`}
+          aria-pressed={active}
+          disabled={busy}
+          onClick={(): void => void onClick()}
+          aria-label={compareLabel}
+        >
+          <CompareIcon />
+          {compareLabel}
+        </button>
+        {error ? (
+          <span className="block rounded bg-bad-soft px-[6px] py-[4px] text-[11px] text-bad">
+            {error}
+          </span>
+        ) : null}
+      </span>
+    );
+  }
 
   return (
     <>
