@@ -150,7 +150,7 @@ export default async function RootLayout({
               apiBase={apiBaseUrl}
               labels={{
                 home: t('nav.home'),
-                catalog: t('nav.catalog'),
+                quoteRequest: t('nav.quoteRequest'),
                 quickOrder: t('nav.quickOrder'),
                 cart: t('nav.cart'),
                 account: t('nav.account'),
