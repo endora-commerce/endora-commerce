@@ -1,6 +1,6 @@
 # b2b-platform Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-06-10
+Auto-generated from all feature plans. Last updated: 2026-06-15
 
 ## Active Technologies
 - TypeScript 5.x (strict mode) na Node.js LTS (≥ 22.17, jak w README po update foundation 001). + bez nowych runtime — wszystkie wymagane już są: (002-catalog-module)
@@ -73,6 +73,8 @@ Auto-generated from all feature plans. Last updated: 2026-06-10
 - PostgreSQL via MikroORM. Two new migrations: module-scoped `068_prompt_actions_init.ts` in `backend/src/modules/prompt_actions/migrations/` (next sequential after `067_mfa_init.ts`) creating `prompt_action_requests`, and `069_settings_secret_value_type.ts` (settings module) extending `value_type` with `'secret'` and retrofitting `search.llm.embedder_api_key`. Five new settings rows land through the standard module settings manifest; the new `secret` value type stores AES-256-GCM envelopes in the existing JSONB value columns under env `SETTINGS_SECRET_ENCRYPTION_KEY` (write-only at the admin API, decrypted only by `SettingsService.get`). Audit entries land on the existing `audit_log_entries` table via `AuditLogService.record(...)`. No new Redis keys beyond the existing Settings cache. (043-admin-prompt-actions)
 - TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend); React 19 + Vite + react-router-dom 7 (admin); Next.js 15.5 App Router + React 19 (storefront). + Fastify, MikroORM (PostgreSQL driver), Zod (`@b2b/contracts`), ioredis (existing settings/cache), `@b2b/api-client` + `lucide-react` (admin). **No new runtime dependency.** (043-product-packaging-units)
 - PostgreSQL via MikroORM. Packaging units use catalog migration `068_product_packaging_units.ts` plus additive column migrations owned by their modules — `carts` (`069`: `cart_items` packaging snapshot), `orders` (`070`: `order_items.packaging_unit_snapshot`), `quote_requests` (`071`: `quote_request_items` packaging snapshot). (043-product-packaging-units)
+- TypeScript 5.x (strict) on Node.js ≥ 22.17; Next.js 15.5 (App Router, webpack), React 19. + Existing storefront stack only — Next.js, React 19, Tailwind CSS v4 (`@tailwindcss/postcss`, already wired and active in `app/globals.css`), the storefront's existing shared components under `storefront/components/`. **No new runtime dependency.** (044-storefront-mobile-ui)
+- N/A — this is a presentation/interaction layer over existing storefront HTTP APIs (`lib/api/*`, `/api/v1/...`). No new persistence. (044-storefront-mobile-ui)
 
 - TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x) + MikroORM (PostgreSQL driver) for persistence; Zod for boundary validation; Next.js for the storefront; React for the admin panel; Meilisearch client; Redis client (cache + BullMQ-class queue). Backend HTTP layer intentionally minimal (a small, well-known Node/TypeScript HTTP router; choice deferred to Phase 0 research with a bias toward the smallest dependency footprint compatible with TDD, Zod, and modular routing). (001-b2b-platform-foundation)
 
@@ -92,10 +94,9 @@ npm test && npm run lint
 TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x): Follow standard conventions
 
 ## Recent Changes
+- 044-storefront-mobile-ui: Added TypeScript 5.x (strict) on Node.js ≥ 22.17; Next.js 15.5 (App Router, webpack), React 19. + Existing storefront stack only — Next.js, React 19, Tailwind CSS v4 (`@tailwindcss/postcss`, already wired and active in `app/globals.css`), the storefront's existing shared components under `storefront/components/`. **No new runtime dependency.**
 - 043-admin-prompt-actions: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend, per `backend/package.json` engines); evergreen browser target via Vite (admin). Storefront untouched. + Existing stack only — Fastify, MikroORM (PostgreSQL driver), Zod (`@b2b/contracts` as schema source of truth), ioredis (Settings cache + module-lifecycle pub/sub, both already in place), `@asteasolutions/zod-to-openapi` (already a backend dependency — reused to derive LLM tool JSON Schemas from the same Zod schemas), React 19 + Vite + react-router-dom 7 + `lucide-react` (admin). **No new runtime dependency**: Anthropic / Google / OpenAI tool-calling APIs are called via native `fetch` through a ~3 × 120-LOC provider-adapter layer (research §R2).
 - 043-product-packaging-units: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend); React 19 + Vite + react-router-dom 7 (admin); Next.js 15.5 App Router + React 19 (storefront). + Fastify, MikroORM (PostgreSQL driver), Zod (`@b2b/contracts`), ioredis (existing settings/cache), `@b2b/api-client` + `lucide-react` (admin). **No new runtime dependency.**
-- 042-mfa-authentication: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend); Next.js 15.5 App Router + React 19 (storefront); React 19 + Vite + react-router-dom 7 (admin). + Fastify, MikroORM (PostgreSQL driver), Zod (`@b2b/contracts`), ioredis (challenge/pending-login state + OAuth `state`/PKCE + Settings cache), in-process `EventBus`, `argon2` (existing), `otpauth` (existing — TOTP), `@b2b/api-client` + `lucide-react` (admin). **One new runtime dependency (backend-only): `openid-client`** for Google + Microsoft Entra OIDC (authorization-code flow, discovery, ID-token signature/claims validation) — justified in Complexity Tracking and research §R2.
-- 041-storefront-tailwind: Added TypeScript 5.9 (strict), Node.js ≥ 22.17 + Next.js 15.5 (App Router, webpack — no Turbopack), React 19. **New (build-time)**: `tailwindcss` v4 + `@tailwindcss/postcss`. **New (dev/test)**: `@playwright/test` for visual regression. cms-components build: `tailwindcss` CLI (or equivalent) to emit the package stylesheet.
 
 
 <!-- MANUAL ADDITIONS START -->
