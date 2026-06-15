@@ -67,7 +67,7 @@ export function CartLine({
       : null;
   return (
     <div
-      className={`grid grid-cols-[56px_1fr_130px_110px_130px_28px] items-center gap-[14px] border-b border-line px-[22px] py-[14px] last:border-b-0 max-[720px]:grid-cols-[56px_1fr_auto] max-[720px]:gap-y-[10px] max-[720px]:[grid-template-areas:'media_body_actions''stepper_unit_total']${
+      className={`cart-line grid grid-cols-[56px_1fr_130px_110px_130px_28px] items-center gap-[14px] border-b border-line px-[22px] py-[14px] last:border-b-0${
         line.unavailable ? ' opacity-60' : ''
       }`}
     >
