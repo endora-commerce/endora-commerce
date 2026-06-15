@@ -5,6 +5,7 @@ import type { MeResult } from '../lib/api/account';
 import { tForLocale } from '../lib/i18n/messages';
 import { CategoriesMega } from './Megamenu/CategoriesMega';
 import { MegamenuMobileDrawer } from './Megamenu/MegamenuMobileDrawer';
+import { MobileSearchOverlay } from './mobile/MobileSearchOverlay';
 import { CompareCounterLink } from './CompareToggle';
 import { CartCounterBadge } from './CartCounterBadge';
 import { RfqDraftBadge } from './rfq/RfqDraftBadge';
@@ -41,6 +42,12 @@ export function Header(props: {
     process.env['NEXT_PUBLIC_BACKEND_BASE_URL'] ??
     process.env['BACKEND_BASE_URL'] ??
     'http://localhost:3001';
+
+  // Category/brand shortcut pills for the mobile search overlay (top departments).
+  const mobileSearchQuickLinks = (props.megamenu?.items ?? [])
+    .filter((i): i is typeof i & { url: string } => typeof i.url === 'string' && i.url.length > 0)
+    .slice(0, 6)
+    .map((i) => ({ label: i.label, href: i.url }));
 
   return (
     <>
@@ -166,18 +173,16 @@ export function Header(props: {
             />
           </div>
           <div className="px-[16px] pb-[10px]">
-            <Link
-              href="/search"
-              className="industria-search items-center"
-              aria-label={t('common.searchAction')}
-            >
-              <span className="industria-search__icon" aria-hidden="true">
-                <SearchIcon />
-              </span>
-              <span className="flex flex-1 items-center px-[8px] text-[14px] text-subtle">
-                {t('search.placeholder')}
-              </span>
-            </Link>
+            <MobileSearchOverlay
+              apiBaseUrl={apiBaseUrl}
+              locale={props.locale}
+              placeholder={t('search.placeholder')}
+              seeAllResultsLabel={t('search.seeAllResults')}
+              quickLinks={mobileSearchQuickLinks}
+              {...(props.salesChannelCode !== undefined
+                ? { salesChannelCode: props.salesChannelCode }
+                : {})}
+            />
           </div>
         </div>
       </header>
