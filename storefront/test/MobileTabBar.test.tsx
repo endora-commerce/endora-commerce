@@ -21,7 +21,7 @@ const { MobileTabBar } = await import('../components/mobile/MobileTabBar');
 
 const labels = {
   home: 'Home',
-  catalog: 'Catalog',
+  quoteRequest: 'Quote',
   quickOrder: 'Quick Order',
   cart: 'Cart',
   account: 'Account',
@@ -37,14 +37,14 @@ describe('MobileTabBar', () => {
   });
 
   it('marks the tab matching the current route as active', () => {
-    currentPath = '/catalog';
+    currentPath = '/quote-request';
     const html = renderToString(<MobileTabBar apiBase="http://api" labels={labels} />);
     expect(html).toContain('aria-current="page"');
     expect(html).toContain('is-active');
   });
 
-  it('treats a product/category route as the Catalog tab', () => {
-    currentPath = '/c/bearings';
+  it('treats a quote-request route as the Quote tab', () => {
+    currentPath = '/quote-request/success';
     const html = renderToString(<MobileTabBar apiBase="http://api" labels={labels} />);
     expect(html).toContain('is-active');
   });

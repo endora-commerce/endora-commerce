@@ -24,7 +24,7 @@ export function MobileTabBar(props: {
   /** Localized tab captions. */
   labels: {
     home: string;
-    catalog: string;
+    quoteRequest: string;
     quickOrder: string;
     cart: string;
     account: string;
@@ -67,10 +67,10 @@ export function MobileTabBar(props: {
   const tabs: { href: string; label: string; icon: ReactNode; match: (p: string) => boolean }[] = [
     { href: '/', label: props.labels.home, icon: <HomeIcon />, match: (p) => p === '/' },
     {
-      href: '/catalog',
-      label: props.labels.catalog,
-      icon: <GridIcon />,
-      match: (p) => p.startsWith('/catalog') || p.startsWith('/c/') || p.startsWith('/search'),
+      href: '/quote-request',
+      label: props.labels.quoteRequest,
+      icon: <QuoteIcon />,
+      match: (p) => p.startsWith('/quote-request'),
     },
     {
       href: '/quick-order',
@@ -147,13 +147,13 @@ function HomeIcon(): ReactNode {
     </>,
   );
 }
-function GridIcon(): ReactNode {
+function QuoteIcon(): ReactNode {
   return svg(
     <>
-      <rect x="3" y="3" width="7" height="7" />
-      <rect x="14" y="3" width="7" height="7" />
-      <rect x="3" y="14" width="7" height="7" />
-      <rect x="14" y="14" width="7" height="7" />
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5" />
+      <path d="M9 13h6" />
+      <path d="M9 17h6" />
     </>,
   );
 }
