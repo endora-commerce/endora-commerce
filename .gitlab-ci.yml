@@ -69,18 +69,33 @@ quality:
 # Backend: ~2000 DB-backed tests, run SERIALLY per process (vitest singleFork).
 # Sharded across `parallel` job instances — each instance gets its OWN
 # postgres/redis/meilisearch services, and `vitest --shard` splits the test files
-# between them. 2 shards ≈ ½ wall-clock.
+# between them. 4 shards on a concurrent=2 runner ⇒ 2 waves.
 #
 # NOTE: the speedup is bounded by the runner's `concurrent` setting — N shards
 # only run at once if the runner can execute N jobs concurrently. With
 # concurrent=1 the shards queue and you gain nothing (and pay per-shard setup).
-# Sized for a 4 vCPU / 8 GB runner: parallel=2 pairs with `concurrent = 2` in the
-# runner config (each shard ≈ 2–2.5 GB incl. its 3 services). Raise both together
-# only on a bigger runner.
+# Sized for a 4 vCPU / 8 GB runner with `concurrent = 2`.
+#
+# Memory: the singleFork worker accumulates ~10 MB of retained heap PER test
+# file (each file rebuilds the whole module graph and the fork never fully
+# reclaims it). At ~130 files/shard that climbs past 1.5 GB and the worker is
+# OOM-killed by the host (silent "Worker exited unexpectedly") or — once the
+# NODE_OPTIONS cap below is in force — dies with an explicit "heap out of
+# memory". Two levers keep each shard in budget:
+#   1. parallel=4 → ~65 files/shard, so peak heap roughly halves. With
+#      concurrent=2 the shards run in 2 waves, so peak CONCURRENT host memory
+#      is unchanged (still 2 live shards + their 3 services each).
+#   2. --max-old-space-size=1536 caps each shard's V8 old-space. Inside the
+#      docker executor Node otherwise sees the host's 8 GB and lets the heap
+#      grow toward ~2 GB before collecting hard; two such heaps + services tip
+#      the host over. The cap forces earlier GC and turns any remaining
+#      overflow into an actionable heap error instead of a silent SIGKILL.
+# The proper long-term fix is to plug the per-file leak in the test harness;
+# until then, add shards as the suite grows.
 test:backend:
   stage: test
   image: node:22.17-slim
-  parallel: 2
+  parallel: 4
   services:
     - name: postgres:16-alpine
       alias: postgres
@@ -89,6 +104,10 @@ test:backend:
     - name: getmeili/meilisearch:v1.11
       alias: meilisearch
   variables:
+    # Per-shard V8 heap cap — see the "Memory" note above the job. Safety net
+    # under the 8 GB host with concurrent=2 shards; forces early GC so an
+    # overflow surfaces as a heap error, not a silent OOM-kill.
+    NODE_OPTIONS: --max-old-space-size=1536
     POSTGRES_USER: b2b
     POSTGRES_PASSWORD: b2b
     POSTGRES_DB: b2b
