@@ -1104,11 +1104,15 @@ select:focus-visible {
 
   /* Bottom sheet primitive (filters) — dim backdrop + grab handle + pinned
      footer. The body scrolls; the footer respects the home-indicator inset. */
-  .m-sheet-dim { @apply fixed inset-0 z-50 bg-[rgba(10,13,18,0.45)] md:hidden; }
+  .m-sheet-dim {
+    @apply fixed inset-0 z-50 bg-[rgba(10,13,18,0.45)] md:hidden;
+    animation: m-fade-in 200ms ease;
+  }
   .m-sheet {
     @apply fixed inset-x-0 bottom-0 z-50 flex max-h-[85vh] flex-col rounded-t-xl
       border-t border-line bg-surface md:hidden;
     padding-bottom: var(--m-safe-bottom);
+    animation: m-slide-up 280ms cubic-bezier(0.22, 1, 0.36, 1);
   }
   .m-sheet__grab { @apply mx-auto mt-[8px] mb-[4px] h-[4px] w-[40px] rounded-full bg-line-strong; }
   .m-sheet__head { @apply flex items-center justify-between px-[16px] py-[12px]; }
@@ -1119,5 +1123,20 @@ select:focus-visible {
   .m-search-overlay {
     @apply fixed inset-0 z-[60] flex flex-col bg-surface md:hidden;
     padding-top: var(--m-safe-top);
+    animation: m-fade-slide 200ms ease;
   }
+
+  /* Full-screen drill-down drawer (mega menu). The panel slides in from the
+     left; each drill-down level fades+slides in (keyed remount in the JSX). */
+  .m-drawer { animation: m-slide-in-left 260ms cubic-bezier(0.22, 1, 0.36, 1); }
+  .m-drawer__level { animation: m-level-in 200ms ease; }
+  .m-tap { @apply transition-colors duration-100 active:bg-surface-alt; }
 }
+
+/* Mobile micro-interactions (feature 044). Transform/opacity only (cheap, no
+   layout). Disabled by the prefers-reduced-motion guard later in this file. */
+@keyframes m-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes m-slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes m-slide-in-left { from { transform: translateX(-12%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes m-fade-slide { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes m-level-in { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }

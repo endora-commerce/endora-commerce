@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * Feature 044 / US2 — reusable bottom-sheet primitive (Industria Mobile
@@ -40,7 +41,7 @@ export function BottomSheet(props: {
 
   if (!open) return null;
 
-  return (
+  const content = (
     <>
       <div className="m-sheet-dim" onClick={onClose} aria-hidden="true" />
       <div className="m-sheet" role="dialog" aria-modal="true" aria-label={props.title}>
@@ -65,6 +66,13 @@ export function BottomSheet(props: {
       </div>
     </>
   );
+
+  // Portal to <body> so the sheet escapes any positioned/z-index ancestor (the
+  // sticky catalog toolbar creates a z-20 stacking context that would otherwise
+  // trap the fixed sheet beneath the tab bar / header). Fall back to an inline
+  // render where there is no document (SSR / node test environment).
+  if (typeof document === 'undefined') return content;
+  return createPortal(content, document.body);
 }
 
 function XIcon(): ReactNode {

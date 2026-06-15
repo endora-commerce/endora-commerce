@@ -143,7 +143,10 @@ export default async function ProductPage({
     (product.type === 'simple' || product.type === 'configurable') &&
     !isQuoteOnly &&
     !!product.price &&
-    !stock?.showNotifyButton;
+    !stock?.showNotifyButton &&
+    // The sticky bar has no packaging-unit selector; for packaging products keep
+    // the full inline buy row (which does) as the single control on mobile.
+    (product.packagingUnits?.length ?? 0) === 0;
   const datasheetHref = product.attachments?.[0]?.asset.url;
 
   return (
@@ -264,6 +267,7 @@ export default async function ProductPage({
                       piecesLabel={t('product.packaging.pieces')}
                       addToCartAction={addToCartAction}
                       addToCartLabel={t('product.addToCart')}
+                      hideQuantityCartOnMobile={showStickyBuyBar}
                       // First action in the row, right before "Dodaj do zapytania".
                       leadingAction={
                         <AddToShoppingListButton
