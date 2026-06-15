@@ -547,6 +547,15 @@
   }
   .industria-compare-table thead th { top: 0; }
   .industria-compare-table thead th:first-child { z-index: 3; }
+  /* Product columns: pin to a readable fixed width so the matrix scrolls
+     horizontally instead of collapsing the desktop percentage widths
+     (w-[22%]) into an unreadable sliver — on phones that made the compared
+     products appear missing. */
+  .industria-compare-table thead th:not(:first-child),
+  .industria-compare-table tbody td {
+    width: 168px;
+    min-width: 168px;
+  }
 }
 
 /* ------------------------------------------------------------------ */
