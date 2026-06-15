@@ -11,6 +11,7 @@ import {
 import { getSessionCookie } from '../../../lib/session';
 import { StorefrontApiError } from '../../../lib/api/client';
 import { FileDropzone } from '../../../components/FileDropzone';
+import { summarizeQuickOrderPreview } from '../../../lib/quick-order-preview';
 
 /**
  * Quick order (feature 039 / US1). Two-step flow:
@@ -172,14 +173,54 @@ export default async function QuickOrderPage({
       ) : null}
 
       {preview ? <PreviewPanel preview={preview} /> : null}
+
+      {/* Feature 044 / US7 — sticky mobile bar: recognised summary + add-all.
+          A spacer reserves room so it never covers the rejected-rows table. */}
+      {preview && preview.recognized.length > 0 ? (
+        <>
+          <div className="h-[84px] md:hidden" aria-hidden="true" />
+          <form action={confirmAction} className="m-actionbar">
+            <input type="hidden" name="preview" value={encodePreview(preview)} />
+            <div className="mr-auto flex flex-col leading-tight">
+              <span className="text-[11px] text-muted">Recognised</span>
+              <span className="font-mono text-[15px] font-semibold text-fg">
+                {summarizeQuickOrderPreview(preview).recognised} ·{' '}
+                {summarizeQuickOrderPreview(preview).units} units
+              </span>
+            </div>
+            <button
+              type="submit"
+              name="target"
+              value="cart"
+              className="btn btn--dark"
+              style={{ flex: '0 0 auto', height: 44 }}
+            >
+              Add {preview.recognized.length} to cart
+            </button>
+          </form>
+        </>
+      ) : null}
     </>
   );
 }
 
 function PreviewPanel({ preview }: { preview: PreviewState }): ReactNode {
+  const totals = summarizeQuickOrderPreview(preview);
   return (
     <>
       <h3>Preview</h3>
+      {/* Feature 044 / US7 — at-a-glance recognised / invalid / units pills. */}
+      <div className="mb-3 flex flex-wrap gap-2">
+        <span className="inline-flex items-center gap-1 rounded-full border border-ok-soft bg-ok-soft px-[10px] py-[4px] text-[12px] font-medium text-ok">
+          <strong className="font-mono">{totals.recognised}</strong> recognised
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full border border-bad-soft bg-bad-soft px-[10px] py-[4px] text-[12px] font-medium text-bad">
+          <strong className="font-mono">{totals.invalid}</strong> invalid
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full border border-line bg-surface-alt px-[10px] py-[4px] text-[12px] font-medium text-fg-soft">
+          <strong className="font-mono">{totals.units}</strong> units
+        </span>
+      </div>
       {preview.summary.truncated ? (
         <p className="b2b-auth__error">
           The file exceeded the import row limit — extra rows were rejected.
