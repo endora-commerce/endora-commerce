@@ -865,7 +865,23 @@ select:focus-visible {
   flex-wrap: wrap;
 }
 
-/* .cart-line* migrated to utilities in components/CartLine.tsx (feature 041) */
+/* .cart-line* — desktop grid lives in components/CartLine.tsx utilities
+   (feature 041). The phone layout is defined here as real CSS: the Tailwind
+   arbitrary `grid-template-areas` class did not reliably emit, so the row
+   children's `grid-area` placements collapsed onto overlapping implicit cells
+   and the rows stacked on top of each other. Columns are `auto 1fr auto` so
+   the 120px qty stepper gets its own track instead of overflowing the 56px
+   media column. */
+@media (max-width: 720px) {
+  .cart-line {
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      'media body actions'
+      'stepper unit total';
+    column-gap: 12px;
+    row-gap: 10px;
+  }
+}
 
 /* qty stepper — minus / number / plus */
 /* .qty__stepper — quantity stepper widget (CartLine) → @apply (feature 041) */
