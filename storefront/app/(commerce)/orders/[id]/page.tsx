@@ -96,18 +96,24 @@ export default async function OrderConfirmationPage({
             <th>Product</th>
             <th>Qty</th>
             <th>Unit</th>
-            <th>Line</th>
+            <th className="text-right">Line</th>
           </tr>
         </thead>
         <tbody>
           {order.items.map((it) => (
             <tr key={it.id}>
-              <td>{it.productId}</td>
+              <td>
+                <Link href={`/p/${it.productId}`}>{it.productSnapshot.name}</Link>
+                <br />
+                <small className="text-subtle">
+                  SKU: {it.variantSnapshot?.sku ?? it.productSnapshot.sku}
+                </small>
+              </td>
               <td>{it.quantity}</td>
               <td>
                 {it.unitPrice.toFixed(2)} {order.currency}
               </td>
-              <td>
+              <td className="text-right">
                 {it.lineTotal.toFixed(2)} {order.currency}
               </td>
             </tr>
@@ -118,7 +124,7 @@ export default async function OrderConfirmationPage({
             <th colSpan={3} className="text-right">
               Subtotal
             </th>
-            <td>
+            <td className="text-right">
               {order.subtotal.toFixed(2)} {order.currency}
             </td>
           </tr>
@@ -126,7 +132,7 @@ export default async function OrderConfirmationPage({
             <th colSpan={3} className="text-right">
               Tax
             </th>
-            <td>
+            <td className="text-right">
               {order.taxTotal.toFixed(2)} {order.currency}
             </td>
           </tr>
@@ -135,7 +141,7 @@ export default async function OrderConfirmationPage({
               <th colSpan={3} className="text-right">
                 Discount
               </th>
-              <td>
+              <td className="text-right">
                 −{order.discountTotal.toFixed(2)} {order.currency}
               </td>
             </tr>
@@ -144,7 +150,7 @@ export default async function OrderConfirmationPage({
             <th colSpan={3} className="text-right">
               Delivery
             </th>
-            <td>
+            <td className="text-right">
               {order.deliveryTotal.toFixed(2)} {order.currency}
             </td>
           </tr>
@@ -152,7 +158,7 @@ export default async function OrderConfirmationPage({
             <th colSpan={3} className="text-right">
               <strong>Total</strong>
             </th>
-            <td>
+            <td className="text-right">
               <strong>
                 {order.total.toFixed(2)} {order.currency}
               </strong>
