@@ -641,6 +641,10 @@
   .b2b-account__table th, .b2b-account__table td { @apply border-b border-line p-[10px] text-left text-[13px]; }
   .b2b-account__table th { @apply text-[11px] font-medium uppercase tracking-[0.04em] text-muted; }
   .b2b-account__table td { @apply font-mono; }
+  .b2b-account__comments { @apply m-0 flex list-none flex-col gap-[10px] p-0; }
+  .b2b-account__comments li { @apply rounded-md border border-line bg-surface-alt px-[14px] py-[10px]; }
+  .b2b-account__comments li small { @apply block text-[11px] text-subtle; }
+  .b2b-account__comments li p { @apply mb-0 mt-[4px] text-[13px] leading-[1.5] text-fg; }
 }
 /* Floating-label state selectors (R5 residual — :has()/:placeholder-shown). */
 .b2b-auth__field:has(textarea) label { top: 18px; transform: translateY(0); }
