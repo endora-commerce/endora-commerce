@@ -309,11 +309,13 @@ export default async function ProductPage({
             ) : null}
             {product.type === 'virtual' && product.virtual ? (
               <VirtualCta
+                productId={product.id}
                 virtual={product.virtual}
                 labels={{
                   buyAndDownload: t('product.virtual.buyAndDownload'),
                   digitalDelivery: t('product.virtual.digitalDelivery'),
                 }}
+                addToCartAction={addToCartAction}
               />
             ) : null}
           </div>
