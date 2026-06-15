@@ -91,7 +91,12 @@ export default async function RootLayout({
   ]);
   return (
     <html lang={locale}>
-      <body>
+      {/* suppressHydrationWarning: browser extensions (Grammarly, password
+          managers, etc.) inject attributes onto <body> before React hydrates
+          — e.g. data-gr-ext-installed. This suppresses the warning for the
+          <body> element's own attributes only (not its descendants), so real
+          mismatches inside the tree are still reported. */}
+      <body suppressHydrationWarning>
         <DictionaryProvider
           initialDictionary={dictionary}
           locale={locale}
