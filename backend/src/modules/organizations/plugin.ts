@@ -129,6 +129,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       options.emFactory,
       mailer,
       { acceptBaseUrl: storefrontBaseUrl },
+      options.eventBus as OrganizationEventBus,
     );
     const roleService = new RoleService(options.emFactory);
     const passwordResetService = new PasswordResetService(options.emFactory);
@@ -191,6 +192,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
         invitationService,
         roleService,
         auditLogService: options.auditLogService,
+        eventBus: options.eventBus as OrganizationEventBus,
         addressService,
         ...(options.moderationService ? { moderationService: options.moderationService } : {}),
         ...(options.restrictionService ? { restrictionService: options.restrictionService } : {}),

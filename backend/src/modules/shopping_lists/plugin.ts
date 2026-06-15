@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
+import type { EventBus } from '../../events/bus.js';
 import { QUICK_ORDER_SETTING_CODES } from '../quick_order/manifest.js';
 import { CartService } from '../carts/services/cart-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
@@ -80,6 +81,12 @@ export interface ShoppingListsModuleOptions {
    */
   getOrderService?: () => OrderService | null;
   resolveOneClickEnabled?: (salesChannelId: string) => Promise<boolean>;
+  /**
+   * In-process event bus. When supplied, the module subscribes to
+   * `customer_account.created.v1` and eagerly provisions the new customer's
+   * default shopping list (otherwise the list is created lazily on first read).
+   */
+  eventBus?: EventBus;
 }
 
 export function shoppingListsModule(options: ShoppingListsModuleOptions) {
@@ -91,6 +98,18 @@ export function shoppingListsModule(options: ShoppingListsModuleOptions) {
       options.rfqService,
     );
     if (options.exposeShoppingListService) options.exposeShoppingListService(shoppingListService);
+
+    // Eagerly provision a "Default" shopping list when an org-attached customer
+    // is created (registration / admin direct-create / invitation accept), so
+    // the list exists immediately instead of only on first storefront read.
+    // `ensureDefault` is idempotent, so a redundant event is harmless.
+    options.eventBus?.on('customer_account.created.v1', async (payload) => {
+      const { customerAccountId, organizationId } = payload as unknown as {
+        customerAccountId: string;
+        organizationId: string;
+      };
+      await shoppingListService.ensureDefault({ customerAccountId, organizationId });
+    });
 
     const pipeline = new QuickOrderImportPipeline(new MikroOrmCatalogLookup(options.emFactory));
     const buildService = new QuickOrderBuildService(cartService, options.rfqService);

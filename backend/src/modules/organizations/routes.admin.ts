@@ -16,6 +16,10 @@ import { CustomerAccount } from '../customer_accounts/entities/customer-account.
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { RequireAdminAnyFactory } from '../../http/require-admin-any.js';
 import type { InvitationService } from './services/invitation-service.js';
+import {
+  emitCustomerAccountCreated,
+  type OrganizationEventBus,
+} from './services/registration-service.js';
 import type { RoleService } from '../customer_accounts/services/role-service.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type {
@@ -63,6 +67,12 @@ export interface AdminOrgsDeps {
   invitationService: InvitationService;
   roleService: RoleService;
   auditLogService: AuditLogService;
+  /**
+   * Optional — when provided, the admin direct-member-create endpoint emits
+   * `customer_account.created.v1` so downstream modules (shopping_lists) can
+   * provision per-customer defaults.
+   */
+  eventBus?: OrganizationEventBus;
   /** Optional — when provided, mounts the approve / reject / block / unblock endpoints. */
   moderationService?: OrganizationModerationService;
   /** Optional — when provided, mounts the restrictions admin endpoints (US4). */
@@ -530,6 +540,9 @@ export async function registerOrganizationsAdminRoutes(
         role,
       });
       await em.persistAndFlush(customer);
+      if (deps.eventBus) {
+        emitCustomerAccountCreated(deps.eventBus, customer.id, org.id);
+      }
       await audit(
         request,
         'customer_account.admin_create',

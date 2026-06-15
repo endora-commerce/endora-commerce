@@ -33,8 +33,35 @@ export interface OrganizationEvents extends Record<string, EventBase> {
   'organization.registered.v1': EventBase & { organizationId: string };
   'organization.verified.v1': EventBase & { organizationId: string; customerAccountId: string };
   'organization.status_changed.v1': EventBase & { organizationId: string; newStatus: string };
+  /**
+   * A CustomerAccount belonging to an Organization was created (self-service
+   * registration, admin direct-create, or invitation accept). Consumed by the
+   * shopping_lists module to provision the customer's default list eagerly.
+   */
+  'customer_account.created.v1': EventBase & {
+    customerAccountId: string;
+    organizationId: string;
+  };
 }
 export type OrganizationEventBus = EventBus<OrganizationEvents>;
+
+/**
+ * Emit `customer_account.created.v1` for a newly-created org-attached customer.
+ * Shared by every creation chokepoint so provisioning side effects (e.g. the
+ * default shopping list) happen consistently regardless of entry path.
+ */
+export function emitCustomerAccountCreated(
+  events: OrganizationEventBus,
+  customerAccountId: string,
+  organizationId: string,
+): void {
+  events.emit('customer_account.created.v1', {
+    eventId: crypto.randomUUID(),
+    occurredAt: new Date().toISOString(),
+    customerAccountId,
+    organizationId,
+  });
+}
 
 const TOKEN_TTL_HOURS = 48;
 
@@ -136,6 +163,7 @@ export class RegistrationService {
       occurredAt: new Date().toISOString(),
       organizationId: organization.id,
     });
+    emitCustomerAccountCreated(this.events, customerAccount.id, organization.id);
 
     return { organization, customerAccount, verificationToken: rawToken };
   }
