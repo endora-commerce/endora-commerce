@@ -355,6 +355,7 @@ export default async function ProductPage({
                 requiredSlot: t('product.bundle.requiredSlot'),
               }}
               locale={locale}
+              addToCartAction={addBundleToCartAction}
             />
           ) : null}
 
@@ -519,6 +520,45 @@ async function addGroupedToCartAction(formData: FormData): Promise<void> {
         { productId, quantity: qty },
       );
       // Reuse the freshly-minted anon cart for the remaining children so every
+      // line lands in the same cart.
+      if (result.newAnonCookie) anon = result.newAnonCookie;
+    }
+    if (anon && anon !== (jar.anon ?? null)) await setAnonCartCookie(anon);
+  } catch (err) {
+    const message =
+      err instanceof StorefrontApiError ? err.message : 'Could not add to cart.';
+    redirect(`/cart?error=${encodeURIComponent(message)}`);
+  }
+  redirect('/cart');
+}
+
+async function addBundleToCartAction(formData: FormData): Promise<void> {
+  'use server';
+  // A bundle PDP submits, per slot, the selected option's PRODUCT id
+  // (`slot_<slotId>_product`) and a quantity (`slot_<slotId>_qty`). The cart
+  // API has no native bundle line, so — like grouped products — we add one
+  // cart line per selected slot option. Unselected optional slots are skipped.
+  const selections: { productId: string; quantity: number }[] = [];
+  for (const [key, value] of formData.entries()) {
+    const match = /^slot_(.+)_product$/.exec(key);
+    if (!match) continue;
+    const productId = String(value).trim();
+    if (!productId) continue;
+    const quantityRaw = formData.get(`slot_${match[1]}_qty`);
+    const quantity = Number(quantityRaw ?? '1');
+    const qty = Number.isFinite(quantity) && quantity >= 1 ? Math.floor(quantity) : 1;
+    selections.push({ productId, quantity: qty });
+  }
+  if (selections.length === 0) redirect('/cart?error=missing-product');
+  const jar = await readCartJar();
+  let anon: string | null = jar.anon ?? null;
+  try {
+    for (const sel of selections) {
+      const result = await addCartItem(
+        { ...jar, anon },
+        { productId: sel.productId, quantity: sel.quantity },
+      );
+      // Reuse the freshly-minted anon cart for the remaining slots so every
       // line lands in the same cart.
       if (result.newAnonCookie) anon = result.newAnonCookie;
     }
