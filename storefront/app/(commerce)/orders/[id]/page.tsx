@@ -89,7 +89,7 @@ export default async function OrderConfirmationPage({
         </Link>
       </div>
 
-      <h2>Status</h2>
+      <h2 className="mt-10">Status</h2>
       <table className="b2b-account__table">
         <tbody>
           <tr>
@@ -107,7 +107,7 @@ export default async function OrderConfirmationPage({
         </tbody>
       </table>
 
-      <h2>Items</h2>
+      <h2 className="mt-10">Items</h2>
       <table className="b2b-account__table">
         <thead>
           <tr>
@@ -194,7 +194,7 @@ export default async function OrderConfirmationPage({
         </p>
       ) : null}
 
-      <h2>Comments</h2>
+      <h2 className="mt-10">Comments</h2>
       {comments.length === 0 ? (
         <p className="b2b-auth__hint">No comments yet.</p>
       ) : (
@@ -210,12 +210,21 @@ export default async function OrderConfirmationPage({
       {isTerminal ? (
         <p className="b2b-auth__hint">Commenting is closed for this order.</p>
       ) : (
-        <form action={addCommentAction} className="mt-3">
+        <form action={addCommentAction} className="mt-4">
           <input type="hidden" name="id" value={order.id} />
-          <textarea name="body" required aria-label="Add a comment" rows={3} />
-          <button type="submit" className="btn btn--outline btn--sm mt-2">
-            Add comment
-          </button>
+          <textarea
+            name="body"
+            required
+            aria-label="Add a comment"
+            rows={4}
+            placeholder="Write a message to our team…"
+            className="w-full resize-y rounded-md border border-line bg-surface px-[12px] py-[10px] text-[14px] leading-[1.5] text-fg placeholder:text-muted focus:border-line-strong focus:outline-none"
+          />
+          <div className="mt-4">
+            <button type="submit" className="btn btn--outline btn--sm">
+              Add comment
+            </button>
+          </div>
         </form>
       )}
     </div>
