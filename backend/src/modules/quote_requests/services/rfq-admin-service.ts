@@ -458,6 +458,11 @@ export class RfqAdminService {
       headerNote: body.headerNote ?? null,
       currentRevisionNumber: 1,
       lastCustomerSeenRevisionNumber: 0,
+      // The customer must accept or reject the quote the admin prepared, so it
+      // surfaces the Accept/Reject controls on the storefront (the same flag the
+      // admin's later revisions set). Without this the customer had no way to
+      // act on an admin-created quote.
+      awaitingCustomerRevisionAcceptance: true,
       expiresAt:
         body.expiresInDays !== undefined
           ? new Date(Date.now() + body.expiresInDays * 86_400_000)

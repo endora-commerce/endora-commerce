@@ -52,6 +52,20 @@ describe('Quote Requests — create on behalf (US4)', () => {
     expect(r.id).toBeTruthy();
   });
 
+  it('surfaces the awaiting-acceptance flag so the customer can accept/reject', async () => {
+    const r = await createOnBehalf();
+    const detailRes = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/quote-requests/${r.id}`,
+      cookies: { b2b_session: 'stub-customer-session' },
+    });
+    expect(detailRes.statusCode).toBe(200);
+    const detail = (
+      detailRes.json() as { data: { awaitingCustomerRevisionAcceptance: boolean } }
+    ).data;
+    expect(detail.awaitingCustomerRevisionAcceptance).toBe(true);
+  });
+
   it('customer accepts → Approved', async () => {
     const r = await createOnBehalf();
     const detailRes = await h.app.inject({
