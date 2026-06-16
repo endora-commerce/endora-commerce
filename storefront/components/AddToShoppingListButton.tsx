@@ -5,6 +5,10 @@ import {
   invalidateShoppingListMembership,
   loadShoppingListMembership,
 } from '../lib/shoppingListMembership';
+import {
+  addToDefaultListAction,
+  removeFromDefaultListAction,
+} from '../lib/actions/shoppingList';
 
 /**
  * Heart toggle for the customer's default shopping list. A first click adds the
@@ -37,7 +41,7 @@ export function AddToShoppingListButton(props: {
   useEffect(() => {
     let cancelled = false;
     const sync = (): void => {
-      void loadShoppingListMembership(props.apiBase).then((m) => {
+      void loadShoppingListMembership().then((m) => {
         if (!cancelled) setInList(m.byProduct.has(props.productId));
       });
     };
@@ -54,33 +58,28 @@ export function AddToShoppingListButton(props: {
   const toggle = async (): Promise<void> => {
     setState('busy');
     try {
-      const membership = await loadShoppingListMembership(props.apiBase);
+      const membership = await loadShoppingListMembership();
       const existingItemId = membership.byProduct.get(props.productId);
 
       if (existingItemId && membership.listId) {
-        const res = await fetch(
-          `${props.apiBase}/api/v1/shopping-lists/${membership.listId}/items/${existingItemId}`,
-          { method: 'DELETE', credentials: 'include', headers: { Accept: 'application/json' } },
-        );
-        if (res.status === 401) {
+        const res = await removeFromDefaultListAction({
+          listId: membership.listId,
+          itemId: existingItemId,
+        });
+        if (!res.ok && res.reason === 'auth') {
           window.location.href = '/login?next=/shopping-lists';
           return;
         }
-        if (!res.ok && res.status !== 404) throw new Error('list');
+        if (!res.ok) throw new Error('list');
         membership.byProduct.delete(props.productId);
         setInList(false);
       } else {
-        const res = await fetch(`${props.apiBase}/api/v1/shopping-lists/default/items`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'content-type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({
-            productId: props.productId,
-            ...(props.variantId ? { variantId: props.variantId } : {}),
-            quantity: props.quantity && props.quantity > 0 ? Math.floor(props.quantity) : 1,
-          }),
+        const res = await addToDefaultListAction({
+          productId: props.productId,
+          ...(props.variantId ? { variantId: props.variantId } : {}),
+          quantity: props.quantity && props.quantity > 0 ? Math.floor(props.quantity) : 1,
         });
-        if (res.status === 401) {
+        if (!res.ok && res.reason === 'auth') {
           window.location.href = '/login?next=/shopping-lists';
           return;
         }
@@ -88,7 +87,7 @@ export function AddToShoppingListButton(props: {
         // The add response doesn't carry the new item id, so refetch the
         // membership map to learn it for a later removal.
         invalidateShoppingListMembership();
-        const fresh = await loadShoppingListMembership(props.apiBase, true);
+        const fresh = await loadShoppingListMembership(true);
         setInList(fresh.byProduct.has(props.productId));
       }
       window.dispatchEvent(new CustomEvent('b2b:shopping-list:changed'));

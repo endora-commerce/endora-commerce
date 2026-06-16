@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
+import { getDefaultListSummaryAction } from '../lib/actions/shoppingList';
 
 /**
  * Header heart icon + count badge for the customer's default shopping list.
@@ -29,17 +30,12 @@ export function ShoppingListHeartBadge(props: {
     let cancelled = false;
     const refresh = async (): Promise<void> => {
       try {
-        const res = await fetch(`${props.apiBase}/api/v1/shopping-lists/default`, {
-          method: 'GET',
-          credentials: 'include',
-          headers: { Accept: 'application/json' },
-          cache: 'no-store',
-        });
-        if (!res.ok) return;
-        const payload = (await res.json()) as { data?: { id?: string; itemCount?: number } };
+        // Resolved via a server action so the httpOnly session cookie reaches
+        // the backend — a browser fetch to the backend origin can't carry it.
+        const summary = await getDefaultListSummaryAction();
         if (cancelled) return;
-        if (typeof payload.data?.itemCount === 'number') setCount(payload.data.itemCount);
-        if (typeof payload.data?.id === 'string') setListId(payload.data.id);
+        setCount(summary.itemCount);
+        setListId(summary.listId);
       } catch {
         // Swallow — keep the current value rather than flashing.
       }
@@ -51,7 +47,7 @@ export function ShoppingListHeartBadge(props: {
       cancelled = true;
       window.removeEventListener('b2b:shopping-list:changed', onChanged);
     };
-  }, [props.apiBase, props.loggedIn, pathname]);
+  }, [props.loggedIn, pathname]);
 
   const href = listId ? `/shopping-lists/${listId}` : '/shopping-lists';
 
