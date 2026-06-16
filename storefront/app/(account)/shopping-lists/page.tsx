@@ -9,6 +9,7 @@ import {
 } from '../../../lib/api/shopping-lists';
 import { getSessionCookie } from '../../../lib/session';
 import { StorefrontApiError } from '../../../lib/api/client';
+import { DeleteShoppingListButton } from '../../../components/shopping-lists/DeleteShoppingListButton';
 
 /**
  * Shopping lists list (T205). Shows every list owned by the current
@@ -88,12 +89,11 @@ export default async function ShoppingListsPage({
                   )}
                 </td>
                 <td>
-                  <form action={deleteAction} style={{ display: 'inline' }}>
-                    <input type="hidden" name="id" value={l.id} />
-                    <button type="submit" className="btn btn--outline btn--sm">
-                      Delete
-                    </button>
-                  </form>
+                  <DeleteShoppingListButton
+                    listId={l.id}
+                    listName={l.name}
+                    deleteAction={deleteAction}
+                  />
                 </td>
               </tr>
             ))}
