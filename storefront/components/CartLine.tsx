@@ -157,7 +157,7 @@ export function CartLine({
         {formatMoney(line.lineTotal)}
       </span>
 
-      <form action={removeAction} className="max-[720px]:justify-self-end max-[720px]:[grid-area:actions]">
+      <form action={removeAction} className="max-[720px]:justify-self-start max-[720px]:[grid-area:actions]">
         <input type="hidden" name="itemId" value={line.id} />
         <button
           type="submit"
