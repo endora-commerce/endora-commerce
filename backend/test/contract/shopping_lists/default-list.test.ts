@@ -73,4 +73,33 @@ describe('Default shopping list', () => {
     expect(defaults).toHaveLength(1);
     expect(defaults[0]?.id).toBe(second.id);
   });
+
+  it('refuses to delete the default list but allows deleting a non-default one', async () => {
+    const all = await h.app.inject({ method: 'GET', url: '/api/v1/shopping-lists', cookies });
+    const lists = (all.json() as { data: Array<{ id: string; isDefault: boolean }> }).data;
+    const def = lists.find((l) => l.isDefault);
+    const nonDefault = lists.find((l) => !l.isDefault);
+    expect(def).toBeDefined();
+    expect(nonDefault).toBeDefined();
+
+    // The default list is protected — this also guarantees a customer always
+    // keeps at least one list, since the default can never be removed.
+    const delDefault = await h.app.inject({
+      method: 'DELETE',
+      url: `/api/v1/shopping-lists/${def!.id}`,
+      cookies,
+    });
+    expect(delDefault.statusCode).toBe(409);
+    expect((delDefault.json() as { error: { code: string } }).error.code).toBe(
+      'SHOPPING_LIST_CANNOT_DELETE_DEFAULT',
+    );
+
+    // A non-default list deletes normally.
+    const delOther = await h.app.inject({
+      method: 'DELETE',
+      url: `/api/v1/shopping-lists/${nonDefault!.id}`,
+      cookies,
+    });
+    expect(delOther.statusCode).toBe(204);
+  });
 });

@@ -869,17 +869,25 @@ select:focus-visible {
    (feature 041). The phone layout is defined here as real CSS: the Tailwind
    arbitrary `grid-template-areas` class did not reliably emit, so the row
    children's `grid-area` placements collapsed onto overlapping implicit cells
-   and the rows stacked on top of each other. Columns are `auto 1fr auto` so
-   the 120px qty stepper gets its own track instead of overflowing the 56px
-   media column. */
+   and the rows stacked on top of each other.
+
+   Three rows so the cramped single/double-row layout breathes on phones:
+     row 1 — media + name/SKU/"save to list"
+     row 2 — qty stepper (spanning two tracks for room) + unit price
+     row 3 — remove button (left) + line total (right)
+   Columns are `56px 1fr auto`: the media cell hugs the 56px thumbnail, the
+   middle track flexes, and the qty stepper spans the first two tracks so the
+   120px widget isn't squeezed. */
 @media (max-width: 720px) {
   .cart-line {
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: 56px 1fr auto;
     grid-template-areas:
-      'media body actions'
-      'stepper unit total';
+      'media body body'
+      'stepper stepper unit'
+      'actions . total';
     column-gap: 12px;
-    row-gap: 10px;
+    row-gap: 12px;
+    align-items: center;
   }
 }
 

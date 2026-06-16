@@ -89,11 +89,17 @@ export default async function ShoppingListsPage({
                   )}
                 </td>
                 <td>
-                  <DeleteShoppingListButton
-                    listId={l.id}
-                    listName={l.name}
-                    deleteAction={deleteAction}
-                  />
+                  {l.isDefault ? (
+                    // The default list can't be deleted — only cleared (from the
+                    // list detail page). Keep it as the customer's permanent anchor.
+                    <span className="text-subtle">—</span>
+                  ) : (
+                    <DeleteShoppingListButton
+                      listId={l.id}
+                      listName={l.name}
+                      deleteAction={deleteAction}
+                    />
+                  )}
                 </td>
               </tr>
             ))}

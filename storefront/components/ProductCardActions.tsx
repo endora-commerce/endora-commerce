@@ -5,6 +5,10 @@ import {
   invalidateShoppingListMembership,
   loadShoppingListMembership,
 } from '../lib/shoppingListMembership';
+import {
+  addToDefaultListAction,
+  removeFromDefaultListAction,
+} from '../lib/actions/shoppingList';
 import { addRfqDraftItem } from '../lib/rfqDraft';
 
 /**
@@ -75,7 +79,7 @@ export function ProductCardActions(props: {
   useEffect(() => {
     let cancelled = false;
     const sync = (): void => {
-      void loadShoppingListMembership(props.apiBase).then((m) => {
+      void loadShoppingListMembership().then((m) => {
         if (!cancelled) setInList(m.byProduct.has(props.productId));
       });
     };
@@ -117,24 +121,24 @@ export function ProductCardActions(props: {
   const toggleList = async (): Promise<void> => {
     setListState('busy');
     try {
-      const membership = await loadShoppingListMembership(props.apiBase);
+      const membership = await loadShoppingListMembership();
       const existingItemId = membership.byProduct.get(props.productId);
 
       if (existingItemId && membership.listId) {
-        const res = await fetch(
-          `${props.apiBase}/api/v1/shopping-lists/${membership.listId}/items/${existingItemId}`,
-          { method: 'DELETE', credentials: 'include', headers: { Accept: 'application/json' } },
-        );
-        if (res.status === 401) {
+        const res = await removeFromDefaultListAction({
+          listId: membership.listId,
+          itemId: existingItemId,
+        });
+        if (!res.ok && res.reason === 'auth') {
           window.location.href = '/login?next=/shopping-lists';
           return;
         }
-        if (!res.ok && res.status !== 404) throw new Error('list');
+        if (!res.ok) throw new Error('list');
         membership.byProduct.delete(props.productId);
         setInList(false);
       } else {
-        const res = await post('/api/v1/shopping-lists/default/items');
-        if (res.status === 401) {
+        const res = await addToDefaultListAction({ productId: props.productId, quantity: 1 });
+        if (!res.ok && res.reason === 'auth') {
           window.location.href = '/login?next=/shopping-lists';
           return;
         }
@@ -142,7 +146,7 @@ export function ProductCardActions(props: {
         // The add response doesn't carry the new item id, so refetch the
         // membership map to learn it for a later removal.
         invalidateShoppingListMembership();
-        const fresh = await loadShoppingListMembership(props.apiBase, true);
+        const fresh = await loadShoppingListMembership(true);
         setInList(fresh.byProduct.has(props.productId));
       }
       window.dispatchEvent(new CustomEvent('b2b:shopping-list:changed'));
