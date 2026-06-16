@@ -157,21 +157,30 @@ export class ShoppingListService {
   async remove(ctx: CustomerContext, listId: string): Promise<void> {
     const em = this.emFactory();
     const list = await this.#owned(em, ctx, listId);
-    const wasDefault = list.isDefault;
-    await em.removeAndFlush(list);
-    // Keep the "exactly one default" invariant: promote the earliest remaining
-    // list when the deleted one was the default.
-    if (wasDefault) {
-      const next = await em.findOne(
-        ShoppingList,
-        { organizationId: ctx.organizationId, customerAccountId: ctx.customerAccountId },
-        { orderBy: { createdAt: 'asc' } },
+    // The default list can be cleared but never deleted — it is the customer's
+    // permanent "wishlist" anchor.
+    if (list.isDefault) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.SHOPPING_LIST_CANNOT_DELETE_DEFAULT,
+        'The default shopping list cannot be deleted. Clear it or set another list as default first.',
       );
-      if (next) {
-        next.isDefault = true;
-        await em.flush();
-      }
     }
+    // Every customer must always keep at least one shopping list. (With the
+    // default guard above this only triggers for malformed data where no list
+    // is flagged default, but we enforce it defensively.)
+    const total = await em.count(ShoppingList, {
+      organizationId: ctx.organizationId,
+      customerAccountId: ctx.customerAccountId,
+    });
+    if (total <= 1) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.SHOPPING_LIST_CANNOT_DELETE_LAST,
+        'At least one shopping list must remain.',
+      );
+    }
+    await em.removeAndFlush(list);
   }
 
   async addItem(

@@ -88,12 +88,18 @@ export default async function ShoppingListsPage({
                   )}
                 </td>
                 <td>
-                  <form action={deleteAction} style={{ display: 'inline' }}>
-                    <input type="hidden" name="id" value={l.id} />
-                    <button type="submit" className="btn btn--outline btn--sm">
-                      Delete
-                    </button>
-                  </form>
+                  {l.isDefault ? (
+                    // The default list can't be deleted — only cleared (from the
+                    // list detail page). Keep it as the customer's permanent anchor.
+                    <span className="text-subtle">—</span>
+                  ) : (
+                    <form action={deleteAction} style={{ display: 'inline' }}>
+                      <input type="hidden" name="id" value={l.id} />
+                      <button type="submit" className="btn btn--outline btn--sm">
+                        Delete
+                      </button>
+                    </form>
+                  )}
                 </td>
               </tr>
             ))}
