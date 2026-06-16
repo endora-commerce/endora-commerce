@@ -144,6 +144,48 @@ export function RfqCreatePage(): ReactNode {
   const addRow = (): void => setLines((prev) => [...prev, emptyLine()]);
   const removeRow = (i: number): void => setLines((prev) => prev.filter((_, idx) => idx !== i));
 
+  // Pre-fill the agreed unit price from the selected customer's price lists.
+  // Resolution depends on the (organization, customer, product, quantity)
+  // tuple, so we re-resolve whenever any of them changes. Failures leave the
+  // field for manual entry.
+  const resolveAndFill = useCallback(
+    async (
+      index: number,
+      productId: string,
+      quantity: number,
+      cust: AdminCustomerListItem | null,
+    ): Promise<void> => {
+      if (!productId.trim() || !cust?.organizationId) return;
+      try {
+        const params = new URLSearchParams({
+          organizationId: cust.organizationId,
+          customerAccountId: cust.id,
+          quantity: String(quantity > 0 ? quantity : 1),
+        });
+        const res = await apiClient.get<{ data: { resolvedPrice: { amount: string } | null } }>(
+          `/api/v1/admin/products/${productId.trim()}/resolved-price?${params.toString()}`,
+        );
+        const amount = res.data.resolvedPrice?.amount;
+        if (amount != null) {
+          setLines((prev) =>
+            prev.map((row, idx) => (idx === index ? { ...row, agreedUnitPrice: amount } : row)),
+          );
+        }
+      } catch {
+        // Leave the field for manual entry when resolution is unavailable.
+      }
+    },
+    [],
+  );
+
+  const handleCustomerChange = (next: AdminCustomerListItem | null): void => {
+    setCustomer(next);
+    // Re-price every line already carrying a product against the new customer.
+    lines.forEach((row, idx) => {
+      if (row.productId.trim()) void resolveAndFill(idx, row.productId, row.quantity, next);
+    });
+  };
+
   const validLines = lines.filter(
     (l) => l.productId.trim() && l.quantity > 0 && l.agreedUnitPrice.trim() !== '',
   );
@@ -200,7 +242,7 @@ export function RfqCreatePage(): ReactNode {
         </CardHeader>
         <CardContent className="space-y-2">
           <Label htmlFor="customerAccountId">{t('rfqCreate.field.customer')}</Label>
-          <CustomerPicker value={customer} onChange={setCustomer} />
+          <CustomerPicker value={customer} onChange={handleCustomerChange} />
           {customer && !hasOrg ? (
             <Alert variant="destructive">
               <AlertDescription>{t('rfqCreate.noOrgWarning')}</AlertDescription>
@@ -223,7 +265,11 @@ export function RfqCreatePage(): ReactNode {
                   id={`product-${i}`}
                   ariaLabel={`product-${i}`}
                   value={row.productId === '' ? null : row.productId}
-                  onChange={(next): void => setLine(i, { productId: next ?? '' })}
+                  onChange={(next): void => {
+                    const pid = next ?? '';
+                    setLine(i, { productId: pid });
+                    void resolveAndFill(i, pid, row.quantity, customer);
+                  }}
                   placeholder={t('rfqCreate.placeholder.product')}
                 />
               </div>
@@ -235,7 +281,11 @@ export function RfqCreatePage(): ReactNode {
                   type="number"
                   min={1}
                   value={row.quantity}
-                  onChange={(e): void => setLine(i, { quantity: Number(e.target.value) })}
+                  onChange={(e): void => {
+                    const q = Number(e.target.value);
+                    setLine(i, { quantity: q });
+                    void resolveAndFill(i, row.productId, q, customer);
+                  }}
                 />
               </div>
               <div className="w-32 space-y-1">
