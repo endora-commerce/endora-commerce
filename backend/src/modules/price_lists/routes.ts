@@ -18,6 +18,7 @@ import { SalesChannel } from '../sales_channels/entities/sales-channel.entity.js
 import { Category } from '../catalog/entities/category.entity.js';
 import { Organization } from '../organizations/entities/organization.entity.js';
 import { Product } from '../catalog/entities/product.entity.js';
+import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
 
 export interface PricingRoutesDeps {
   customerGroupService: CustomerGroupService;
@@ -59,12 +60,10 @@ export async function registerPricingRoutes(
   const {
     customerGroupService,
     priceListService,
+    pricingService,
     emFactory,
     requireAdmin,
   } = deps;
-  // pricingService is still part of PricingRoutesDeps for symmetry — the
-  // resolver routes are mounted by routes.storefront.ts; the admin
-  // routes here read through PriceListService.
 
   // ---- Customer groups ------------------------------------------------
   app.get(
@@ -573,6 +572,79 @@ export async function registerPricingRoutes(
     },
   );
 
+  // ---- Admin price resolution for a specific customer -----------------
+  // Resolves the effective unit price for a (product, customer/organization)
+  // pair so admin-side flows (notably "create quote request on behalf of a
+  // customer") can pre-fill the agreed unit price from the customer's price
+  // lists instead of leaving the field blank. Mirrors the storefront resolver
+  // but threads the customer's organization + group context.
+  app.get<{
+    Params: { id: string };
+    Querystring: {
+      organizationId?: string;
+      customerAccountId?: string;
+      quantity?: string;
+      currency?: string;
+      variantId?: string;
+    };
+  }>(
+    '/api/v1/admin/products/:id/resolved-price',
+    { preHandler: requireAdmin('rfqs:handle') },
+    async (request, reply) => {
+      const em = emFactory();
+      const product = await em.findOne(Product, { id: request.params.id });
+      if (!product) {
+        return reply
+          .status(404)
+          .send({ error: { code: 'NOT_FOUND', message: 'Product not found.' } });
+      }
+
+      const customer = request.query.customerAccountId
+        ? await em.findOne(CustomerAccount, { id: request.query.customerAccountId })
+        : null;
+      const organizationId = request.query.organizationId ?? customer?.organizationId ?? null;
+      const organization = organizationId
+        ? await em.findOne(Organization, { id: organizationId })
+        : null;
+
+      const salesChannel = await em.findOne(SalesChannel, { systemDefault: true });
+      if (!salesChannel) {
+        return reply
+          .status(400)
+          .send({ error: { code: 'VALIDATION_FAILED', message: 'No default sales channel.' } });
+      }
+
+      const quantity = Math.max(1, Number(request.query.quantity ?? '1') || 1);
+      const currency = request.query.currency?.toUpperCase() ?? salesChannel.defaultCurrency;
+      const customerGroupId =
+        customer?.customerGroupId ?? organization?.customerGroupId ?? null;
+
+      const resolved = await pricingService.resolveLinePrice({
+        product,
+        variantId: request.query.variantId ?? null,
+        context: {
+          quantity,
+          organization: organization ?? null,
+          customerGroupId,
+          salesChannel,
+          currencyCode: currency,
+        },
+      });
+
+      return {
+        data: {
+          resolvedPrice: resolved
+            ? {
+                amount: resolved.amount,
+                currency: resolved.currency,
+                isSale: resolved.isSale,
+                priceListId: resolved.priceListId,
+              }
+            : null,
+        },
+      };
+    },
+  );
 }
 
 function serializeCustomerGroup(row: CustomerGroup): Record<string, unknown> {
