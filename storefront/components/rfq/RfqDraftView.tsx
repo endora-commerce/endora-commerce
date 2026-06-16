@@ -13,6 +13,7 @@ import {
   RFQ_DRAFT_STORAGE_KEY,
   type RfqDraftItem,
 } from '../../lib/rfqDraft';
+import { submitQuoteRequest } from '../../app/(commerce)/quote-request/actions';
 
 /**
  * Quote-request draft view — the cart-modelled "review & submit" page at
@@ -26,7 +27,7 @@ import {
  * bounced to /login first, keeping their draft intact so they can finish after
  * signing in.
  */
-export function RfqDraftView(props: { apiBase: string; locale: string }): ReactNode {
+export function RfqDraftView(props: { locale: string }): ReactNode {
   const pl = props.locale.startsWith('pl');
   const t = strings(pl);
   const router = useRouter();
@@ -69,37 +70,27 @@ export function RfqDraftView(props: { apiBase: string; locale: string }): ReactN
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`${props.apiBase}/api/v1/quote-requests`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'content-type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({
-          ...(note.trim() ? { headerNote: note.trim() } : {}),
-          items: items.map((i) => ({
-            productId: i.productId,
-            quantity: i.quantity,
-            ...(i.proposedUnitPrice != null ? { desiredUnitPrice: i.proposedUnitPrice } : {}),
-          })),
-        }),
+      // Submit through a server action so the httpOnly `b2b_session` cookie is
+      // read server-side and forwarded to the backend with the buyer's
+      // identity. A browser fetch to the backend origin cannot carry that
+      // cookie, which previously 401'd logged-in buyers and dropped the draft.
+      const result = await submitQuoteRequest({
+        ...(note.trim() ? { headerNote: note.trim() } : {}),
+        items: items.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          ...(i.proposedUnitPrice != null ? { desiredUnitPrice: i.proposedUnitPrice } : {}),
+        })),
       });
-      if (res.status === 401) {
+      if (!result.ok && result.reason === 'auth') {
         window.location.href = '/login?next=/quote-request';
         return;
       }
-      if (!res.ok) {
-        let message = t.errorGeneric;
-        try {
-          const body = (await res.json()) as { error?: { message?: string }; message?: string };
-          message = body.error?.message ?? body.message ?? message;
-        } catch {
-          /* keep the generic message */
-        }
-        throw new Error(message);
+      if (!result.ok) {
+        throw new Error(result.message || t.errorGeneric);
       }
-      const body = (await res.json()) as { data?: { id?: string } };
-      const id = body.data?.id;
       clearRfqDraft();
-      router.push(id ? `/quote-requests/success?id=${id}` : '/quote-requests');
+      router.push(`/quote-requests/success?id=${result.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : t.errorGeneric);
       setSubmitting(false);
