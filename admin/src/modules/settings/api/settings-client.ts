@@ -2,6 +2,7 @@ import type {
   CacheNamespacesResponse,
   ClearCacheRequest,
   ClearCacheResult,
+  SearchReindexResponse,
   SetValueRequest,
   SettingDto,
   SettingGroupDto,
@@ -90,5 +91,9 @@ export const settingsClient = {
 
   clearCache(body: ClearCacheRequest): Promise<ClearCacheResult> {
     return apiClient.post<ClearCacheResult>('/api/v1/admin/cache/clear', body);
+  },
+
+  reindexSearch(): Promise<SearchReindexResponse> {
+    return apiClient.post<SearchReindexResponse>('/api/v1/admin/search/reindex', {});
   },
 };
