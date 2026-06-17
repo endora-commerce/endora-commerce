@@ -87,9 +87,23 @@ function mergeConfig(
 export function PageBuilderEditor({
   data,
   onChange,
+  contentKey,
 }: {
   data: Data | null;
   onChange: (data: Data) => void;
+  /**
+   * Identity of the content currently loaded into the editor — typically
+   * `${resourceId}:${language}`. Puck seeds its internal editor state from
+   * `data` only on mount (the `data` prop is treated as *initial* data, not a
+   * controlled value), so when the surrounding editor finishes its async
+   * fetch and swaps `data` from the empty placeholder to the saved tree, Puck
+   * would otherwise keep showing the empty canvas. Threading this through as
+   * the Puck `key` forces a remount whenever a different resource/language is
+   * loaded, re-seeding from the freshly-loaded `data`. It deliberately does
+   * NOT change on every keystroke (which flows through `onChange`/draft
+   * state), so editing stays smooth and never loses focus.
+   */
+  contentKey?: string;
 }): ReactNode {
   const t = useTranslation('cms');
   const [descriptor, setDescriptor] = useState<CmsPageBuilderDescriptor | null>(null);
@@ -197,6 +211,7 @@ export function PageBuilderEditor({
             Puck's built-in "Publish" header button is redundant and misleading —
             hide it by emptying the header-actions slot. */}
         <Puck
+          key={contentKey}
           config={config}
           data={editorData}
           onChange={onChange}
