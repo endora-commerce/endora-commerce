@@ -95,7 +95,7 @@ export default async function NotFound(): Promise<ReactNode> {
             <Link href="/catalog" className="btn btn--outline btn--lg">
               Przeglądaj katalog
             </Link>
-            <Link href="/quote-requests" className="btn btn--ghost btn--lg">
+            <Link href="/quote-request" className="btn btn--ghost btn--lg">
               Wyślij zapytanie ofertowe
             </Link>
           </div>
