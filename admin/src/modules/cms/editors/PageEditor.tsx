@@ -96,6 +96,14 @@ export function PageEditor(): ReactNode {
     void load().catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, [load]);
 
+  // React Router reuses this component instance across `/cms/pages/:id`
+  // navigations, so local state survives an id change. Drop any unsaved draft
+  // when the edited page changes, otherwise the previous page's edits would
+  // mask the newly-loaded content.
+  useEffect(() => {
+    setDraftData(null);
+  }, [id]);
+
   useEffect(() => {
     if (!activeLanguage && scope.languages.length > 0) setActiveLanguage(scope.languages[0] ?? null);
     if (activeLanguage && !scope.languages.includes(activeLanguage)) {
@@ -314,7 +322,11 @@ export function PageEditor(): ReactNode {
               setActiveLanguage(language);
             }}
           />
-          <PageBuilderEditor data={currentData} onChange={setDraftData} />
+          <PageBuilderEditor
+            data={currentData}
+            onChange={setDraftData}
+            contentKey={`${id ?? 'new'}:${activeLanguage ?? ''}`}
+          />
         </div>
       </div>
     </div>
