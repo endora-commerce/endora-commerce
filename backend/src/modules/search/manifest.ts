@@ -28,10 +28,12 @@ export const SEARCH_SETTING_CODES = {
   LLM_EMBEDDER_URL: 'search.llm.embedder_url',
   LLM_EMBEDDER_API_KEY: 'search.llm.embedder_api_key',
   LLM_EMBEDDER_MODEL: 'search.llm.embedder_model',
+  REINDEX_INTERVAL_MINUTES: 'search.reindex_interval_minutes',
 } as const;
 
 export const DEFAULT_POPUP_SUGGESTION_COUNT = 8;
 export const DEFAULT_POPUP_MINIMUM_QUERY_LENGTH = 3;
+export const DEFAULT_REINDEX_INTERVAL_MINUTES = 10;
 
 const settings = defineModuleSettingsManifest({
   moduleCode: 'search',
@@ -95,6 +97,15 @@ const settings = defineModuleSettingsManifest({
       groupCode: 'search',
       valueType: 'string',
       defaultValue: '',
+    },
+    {
+      code: SEARCH_SETTING_CODES.REINDEX_INTERVAL_MINUTES,
+      name: 'Product reindex interval (minutes)',
+      description:
+        'How often the background worker rebuilds every sales-channel Meilisearch index so the catalogue stays in sync. Set to 0 to disable the periodic sweep — manual reindexing from the admin remains available.',
+      groupCode: 'search',
+      valueType: 'number',
+      defaultValue: DEFAULT_REINDEX_INTERVAL_MINUTES,
     },
   ],
 });

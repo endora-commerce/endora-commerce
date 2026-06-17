@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Eraser, Languages, RefreshCw } from 'lucide-react';
+import { Eraser, Languages, RefreshCw, Search } from 'lucide-react';
 import type { CacheNamespaceDto } from '@b2b/contracts';
 import { ApiError } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -82,6 +82,25 @@ export function CachePage(): ReactNode {
     setSelected((prev) =>
       prev.size === namespaces.length ? new Set() : new Set(namespaces.map((n) => n.key)),
     );
+  };
+
+  const reindexSearch = async (): Promise<void> => {
+    setBusy(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await settingsClient.reindexSearch();
+      setResult(
+        t('search.reindex.done', {
+          channels: res.channelsReindexed,
+          documents: res.documentCount,
+        }),
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('search.reindex.error'));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const reloadTranslations = async (): Promise<void> => {
@@ -187,6 +206,19 @@ export function CachePage(): ReactNode {
           {t('cache.refresh')}
         </Button>
       </div>
+
+      <Card>
+        <CardContent className="space-y-3 p-4">
+          <div>
+            <h2 className="text-sm font-medium">{t('search.reindex.title')}</h2>
+            <p className="text-xs text-muted-foreground">{t('search.reindex.description')}</p>
+          </div>
+          <Button variant="outline" onClick={() => void reindexSearch()} disabled={busy}>
+            <Search className="mr-2 h-4 w-4" />
+            {t('search.reindex.button')}
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="space-y-3 p-4">

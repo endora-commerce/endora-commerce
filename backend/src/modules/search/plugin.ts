@@ -12,6 +12,7 @@ import {
   DEFAULT_MINIMUM_QUERY_LENGTH,
 } from './services/search-suggest.service.js';
 import { LlmToggleService } from './services/llm-toggle.service.js';
+import { SearchReindexWorker } from './services/search-reindex-worker.js';
 import { SearchPhraseRecorder } from './services/search-phrase-recorder.service.js';
 import {
   registerSearchPublicRoutes,
@@ -74,6 +75,19 @@ export interface SearchModuleOptions {
    * from the composition root where the price-lists `PricingService` lives.
    */
   enrichSuggestionPricing?: SuggestionPricingEnricher;
+  /**
+   * Resolves the current `search.reindex_interval_minutes` from settings.
+   * Implementation lives in the composition root so the module isn't coupled
+   * to the settings read API. A value `<= 0` disables the periodic sweep.
+   */
+  resolveReindexIntervalMinutes?: () => Promise<number>;
+  /**
+   * When `true` (and `resolveReindexIntervalMinutes` is wired), the module
+   * starts the periodic full-reindex sweep. The composition root passes the
+   * deployment-role gate (`runWorkers`) here so the sweep only runs in
+   * worker/all processes, never in a dedicated `BACKEND_ROLE=api` process.
+   */
+  enableReindexScheduler?: boolean;
 }
 
 export interface SearchModuleHandle {
@@ -82,6 +96,7 @@ export interface SearchModuleHandle {
   searchQueryService: SearchQueryService;
   suggestService: SearchSuggestService;
   llmToggleService?: LlmToggleService;
+  reindexWorker: SearchReindexWorker;
   phraseRecorder: SearchPhraseRecorder;
 }
 
@@ -157,12 +172,18 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
     options.settingsService,
   );
 
+  const reindexWorker = new SearchReindexWorker({
+    emFactory: options.emFactory,
+    indexer,
+  });
+
   return {
     handle: {
       indexer,
       subscriber,
       searchQueryService,
       suggestService,
+      reindexWorker,
       phraseRecorder,
       ...(llmToggleService !== undefined ? { llmToggleService } : {}),
     },
@@ -183,10 +204,60 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
       if (llmToggleService && options.requireAdmin) {
         await registerSearchAdminRoutes(app, {
           llmToggleService,
+          reindexWorker,
           requireAdmin: options.requireAdmin,
           ...(options.resolveAdminAuditContext !== undefined
             ? { resolveAdminAuditContext: options.resolveAdminAuditContext }
             : {}),
+        });
+      }
+
+      // Periodic full Meilisearch reindex (FR — keep the catalogue in sync
+      // even when an incremental event was missed). The interval is read
+      // from Settings on every tick via a self-rescheduling timer, so an
+      // operator changing `search.reindex_interval_minutes` takes effect on
+      // the next cycle without a restart. A value <= 0 disables the sweep but
+      // the timer keeps polling the setting so it can be re-enabled live.
+      const resolveIntervalMinutes = options.resolveReindexIntervalMinutes;
+      if (options.enableReindexScheduler && resolveIntervalMinutes) {
+        const DISABLED_POLL_MS = 60_000;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        let stopped = false;
+
+        const scheduleNext = (delayMs: number): void => {
+          if (stopped) return;
+          timer = setTimeout(tick, delayMs);
+          if (typeof timer.unref === 'function') timer.unref();
+        };
+
+        const tick = (): void => {
+          void (async () => {
+            let minutes = 0;
+            try {
+              minutes = await resolveIntervalMinutes();
+            } catch (err) {
+              app.log.error({ err }, 'search reindex: failed to resolve interval setting');
+            }
+            if (Number.isFinite(minutes) && minutes > 0) {
+              try {
+                const result = await reindexWorker.reindex();
+                app.log.info({ result }, 'search reindex sweep completed');
+              } catch (err) {
+                app.log.error({ err }, 'search reindex sweep failed');
+              }
+              scheduleNext(minutes * 60_000);
+            } else {
+              // Disabled — keep polling so a re-enable takes effect live.
+              scheduleNext(DISABLED_POLL_MS);
+            }
+          })();
+        };
+
+        // Kick off the first poll without an immediate reindex at boot.
+        scheduleNext(DISABLED_POLL_MS);
+        app.addHook('onClose', async () => {
+          stopped = true;
+          if (timer) clearTimeout(timer);
         });
       }
     },

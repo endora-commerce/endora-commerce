@@ -16,7 +16,7 @@ import { SEARCH_SETTING_CODES } from '../../../src/modules/search/manifest.js';
  *
  * Asserts:
  *   - The `search` group exists after boot.
- *   - All six declared settings exist with the right defaults + value types.
+ *   - All declared settings exist with the right defaults + value types.
  *   - The reconciliation is idempotent: re-running it adds no rows.
  *
  * test-server applies the manifest once during setup; this test re-runs
@@ -34,7 +34,7 @@ describe('search manifest reconciliation (T020)', () => {
     await teardownBackendServer(h);
   });
 
-  it('seeds the search group and its six settings on boot', async () => {
+  it('seeds the search group and its settings on boot', async () => {
     const em = h.em();
     const group = await em.findOne(SettingGroup, { code: 'search' });
     expect(group).not.toBeNull();
@@ -50,6 +50,7 @@ describe('search manifest reconciliation (T020)', () => {
         SEARCH_SETTING_CODES.LLM_ENABLED,
         SEARCH_SETTING_CODES.POPUP_MINIMUM_QUERY_LENGTH,
         SEARCH_SETTING_CODES.POPUP_SUGGESTION_COUNT,
+        SEARCH_SETTING_CODES.REINDEX_INTERVAL_MINUTES,
       ].sort(),
     );
 
@@ -65,6 +66,10 @@ describe('search manifest reconciliation (T020)', () => {
     expect(byCode.get(SEARCH_SETTING_CODES.LLM_ENABLED)?.defaultValue).toBe(false);
     expect(byCode.get(SEARCH_SETTING_CODES.LLM_EMBEDDER_URL)?.valueType).toBe('string');
     expect(byCode.get(SEARCH_SETTING_CODES.LLM_EMBEDDER_URL)?.defaultValue).toBe('');
+    expect(byCode.get(SEARCH_SETTING_CODES.REINDEX_INTERVAL_MINUTES)?.valueType).toBe(
+      'number',
+    );
+    expect(byCode.get(SEARCH_SETTING_CODES.REINDEX_INTERVAL_MINUTES)?.defaultValue).toBe(10);
   });
 
   it('is idempotent on re-apply', async () => {

@@ -89,7 +89,11 @@ import { DefaultChannelReconciler } from './modules/sales_channels/services/defa
 import { searchModule } from './modules/search/plugin.js';
 import { createSuggestionPricingEnricher } from './modules/search/services/suggestion-pricing-enricher.js';
 import { SearchIndexer } from './modules/search/services/search-indexer.js';
-import { searchManifest } from './modules/search/manifest.js';
+import {
+  searchManifest,
+  SEARCH_SETTING_CODES,
+  DEFAULT_REINDEX_INTERVAL_MINUTES,
+} from './modules/search/manifest.js';
 import { comparisonsModule } from './modules/comparisons/plugin.js';
 import { comparisonsManifest } from './modules/comparisons/manifest.js';
 import { quoteRequestsManifest, QUOTE_REQUESTS_SETTING_CODES } from './modules/quote_requests/manifest.js';
@@ -1285,6 +1289,21 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveAdminAuditContext: (request) => {
       if (request.actor.kind !== 'admin') return { actorAdminUserId: null };
       return { actorAdminUserId: request.actor.adminUserId };
+    },
+    // Periodic full Meilisearch reindex — interval from Settings
+    // (`search.reindex_interval_minutes`, default 10; 0 disables). The sweep
+    // runs co-located unless BACKEND_ROLE=api, exactly like the other workers.
+    enableReindexScheduler: runWorkers,
+    resolveReindexIntervalMinutes: async () => {
+      try {
+        return await settings.handle.settingsService.get(
+          SEARCH_SETTING_CODES.REINDEX_INTERVAL_MINUTES,
+          'default',
+          z.number().int().nonnegative(),
+        );
+      } catch {
+        return DEFAULT_REINDEX_INTERVAL_MINUTES;
+      }
     },
   });
   modules.push(search.plugin);

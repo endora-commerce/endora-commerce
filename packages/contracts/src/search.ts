@@ -169,3 +169,19 @@ export const RecordPhraseResponseSchema = z.object({
 });
 export type RecordPhraseResponse = z.infer<typeof RecordPhraseResponseSchema>;
 
+// ---------------------------------------------------------------------------
+// (4) POST /api/v1/admin/search/reindex — manual full Meilisearch reindex
+// ---------------------------------------------------------------------------
+
+/**
+ * Triggers an immediate, synchronous full reindex of every sales-channel
+ * Meilisearch index — the same work the periodic background sweep performs
+ * (`search.reindex_interval_minutes`). Body is empty; the response carries a
+ * per-run summary so the admin UI can confirm what was rebuilt.
+ */
+export const SearchReindexResponseSchema = z.object({
+  channelsReindexed: z.number().int().nonnegative(),
+  documentCount: z.number().int().nonnegative(),
+});
+export type SearchReindexResponse = z.infer<typeof SearchReindexResponseSchema>;
+
