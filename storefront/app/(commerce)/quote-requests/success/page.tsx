@@ -12,8 +12,10 @@ import { RfqSuccessPanel } from '../../../../components/rfq/RfqSuccessPanel';
  * the customer-facing business RFQ ID (not the UUID) and a next-steps hint.
  * Authenticated, transactional → noindex.
  *
- * Note: this static `success` segment takes precedence over the sibling `[id]`
- * dynamic route, so `/quote-requests/success` always lands here.
+ * Lives in the `(commerce)` route group — like the checkout success page — so
+ * it renders the centred confirmation chrome rather than the account sidebar.
+ * Its static `success` segment still wins over the `(account)` `[id]` dynamic
+ * route, so `/quote-requests/success` always lands here.
  */
 export const metadata = { robots: { index: false, follow: false } };
 
