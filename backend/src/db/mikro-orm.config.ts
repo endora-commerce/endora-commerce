@@ -80,6 +80,7 @@ import { Migration074ShoppingListsDefault } from '../modules/shopping_lists/migr
 import { Migration072FixInPersonPickupAdapter } from '../modules/delivery_methods/migrations/072_fix_in_person_pickup_adapter.js';
 import { Migration073QuoteRequestsBusinessId } from '../modules/quote_requests/migrations/073_quote_requests_business_id.js';
 import { Migration075SettingsEnumOptions } from '../modules/settings/migrations/075_settings_enum_options.js';
+import { Migration076BackfillAdminCreatedAwaiting } from '../modules/quote_requests/migrations/076_backfill_admin_created_awaiting.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -379,6 +380,10 @@ export default defineConfig({
       {
         name: 'Migration075SettingsEnumOptions',
         class: Migration075SettingsEnumOptions,
+      },
+      {
+        name: 'Migration076BackfillAdminCreatedAwaiting',
+        class: Migration076BackfillAdminCreatedAwaiting,
       },
     ],
     transactional: true,
