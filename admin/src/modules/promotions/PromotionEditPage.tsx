@@ -13,6 +13,7 @@ import { RuleBuilder, type RuleAttributeField } from '@/components/rule-builder/
 import { useTranslation } from '@/i18n/useTranslation';
 import type { PromotionAction, PromotionActionType, PromotionRule } from '@b2b/contracts';
 import { promotionsClient, type Coupon } from './client';
+import { CouponGeneratorForm } from './CouponGeneratorForm';
 
 const ACTION_TYPES: PromotionActionType[] = [
   'free_delivery',
@@ -308,6 +309,7 @@ function CouponsSection({ promotionId }: { promotionId: string }): ReactNode {
             {t('promotions.coupons.add')}
           </Button>
         </div>
+        <CouponGeneratorForm promotionId={promotionId} onGenerated={reload} />
         {coupons.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('promotions.coupons.empty')}</p>
         ) : (

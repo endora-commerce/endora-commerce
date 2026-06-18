@@ -384,6 +384,37 @@ export const upsertPromotionRequestSchema = z
     }
   });
 
+// --- Coupons & generator (US3 / US4) ---------------------------------------
+
+export const couponFormatSchema = z.enum(['alnum', 'digits', 'letters']);
+export type CouponFormat = z.infer<typeof couponFormatSchema>;
+
+export const couponLimitScopeSchema = z.enum(['per_coupon', 'shared_batch']);
+export type CouponLimitScope = z.infer<typeof couponLimitScopeSchema>;
+
+export const promotionCouponSchema = z.object({
+  id: uuidSchema,
+  promotionId: uuidSchema,
+  batchId: uuidSchema.nullable(),
+  code: z.string(),
+  limitScope: couponLimitScopeSchema,
+  isActive: z.boolean(),
+  createdAt: isoDateTimeSchema,
+});
+export type PromotionCouponDto = z.infer<typeof promotionCouponSchema>;
+
+export const generateCouponsRequestSchema = z.object({
+  count: z.number().int().positive().max(100_000),
+  length: z.number().int().min(3).max(40),
+  format: couponFormatSchema,
+  prefix: z.string().max(32).nullable().optional(),
+  suffix: z.string().max(32).nullable().optional(),
+  /** Insert a dash every N characters of the generated body; 0/absent = none. */
+  dashEvery: z.number().int().nonnegative().max(40).optional(),
+  limitScope: couponLimitScopeSchema.default('per_coupon'),
+});
+export type GenerateCouponsRequest = z.infer<typeof generateCouponsRequestSchema>;
+
 // --- Cart application ------------------------------------------------------
 
 export const cartLineSchema = z.object({

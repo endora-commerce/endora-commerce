@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import {
   cartSnapshotSchema,
+  generateCouponsRequestSchema,
   upsertPromotionRequestSchema,
   type PromotionAction,
 } from '@b2b/contracts';
@@ -122,6 +123,29 @@ export async function registerPromotionRoutes(
       const coupon = await couponService.createSingle(request.params.id, code);
       reply.status(201);
       return { data: serializeCoupon(coupon) };
+    },
+  );
+
+  // Feature 045 (US4) — bulk coupon generator.
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/promotions/:id/coupon-batches',
+    { preHandler: writeGate, schema: { body: generateCouponsRequestSchema } },
+    async (request, reply) => {
+      const body = generateCouponsRequestSchema.parse(request.body);
+      const result = await couponService.generateBatch(request.params.id, body);
+      reply.status(201);
+      return { data: { batch: { id: result.batch.id }, generated: result.generated } };
+    },
+  );
+
+  app.get<{ Params: { id: string; batchId: string } }>(
+    '/api/v1/admin/promotions/:id/coupon-batches/:batchId/export',
+    { preHandler: readGate },
+    async (request, reply) => {
+      const codes = await couponService.listBatchCodes(request.params.batchId);
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header('content-disposition', `attachment; filename="coupons-${request.params.batchId}.csv"`);
+      return reply.send(`code\n${codes.join('\n')}\n`);
     },
   );
 

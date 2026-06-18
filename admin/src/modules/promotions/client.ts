@@ -59,7 +59,27 @@ export const promotionsClient = {
     apiClient
       .post<{ data: Coupon }>(`/api/v1/admin/promotions/${id}/coupons`, { code })
       .then((r) => r.data),
+  generateBatch: (
+    id: string,
+    req: GenerateBatchRequest,
+  ): Promise<{ batch: { id: string }; generated: number }> =>
+    apiClient
+      .post<{ data: { batch: { id: string }; generated: number } }>(
+        `/api/v1/admin/promotions/${id}/coupon-batches`,
+        req,
+      )
+      .then((r) => r.data),
 };
+
+export interface GenerateBatchRequest {
+  count: number;
+  length: number;
+  format: 'alnum' | 'digits' | 'letters';
+  prefix?: string | null;
+  suffix?: string | null;
+  dashEvery?: number;
+  limitScope: 'per_coupon' | 'shared_batch';
+}
 
 export interface Coupon {
   id: string;
