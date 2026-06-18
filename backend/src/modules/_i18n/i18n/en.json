@@ -1667,6 +1667,8 @@
   "orderDetail.sections.status": "Status",
   "orderDetail.title": "Order #{id}",
   "orderDetail.totals.delivery": "Delivery",
+  "orderDetail.totals.discount": "Discount",
+  "carts.column.discount": "Discount",
   "orderDetail.totals.subtotal": "Subtotal",
   "orderDetail.totals.tax": "Tax",
   "orderDetail.totals.total": "Total",

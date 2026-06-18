@@ -1667,6 +1667,8 @@
   "orderDetail.sections.status": "Status",
   "orderDetail.title": "Zamówienie #{id}",
   "orderDetail.totals.delivery": "Dostawa",
+  "orderDetail.totals.discount": "Rabat",
+  "carts.column.discount": "Rabat",
   "orderDetail.totals.subtotal": "Suma częściowa",
   "orderDetail.totals.tax": "Podatek",
   "orderDetail.totals.total": "Razem",

@@ -15,6 +15,12 @@ import { Organization } from '../../organizations/entities/organization.entity.j
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
 import type { CartAuditService } from './cart-audit-service.js';
+import type { CartSnapshot, PromotionApplication } from '@b2b/contracts';
+
+/** Narrow port over the promotion engine for the admin cart-detail discount. */
+export interface AdminCartPromotionPort {
+  applyToCart(snapshot: CartSnapshot): Promise<PromotionApplication>;
+}
 
 /**
  * Platform-admin observability + emergency-reject surface for carts
@@ -36,6 +42,8 @@ export class CartAdminService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly cartAuditService: CartAuditService,
+    /** Feature 045 (T043) — when wired, the detail shows the real discount. */
+    private readonly promotion?: AdminCartPromotionPort,
   ) {}
 
   async list(query: AdminCartsListQuery = {}): Promise<AdminCartsListResponse> {
@@ -144,8 +152,34 @@ export class CartAdminService {
       : [];
     const productById = new Map(products.map((p) => [p.id, p]));
 
-    const total = items.reduce((acc, it) => acc + Number(it.unitPrice) * it.quantity, 0);
+    const subtotal = items.reduce((acc, it) => acc + Number(it.unitPrice) * it.quantity, 0);
     const currency = items[0]?.currency ?? 'PLN';
+
+    // Feature 045 (T043) — compute the real discount for the detail view.
+    let discountTotal = 0;
+    if (this.promotion && items.length > 0) {
+      try {
+        const application = await this.promotion.applyToCart({
+          organizationId: cart.organizationId ?? null,
+          customerGroupId: null,
+          currency,
+          lines: items.map((it) => ({
+            productId: it.productId,
+            variantId: it.variantId ?? null,
+            categoryIds: [],
+            quantity: it.quantity,
+            unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
+          })),
+          deliveryTotal: 0,
+          promotionCode: cart.appliedPromotionCode ?? null,
+          salesChannelId: cart.salesChannelId ?? null,
+        });
+        discountTotal = application.discountTotal;
+      } catch {
+        discountTotal = 0;
+      }
+    }
+    const total = Math.max(0, Math.round((subtotal - discountTotal) * 100) / 100);
 
     return {
       data: {
@@ -175,9 +209,12 @@ export class CartAdminService {
             lineTotal: { amount: Number(it.unitPrice) * it.quantity, currency: it.currency },
           };
         }),
-        discount: cart.appliedPromotionCode
-          ? { code: cart.appliedPromotionCode, amount: 0, currency }
-          : null,
+        discount:
+          discountTotal > 0
+            ? { code: cart.appliedPromotionCode ?? null, amount: discountTotal, currency }
+            : cart.appliedPromotionCode
+              ? { code: cart.appliedPromotionCode, amount: 0, currency }
+              : null,
         convertedToQuoteRequestId: cart.convertedToQuoteRequestId ?? null,
         submittedForApprovalAt: cart.submittedForApprovalAt?.toISOString() ?? null,
         approvedAt: cart.approvedAt?.toISOString() ?? null,

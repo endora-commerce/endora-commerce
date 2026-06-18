@@ -189,6 +189,16 @@ export function CartDetail(): ReactNode {
                   <TableCell className="tabular-nums">{it.lineTotal.amount.toFixed(2)} {it.lineTotal.currency}</TableCell>
                 </TableRow>
               ))}
+              {cart.discount && cart.discount.amount > 0 ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-right text-muted-foreground">
+                    {t('carts.column.discount')}
+                  </TableCell>
+                  <TableCell className="tabular-nums text-ok">
+                    −{cart.discount.amount.toFixed(2)} {cart.discount.currency}
+                  </TableCell>
+                </TableRow>
+              ) : null}
               <TableRow>
                 <TableCell colSpan={3} className="text-right font-semibold">{t('carts.column.total')}</TableCell>
                 <TableCell className="tabular-nums font-semibold">{cart.total.amount.toFixed(2)} {cart.total.currency}</TableCell>
