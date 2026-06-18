@@ -12,7 +12,7 @@ import { Select } from '@/components/ui/select';
 import { RuleBuilder, type RuleAttributeField } from '@/components/rule-builder/RuleBuilder';
 import { useTranslation } from '@/i18n/useTranslation';
 import type { PromotionAction, PromotionActionType, PromotionRule } from '@b2b/contracts';
-import { promotionsClient } from './client';
+import { promotionsClient, type Coupon } from './client';
 
 const ACTION_TYPES: PromotionActionType[] = [
   'free_delivery',
@@ -260,9 +260,69 @@ export const PromotionEditPage = (): ReactNode => {
           </Button>
         </div>
       </form>
+
+      {!isNew && id ? <CouponsSection promotionId={id} /> : null}
     </>
   );
 };
+
+function CouponsSection({ promotionId }: { promotionId: string }): ReactNode {
+  const t = useTranslation('core');
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [code, setCode] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+
+  const reload = useCallback(() => {
+    void promotionsClient.listCoupons(promotionId).then(setCoupons).catch(() => setCoupons([]));
+  }, [promotionId]);
+  useEffect(() => reload(), [reload]);
+
+  const add = async (): Promise<void> => {
+    setErr(null);
+    try {
+      await promotionsClient.createCoupon(promotionId, code.trim());
+      setCode('');
+      reload();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.envelope.error.message : t('promotions.error.save'));
+    }
+  };
+
+  return (
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle>{t('promotions.coupons.title')}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        {err ? (
+          <Alert variant="destructive">
+            <AlertDescription>{err}</AlertDescription>
+          </Alert>
+        ) : null}
+        <div className="flex items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="couponCode">{t('promotions.coupons.code')}</Label>
+            <Input id="couponCode" value={code} onChange={(e) => setCode(e.target.value)} className="w-64" />
+          </div>
+          <Button type="button" disabled={code.trim() === ''} onClick={() => void add()}>
+            {t('promotions.coupons.add')}
+          </Button>
+        </div>
+        {coupons.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t('promotions.coupons.empty')}</p>
+        ) : (
+          <ul className="flex flex-col gap-1 text-sm">
+            {coupons.map((c) => (
+              <li key={c.id} className="font-mono">
+                {c.code} <span className="text-muted-foreground">({c.limitScope})</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function NumberField({
   label,

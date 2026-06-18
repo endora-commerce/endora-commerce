@@ -53,4 +53,20 @@ export const promotionsClient = {
         '/api/v1/admin/promotions/rule-targets/attributes',
       )
       .then((r) => r.data.items),
+  listCoupons: (id: string): Promise<Coupon[]> =>
+    apiClient.get<{ data: Coupon[] }>(`/api/v1/admin/promotions/${id}/coupons`).then((r) => r.data),
+  createCoupon: (id: string, code: string): Promise<Coupon> =>
+    apiClient
+      .post<{ data: Coupon }>(`/api/v1/admin/promotions/${id}/coupons`, { code })
+      .then((r) => r.data),
 };
+
+export interface Coupon {
+  id: string;
+  promotionId: string;
+  batchId: string | null;
+  code: string;
+  limitScope: 'per_coupon' | 'shared_batch';
+  isActive: boolean;
+  createdAt: string;
+}

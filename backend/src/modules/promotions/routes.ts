@@ -5,13 +5,16 @@ import {
   type PromotionAction,
 } from '@b2b/contracts';
 import type { PromotionService, UpsertPromotionInput } from './services/promotion-service.js';
+import type { CouponService } from './services/coupon-service.js';
 import type { Promotion } from './entities/promotion.entity.js';
+import type { PromotionCoupon } from './entities/promotion-coupon.entity.js';
 import { PROMOTION_PERMISSIONS } from './manifest.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { CatalogQueryService } from '../catalog/services/catalog-query.service.js';
 
 export interface PromotionRoutesDeps {
   promotionService: PromotionService;
+  couponService: CouponService;
   requireAdmin: RequireAdminFactory;
   /** Feature 012 / US8 — feeds the rule-target picker endpoint. */
   catalogQueryService?: CatalogQueryService;
@@ -21,7 +24,7 @@ export async function registerPromotionRoutes(
   app: FastifyInstance,
   deps: PromotionRoutesDeps,
 ): Promise<void> {
-  const { promotionService, requireAdmin, catalogQueryService } = deps;
+  const { promotionService, couponService, requireAdmin, catalogQueryService } = deps;
   const readGate = requireAdmin(PROMOTION_PERMISSIONS.READ);
   const writeGate = requireAdmin(PROMOTION_PERMISSIONS.WRITE);
   const deleteGate = requireAdmin(PROMOTION_PERMISSIONS.DELETE);
@@ -97,6 +100,31 @@ export async function registerPromotionRoutes(
     },
   );
 
+  // Feature 045 (US3) — single coupon management for a promotion.
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/promotions/:id/coupons',
+    { preHandler: readGate },
+    async (request) => {
+      const coupons = await couponService.listForPromotion(request.params.id);
+      return { data: coupons.map(serializeCoupon) };
+    },
+  );
+
+  app.post<{ Params: { id: string }; Body: { code?: unknown } }>(
+    '/api/v1/admin/promotions/:id/coupons',
+    { preHandler: writeGate },
+    async (request, reply) => {
+      const code = typeof request.body?.code === 'string' ? request.body.code.trim() : '';
+      if (!code) {
+        reply.status(400);
+        return { error: { code: 'validation_failed', message: 'code is required' } };
+      }
+      const coupon = await couponService.createSingle(request.params.id, code);
+      reply.status(201);
+      return { data: serializeCoupon(coupon) };
+    },
+  );
+
   app.delete<{ Params: { id: string } }>(
     '/api/v1/admin/promotions/:id',
     { preHandler: deleteGate },
@@ -149,6 +177,18 @@ function toUpsertInput(body: UpsertBody): UpsertPromotionInput {
     ...(body.usageLimitPerCustomer !== undefined
       ? { usageLimitPerCustomer: body.usageLimitPerCustomer }
       : {}),
+  };
+}
+
+function serializeCoupon(c: PromotionCoupon): Record<string, unknown> {
+  return {
+    id: c.id,
+    promotionId: c.promotionId,
+    batchId: c.batchId ?? null,
+    code: c.code,
+    limitScope: c.limitScope,
+    isActive: c.isActive,
+    createdAt: c.createdAt.toISOString(),
   };
 }
 

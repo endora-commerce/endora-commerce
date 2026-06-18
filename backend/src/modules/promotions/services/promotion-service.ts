@@ -14,6 +14,7 @@ import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-vali
 import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 import { Promotion } from '../entities/promotion.entity.js';
 import { PromotionRuleEntity } from '../entities/promotion-rule.entity.js';
+import { PromotionCoupon } from '../entities/promotion-coupon.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
 import type { ProductAttribute } from '../../catalog/entities/product-attribute.entity.js';
 import {
@@ -208,6 +209,22 @@ export class PromotionService {
 
     const all = await em.find(Promotion, { isActive: true });
 
+    // Feature 045 (US3) — resolve a presented code through the coupon table
+    // (legacy `promotions.code` gating is preserved below for back-compat).
+    let couponMatch: { promotionId: string; couponId: string } | null = null;
+    const couponedPromotionIds = new Set<string>();
+    if (all.length > 0) {
+      const coupons = await em.find(PromotionCoupon, {
+        promotionId: { $in: all.map((p) => p.id) },
+        isActive: true,
+      });
+      for (const c of coupons) couponedPromotionIds.add(c.promotionId);
+      if (snapshot.promotionCode) {
+        const match = coupons.find((c) => c.code === snapshot.promotionCode);
+        if (match) couponMatch = { promotionId: match.promotionId, couponId: match.id };
+      }
+    }
+
     // Feature 026 US5 — when org-targeted promotions are present and the
     // snapshot carries an organizationId, resolve that org's status once.
     // Org-targeted promotions only apply if the org is `active`. Without a
@@ -241,10 +258,14 @@ export class PromotionService {
         return false;
       }
       if (p.customerGroupId && p.customerGroupId !== snapshot.customerGroupId) return false;
+      // Legacy `promotions.code` gating.
       if (p.code) {
         if (!snapshot.promotionCode) return false;
         if (snapshot.promotionCode !== p.code) return false;
       }
+      // Feature 045 (US3) — coupon-table gating: a promotion carrying coupons
+      // applies only when the presented code resolves to one of its coupons.
+      if (couponedPromotionIds.has(p.id) && couponMatch?.promotionId !== p.id) return false;
       return true;
     });
 
@@ -323,7 +344,7 @@ export class PromotionService {
           promotionId: promotion.id,
           kind: null,
           actionType: promotion.actionType,
-          couponId: null,
+          couponId: couponMatch?.promotionId === promotion.id ? couponMatch.couponId : null,
           amount,
         });
         if (promotion.stopFurther) break;
@@ -354,7 +375,7 @@ export class PromotionService {
         promotionId: promotion.id,
         kind: promotion.kind ?? null,
         actionType: null,
-        couponId: null,
+        couponId: couponMatch?.promotionId === promotion.id ? couponMatch.couponId : null,
         amount,
       });
       if (promotion.stopFurther) break;

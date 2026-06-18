@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { PromotionService } from './services/promotion-service.js';
+import { CouponService } from './services/coupon-service.js';
 import { registerPromotionRoutes } from './routes.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
@@ -31,6 +32,7 @@ export interface PromotionsModuleOptions {
 
 export interface PromotionsModuleHandle {
   promotionService: PromotionService;
+  couponService: CouponService;
 }
 
 export function promotionsModule(options: PromotionsModuleOptions): {
@@ -45,11 +47,13 @@ export function promotionsModule(options: PromotionsModuleOptions): {
     undefined, // auditLogger — default console
     options.resolveOrganizationStatus,
   );
+  const couponService = new CouponService(options.emFactory);
   return {
-    handle: { promotionService },
+    handle: { promotionService, couponService },
     plugin: async (app: FastifyInstance) => {
       await registerPromotionRoutes(app, {
         promotionService,
+        couponService,
         requireAdmin: options.requireAdmin,
         ...(options.catalogQueryService
           ? { catalogQueryService: options.catalogQueryService }
