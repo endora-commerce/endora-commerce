@@ -107,6 +107,17 @@ export const orderSchema = z.object({
   subtotal: z.number().finite().nonnegative(),
   taxTotal: z.number().finite().nonnegative(),
   discountTotal: z.number().finite().nonnegative(),
+  /** Feature 045 (US2) — per-promotion discount breakdown. */
+  appliedPromotions: z
+    .array(
+      z.object({
+        promotionId: uuidSchema,
+        couponId: uuidSchema.nullable(),
+        amount: z.number().finite().nonnegative(),
+        currency: z.string().length(3),
+      }),
+    )
+    .default([]),
   deliveryTotal: z.number().finite().nonnegative(),
   total: z.number().finite().nonnegative(),
   currency: z.string().length(3),

@@ -82,6 +82,7 @@ import { Migration073QuoteRequestsBusinessId } from '../modules/quote_requests/m
 import { Migration075SettingsEnumOptions } from '../modules/settings/migrations/075_settings_enum_options.js';
 import { Migration076BackfillAdminCreatedAwaiting } from '../modules/quote_requests/migrations/076_backfill_admin_created_awaiting.js';
 import { Migration077PromotionsEngine } from '../modules/promotions/migrations/077_promotions_engine.js';
+import { Migration079OrderAppliedPromotions } from '../modules/orders/migrations/079_order_applied_promotions.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -389,6 +390,10 @@ export default defineConfig({
       {
         name: 'Migration077PromotionsEngine',
         class: Migration077PromotionsEngine,
+      },
+      {
+        name: 'Migration079OrderAppliedPromotions',
+        class: Migration079OrderAppliedPromotions,
       },
     ],
     transactional: true,

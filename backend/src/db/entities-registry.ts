@@ -50,6 +50,7 @@ import { DeliveryMethod } from '../modules/delivery_methods/entities/delivery-me
 import { PaymentMethod } from '../modules/payment_methods/entities/payment-method.entity.js';
 import { Order } from '../modules/orders/entities/order.entity.js';
 import { OrderItem } from '../modules/orders/entities/order-item.entity.js';
+import { OrderAppliedPromotion } from '../modules/orders/entities/order-applied-promotion.entity.js';
 import { OrderStatus } from '../modules/orders/entities/order-status.entity.js';
 import { OrderStatusTransition } from '../modules/orders/entities/order-status-transition.entity.js';
 import { OrderComment } from '../modules/orders/entities/order-comment.entity.js';
@@ -197,6 +198,7 @@ export const ALL_ENTITIES = [
   PaymentMethod,
   Order,
   OrderItem,
+  OrderAppliedPromotion,
   OrderStatus,
   OrderStatusTransition,
   OrderComment,

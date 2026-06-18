@@ -34,6 +34,7 @@ import { Product } from '../../catalog/entities/product.entity.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import { Order } from '../entities/order.entity.js';
 import { OrderItem } from '../entities/order-item.entity.js';
+import { OrderAppliedPromotion } from '../entities/order-applied-promotion.entity.js';
 import { Payment } from '../../payments/entities/payment.entity.js';
 import { Invoice } from '../../invoices/entities/invoice.entity.js';
 import { OrderAccessService } from './order-access-service.js';
@@ -716,9 +717,14 @@ export class OrderService {
       // source of truth (set by the checkout coupon control before placement).
       // Mirrors CartCouponService's snapshot construction. No-op when no
       // promotion port is wired or the cart carries no coupon.
+      // Feature 045 (US2) — compute the cart's promotions through the engine,
+      // including automatic (couponless) action-based promotions, and capture
+      // the per-promotion breakdown to stamp onto the order. The cart's applied
+      // coupon (if any) is the source of truth for coupon-gated promotions.
       let discountTotal = 0;
       let appliedPromotionCode: string | null = null;
-      if (this.promotion && cart.appliedPromotionCode) {
+      let appliedPromotions: PromotionApplication['appliedPromotions'] = [];
+      if (this.promotion) {
         const snapshot: CartSnapshot = {
           organizationId: ctx.organizationId,
           customerGroupId: null,
@@ -731,12 +737,14 @@ export class OrderService {
             unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
           })),
           deliveryTotal,
-          promotionCode: cart.appliedPromotionCode,
+          promotionCode: cart.appliedPromotionCode ?? null,
+          salesChannelId: cart.salesChannelId ?? null,
         };
         const application = await this.promotion.applyToCart(snapshot);
         if (application.discountTotal > 0) {
           discountTotal = application.discountTotal;
-          appliedPromotionCode = cart.appliedPromotionCode;
+          appliedPromotionCode = cart.appliedPromotionCode ?? null;
+          appliedPromotions = application.appliedPromotions;
         }
       }
 
@@ -818,6 +826,20 @@ export class OrderService {
         placedAt: new Date(),
       });
       await tx.persistAndFlush(order);
+
+      // Feature 045 (US2) — stamp the per-promotion discount breakdown.
+      for (const ap of appliedPromotions) {
+        tx.persist(
+          tx.create(OrderAppliedPromotion, {
+            orderId: order.id,
+            promotionId: ap.promotionId,
+            couponId: ap.couponId ?? null,
+            amount: ap.amount.toFixed(2),
+            currency,
+          }),
+        );
+      }
+      if (appliedPromotions.length > 0) await tx.flush();
 
       const orderItems = items.map((item) => {
         const product = productById.get(item.productId);
