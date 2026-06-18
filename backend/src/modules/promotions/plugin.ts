@@ -3,6 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { PromotionService } from './services/promotion-service.js';
 import { CouponService } from './services/coupon-service.js';
 import { PromotionRuleStore } from './services/promotion-rule-store.js';
+import { PromotionStatsService } from './services/promotion-stats-service.js';
 import { registerPromotionRoutes } from './routes.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
@@ -35,6 +36,7 @@ export interface PromotionsModuleHandle {
   promotionService: PromotionService;
   couponService: CouponService;
   ruleStore: PromotionRuleStore;
+  statsService: PromotionStatsService;
 }
 
 export function promotionsModule(options: PromotionsModuleOptions): {
@@ -51,13 +53,15 @@ export function promotionsModule(options: PromotionsModuleOptions): {
   );
   const couponService = new CouponService(options.emFactory);
   const ruleStore = new PromotionRuleStore(options.emFactory);
+  const statsService = new PromotionStatsService(options.emFactory);
   return {
-    handle: { promotionService, couponService, ruleStore },
+    handle: { promotionService, couponService, ruleStore, statsService },
     plugin: async (app: FastifyInstance) => {
       await registerPromotionRoutes(app, {
         promotionService,
         couponService,
         ruleStore,
+        statsService,
         requireAdmin: options.requireAdmin,
         ...(options.catalogQueryService
           ? { catalogQueryService: options.catalogQueryService }

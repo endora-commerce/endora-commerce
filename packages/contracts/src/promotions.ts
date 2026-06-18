@@ -384,6 +384,31 @@ export const upsertPromotionRequestSchema = z
     }
   });
 
+// --- Statistics (US7) ------------------------------------------------------
+
+export const promotionStatsGroupBySchema = z.enum([
+  'customer',
+  'customerGroup',
+  'organization',
+  'salesChannel',
+]);
+export type PromotionStatsGroupBy = z.infer<typeof promotionStatsGroupBySchema>;
+
+export const promotionUsageStatsSchema = z.object({
+  totalUses: z.number().int().nonnegative(),
+  totalDiscount: z.number().nonnegative(),
+  currency: z.string().nullable(),
+  groupBy: promotionStatsGroupBySchema.nullable(),
+  breakdown: z.array(
+    z.object({
+      key: z.string().nullable(),
+      uses: z.number().int().nonnegative(),
+      discount: z.number().nonnegative(),
+    }),
+  ),
+});
+export type PromotionUsageStats = z.infer<typeof promotionUsageStatsSchema>;
+
 // --- Named rules (US6) -----------------------------------------------------
 
 export const promotionRuleRecordSchema = z.object({

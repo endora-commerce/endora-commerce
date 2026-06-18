@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { BarChart3, Pencil, Plus, Trash2 } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -284,6 +284,16 @@ export const PromotionsPage = (): ReactNode => {
                       >
                         <Pencil />
                         {t('promotions.edit.titleEdit')}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        className="mr-2"
+                        onClick={() => navigate(`/promotions/${p.id}/stats`)}
+                      >
+                        <BarChart3 />
+                        {t('promotionStats.title')}
                       </Button>
                       <Button
                         variant="destructive"

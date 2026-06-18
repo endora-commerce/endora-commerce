@@ -9,6 +9,8 @@ import {
 import type { PromotionService, UpsertPromotionInput } from './services/promotion-service.js';
 import type { CouponService } from './services/coupon-service.js';
 import type { PromotionRuleStore } from './services/promotion-rule-store.js';
+import type { PromotionStatsService, StatsQuery } from './services/promotion-stats-service.js';
+import { promotionStatsGroupBySchema } from '@b2b/contracts';
 import type { Promotion } from './entities/promotion.entity.js';
 import type { PromotionCoupon } from './entities/promotion-coupon.entity.js';
 import type { PromotionRuleEntity } from './entities/promotion-rule.entity.js';
@@ -20,6 +22,7 @@ export interface PromotionRoutesDeps {
   promotionService: PromotionService;
   couponService: CouponService;
   ruleStore: PromotionRuleStore;
+  statsService: PromotionStatsService;
   requireAdmin: RequireAdminFactory;
   /** Feature 012 / US8 — feeds the rule-target picker endpoint. */
   catalogQueryService?: CatalogQueryService;
@@ -29,7 +32,17 @@ export async function registerPromotionRoutes(
   app: FastifyInstance,
   deps: PromotionRoutesDeps,
 ): Promise<void> {
-  const { promotionService, couponService, ruleStore, requireAdmin, catalogQueryService } = deps;
+  const { promotionService, couponService, ruleStore, statsService, requireAdmin, catalogQueryService } =
+    deps;
+
+  const parseStatsQuery = (q: Record<string, unknown>): StatsQuery => {
+    const out: StatsQuery = {};
+    if (typeof q['from'] === 'string') out.from = q['from'];
+    if (typeof q['to'] === 'string') out.to = q['to'];
+    const gb = promotionStatsGroupBySchema.safeParse(q['groupBy']);
+    if (gb.success) out.groupBy = gb.data;
+    return out;
+  };
   const readGate = requireAdmin(PROMOTION_PERMISSIONS.READ);
   const writeGate = requireAdmin(PROMOTION_PERMISSIONS.WRITE);
   const deleteGate = requireAdmin(PROMOTION_PERMISSIONS.DELETE);
@@ -213,6 +226,25 @@ export async function registerPromotionRoutes(
     async (request, reply) => {
       await promotionService.remove(request.params.id);
       return reply.status(204).send();
+    },
+  );
+
+  // Feature 045 (US7) — usage statistics.
+  app.get<{ Params: { id: string }; Querystring: Record<string, unknown> }>(
+    '/api/v1/admin/promotions/:id/stats',
+    { preHandler: readGate },
+    async (request) => {
+      const data = await statsService.forPromotion(request.params.id, parseStatsQuery(request.query ?? {}));
+      return { data };
+    },
+  );
+
+  app.get<{ Params: { couponId: string }; Querystring: Record<string, unknown> }>(
+    '/api/v1/admin/promotions/coupons/:couponId/stats',
+    { preHandler: readGate },
+    async (request) => {
+      const data = await statsService.forCoupon(request.params.couponId, parseStatsQuery(request.query ?? {}));
+      return { data };
     },
   );
 

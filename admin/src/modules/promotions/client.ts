@@ -1,5 +1,12 @@
 import { apiClient } from '@/lib/api-client';
-import type { Promotion, PromotionAction, PromotionRule, PromotionRuleRecord } from '@b2b/contracts';
+import type {
+  Promotion,
+  PromotionAction,
+  PromotionRule,
+  PromotionRuleRecord,
+  PromotionStatsGroupBy,
+  PromotionUsageStats,
+} from '@b2b/contracts';
 
 /**
  * Feature 045 — admin API client for the promotions engine.
@@ -58,6 +65,12 @@ export const promotionsClient = {
   createCoupon: (id: string, code: string): Promise<Coupon> =>
     apiClient
       .post<{ data: Coupon }>(`/api/v1/admin/promotions/${id}/coupons`, { code })
+      .then((r) => r.data),
+  stats: (id: string, groupBy?: PromotionStatsGroupBy): Promise<PromotionUsageStats> =>
+    apiClient
+      .get<{ data: PromotionUsageStats }>(
+        `/api/v1/admin/promotions/${id}/stats${groupBy ? `?groupBy=${groupBy}` : ''}`,
+      )
       .then((r) => r.data),
   generateBatch: (
     id: string,

@@ -65,6 +65,7 @@ import { TaxesPage } from './modules/taxes/TaxesPage.js';
 import { PromotionsPage } from './modules/promotions/PromotionsPage.js';
 import { PromotionEditPage } from './modules/promotions/PromotionEditPage.js';
 import { PromotionRulesPage } from './modules/promotions/PromotionRulesPage.js';
+import { PromotionStatsPage } from './modules/promotions/PromotionStatsPage.js';
 import { PriceListsPage } from './modules/price_lists/PriceListsPage.js';
 import { PriceListDetailPage } from './modules/price_lists/PriceListDetailPage.js';
 import { DisplayModeOverridesPage } from './modules/price_lists/DisplayModeOverridesPage.js';
@@ -165,6 +166,7 @@ export function App(): ReactNode {
         <Route path="/promotions" element={<PromotionsPage />} />
         <Route path="/promotions/new" element={<PromotionEditPage />} />
         <Route path="/promotion-rules" element={<PromotionRulesPage />} />
+        <Route path="/promotions/:id/stats" element={<PromotionStatsPage />} />
         <Route path="/promotions/:id" element={<PromotionEditPage />} />
         <Route path="/price-lists" element={<PriceListsPage />} />
         <Route path="/price-lists/display-modes" element={<DisplayModeOverridesPage />} />
