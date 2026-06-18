@@ -29,6 +29,20 @@ export interface UpsertPromotionPayload {
   usageLimitPerCustomer?: number | null;
 }
 
+export type RuleTargetKind =
+  | 'customer-groups'
+  | 'organizations'
+  | 'categories'
+  | 'payment-methods'
+  | 'delivery-methods';
+
+export interface RuleTargetItem {
+  id: string;
+  code?: string;
+  name: string;
+  slug?: string;
+}
+
 export interface PromoRuleAttribute {
   id: string;
   key: string;
@@ -59,6 +73,10 @@ export const promotionsClient = {
       .get<{ data: { items: PromoRuleAttribute[] } }>(
         '/api/v1/admin/promotions/rule-targets/attributes',
       )
+      .then((r) => r.data.items),
+  ruleTarget: (kind: RuleTargetKind): Promise<RuleTargetItem[]> =>
+    apiClient
+      .get<{ data: { items: RuleTargetItem[] } }>(`/api/v1/admin/promotions/rule-targets/${kind}`)
       .then((r) => r.data.items),
   listCoupons: (id: string): Promise<Coupon[]> =>
     apiClient.get<{ data: Coupon[] }>(`/api/v1/admin/promotions/${id}/coupons`).then((r) => r.data),

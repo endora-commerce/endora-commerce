@@ -75,10 +75,14 @@ function textToValues(text: string, numeric: boolean): Array<string | number> {
     .map((s) => (numeric ? Number(s) : s));
 }
 
+/** Option lists for fields that should render a value picker, keyed by field key. */
+export type RuleFieldOptions = Partial<Record<string, Array<{ value: string; label: string }>>>;
+
 export interface RuleBuilderProps {
   value: PromotionRule;
   onChange: (next: PromotionRule) => void;
   attributeFields?: RuleAttributeField[];
+  fieldOptions?: RuleFieldOptions;
   disabled?: boolean;
 }
 
@@ -86,11 +90,19 @@ export function RuleBuilder({
   value,
   onChange,
   attributeFields = [],
+  fieldOptions = {},
   disabled = false,
 }: RuleBuilderProps): ReactNode {
   return (
     <div className="rounded-md border border-line p-3">
-      <RuleNode node={value} onChange={onChange} attributeFields={attributeFields} disabled={disabled} depth={0} />
+      <RuleNode
+        node={value}
+        onChange={onChange}
+        attributeFields={attributeFields}
+        fieldOptions={fieldOptions}
+        disabled={disabled}
+        depth={0}
+      />
     </div>
   );
 }
@@ -99,12 +111,14 @@ function RuleNode({
   node,
   onChange,
   attributeFields,
+  fieldOptions,
   disabled,
   depth,
 }: {
   node: PromotionRule;
   onChange: (next: PromotionRule) => void;
   attributeFields: RuleAttributeField[];
+  fieldOptions: RuleFieldOptions;
   disabled: boolean;
   depth: number;
 }): ReactNode {
@@ -135,6 +149,7 @@ function RuleNode({
           condition={node}
           onChange={onChange}
           attributeFields={attributeFields}
+          fieldOptions={fieldOptions}
           disabled={disabled}
           onRemove={() => onChange({ kind: 'all' })}
         />
@@ -185,6 +200,7 @@ function RuleNode({
                 node={child}
                 onChange={(c) => setChild(idx, c)}
                 attributeFields={attributeFields}
+                fieldOptions={fieldOptions}
                 disabled={disabled}
                 depth={depth + 1}
               />
@@ -227,17 +243,20 @@ function ConditionRow({
   condition,
   onChange,
   attributeFields,
+  fieldOptions,
   disabled,
   onRemove,
 }: {
   condition: PromotionRuleCondition;
   onChange: (next: PromotionRule) => void;
   attributeFields: RuleAttributeField[];
+  fieldOptions: RuleFieldOptions;
   disabled: boolean;
   onRemove: () => void;
 }): ReactNode {
   const numeric = isNumericField(condition.field);
   const ops = opsForField(condition.field);
+  const options = condition.field.kind === 'builtin' ? fieldOptions[condition.field.key] : undefined;
 
   const onFieldChange = (selected: string): void => {
     let field: PromotionRuleField;
@@ -283,13 +302,34 @@ function ConditionRow({
           </option>
         ))}
       </Select>
-      <Input
-        className="w-48"
-        value={valuesToText(condition.values)}
-        disabled={disabled}
-        placeholder={numeric ? '0' : 'value(s), comma-separated'}
-        onChange={(e) => onChange({ ...condition, values: textToValues(e.target.value, numeric) })}
-      />
+      {options ? (
+        <select
+          multiple
+          className="h-20 w-48 rounded-md border border-input bg-transparent px-2 py-1 text-sm"
+          disabled={disabled}
+          value={condition.values.map(String)}
+          onChange={(e) =>
+            onChange({
+              ...condition,
+              values: Array.from(e.target.selectedOptions).map((o) => o.value),
+            })
+          }
+        >
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <Input
+          className="w-48"
+          value={valuesToText(condition.values)}
+          disabled={disabled}
+          placeholder={numeric ? '0' : 'value(s), comma-separated'}
+          onChange={(e) => onChange({ ...condition, values: textToValues(e.target.value, numeric) })}
+        />
+      )}
       <Button type="button" size="icon" variant="ghost" disabled={disabled} onClick={onRemove}>
         <Trash2 className="h-3 w-3" />
       </Button>

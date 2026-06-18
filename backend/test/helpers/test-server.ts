@@ -202,6 +202,16 @@ function hashTestPassword(): Promise<string> {
   return hashPassword('social-login-no-password-placeholder');
 }
 
+/** Pick a display label from a possibly-multilingual (jsonb) name value. */
+function testAnyLabel(name: unknown): string {
+  if (typeof name === 'string') return name;
+  if (name && typeof name === 'object') {
+    const values = Object.values(name as Record<string, string>);
+    return values[0] ?? '';
+  }
+  return '';
+}
+
 const SEEDED_TABLES = [
   // Feature 042 — MFA. Recovery codes cascade from enrolments.
   'mfa_recovery_codes',
@@ -590,6 +600,41 @@ export async function setupBackendServer(
       const row = (await em().getKnex()
         .raw(`select "status" from "organizations" where "id" = ? and "deleted_at" is null`, [orgId])) as { rows: Array<{ status: string }> };
       return row.rows[0]?.status ?? null;
+    },
+    // Feature 045 (T033) — Rule Builder picker sources (raw at the wiring layer).
+    ruleTargets: {
+      salesChannels: async () => {
+        const { items } = await salesChannels.handle.salesChannelsService.list({});
+        return items.map((c) => ({ id: c.id, code: c.code, name: testAnyLabel(c.name) }));
+      },
+      customerGroups: async () => {
+        const groups = await priceLists.handle.customerGroupService.list();
+        return groups.map((g) => ({ id: g.id, code: g.code, name: g.name }));
+      },
+      organizations: async () => {
+        const res = (await em().getKnex().raw(
+          `select "id", "name", "tax_id" from "organizations" where "deleted_at" is null order by "name" asc limit 200`,
+        )) as { rows: Array<{ id: string; name: string; tax_id: string | null }> };
+        return res.rows.map((r) => ({ id: r.id, name: r.name, taxId: r.tax_id ?? null }));
+      },
+      categories: async () => {
+        const res = (await em().getKnex().raw(
+          `select "id", "slug", "name", "parent_category_id" from "categories" where "deleted_at" is null order by "sort_order" asc`,
+        )) as { rows: Array<{ id: string; slug: string; name: unknown; parent_category_id: string | null }> };
+        return res.rows.map((r) => ({ id: r.id, slug: r.slug, name: testAnyLabel(r.name), parentCategoryId: r.parent_category_id ?? null }));
+      },
+      paymentMethods: async () => {
+        const res = (await em().getKnex().raw(
+          `select "id", "code", "name" from "payment_methods" where "status" = 'active' order by "code" asc`,
+        )) as { rows: Array<{ id: string; code: string; name: unknown }> };
+        return res.rows.map((r) => ({ id: r.id, code: r.code, name: testAnyLabel(r.name) }));
+      },
+      deliveryMethods: async () => {
+        const res = (await em().getKnex().raw(
+          `select "id", "code", "name" from "delivery_methods" where "status" = 'active' order by "code" asc`,
+        )) as { rows: Array<{ id: string; code: string; name: unknown }> };
+        return res.rows.map((r) => ({ id: r.id, code: r.code, name: testAnyLabel(r.name) }));
+      },
     },
   });
 

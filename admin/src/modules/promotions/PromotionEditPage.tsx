@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
-import { RuleBuilder, type RuleAttributeField } from '@/components/rule-builder/RuleBuilder';
+import { RuleBuilder, type RuleAttributeField, type RuleFieldOptions } from '@/components/rule-builder/RuleBuilder';
 import { useTranslation } from '@/i18n/useTranslation';
 import type { PromotionAction, PromotionActionType, PromotionRule } from '@b2b/contracts';
 import { promotionsClient, promotionRulesClient, type Coupon } from './client';
@@ -75,6 +75,7 @@ export const PromotionEditPage = (): ReactNode => {
   const [usagePerOrg, setUsagePerOrg] = useState('');
   const [usagePerCustomer, setUsagePerCustomer] = useState('');
   const [attributeFields, setAttributeFields] = useState<RuleAttributeField[]>([]);
+  const [fieldOptions, setFieldOptions] = useState<RuleFieldOptions>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
@@ -87,6 +88,26 @@ export const PromotionEditPage = (): ReactNode => {
       )
       .catch(() => setAttributeFields([]));
     void promotionRulesClient.list().then(setSavedRules).catch(() => setSavedRules([]));
+    void (async (): Promise<void> => {
+      try {
+        const [groups, orgs, cats, pays, ships] = await Promise.all([
+          promotionsClient.ruleTarget('customer-groups'),
+          promotionsClient.ruleTarget('organizations'),
+          promotionsClient.ruleTarget('categories'),
+          promotionsClient.ruleTarget('payment-methods'),
+          promotionsClient.ruleTarget('delivery-methods'),
+        ]);
+        setFieldOptions({
+          customerGroup: groups.map((g) => ({ value: g.id, label: g.name || g.code || g.id })),
+          organization: orgs.map((o) => ({ value: o.id, label: o.name || o.id })),
+          category: cats.map((c) => ({ value: c.id, label: c.name || c.slug || c.id })),
+          paymentMethod: pays.map((p) => ({ value: p.code ?? p.id, label: p.name || p.code || p.id })),
+          deliveryMethod: ships.map((s) => ({ value: s.code ?? s.id, label: s.name || s.code || s.id })),
+        });
+      } catch {
+        setFieldOptions({});
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -254,7 +275,12 @@ export const PromotionEditPage = (): ReactNode => {
               ) : null}
             </div>
             {ruleMode === 'inline' ? (
-              <RuleBuilder value={rule} onChange={setRule} attributeFields={attributeFields} />
+              <RuleBuilder
+                value={rule}
+                onChange={setRule}
+                attributeFields={attributeFields}
+                fieldOptions={fieldOptions}
+              />
             ) : null}
           </CardContent>
         </Card>

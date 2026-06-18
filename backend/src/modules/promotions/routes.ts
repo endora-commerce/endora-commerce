@@ -10,6 +10,7 @@ import type { PromotionService, UpsertPromotionInput } from './services/promotio
 import type { CouponService } from './services/coupon-service.js';
 import type { PromotionRuleStore } from './services/promotion-rule-store.js';
 import type { PromotionStatsService, StatsQuery } from './services/promotion-stats-service.js';
+import type { PromotionRuleTargetPorts } from './plugin.js';
 import { promotionStatsGroupBySchema } from '@b2b/contracts';
 import type { Promotion } from './entities/promotion.entity.js';
 import type { PromotionCoupon } from './entities/promotion-coupon.entity.js';
@@ -26,14 +27,23 @@ export interface PromotionRoutesDeps {
   requireAdmin: RequireAdminFactory;
   /** Feature 012 / US8 — feeds the rule-target picker endpoint. */
   catalogQueryService?: CatalogQueryService;
+  /** Feature 045 (T033) — list ports for the remaining rule-target pickers. */
+  ruleTargets?: PromotionRuleTargetPorts;
 }
 
 export async function registerPromotionRoutes(
   app: FastifyInstance,
   deps: PromotionRoutesDeps,
 ): Promise<void> {
-  const { promotionService, couponService, ruleStore, statsService, requireAdmin, catalogQueryService } =
-    deps;
+  const {
+    promotionService,
+    couponService,
+    ruleStore,
+    statsService,
+    requireAdmin,
+    catalogQueryService,
+    ruleTargets,
+  } = deps;
 
   const parseStatsQuery = (q: Record<string, unknown>): StatsQuery => {
     const out: StatsQuery = {};
@@ -219,6 +229,26 @@ export async function registerPromotionRoutes(
       return reply.send(`code\n${codes.join('\n')}\n`);
     },
   );
+
+  // Feature 045 (T033) — rule-target pickers feeding the Rule Builder.
+  app.get('/api/v1/admin/promotions/rule-targets/sales-channels', { preHandler: readGate }, async () => ({
+    data: { items: (await ruleTargets?.salesChannels?.()) ?? [] },
+  }));
+  app.get('/api/v1/admin/promotions/rule-targets/customer-groups', { preHandler: readGate }, async () => ({
+    data: { items: (await ruleTargets?.customerGroups?.()) ?? [] },
+  }));
+  app.get('/api/v1/admin/promotions/rule-targets/organizations', { preHandler: readGate }, async () => ({
+    data: { items: (await ruleTargets?.organizations?.()) ?? [] },
+  }));
+  app.get('/api/v1/admin/promotions/rule-targets/categories', { preHandler: readGate }, async () => ({
+    data: { items: (await ruleTargets?.categories?.()) ?? [] },
+  }));
+  app.get('/api/v1/admin/promotions/rule-targets/payment-methods', { preHandler: readGate }, async () => ({
+    data: { items: (await ruleTargets?.paymentMethods?.()) ?? [] },
+  }));
+  app.get('/api/v1/admin/promotions/rule-targets/delivery-methods', { preHandler: readGate }, async () => ({
+    data: { items: (await ruleTargets?.deliveryMethods?.()) ?? [] },
+  }));
 
   app.delete<{ Params: { id: string } }>(
     '/api/v1/admin/promotions/:id',

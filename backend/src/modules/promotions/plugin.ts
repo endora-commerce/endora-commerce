@@ -30,6 +30,19 @@ export interface PromotionsModuleOptions {
    * (legacy composition).
    */
   resolveOrganizationStatus?: (orgId: string) => Promise<string | null>;
+  /** Feature 045 (US1/T033) — list ports feeding the Rule Builder pickers. */
+  ruleTargets?: PromotionRuleTargetPorts;
+}
+
+export interface PromotionRuleTargetPorts {
+  salesChannels?: () => Promise<Array<{ id: string; code: string; name: string }>>;
+  customerGroups?: () => Promise<Array<{ id: string; code: string; name: string }>>;
+  organizations?: () => Promise<Array<{ id: string; name: string; taxId: string | null }>>;
+  categories?: () => Promise<
+    Array<{ id: string; slug: string; name: string; parentCategoryId: string | null }>
+  >;
+  paymentMethods?: () => Promise<Array<{ id: string; code: string; name: string }>>;
+  deliveryMethods?: () => Promise<Array<{ id: string; code: string; name: string }>>;
 }
 
 export interface PromotionsModuleHandle {
@@ -66,6 +79,7 @@ export function promotionsModule(options: PromotionsModuleOptions): {
         ...(options.catalogQueryService
           ? { catalogQueryService: options.catalogQueryService }
           : {}),
+        ...(options.ruleTargets ? { ruleTargets: options.ruleTargets } : {}),
       });
     },
   };
