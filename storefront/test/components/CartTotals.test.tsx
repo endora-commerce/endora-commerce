@@ -12,7 +12,7 @@ import { CartTotals } from '../../components/CartTotals';
 
 const STRINGS = {
   subtotalLabel: (n: number) => (n === 1 ? 'Subtotal (1 item)' : `Subtotal (${n} items)`),
-  discountLabel: (code: string) => `Discount (${code})`,
+  discountLabel: (code: string | null) => (code ? `Discount (${code})` : 'Discount'),
   grandTotalLabel: 'Total',
   deliveryLabel: 'Delivery',
   deliveryValue: 'calculated at checkout',

@@ -1,8 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CartSnapshot, CouponDropReason } from '@b2b/contracts';
+import type { CartSnapshot, CouponDropReason, PromotionApplication } from '@b2b/contracts';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import { Promotion } from '../../promotions/entities/promotion.entity.js';
+import { PromotionCoupon } from '../../promotions/entities/promotion-coupon.entity.js';
 import type { PromotionService } from '../../promotions/services/promotion-service.js';
 import type { CartApprovalService } from './cart-approval-service.js';
 
@@ -87,7 +88,7 @@ export class CartCouponService {
     // drop response (the snapshot's eligibility filter inside applyToCart
     // is opaque to callers, so we re-implement the precondition checks
     // here for the reason mapping).
-    const promotion = await em.findOne(Promotion, { code, isActive: true });
+    const promotion = await this.resolvePromotionByCode(em, code);
     if (!promotion) {
       return { outcome: 'dropped', reason: 'invalid_code' };
     }
@@ -168,6 +169,32 @@ export class CartCouponService {
     return { outcome: 'applied', cart, appliedCode: code };
   }
 
+  /**
+   * Feature 045 — compute the promotion application for a cart on read, so
+   * the serialized cart can show the real discount amount + per-promotion
+   * breakdown (automatic action-based promotions plus any applied coupon).
+   * Pure read — never mutates the cart.
+   */
+  async computeApplication(cart: Cart, items: CartItem[]): Promise<PromotionApplication> {
+    const currency = items[0]?.currency ?? 'PLN';
+    const snapshot: CartSnapshot = {
+      organizationId: cart.organizationId ?? null,
+      customerGroupId: null,
+      currency,
+      lines: items.map((it) => ({
+        productId: it.productId,
+        variantId: it.variantId ?? null,
+        categoryIds: [],
+        quantity: it.quantity,
+        unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
+      })),
+      deliveryTotal: 0,
+      promotionCode: cart.appliedPromotionCode ?? null,
+      salesChannelId: cart.salesChannelId ?? null,
+    };
+    return this.promotionService.applyToCart(snapshot);
+  }
+
   async clear(cart: Cart): Promise<void> {
     if (cart.appliedPromotionCode === null) return;
     const em = this.emFactory();
@@ -200,7 +227,7 @@ export class CartCouponService {
     const code = cart.appliedPromotionCode;
 
     const em = this.emFactory();
-    const promotion = await em.findOne(Promotion, { code, isActive: true });
+    const promotion = await this.resolvePromotionByCode(em, code);
     if (!promotion) {
       await this.persistDrop(em, cart);
       return { dropped: { code, reason: 'invalid_code' } };
@@ -237,6 +264,19 @@ export class CartCouponService {
    * also mirror the change onto the caller's in-memory cart so the
    * read-side serializer sees the dropped coupon.
    */
+  /**
+   * Resolve a presented code to its active Promotion — first via the legacy
+   * `promotions.code` column, then via the feature-045 `promotion_coupons`
+   * table.
+   */
+  private async resolvePromotionByCode(em: EntityManager, code: string): Promise<Promotion | null> {
+    const byLegacy = await em.findOne(Promotion, { code, isActive: true });
+    if (byLegacy) return byLegacy;
+    const coupon = await em.findOne(PromotionCoupon, { code, isActive: true });
+    if (!coupon) return null;
+    return em.findOne(Promotion, { id: coupon.promotionId, isActive: true });
+  }
+
   private async persistDrop(em: EntityManager, cart: Cart): Promise<void> {
     const managed = await em.findOne(Cart, { id: cart.id });
     if (!managed) return;

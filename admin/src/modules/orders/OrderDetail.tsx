@@ -90,6 +90,7 @@ interface OrderDetail {
   subtotal: number;
   taxTotal: number;
   discountTotal: number;
+  appliedPromotions?: Array<{ promotionId: string; couponId: string | null; amount: number; currency: string }>;
   deliveryTotal: number;
   total: number;
   currency: string;
@@ -592,6 +593,19 @@ export function OrderDetail(): ReactNode {
                         {order.taxTotal.toFixed(2)} {order.currency}
                       </td>
                     </tr>
+                    {order.discountTotal > 0 ? (
+                      <tr>
+                        <th colSpan={4} className="text-right font-medium text-muted-foreground">
+                          {t('orderDetail.totals.discount')}
+                          {order.appliedPromotions && order.appliedPromotions.length > 0
+                            ? ` (${order.appliedPromotions.length})`
+                            : ''}
+                        </th>
+                        <td className="tabular-nums text-right text-ok">
+                          −{order.discountTotal.toFixed(2)} {order.currency}
+                        </td>
+                      </tr>
+                    ) : null}
                     <tr>
                       <th colSpan={4} className="text-right font-medium text-muted-foreground">
                         {t('orderDetail.totals.delivery')}

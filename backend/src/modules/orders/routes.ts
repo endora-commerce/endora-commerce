@@ -33,6 +33,7 @@ import type { OrderCloneToQuoteService } from './services/order-clone-to-quote-s
 import type { OrderCreationAdminService } from './services/order-creation-admin-service.js';
 import { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
+import { OrderAppliedPromotion } from './entities/order-applied-promotion.entity.js';
 import { Invoice } from '../invoices/entities/invoice.entity.js';
 import { Asset } from '../assets_library/entities/asset.entity.js';
 import { buildBulkInvoicesPdf, buildMinimalInvoicePdf } from '../invoices/services/invoice-pdf.js';
@@ -783,6 +784,8 @@ async function serializeOrder(em: EntityManager, order: Order): Promise<Record<s
   // language-independent default name, so any client resolves
   // name[language] → defaultName → code in the viewer's language.
   const statusDef = await em.findOne(OrderStatus, { code: order.status });
+  // Feature 045 (US2) — per-promotion discount breakdown.
+  const appliedPromotions = await em.find(OrderAppliedPromotion, { orderId: order.id });
   return {
     id: order.id,
     businessId: order.businessId,
@@ -823,6 +826,12 @@ async function serializeOrder(em: EntityManager, order: Order): Promise<Record<s
     subtotal: Number(order.subtotal),
     taxTotal: Number(order.taxTotal),
     discountTotal: Number(order.discountTotal),
+    appliedPromotions: appliedPromotions.map((ap) => ({
+      promotionId: ap.promotionId,
+      couponId: ap.couponId ?? null,
+      amount: Number(ap.amount),
+      currency: ap.currency,
+    })),
     deliveryTotal: Number(order.deliveryTotal),
     total: Number(order.total),
     currency: order.currency,

@@ -1,0 +1,71 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
+import { seedCartForStubCustomer, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
+import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { EventBus } from '../../../src/events/bus.js';
+import { OrderService, type OrderEventBus } from '../../../src/modules/orders/services/order-service.js';
+import { PaymentAdapterRegistry } from '../../../src/modules/payment_methods/services/payment-adapter-registry.js';
+import { EnumOrderStatusRegistry } from '../../../src/modules/payment_methods/services/order-status-registry.port.js';
+import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/built-in-adapters.js';
+import { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import { OrderAppliedPromotion } from '../../../src/modules/orders/entities/order-applied-promotion.entity.js';
+
+/**
+ * Feature 045 (US2) — an automatic action-based promotion carries from cart to
+ * order: discountTotal is stamped and an order_applied_promotions row is written
+ * even though no coupon was applied to the cart.
+ */
+describe('placeOrder — automatic promotion carried to order (feature 045)', () => {
+  let h: BackendServerHandle;
+  let promotionId: string;
+
+  beforeAll(async () => {
+    h = await setupBackendServer();
+    await seedCartForStubCustomer(h.em());
+    const promotionService = new PromotionService(h.em);
+    const promo = await promotionService.upsert({
+      name: 'Auto 10% off',
+      action: { type: 'percentage_off_cart', percent: 10 },
+      rule: { kind: 'all' },
+    });
+    promotionId = promo.id;
+  });
+
+  afterAll(async () => {
+    await teardownBackendServer(h);
+  });
+
+  it('stamps discountTotal and an order_applied_promotions row', async () => {
+    const registry = new PaymentAdapterRegistry();
+    for (const a of builtInPaymentAdapters()) registry.register(a);
+    const service = new OrderService(h.em, new EventBus() as OrderEventBus, undefined, undefined, undefined, {
+      paymentAdapters: registry,
+      orderStatusRegistry: new EnumOrderStatusRegistry(),
+      promotion: new PromotionService(h.em),
+    });
+
+    const order = await service.placeOrder(
+      { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID },
+      {
+        deliveryAddressId: '00000000-0000-4000-8000-0000000000d1',
+        billingAddressId: '00000000-0000-4000-8000-0000000000d2',
+        deliveryMethodId: '00000000-0000-4000-8000-0000000000e1',
+        paymentMethodId: SEED_PAYMENT_METHOD_ID,
+      },
+    );
+
+    const subtotal = Number(order.subtotal);
+    const expectedDiscount = Math.round(subtotal * 0.1 * 100) / 100;
+    expect(expectedDiscount).toBeGreaterThan(0);
+    expect(Number(order.discountTotal)).toBeCloseTo(expectedDiscount, 2);
+
+    const rows = await h.em().find(OrderAppliedPromotion, { orderId: order.id });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.promotionId).toBe(promotionId);
+    expect(Number(rows[0]!.amount)).toBeCloseTo(expectedDiscount, 2);
+  });
+});

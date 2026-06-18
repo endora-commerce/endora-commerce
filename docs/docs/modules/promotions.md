@@ -4,124 +4,92 @@ title: promotions
 
 # `promotions`
 
-Cart-level discount engine (T129, T132 / FR-052). Three kinds of effect:
+The promotions module is a configurable, rule-driven discount engine
+(feature 045, built on the original cart-discount slice). A **Promotion**
+pairs an eligibility **Rule** with an **Action**; the engine evaluates every
+active promotion against a cart, applies the matching ones in priority order,
+and surfaces the result in the cart and on the placed order.
 
-- `percentage_off` — `value` 0..100, applied to the cart subtotal or to
-  the lines matching the optional category/product scope.
-- `amount_off` — `value` is money in `currency`; capped at the relevant
-  line total so the discount never pushes a line negative.
-- `free_delivery` — zeros the cart's delivery cost.
+## Concepts
 
-## Public surface
+- **Rule** — a typed AST (`all` | `condition` | `group`) over built-in cart
+  fields (cart total, payment method, delivery method, delivery country,
+  delivery postal code, organization, customer group, product category) and
+  promo-eligible product attributes. Conditions carry an operator
+  (`eq`/`neq`/`gt`/`gte`/`lt`/`lte`/`between`/`in`/`notIn`/`contains`/
+  `startsWith`) and values; groups combine children with `AND`/`OR` (max depth
+  5). A rule may be authored inline or referenced from the **named-rule**
+  library (`promotion_rules`).
+- **Action** — one configured effect from the registry. Built-ins:
+  `free_delivery`, `percentage_off_cart`, `amount_off_cart`,
+  `buy_x_get_y_free` (cheapest/most-expensive target), `spend_x_percent_off`,
+  `spend_x_amount_off`, `every_nth_product_percent_off`, `buy_x_units_y_free`,
+  `buy_x_units_percent_off`, `buy_x_units_amount_off`. Other modules register
+  additional action types via `PromotionActionRegistry.register(...)`.
+- **Priority & stacking** — eligible promotions apply in `priority` DESC order
+  (deterministic tie-break: `createdAt`, then `id`). A promotion flagged
+  `stopFurther` halts any lower-priority promotion. Discounts never push a
+  line, subtotal, delivery, or total below zero.
+- **Coupons** — a promotion may carry coupons (`promotion_coupons`): a single
+  specified code or a generated batch (`coupon_batches`). A couponed promotion
+  applies only when a matching code is presented. The legacy `promotions.code`
+  column is still honored.
+- **Usage limits** — optional global / per-organization / per-customer caps.
+  Coupon batches choose `per_coupon` vs `shared_batch` scoping for the global
+  pool. Usage is counted only on successful order placement.
+- **Statistics** — `promotion_usages` records each finalized redemption with
+  denormalized dimensions, aggregated into totals + breakdowns by customer,
+  customer group, organization, and sales channel.
 
-| Verb + Path | Audience | Purpose |
-| --- | --- | --- |
-| `GET /api/v1/admin/promotions` | admin (`catalog:write`) | List |
-| `POST /api/v1/admin/promotions` | admin | Upsert (by `code` when present); accepts `criteria[]` (feature 012 / US8) |
-| `DELETE /api/v1/admin/promotions/:id` | admin | Remove |
-| `POST /api/v1/admin/promotions/preview` | admin | Apply against a CartSnapshot, return adjusted totals |
-| `GET /api/v1/admin/promotions/rule-targets/attributes` | admin | List every `isPromoRule = true` attribute with its options inline; feeds the rule editor's criterion picker (feature 012 / US8) |
+## Application flow
 
-The preview endpoint accepts the `CartSnapshot` Zod schema from
-`@b2b/contracts/promotions` so it can be driven by the admin UI or a
-storefront preview probe with the same payload shape.
+1. `PromotionService.applyToCart(snapshot)` loads active promotions, resolves
+   any presented coupon code, soft-excludes exhausted promotions, evaluates
+   each rule, runs the action through the registry against running totals, and
+   returns the adjusted totals plus a per-promotion breakdown.
+2. The cart read path calls this on every read so the cart shows the real
+   discount amount and `appliedPromotions[]`.
+3. On order placement, the order service recomputes the application, stamps
+   `order_applied_promotions` + `orders.discount_total`, and **finalizes
+   usage** inside the placement transaction.
 
-## Eligibility
+## Usage finalization (race-safe)
 
-A promotion is eligible for a cart when **every** filter that's set on
-the row is satisfied:
+`finalizeUsage` runs inside the order-placement transaction. Each applicable
+scope counter is bumped with `UPDATE promotion_usage_counters SET count =
+count + 1 WHERE (scope_type, scope_key) = … AND count < :limit`. Zero rows
+affected means the cap was reached, so a `409 promotion_unavailable` is thrown
+and the whole placement rolls back. Two carts racing for the final use can
+never both succeed.
 
-- **`code`** — when present, the cart must present a matching
-  `promotionCode`. When null, the promotion applies automatically.
-- **`minCartSubtotal`** — cart subtotal threshold (in promotion's currency).
-- **`validFrom` / `validUntil`** — clock-bound validity window.
-- **`organizationId`** — restricts to a specific Customer Organization.
-- **`customerGroupId`** — restricts to a specific CustomerGroup.
-- **`categoryId` / `productId`** — limits the **base** the percentage /
-  amount applies to: only lines matching the scope contribute.
-- **`criteria[]`** (feature 012 / US8) — line-level discriminated criteria
-  ANDed with `categoryId` / `productId`. A line contributes to `lineBase`
-  only if it satisfies both the legacy scope and every criterion.
-- **`isActive=false`** — the row is silently skipped (deactivate without
-  deleting).
+## Public surface (admin, gated by `promotions:read|write|delete`)
 
-## Criteria (feature 012 / US8)
-
-`criteria[]` is a JSONB column on `promotions`. Each entry is a
-discriminated union:
-
-| `type` | Meaning |
+| Verb + Path | Purpose |
 | --- | --- |
-| `attribute` | Match against a product's `attributeValues[key]` per the operator vocabulary below |
-| `category` / `product` / `customerGroup` / `organization` | Reserved for future migration of the flat fields into the criteria array |
+| `GET/POST/PUT/DELETE /api/v1/admin/promotions[/:id]` | Promotion CRUD |
+| `GET /api/v1/admin/promotions/action-types` | Action catalogue for the editor |
+| `GET /api/v1/admin/promotions/rule-targets/attributes` | Promo-eligible attributes |
+| `POST /api/v1/admin/promotions/preview` | Apply against a `CartSnapshot` |
+| `GET/POST /api/v1/admin/promotions/:id/coupons` | Single-coupon management |
+| `POST /api/v1/admin/promotions/:id/coupon-batches` | Bulk generator |
+| `GET .../coupon-batches/:batchId/export` | CSV export of generated codes |
+| `GET /api/v1/admin/promotions/:id/stats` | Usage statistics |
+| `GET/POST/PUT/DELETE /api/v1/admin/promotion-rules[/:id]` | Named-rule library |
 
-For `type: 'attribute'` the operator vocabulary depends on the attribute's
-`valueType`:
+Coupon redemption on the storefront flows through the existing cart coupon
+endpoints (`POST /api/v1/cart/coupon`), which resolve the code via the coupon
+table or the legacy column.
 
-| `valueType` | Allowed `op` | `values` shape |
-| --- | --- | --- |
-| `string` | `equals`, `in` | `string[]` |
-| `select`, `enum` | `equals`, `in` | `string[]` of option `value`s; every value must exist in the attribute's option list |
-| `multiselect` | `in` | `string[]`; matches if any of the product's selected values is in `values` |
-| `number`, `price` | `equals`, `range` | `equals`: `[number]`; `range`: `[min, max]` (inclusive) |
-| `boolean` | `equals` | `[boolean]` |
-| `date` | `equals`, `range` | `[isoDateTime]` / `[from, to]` |
+## Permissions
 
-Server-side validation errors for write-time criterion checks:
+- `promotions:read` — view promotions, rules, coupons, statistics.
+- `promotions:write` — create + edit promotions and rules, manage coupons.
+- `promotions:delete` — delete promotions and rules.
 
-- `400 attribute_not_found` — referenced attribute does not exist
-- `400 attribute_not_promo_eligible` — referenced attribute has `isPromoRule = false`
-- `400 invalid_criterion_op` — `op` not in the valueType's allowed list
-- `400 invalid_criterion_values` — values shape mismatch
-- `400 invalid_option_value` — for select-style criteria, a value is not in the option list
+## Performance note
 
-## Skip-on-toggle (FR-039)
-
-When an attribute's `isPromoRule` flips off after rules are authored, every
-existing criterion that references its key is silently skipped on the next
-resolution (treated as `false`). The decision is logged at `info` with
-`{ promotionId, criterionAttributeKey, reason: 'attribute_not_promo_eligible' }`
-so an operator can debug a "rule stopped working" report. Re-flipping the
-flag back on resumes matching with no editor changes.
-
-## Application order
-
-The service applies eligible promotions in this order:
-
-1. Code-presented promotions first (a coupon always trumps an
-   automatic).
-2. Among each tier, `value` desc.
-
-After each application the working subtotal / delivery falls; subsequent
-promotions see the reduced numbers. Discounts never push subtotal or
-delivery below zero.
-
-## Output
-
-`PromotionApplication`:
-
-- `subtotal` — pre-discount line total.
-- `discountTotal` — sum of every applied promotion amount.
-- `deliveryTotal` — possibly zeroed by `free_delivery`.
-- `total` = `max(0, subtotal - discountTotal) + deliveryTotal`.
-- `appliedPromotions[]` — per-row audit including the underlying
-  `promotionId` and `kind`.
-
-## Entities
-
-`Promotion` — `code?`, `name`, `kind`, `value`, `currency?`,
-`minCartSubtotal?`, `validFrom?`, `validUntil?`, `organizationId?`,
-`customerGroupId?`, `categoryId?`, `productId?`, `criteria[]`, `isActive`.
-
-## Extension points
-
-- **Stacking rules** — today every eligible promotion stacks
-  sequentially. For "best-of-N" or "exclusive" semantics, add an
-  `exclusivity: 'stack' | 'best' | 'exclusive'` column and adjust the
-  apply loop.
-- **Buy-X-get-Y** — a fourth `kind: 'bxgy'` would drop the simple
-  `value` field for a JSONB rule body. The contract layer's
-  discriminated union makes the change additive.
-- **Per-customer redemption cap** — store every
-  `(promotionId, customerAccountId)` redemption in a separate table and
-  filter eligibility on count.
+Cart pricing loads active promotions with a single indexed query plus a
+coupon/counters lookup. At the platform's target scale this is sufficient; a
+Redis per-channel candidate cache (invalidated via the module-lifecycle
+pub/sub channel) is the documented next optimization if profiling shows the
+per-request load becomes hot — deliberately deferred under YAGNI until then.

@@ -55,8 +55,10 @@ export interface CartSummary {
   status?: 'active' | 'abandoned' | 'completed' | 'rejected';
   /** Feature 027 — approval-axis state. */
   approvalStatus?: 'not_required' | 'pending' | 'approved' | 'rejected_by_org_admin';
-  /** Feature 027 — applied coupon discount (null when none active). */
-  discount?: { code: string; amount: number; currency: string } | null;
+  /** Feature 027 — applied discount (code null for automatic promotions). */
+  discount?: { code: string | null; amount: number; currency: string } | null;
+  /** Feature 045 — per-promotion breakdown of the cart discount. */
+  appliedPromotions?: Array<{ promotionId: string; couponId: string | null; amount: number; currency: string }>;
   /** Feature 027 — grand total after the optional discount. */
   grandTotal?: { amount: number; currency: string };
   /** Feature 027 — buyer-facing primary CTA derived from the two-axis state. */

@@ -4,13 +4,17 @@ import {
   ERROR_CODES,
   type CartSnapshot,
   type DictionaryValidator,
+  type PromotionAction,
   type PromotionApplication,
   type PromotionCriterion,
+  type PromotionRule,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
 import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 import { Promotion } from '../entities/promotion.entity.js';
+import { PromotionRuleEntity } from '../entities/promotion-rule.entity.js';
+import { PromotionCoupon } from '../entities/promotion-coupon.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
 import type { ProductAttribute } from '../../catalog/entities/product-attribute.entity.js';
 import {
@@ -18,6 +22,20 @@ import {
   type PromotionRuleAttributeLookup,
   type PromotionRuleEvaluationContext,
 } from './promotion-rule-service.js';
+import {
+  evaluatePromotionRule,
+  type PromotionRuleContext,
+} from './promotion-rule-evaluator.js';
+import {
+  createPromotionActionRegistry,
+  type PromotionActionRegistry,
+} from './promotion-action-registry.js';
+import {
+  PromotionUsageService,
+  type FinalizeAppliedPromotion,
+  type UsageContext,
+} from './promotion-usage-service.js';
+import type { CartApplyContext } from '../actions/types.js';
 
 /**
  * Cross-module port for fetching promotion-rule attribute metadata. The
@@ -73,7 +91,30 @@ export class PromotionService {
      * `null` means "org missing" → skip the org-targeted promotion.
      */
     private readonly resolveOrganizationStatus?: (orgId: string) => Promise<string | null>,
-  ) {}
+    /** Feature 045 — pluggable action catalogue. Defaults to the built-ins. */
+    private readonly actionRegistry: PromotionActionRegistry = createPromotionActionRegistry(),
+  ) {
+    this.usageService = new PromotionUsageService(emFactory);
+  }
+
+  private readonly usageService: PromotionUsageService;
+
+  /**
+   * Feature 045 (US5) — finalize usage for a placed order. MUST run inside the
+   * order-placement transaction (the passed `em` is that tx). Throws 409 if a
+   * usage cap is hit at the last moment so the transaction rolls back.
+   */
+  async finalizeUsage(
+    em: EntityManager,
+    input: { orderId: string; currency: string; ctx: UsageContext; applied: FinalizeAppliedPromotion[] },
+  ): Promise<void> {
+    await this.usageService.finalize(em, input);
+  }
+
+  /** Expose the action catalogue for the admin `action-types` endpoint. */
+  listActionTypes(): Array<{ type: string; labelKey: string }> {
+    return this.actionRegistry.list().map((d) => ({ type: d.type, labelKey: d.labelKey }));
+  }
 
   async list(): Promise<Promotion[]> {
     return this.emFactory().find(Promotion, {}, { orderBy: { name: 'asc' } });
@@ -85,68 +126,66 @@ export class PromotionService {
     return row;
   }
 
-  async upsert(input: {
-    code?: string | null;
-    name: string;
-    kind: 'percentage_off' | 'amount_off' | 'free_delivery';
-    value: number;
-    currency?: string | null;
-    minCartSubtotal?: number | null;
-    validFrom?: string | null;
-    validUntil?: string | null;
-    organizationId?: string | null;
-    customerGroupId?: string | null;
-    categoryId?: string | null;
-    productId?: string | null;
-    criteria?: PromotionCriterion[];
-    isActive?: boolean;
-  }): Promise<Promotion> {
-    if (input.criteria) {
-      await this.validateCriteria(input.criteria);
-    }
+  async upsert(input: UpsertPromotionInput): Promise<Promotion> {
     const em = this.emFactory();
     const existing = input.code
       ? await em.findOne(Promotion, { code: input.code })
       : null;
+    await this.validateUpsertInput(em, input, existing);
+    const data = buildPromotionData(input);
+    if (existing) {
+      Object.assign(existing, data);
+      await em.flush();
+      return existing;
+    }
+    // `data` is built from a partial input; `name` is always present per the
+    // schema, but the conditional spreads widen the inferred type.
+    const row = em.create(Promotion, data as unknown as Promotion);
+    await em.persistAndFlush(row);
+    if (this.salesChannelMembership) {
+      await this.salesChannelMembership.bindToDefaultIfEmpty('promotion', row.id);
+    }
+    return row;
+  }
+
+  /** Feature 045 — update an existing promotion by id (admin edit path). */
+  async updateById(id: string, input: UpsertPromotionInput): Promise<Promotion> {
+    const em = this.emFactory();
+    const existing = await em.findOne(Promotion, { id });
+    if (!existing) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Promotion ${id} not found.`);
+    await this.validateUpsertInput(em, input, existing);
+    Object.assign(existing, buildPromotionData(input));
+    await em.flush();
+    return existing;
+  }
+
+  private async validateUpsertInput(
+    em: EntityManager,
+    input: UpsertPromotionInput,
+    existing: Promotion | null,
+  ): Promise<void> {
+    if (input.criteria) {
+      await this.validateCriteria(input.criteria);
+    }
+    if (input.action && !this.actionRegistry.has(input.action.type)) {
+      throw new HttpError(
+        400,
+        ERROR_CODES.VALIDATION_FAILED,
+        `unknown_promotion_action: ${input.action.type}`,
+      );
+    }
+    if (input.ruleId) {
+      const ruleRow = await em.findOne(PromotionRuleEntity, { id: input.ruleId });
+      if (!ruleRow) {
+        throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, `rule_not_found: ${input.ruleId}`);
+      }
+    }
     if (input.currency != null) {
       await this.validateCurrency(
         input.currency,
         existing ? dispatchValidatorMode(existing.currency, input.currency) : 'create-or-change',
       );
     }
-    const data = {
-      name: input.name,
-      kind: input.kind,
-      value: String(input.value),
-      ...(input.code !== undefined ? { code: input.code } : {}),
-      ...(input.currency !== undefined ? { currency: input.currency } : {}),
-      ...(input.minCartSubtotal !== undefined && input.minCartSubtotal !== null
-        ? { minCartSubtotal: String(input.minCartSubtotal) }
-        : {}),
-      ...(input.validFrom !== undefined
-        ? { validFrom: input.validFrom ? new Date(input.validFrom) : null }
-        : {}),
-      ...(input.validUntil !== undefined
-        ? { validUntil: input.validUntil ? new Date(input.validUntil) : null }
-        : {}),
-      ...(input.organizationId !== undefined ? { organizationId: input.organizationId } : {}),
-      ...(input.customerGroupId !== undefined ? { customerGroupId: input.customerGroupId } : {}),
-      ...(input.categoryId !== undefined ? { categoryId: input.categoryId } : {}),
-      ...(input.productId !== undefined ? { productId: input.productId } : {}),
-      ...(input.criteria !== undefined ? { criteria: input.criteria } : {}),
-      ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
-    };
-    if (existing) {
-      Object.assign(existing, data);
-      await em.flush();
-      return existing;
-    }
-    const row = em.create(Promotion, data);
-    await em.persistAndFlush(row);
-    if (this.salesChannelMembership) {
-      await this.salesChannelMembership.bindToDefaultIfEmpty('promotion', row.id);
-    }
-    return row;
   }
 
   async remove(id: string): Promise<void> {
@@ -191,6 +230,22 @@ export class PromotionService {
 
     const all = await em.find(Promotion, { isActive: true });
 
+    // Feature 045 (US3) — resolve a presented code through the coupon table
+    // (legacy `promotions.code` gating is preserved below for back-compat).
+    let couponMatch: { promotionId: string; couponId: string } | null = null;
+    const couponedPromotionIds = new Set<string>();
+    if (all.length > 0) {
+      const coupons = await em.find(PromotionCoupon, {
+        promotionId: { $in: all.map((p) => p.id) },
+        isActive: true,
+      });
+      for (const c of coupons) couponedPromotionIds.add(c.promotionId);
+      if (snapshot.promotionCode) {
+        const match = coupons.find((c) => c.code === snapshot.promotionCode);
+        if (match) couponMatch = { promotionId: match.promotionId, couponId: match.id };
+      }
+    }
+
     // Feature 026 US5 — when org-targeted promotions are present and the
     // snapshot carries an organizationId, resolve that org's status once.
     // Org-targeted promotions only apply if the org is `active`. Without a
@@ -206,7 +261,7 @@ export class PromotionService {
       }
     }
 
-    const eligible = all.filter((p) => {
+    let eligible = all.filter((p) => {
       if (p.validFrom && now < p.validFrom) return false;
       if (p.validUntil && now > p.validUntil) return false;
       if (
@@ -224,38 +279,68 @@ export class PromotionService {
         return false;
       }
       if (p.customerGroupId && p.customerGroupId !== snapshot.customerGroupId) return false;
+      // Legacy `promotions.code` gating.
       if (p.code) {
         if (!snapshot.promotionCode) return false;
         if (snapshot.promotionCode !== p.code) return false;
       }
+      // Feature 045 (US3) — coupon-table gating: a promotion carrying coupons
+      // applies only when the presented code resolves to one of its coupons.
+      if (couponedPromotionIds.has(p.id) && couponMatch?.promotionId !== p.id) return false;
       return true;
     });
 
-    // Coupon presented promotions first so they always trump automatics.
+    // Feature 045 (US5) — soft-exclude promotions whose limits are already met
+    // (best-effort; the atomic gate at placement is authoritative).
+    const exhausted = await this.usageService.filterExhausted(eligible, {
+      organizationId: snapshot.organizationId,
+      customerAccountId: snapshot.customerAccountId ?? null,
+    });
+    if (exhausted.size > 0) eligible = eligible.filter((p) => !exhausted.has(p.id));
+
+    // Feature 045 — apply in priority order (DESC) with deterministic
+    // tie-break (createdAt ASC, then id). Coupon-presented promotions keep
+    // their precedence within equal priority.
     eligible.sort((a, b) => {
+      if (a.priority !== b.priority) return b.priority - a.priority;
       if (a.code && !b.code) return -1;
       if (!a.code && b.code) return 1;
-      return Number(b.value) - Number(a.value);
+      const t = a.createdAt.getTime() - b.createdAt.getTime();
+      if (t !== 0) return t;
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
     });
 
-    // Feature 012 / US8 — pre-build the per-key attribute lookup for
-    // every attribute referenced by an active promotion's criteria.
+    // Feature 012 / US8 + 045 — pre-build the per-key attribute lookup for
+    // every attribute referenced by a promotion's criteria OR its rule.
     const referencedKeys = new Set<string>();
     for (const p of eligible) {
       for (const c of p.criteria) {
         if (c.type === 'attribute') referencedKeys.add(c.attributeKey);
       }
     }
+    // Feature 045 — pre-load named rules referenced by eligible promotions.
+    const ruleIds = [...new Set(eligible.map((p) => p.ruleId).filter((id): id is string => !!id))];
+    const rulesById = new Map<string, PromotionRule>();
+    if (ruleIds.length > 0) {
+      const rows = await em.find(PromotionRuleEntity, { id: { $in: ruleIds } });
+      for (const r of rows) rulesById.set(r.id, r.definition);
+    }
+    for (const p of eligible) {
+      if (!p.actionType) continue;
+      const rule = resolveRule(p, rulesById);
+      for (const key of extractRuleAttributeKeys(rule)) referencedKeys.add(key);
+    }
     const attributeLookup = await this.buildAttributeLookup([...referencedKeys]);
 
-    // Feature 012 / US8 — hydrate per-line `attributeValues` snapshots
-    // for any line whose product is referenced by a criterion. Callers
-    // MAY pre-populate the snapshot themselves; if so, we skip the
-    // round-trip.
+    // Hydrate per-line `attributeValues` for any referenced key.
     const hydratedSnapshot =
       referencedKeys.size === 0
         ? snapshot
         : await this.hydrateLineAttributeValues(snapshot, [...referencedKeys]);
+
+    const ruleCtx = buildRuleContext(hydratedSnapshot, subtotal, attributeLookup, (info) =>
+      this.auditLogger.info('promotion_rule_attribute_skipped', info),
+    );
 
     let workingSubtotal = subtotal;
     let workingDelivery = snapshot.deliveryTotal;
@@ -263,6 +348,39 @@ export class PromotionService {
     const applied: PromotionApplication['appliedPromotions'] = [];
 
     for (const promotion of eligible) {
+      // Feature 045 — action-based promotion: evaluate the typed rule, then
+      // run the configured action through the registry against running totals.
+      if (promotion.actionType) {
+        const rule = resolveRule(promotion, rulesById);
+        if (!evaluatePromotionRule(rule, ruleCtx)) continue;
+        const action = joinAction(promotion);
+        if (!action) continue;
+        const applyCtx: CartApplyContext = {
+          lines: hydratedSnapshot.lines,
+          subtotal: workingSubtotal,
+          deliveryTotal: workingDelivery,
+          currency: snapshot.currency,
+        };
+        const result = this.actionRegistry.apply(action, applyCtx);
+        const subDelta = round2(Math.max(0, Math.min(result.discountSubtotalDelta, workingSubtotal)));
+        const delDelta = round2(Math.max(0, Math.min(result.discountDeliveryDelta, workingDelivery)));
+        const amount = round2(subDelta + delDelta);
+        if (amount <= 0) continue;
+        workingSubtotal = round2(workingSubtotal - subDelta);
+        workingDelivery = round2(workingDelivery - delDelta);
+        discountTotal = round2(discountTotal + amount);
+        applied.push({
+          promotionId: promotion.id,
+          kind: null,
+          actionType: promotion.actionType,
+          couponId: couponMatch?.promotionId === promotion.id ? couponMatch.couponId : null,
+          amount,
+        });
+        if (promotion.stopFurther) break;
+        continue;
+      }
+
+      // Legacy kind/value promotion.
       const lineBase = this.computeLineBase(hydratedSnapshot, promotion, attributeLookup);
       if (lineBase <= 0 && promotion.kind !== 'free_delivery') continue;
 
@@ -282,7 +400,14 @@ export class PromotionService {
         workingSubtotal = Math.max(0, round2(workingSubtotal - amount));
       }
       discountTotal = round2(discountTotal + amount);
-      applied.push({ promotionId: promotion.id, kind: promotion.kind, amount });
+      applied.push({
+        promotionId: promotion.id,
+        kind: promotion.kind ?? null,
+        actionType: null,
+        couponId: couponMatch?.promotionId === promotion.id ? couponMatch.couponId : null,
+        amount,
+      });
+      if (promotion.stopFurther) break;
     }
 
     const total = round2(workingSubtotal + workingDelivery);
@@ -525,4 +650,149 @@ function validateValuesShape(
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+export interface UpsertPromotionInput {
+  code?: string | null;
+  name: string;
+  kind?: 'percentage_off' | 'amount_off' | 'free_delivery';
+  value?: number;
+  currency?: string | null;
+  minCartSubtotal?: number | null;
+  validFrom?: string | null;
+  validUntil?: string | null;
+  organizationId?: string | null;
+  customerGroupId?: string | null;
+  categoryId?: string | null;
+  productId?: string | null;
+  criteria?: PromotionCriterion[];
+  isActive?: boolean;
+  // Feature 045 — engine fields.
+  description?: string | null;
+  priority?: number;
+  stopFurther?: boolean;
+  action?: PromotionAction;
+  ruleId?: string | null;
+  rule?: PromotionRule | null;
+  usageLimitGlobal?: number | null;
+  usageLimitPerOrganization?: number | null;
+  usageLimitPerCustomer?: number | null;
+}
+
+/** Map an upsert input into the entity-assignable data object. */
+function buildPromotionData(input: UpsertPromotionInput): Record<string, unknown> {
+  const { actionType, actionConfig } = splitAction(input.action);
+  return {
+    name: input.name,
+    ...(input.kind !== undefined ? { kind: input.kind } : {}),
+    ...(input.value !== undefined ? { value: String(input.value) } : {}),
+    ...(input.code !== undefined ? { code: input.code } : {}),
+    ...(input.currency !== undefined ? { currency: input.currency } : {}),
+    ...(input.minCartSubtotal !== undefined && input.minCartSubtotal !== null
+      ? { minCartSubtotal: String(input.minCartSubtotal) }
+      : {}),
+    ...(input.validFrom !== undefined
+      ? { validFrom: input.validFrom ? new Date(input.validFrom) : null }
+      : {}),
+    ...(input.validUntil !== undefined
+      ? { validUntil: input.validUntil ? new Date(input.validUntil) : null }
+      : {}),
+    ...(input.organizationId !== undefined ? { organizationId: input.organizationId } : {}),
+    ...(input.customerGroupId !== undefined ? { customerGroupId: input.customerGroupId } : {}),
+    ...(input.categoryId !== undefined ? { categoryId: input.categoryId } : {}),
+    ...(input.productId !== undefined ? { productId: input.productId } : {}),
+    ...(input.criteria !== undefined ? { criteria: input.criteria } : {}),
+    ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+    ...(input.description !== undefined ? { description: input.description } : {}),
+    ...(input.priority !== undefined ? { priority: input.priority } : {}),
+    ...(input.stopFurther !== undefined ? { stopFurther: input.stopFurther } : {}),
+    ...(input.action !== undefined ? { actionType, actionConfig } : {}),
+    // A rule source set clears the other (mutually exclusive).
+    ...(input.ruleId !== undefined ? { ruleId: input.ruleId, ruleDefinition: null } : {}),
+    ...(input.rule !== undefined ? { ruleDefinition: input.rule, ruleId: null } : {}),
+    ...(input.usageLimitGlobal !== undefined ? { usageLimitGlobal: input.usageLimitGlobal } : {}),
+    ...(input.usageLimitPerOrganization !== undefined
+      ? { usageLimitPerOrganization: input.usageLimitPerOrganization }
+      : {}),
+    ...(input.usageLimitPerCustomer !== undefined
+      ? { usageLimitPerCustomer: input.usageLimitPerCustomer }
+      : {}),
+  };
+}
+
+/** Split a `PromotionAction` union into the stored `(type, config)` pair. */
+function splitAction(action?: PromotionAction): {
+  actionType: PromotionAction['type'] | null;
+  actionConfig: Record<string, unknown>;
+} {
+  if (!action) return { actionType: null, actionConfig: {} };
+  const { type, ...config } = action;
+  return { actionType: type, actionConfig: config };
+}
+
+/** Reconstruct a `PromotionAction` from the stored `(type, config)` pair. */
+function joinAction(promotion: Promotion): PromotionAction | null {
+  if (!promotion.actionType) return null;
+  return { type: promotion.actionType, ...promotion.actionConfig } as PromotionAction;
+}
+
+/** Resolve a promotion's effective rule (inline, named, or match-all). */
+function resolveRule(promotion: Promotion, rulesById: Map<string, PromotionRule>): PromotionRule {
+  if (promotion.ruleDefinition) return promotion.ruleDefinition;
+  if (promotion.ruleId) return rulesById.get(promotion.ruleId) ?? { kind: 'all' };
+  return { kind: 'all' };
+}
+
+/** Collect attribute keys referenced anywhere in a rule tree. */
+function extractRuleAttributeKeys(rule: PromotionRule): string[] {
+  const keys: string[] = [];
+  const walk = (node: PromotionRule): void => {
+    if (node.kind === 'group') {
+      node.children.forEach(walk);
+    } else if (node.kind === 'condition' && node.field.kind === 'attribute') {
+      keys.push(node.field.attributeKey);
+    }
+  };
+  walk(rule);
+  return keys;
+}
+
+function coerceRuleValue(v: unknown): string | number | boolean {
+  if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return v;
+  return String(v);
+}
+
+/** Build the cart-level rule-evaluation context from a hydrated snapshot. */
+function buildRuleContext(
+  snapshot: CartSnapshot,
+  subtotal: number,
+  attributeLookup: PromotionRuleAttributeLookup,
+  onSkip: (info: { attributeKey: string; reason: 'attribute_not_promo_eligible' }) => void,
+): PromotionRuleContext {
+  const attributeValues: Record<string, Array<string | number | boolean>> = {};
+  for (const line of snapshot.lines) {
+    const av = line.attributeValues ?? {};
+    for (const [k, raw] of Object.entries(av)) {
+      const bucket = (attributeValues[k] ??= []);
+      if (Array.isArray(raw)) {
+        for (const item of raw) bucket.push(coerceRuleValue(item));
+      } else if (raw != null) {
+        bucket.push(coerceRuleValue(raw));
+      }
+    }
+  }
+  const categoryIds = [...new Set(snapshot.lines.flatMap((l) => l.categoryIds))];
+  return {
+    cartTotal: subtotal,
+    paymentMethodCode: snapshot.paymentMethodCode ?? null,
+    deliveryMethodCode: snapshot.deliveryMethodCode ?? null,
+    deliveryCountry: snapshot.deliveryCountry ?? null,
+    deliveryPostalCode: snapshot.deliveryPostalCode ?? null,
+    organizationId: snapshot.organizationId,
+    customerGroupId: snapshot.customerGroupId,
+    categoryIds,
+    attributeValues,
+    isPromoEligibleAttribute: (key) => attributeLookup.get(key)?.isPromoRule ?? false,
+    onSkip,
+  };
 }

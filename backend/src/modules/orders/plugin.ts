@@ -445,7 +445,11 @@ export function commerceModule(options: OrdersModuleOptions) {
           )
         : undefined;
     const cartAdminService = cartAuditService
-      ? new CartAdminService(options.emFactory, cartAuditService)
+      ? new CartAdminService(
+          options.emFactory,
+          cartAuditService,
+          ...(options.promotionService ? ([options.promotionService] as const) : ([] as const)),
+        )
       : undefined;
     // Build a thin lazy-resolving wrapper so the QR service can be
     // injected after commerceModule is constructed (chicken-and-egg in

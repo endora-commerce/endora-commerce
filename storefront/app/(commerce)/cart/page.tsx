@@ -573,7 +573,7 @@ function STRINGS(locale: string): {
       totals: {
         subtotalLabel: (n: number) =>
           n === 1 ? 'Suma netto (1 pozycja)' : `Suma netto (${n} pozycji)`,
-        discountLabel: (code: string) => `Rabat (${code})`,
+        discountLabel: (code: string | null) => (code ? `Rabat (${code})` : 'Rabat'),
         grandTotalLabel: 'Razem netto',
         deliveryLabel: 'Dostawa',
         deliveryValue: 'naliczana w kasie',
@@ -668,7 +668,7 @@ function STRINGS(locale: string): {
     totals: {
       subtotalLabel: (n: number) =>
         n === 1 ? 'Subtotal (1 item)' : `Subtotal (${n} items)`,
-      discountLabel: (code: string) => `Discount (${code})`,
+      discountLabel: (code: string | null) => (code ? `Discount (${code})` : 'Discount'),
       grandTotalLabel: 'Total',
       deliveryLabel: 'Delivery',
       deliveryValue: 'calculated at checkout',

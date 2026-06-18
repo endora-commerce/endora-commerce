@@ -14,12 +14,13 @@ import type { ReactNode } from 'react';
 
 interface CartTotalsProps {
   subtotal: { amount: number; currency: string };
-  discount: { code: string; amount: number; currency: string } | null;
+  // Feature 045 — `code` is null for automatic (couponless) promotions.
+  discount: { code: string | null; amount: number; currency: string } | null;
   grandTotal: { amount: number; currency: string };
   itemCount: number;
   strings: {
     subtotalLabel: (itemCount: number) => string;
-    discountLabel: (code: string) => string;
+    discountLabel: (code: string | null) => string;
     grandTotalLabel: string;
     deliveryLabel: string;
     deliveryValue: string;

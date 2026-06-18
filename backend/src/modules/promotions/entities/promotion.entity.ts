@@ -1,6 +1,6 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { randomUUID } from 'crypto';
-import type { PromotionCriterion } from '@b2b/contracts';
+import type { PromotionAction, PromotionCriterion, PromotionRule } from '@b2b/contracts';
 
 /**
  * Promotion — a discount rule applied to a Cart snapshot (T129 / FR-052).
@@ -34,7 +34,17 @@ export class Promotion {
     | 'categoryId'
     | 'productId'
     | 'criteria'
-    | 'isActive';
+    | 'isActive'
+    | 'description'
+    | 'priority'
+    | 'stopFurther'
+    | 'actionType'
+    | 'actionConfig'
+    | 'ruleId'
+    | 'ruleDefinition'
+    | 'usageLimitGlobal'
+    | 'usageLimitPerOrganization'
+    | 'usageLimitPerCustomer';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -46,12 +56,14 @@ export class Promotion {
   @Property({ type: 'string', length: 160 })
   name!: string;
 
-  @Property({ type: 'string', length: 24 })
+  /** Legacy effect kind — nullable on feature-045 action-based promotions. */
+  @Property({ type: 'string', length: 24, nullable: true })
   @Index()
-  kind!: 'percentage_off' | 'amount_off' | 'free_delivery';
+  kind?: 'percentage_off' | 'amount_off' | 'free_delivery' | null;
 
-  @Property({ type: 'decimal', precision: 14, scale: 4 })
-  value!: string;
+  /** Legacy effect value — nullable on feature-045 action-based promotions. */
+  @Property({ type: 'decimal', precision: 14, scale: 4, nullable: true })
+  value?: string | null;
 
   @Property({ type: 'string', length: 3, nullable: true })
   currency?: string | null;
@@ -91,6 +103,46 @@ export class Promotion {
   @Property({ type: 'boolean' })
   @Index()
   isActive: boolean = true;
+
+  // --- Feature 045 — engine fields -----------------------------------------
+
+  @Property({ type: 'text', nullable: true })
+  description?: string | null;
+
+  /** Application order across a cart's matching promotions (DESC). */
+  @Property({ type: 'integer', default: 0 })
+  @Index()
+  priority: number = 0;
+
+  /** When true, no lower-priority promotion applies once this one does. */
+  @Property({ type: 'boolean', default: false })
+  stopFurther: boolean = false;
+
+  /** Registered action key (null on legacy kind/value promotions). */
+  @Property({ type: 'string', length: 64, nullable: true })
+  actionType?: PromotionAction['type'] | null;
+
+  /** Action parameters, validated against the registered action's schema. */
+  @Property({ type: 'json', columnType: 'jsonb', default: "'{}'" })
+  actionConfig: Record<string, unknown> = {};
+
+  /** Named-rule reference (mutually exclusive with `ruleDefinition`). */
+  @Property({ type: 'uuid', nullable: true })
+  @Index()
+  ruleId?: string | null;
+
+  /** Inline rule AST (mutually exclusive with `ruleId`). */
+  @Property({ type: 'json', columnType: 'jsonb', nullable: true })
+  ruleDefinition?: PromotionRule | null;
+
+  @Property({ type: 'integer', nullable: true })
+  usageLimitGlobal?: number | null;
+
+  @Property({ type: 'integer', nullable: true })
+  usageLimitPerOrganization?: number | null;
+
+  @Property({ type: 'integer', nullable: true })
+  usageLimitPerCustomer?: number | null;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

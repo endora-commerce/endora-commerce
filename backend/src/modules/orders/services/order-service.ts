@@ -22,6 +22,24 @@ import type { BusinessIdGenerator } from './business-id-generator.js';
  */
 export interface PromotionPort {
   applyToCart(snapshot: CartSnapshot): Promise<PromotionApplication>;
+  /**
+   * Feature 045 (US5) — finalize usage atomically inside the placement
+   * transaction. Optional so legacy compositions still satisfy the port.
+   */
+  finalizeUsage?(
+    em: EntityManager,
+    input: {
+      orderId: string;
+      currency: string;
+      ctx: {
+        organizationId: string | null;
+        customerAccountId: string | null;
+        customerGroupId: string | null;
+        salesChannelId: string | null;
+      };
+      applied: Array<{ promotionId: string; couponId: string | null; amount: number }>;
+    },
+  ): Promise<void>;
 }
 import { Organization } from '../../organizations/entities/organization.entity.js';
 import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
@@ -34,6 +52,7 @@ import { Product } from '../../catalog/entities/product.entity.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import { Order } from '../entities/order.entity.js';
 import { OrderItem } from '../entities/order-item.entity.js';
+import { OrderAppliedPromotion } from '../entities/order-applied-promotion.entity.js';
 import { Payment } from '../../payments/entities/payment.entity.js';
 import { Invoice } from '../../invoices/entities/invoice.entity.js';
 import { OrderAccessService } from './order-access-service.js';
@@ -76,6 +95,13 @@ export interface OrderEvents extends Record<string, EventBase> {
     to: string;
   };
   'order.cancelled.v1': EventBase & { orderId: string };
+  // Feature 045 (T092) — fired post-commit per finalized promotion redemption.
+  'promotion.used.v1': EventBase & {
+    orderId: string;
+    promotionId: string;
+    couponId: string | null;
+    amount: number;
+  };
 }
 export type OrderEventBus = EventBus<OrderEvents>;
 
@@ -716,9 +742,14 @@ export class OrderService {
       // source of truth (set by the checkout coupon control before placement).
       // Mirrors CartCouponService's snapshot construction. No-op when no
       // promotion port is wired or the cart carries no coupon.
+      // Feature 045 (US2) — compute the cart's promotions through the engine,
+      // including automatic (couponless) action-based promotions, and capture
+      // the per-promotion breakdown to stamp onto the order. The cart's applied
+      // coupon (if any) is the source of truth for coupon-gated promotions.
       let discountTotal = 0;
       let appliedPromotionCode: string | null = null;
-      if (this.promotion && cart.appliedPromotionCode) {
+      let appliedPromotions: PromotionApplication['appliedPromotions'] = [];
+      if (this.promotion) {
         const snapshot: CartSnapshot = {
           organizationId: ctx.organizationId,
           customerGroupId: null,
@@ -731,12 +762,14 @@ export class OrderService {
             unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
           })),
           deliveryTotal,
-          promotionCode: cart.appliedPromotionCode,
+          promotionCode: cart.appliedPromotionCode ?? null,
+          salesChannelId: cart.salesChannelId ?? null,
         };
         const application = await this.promotion.applyToCart(snapshot);
         if (application.discountTotal > 0) {
           discountTotal = application.discountTotal;
-          appliedPromotionCode = cart.appliedPromotionCode;
+          appliedPromotionCode = cart.appliedPromotionCode ?? null;
+          appliedPromotions = application.appliedPromotions;
         }
       }
 
@@ -818,6 +851,40 @@ export class OrderService {
         placedAt: new Date(),
       });
       await tx.persistAndFlush(order);
+
+      // Feature 045 (US2) — stamp the per-promotion discount breakdown.
+      for (const ap of appliedPromotions) {
+        tx.persist(
+          tx.create(OrderAppliedPromotion, {
+            orderId: order.id,
+            promotionId: ap.promotionId,
+            couponId: ap.couponId ?? null,
+            amount: ap.amount.toFixed(2),
+            currency,
+          }),
+        );
+      }
+      if (appliedPromotions.length > 0) await tx.flush();
+
+      // Feature 045 (US5) — atomically finalize usage inside this tx; a cap hit
+      // throws 409 and rolls the whole placement back (race-safe, SC-005).
+      if (this.promotion?.finalizeUsage && appliedPromotions.length > 0) {
+        await this.promotion.finalizeUsage(tx, {
+          orderId: order.id,
+          currency,
+          ctx: {
+            organizationId: ctx.organizationId,
+            customerAccountId: ctx.customerAccountId,
+            customerGroupId: null,
+            salesChannelId: channel?.id ?? null,
+          },
+          applied: appliedPromotions.map((ap) => ({
+            promotionId: ap.promotionId,
+            couponId: ap.couponId ?? null,
+            amount: ap.amount,
+          })),
+        });
+      }
 
       const orderItems = items.map((item) => {
         const product = productById.get(item.productId);
@@ -994,6 +1061,20 @@ export class OrderService {
         orderId: order.id,
         organizationId: ctx.organizationId,
       });
+
+      // Feature 045 (T092) — one fire-and-forget event per finalized redemption
+      // for downstream consumers (analytics / webhooks). Not the enforcement
+      // path — usage was already finalized atomically above.
+      for (const ap of appliedPromotions) {
+        this.events.emit('promotion.used.v1', {
+          eventId: randomUUID(),
+          occurredAt: new Date().toISOString(),
+          orderId: order.id,
+          promotionId: ap.promotionId,
+          couponId: ap.couponId ?? null,
+          amount: ap.amount,
+        });
+      }
 
       // Impersonated order placement → audit row tying the Admin User to the
       // action on behalf of the Customer (R-12, T183).
