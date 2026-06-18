@@ -9,7 +9,7 @@ import { tForLocale } from '../../lib/i18n/messages';
  * actions passed in by the page and attached via `formAction`.
  */
 export interface CouponFieldProps {
-  applied: { code: string; amount: number; currency: string } | null;
+  applied: { code: string | null; amount: number; currency: string } | null;
   error?: string | null;
   applyAction: (formData: FormData) => void | Promise<void>;
   clearAction: (formData: FormData) => void | Promise<void>;

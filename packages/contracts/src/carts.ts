@@ -187,6 +187,15 @@ const cartDroppedLineSchema = z.object({
   reason: cartDroppedLineReasonSchema,
 });
 
+/** Feature 045 — one applied promotion's contribution to the cart discount. */
+export const cartAppliedPromotionSchema = z.object({
+  promotionId: uuidSchema,
+  couponId: uuidSchema.nullable().default(null),
+  amount: z.number().nonnegative(),
+  currency: z.string().length(3),
+});
+export type CartAppliedPromotion = z.infer<typeof cartAppliedPromotionSchema>;
+
 const couponDroppedThisReadSchema = z
   .object({
     code: z.string(),
@@ -206,6 +215,8 @@ export const cartFullPayloadSchema = z.object({
   itemCount: z.number().int().nonnegative(),
   subtotal: moneySchema,
   discount: cartDiscountSchema,
+  /** Feature 045 — per-promotion breakdown of the cart discount. */
+  appliedPromotions: z.array(cartAppliedPromotionSchema).default([]),
   grandTotal: moneySchema,
   primaryCta: cartPrimaryCtaSchema,
   droppedLines: z.array(cartDroppedLineSchema),

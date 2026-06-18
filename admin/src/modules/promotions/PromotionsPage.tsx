@@ -22,12 +22,21 @@ import {
 import { useTranslation } from '@/i18n/useTranslation';
 import { CurrencyPicker } from '../dictionaries/components/CurrencyPicker';
 
+interface PromotionActionView {
+  type: string;
+  percent?: number;
+  amount?: number;
+  currency?: string;
+  [k: string]: unknown;
+}
+
 interface AdminPromotion {
   id: string;
   code: string | null;
   name: string;
-  kind: 'percentage_off' | 'amount_off' | 'free_delivery';
-  value: number;
+  // Feature 045 — null on action-based promotions.
+  kind: 'percentage_off' | 'amount_off' | 'free_delivery' | null;
+  value: number | null;
   currency: string | null;
   minCartSubtotal: number | null;
   validFrom: string | null;
@@ -35,6 +44,26 @@ interface AdminPromotion {
   criteria?: AttributeCriterion[];
   isActive: boolean;
   createdAt: string;
+  // Feature 045 — engine fields.
+  description?: string | null;
+  priority?: number;
+  stopFurther?: boolean;
+  action?: PromotionActionView | null;
+}
+
+/** Human-readable summary of a promotion's effect (legacy kind or action). */
+function describeEffect(p: AdminPromotion): string {
+  if (p.action) {
+    const a = p.action;
+    if (a.type === 'percentage_off_cart') return `${a.percent}% off cart`;
+    if (a.type === 'amount_off_cart') return `${a.amount} ${a.currency} off cart`;
+    if (a.type === 'free_delivery') return 'Free delivery';
+    return a.type;
+  }
+  if (p.kind === 'percentage_off') return `${p.value}%`;
+  if (p.kind === 'amount_off') return `${p.value} ${p.currency ?? ''}`.trim();
+  if (p.kind === 'free_delivery') return 'Free delivery';
+  return '—';
 }
 
 /**
@@ -212,14 +241,8 @@ export const PromotionsPage = (): ReactNode => {
                       <code className="font-mono text-xs">{p.code ?? '—'}</code>
                     </TableCell>
                     <TableCell className="font-medium">{p.name}</TableCell>
-                    <TableCell>{p.kind}</TableCell>
-                    <TableCell className="tabular-nums">
-                      {p.kind === 'percentage_off'
-                        ? `${p.value}%`
-                        : p.kind === 'amount_off'
-                          ? `${p.value} ${p.currency}`
-                          : t('promotions.value.freeDelivery')}
-                    </TableCell>
+                    <TableCell>{p.action ? p.action.type : (p.kind ?? '—')}</TableCell>
+                    <TableCell className="tabular-nums">{describeEffect(p)}</TableCell>
                     <TableCell className="tabular-nums">
                       {p.minCartSubtotal != null ? p.minCartSubtotal.toFixed(2) : '—'}
                     </TableCell>

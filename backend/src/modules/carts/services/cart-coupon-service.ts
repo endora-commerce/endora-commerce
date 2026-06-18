@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CartSnapshot, CouponDropReason } from '@b2b/contracts';
+import type { CartSnapshot, CouponDropReason, PromotionApplication } from '@b2b/contracts';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import { Promotion } from '../../promotions/entities/promotion.entity.js';
@@ -166,6 +166,32 @@ export class CartCouponService {
       cart.approvalStatus = managedCart.approvalStatus;
     }
     return { outcome: 'applied', cart, appliedCode: code };
+  }
+
+  /**
+   * Feature 045 — compute the promotion application for a cart on read, so
+   * the serialized cart can show the real discount amount + per-promotion
+   * breakdown (automatic action-based promotions plus any applied coupon).
+   * Pure read — never mutates the cart.
+   */
+  async computeApplication(cart: Cart, items: CartItem[]): Promise<PromotionApplication> {
+    const currency = items[0]?.currency ?? 'PLN';
+    const snapshot: CartSnapshot = {
+      organizationId: cart.organizationId ?? null,
+      customerGroupId: null,
+      currency,
+      lines: items.map((it) => ({
+        productId: it.productId,
+        variantId: it.variantId ?? null,
+        categoryIds: [],
+        quantity: it.quantity,
+        unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
+      })),
+      deliveryTotal: 0,
+      promotionCode: cart.appliedPromotionCode ?? null,
+      salesChannelId: cart.salesChannelId ?? null,
+    };
+    return this.promotionService.applyToCart(snapshot);
   }
 
   async clear(cart: Cart): Promise<void> {

@@ -7,6 +7,7 @@ import {
   applyCartCouponSchema,
   convertCartToQrSchema,
   ERROR_CODES,
+  type PromotionApplication,
 } from '@b2b/contracts';
 import type { CartService } from './services/cart-service.js';
 import type { CartUpsellService } from './services/cart-upsell-service.js';
@@ -215,8 +216,19 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         couponDroppedThisRead = null;
       }
     }
+    // Feature 045 — compute the real discount + per-promotion breakdown on
+    // read so the cart shows applied promotions (FR-031/FR-033). Never block
+    // a cart read on a promotion-engine hiccup.
+    let application: PromotionApplication | null = null;
+    if (deps.cartCouponService && items.length > 0) {
+      try {
+        application = await deps.cartCouponService.computeApplication(cart, items);
+      } catch {
+        application = null;
+      }
+    }
     return {
-      data: serializeCart(cart, items, recomputedPrices, couponDroppedThisRead, productMeta),
+      data: serializeCart(cart, items, recomputedPrices, couponDroppedThisRead, productMeta, application),
     };
   });
 
@@ -536,6 +548,7 @@ function emptyCart() {
     itemCount: 0,
     subtotal: { amount: 0, currency: 'PLN' },
     discount: null,
+    appliedPromotions: [],
     grandTotal: { amount: 0, currency: 'PLN' },
     primaryCta: 'checkout' as const,
     droppedLines: [],
@@ -619,6 +632,7 @@ function serializeCart(
   recomputedPrices: Map<string, { amount: number; currency: string }> | null = null,
   couponDroppedThisRead: { code: string; reason: string } | null = null,
   productMeta: Map<string, ProductMeta> = new Map(),
+  application: PromotionApplication | null = null,
 ) {
   let subtotal = 0;
   let currency = items[0]?.currency ?? 'PLN';
@@ -665,10 +679,24 @@ function serializeCart(
     items: serializedItems,
     itemCount: items.length,
     subtotal: { amount: subtotal, currency },
-    discount: cart.appliedPromotionCode
-      ? { code: cart.appliedPromotionCode, amount: 0, currency }
-      : null,
-    grandTotal: { amount: subtotal, currency },
+    discount:
+      application && application.discountTotal > 0
+        ? { code: cart.appliedPromotionCode ?? null, amount: application.discountTotal, currency }
+        : cart.appliedPromotionCode
+          ? { code: cart.appliedPromotionCode, amount: 0, currency }
+          : null,
+    appliedPromotions: application
+      ? application.appliedPromotions.map((ap) => ({
+          promotionId: ap.promotionId,
+          couponId: ap.couponId ?? null,
+          amount: ap.amount,
+          currency,
+        }))
+      : [],
+    grandTotal: {
+      amount: Math.max(0, round2Cart(subtotal - (application?.discountTotal ?? 0))),
+      currency,
+    },
     primaryCta: resolvePrimaryCta(cart),
     droppedLines: [],
     couponDroppedThisRead,
@@ -676,6 +704,10 @@ function serializeCart(
     updatedAt: cart.updatedAt.toISOString(),
     lastActivityAt: cart.lastActivityAt.toISOString(),
   };
+}
+
+function round2Cart(n: number): number {
+  return Math.round(n * 100) / 100;
 }
 
 function resolvePrimaryCta(cart: Cart) {
