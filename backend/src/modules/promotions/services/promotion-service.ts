@@ -30,6 +30,11 @@ import {
   createPromotionActionRegistry,
   type PromotionActionRegistry,
 } from './promotion-action-registry.js';
+import {
+  PromotionUsageService,
+  type FinalizeAppliedPromotion,
+  type UsageContext,
+} from './promotion-usage-service.js';
 import type { CartApplyContext } from '../actions/types.js';
 
 /**
@@ -88,7 +93,23 @@ export class PromotionService {
     private readonly resolveOrganizationStatus?: (orgId: string) => Promise<string | null>,
     /** Feature 045 — pluggable action catalogue. Defaults to the built-ins. */
     private readonly actionRegistry: PromotionActionRegistry = createPromotionActionRegistry(),
-  ) {}
+  ) {
+    this.usageService = new PromotionUsageService(emFactory);
+  }
+
+  private readonly usageService: PromotionUsageService;
+
+  /**
+   * Feature 045 (US5) — finalize usage for a placed order. MUST run inside the
+   * order-placement transaction (the passed `em` is that tx). Throws 409 if a
+   * usage cap is hit at the last moment so the transaction rolls back.
+   */
+  async finalizeUsage(
+    em: EntityManager,
+    input: { orderId: string; currency: string; ctx: UsageContext; applied: FinalizeAppliedPromotion[] },
+  ): Promise<void> {
+    await this.usageService.finalize(em, input);
+  }
 
   /** Expose the action catalogue for the admin `action-types` endpoint. */
   listActionTypes(): Array<{ type: string; labelKey: string }> {
@@ -240,7 +261,7 @@ export class PromotionService {
       }
     }
 
-    const eligible = all.filter((p) => {
+    let eligible = all.filter((p) => {
       if (p.validFrom && now < p.validFrom) return false;
       if (p.validUntil && now > p.validUntil) return false;
       if (
@@ -268,6 +289,14 @@ export class PromotionService {
       if (couponedPromotionIds.has(p.id) && couponMatch?.promotionId !== p.id) return false;
       return true;
     });
+
+    // Feature 045 (US5) — soft-exclude promotions whose limits are already met
+    // (best-effort; the atomic gate at placement is authoritative).
+    const exhausted = await this.usageService.filterExhausted(eligible, {
+      organizationId: snapshot.organizationId,
+      customerAccountId: snapshot.customerAccountId ?? null,
+    });
+    if (exhausted.size > 0) eligible = eligible.filter((p) => !exhausted.has(p.id));
 
     // Feature 045 — apply in priority order (DESC) with deterministic
     // tie-break (createdAt ASC, then id). Coupon-presented promotions keep

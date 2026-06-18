@@ -22,6 +22,24 @@ import type { BusinessIdGenerator } from './business-id-generator.js';
  */
 export interface PromotionPort {
   applyToCart(snapshot: CartSnapshot): Promise<PromotionApplication>;
+  /**
+   * Feature 045 (US5) — finalize usage atomically inside the placement
+   * transaction. Optional so legacy compositions still satisfy the port.
+   */
+  finalizeUsage?(
+    em: EntityManager,
+    input: {
+      orderId: string;
+      currency: string;
+      ctx: {
+        organizationId: string | null;
+        customerAccountId: string | null;
+        customerGroupId: string | null;
+        salesChannelId: string | null;
+      };
+      applied: Array<{ promotionId: string; couponId: string | null; amount: number }>;
+    },
+  ): Promise<void>;
 }
 import { Organization } from '../../organizations/entities/organization.entity.js';
 import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
@@ -840,6 +858,26 @@ export class OrderService {
         );
       }
       if (appliedPromotions.length > 0) await tx.flush();
+
+      // Feature 045 (US5) — atomically finalize usage inside this tx; a cap hit
+      // throws 409 and rolls the whole placement back (race-safe, SC-005).
+      if (this.promotion?.finalizeUsage && appliedPromotions.length > 0) {
+        await this.promotion.finalizeUsage(tx, {
+          orderId: order.id,
+          currency,
+          ctx: {
+            organizationId: ctx.organizationId,
+            customerAccountId: ctx.customerAccountId,
+            customerGroupId: null,
+            salesChannelId: channel?.id ?? null,
+          },
+          applied: appliedPromotions.map((ap) => ({
+            promotionId: ap.promotionId,
+            couponId: ap.couponId ?? null,
+            amount: ap.amount,
+          })),
+        });
+      }
 
       const orderItems = items.map((item) => {
         const product = productById.get(item.productId);
