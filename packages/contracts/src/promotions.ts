@@ -164,6 +164,174 @@ export const upsertPromotionRequestSchema = z
     }
   });
 
+// ============================================================================
+// FEATURE 045 — promotions rules engine
+// ============================================================================
+
+// --- Rule AST (typed superset of the price-list application-rule AST) -------
+
+/**
+ * Operator vocabulary for a promotion rule condition. The admissible set
+ * per field/value-type is enforced by the evaluator + write-time validation;
+ * the schema accepts the full vocabulary structurally.
+ */
+export const promotionRuleOpSchema = z.enum([
+  'eq',
+  'neq',
+  'gt',
+  'gte',
+  'lt',
+  'lte',
+  'between',
+  'in',
+  'notIn',
+  'contains',
+  'startsWith',
+]);
+export type PromotionRuleOp = z.infer<typeof promotionRuleOpSchema>;
+
+/** Built-in cart-context / relationship fields available to the Rule Builder. */
+export const promotionRuleBuiltinFieldSchema = z.enum([
+  'cartTotal',
+  'paymentMethod',
+  'deliveryMethod',
+  'deliveryCountry',
+  'deliveryPostalCode',
+  'organization',
+  'customerGroup',
+  'category',
+]);
+export type PromotionRuleBuiltinField = z.infer<typeof promotionRuleBuiltinFieldSchema>;
+
+/** A rule field is either a built-in key or a promo-eligible product attribute. */
+export const promotionRuleFieldSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('builtin'), key: promotionRuleBuiltinFieldSchema }),
+  z.object({
+    kind: z.literal('attribute'),
+    attributeKey: z.string().regex(attributeKeyRegex, 'invalid_attribute_key'),
+  }),
+]);
+export type PromotionRuleField = z.infer<typeof promotionRuleFieldSchema>;
+
+export const promotionRuleValueSchema = z.union([z.string(), z.number(), z.boolean()]);
+export type PromotionRuleValue = z.infer<typeof promotionRuleValueSchema>;
+
+export type PromotionRuleAll = { kind: 'all' };
+export type PromotionRuleCondition = {
+  kind: 'condition';
+  field: PromotionRuleField;
+  op: PromotionRuleOp;
+  values: PromotionRuleValue[];
+};
+export type PromotionRuleGroup = {
+  kind: 'group';
+  op: 'AND' | 'OR';
+  children: PromotionRule[];
+};
+export type PromotionRule = PromotionRuleAll | PromotionRuleCondition | PromotionRuleGroup;
+
+const promotionRuleAllNodeSchema = z.object({ kind: z.literal('all') });
+const promotionRuleConditionNodeSchema = z.object({
+  kind: z.literal('condition'),
+  field: promotionRuleFieldSchema,
+  op: promotionRuleOpSchema,
+  values: z.array(promotionRuleValueSchema).max(1000),
+});
+const promotionRuleNodeSchema: z.ZodType<PromotionRule> = z.lazy(() =>
+  z.discriminatedUnion('kind', [
+    promotionRuleAllNodeSchema,
+    promotionRuleConditionNodeSchema,
+    z.object({
+      kind: z.literal('group'),
+      op: z.enum(['AND', 'OR']),
+      children: z.array(promotionRuleNodeSchema).min(1).max(20),
+    }),
+  ]),
+);
+
+/** Maximum nesting depth of a rule tree (mirrors the price-list guard). */
+export function promotionRuleDepth(node: PromotionRule): number {
+  if (node.kind !== 'group') return 0;
+  return 1 + Math.max(0, ...node.children.map(promotionRuleDepth));
+}
+
+export const promotionRuleSchema = promotionRuleNodeSchema.refine(
+  (node) => promotionRuleDepth(node) <= 5,
+  { message: 'rule_depth_exceeds_5' },
+);
+
+// --- Action catalogue (discriminated by `type`) ----------------------------
+
+const ACTION_CURRENCY = z.string().regex(/^[A-Z]{3}$/, 'ISO 4217');
+const ACTION_PERCENT = z.number().finite().min(0).max(100);
+const ACTION_AMOUNT = z.number().finite().positive();
+const ACTION_POSITIVE_INT = z.number().int().positive();
+export const promotionGiftTargetSchema = z.enum(['cheapest', 'most_expensive']);
+export type PromotionGiftTarget = z.infer<typeof promotionGiftTargetSchema>;
+
+export const promotionActionSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('free_delivery') }),
+  z.object({ type: z.literal('percentage_off_cart'), percent: ACTION_PERCENT }),
+  z.object({ type: z.literal('amount_off_cart'), amount: ACTION_AMOUNT, currency: ACTION_CURRENCY }),
+  z.object({
+    type: z.literal('buy_x_get_y_free'),
+    buyQuantity: ACTION_POSITIVE_INT,
+    freeQuantity: ACTION_POSITIVE_INT,
+    target: promotionGiftTargetSchema,
+  }),
+  z.object({
+    type: z.literal('spend_x_percent_off'),
+    spendStep: ACTION_AMOUNT,
+    percent: ACTION_PERCENT,
+    currency: ACTION_CURRENCY,
+  }),
+  z.object({
+    type: z.literal('spend_x_amount_off'),
+    spendStep: ACTION_AMOUNT,
+    amount: ACTION_AMOUNT,
+    currency: ACTION_CURRENCY,
+  }),
+  z.object({
+    type: z.literal('every_nth_product_percent_off'),
+    nth: ACTION_POSITIVE_INT,
+    percent: ACTION_PERCENT,
+  }),
+  z.object({
+    type: z.literal('buy_x_units_y_free'),
+    productId: uuidSchema,
+    buyUnits: ACTION_POSITIVE_INT,
+    freeUnits: ACTION_POSITIVE_INT,
+  }),
+  z.object({
+    type: z.literal('buy_x_units_percent_off'),
+    productId: uuidSchema,
+    buyUnits: ACTION_POSITIVE_INT,
+    percent: ACTION_PERCENT,
+  }),
+  z.object({
+    type: z.literal('buy_x_units_amount_off'),
+    productId: uuidSchema,
+    buyUnits: ACTION_POSITIVE_INT,
+    amount: ACTION_AMOUNT,
+    currency: ACTION_CURRENCY,
+  }),
+]);
+export type PromotionAction = z.infer<typeof promotionActionSchema>;
+
+export const promotionActionTypeSchema = z.enum([
+  'free_delivery',
+  'percentage_off_cart',
+  'amount_off_cart',
+  'buy_x_get_y_free',
+  'spend_x_percent_off',
+  'spend_x_amount_off',
+  'every_nth_product_percent_off',
+  'buy_x_units_y_free',
+  'buy_x_units_percent_off',
+  'buy_x_units_amount_off',
+]);
+export type PromotionActionType = z.infer<typeof promotionActionTypeSchema>;
+
 // --- Cart application ------------------------------------------------------
 
 export const cartLineSchema = z.object({
@@ -192,6 +360,17 @@ export const cartSnapshotSchema = z.object({
   deliveryTotal: z.number().finite().nonnegative(),
   /** Promotion code presented at checkout, if any. */
   promotionCode: z.string().nullable().optional(),
+  /**
+   * Feature 045 — cart-context facts the promotion Rule Builder can target.
+   * All optional so legacy callers (preview probes, older carts) keep working;
+   * a rule condition over a field that is absent simply does not match.
+   */
+  salesChannelId: uuidSchema.nullable().optional(),
+  customerAccountId: uuidSchema.nullable().optional(),
+  paymentMethodCode: z.string().nullable().optional(),
+  deliveryMethodCode: z.string().nullable().optional(),
+  deliveryCountry: z.string().nullable().optional(),
+  deliveryPostalCode: z.string().nullable().optional(),
 });
 export type CartSnapshot = z.infer<typeof cartSnapshotSchema>;
 
