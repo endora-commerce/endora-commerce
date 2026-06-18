@@ -1,7 +1,12 @@
 import type { FastifyInstance } from 'fastify';
-import { cartSnapshotSchema, upsertPromotionRequestSchema } from '@b2b/contracts';
-import type { PromotionService } from './services/promotion-service.js';
+import {
+  cartSnapshotSchema,
+  upsertPromotionRequestSchema,
+  type PromotionAction,
+} from '@b2b/contracts';
+import type { PromotionService, UpsertPromotionInput } from './services/promotion-service.js';
 import type { Promotion } from './entities/promotion.entity.js';
+import { PROMOTION_PERMISSIONS } from './manifest.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { CatalogQueryService } from '../catalog/services/catalog-query.service.js';
 
@@ -17,51 +22,54 @@ export async function registerPromotionRoutes(
   deps: PromotionRoutesDeps,
 ): Promise<void> {
   const { promotionService, requireAdmin, catalogQueryService } = deps;
+  const readGate = requireAdmin(PROMOTION_PERMISSIONS.READ);
+  const writeGate = requireAdmin(PROMOTION_PERMISSIONS.WRITE);
+  const deleteGate = requireAdmin(PROMOTION_PERMISSIONS.DELETE);
 
-  app.get(
-    '/api/v1/admin/promotions',
-    { preHandler: requireAdmin('catalog:write') },
-    async () => {
-      const rows = await promotionService.list();
-      return { data: rows.map(serialize) };
+  app.get('/api/v1/admin/promotions', { preHandler: readGate }, async () => {
+    const rows = await promotionService.list();
+    return { data: rows.map(serialize) };
+  });
+
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/promotions/:id',
+    { preHandler: readGate },
+    async (request) => {
+      const row = await promotionService.getById(request.params.id);
+      return { data: serialize(row) };
     },
   );
 
+  // Feature 045 — action catalogue introspection for the admin action picker.
+  app.get('/api/v1/admin/promotions/action-types', { preHandler: readGate }, async () => {
+    return { data: { items: promotionService.listActionTypes() } };
+  });
+
   app.post(
     '/api/v1/admin/promotions',
-    {
-      preHandler: requireAdmin('catalog:write'),
-      schema: { body: upsertPromotionRequestSchema },
-    },
+    { preHandler: writeGate, schema: { body: upsertPromotionRequestSchema } },
     async (request, reply) => {
       const body = upsertPromotionRequestSchema.parse(request.body);
-      const row = await promotionService.upsert({
-        name: body.name,
-        kind: body.kind,
-        value: body.value,
-        ...(body.code !== undefined ? { code: body.code } : {}),
-        ...(body.currency !== undefined ? { currency: body.currency } : {}),
-        ...(body.minCartSubtotal !== undefined ? { minCartSubtotal: body.minCartSubtotal } : {}),
-        ...(body.validFrom !== undefined ? { validFrom: body.validFrom } : {}),
-        ...(body.validUntil !== undefined ? { validUntil: body.validUntil } : {}),
-        ...(body.organizationId !== undefined ? { organizationId: body.organizationId } : {}),
-        ...(body.customerGroupId !== undefined ? { customerGroupId: body.customerGroupId } : {}),
-        ...(body.categoryId !== undefined ? { categoryId: body.categoryId } : {}),
-        ...(body.productId !== undefined ? { productId: body.productId } : {}),
-        ...(body.criteria !== undefined ? { criteria: body.criteria } : {}),
-        ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
-      });
+      const row = await promotionService.upsert(toUpsertInput(body));
       reply.status(201);
       return { data: serialize(row) };
     },
   );
 
+  app.put<{ Params: { id: string } }>(
+    '/api/v1/admin/promotions/:id',
+    { preHandler: writeGate, schema: { body: upsertPromotionRequestSchema } },
+    async (request) => {
+      const body = upsertPromotionRequestSchema.parse(request.body);
+      const row = await promotionService.updateById(request.params.id, toUpsertInput(body));
+      return { data: serialize(row) };
+    },
+  );
+
   // Feature 012 / US8 — picker payload for the Promotion Rule editor.
-  // Lists every attribute carrying `isPromoRule = true` with its option
-  // list inline. Returns 503 when the catalog port wasn't wired.
   app.get(
     '/api/v1/admin/promotions/rule-targets/attributes',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: readGate },
     async (_request, reply) => {
       if (!catalogQueryService) {
         reply.status(503);
@@ -91,7 +99,7 @@ export async function registerPromotionRoutes(
 
   app.delete<{ Params: { id: string } }>(
     '/api/v1/admin/promotions/:id',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: deleteGate },
     async (request, reply) => {
       await promotionService.remove(request.params.id);
       return reply.status(204).send();
@@ -100,10 +108,7 @@ export async function registerPromotionRoutes(
 
   app.post(
     '/api/v1/admin/promotions/preview',
-    {
-      preHandler: requireAdmin('catalog:write'),
-      schema: { body: cartSnapshotSchema },
-    },
+    { preHandler: readGate, schema: { body: cartSnapshotSchema } },
     async (request) => {
       const snapshot = cartSnapshotSchema.parse(request.body);
       const result = await promotionService.applyToCart(snapshot);
@@ -112,13 +117,51 @@ export async function registerPromotionRoutes(
   );
 }
 
+type UpsertBody = ReturnType<typeof upsertPromotionRequestSchema.parse>;
+
+/** Pass through validated request fields into the service input. */
+function toUpsertInput(body: UpsertBody): UpsertPromotionInput {
+  return {
+    name: body.name,
+    ...(body.code !== undefined ? { code: body.code } : {}),
+    ...(body.kind !== undefined ? { kind: body.kind } : {}),
+    ...(body.value !== undefined ? { value: body.value } : {}),
+    ...(body.currency !== undefined ? { currency: body.currency } : {}),
+    ...(body.minCartSubtotal !== undefined ? { minCartSubtotal: body.minCartSubtotal } : {}),
+    ...(body.validFrom !== undefined ? { validFrom: body.validFrom } : {}),
+    ...(body.validUntil !== undefined ? { validUntil: body.validUntil } : {}),
+    ...(body.organizationId !== undefined ? { organizationId: body.organizationId } : {}),
+    ...(body.customerGroupId !== undefined ? { customerGroupId: body.customerGroupId } : {}),
+    ...(body.categoryId !== undefined ? { categoryId: body.categoryId } : {}),
+    ...(body.productId !== undefined ? { productId: body.productId } : {}),
+    ...(body.criteria !== undefined ? { criteria: body.criteria } : {}),
+    ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
+    ...(body.description !== undefined ? { description: body.description } : {}),
+    ...(body.priority !== undefined ? { priority: body.priority } : {}),
+    ...(body.stopFurther !== undefined ? { stopFurther: body.stopFurther } : {}),
+    ...(body.action !== undefined ? { action: body.action } : {}),
+    ...(body.ruleId !== undefined ? { ruleId: body.ruleId } : {}),
+    ...(body.rule !== undefined ? { rule: body.rule } : {}),
+    ...(body.usageLimitGlobal !== undefined ? { usageLimitGlobal: body.usageLimitGlobal } : {}),
+    ...(body.usageLimitPerOrganization !== undefined
+      ? { usageLimitPerOrganization: body.usageLimitPerOrganization }
+      : {}),
+    ...(body.usageLimitPerCustomer !== undefined
+      ? { usageLimitPerCustomer: body.usageLimitPerCustomer }
+      : {}),
+  };
+}
+
 function serialize(row: Promotion): Record<string, unknown> {
+  const action: PromotionAction | null = row.actionType
+    ? ({ type: row.actionType, ...row.actionConfig } as PromotionAction)
+    : null;
   return {
     id: row.id,
     code: row.code ?? null,
     name: row.name,
-    kind: row.kind,
-    value: Number(row.value),
+    kind: row.kind ?? null,
+    value: row.value != null ? Number(row.value) : null,
     currency: row.currency ?? null,
     minCartSubtotal: row.minCartSubtotal != null ? Number(row.minCartSubtotal) : null,
     validFrom: row.validFrom?.toISOString() ?? null,
@@ -129,6 +172,15 @@ function serialize(row: Promotion): Record<string, unknown> {
     productId: row.productId ?? null,
     criteria: row.criteria ?? [],
     isActive: row.isActive,
+    description: row.description ?? null,
+    priority: row.priority,
+    stopFurther: row.stopFurther,
+    action,
+    ruleId: row.ruleId ?? null,
+    rule: row.ruleDefinition ?? null,
+    usageLimitGlobal: row.usageLimitGlobal ?? null,
+    usageLimitPerOrganization: row.usageLimitPerOrganization ?? null,
+    usageLimitPerCustomer: row.usageLimitPerCustomer ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

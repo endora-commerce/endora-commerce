@@ -81,6 +81,7 @@ import { Migration072FixInPersonPickupAdapter } from '../modules/delivery_method
 import { Migration073QuoteRequestsBusinessId } from '../modules/quote_requests/migrations/073_quote_requests_business_id.js';
 import { Migration075SettingsEnumOptions } from '../modules/settings/migrations/075_settings_enum_options.js';
 import { Migration076BackfillAdminCreatedAwaiting } from '../modules/quote_requests/migrations/076_backfill_admin_created_awaiting.js';
+import { Migration077PromotionsEngine } from '../modules/promotions/migrations/077_promotions_engine.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -384,6 +385,10 @@ export default defineConfig({
       {
         name: 'Migration076BackfillAdminCreatedAwaiting',
         class: Migration076BackfillAdminCreatedAwaiting,
+      },
+      {
+        name: 'Migration077PromotionsEngine',
+        class: Migration077PromotionsEngine,
       },
     ],
     transactional: true,

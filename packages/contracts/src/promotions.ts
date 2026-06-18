@@ -77,93 +77,6 @@ export const promotionCriterionSchema = z.discriminatedUnion('type', [
 export type PromotionCriterion = z.infer<typeof promotionCriterionSchema>;
 export type AttributePromotionCriterion = z.infer<typeof attributeCriterionSchema>;
 
-export const promotionKindSchema = z.enum([
-  'percentage_off',
-  'amount_off',
-  'free_delivery',
-]);
-export type PromotionKind = z.infer<typeof promotionKindSchema>;
-
-export const promotionSchema = z.object({
-  id: uuidSchema,
-  code: z.string().nullable(),
-  name: z.string().min(1).max(160),
-  kind: promotionKindSchema,
-  value: z.number().finite().nonnegative(),
-  currency: z.string().regex(/^[A-Z]{3}$/, 'ISO 4217').nullable(),
-  minCartSubtotal: z.number().finite().nonnegative().nullable(),
-  validFrom: isoDateTimeSchema.nullable(),
-  validUntil: isoDateTimeSchema.nullable(),
-  organizationId: uuidSchema.nullable(),
-  customerGroupId: uuidSchema.nullable(),
-  categoryId: uuidSchema.nullable(),
-  productId: uuidSchema.nullable(),
-  /**
-   * Feature 012 / US8 — optional line-level criteria evaluated alongside
-   * the flat `categoryId`/`productId` scope. ANDed with the flat fields:
-   * a line must satisfy both the legacy scope AND every criterion to be
-   * included in the promotion's `lineBase`.
-   */
-  criteria: z.array(promotionCriterionSchema).default([]),
-  isActive: z.boolean(),
-  createdAt: isoDateTimeSchema,
-  updatedAt: isoDateTimeSchema,
-});
-export type Promotion = z.infer<typeof promotionSchema>;
-
-export const upsertPromotionRequestSchema = z
-  .object({
-    code: z.string().min(1).max(64).nullable().optional(),
-    name: z.string().min(1).max(160),
-    kind: promotionKindSchema,
-    value: z.number().finite().nonnegative(),
-    currency: z.string().regex(/^[A-Z]{3}$/).nullable().optional(),
-    minCartSubtotal: z.number().finite().nonnegative().nullable().optional(),
-    validFrom: isoDateTimeSchema.nullable().optional(),
-    validUntil: isoDateTimeSchema.nullable().optional(),
-    organizationId: uuidSchema.nullable().optional(),
-    customerGroupId: uuidSchema.nullable().optional(),
-    categoryId: uuidSchema.nullable().optional(),
-    productId: uuidSchema.nullable().optional(),
-    criteria: z.array(promotionCriterionSchema).optional(),
-    isActive: z.boolean().optional(),
-  })
-  .superRefine((value, ctx) => {
-    if (value.kind === 'amount_off' && value.currency == null) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'amount_off promotions require a currency',
-        path: ['currency'],
-      });
-    }
-    if (value.kind === 'percentage_off' && (value.value < 0 || value.value > 100)) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'percentage_off value must be between 0 and 100',
-        path: ['value'],
-      });
-    }
-    if (value.criteria) {
-      value.criteria.forEach((c, idx) => {
-        if (c.type !== 'attribute') return;
-        if (c.op === 'equals' && c.values.length !== 1) {
-          ctx.addIssue({
-            code: 'custom',
-            message: 'invalid_criterion_values: equals expects a single-element values array',
-            path: ['criteria', idx, 'values'],
-          });
-        }
-        if (c.op === 'range' && c.values.length !== 2) {
-          ctx.addIssue({
-            code: 'custom',
-            message: 'invalid_criterion_values: range expects exactly [min, max]',
-            path: ['criteria', idx, 'values'],
-          });
-        }
-      });
-    }
-  });
-
 // ============================================================================
 // FEATURE 045 — promotions rules engine
 // ============================================================================
@@ -332,6 +245,145 @@ export const promotionActionTypeSchema = z.enum([
 ]);
 export type PromotionActionType = z.infer<typeof promotionActionTypeSchema>;
 
+
+export const promotionKindSchema = z.enum([
+  'percentage_off',
+  'amount_off',
+  'free_delivery',
+]);
+export type PromotionKind = z.infer<typeof promotionKindSchema>;
+
+export const promotionSchema = z.object({
+  id: uuidSchema,
+  code: z.string().nullable(),
+  name: z.string().min(1).max(160),
+  /** Legacy effect kind — nullable on feature-045 action-based promotions. */
+  kind: promotionKindSchema.nullable(),
+  /** Legacy effect value — nullable on feature-045 action-based promotions. */
+  value: z.number().finite().nonnegative().nullable(),
+  currency: z.string().regex(/^[A-Z]{3}$/, 'ISO 4217').nullable(),
+  minCartSubtotal: z.number().finite().nonnegative().nullable(),
+  validFrom: isoDateTimeSchema.nullable(),
+  validUntil: isoDateTimeSchema.nullable(),
+  organizationId: uuidSchema.nullable(),
+  customerGroupId: uuidSchema.nullable(),
+  categoryId: uuidSchema.nullable(),
+  productId: uuidSchema.nullable(),
+  /**
+   * Feature 012 / US8 — optional line-level criteria evaluated alongside
+   * the flat `categoryId`/`productId` scope. ANDed with the flat fields:
+   * a line must satisfy both the legacy scope AND every criterion to be
+   * included in the promotion's `lineBase`.
+   */
+  criteria: z.array(promotionCriterionSchema).default([]),
+  isActive: z.boolean(),
+  // --- Feature 045 — engine fields -----------------------------------------
+  description: z.string().nullable().default(null),
+  priority: z.number().int().default(0),
+  stopFurther: z.boolean().default(false),
+  /** Configured action (null on legacy kind/value promotions). */
+  action: promotionActionSchema.nullable().default(null),
+  /** Named rule reference (mutually exclusive with `rule`). */
+  ruleId: uuidSchema.nullable().default(null),
+  /** Inline rule definition (mutually exclusive with `ruleId`). */
+  rule: promotionRuleSchema.nullable().default(null),
+  usageLimitGlobal: z.number().int().positive().nullable().default(null),
+  usageLimitPerOrganization: z.number().int().positive().nullable().default(null),
+  usageLimitPerCustomer: z.number().int().positive().nullable().default(null),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type Promotion = z.infer<typeof promotionSchema>;
+
+export const upsertPromotionRequestSchema = z
+  .object({
+    code: z.string().min(1).max(64).nullable().optional(),
+    name: z.string().min(1).max(160),
+    /** Legacy effect — optional when a feature-045 `action` is provided. */
+    kind: promotionKindSchema.optional(),
+    value: z.number().finite().nonnegative().optional(),
+    currency: z.string().regex(/^[A-Z]{3}$/).nullable().optional(),
+    minCartSubtotal: z.number().finite().nonnegative().nullable().optional(),
+    validFrom: isoDateTimeSchema.nullable().optional(),
+    validUntil: isoDateTimeSchema.nullable().optional(),
+    organizationId: uuidSchema.nullable().optional(),
+    customerGroupId: uuidSchema.nullable().optional(),
+    categoryId: uuidSchema.nullable().optional(),
+    productId: uuidSchema.nullable().optional(),
+    criteria: z.array(promotionCriterionSchema).optional(),
+    isActive: z.boolean().optional(),
+    // --- Feature 045 — engine fields ---------------------------------------
+    description: z.string().max(2000).nullable().optional(),
+    priority: z.number().int().optional(),
+    stopFurther: z.boolean().optional(),
+    action: promotionActionSchema.optional(),
+    ruleId: uuidSchema.nullable().optional(),
+    rule: promotionRuleSchema.nullable().optional(),
+    usageLimitGlobal: z.number().int().positive().nullable().optional(),
+    usageLimitPerOrganization: z.number().int().positive().nullable().optional(),
+    usageLimitPerCustomer: z.number().int().positive().nullable().optional(),
+    /** Sales channels this promotion runs in (membership bridge). */
+    salesChannelIds: z.array(uuidSchema).optional(),
+  })
+  .superRefine((value, ctx) => {
+    // A promotion is driven by EITHER a feature-045 `action` OR the legacy
+    // `kind` + `value` pair — exactly one source must be present.
+    if (!value.action && !value.kind) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'a promotion requires either an action or a legacy kind',
+        path: ['action'],
+      });
+    }
+    if (value.kind && value.value === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'legacy kind promotions require a value',
+        path: ['value'],
+      });
+    }
+    if (value.ruleId && value.rule) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'rule_source_conflict: provide either ruleId or rule, not both',
+        path: ['rule'],
+      });
+    }
+    if (value.kind === 'amount_off' && value.currency == null) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'amount_off promotions require a currency',
+        path: ['currency'],
+      });
+    }
+    if (value.kind === 'percentage_off' && value.value !== undefined && (value.value < 0 || value.value > 100)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'percentage_off value must be between 0 and 100',
+        path: ['value'],
+      });
+    }
+    if (value.criteria) {
+      value.criteria.forEach((c, idx) => {
+        if (c.type !== 'attribute') return;
+        if (c.op === 'equals' && c.values.length !== 1) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'invalid_criterion_values: equals expects a single-element values array',
+            path: ['criteria', idx, 'values'],
+          });
+        }
+        if (c.op === 'range' && c.values.length !== 2) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'invalid_criterion_values: range expects exactly [min, max]',
+            path: ['criteria', idx, 'values'],
+          });
+        }
+      });
+    }
+  });
+
 // --- Cart application ------------------------------------------------------
 
 export const cartLineSchema = z.object({
@@ -382,7 +434,12 @@ export const promotionApplicationSchema = z.object({
   appliedPromotions: z.array(
     z.object({
       promotionId: uuidSchema,
-      kind: promotionKindSchema,
+      /** Legacy effect kind — null for feature-045 action-based promotions. */
+      kind: promotionKindSchema.nullable(),
+      /** Feature 045 — action type when the promotion is action-based. */
+      actionType: promotionActionTypeSchema.nullable().default(null),
+      /** Feature 045 — coupon that gated this application, if any. */
+      couponId: uuidSchema.nullable().default(null),
       amount: z.number().finite().nonnegative(),
     }),
   ),

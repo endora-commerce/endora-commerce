@@ -101,6 +101,11 @@ import { PriceListPriceBracket } from '../modules/price_lists/entities/price-lis
 import { PriceDisplayModeOverride } from '../modules/price_lists/entities/price-display-mode-override.entity.js';
 import { Tax } from '../modules/taxes/entities/tax.entity.js';
 import { Promotion } from '../modules/promotions/entities/promotion.entity.js';
+import { PromotionRuleEntity } from '../modules/promotions/entities/promotion-rule.entity.js';
+import { CouponBatch } from '../modules/promotions/entities/coupon-batch.entity.js';
+import { PromotionCoupon } from '../modules/promotions/entities/promotion-coupon.entity.js';
+import { PromotionUsage } from '../modules/promotions/entities/promotion-usage.entity.js';
+import { PromotionUsageCounter } from '../modules/promotions/entities/promotion-usage-counter.entity.js';
 import { ShoppingList } from '../modules/shopping_lists/entities/shopping-list.entity.js';
 import { ShoppingListItem } from '../modules/shopping_lists/entities/shopping-list-item.entity.js';
 import { SettingGroup } from '../modules/settings/entities/setting-group.entity.js';
@@ -258,6 +263,12 @@ export const ALL_ENTITIES = [
   // taxes + promotions (Phase 4 polish / T128, T129)
   Tax,
   Promotion,
+  // promotions engine (feature 045)
+  PromotionRuleEntity,
+  CouponBatch,
+  PromotionCoupon,
+  PromotionUsage,
+  PromotionUsageCounter,
   // shopping lists (US5 / T200)
   ShoppingList,
   ShoppingListItem,
