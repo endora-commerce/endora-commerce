@@ -21,6 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useAuth } from '@/lib/auth';
 import { CurrencyPicker } from '../dictionaries/components/CurrencyPicker';
 
 interface PromotionActionView {
@@ -124,6 +125,9 @@ function allowedOpsFor(valueType: AttributeValueType): AttributeOp[] {
 export const PromotionsPage = (): ReactNode => {
   const t = useTranslation('core');
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission('promotions:write');
+  const canDelete = hasPermission('promotions:delete');
   const [rows, setRows] = useState<AdminPromotion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -195,11 +199,13 @@ export const PromotionsPage = (): ReactNode => {
         description={t('promotions.page.description')}
       />
 
-      <div className="mb-4">
-        <Button type="button" onClick={() => navigate('/promotions/new')}>
-          <Plus /> {t('promotions.edit.titleNew')}
-        </Button>
-      </div>
+      {canWrite ? (
+        <div className="mb-4">
+          <Button type="button" onClick={() => navigate('/promotions/new')}>
+            <Plus /> {t('promotions.edit.titleNew')}
+          </Button>
+        </div>
+      ) : null}
 
       {error ? (
         <Alert variant="destructive" className="mb-4">
@@ -275,16 +281,18 @@ export const PromotionsPage = (): ReactNode => {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        type="button"
-                        className="mr-2"
-                        onClick={() => navigate(`/promotions/${p.id}`)}
-                      >
-                        <Pencil />
-                        {t('promotions.edit.titleEdit')}
-                      </Button>
+                      {canWrite ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          className="mr-2"
+                          onClick={() => navigate(`/promotions/${p.id}`)}
+                        >
+                          <Pencil />
+                          {t('promotions.edit.titleEdit')}
+                        </Button>
+                      ) : null}
                       <Button
                         variant="outline"
                         size="sm"
@@ -295,15 +303,17 @@ export const PromotionsPage = (): ReactNode => {
                         <BarChart3 />
                         {t('promotionStats.title')}
                       </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        type="button"
-                        onClick={(): void => void handleDelete(p.id)}
-                      >
-                        <Trash2 />
-                        {t('promotions.action.delete')}
-                      </Button>
+                      {canDelete ? (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          type="button"
+                          onClick={(): void => void handleDelete(p.id)}
+                        >
+                          <Trash2 />
+                          {t('promotions.action.delete')}
+                        </Button>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 ))}
