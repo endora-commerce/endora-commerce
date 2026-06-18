@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -122,6 +123,7 @@ function allowedOpsFor(valueType: AttributeValueType): AttributeOp[] {
 
 export const PromotionsPage = (): ReactNode => {
   const t = useTranslation('core');
+  const navigate = useNavigate();
   const [rows, setRows] = useState<AdminPromotion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -192,6 +194,12 @@ export const PromotionsPage = (): ReactNode => {
         title={t('promotions.page.title')}
         description={t('promotions.page.description')}
       />
+
+      <div className="mb-4">
+        <Button type="button" onClick={() => navigate('/promotions/new')}>
+          <Plus /> {t('promotions.edit.titleNew')}
+        </Button>
+      </div>
 
       {error ? (
         <Alert variant="destructive" className="mb-4">
@@ -267,6 +275,16 @@ export const PromotionsPage = (): ReactNode => {
                       </Badge>
                     </TableCell>
                     <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        className="mr-2"
+                        onClick={() => navigate(`/promotions/${p.id}`)}
+                      >
+                        <Pencil />
+                        {t('promotions.edit.titleEdit')}
+                      </Button>
                       <Button
                         variant="destructive"
                         size="sm"
