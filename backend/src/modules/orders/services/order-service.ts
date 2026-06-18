@@ -95,6 +95,13 @@ export interface OrderEvents extends Record<string, EventBase> {
     to: string;
   };
   'order.cancelled.v1': EventBase & { orderId: string };
+  // Feature 045 (T092) — fired post-commit per finalized promotion redemption.
+  'promotion.used.v1': EventBase & {
+    orderId: string;
+    promotionId: string;
+    couponId: string | null;
+    amount: number;
+  };
 }
 export type OrderEventBus = EventBus<OrderEvents>;
 
@@ -1054,6 +1061,20 @@ export class OrderService {
         orderId: order.id,
         organizationId: ctx.organizationId,
       });
+
+      // Feature 045 (T092) — one fire-and-forget event per finalized redemption
+      // for downstream consumers (analytics / webhooks). Not the enforcement
+      // path — usage was already finalized atomically above.
+      for (const ap of appliedPromotions) {
+        this.events.emit('promotion.used.v1', {
+          eventId: randomUUID(),
+          occurredAt: new Date().toISOString(),
+          orderId: order.id,
+          promotionId: ap.promotionId,
+          couponId: ap.couponId ?? null,
+          amount: ap.amount,
+        });
+      }
 
       // Impersonated order placement → audit row tying the Admin User to the
       // action on behalf of the Customer (R-12, T183).
