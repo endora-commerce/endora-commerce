@@ -384,6 +384,25 @@ export const upsertPromotionRequestSchema = z
     }
   });
 
+// --- Named rules (US6) -----------------------------------------------------
+
+export const promotionRuleRecordSchema = z.object({
+  id: uuidSchema,
+  name: z.string().min(1).max(160),
+  description: z.string().nullable(),
+  definition: promotionRuleSchema,
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type PromotionRuleRecord = z.infer<typeof promotionRuleRecordSchema>;
+
+export const upsertPromotionRuleRequestSchema = z.object({
+  name: z.string().min(1).max(160),
+  description: z.string().max(2000).nullable().optional(),
+  definition: promotionRuleSchema,
+});
+export type UpsertPromotionRuleRequest = z.infer<typeof upsertPromotionRuleRequestSchema>;
+
 // --- Coupons & generator (US3 / US4) ---------------------------------------
 
 export const couponFormatSchema = z.enum(['alnum', 'digits', 'letters']);

@@ -3,12 +3,15 @@ import {
   cartSnapshotSchema,
   generateCouponsRequestSchema,
   upsertPromotionRequestSchema,
+  upsertPromotionRuleRequestSchema,
   type PromotionAction,
 } from '@b2b/contracts';
 import type { PromotionService, UpsertPromotionInput } from './services/promotion-service.js';
 import type { CouponService } from './services/coupon-service.js';
+import type { PromotionRuleStore } from './services/promotion-rule-store.js';
 import type { Promotion } from './entities/promotion.entity.js';
 import type { PromotionCoupon } from './entities/promotion-coupon.entity.js';
+import type { PromotionRuleEntity } from './entities/promotion-rule.entity.js';
 import { PROMOTION_PERMISSIONS } from './manifest.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { CatalogQueryService } from '../catalog/services/catalog-query.service.js';
@@ -16,6 +19,7 @@ import type { CatalogQueryService } from '../catalog/services/catalog-query.serv
 export interface PromotionRoutesDeps {
   promotionService: PromotionService;
   couponService: CouponService;
+  ruleStore: PromotionRuleStore;
   requireAdmin: RequireAdminFactory;
   /** Feature 012 / US8 — feeds the rule-target picker endpoint. */
   catalogQueryService?: CatalogQueryService;
@@ -25,7 +29,7 @@ export async function registerPromotionRoutes(
   app: FastifyInstance,
   deps: PromotionRoutesDeps,
 ): Promise<void> {
-  const { promotionService, couponService, requireAdmin, catalogQueryService } = deps;
+  const { promotionService, couponService, ruleStore, requireAdmin, catalogQueryService } = deps;
   const readGate = requireAdmin(PROMOTION_PERMISSIONS.READ);
   const writeGate = requireAdmin(PROMOTION_PERMISSIONS.WRITE);
   const deleteGate = requireAdmin(PROMOTION_PERMISSIONS.DELETE);
@@ -48,6 +52,60 @@ export async function registerPromotionRoutes(
   app.get('/api/v1/admin/promotions/action-types', { preHandler: readGate }, async () => {
     return { data: { items: promotionService.listActionTypes() } };
   });
+
+  // Feature 045 (US6) — standalone named rules.
+  app.get('/api/v1/admin/promotion-rules', { preHandler: readGate }, async () => {
+    const rows = await ruleStore.list();
+    return { data: rows.map(serializeRule) };
+  });
+
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/promotion-rules/:id',
+    { preHandler: readGate },
+    async (request) => {
+      const row = await ruleStore.getById(request.params.id);
+      const usedBy = await ruleStore.usedBy(request.params.id);
+      return { data: serializeRule(row), usedBy };
+    },
+  );
+
+  app.post(
+    '/api/v1/admin/promotion-rules',
+    { preHandler: writeGate, schema: { body: upsertPromotionRuleRequestSchema } },
+    async (request, reply) => {
+      const body = upsertPromotionRuleRequestSchema.parse(request.body);
+      const row = await ruleStore.create({
+        name: body.name,
+        ...(body.description !== undefined ? { description: body.description } : {}),
+        definition: body.definition,
+      });
+      reply.status(201);
+      return { data: serializeRule(row) };
+    },
+  );
+
+  app.put<{ Params: { id: string } }>(
+    '/api/v1/admin/promotion-rules/:id',
+    { preHandler: writeGate, schema: { body: upsertPromotionRuleRequestSchema } },
+    async (request) => {
+      const body = upsertPromotionRuleRequestSchema.parse(request.body);
+      const row = await ruleStore.update(request.params.id, {
+        name: body.name,
+        ...(body.description !== undefined ? { description: body.description } : {}),
+        definition: body.definition,
+      });
+      return { data: serializeRule(row) };
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/v1/admin/promotion-rules/:id',
+    { preHandler: deleteGate },
+    async (request, reply) => {
+      await ruleStore.remove(request.params.id);
+      return reply.status(204).send();
+    },
+  );
 
   app.post(
     '/api/v1/admin/promotions',
@@ -201,6 +259,17 @@ function toUpsertInput(body: UpsertBody): UpsertPromotionInput {
     ...(body.usageLimitPerCustomer !== undefined
       ? { usageLimitPerCustomer: body.usageLimitPerCustomer }
       : {}),
+  };
+}
+
+function serializeRule(r: PromotionRuleEntity): Record<string, unknown> {
+  return {
+    id: r.id,
+    name: r.name,
+    description: r.description ?? null,
+    definition: r.definition,
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
   };
 }
 

@@ -145,6 +145,7 @@ const NAV: NavSection[] = [
     items: [
       { to: '/price-lists', labelKey: 'appShell.nav.priceLists', icon: CircleDollarSign },
       { to: '/promotions', labelKey: 'appShell.nav.promotions', icon: PercentDiamond, requiredPermission: 'promotions:read' },
+      { to: '/promotion-rules', labelKey: 'appShell.nav.promotionRules', icon: PercentDiamond, requiredPermission: 'promotions:read' },
       { to: '/taxes', labelKey: 'appShell.nav.taxes', icon: Receipt },
       { to: '/delivery-methods', labelKey: 'appShell.nav.deliveryMethods', icon: Truck },
       { to: '/payment-methods', labelKey: 'appShell.nav.paymentMethods', icon: CreditCard },

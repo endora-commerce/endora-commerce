@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api-client';
-import type { Promotion, PromotionAction, PromotionRule } from '@b2b/contracts';
+import type { Promotion, PromotionAction, PromotionRule, PromotionRuleRecord } from '@b2b/contracts';
 
 /**
  * Feature 045 — admin API client for the promotions engine.
@@ -69,6 +69,14 @@ export const promotionsClient = {
         req,
       )
       .then((r) => r.data),
+};
+
+export const promotionRulesClient = {
+  list: (): Promise<PromotionRuleRecord[]> =>
+    apiClient.get<{ data: PromotionRuleRecord[] }>('/api/v1/admin/promotion-rules').then((r) => r.data),
+  create: (input: { name: string; description?: string | null; definition: PromotionRule }): Promise<PromotionRuleRecord> =>
+    apiClient.post<{ data: PromotionRuleRecord }>('/api/v1/admin/promotion-rules', input).then((r) => r.data),
+  remove: (id: string): Promise<void> => apiClient.delete<void>(`/api/v1/admin/promotion-rules/${id}`),
 };
 
 export interface GenerateBatchRequest {

@@ -12,8 +12,9 @@ import { Select } from '@/components/ui/select';
 import { RuleBuilder, type RuleAttributeField } from '@/components/rule-builder/RuleBuilder';
 import { useTranslation } from '@/i18n/useTranslation';
 import type { PromotionAction, PromotionActionType, PromotionRule } from '@b2b/contracts';
-import { promotionsClient, type Coupon } from './client';
+import { promotionsClient, promotionRulesClient, type Coupon } from './client';
 import { CouponGeneratorForm } from './CouponGeneratorForm';
+import type { PromotionRuleRecord } from '@b2b/contracts';
 
 const ACTION_TYPES: PromotionActionType[] = [
   'free_delivery',
@@ -67,6 +68,9 @@ export const PromotionEditPage = (): ReactNode => {
   const [stopFurther, setStopFurther] = useState(false);
   const [action, setAction] = useState<PromotionAction>(defaultAction('percentage_off_cart'));
   const [rule, setRule] = useState<PromotionRule>({ kind: 'all' });
+  const [ruleMode, setRuleMode] = useState<'inline' | 'saved'>('inline');
+  const [ruleId, setRuleId] = useState<string>('');
+  const [savedRules, setSavedRules] = useState<PromotionRuleRecord[]>([]);
   const [usageGlobal, setUsageGlobal] = useState('');
   const [usagePerOrg, setUsagePerOrg] = useState('');
   const [usagePerCustomer, setUsagePerCustomer] = useState('');
@@ -82,6 +86,7 @@ export const PromotionEditPage = (): ReactNode => {
         setAttributeFields(items.map((a) => ({ attributeKey: a.key, label: a.labelDefault || a.key }))),
       )
       .catch(() => setAttributeFields([]));
+    void promotionRulesClient.list().then(setSavedRules).catch(() => setSavedRules([]));
   }, []);
 
   useEffect(() => {
@@ -98,6 +103,10 @@ export const PromotionEditPage = (): ReactNode => {
         setStopFurther(p.stopFurther);
         if (p.action) setAction(p.action);
         setRule(p.rule ?? { kind: 'all' });
+        if (p.ruleId) {
+          setRuleMode('saved');
+          setRuleId(p.ruleId);
+        }
         setUsageGlobal(p.usageLimitGlobal != null ? String(p.usageLimitGlobal) : '');
         setUsagePerOrg(p.usageLimitPerOrganization != null ? String(p.usageLimitPerOrganization) : '');
         setUsagePerCustomer(p.usageLimitPerCustomer != null ? String(p.usageLimitPerCustomer) : '');
@@ -126,7 +135,7 @@ export const PromotionEditPage = (): ReactNode => {
           priority,
           stopFurther,
           action,
-          rule,
+          ...(ruleMode === 'saved' && ruleId ? { ruleId } : { rule }),
           code: code.trim() === '' ? null : code,
           usageLimitGlobal: intOrNull(usageGlobal),
           usageLimitPerOrganization: intOrNull(usagePerOrg),
@@ -142,7 +151,7 @@ export const PromotionEditPage = (): ReactNode => {
       }
     },
     [
-      name, description, isActive, priority, stopFurther, action, rule, code,
+      name, description, isActive, priority, stopFurther, action, rule, ruleMode, ruleId, code,
       usageGlobal, usagePerOrg, usagePerCustomer, isNew, id, navigate, t,
     ],
   );
@@ -227,8 +236,26 @@ export const PromotionEditPage = (): ReactNode => {
           <CardHeader>
             <CardTitle>{t('promotions.edit.rule')}</CardTitle>
           </CardHeader>
-          <CardContent>
-            <RuleBuilder value={rule} onChange={setRule} attributeFields={attributeFields} />
+          <CardContent className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <Select className="w-48" value={ruleMode} onChange={(e) => setRuleMode(e.target.value as 'inline' | 'saved')}>
+                <option value="inline">{t('promotions.edit.ruleInline')}</option>
+                <option value="saved">{t('promotions.edit.ruleSaved')}</option>
+              </Select>
+              {ruleMode === 'saved' ? (
+                <Select className="w-72" value={ruleId} onChange={(e) => setRuleId(e.target.value)}>
+                  <option value="">—</option>
+                  {savedRules.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </Select>
+              ) : null}
+            </div>
+            {ruleMode === 'inline' ? (
+              <RuleBuilder value={rule} onChange={setRule} attributeFields={attributeFields} />
+            ) : null}
           </CardContent>
         </Card>
 
