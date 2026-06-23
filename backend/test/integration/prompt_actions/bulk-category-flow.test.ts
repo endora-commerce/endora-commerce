@@ -141,6 +141,78 @@ describe('US2 — bulk category assignment (T041/T042)', () => {
     expect(assigned.sort()).toEqual([...helmetIds].sort());
   });
 
+  it('removes only the named category, keeping other memberships (US2 remove)', async () => {
+    const em = h.em();
+    // A second category that must stay assigned after the removal.
+    const other = em.create(Category, {
+      name: { 'en-US': 'Gear', 'pl-PL': 'Sprzęt' },
+      slug: 'gear-043',
+    });
+    await em.persistAndFlush(other);
+    const ids = [...helmetIds.slice(0, 3)];
+    // Pre-assign the 3 products to BOTH categories.
+    for (const pid of ids) {
+      await em
+        .getConnection()
+        .execute(`insert into product_categories (product_id, category_id) values (?, ?), (?, ?)`, [
+          pid,
+          categoryId,
+          pid,
+          other.id,
+        ]);
+    }
+
+    llm
+      .enqueueToolUse({ name: 'catalog.search_products', input: { q: 'Helmets', limit: 20 } })
+      .enqueueToolUse({ name: 'catalog.search_categories', input: { q: 'Helmets' } })
+      .enqueueToolUse({
+        name: 'catalog.remove_products_from_category',
+        input: { productIds: ids, categoryId },
+      })
+      .enqueueDone();
+
+    const submit = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/prompt-actions/requests',
+      cookies: adminCookie,
+      payload: { prompt: 'Usuń te produkty z kategorii Helmets' },
+    });
+    expect(submit.statusCode).toBe(201);
+    const body = submit.json() as {
+      data: {
+        id: string;
+        status: string;
+        plan: { operations: Array<{ preview: { affectedCount: number } }> };
+      };
+    };
+    expect(body.data.status).toBe('awaiting_confirmation');
+    expect(body.data.plan.operations[0]!.preview.affectedCount).toBe(3);
+
+    const confirm = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/prompt-actions/requests/${body.data.id}/confirm`,
+      cookies: adminCookie,
+    });
+    expect(confirm.statusCode).toBe(200);
+    expect((confirm.json() as { data: { status: string } }).data.status).toBe('completed');
+
+    // Removed from the target category…
+    expect(await assignedProductIds()).toHaveLength(0);
+    // …but still assigned to the other category (subtractive, not replace).
+    const stillInOther = await h
+      .em()
+      .getConnection()
+      .execute<{ product_id: string }[]>(
+        `select product_id from product_categories where category_id = ?`,
+        [other.id],
+      );
+    expect(stillInOther.map((r) => r.product_id).sort()).toEqual([...ids].sort());
+
+    await h.em().getConnection().execute(`delete from product_categories where category_id = ?`, [
+      other.id,
+    ]);
+  });
+
   it('partial failures keep successes applied and list reasons (US2/AC3)', async () => {
     const ghostId = randomUUID();
     const ids = [...helmetIds.slice(0, 3)];

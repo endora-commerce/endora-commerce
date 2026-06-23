@@ -561,6 +561,9 @@ export type ResolveProductIdsResponse = z.infer<typeof resolveProductIdsResponse
 // ---------------------------------------------------------------------------
 
 const bulkEditModeSchema = z.enum(['add', 'replace']);
+// Categories also support `remove` (subtract the given categories from each
+// product's current memberships); sales channels keep the two-mode enum.
+const bulkEditCategoryModeSchema = z.enum(['add', 'replace', 'remove']);
 
 const bulkUpdateFieldsObject = z.object({
   status: productStatusWriteSchema.optional(),
@@ -573,7 +576,7 @@ const bulkUpdateFieldsObject = z.object({
     .optional(),
   categories: z
     .object({
-      mode: bulkEditModeSchema,
+      mode: bulkEditCategoryModeSchema,
       categoryIds: z.array(uuidSchema),
     })
     .optional(),

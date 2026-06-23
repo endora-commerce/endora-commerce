@@ -1,10 +1,12 @@
 import {
   AssignProductsToCategoryParamsSchema,
+  RemoveProductsFromCategoryParamsSchema,
   SearchCategoriesParamsSchema,
   SearchProductsParamsSchema,
   SetProductStatusParamsSchema,
   SetProductsVisibilityParamsSchema,
   type AssignProductsToCategoryParams,
+  type RemoveProductsFromCategoryParams,
   type SearchCategoriesParams,
   type SearchProductsParams,
   type SetProductStatusParams,
@@ -276,6 +278,45 @@ export function catalogPromptMutationTools(deps: CatalogPromptToolsDeps): Prompt
     },
   };
 
+  const removeFromCategory: PromptActionTool<RemoveProductsFromCategoryParams> = {
+    id: 'catalog.remove_products_from_category',
+    moduleId: 'catalog',
+    kind: 'mutation',
+    description:
+      'Remove one or more products from a category (subtractive — only the named category is removed, other category assignments are kept). Resolve products via catalog.search_products and the category via catalog.search_categories first. Captured into a plan the operator must confirm; not executed immediately.',
+    requiredPermission: 'catalog:write',
+    paramsSchema: RemoveProductsFromCategoryParamsSchema,
+    preview: async (params, ctx: ToolContext) => {
+      const em = ctx.em;
+      const category = await em.findOne(Category, { id: params.categoryId, deletedAt: null });
+      if (!category) throw new HttpError(404, 'NOT_FOUND', 'Category not found.');
+      const products = await em.find(
+        Product,
+        { id: { $in: params.productIds } },
+        { fields: ['id', 'name', 'sku'] },
+      );
+      if (products.length !== params.productIds.length) {
+        throw new HttpError(404, 'PRODUCT_NOT_FOUND', 'One or more products were not found.');
+      }
+      const label = category.name['en'] ?? Object.values(category.name)[0] ?? category.slug;
+      return {
+        headline: `Remove ${products.length} product(s) from category "${label}"`,
+        affectedCount: products.length,
+        sample: products.slice(0, 10).map((p) => ({
+          id: p.id,
+          label: p.name['en'] ?? Object.values(p.name)[0] ?? p.sku,
+        })),
+      };
+    },
+    execute: async (params, ctx: ToolContext) =>
+      runBulkFieldsUpdate(
+        services,
+        { categories: { mode: 'remove' as const, categoryIds: [params.categoryId] } },
+        params.productIds,
+        ctx,
+      ),
+  };
+
   const setProductStatus: PromptActionTool<SetProductStatusParams> = {
     id: 'catalog.set_product_status',
     moduleId: 'catalog',
@@ -314,6 +355,7 @@ export function catalogPromptMutationTools(deps: CatalogPromptToolsDeps): Prompt
 
   return [
     assignToCategory as PromptActionTool,
+    removeFromCategory as PromptActionTool,
     setProductStatus as PromptActionTool,
     setProductsVisibility as PromptActionTool,
   ];

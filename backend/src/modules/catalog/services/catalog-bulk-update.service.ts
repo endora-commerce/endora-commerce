@@ -217,6 +217,10 @@ export class CatalogBulkUpdateService {
     if (fields.categories) {
       if (fields.categories.mode === 'replace') {
         partial.categoryIds = fields.categories.categoryIds;
+      } else if (fields.categories.mode === 'remove') {
+        const current = await this.readCurrentCategoryIds(em, productId);
+        const toRemove = new Set(fields.categories.categoryIds);
+        partial.categoryIds = current.filter((id) => !toRemove.has(id));
       } else {
         const current = await this.readCurrentCategoryIds(em, productId);
         const union = Array.from(new Set([...current, ...fields.categories.categoryIds]));
