@@ -120,4 +120,6 @@ Do not duplicate shared codes from core `PERMISSION_CATALOGUE` (`packages/contra
 
 When you introduce new feature, follow principles described in `.specify/memory/constitution.md` file.
 
+Do not create commit messages in other language than English.
+
 <!-- MANUAL ADDITIONS END -->

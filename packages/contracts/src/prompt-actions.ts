@@ -210,6 +210,15 @@ export const AssignProductsToCategoryParamsSchema = z.object({
 });
 export type AssignProductsToCategoryParams = z.infer<typeof AssignProductsToCategoryParamsSchema>;
 
+export const RemoveProductsFromCategoryParamsSchema = z.object({
+  productIds: z
+    .array(z.uuid())
+    .min(1)
+    .describe('IDs of the products to remove from the category, resolved via catalog.search_products.'),
+  categoryId: z.uuid().describe('ID of the category to remove the products from, resolved via catalog.search_categories.'),
+});
+export type RemoveProductsFromCategoryParams = z.infer<typeof RemoveProductsFromCategoryParamsSchema>;
+
 export const SearchOrdersParamsSchema = z.object({
   q: z
     .string()
