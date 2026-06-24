@@ -43,6 +43,13 @@ export const quoteRequestItemSchema = z.object({
   lineNote: z.string().nullable(),
   lineCurrency: z.string().length(3),
   discountPercent: z.number().finite().min(0).max(100).nullable(),
+  /**
+   * The VAT rate applied to this line's net unit price, as a fraction
+   * (e.g. `0.23` for 23%). Resolved at read time from the Organization's
+   * VAT status and the tax rules (mirrors the Orders flow). `0` when the
+   * Organization is VAT-exempt / reverse-charge or no tax rule applies.
+   */
+  taxRate: z.number().finite().nonnegative().default(0),
 });
 export type QuoteRequestItem = z.infer<typeof quoteRequestItemSchema>;
 
@@ -157,6 +164,13 @@ export const quoteRequestSchema = z.object({
   expiresAt: isoDateTimeSchema.nullable(),
   convertedOrderId: uuidSchema.nullable(),
   /**
+   * The VAT rate (fraction, e.g. `0.23`) applied across this quote's net
+   * line prices. Resolved at read time from the Organization's VAT status
+   * and the tax rules; `0` when VAT-exempt / reverse-charge. Per-line rates
+   * live on each item's `taxRate`.
+   */
+  taxRate: z.number().finite().nonnegative().default(0),
+  /**
    * Admin-detail enrichment (optional): the requesting Organization and
    * Customer resolved to display fields, so the admin RFQ detail can show
    * them by name the same way the Order detail does. Absent on the
@@ -195,8 +209,11 @@ export const quoteRequestSummarySchema = z.object({
   status: rfqStatusSchema,
   awaitingCustomerRevisionAcceptance: z.boolean(),
   lineCount: z.number().int().nonnegative(),
+  /** Net totals (tax-exclusive). Gross = total × (1 + `taxRate`). */
   totalAtCustomerPrice: z.number().nullable(),
   totalAtAgreedPrice: z.number().nullable(),
+  /** Flat VAT rate (fraction) applied to this quote's net totals. */
+  taxRate: z.number().finite().nonnegative().default(0),
   currency: z.string().length(3),
   submittedAt: isoDateTimeSchema.nullable(),
   expiresAt: isoDateTimeSchema.nullable(),

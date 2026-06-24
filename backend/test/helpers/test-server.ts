@@ -24,6 +24,7 @@ import { adminActionsModule } from '../../src/modules/admin_actions/plugin.js';
 import { AdminRole } from '../../src/modules/admin_roles/entities/admin-role.entity.js';
 import { organizationsModule } from '../../src/modules/organizations/plugin.js';
 import { adminNotificationsModule } from '../../src/modules/admin_notifications/plugin.js';
+import { Organization } from '../../src/modules/organizations/entities/organization.entity.js';
 import { OrganizationModerationService } from '../../src/modules/organizations/services/organization-moderation-service.js';
 import { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
 import { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
@@ -1268,6 +1269,22 @@ export async function setupBackendServer(
     },
     resolveExpiryDays: async () => 0,
     resolveBoolSetting: async () => true,
+    resolveTaxRate: async (organizationId: string) => {
+      try {
+        const org = await em().findOne(Organization, { id: organizationId });
+        const vatStatus = org?.vatStatus ?? 'vat_payer';
+        if (vatStatus !== 'vat_payer') return 0;
+        const country = org?.registeredAddress?.country ?? 'PL';
+        const resolved = await taxes.handle.taxService.taxRateFor({
+          country,
+          productType: 'simple',
+          vatStatus,
+        });
+        return resolved.rate;
+      } catch {
+        return 0;
+      }
+    },
   });
   modules.push(quoteRequests.register);
 

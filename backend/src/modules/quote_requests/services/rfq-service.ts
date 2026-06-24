@@ -75,6 +75,12 @@ export interface RfqServiceDeps {
    * placeholder default.
    */
   businessId?: QuoteRequestBusinessIdGenerator;
+  /**
+   * Resolves the VAT rate (fraction, e.g. `0.23`) applied to the quote's net
+   * prices for the given Organization. Mirrors the Orders flow. Optional —
+   * when omitted (legacy/test compositions), prices stay net (rate `0`).
+   */
+  resolveTaxRate?: (organizationId: string) => Promise<number>;
 }
 
 export class RfqService {
@@ -87,6 +93,15 @@ export class RfqService {
    */
   async generateBusinessId(em: EntityManager): Promise<string | undefined> {
     return this.deps.businessId ? this.deps.businessId.generate(em) : undefined;
+  }
+
+  /**
+   * Resolves the VAT rate applied to a quote's net prices for an
+   * Organization. Returns `0` when no resolver is wired so net-only
+   * compositions keep their current behaviour.
+   */
+  async taxRateForOrganization(organizationId: string): Promise<number> {
+    return this.deps.resolveTaxRate ? this.deps.resolveTaxRate(organizationId) : 0;
   }
 
   // -------------------------------------------------------------------------
@@ -110,11 +125,16 @@ export class RfqService {
     const requesters = await em.find(CustomerAccount, { id: { $in: requesterIds } });
     const requesterById = new Map(requesters.map((r) => [r.id, r]));
 
+    // Every RFQ in a customer listing belongs to the same Organization
+    // (the caller's), so the VAT rate is resolved once for the page.
+    const taxRate = await this.taxRateForOrganization(ctx.organizationId);
+
     return rfqs.map((rfq) => {
       const rfqItems = itemsByRfq.get(rfq.id) ?? [];
       const requester = requesterById.get(rfq.customerAccountId);
       return summarize(rfq, rfqItems, {
         requesterDisplayName: requester ? customerDisplayName(requester) : null,
+        taxRate,
       });
     });
   }
@@ -657,6 +677,7 @@ export class RfqService {
     includeFullActorIdentity: boolean,
   ): Promise<RfqDto> {
     const items = await em.find(QuoteRequestItem, { quoteRequestId: rfq.id });
+    const taxRate = await this.taxRateForOrganization(rfq.organizationId);
     const events = await em.find(
       QuoteRequestEvent,
       { quoteRequestId: rfq.id },
@@ -715,6 +736,7 @@ export class RfqService {
         lineNote: it.lineNote ?? null,
         lineCurrency: it.lineCurrency,
         discountPercent: it.discountPercent != null ? Number(it.discountPercent) : null,
+        taxRate,
       })),
       events: events.map((e) => ({
         id: e.id,
@@ -734,6 +756,7 @@ export class RfqService {
       expiredAt: rfq.expiredAt?.toISOString() ?? null,
       expiresAt: rfq.expiresAt?.toISOString() ?? null,
       convertedOrderId: rfq.convertedOrderId ?? null,
+      taxRate,
       createdAt: rfq.createdAt.toISOString(),
       updatedAt: rfq.updatedAt.toISOString(),
       version: rfq.version,
@@ -757,7 +780,7 @@ function customerDisplayName(c: CustomerAccount): string {
 function summarize(
   rfq: QuoteRequest,
   items: QuoteRequestItem[],
-  extras: { requesterDisplayName?: string | null },
+  extras: { requesterDisplayName?: string | null; taxRate?: number },
 ): QuoteRequestSummary {
   const totalAtCustomerPrice = items.reduce((sum, it) => {
     const desired = it.desiredUnitPrice != null ? Number(it.desiredUnitPrice) : null;
@@ -777,6 +800,7 @@ function summarize(
     lineCount: items.length,
     totalAtCustomerPrice: items.length > 0 ? totalAtCustomerPrice : null,
     totalAtAgreedPrice,
+    taxRate: extras.taxRate ?? 0,
     currency,
     submittedAt: rfq.submittedAt?.toISOString() ?? null,
     expiresAt: rfq.expiresAt?.toISOString() ?? null,

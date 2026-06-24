@@ -55,6 +55,7 @@ interface AdminRfqItem {
   lineNote: string | null;
   lineCurrency: string;
   discountPercent: number | null;
+  taxRate?: number;
 }
 
 interface AdminRfqEvent {
@@ -105,6 +106,8 @@ interface AdminRfqDetail {
   expiredAt: string | null;
   expiresAt: string | null;
   convertedOrderId: string | null;
+  /** Flat VAT rate (fraction) applied to this quote's net prices. */
+  taxRate?: number;
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -248,6 +251,11 @@ export function RfqDetail(): ReactNode {
     ? rfq.items.reduce((s, it) => s + (it.agreedUnitPrice ?? 0) * it.quantity, 0)
     : null;
   const currency = rfq.items[0]?.lineCurrency ?? 'PLN';
+  // Quote prices are net; surface VAT + gross so the total matches the order
+  // it converts into. `rfq.taxRate` is the flat rate resolved server-side.
+  const taxRate = rfq.taxRate ?? 0;
+  const taxTotal = total !== null ? total * taxRate : null;
+  const grossTotal = total !== null && taxTotal !== null ? total + taxTotal : null;
 
   // Action buttons live in the PageHeader's top-right slot — mirroring the
   // Order detail view — rather than in an in-body status row.
@@ -487,12 +495,36 @@ export function RfqDetail(): ReactNode {
                   </TableBody>
                   {total !== null ? (
                     <tfoot className="border-t [&_td]:p-2 [&_th]:p-2">
+                      {taxRate > 0 ? (
+                        <>
+                          <tr>
+                            <th colSpan={4} className="text-right">
+                              {t('rfq.detail.netLabel')}
+                            </th>
+                            <td className="tabular-nums text-right">
+                              {total.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} {currency}
+                            </td>
+                          </tr>
+                          <tr>
+                            <th colSpan={4} className="text-right">
+                              {t('rfq.detail.taxLabel', { rate: (taxRate * 100).toFixed(0) })}
+                            </th>
+                            <td className="tabular-nums text-right">
+                              {(taxTotal ?? 0).toLocaleString('pl-PL', { minimumFractionDigits: 2 })}{' '}
+                              {currency}
+                            </td>
+                          </tr>
+                        </>
+                      ) : null}
                       <tr>
                         <th colSpan={4} className="text-right font-semibold">
-                          {t('rfq.detail.totalLabel')}
+                          {taxRate > 0 ? t('rfq.detail.grossLabel') : t('rfq.detail.totalLabel')}
                         </th>
                         <td className="tabular-nums text-right font-semibold">
-                          {total.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} {currency}
+                          {(grossTotal ?? total).toLocaleString('pl-PL', {
+                            minimumFractionDigits: 2,
+                          })}{' '}
+                          {currency}
                         </td>
                       </tr>
                     </tfoot>

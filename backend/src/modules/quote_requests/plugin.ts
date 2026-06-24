@@ -46,6 +46,13 @@ export interface QuoteRequestsModuleOptions {
    * not `active`.
    */
   assertOrganizationCanTransact?: (organizationId: string) => Promise<void>;
+  /**
+   * Resolves the VAT rate (fraction, e.g. `0.23`) applied to a quote's net
+   * prices for the given Organization. Supplied by composition (reads the
+   * Organization VAT status + tax rules). Optional — omitted in legacy/test
+   * compositions, where prices stay net.
+   */
+  resolveTaxRate?: (organizationId: string) => Promise<number>;
 }
 
 export interface QuoteRequestsModuleHandle {
@@ -84,6 +91,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     notificationService,
     salesRepAssignment,
     businessId: businessIdGenerator,
+    ...(options.resolveTaxRate ? { resolveTaxRate: options.resolveTaxRate } : {}),
   });
 
   const adminService = new RfqAdminService({
