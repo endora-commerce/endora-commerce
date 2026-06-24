@@ -4,6 +4,7 @@ import Redis from 'ioredis';
 import { z } from 'zod';
 import { CustomerAccount } from './modules/customer_accounts/entities/customer-account.entity.js';
 import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';
+import { Organization } from './modules/organizations/entities/organization.entity.js';
 import { AdminRole } from './modules/admin_roles/entities/admin-role.entity.js';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
@@ -1481,6 +1482,25 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       }
     },
     assertOrganizationCanTransact,
+    // Quote Request prices are net; the VAT rate is resolved from the
+    // Organization's VAT status + tax rules at read time (mirrors Orders).
+    // VAT-exempt / reverse-charge Organizations resolve to 0.
+    resolveTaxRate: async (organizationId: string) => {
+      try {
+        const org = await em().findOne(Organization, { id: organizationId });
+        const vatStatus = org?.vatStatus ?? 'vat_payer';
+        if (vatStatus !== 'vat_payer') return 0;
+        const country = org?.registeredAddress?.country ?? 'PL';
+        const resolved = await taxes.handle.taxService.taxRateFor({
+          country,
+          productType: 'simple',
+          vatStatus,
+        });
+        return resolved.rate;
+      } catch {
+        return 0;
+      }
+    },
   });
   modules.push(quoteRequests.register);
 

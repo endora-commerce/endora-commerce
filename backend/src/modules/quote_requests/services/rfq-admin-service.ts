@@ -113,6 +113,12 @@ export class RfqAdminService {
     });
     const customerById = new Map(customers.map((c) => [c.id, c]));
 
+    // Resolve the VAT rate once per distinct Organization (mirrors Orders).
+    const taxRateByOrg = new Map<string, number>();
+    for (const orgId of new Set(rfqs.map((r) => r.organizationId))) {
+      taxRateByOrg.set(orgId, await this.deps.rfqService.taxRateForOrganization(orgId));
+    }
+
     return rfqs.map((rfq) => {
       const rfqItems = itemsByRfq.get(rfq.id) ?? [];
       const customer = customerById.get(rfq.customerAccountId);
@@ -139,6 +145,7 @@ export class RfqAdminService {
         lineCount: rfqItems.length,
         totalAtCustomerPrice,
         totalAtAgreedPrice,
+        taxRate: taxRateByOrg.get(rfq.organizationId) ?? 0,
         currency: rfqItems[0]?.lineCurrency ?? 'PLN',
         submittedAt: rfq.submittedAt?.toISOString() ?? null,
         expiresAt: rfq.expiresAt?.toISOString() ?? null,

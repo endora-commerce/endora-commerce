@@ -35,6 +35,8 @@ export interface RfqItem {
   lineNote: string | null;
   lineCurrency: string;
   discountPercent: number | null;
+  /** VAT rate (fraction, e.g. 0.23) applied to this line's net price. */
+  taxRate?: number;
 }
 
 export interface RfqEvent {
@@ -102,6 +104,8 @@ export interface RfqDetail {
   expiredAt: string | null;
   expiresAt: string | null;
   convertedOrderId: string | null;
+  /** Flat VAT rate (fraction) applied to this quote's net prices. */
+  taxRate?: number;
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -117,6 +121,8 @@ export interface RfqSummary {
   lineCount: number;
   totalAtCustomerPrice: number | null;
   totalAtAgreedPrice: number | null;
+  /** Flat VAT rate (fraction) applied to this quote's net totals. */
+  taxRate?: number;
   currency: string;
   submittedAt: string | null;
   expiresAt: string | null;

@@ -59,6 +59,12 @@ export default async function QuoteRequestDetailPage({
       ? rfq.items.reduce((s, it) => s + (it.desiredUnitPrice ?? 0) * it.quantity, 0)
       : null;
   const currency = rfq.items[0]?.lineCurrency ?? 'PLN';
+  // Quote prices are net; surface VAT + gross. `rfq.taxRate` is the flat rate
+  // resolved server-side from the organization's VAT status + tax rules.
+  const taxRate = rfq.taxRate ?? 0;
+  const taxTotal = total !== null ? total * taxRate : null;
+  const grossTotal = total !== null && taxTotal !== null ? total + taxTotal : null;
+  const fmt = (n: number): string => n.toLocaleString('pl-PL', { minimumFractionDigits: 2 });
 
   return (
     <div className="mx-auto max-w-[1360px] px-[24px]" style={{ paddingTop: 24, paddingBottom: 48 }}>
@@ -170,12 +176,32 @@ export default async function QuoteRequestDetailPage({
           </tbody>
           {total !== null ? (
             <tfoot>
+              {taxRate > 0 ? (
+                <>
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: 'right' }}>
+                      Suma netto
+                    </td>
+                    <td>
+                      {fmt(total)} {currency}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: 'right' }}>
+                      VAT ({(taxRate * 100).toFixed(0)}%)
+                    </td>
+                    <td>
+                      {fmt(taxTotal ?? 0)} {currency}
+                    </td>
+                  </tr>
+                </>
+              ) : null}
               <tr>
                 <th colSpan={4} style={{ textAlign: 'right' }}>
-                  Suma
+                  {taxRate > 0 ? 'Suma brutto' : 'Suma'}
                 </th>
                 <th>
-                  {total.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} {currency}
+                  {fmt(grossTotal ?? total)} {currency}
                 </th>
               </tr>
             </tfoot>
