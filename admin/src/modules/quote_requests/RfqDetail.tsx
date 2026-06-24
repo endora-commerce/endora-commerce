@@ -336,7 +336,12 @@ export function RfqDetail(): ReactNode {
             {t('rfq.detail.meta.created', { date: formatDateTime(rfq.createdAt) })}
             {rfq.submittedAt
               ? ` · ${t('rfq.detail.meta.submitted', { date: formatDateTime(rfq.submittedAt) })}`
-              : ''}{' '}
+              : ''}
+            {rfq.expiredAt
+              ? ` · ${t('rfq.detail.meta.expired', { date: formatDateTime(rfq.expiredAt) })}`
+              : rfq.expiresAt
+                ? ` · ${t('rfq.detail.meta.expires', { date: formatDateTime(rfq.expiresAt) })}`
+                : ''}{' '}
             <code className="font-mono text-xs">({rfq.id})</code>
           </span>
         }
