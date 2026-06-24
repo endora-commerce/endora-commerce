@@ -885,6 +885,8 @@
   "rfq.detail.sections.buyerNote": "Buyer note",
   "rfq.detail.meta.created": "Created {date}",
   "rfq.detail.meta.submitted": "submitted {date}",
+  "rfq.detail.meta.expires": "expires {date}",
+  "rfq.detail.meta.expired": "expired {date}",
   "rfq.detail.org.taxId": "Tax ID",
   "rfq.detail.org.vat": "VAT status",
   "rfq.detail.vatStatus.vat_payer": "VAT payer",

@@ -885,6 +885,8 @@
   "rfq.detail.sections.buyerNote": "Uwagi kupującego",
   "rfq.detail.meta.created": "Utworzono {date}",
   "rfq.detail.meta.submitted": "zgłoszono {date}",
+  "rfq.detail.meta.expires": "wygasa {date}",
+  "rfq.detail.meta.expired": "wygasło {date}",
   "rfq.detail.org.taxId": "NIP",
   "rfq.detail.org.vat": "Status VAT",
   "rfq.detail.vatStatus.vat_payer": "Płatnik VAT",
