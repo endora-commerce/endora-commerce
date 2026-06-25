@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { KeyRound, Save, Send, Upload } from 'lucide-react';
-import type { PwaAdminConfig, PwaDisplayMode } from '@b2b/contracts';
+import type { PwaAdminConfig, PwaDisplayMode, SalesChannelSummary } from '@b2b/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { salesChannelsClient } from '@/modules/sales_channels/api/sales-channels-client';
 import { pwaClient } from '../api/pwa-client';
+
+/** Pick a display label from a multilingual sales-channel name. */
+function channelLabel(name: SalesChannelSummary['name'], code: string): string {
+  const values = Object.values(name);
+  return values[0] ?? code;
+}
 
 /**
  * PWA configuration page (feature 046, US2 + US4 admin surface). Edits the
@@ -25,6 +32,10 @@ export function PwaPage(): ReactNode {
   const [stats, setStats] = useState<{ active: number; invalid: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Scope selector — null = global, otherwise a per-channel override.
+  const [channels, setChannels] = useState<SalesChannelSummary[]>([]);
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+
   // Send-push form.
   const [pushTitle, setPushTitle] = useState('');
   const [pushBody, setPushBody] = useState('');
@@ -34,16 +45,25 @@ export function PwaPage(): ReactNode {
     setError(null);
     try {
       const [cfg, st] = await Promise.all([
-        pwaClient.getConfig(null),
-        pwaClient.getSubscriptionStats(null).catch(() => null),
+        pwaClient.getConfig(selectedChannelId),
+        pwaClient.getSubscriptionStats(selectedChannelId).catch(() => null),
       ]);
       setConfig(cfg);
       setStats(st);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load PWA settings.');
     }
+  }, [selectedChannelId]);
+
+  // Load the channel list once for the scope selector.
+  useEffect(() => {
+    void salesChannelsClient
+      .list({ activeOnly: true, pageSize: 200 })
+      .then((res) => setChannels(res.items))
+      .catch(() => setChannels([]));
   }, []);
 
+  // (Re)load config + stats whenever the selected scope changes.
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -59,6 +79,7 @@ export function PwaPage(): ReactNode {
     setInfo(null);
     try {
       await pwaClient.updateConfig({
+        ...(selectedChannelId ? { salesChannelId: selectedChannelId } : {}),
         appName: config.appName,
         shortName: config.shortName,
         themeColor: config.themeColor,
@@ -96,7 +117,7 @@ export function PwaPage(): ReactNode {
     setError(null);
     setInfo(null);
     try {
-      await pwaClient.uploadIcon(file, null);
+      await pwaClient.uploadIcon(file, selectedChannelId);
       setInfo('Icon uploaded and resized.');
       await refresh();
     } catch (err) {
@@ -108,18 +129,17 @@ export function PwaPage(): ReactNode {
   };
 
   const sendPush = async (): Promise<void> => {
-    if (!config) return;
+    // Sends are per-channel: the operator must pick a concrete channel scope.
+    if (!selectedChannelId) {
+      setError('Select a sales channel above to send a notification.');
+      return;
+    }
     setBusy(true);
     setError(null);
     setInfo(null);
     try {
       const res = await pwaClient.sendMessage({
-        // Global config has no channel id; the send endpoint needs one. We rely
-        // on the operator setting push per channel; for the global page we send
-        // to the platform default by leaving channel resolution to the backend
-        // is not possible, so this form requires an explicit channel in a future
-        // iteration. For now, surface a clear message if the backend rejects it.
-        salesChannelId: config.salesChannelId ?? '',
+        salesChannelId: selectedChannelId,
         title: pushTitle,
         body: pushBody,
         ...(pushUrl ? { url: pushUrl } : {}),
@@ -142,6 +162,26 @@ export function PwaPage(): ReactNode {
         title="Progressive Web App"
         description="Installable-app identity, asset caching, and push notifications."
       />
+
+      <div className="flex items-center gap-2">
+        <Label htmlFor="pwa-scope">Scope</Label>
+        <select
+          id="pwa-scope"
+          className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+          value={selectedChannelId ?? ''}
+          onChange={(e) => setSelectedChannelId(e.target.value === '' ? null : e.target.value)}
+        >
+          <option value="">Global (all channels)</option>
+          {channels.map((c) => (
+            <option key={c.id} value={c.id}>
+              {channelLabel(c.name, c.code)} ({c.code})
+            </option>
+          ))}
+        </select>
+        <span className="text-sm text-muted-foreground">
+          {selectedChannelId ? 'Editing a per-channel override.' : 'Editing the global value.'}
+        </span>
+      </div>
 
       {error ? (
         <Alert variant="destructive">
@@ -266,10 +306,15 @@ export function PwaPage(): ReactNode {
                 <Label htmlFor="push-url">Link (opened on tap)</Label>
                 <Input id="push-url" value={pushUrl} onChange={(e) => setPushUrl(e.target.value)} placeholder="/account/orders/123" />
               </div>
+              {!selectedChannelId ? (
+                <p className="text-sm text-muted-foreground">
+                  Select a sales channel in the Scope selector above to send a notification.
+                </p>
+              ) : null}
               <div className="flex justify-end">
                 <Button
                   type="button"
-                  disabled={busy || !config.pushEnabled || !pushTitle || !pushBody}
+                  disabled={busy || !selectedChannelId || !config.pushEnabled || !pushTitle || !pushBody}
                   onClick={() => void sendPush()}
                 >
                   <Send className="mr-2 h-4 w-4" /> Send to all subscribers
