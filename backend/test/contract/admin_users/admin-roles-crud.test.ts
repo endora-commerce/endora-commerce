@@ -35,7 +35,8 @@ describe('Admin roles CRUD', () => {
     // +2 for feature 042 MFA codes (mfa:reset, mfa:manage).
     // +1 for feature 043 (prompt_actions:use).
     // +3 for feature 045 promotions (promotions:read, :write, :delete).
-    expect(body.data.length).toBe(35);
+    // +3 for feature 046 PWA (pwa:read, pwa:write, pwa:send_push).
+    expect(body.data.length).toBe(38);
     expect(body.data.some((p) => p.code === 'promotions:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'mfa:reset')).toBe(true);
     expect(body.data.some((p) => p.code === 'orders:read')).toBe(true);

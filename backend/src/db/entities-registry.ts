@@ -42,6 +42,10 @@ import { MfaRecoveryCode } from '../modules/mfa/entities/mfa-recovery-code.entit
 import { MfaSocialIdentity } from '../modules/mfa/entities/mfa-social-identity.entity.js';
 import { MfaOrganizationPolicy } from '../modules/mfa/entities/mfa-organization-policy.entity.js';
 import { PromptActionRequest } from '../modules/prompt_actions/entities/prompt-action-request.entity.js';
+import { PushSubscription } from '../modules/pwa/entities/push-subscription.entity.js';
+import { PushMessage } from '../modules/pwa/entities/push-message.entity.js';
+import { PushMessageDelivery } from '../modules/pwa/entities/push-message-delivery.entity.js';
+import { PwaIconRendition } from '../modules/pwa/entities/pwa-icon-rendition.entity.js';
 import { Cart } from '../modules/carts/entities/cart.entity.js';
 import { CartItem } from '../modules/carts/entities/cart-item.entity.js';
 import { CartAuditEntry } from '../modules/carts/entities/cart-audit-entry.entity.js';
@@ -340,4 +344,9 @@ export const ALL_ENTITIES = [
   MfaSocialIdentity,
   MfaOrganizationPolicy,
   PromptActionRequest,
+  // PWA — push subscriptions/messages/deliveries + derived icon renditions (feature 046)
+  PushSubscription,
+  PushMessage,
+  PushMessageDelivery,
+  PwaIconRendition,
 ] as const;

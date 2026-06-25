@@ -77,6 +77,8 @@
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3",
     "read-excel-file": "^9.0.9",
+    "sharp": "^0.35.2",
+    "web-push": "^3.6.7",
     "zod": "^4.2.0"
   },
   "devDependencies": {
@@ -85,6 +87,7 @@
     "@types/nodemailer": "^7.0.4",
     "@types/pdfmake": "^0.3.2",
     "@types/pg": "^8.20.0",
+    "@types/web-push": "^3.6.4",
     "aws-sdk-client-mock": "^4.1.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",

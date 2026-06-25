@@ -84,6 +84,7 @@ import { Migration076BackfillAdminCreatedAwaiting } from '../modules/quote_reque
 import { Migration077PromotionsEngine } from '../modules/promotions/migrations/077_promotions_engine.js';
 import { Migration079OrderAppliedPromotions } from '../modules/orders/migrations/079_order_applied_promotions.js';
 import { Migration080ReturnsInit } from '../modules/returns/migrations/080_returns_init.js';
+import { Migration080PwaInit } from '../modules/pwa/migrations/080_pwa_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -399,6 +400,10 @@ export default defineConfig({
       {
         name: 'Migration080ReturnsInit',
         class: Migration080ReturnsInit,
+      },
+      {
+        name: 'Migration080PwaInit',
+        class: Migration080PwaInit,
       },
     ],
     transactional: true,

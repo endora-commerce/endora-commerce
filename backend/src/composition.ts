@@ -108,6 +108,11 @@ import { quoteRequestsManifest, QUOTE_REQUESTS_SETTING_CODES } from './modules/q
 import { inventoryManifest } from './modules/inventory/manifest.js';
 import { promptActionsModule } from './modules/prompt_actions/plugin.js';
 import { promptActionsSettingsManifest } from './modules/prompt_actions/manifest.js';
+// Feature 046 — Progressive Web App.
+import { pwaModule } from './modules/pwa/plugin.js';
+import { pwaSettingsManifest } from './modules/pwa/manifest.js';
+import { SalesChannel } from './modules/sales_channels/entities/sales-channel.entity.js';
+import { Order } from './modules/orders/entities/order.entity.js';
 import {
   catalogBulkProgressResolver,
   catalogPromptMutationTools,
@@ -1217,6 +1222,68 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   registerCmsAssetReferences(assetsLibrary.handle.referenceRegistry, em);
   registerMegamenuAssetReferences(assetsLibrary.handle.referenceRegistry, em);
 
+  // Feature 046 — PWA module. Owns the installable-app control plane (over the
+  // Settings module), the push-subscription registry, the provider-agnostic
+  // push fan-out (BullMQ; co-located unless BACKEND_ROLE=api), and the icon
+  // rendition pipeline (sharp + assets_library). Channel/asset/customer coupling
+  // is injected here so the module stays isolated (Principle I).
+  const pwa = pwaModule({
+    emFactory: em,
+    redis,
+    runWorkers,
+    settings: settings.handle.settingsService,
+    settingsWrite: settings.handle.adminService,
+    requireAdmin,
+    eventBus,
+    assetUpload: {
+      upload: async (input) => {
+        const detail = await assetsLibrary.handle.service.upload(input);
+        return { id: detail.id };
+      },
+    },
+    resolveAssetUrl: async (assetId) => {
+      try {
+        return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
+      } catch {
+        return null;
+      }
+    },
+    resolveChannelIdByCode: async (code) => {
+      if (code) {
+        const ch = await salesChannels.handle.resolver.getByCode(code);
+        if (ch) return ch.id;
+      }
+      return (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId;
+    },
+    defaultChannelId: async () =>
+      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+    channelCodeForId: async (channelId) => {
+      const ch = await em().findOne(SalesChannel, { id: channelId });
+      return ch?.code ?? null;
+    },
+    resolveAuditContext: (request) => ({
+      actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+    }),
+    vapidSubject: process.env['PWA_VAPID_SUBJECT'] ?? 'mailto:admin@b2b-platform.local',
+    resolveCustomerAccountId: async (request) =>
+      request.actor.kind === 'customer' ? request.actor.customerAccountId : null,
+    // FR-024 auto-trigger — resolve an order-status event into a push target
+    // (the placing customer + a deep link to their order). Reading the Order
+    // entity here keeps the pwa module decoupled from the orders module.
+    resolveOrderTarget: async (payload) => {
+      const order = await em().findOne(Order, { id: payload.orderId });
+      if (!order || !order.placedByCustomerAccountId) return null;
+      return {
+        salesChannelId: payload.salesChannelId,
+        customerAccountId: order.placedByCustomerAccountId,
+        title: 'Order update',
+        body: `Order ${order.businessId} is now ${payload.to.replace(/_/g, ' ')}.`,
+        url: `/account/orders/${order.businessId}`,
+      };
+    },
+  });
+  modules.push(pwa.plugin);
+
   // Feature 015 — Megamenu module. Wires the cross-module ports the
   // target validator + storefront resolver delegate to. v1 uses small
   // direct SQL lookups instead of forcing new upstream surfaces.
@@ -1818,6 +1885,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     assetsLibraryManifest,
     blogManifest,
     promptActionsSettingsManifest,
+    pwaSettingsManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();

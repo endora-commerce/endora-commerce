@@ -200,6 +200,7 @@
   "appShell.nav.settings": "Settings",
   "appShell.nav.settingGroups": "Setting groups",
   "appShell.nav.cache": "Clear cache",
+  "appShell.nav.pwa": "PWA",
   "appShell.crumb.editor": "Editor",
   "appShell.crumb.detail": "Detail",
   "appShell.crumb.edit": "Edit",
