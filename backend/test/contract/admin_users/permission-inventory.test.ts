@@ -22,6 +22,7 @@ describe('permission inventory (SC-001)', () => {
     // +2 for feature 042 MFA codes (mfa:reset, mfa:manage).
     // +1 for feature 043 (prompt_actions:use).
     // +3 for feature 045 promotions (promotions:read, :write, :delete).
-    expect(assignable.size).toBe(35);
+    // +3 for feature 046 PWA (pwa:read, pwa:write, pwa:send_push).
+    expect(assignable.size).toBe(38);
   });
 });
