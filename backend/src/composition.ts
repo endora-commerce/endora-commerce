@@ -53,6 +53,7 @@ import { OrderReturnContextProvider } from './modules/orders/services/order-retu
 import { PaymentRefundProvider } from './modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from './modules/invoices/services/corrective-invoice.js';
 import { CreditTopupProvider } from './modules/credit_limits/services/credit-topup.js';
+import { ReturnEmailNotifier } from './modules/returns/services/return-email-notifier.js';
 import { AddressService } from './modules/addresses/services/address-service.js';
 import type { OrderListService } from './modules/orders/services/order-list-service.js';
 import type { OrderTransitionService } from './modules/orders/services/order-transition-service.js';
@@ -1639,6 +1640,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       correctiveInvoice: new CorrectiveInvoiceProvider(em),
       creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
       auditLog: auditLogService,
+      notifier: new ReturnEmailNotifier(
+        organizationsMailer,
+        async (customerAccountId) =>
+          (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
+      ),
     }),
   );
 

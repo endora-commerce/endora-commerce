@@ -17,10 +17,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 import type { ReturnReasonDto } from '@b2b/contracts';
 
 /** Managed return/complaint reasons (feature 046, US7). */
 export function ReturnReasonsPage(): ReactNode {
+  const t = useTranslation('core');
   const [rows, setRows] = useState<ReturnReasonDto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [label, setLabel] = useState('');
@@ -55,7 +57,7 @@ export function ReturnReasonsPage(): ReactNode {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Return reasons" description="Reasons offered on the storefront return form." />
+      <PageHeader title={t('returns.reasons.title')} description={t('returns.reasons.description')} />
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>

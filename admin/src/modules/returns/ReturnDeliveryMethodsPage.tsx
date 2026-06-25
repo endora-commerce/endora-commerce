@@ -16,10 +16,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 import type { ReturnDeliveryMethodDto } from '@b2b/contracts';
 
 /** Allowed return delivery methods + cost (feature 046, US6). */
 export function ReturnDeliveryMethodsPage(): ReactNode {
+  const t = useTranslation('core');
   const [rows, setRows] = useState<ReturnDeliveryMethodDto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [deliveryMethodId, setDeliveryMethodId] = useState('');
@@ -54,7 +56,7 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Return delivery methods" description="Methods and cost (0 = free / shop-paid) usable for return shipments." />
+      <PageHeader title={t('returns.methods.title')} description={t('returns.methods.description')} />
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>

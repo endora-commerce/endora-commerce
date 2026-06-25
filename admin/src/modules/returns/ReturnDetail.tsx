@@ -19,10 +19,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatDateTime } from '@/lib/format';
+import { useTranslation } from '@/i18n/useTranslation';
 import type { ReturnCaseDetail, ReturnTransitionDto, SettlementPrefill } from '@b2b/contracts';
 
 /** Returns / RMA case detail (feature 046, US2/US4/US5/US6). */
 export function ReturnDetail(): ReactNode {
+  const t = useTranslation('core');
   const { id = '' } = useParams<{ id: string }>();
   const [rc, setRc] = useState<ReturnCaseDetail | null>(null);
   const [transitions, setTransitions] = useState<ReturnTransitionDto[]>([]);
@@ -84,7 +86,7 @@ export function ReturnDetail(): ReactNode {
   if (!rc) {
     return (
       <div className="space-y-4">
-        <PageHeader title="Return case" />
+        <PageHeader title={t('returns.detail.title')} />
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>

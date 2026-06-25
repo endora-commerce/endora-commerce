@@ -17,10 +17,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n/useTranslation';
 import type { ReturnStatusDto, ReturnTransitionDto } from '@b2b/contracts';
 
 /** Configurable return/complaint workflow (feature 046, US3). */
 export function ReturnStatusesConfigPage(): ReactNode {
+  const t = useTranslation('core');
   const [statuses, setStatuses] = useState<Array<ReturnStatusDto & { inUseCount: number }>>([]);
   const [transitions, setTransitions] = useState<ReturnTransitionDto[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +74,7 @@ export function ReturnStatusesConfigPage(): ReactNode {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Return statuses" description="Configure the return/complaint lifecycle and transitions." />
+      <PageHeader title={t('returns.statuses.title')} description={t('returns.statuses.description')} />
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>

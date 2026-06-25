@@ -19,12 +19,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatDateTime } from '@/lib/format';
+import { useTranslation } from '@/i18n/useTranslation';
 import type { AdminReturnRow } from '@b2b/contracts';
 
 const API_BASE = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? 'http://localhost:3001';
 
 /** Returns / RMA admin list (feature 046, US8). */
 export function ReturnsList(): ReactNode {
+  const t = useTranslation('core');
   const [rows, setRows] = useState<AdminReturnRow[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -86,10 +88,7 @@ export function ReturnsList(): ReactNode {
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title="Returns / RMA"
-        description="Manage return and complaint cases."
-      />
+      <PageHeader title={t('returns.title')} description={t('returns.description')} />
 
       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         {Object.entries(counts).map(([code, n]) => (
@@ -100,18 +99,18 @@ export function ReturnsList(): ReactNode {
         <div className="ml-auto flex gap-2">
           <Button asChild variant="outline" size="sm">
             <Link to="/returns/statuses">
-              <Settings className="size-4" /> Workflow
+              <Settings className="size-4" /> {t('returns.nav.workflow')}
             </Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link to="/returns/reasons">Reasons</Link>
+            <Link to="/returns/reasons">{t('returns.nav.reasons')}</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link to="/returns/delivery-methods">Return methods</Link>
+            <Link to="/returns/delivery-methods">{t('returns.nav.returnMethods')}</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
             <a href={`${API_BASE}/api/v1/admin/returns/export${queryString}`}>
-              <Download className="size-4" /> CSV
+              <Download className="size-4" /> {t('returns.nav.csv')}
             </a>
           </Button>
         </div>
@@ -120,17 +119,17 @@ export function ReturnsList(): ReactNode {
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
           <div className="space-y-1">
-            <Label htmlFor="kind">Kind</Label>
+            <Label htmlFor="kind">{t('returns.filter.kind')}</Label>
             <Select id="kind" value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
-              <option value="">All</option>
-              <option value="return">Return</option>
-              <option value="complaint">Complaint</option>
+              <option value="">{t('returns.filter.all')}</option>
+              <option value="return">{t('returns.kind.return')}</option>
+              <option value="complaint">{t('returns.kind.complaint')}</option>
             </Select>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="status">Status</Label>
+            <Label htmlFor="status">{t('returns.filter.status')}</Label>
             <Select id="status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="">All</option>
+              <option value="">{t('returns.filter.all')}</option>
               {Object.keys(counts).map((code) => (
                 <option key={code} value={code}>
                   {code}
@@ -139,7 +138,7 @@ export function ReturnsList(): ReactNode {
             </Select>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="rma">RMA number</Label>
+            <Label htmlFor="rma">{t('returns.filter.rmaNumber')}</Label>
             <input
               id="rma"
               className="h-9 rounded-md border border-input bg-background px-3 text-sm"
@@ -150,7 +149,7 @@ export function ReturnsList(): ReactNode {
           </div>
           {selected.size > 0 && (
             <Button size="sm" onClick={() => void bulkAuthorize()}>
-              Authorize {selected.size} selected
+              {t('returns.bulk.authorize', { count: selected.size })}
             </Button>
           )}
         </CardContent>
@@ -173,11 +172,11 @@ export function ReturnsList(): ReactNode {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-8" />
-                <TableHead>RMA</TableHead>
-                <TableHead>Kind</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Refund</TableHead>
-                <TableHead>Submitted</TableHead>
+                <TableHead>{t('returns.col.rma')}</TableHead>
+                <TableHead>{t('returns.col.kind')}</TableHead>
+                <TableHead>{t('returns.col.status')}</TableHead>
+                <TableHead>{t('returns.col.refund')}</TableHead>
+                <TableHead>{t('returns.col.submitted')}</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
@@ -198,7 +197,7 @@ export function ReturnsList(): ReactNode {
                   <TableCell>{formatDateTime(r.submittedAt)}</TableCell>
                   <TableCell>
                     <Button asChild variant="ghost" size="sm">
-                      <Link to={`/returns/${r.id}`}>Open</Link>
+                      <Link to={`/returns/${r.id}`}>{t('returns.action.open')}</Link>
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -206,7 +205,7 @@ export function ReturnsList(): ReactNode {
               {!loading && rows.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground">
-                    No return cases.
+                    {t('returns.empty')}
                   </TableCell>
                 </TableRow>
               )}

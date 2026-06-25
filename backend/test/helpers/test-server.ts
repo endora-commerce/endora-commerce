@@ -47,6 +47,7 @@ import { OrderReturnContextProvider } from '../../src/modules/orders/services/or
 import { PaymentRefundProvider } from '../../src/modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from '../../src/modules/invoices/services/corrective-invoice.js';
 import { CreditTopupProvider } from '../../src/modules/credit_limits/services/credit-topup.js';
+import { ReturnEmailNotifier } from '../../src/modules/returns/services/return-email-notifier.js';
 import { creditLimitsModule } from '../../src/modules/credit_limits/plugin.js';
 import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
 import { analyticsModule } from '../../src/modules/analytics/plugin.js';
@@ -1380,6 +1381,10 @@ export async function setupBackendServer(
       correctiveInvoice: new CorrectiveInvoiceProvider(em),
       creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
       auditLog: auditLogService,
+      notifier: new ReturnEmailNotifier(
+        options.organizationsMailer ?? new ConsoleMailer(),
+        async (cid) => (await em().findOne(CustomerAccount, { id: cid }))?.email ?? null,
+      ),
     }),
   );
 
