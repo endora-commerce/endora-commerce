@@ -56,6 +56,11 @@ import { OnlineCustomers } from './modules/customers/OnlineCustomers.js';
 import { OrdersList } from './modules/orders/OrdersList.js';
 import { OrderDetail } from './modules/orders/OrderDetail.js';
 import { OrderStatusConfigPage } from './modules/orders/OrderStatusConfigPage.js';
+import { ReturnsList } from './modules/returns/ReturnsList.js';
+import { ReturnDetail } from './modules/returns/ReturnDetail.js';
+import { ReturnStatusesConfigPage } from './modules/returns/ReturnStatusesConfigPage.js';
+import { ReturnReasonsPage } from './modules/returns/ReturnReasonsPage.js';
+import { ReturnDeliveryMethodsPage } from './modules/returns/ReturnDeliveryMethodsPage.js';
 import { OrderCreatePage } from './modules/orders/OrderCreatePage.js';
 import { QuickOrderOnBehalfPage } from './modules/quick_order/QuickOrderOnBehalfPage.js';
 import { CartsList } from './modules/carts/CartsList.js';
@@ -160,6 +165,11 @@ export function App(): ReactNode {
         <Route path="/orders/quick-order" element={<QuickOrderOnBehalfPage />} />
         <Route path="/orders/statuses" element={<OrderStatusConfigPage />} />
         <Route path="/orders/:id" element={<OrderDetail />} />
+        <Route path="/returns" element={<ReturnsList />} />
+        <Route path="/returns/statuses" element={<ReturnStatusesConfigPage />} />
+        <Route path="/returns/reasons" element={<ReturnReasonsPage />} />
+        <Route path="/returns/delivery-methods" element={<ReturnDeliveryMethodsPage />} />
+        <Route path="/returns/:id" element={<ReturnDetail />} />
         <Route path="/carts" element={<CartsList />} />
         <Route path="/carts/:id" element={<CartDetail />} />
         <Route path="/invoices" element={<InvoicesList />} />

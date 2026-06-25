@@ -59,6 +59,18 @@ import { OrderStatus } from '../modules/orders/entities/order-status.entity.js';
 import { OrderStatusTransition } from '../modules/orders/entities/order-status-transition.entity.js';
 import { OrderComment } from '../modules/orders/entities/order-comment.entity.js';
 import { OrderListSavedView } from '../modules/orders/entities/order-list-saved-view.entity.js';
+// Feature 046 — Returns & Complaints (Refunds, RMA).
+import { ReturnStatus } from '../modules/returns/entities/return-status.entity.js';
+import { ReturnStatusTransition } from '../modules/returns/entities/return-status-transition.entity.js';
+import { ReturnCase } from '../modules/returns/entities/return-case.entity.js';
+import { ReturnCaseItem } from '../modules/returns/entities/return-case-item.entity.js';
+import { ReturnCaseComment } from '../modules/returns/entities/return-case-comment.entity.js';
+import { ReturnReason } from '../modules/returns/entities/return-reason.entity.js';
+import { ReturnDeliveryMethod } from '../modules/returns/entities/return-delivery-method.entity.js';
+import { Refund } from '../modules/returns/entities/refund.entity.js';
+import { ReturnShipment } from '../modules/returns/entities/return-shipment.entity.js';
+import { ReturnCaseAttachment } from '../modules/returns/entities/return-case-attachment.entity.js';
+import { ReturnListSavedView } from '../modules/returns/entities/return-list-saved-view.entity.js';
 import { Payment } from '../modules/payments/entities/payment.entity.js';
 import { Shipment } from '../modules/shipments/entities/shipment.entity.js';
 import { Invoice } from '../modules/invoices/entities/invoice.entity.js';
@@ -207,6 +219,18 @@ export const ALL_ENTITIES = [
   OrderStatusTransition,
   OrderComment,
   OrderListSavedView,
+  // Feature 046 — Returns & Complaints (Refunds, RMA).
+  ReturnStatus,
+  ReturnStatusTransition,
+  ReturnCase,
+  ReturnCaseItem,
+  ReturnCaseComment,
+  ReturnReason,
+  ReturnDeliveryMethod,
+  Refund,
+  ReturnShipment,
+  ReturnCaseAttachment,
+  ReturnListSavedView,
   Payment,
   Shipment,
   Invoice,

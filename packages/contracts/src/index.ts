@@ -18,6 +18,7 @@ export * from './organizations.js';
 export * from './customers.js';
 export * from './carts.js';
 export * from './orders.js';
+export * from './returns.js';
 export * from './price-lists.js';
 export * from './taxes.js';
 export * from './promotions.js';

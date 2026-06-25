@@ -42,6 +42,12 @@ import { commerceModule } from '../../src/modules/orders/plugin.js';
 import { adminModule } from '../../src/modules/admin_users/plugin.js';
 import { inventoryModule } from '../../src/modules/inventory/plugin.js';
 import { shoppingListsModule } from '../../src/modules/shopping_lists/plugin.js';
+import { returnsModule } from '../../src/modules/returns/plugin.js';
+import { OrderReturnContextProvider } from '../../src/modules/orders/services/order-return-context.js';
+import { PaymentRefundProvider } from '../../src/modules/payments/services/payment-refund.js';
+import { CorrectiveInvoiceProvider } from '../../src/modules/invoices/services/corrective-invoice.js';
+import { CreditTopupProvider } from '../../src/modules/credit_limits/services/credit-topup.js';
+import { ReturnEmailNotifier } from '../../src/modules/returns/services/return-email-notifier.js';
 import { creditLimitsModule } from '../../src/modules/credit_limits/plugin.js';
 import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
 import { analyticsModule } from '../../src/modules/analytics/plugin.js';
@@ -1421,6 +1427,30 @@ export async function setupBackendServer(
     },
   });
   modules.push(customers.plugin);
+
+  // Feature 046 — Returns & Complaints (Refunds, RMA).
+  modules.push(
+    returnsModule({
+      emFactory: em,
+      eventBus,
+      settingsService: settings.handle.settingsService,
+      requireCustomer: requireTestCustomer(),
+      requireAdmin: requireTestAdmin(permissionService),
+      resolveCustomerAccountId: (req) =>
+        req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
+      resolveAdminUserId: (req) =>
+        req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
+      orderContext: new OrderReturnContextProvider(em),
+      paymentRefund: new PaymentRefundProvider(em),
+      correctiveInvoice: new CorrectiveInvoiceProvider(em),
+      creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
+      auditLog: auditLogService,
+      notifier: new ReturnEmailNotifier(
+        options.organizationsMailer ?? new ConsoleMailer(),
+        async (cid) => (await em().findOne(CustomerAccount, { id: cid }))?.email ?? null,
+      ),
+    }),
+  );
 
   modules.push(
     shoppingListsModule({

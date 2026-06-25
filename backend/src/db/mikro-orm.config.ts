@@ -83,6 +83,7 @@ import { Migration075SettingsEnumOptions } from '../modules/settings/migrations/
 import { Migration076BackfillAdminCreatedAwaiting } from '../modules/quote_requests/migrations/076_backfill_admin_created_awaiting.js';
 import { Migration077PromotionsEngine } from '../modules/promotions/migrations/077_promotions_engine.js';
 import { Migration079OrderAppliedPromotions } from '../modules/orders/migrations/079_order_applied_promotions.js';
+import { Migration080ReturnsInit } from '../modules/returns/migrations/080_returns_init.js';
 import { Migration080PwaInit } from '../modules/pwa/migrations/080_pwa_init.js';
 
 /**
@@ -395,6 +396,10 @@ export default defineConfig({
       {
         name: 'Migration079OrderAppliedPromotions',
         class: Migration079OrderAppliedPromotions,
+      },
+      {
+        name: 'Migration080ReturnsInit',
+        class: Migration080ReturnsInit,
       },
       {
         name: 'Migration080PwaInit',

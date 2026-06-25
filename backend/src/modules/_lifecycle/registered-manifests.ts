@@ -58,6 +58,7 @@ import { manifest as paymentMethodsManifest } from '../payment_methods/manifest.
 import { manifest as paymentsManifest } from '../payments/manifest.js';
 import { manifest as promotionsManifest } from '../promotions/manifest.js';
 import { manifest as quickOrderManifest } from '../quick_order/manifest.js';
+import { manifest as returnsManifest } from '../returns/manifest.js';
 import { manifest as seoManifest } from '../seo/manifest.js';
 import { manifest as shipmentsManifest } from '../shipments/manifest.js';
 import { manifest as shoppingListsManifest } from '../shopping_lists/manifest.js';
@@ -157,6 +158,8 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   { manifest: paymentsManifest, filePath: pathFor('payments') },
   { manifest: promotionsManifest, filePath: pathFor('promotions') },
   { manifest: quickOrderManifest, filePath: pathFor('quick_order') },
+  // Feature 046 — Returns & Complaints (Refunds, RMA).
+  { manifest: returnsManifest, filePath: pathFor('returns') },
   { manifest: seoManifest, filePath: pathFor('seo') },
   { manifest: shipmentsManifest, filePath: pathFor('shipments') },
   { manifest: shoppingListsManifest, filePath: pathFor('shopping_lists') },
