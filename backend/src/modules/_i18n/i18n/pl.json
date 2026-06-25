@@ -1784,5 +1784,21 @@
   "returns.reasons.description": "Powody oferowane w formularzu zwrotu w sklepie.",
   "returns.methods.title": "Metody dostawy zwrotnej",
   "returns.methods.description": "Metody i koszt (0 = bezpłatnie / na koszt sklepu) do przesyłek zwrotnych.",
-  "returns.detail.title": "Sprawa zwrotu"
+  "returns.detail.title": "Sprawa zwrotu",
+  "returns.field.search": "Szukaj",
+  "returns.search.placeholder": "Numer RMA…",
+  "returns.field.sort": "Sortowanie",
+  "returns.sort.newest": "Najnowsze",
+  "returns.sort.oldest": "Najstarsze",
+  "returns.sort.rmaAsc": "RMA rosnąco",
+  "returns.sort.rmaDesc": "RMA malejąco",
+  "returns.filter.clearAll": "Wyczyść",
+  "returns.col.customer": "Klient",
+  "returns.col.org": "Organizacja",
+  "returns.loading": "Wczytywanie zwrotów…",
+  "returns.error.load": "Nie udało się wczytać zwrotów",
+  "returns.error.bulk": "Operacja zbiorcza nie powiodła się",
+  "returns.bulk.selected": "Zaznaczono: {count}",
+  "returns.bulk.result": "Autoryzowano: {authorized}, pominięto: {skipped}",
+  "returns.action.exportCsv": "Eksport CSV"
 }

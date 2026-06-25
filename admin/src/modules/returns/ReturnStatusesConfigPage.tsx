@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
 import { PageHeader } from '@/components/ui/page-header';
 import {
   Table,
@@ -17,8 +16,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { StatusTransitionGraph } from '@/modules/orders/StatusTransitionGraph';
 import { useTranslation } from '@/i18n/useTranslation';
 import type { ReturnStatusDto, ReturnTransitionDto } from '@b2b/contracts';
+
+/** Resolve the admin-facing label: default name → English → first → code. */
+function statusLabel(s: ReturnStatusDto): string {
+  return s.defaultName || s.name['en'] || Object.values(s.name)[0] || s.code;
+}
 
 /** Configurable return/complaint workflow (feature 046, US3). */
 export function ReturnStatusesConfigPage(): ReactNode {
@@ -28,8 +33,6 @@ export function ReturnStatusesConfigPage(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
 
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
@@ -59,15 +62,21 @@ export function ReturnStatusesConfigPage(): ReactNode {
     [refresh],
   );
 
-  const saveTransitionAdd = (): void => {
-    if (!from || !to || from === to) return;
-    const next = [...transitions.map((t) => ({ fromStatusCode: t.fromStatusCode, toStatusCode: t.toStatusCode })), { fromStatusCode: from, toStatusCode: to }];
+  // The returns transitions endpoint is a full-list replace, so we derive the
+  // next set from the current one for the graph's add/remove callbacks.
+  const addTransition = (fromCode: string, toCode: string): void => {
+    if (!fromCode || !toCode || fromCode === toCode) return;
+    if (transitions.some((x) => x.fromStatusCode === fromCode && x.toStatusCode === toCode)) return;
+    const next = [
+      ...transitions.map((x) => ({ fromStatusCode: x.fromStatusCode, toStatusCode: x.toStatusCode })),
+      { fromStatusCode: fromCode, toStatusCode: toCode },
+    ];
     void run(() => returnsClient.setTransitions(next));
   };
 
-  const removeTransition = (t: ReturnTransitionDto): void => {
+  const removeTransition = (fromCode: string, toCode: string): void => {
     const next = transitions
-      .filter((x) => !(x.fromStatusCode === t.fromStatusCode && x.toStatusCode === t.toStatusCode))
+      .filter((x) => !(x.fromStatusCode === fromCode && x.toStatusCode === toCode))
       .map((x) => ({ fromStatusCode: x.fromStatusCode, toStatusCode: x.toStatusCode }));
     void run(() => returnsClient.setTransitions(next));
   };
@@ -146,46 +155,17 @@ export function ReturnStatusesConfigPage(): ReactNode {
 
       <Card>
         <CardHeader>
-          <CardTitle>Transitions</CardTitle>
+          <CardTitle>{t('orderStatusConfig.transitions')}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-wrap gap-1">
-            {transitions.map((t) => (
-              <Badge key={`${t.fromStatusCode}->${t.toStatusCode}`} variant="secondary" className="gap-1">
-                {t.fromStatusCode} → {t.toStatusCode}
-                <button type="button" className="ml-1" onClick={() => removeTransition(t)}>
-                  ×
-                </button>
-              </Badge>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="space-y-1">
-              <Label htmlFor="from">From</Label>
-              <Select id="from" value={from} onChange={(e) => setFrom(e.target.value)}>
-                <option value="">—</option>
-                {statuses.map((s) => (
-                  <option key={s.code} value={s.code}>
-                    {s.code}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="to">To</Label>
-              <Select id="to" value={to} onChange={(e) => setTo(e.target.value)}>
-                <option value="">—</option>
-                {statuses.map((s) => (
-                  <option key={s.code} value={s.code}>
-                    {s.code}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <Button size="sm" variant="outline" onClick={saveTransitionAdd}>
-              Add transition
-            </Button>
-          </div>
+        <CardContent>
+          <StatusTransitionGraph
+            statuses={statuses}
+            transitions={transitions}
+            statusLabel={statusLabel}
+            onAdd={addTransition}
+            onRemove={removeTransition}
+            t={t}
+          />
         </CardContent>
       </Card>
     </div>
