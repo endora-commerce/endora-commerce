@@ -47,6 +47,9 @@ import { ConsoleMailer } from './modules/email/services/mailer.js';
 import { resolveSmtpUrlFromEnv } from './modules/email/resolve-smtp-url.js';
 import { SmtpMailer } from './modules/email/services/smtp-mailer.js';
 import { commerceModule } from './modules/orders/plugin.js';
+// Feature 046 — Returns & Complaints (Refunds, RMA).
+import { returnsModule } from './modules/returns/plugin.js';
+import { OrderReturnContextProvider } from './modules/orders/services/order-return-context.js';
 import { AddressService } from './modules/addresses/services/address-service.js';
 import type { OrderListService } from './modules/orders/services/order-list-service.js';
 import type { OrderTransitionService } from './modules/orders/services/order-transition-service.js';
@@ -257,6 +260,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
     }
     return { adminUserId: request.actor.adminUserId };
+  };
+
+  /**
+   * Resolver for customer routes that work with or without an Organization
+   * (e.g. Returns history/submission). Unlike `customerResolver`, it does not
+   * require an Organization — it only asserts a customer session.
+   */
+  const resolveCustomerAccountId = (request: FastifyRequest): string => {
+    if (request.actor.kind !== 'customer') {
+      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+    }
+    return request.actor.customerAccountId;
   };
 
   // ---- Module composition (order mirrors test/helpers/test-server.ts) -----
@@ -1603,6 +1618,22 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     },
   });
   modules.push(customers.plugin);
+
+  // Feature 046 — Returns & Complaints (Refunds, RMA). Reads order facts only
+  // through the OrderReturnContextPort (Principle I); settings drive the
+  // free-return window and RMA prefix/suffix.
+  modules.push(
+    returnsModule({
+      emFactory: em,
+      eventBus,
+      settingsService: settings.handle.settingsService,
+      requireCustomer,
+      requireAdmin,
+      resolveCustomerAccountId,
+      resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
+      orderContext: new OrderReturnContextProvider(em),
+    }),
+  );
 
   // Shopping lists / quick order — depends on the RFQ service built above
   // so the "convert to RFQ" flow goes through the new createForCustomer API.
