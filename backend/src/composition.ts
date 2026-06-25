@@ -50,6 +50,9 @@ import { commerceModule } from './modules/orders/plugin.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import { returnsModule } from './modules/returns/plugin.js';
 import { OrderReturnContextProvider } from './modules/orders/services/order-return-context.js';
+import { PaymentRefundProvider } from './modules/payments/services/payment-refund.js';
+import { CorrectiveInvoiceProvider } from './modules/invoices/services/corrective-invoice.js';
+import { CreditTopupProvider } from './modules/credit_limits/services/credit-topup.js';
 import { AddressService } from './modules/addresses/services/address-service.js';
 import type { OrderListService } from './modules/orders/services/order-list-service.js';
 import type { OrderTransitionService } from './modules/orders/services/order-transition-service.js';
@@ -1632,6 +1635,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCustomerAccountId,
       resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
       orderContext: new OrderReturnContextProvider(em),
+      paymentRefund: new PaymentRefundProvider(em),
+      correctiveInvoice: new CorrectiveInvoiceProvider(em),
+      creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
     }),
   );
 

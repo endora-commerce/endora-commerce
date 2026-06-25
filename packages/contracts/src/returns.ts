@@ -207,3 +207,50 @@ export const adminReturnRowSchema = returnCaseSummarySchema.extend({
   organizationName: z.string().nullable(),
 });
 export type AdminReturnRow = z.infer<typeof adminReturnRowSchema>;
+
+// ---------------------------------------------------------------------------
+// Settlement (US5)
+// ---------------------------------------------------------------------------
+
+export const settlementPrefillSchema = z.object({
+  currency: z.string().length(3),
+  resolutionOptions: z.array(resolutionTypeSchema),
+  items: z.array(
+    z.object({
+      returnCaseItemId: uuidSchema,
+      productName: z.string(),
+      quantity: z.number().int().positive(),
+      defaultRefundAmount: z.number().finite(),
+      approvedRefundAmount: z.number().finite(),
+    }),
+  ),
+});
+export type SettlementPrefill = z.infer<typeof settlementPrefillSchema>;
+
+export const settlementRequestSchema = z.object({
+  resolutionType: resolutionTypeSchema,
+  lines: z
+    .array(
+      z.object({
+        returnCaseItemId: uuidSchema,
+        approvedRefundAmount: z.number().finite().nonnegative(),
+      }),
+    )
+    .default([]),
+  refundPaymentMethodId: uuidSchema.optional(),
+  createCorrectiveInvoice: z.boolean().optional(),
+});
+export type SettlementRequest = z.infer<typeof settlementRequestSchema>;
+
+export const settlementResultSchema = z.object({
+  totalRefundAmount: z.number().finite(),
+  refund: z
+    .object({
+      settlementState: settlementStateSchema,
+      externalReference: z.string().nullable().optional(),
+    })
+    .optional(),
+  correctiveInvoiceId: uuidSchema.nullable().optional(),
+  creditLimitTopupApplied: z.boolean().optional(),
+});
+export type SettlementResult = z.infer<typeof settlementResultSchema>;

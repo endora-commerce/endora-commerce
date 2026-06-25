@@ -44,6 +44,9 @@ import { inventoryModule } from '../../src/modules/inventory/plugin.js';
 import { shoppingListsModule } from '../../src/modules/shopping_lists/plugin.js';
 import { returnsModule } from '../../src/modules/returns/plugin.js';
 import { OrderReturnContextProvider } from '../../src/modules/orders/services/order-return-context.js';
+import { PaymentRefundProvider } from '../../src/modules/payments/services/payment-refund.js';
+import { CorrectiveInvoiceProvider } from '../../src/modules/invoices/services/corrective-invoice.js';
+import { CreditTopupProvider } from '../../src/modules/credit_limits/services/credit-topup.js';
 import { creditLimitsModule } from '../../src/modules/credit_limits/plugin.js';
 import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
 import { analyticsModule } from '../../src/modules/analytics/plugin.js';
@@ -1373,6 +1376,9 @@ export async function setupBackendServer(
       resolveAdminUserId: (req) =>
         req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
       orderContext: new OrderReturnContextProvider(em),
+      paymentRefund: new PaymentRefundProvider(em),
+      correctiveInvoice: new CorrectiveInvoiceProvider(em),
+      creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
     }),
   );
 

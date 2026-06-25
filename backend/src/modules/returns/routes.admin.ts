@@ -1,13 +1,17 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
+  adminAddCommentRequestSchema,
   adminRejectRequestSchema,
   adminTransitionRequestSchema,
   returnStatusCreateSchema,
   returnStatusUpdateSchema,
   returnTransitionsSetSchema,
+  settlementRequestSchema,
 } from '@b2b/contracts';
 import type { ReturnCaseService } from './services/return-case-service.js';
 import type { ReturnAuthorizationService } from './services/return-authorization-service.js';
+import type { ReturnCommentService } from './services/return-comment-service.js';
+import type { ReturnSettlementService } from './services/return-settlement-service.js';
 import type { ReturnTransitionService } from './services/return-transition-service.js';
 import type { ReturnStatusGraphService } from './services/return-status-graph-service.js';
 
@@ -21,6 +25,8 @@ type RequireAdmin = (permission?: string) => (req: FastifyRequest, reply: Fastif
 export interface ReturnsAdminRoutesDeps {
   caseService: ReturnCaseService;
   authorizationService: ReturnAuthorizationService;
+  commentService: ReturnCommentService;
+  settlementService: ReturnSettlementService;
   transitions: ReturnTransitionService;
   graphService: ReturnStatusGraphService;
   requireAdmin: RequireAdmin;
@@ -34,6 +40,8 @@ export async function registerReturnsAdminRoutes(
   const {
     caseService,
     authorizationService,
+    commentService,
+    settlementService,
     transitions,
     graphService,
     requireAdmin,
@@ -138,6 +146,49 @@ export async function registerReturnsAdminRoutes(
         body.reason !== undefined ? { reason: body.reason } : undefined,
       );
       return { data: await caseService.getByIdForAdmin(request.params.id) };
+    },
+  );
+
+  // --- Settlement (US5) ----------------------------------------------------
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/returns/:id/settlement',
+    { preHandler: requireAdmin('returns:read') },
+    async (request) => {
+      const data = await settlementService.getPrefill(request.params.id);
+      return { data };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/returns/:id/settlement',
+    { preHandler: requireAdmin('returns:write'), schema: { body: settlementRequestSchema } },
+    async (request) => {
+      const adminUserId = resolveAdminUserId(request);
+      const body = settlementRequestSchema.parse(request.body);
+      const data = await settlementService.settle(request.params.id, adminUserId, body);
+      return { data };
+    },
+  );
+
+  // --- Comments (US4) ------------------------------------------------------
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/returns/:id/comments',
+    { preHandler: requireAdmin('returns:read') },
+    async (request) => {
+      const data = await commentService.listForAdmin(request.params.id);
+      return { data };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/returns/:id/comments',
+    { preHandler: requireAdmin('returns:write'), schema: { body: adminAddCommentRequestSchema } },
+    async (request, reply) => {
+      const adminUserId = resolveAdminUserId(request);
+      const body = adminAddCommentRequestSchema.parse(request.body);
+      const data = await commentService.addByAdmin(request.params.id, adminUserId, body);
+      reply.status(201);
+      return { data };
     },
   );
 }

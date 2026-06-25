@@ -7,12 +7,17 @@ import { RETURNS_SETTING_CODES } from './manifest.js';
 import { ReturnStatusGraphService } from './services/return-status-graph-service.js';
 import { ReturnTransitionService } from './services/return-transition-service.js';
 import { ReturnCaseService } from './services/return-case-service.js';
+import { ReturnCommentService } from './services/return-comment-service.js';
+import { ReturnSettlementService } from './services/return-settlement-service.js';
 import {
   ReturnAuthorizationService,
   type ReturnNotifier,
 } from './services/return-authorization-service.js';
 import { createRmaNumberGenerator } from './services/rma-number-generator.js';
 import type { OrderReturnContextPort } from './ports/order-return-context.port.js';
+import type { PaymentRefundPort } from './ports/payment-refund.port.js';
+import type { CorrectiveInvoicePort } from './ports/corrective-invoice.port.js';
+import type { CreditTopupPort } from './ports/credit-topup.port.js';
 import { registerReturnsCustomerRoutes } from './routes.customer.js';
 import { registerReturnsAdminRoutes } from './routes.admin.js';
 
@@ -28,6 +33,10 @@ export interface ReturnsModuleOptions {
   resolveCustomerAccountId: (req: FastifyRequest) => string;
   resolveAdminUserId: (req: FastifyRequest) => string;
   orderContext: OrderReturnContextPort;
+  /** Settlement ports (US5). Money refunds, corrective invoices, credit top-up. */
+  paymentRefund: PaymentRefundPort;
+  correctiveInvoice: CorrectiveInvoicePort;
+  creditTopup: CreditTopupPort;
   /** Best-effort customer notifications on authorize/reject. */
   notifier?: ReturnNotifier;
   /** Exposes the transition service back to composition (e.g. for settlement guards). */
@@ -86,10 +95,23 @@ export function returnsModule(
     ...(options.notifier ? { notifier: options.notifier } : {}),
   });
 
+  const commentService = new ReturnCommentService({ emFactory, graphService });
+
+  const settlementService = new ReturnSettlementService({
+    emFactory,
+    events: eventBus,
+    transitions,
+    graphService,
+    paymentRefund: options.paymentRefund,
+    correctiveInvoice: options.correctiveInvoice,
+    creditTopup: options.creditTopup,
+  });
+
   options.exposeServices?.({ graphService, transitions, caseService });
 
   await registerReturnsCustomerRoutes(app, {
     caseService,
+    commentService,
     requireCustomer: options.requireCustomer,
     resolveCustomerAccountId: options.resolveCustomerAccountId,
   });
@@ -97,6 +119,8 @@ export function returnsModule(
   await registerReturnsAdminRoutes(app, {
     caseService,
     authorizationService,
+    commentService,
+    settlementService,
     transitions,
     graphService,
     requireAdmin: options.requireAdmin,
