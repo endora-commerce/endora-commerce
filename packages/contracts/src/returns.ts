@@ -254,3 +254,159 @@ export const settlementResultSchema = z.object({
   creditLimitTopupApplied: z.boolean().optional(),
 });
 export type SettlementResult = z.infer<typeof settlementResultSchema>;
+
+// ---------------------------------------------------------------------------
+// Return delivery methods + shipments (US6)
+// ---------------------------------------------------------------------------
+
+export const returnDeliveryMethodSchema = z.object({
+  id: uuidSchema,
+  deliveryMethodId: uuidSchema,
+  returnCost: z.number().finite().nonnegative(),
+  currency: z.string().length(3),
+  isActive: z.boolean(),
+});
+export type ReturnDeliveryMethodDto = z.infer<typeof returnDeliveryMethodSchema>;
+
+export const returnDeliveryMethodCreateSchema = z.object({
+  deliveryMethodId: uuidSchema,
+  returnCost: z.number().finite().nonnegative(),
+  currency: z.string().length(3),
+  isActive: z.boolean().optional(),
+});
+
+export const returnDeliveryMethodUpdateSchema = z.object({
+  returnCost: z.number().finite().nonnegative().optional(),
+  currency: z.string().length(3).optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const selectReturnDeliveryMethodRequestSchema = z.object({
+  returnDeliveryMethodId: uuidSchema,
+});
+
+export const selectReturnDeliveryMethodResultSchema = z.object({
+  appliedReturnCost: z.number().finite(),
+  returnCostBearer: returnCostBearerSchema,
+  currency: z.string().length(3),
+});
+
+export const returnShipmentDirectionSchema = z.enum(['inbound', 'replacement']);
+
+export const returnShipmentSchema = z.object({
+  id: uuidSchema,
+  direction: returnShipmentDirectionSchema,
+  deliveryMethodId: uuidSchema.nullable(),
+  externalReference: z.string().nullable(),
+  status: z.enum(['pending', 'received', 'failed']),
+  createdAt: isoDateTimeSchema,
+});
+export type ReturnShipmentDto = z.infer<typeof returnShipmentSchema>;
+
+export const createReturnShipmentRequestSchema = z.object({
+  direction: returnShipmentDirectionSchema,
+  deliveryMethodId: uuidSchema.optional(),
+  externalReference: z.string().max(128).optional(),
+});
+
+// ---------------------------------------------------------------------------
+// Reasons (US7)
+// ---------------------------------------------------------------------------
+
+export const reasonAppliesToSchema = z.enum(['return', 'complaint', 'both']);
+
+export const returnReasonSchema = z.object({
+  id: uuidSchema,
+  label: z.record(z.string().min(2), z.string()),
+  appliesTo: reasonAppliesToSchema,
+  isActive: z.boolean(),
+  weight: z.number().int(),
+});
+export type ReturnReasonDto = z.infer<typeof returnReasonSchema>;
+
+export const returnReasonCreateSchema = z.object({
+  label: z.record(z.string().min(2), z.string()),
+  appliesTo: reasonAppliesToSchema,
+  isActive: z.boolean().optional(),
+  weight: z.number().int().optional(),
+});
+
+export const returnReasonUpdateSchema = z.object({
+  label: z.record(z.string().min(2), z.string()).optional(),
+  appliesTo: reasonAppliesToSchema.optional(),
+  isActive: z.boolean().optional(),
+  weight: z.number().int().optional(),
+});
+
+// ---------------------------------------------------------------------------
+// Admin list, bulk actions, saved views, export (US8)
+// ---------------------------------------------------------------------------
+
+export const adminReturnsSortSchema = z.enum([
+  'submittedAt:asc',
+  'submittedAt:desc',
+  'rmaNumber:asc',
+  'rmaNumber:desc',
+]);
+
+export const adminReturnsListQuerySchema = z.object({
+  /** Comma-separated status codes. */
+  status: z.string().optional(),
+  kind: returnKindSchema.optional(),
+  rmaNumber: z.string().optional(),
+  q: z.string().optional(),
+  sort: adminReturnsSortSchema.optional(),
+  page: z.coerce.number().int().positive().optional(),
+  pageSize: z.coerce.number().int().positive().max(200).optional(),
+});
+export type AdminReturnsListQuery = z.infer<typeof adminReturnsListQuerySchema>;
+
+export const adminReturnsListResponseSchema = z.object({
+  rows: z.array(adminReturnRowSchema),
+  total: z.number().int().nonnegative(),
+  counts: z.record(z.string(), z.number().int().nonnegative()),
+});
+export type AdminReturnsListResponse = z.infer<typeof adminReturnsListResponseSchema>;
+
+export const bulkTransitionRequestSchema = z.object({
+  ids: z.array(uuidSchema).min(1),
+  to: returnStatusCodeSchema,
+  reason: z.string().max(2000).optional(),
+});
+
+export const bulkTransitionResultSchema = z.object({
+  moved: z.array(uuidSchema),
+  skipped: z.array(z.object({ id: uuidSchema, reason: z.string() })),
+});
+export type BulkTransitionResult = z.infer<typeof bulkTransitionResultSchema>;
+
+export const returnSavedViewSortSchema = z.object({
+  field: z.string(),
+  dir: z.enum(['asc', 'desc']),
+});
+
+export const returnSavedViewSchema = z.object({
+  id: uuidSchema,
+  name: z.string(),
+  shared: z.boolean(),
+  filters: z.record(z.string(), z.unknown()),
+  sort: returnSavedViewSortSchema,
+  visibleColumns: z.array(z.string()).nullable(),
+});
+export type ReturnSavedViewDto = z.infer<typeof returnSavedViewSchema>;
+
+export const returnSavedViewCreateSchema = z.object({
+  name: z.string().min(1).max(200),
+  shared: z.boolean().optional(),
+  filters: z.record(z.string(), z.unknown()),
+  sort: returnSavedViewSortSchema,
+  visibleColumns: z.array(z.string()).optional(),
+});
+
+export const returnSavedViewUpdateSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  shared: z.boolean().optional(),
+  filters: z.record(z.string(), z.unknown()).optional(),
+  sort: returnSavedViewSortSchema.optional(),
+  visibleColumns: z.array(z.string()).nullable().optional(),
+});

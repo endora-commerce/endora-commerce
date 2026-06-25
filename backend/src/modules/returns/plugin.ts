@@ -9,6 +9,12 @@ import { ReturnTransitionService } from './services/return-transition-service.js
 import { ReturnCaseService } from './services/return-case-service.js';
 import { ReturnCommentService } from './services/return-comment-service.js';
 import { ReturnSettlementService } from './services/return-settlement-service.js';
+import { ReturnDeliveryMethodService } from './services/return-delivery-method-service.js';
+import { ReturnShipmentService } from './services/return-shipment-service.js';
+import { ReturnReasonService } from './services/return-reason-service.js';
+import { ReturnListService } from './services/return-list-service.js';
+import { ReturnListViewService } from './services/return-list-view-service.js';
+import { ReturnExportService } from './services/return-export-service.js';
 import {
   ReturnAuthorizationService,
   type ReturnNotifier,
@@ -81,12 +87,38 @@ export function returnsModule(
     }
   };
 
+  const resolveDefaultCostBearer = async (salesChannelId: string): Promise<'customer' | 'shop'> => {
+    try {
+      const value = await settingsService.get(
+        RETURNS_SETTING_CODES.DEFAULT_COST_BEARER_OUTSIDE_WINDOW,
+        salesChannelId,
+        z.enum(['customer', 'shop']),
+      );
+      return value;
+    } catch {
+      return 'customer';
+    }
+  };
+
   const caseService = new ReturnCaseService({
     emFactory,
     graphService,
+    transitions,
     orderContext,
     resolveFreeReturnDays,
   });
+
+  const deliveryMethodService = new ReturnDeliveryMethodService({
+    emFactory,
+    graphService,
+    resolveDefaultCostBearer,
+  });
+
+  const shipmentService = new ReturnShipmentService({ emFactory, transitions });
+  const reasonService = new ReturnReasonService(emFactory);
+  const listService = new ReturnListService({ emFactory, graphService, transitions });
+  const listViewService = new ReturnListViewService(emFactory);
+  const exportService = new ReturnExportService(listService);
 
   const authorizationService = new ReturnAuthorizationService({
     emFactory,
@@ -112,6 +144,8 @@ export function returnsModule(
   await registerReturnsCustomerRoutes(app, {
     caseService,
     commentService,
+    deliveryMethodService,
+    reasonService,
     requireCustomer: options.requireCustomer,
     resolveCustomerAccountId: options.resolveCustomerAccountId,
   });
@@ -121,6 +155,12 @@ export function returnsModule(
     authorizationService,
     commentService,
     settlementService,
+    deliveryMethodService,
+    shipmentService,
+    reasonService,
+    listService,
+    listViewService,
+    exportService,
     transitions,
     graphService,
     requireAdmin: options.requireAdmin,

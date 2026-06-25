@@ -12,7 +12,10 @@ import { ReturnCaseItem } from '../entities/return-case-item.entity.js';
 import { ReturnCaseComment } from '../entities/return-case-comment.entity.js';
 import { ReturnCaseAttachment } from '../entities/return-case-attachment.entity.js';
 import { ReturnReason } from '../entities/return-reason.entity.js';
+import { RETURN_STATUS_CANCELLED } from '../domain/return-status-graph.js';
+import { isWithinFreeWindow } from '../domain/free-return-window.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
+import type { ReturnTransitionService } from './return-transition-service.js';
 import type { OrderReturnContextPort } from '../ports/order-return-context.port.js';
 
 /** Statuses whose cases do NOT consume returnable quantity (FR-003). */
@@ -21,6 +24,7 @@ const VOID_STATUS_CODES = new Set(['rejected', 'cancelled']);
 export interface ReturnCaseServiceDeps {
   emFactory: () => EntityManager;
   graphService: ReturnStatusGraphService;
+  transitions: ReturnTransitionService;
   orderContext: OrderReturnContextPort;
   /** Free-return window in days for a sales channel (0 = no free-return option). */
   resolveFreeReturnDays: (salesChannelId: string) => Promise<number>;
@@ -192,6 +196,15 @@ export class ReturnCaseService {
     return this.mapDetail(em, rc.id, { customerView: true });
   }
 
+  /** Customer withdraws their own case (if the workflow permits the transition). */
+  async cancelByCustomer(id: string, customerAccountId: string): Promise<ReturnCaseDetail> {
+    const em = this.deps.emFactory();
+    const rc = await em.findOne(ReturnCase, { id, customerAccountId });
+    if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
+    await this.deps.transitions.apply(id, RETURN_STATUS_CANCELLED, { kind: 'customer', customerAccountId });
+    return this.mapDetail(this.deps.emFactory(), id, { customerView: true });
+  }
+
   /** Detail for the admin surface (includes internal comments). */
   async getByIdForAdmin(id: string): Promise<ReturnCaseDetail> {
     const em = this.deps.emFactory();
@@ -219,11 +232,8 @@ export class ReturnCaseService {
     salesChannelId: string,
     completingAt: Date | null,
   ): Promise<boolean> {
-    if (completingAt === null) return false;
     const days = await this.deps.resolveFreeReturnDays(salesChannelId);
-    if (!Number.isFinite(days) || days <= 0) return false;
-    const deadline = new Date(completingAt.getTime() + days * 24 * 60 * 60 * 1000);
-    return this.now().getTime() <= deadline.getTime();
+    return isWithinFreeWindow(this.now(), completingAt, days);
   }
 
   private toSummary(rc: ReturnCase, statusLabel: string): ReturnCaseSummary {
