@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -63,7 +64,12 @@ export function OrdersPanel({ customerId }: { customerId: string }): ReactNode {
           <ul className="divide-y text-sm">
             {rows.map((o) => (
               <li key={o.id} className="flex justify-between py-2">
-                <span className="font-mono">{o.businessId}</span>
+                <Link
+                  to={`/orders/${o.id}`}
+                  className="font-mono underline underline-offset-2"
+                >
+                  {o.businessId}
+                </Link>
                 <span>{o.status}</span>
                 <span>
                   {o.total} {o.currency}
@@ -80,6 +86,7 @@ export function OrdersPanel({ customerId }: { customerId: string }): ReactNode {
 
 interface RfqRow {
   id: string;
+  businessId?: string;
   status: string;
   createdAt?: string;
   submittedAt?: string | null;
@@ -107,7 +114,12 @@ export function QuoteRequestsPanel({ customerId }: { customerId: string }): Reac
           <ul className="divide-y text-sm">
             {rows.map((r) => (
               <li key={r.id} className="flex justify-between py-2">
-                <span className="font-mono text-xs">{r.id.slice(0, 8)}</span>
+                <Link
+                  to={`/quote-requests/${r.id}`}
+                  className="font-mono text-xs underline underline-offset-2"
+                >
+                  {r.businessId ?? r.id.slice(0, 8)}
+                </Link>
                 <span>{r.status}</span>
               </li>
             ))}
