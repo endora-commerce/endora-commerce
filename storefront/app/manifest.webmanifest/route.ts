@@ -1,35 +1,38 @@
 /**
- * Web app manifest (T236 / FR-104). Served as a Next.js Route Handler so
- * the manifest can pick up dynamic values from environment variables
- * without a build-time inline.
+ * Web app manifest (feature 046 / FR-001..FR-003, FR-011).
  *
- * Themes typically replace this file with a static manifest in their own
- * brand colours; the route handler is offered as a starting point.
+ * Served as a Next.js Route Handler so the manifest reflects the admin-configured,
+ * per-Sales-Channel PWA identity (name, short name, theme/background color, icons,
+ * display mode) resolved from the backend at request time. Falls back to platform
+ * defaults when the backend is unreachable so the manifest is always valid
+ * (graceful degradation — US1 scenario 3).
  */
 
-export const dynamic = 'force-static';
+import { fetchPwaConfig } from '../../lib/api/pwa-server';
 
-const NAME = process.env['NEXT_PUBLIC_APP_NAME'] ?? 'B2B Platform';
-const SHORT_NAME = process.env['NEXT_PUBLIC_APP_SHORT_NAME'] ?? 'B2B';
+export const dynamic = 'force-dynamic';
 
-export function GET(): Response {
+export async function GET(request?: Request): Promise<Response> {
+  const channelCode = request?.headers.get('x-sales-channel') ?? undefined;
+  const config = await fetchPwaConfig(channelCode);
+
   const manifest = {
-    name: NAME,
-    short_name: SHORT_NAME,
+    name: config.appName,
+    short_name: config.shortName,
     description: 'B2B commerce storefront',
     start_url: '/',
     scope: '/',
-    display: 'standalone',
-    background_color: '#fafafa',
-    theme_color: '#1d4ed8',
-    icons: [
-      // Themes ship their own icons; the reference theme keeps placeholders
-      // so Lighthouse's manifest audit has the keys present.
-      { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-      { src: '/icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-    ],
+    display: config.displayMode,
+    background_color: config.backgroundColor,
+    theme_color: config.themeColor,
+    icons: config.icons.map((icon) => ({
+      src: icon.src,
+      sizes: icon.sizes,
+      type: icon.type,
+      ...(icon.purpose ? { purpose: icon.purpose } : {}),
+    })),
   };
+
   return new Response(JSON.stringify(manifest), {
     headers: { 'Content-Type': 'application/manifest+json' },
   });

@@ -6,6 +6,8 @@ import { MobileTabBar } from '../components/mobile/MobileTabBar';
 import { tForLocale } from '../lib/i18n/messages';
 import { Hook } from '../components/Hook';
 import { PwaRegister } from '../components/PwaRegister';
+import { InstallPrompt } from '../components/pwa/InstallPrompt';
+import { PushOptIn } from '../components/pwa/PushOptIn';
 import { SpeculationRules } from '../components/SpeculationRules';
 import { RouteTransition } from '../components/RouteTransition';
 import { CartMergeToast } from '../components/CartMergeToast';
@@ -132,6 +134,10 @@ export default async function RootLayout({
                   renders to `null` on every page except the one that
                   immediately follows a successful merge. */}
               <CartMergeToast />
+              {/* Feature 046 — PWA install prompt + push opt-in. Both render to
+                  null unless supported and enabled (graceful degradation). */}
+              <InstallPrompt />
+              <PushOptIn />
               <Hook code="page.top" />
               <RouteTransition>{children}</RouteTransition>
               <Hook code="page.bottom" />
