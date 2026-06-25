@@ -107,6 +107,7 @@ const NAV: NavSection[] = [
       { to: '/orders/new', labelKey: 'appShell.nav.newOrder', icon: ClipboardCheck },
       { to: '/orders/quick-order', labelKey: 'appShell.nav.quickOrder', icon: ClipboardCheck },
       { to: '/orders/statuses', labelKey: 'appShell.nav.orderStatuses', icon: ClipboardCheck },
+      { to: '/returns', labelKey: 'appShell.nav.returns', icon: Package, requiredPermission: 'returns:read' },
       { to: '/quote-requests', labelKey: 'appShell.nav.quoteRequests', icon: FileText },
       { to: '/invoices', labelKey: 'appShell.nav.invoices', icon: Receipt },
     ],
