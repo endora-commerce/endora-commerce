@@ -70,6 +70,10 @@ import { createSuggestionPricingEnricher } from '../../src/modules/search/servic
 import { searchManifest } from '../../src/modules/search/manifest.js';
 import { promptActionsModule, type PromptActionsModuleOptions } from '../../src/modules/prompt_actions/plugin.js';
 import { promptActionsSettingsManifest } from '../../src/modules/prompt_actions/manifest.js';
+import { pwaModule } from '../../src/modules/pwa/plugin.js';
+import { pwaSettingsManifest } from '../../src/modules/pwa/manifest.js';
+import { SalesChannel } from '../../src/modules/sales_channels/entities/sales-channel.entity.js';
+import { Order } from '../../src/modules/orders/entities/order.entity.js';
 import {
   catalogBulkProgressResolver,
   catalogPromptMutationTools,
@@ -142,6 +146,8 @@ export interface BackendServerHandle {
   settings: ReturnType<typeof settingsModule>['handle'];
   /** Feature 043 — prompt assistant handle (registry + request service). */
   promptActions: ReturnType<typeof promptActionsModule>['handle'];
+  /** Feature 046 — PWA handle (config resolver, push services, delivery queue). */
+  pwa: ReturnType<typeof pwaModule>['handle'];
   /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
   salesChannels: ReturnType<typeof salesChannelsModule>['handle'];
   /** Feature 006 — exposes the indexer + suggest service for tests that
@@ -1088,6 +1094,64 @@ export async function setupBackendServer(
   registerCmsAssetReferences(assetsLibrary.handle.referenceRegistry, em);
   registerMegamenuAssetReferences(assetsLibrary.handle.referenceRegistry, em);
 
+  // Feature 046 — PWA module (mirrors composition.ts). runWorkers:false so no
+  // BullMQ consumer starts in tests; the delivery processor is invoked directly
+  // by integration tests.
+  const pwa = pwaModule({
+    emFactory: em,
+    redis,
+    runWorkers: false,
+    settings: settings.handle.settingsService,
+    settingsWrite: settings.handle.adminService,
+    requireAdmin: requireTestAdmin(permissionService),
+    eventBus,
+    assetUpload: {
+      upload: async (input) => {
+        const detail = await assetsLibrary.handle.service.upload(input);
+        return { id: detail.id };
+      },
+    },
+    resolveAssetUrl: async (assetId) => {
+      try {
+        return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
+      } catch {
+        return null;
+      }
+    },
+    resolveChannelIdByCode: async (code) => {
+      if (code) {
+        const ch = await salesChannels.handle.resolver.getByCode(code);
+        if (ch) return ch.id;
+      }
+      return (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default';
+    },
+    defaultChannelId: async () =>
+      (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
+    channelCodeForId: async (channelId) => {
+      const ch = await em().findOne(SalesChannel, { id: channelId });
+      return ch?.code ?? null;
+    },
+    resolveAuditContext: (request) => ({
+      actorAdminUserId:
+        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+    }),
+    vapidSubject: 'mailto:test@b2b-platform.local',
+    resolveCustomerAccountId: async (request) =>
+      request.testActor?.kind === 'customer' ? request.testActor.customerAccountId : null,
+    resolveOrderTarget: async (payload) => {
+      const order = await em().findOne(Order, { id: payload.orderId });
+      if (!order || !order.placedByCustomerAccountId) return null;
+      return {
+        salesChannelId: payload.salesChannelId,
+        customerAccountId: order.placedByCustomerAccountId,
+        title: 'Order update',
+        body: `Order ${order.businessId} is now ${payload.to.replace(/_/g, ' ')}.`,
+        url: `/account/orders/${order.businessId}`,
+      };
+    },
+  });
+  modules.push(pwa.plugin);
+
   // Feature 015 — Megamenu module. Wires the cross-module ports the
   // target validator + storefront resolver delegate to. v1 uses small
   // direct SQL lookups instead of forcing new upstream surfaces.
@@ -1412,6 +1476,7 @@ export async function setupBackendServer(
     blogManifest,
     mfaSettingsManifest,
     promptActionsSettingsManifest,
+    pwaSettingsManifest,
   ]);
 
   const app = await buildServer({
@@ -1459,6 +1524,7 @@ export async function setupBackendServer(
     sessionService,
     auditLogService,
     promptActions: promptActions.handle,
+    pwa: pwa.handle,
     permissionService,
     permissionCatalogueService,
     settings: settings.handle,

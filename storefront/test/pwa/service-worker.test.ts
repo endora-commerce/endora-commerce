@@ -47,12 +47,40 @@ describe('service-worker.js — caching contract', () => {
   it('never intercepts non-GET requests', () => {
     expect(swSource).toMatch(/request\.method !== 'GET'/);
   });
+
+  it('never caches /api responses — business data stays fresh (FR-014)', () => {
+    expect(swSource).toMatch(/url\.pathname\.startsWith\('\/api\/'\)/);
+  });
+
+  it('gates caching behind the backend config flag (FR-012/016)', () => {
+    expect(swSource).toMatch(/cachingEnabled/);
+    expect(swSource).toMatch(/purgeCaches/);
+    expect(swSource).toMatch(/\/pwa\/config/);
+  });
+
+  it('keys cache names by build version for deterministic updates (FR-027)', () => {
+    expect(swSource).toMatch(/searchParams\.get\('v'\)/);
+    expect(swSource).toMatch(/b2b-assets-\$\{VERSION\}/);
+  });
+
+  it('applies an update only on a client signal (FR-028)', () => {
+    expect(swSource).toMatch(/pwa:skip-waiting/);
+    expect(swSource).toMatch(/self\.skipWaiting\(\)/);
+  });
+
+  it('handles push + notificationclick (FR-021)', () => {
+    expect(swSource).toMatch(/addEventListener\('push'/);
+    expect(swSource).toMatch(/addEventListener\('notificationclick'/);
+    expect(swSource).toMatch(/showNotification/);
+  });
 });
 
 describe('manifest route', () => {
   it('declares the metadata fields Lighthouse audits look for', async () => {
     const route = await import('../../app/manifest.webmanifest/route');
-    const res = route.GET();
+    // The route now resolves per-channel config from the backend and falls back
+    // to platform defaults when it is unreachable (as in this unit test).
+    const res = await route.GET();
     expect(res.headers.get('Content-Type')).toBe('application/manifest+json');
     const body = await res.json();
     expect(body).toMatchObject({
