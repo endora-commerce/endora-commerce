@@ -1784,5 +1784,21 @@
   "returns.reasons.description": "Reasons offered on the storefront return form.",
   "returns.methods.title": "Return delivery methods",
   "returns.methods.description": "Methods and cost (0 = free / shop-paid) usable for return shipments.",
-  "returns.detail.title": "Return case"
+  "returns.detail.title": "Return case",
+  "returns.field.search": "Search",
+  "returns.search.placeholder": "RMA number…",
+  "returns.field.sort": "Sort",
+  "returns.sort.newest": "Newest first",
+  "returns.sort.oldest": "Oldest first",
+  "returns.sort.rmaAsc": "RMA ascending",
+  "returns.sort.rmaDesc": "RMA descending",
+  "returns.filter.clearAll": "Clear all",
+  "returns.col.customer": "Customer",
+  "returns.col.org": "Organization",
+  "returns.loading": "Loading returns…",
+  "returns.error.load": "Could not load returns",
+  "returns.error.bulk": "Bulk action failed",
+  "returns.bulk.selected": "{count} selected",
+  "returns.bulk.result": "{authorized} authorized, {skipped} skipped",
+  "returns.action.exportCsv": "Export CSV"
 }
