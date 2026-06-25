@@ -3,6 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import type { EventBus } from '../../events/bus.js';
 import type { SettingsService } from '../settings/services/settings.service.js';
+import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import { RETURNS_SETTING_CODES } from './manifest.js';
 import { ReturnStatusGraphService } from './services/return-status-graph-service.js';
 import { ReturnTransitionService } from './services/return-transition-service.js';
@@ -43,6 +44,8 @@ export interface ReturnsModuleOptions {
   paymentRefund: PaymentRefundPort;
   correctiveInvoice: CorrectiveInvoicePort;
   creditTopup: CreditTopupPort;
+  /** Audit-log writer (FR-041); status changes + settlement are recorded. */
+  auditLog?: AuditLogService;
   /** Best-effort customer notifications on authorize/reject. */
   notifier?: ReturnNotifier;
   /** Exposes the transition service back to composition (e.g. for settlement guards). */
@@ -66,7 +69,7 @@ export function returnsModule(
   const { emFactory, eventBus, settingsService, orderContext } = options;
 
   const graphService = new ReturnStatusGraphService(emFactory);
-  const transitions = new ReturnTransitionService(emFactory, eventBus, graphService);
+  const transitions = new ReturnTransitionService(emFactory, eventBus, graphService, options.auditLog);
 
   const rmaGenerator = createRmaNumberGenerator({
     resolvePrefix: (sc) =>
@@ -137,6 +140,7 @@ export function returnsModule(
     paymentRefund: options.paymentRefund,
     correctiveInvoice: options.correctiveInvoice,
     creditTopup: options.creditTopup,
+    ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
 
   options.exposeServices?.({ graphService, transitions, caseService });

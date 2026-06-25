@@ -3,6 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import type { SettlementPrefill, SettlementRequest, SettlementResult } from '@b2b/contracts';
 import type { EventBus } from '../../../events/bus.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnCaseItem } from '../entities/return-case-item.entity.js';
@@ -24,6 +25,7 @@ export interface ReturnSettlementServiceDeps {
   paymentRefund: PaymentRefundPort;
   correctiveInvoice: CorrectiveInvoicePort;
   creditTopup: CreditTopupPort;
+  auditLog?: AuditLogService;
 }
 
 /**
@@ -177,6 +179,26 @@ export class ReturnSettlementService {
     em.persist(refund);
     await em.flush();
     this.emitSettled(rc, refund, total);
+
+    if (this.deps.auditLog) {
+      try {
+        await this.deps.auditLog.record({
+          actorAdminUserId: adminUserId,
+          action: 'return.settled',
+          objectType: 'return_case',
+          objectId: rc.id,
+          stateAfter: {
+            resolutionType: input.resolutionType,
+            amount: total.toFixed(2),
+            currency: rc.currency,
+            settlementState: refund.settlementState,
+          },
+        });
+      } catch {
+        // ignore audit failures
+      }
+    }
+
     return result;
   }
 

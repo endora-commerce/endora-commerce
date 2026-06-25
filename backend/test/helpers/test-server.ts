@@ -1379,6 +1379,7 @@ export async function setupBackendServer(
       paymentRefund: new PaymentRefundProvider(em),
       correctiveInvoice: new CorrectiveInvoiceProvider(em),
       creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
+      auditLog: auditLogService,
     }),
   );
 

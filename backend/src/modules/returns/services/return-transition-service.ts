@@ -3,6 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import type { EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { ReturnCase } from '../entities/return-case.entity.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
 import {
@@ -42,6 +43,7 @@ export class ReturnTransitionService {
     private readonly emFactory: () => EntityManager,
     private readonly events: EventBus,
     private readonly graphService: ReturnStatusGraphService,
+    private readonly auditLog?: AuditLogService,
   ) {}
 
   onReturnTransitionGuard(match: { from?: string; to?: string }, guard: TransitionGuard): () => void {
@@ -112,6 +114,25 @@ export class ReturnTransitionService {
     if (opts?.sideEffects) await opts.sideEffects({ returnCase: rc, from, to, em });
 
     emitReturnStatusAfter(this.events, event);
+
+    // Audit the status change (FR-041); best-effort, never blocks the transition.
+    if (this.auditLog) {
+      try {
+        await this.auditLog.record({
+          actorAdminUserId: actor.kind === 'admin' ? (actor.adminUserId ?? null) : null,
+          impersonatedCustomerAccountId:
+            actor.kind === 'customer' ? (actor.customerAccountId ?? null) : null,
+          action: 'return.status_changed',
+          objectType: 'return_case',
+          objectId: rc.id,
+          stateBefore: { statusCode: from },
+          stateAfter: { statusCode: to, reason: opts?.reason ?? null },
+        });
+      } catch {
+        // ignore audit failures
+      }
+    }
+
     return rc;
   }
 
