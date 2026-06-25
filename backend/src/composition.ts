@@ -105,6 +105,7 @@ import { promptActionsSettingsManifest } from './modules/prompt_actions/manifest
 import { pwaModule } from './modules/pwa/plugin.js';
 import { pwaSettingsManifest } from './modules/pwa/manifest.js';
 import { SalesChannel } from './modules/sales_channels/entities/sales-channel.entity.js';
+import { Order } from './modules/orders/entities/order.entity.js';
 import {
   catalogBulkProgressResolver,
   catalogPromptMutationTools,
@@ -1247,6 +1248,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     vapidSubject: process.env['PWA_VAPID_SUBJECT'] ?? 'mailto:admin@b2b-platform.local',
     resolveCustomerAccountId: async (request) =>
       request.actor.kind === 'customer' ? request.actor.customerAccountId : null,
+    // FR-024 auto-trigger — resolve an order-status event into a push target
+    // (the placing customer + a deep link to their order). Reading the Order
+    // entity here keeps the pwa module decoupled from the orders module.
+    resolveOrderTarget: async (payload) => {
+      const order = await em().findOne(Order, { id: payload.orderId });
+      if (!order || !order.placedByCustomerAccountId) return null;
+      return {
+        salesChannelId: payload.salesChannelId,
+        customerAccountId: order.placedByCustomerAccountId,
+        title: 'Order update',
+        body: `Order ${order.businessId} is now ${payload.to.replace(/_/g, ' ')}.`,
+        url: `/account/orders/${order.businessId}`,
+      };
+    },
   });
   modules.push(pwa.plugin);
 
