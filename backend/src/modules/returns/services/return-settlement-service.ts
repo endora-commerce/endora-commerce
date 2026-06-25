@@ -9,13 +9,12 @@ import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnCaseItem } from '../entities/return-case-item.entity.js';
 import { Refund } from '../entities/refund.entity.js';
 import { RETURN_STATUS_RESOLVED } from '../domain/return-status-graph.js';
+import { exceedsCap, sumApproved } from '../domain/refund-math.js';
 import type { ReturnTransitionService } from './return-transition-service.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
 import type { PaymentRefundPort } from '../ports/payment-refund.port.js';
 import type { CorrectiveInvoicePort } from '../ports/corrective-invoice.port.js';
 import type { CreditTopupPort } from '../ports/credit-topup.port.js';
-
-const EPS = 0.005;
 
 export interface ReturnSettlementServiceDeps {
   emFactory: () => EntityManager;
@@ -80,7 +79,7 @@ export class ReturnSettlementService {
 
     const items = await em.find(ReturnCaseItem, { returnCaseId: id });
     const byId = new Map(items.map((it) => [it.id, it]));
-    let total = 0;
+    const perLine: number[] = [];
     for (const line of input.lines) {
       const item = byId.get(line.returnCaseItemId);
       if (!item) {
@@ -88,7 +87,7 @@ export class ReturnSettlementService {
           code: 'unknown_line',
         });
       }
-      if (line.approvedRefundAmount > Number(item.defaultRefundAmount) + EPS) {
+      if (exceedsCap(line.approvedRefundAmount, Number(item.defaultRefundAmount))) {
         throw new HttpError(
           422,
           ERROR_CODES.VALIDATION_FAILED,
@@ -97,9 +96,9 @@ export class ReturnSettlementService {
         );
       }
       item.approvedRefundAmount = line.approvedRefundAmount.toFixed(2);
-      total += line.approvedRefundAmount;
+      perLine.push(line.approvedRefundAmount);
     }
-    total = round2(total);
+    const total = sumApproved(perLine);
     await em.flush();
 
     const movesMoney = input.resolutionType === 'refund' || input.resolutionType === 'credit';
@@ -215,8 +214,4 @@ export class ReturnSettlementService {
     };
     this.deps.events.emit('return.refund.settled.v1', payload);
   }
-}
-
-function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
 }

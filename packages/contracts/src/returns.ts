@@ -185,6 +185,20 @@ export type CreateReturnCaseRequest = z.infer<typeof createReturnCaseRequestSche
 
 export const customerAddCommentRequestSchema = z.object({ body: z.string().min(1).max(2000) });
 
+export const addReturnAttachmentRequestSchema = z.object({
+  assetId: uuidSchema,
+  returnCaseItemId: uuidSchema.optional(),
+});
+
+export const returnAttachmentSchema = z.object({
+  id: uuidSchema,
+  returnCaseId: uuidSchema,
+  returnCaseItemId: uuidSchema.nullable(),
+  assetId: uuidSchema,
+  createdAt: isoDateTimeSchema,
+});
+export type ReturnAttachmentDto = z.infer<typeof returnAttachmentSchema>;
+
 // ---------------------------------------------------------------------------
 // Admin requests (US2 / US3)
 // ---------------------------------------------------------------------------

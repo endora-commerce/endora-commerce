@@ -119,6 +119,29 @@ describe('returns — submit case (US1)', () => {
     expect(second.statusCode).toBe(422);
   });
 
+  it('attaches an uploaded asset to a case (US1, T027)', async () => {
+    const { orderId, itemIds } = await seedReturnableOrder(h.em());
+    const reasonId = await anyReasonId(h.em());
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/returns',
+      cookies: CUSTOMER_COOKIE,
+      payload: { orderId, kind: 'return', lines: [{ orderItemId: itemIds[0], quantity: 1, reasonId }] },
+    });
+    const caseId = (created.json() as { data: { id: string } }).data.id;
+
+    const res = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/returns/${caseId}/attachments`,
+      cookies: CUSTOMER_COOKIE,
+      payload: { assetId: '00000000-0000-4000-8000-0000000000f1' },
+    });
+    expect(res.statusCode).toBe(201);
+    const data = (res.json() as { data: { assetId: string; returnCaseId: string } }).data;
+    expect(data.assetId).toBe('00000000-0000-4000-8000-0000000000f1');
+    expect(data.returnCaseId).toBe(caseId);
+  });
+
   it('does not expose a case to a different customer (admin-only detail still works)', async () => {
     const { orderId, itemIds } = await seedReturnableOrder(h.em());
     const reasonId = await anyReasonId(h.em());

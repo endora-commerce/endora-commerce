@@ -14,6 +14,7 @@ import { ReturnCaseAttachment } from '../entities/return-case-attachment.entity.
 import { ReturnReason } from '../entities/return-reason.entity.js';
 import { RETURN_STATUS_CANCELLED } from '../domain/return-status-graph.js';
 import { isWithinFreeWindow } from '../domain/free-return-window.js';
+import { defaultRefundForQuantity } from '../domain/refund-math.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
 import type { ReturnTransitionService } from './return-transition-service.js';
 import type { OrderReturnContextPort } from '../ports/order-return-context.port.js';
@@ -143,7 +144,7 @@ export class ReturnCaseService {
 
     for (const line of input.lines) {
       const ctxLine = byOrderItem.get(line.orderItemId)!;
-      const defaultRefund = round2(ctxLine.paidUnitAmount * line.quantity);
+      const defaultRefund = defaultRefundForQuantity(ctxLine.paidUnitAmount, line.quantity);
       em.persist(
         em.create(ReturnCaseItem, {
           returnCaseId: rc.id,
@@ -294,8 +295,4 @@ export class ReturnCaseService {
       })),
     };
   }
-}
-
-function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
 }

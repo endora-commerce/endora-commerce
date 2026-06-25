@@ -1,4 +1,8 @@
 {
+  "settings.freeReturnDays.label": "Okno bezpłatnego zwrotu (dni)",
+  "settings.rmaNumberPrefix.label": "Prefiks numeru RMA",
+  "settings.rmaNumberSuffix.label": "Sufiks numeru RMA",
+  "settings.defaultCostBearerOutsideWindow.label": "Strona ponosząca koszt zwrotu po upływie okna",
   "actions.openReturns.label": "Otwórz zwroty",
   "actions.openReturns.description": "Przeglądaj i zarządzaj zwrotami i reklamacjami (RMA)",
   "actions.returnStatusConfig.label": "Statusy zwrotów",

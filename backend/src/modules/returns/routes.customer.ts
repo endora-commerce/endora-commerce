@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
+  addReturnAttachmentRequestSchema,
   createReturnCaseRequestSchema,
   customerAddCommentRequestSchema,
   selectReturnDeliveryMethodRequestSchema,
@@ -8,6 +9,7 @@ import type { ReturnCaseService } from './services/return-case-service.js';
 import type { ReturnCommentService } from './services/return-comment-service.js';
 import type { ReturnDeliveryMethodService } from './services/return-delivery-method-service.js';
 import type { ReturnReasonService } from './services/return-reason-service.js';
+import type { ReturnAttachmentService } from './services/return-attachment-service.js';
 
 /**
  * Returns customer (storefront) routes — feature 046 (US1, US4, US6). All
@@ -19,6 +21,7 @@ export interface ReturnsCustomerRoutesDeps {
   commentService: ReturnCommentService;
   deliveryMethodService: ReturnDeliveryMethodService;
   reasonService: ReturnReasonService;
+  attachmentService: ReturnAttachmentService;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   resolveCustomerAccountId: (req: FastifyRequest) => string;
 }
@@ -32,6 +35,7 @@ export async function registerReturnsCustomerRoutes(
     commentService,
     deliveryMethodService,
     reasonService,
+    attachmentService,
     requireCustomer,
     resolveCustomerAccountId,
   } = deps;
@@ -116,6 +120,18 @@ export async function registerReturnsCustomerRoutes(
     async (request) => {
       const customerAccountId = resolveCustomerAccountId(request);
       const data = await caseService.cancelByCustomer(request.params.id, customerAccountId);
+      return { data };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/returns/:id/attachments',
+    { preHandler: requireCustomer, schema: { body: addReturnAttachmentRequestSchema } },
+    async (request, reply) => {
+      const customerAccountId = resolveCustomerAccountId(request);
+      const body = addReturnAttachmentRequestSchema.parse(request.body);
+      const data = await attachmentService.addToCase(request.params.id, customerAccountId, body);
+      reply.status(201);
       return { data };
     },
   );

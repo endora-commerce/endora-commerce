@@ -1,4 +1,8 @@
 {
+  "settings.freeReturnDays.label": "Free-return window (days)",
+  "settings.rmaNumberPrefix.label": "RMA number prefix",
+  "settings.rmaNumberSuffix.label": "RMA number suffix",
+  "settings.defaultCostBearerOutsideWindow.label": "Return cost bearer outside the free-return window",
   "actions.openReturns.label": "Open returns",
   "actions.openReturns.description": "View and manage returns and complaints (RMA)",
   "actions.returnStatusConfig.label": "Return statuses",

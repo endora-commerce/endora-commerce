@@ -4,6 +4,7 @@ import {
   DEFAULT_RETURN_STATUSES,
   computeDefaultTransitions,
 } from '../domain/return-status-graph.js';
+import { DEFAULT_RETURN_REASONS } from '../domain/default-reasons.js';
 
 /**
  * Feature 046 — Returns & Complaints (Refunds, RMA).
@@ -264,16 +265,6 @@ export class Migration080ReturnsInit extends Migration {
     this.addSql(`drop table if exists "return_statuses";`);
   }
 }
-
-/** Default reasons seeded on install (FR-030; B2B examples from the spec). */
-const DEFAULT_RETURN_REASONS: ReadonlyArray<{ label: Record<string, string>; appliesTo: 'return' | 'complaint' | 'both'; weight: number }> = [
-  { label: { en: 'Overstock / surplus', pl: 'Nadwyżka magazynowa' }, appliesTo: 'return', weight: 10 },
-  { label: { en: 'Ordered by mistake', pl: 'Błędne zamówienie' }, appliesTo: 'return', weight: 20 },
-  { label: { en: 'Changed mind', pl: 'Rezygnacja' }, appliesTo: 'return', weight: 30 },
-  { label: { en: 'Damaged in transit', pl: 'Uszkodzone w transporcie' }, appliesTo: 'complaint', weight: 40 },
-  { label: { en: 'Factory defect', pl: 'Wada fabryczna' }, appliesTo: 'complaint', weight: 50 },
-  { label: { en: 'Wrong item delivered', pl: 'Dostarczono niewłaściwy produkt' }, appliesTo: 'both', weight: 60 },
-];
 
 /** Serialize a localized label map to a single-quoted SQL JSON literal. */
 function jsonLiteral(value: Record<string, string>): string {

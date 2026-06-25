@@ -13,6 +13,8 @@ import { ReturnSettlementService } from './services/return-settlement-service.js
 import { ReturnDeliveryMethodService } from './services/return-delivery-method-service.js';
 import { ReturnShipmentService } from './services/return-shipment-service.js';
 import { ReturnReasonService } from './services/return-reason-service.js';
+import { ReturnAttachmentService } from './services/return-attachment-service.js';
+import { ReturnsSeeder } from './services/returns-seeder.js';
 import { ReturnListService } from './services/return-list-service.js';
 import { ReturnListViewService } from './services/return-list-view-service.js';
 import { ReturnExportService } from './services/return-export-service.js';
@@ -68,6 +70,9 @@ export function returnsModule(
   return async (app: FastifyInstance): Promise<void> => {
   const { emFactory, eventBus, settingsService, orderContext } = options;
 
+  // Self-healing default seed (no-op when the migration already seeded).
+  await new ReturnsSeeder(emFactory).ensureDefaults();
+
   const graphService = new ReturnStatusGraphService(emFactory);
   const transitions = new ReturnTransitionService(emFactory, eventBus, graphService, options.auditLog);
 
@@ -119,6 +124,7 @@ export function returnsModule(
 
   const shipmentService = new ReturnShipmentService({ emFactory, transitions });
   const reasonService = new ReturnReasonService(emFactory);
+  const attachmentService = new ReturnAttachmentService(emFactory);
   const listService = new ReturnListService({ emFactory, graphService, transitions });
   const listViewService = new ReturnListViewService(emFactory);
   const exportService = new ReturnExportService(listService);
@@ -150,6 +156,7 @@ export function returnsModule(
     commentService,
     deliveryMethodService,
     reasonService,
+    attachmentService,
     requireCustomer: options.requireCustomer,
     resolveCustomerAccountId: options.resolveCustomerAccountId,
   });
