@@ -8,12 +8,12 @@ import { describe, expect, it } from 'vitest';
  * (no bundler); these tests pin its contract and the manifest's distinctness
  * from the storefront PWA.
  */
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const swSource = readFileSync(resolve(__dirname, '../../public/admin-service-worker.js'), 'utf-8');
+const here = dirname(fileURLToPath(import.meta.url));
+const swSource = readFileSync(resolve(here, '../../public/admin-service-worker.js'), 'utf-8');
 const manifest = JSON.parse(
-  readFileSync(resolve(__dirname, '../../public/manifest.webmanifest'), 'utf-8'),
+  readFileSync(resolve(here, '../../public/manifest.webmanifest'), 'utf-8'),
 ) as { name: string; display: string; scope: string; icons: Array<{ purpose?: string }> };
-const registerSrc = readFileSync(resolve(__dirname, '../../src/registerSw.ts'), 'utf-8');
+const registerSrc = readFileSync(resolve(here, '../../src/registerSw.ts'), 'utf-8');
 
 describe('admin PWA (US6)', () => {
   it('manifest is a distinct, installable identity', () => {

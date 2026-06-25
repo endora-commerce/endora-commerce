@@ -27,7 +27,6 @@ export class PushProviderRegistry implements PushProviderRegistryPort {
     return this.providers.get(key);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async resolveDefault(_salesChannelId: string): Promise<PushProvider> {
     const provider = this.providers.get(this.defaultKey);
     if (!provider) {
