@@ -83,16 +83,22 @@ export function InstallPrompt(): React.ReactElement | null {
   };
 
   return (
+    // Fixed full-width wrapper centres the card horizontally with flex so the
+    // `b2b-route-fade` entrance (which animates `transform`) can't clobber the
+    // centering the way a `-translate-x-1/2` would. Anchored to the top so it
+    // doesn't collide with bottom-pinned cookie-consent banners.
     <div
-      role="dialog"
-      aria-modal="false"
-      aria-label={copy.title}
-      aria-live="polite"
-      data-testid="pwa-install-prompt"
-      className="b2b-route-fade fixed z-50 left-[16px] right-[16px] sm:left-auto sm:right-[24px] sm:w-[360px]"
-      style={{ bottom: 'calc(var(--m-tabbar-h, 0px) + var(--m-safe-bottom, 0px) + 16px)' }}
+      className="fixed inset-x-0 z-50 flex justify-center px-[16px]"
+      style={{ top: 'calc(var(--m-safe-top, 0px) + 16px)' }}
     >
-      <div className="relative flex gap-[14px] rounded-lg border border-line bg-surface p-[18px] shadow-lg">
+      <div
+        role="dialog"
+        aria-modal="false"
+        aria-label={copy.title}
+        aria-live="polite"
+        data-testid="pwa-install-prompt"
+        className="b2b-route-fade relative flex w-full gap-[14px] rounded-lg border border-line bg-surface p-[18px] shadow-lg sm:w-[420px]"
+      >
         <button
           type="button"
           onClick={dismiss}
@@ -116,11 +122,7 @@ export function InstallPrompt(): React.ReactElement | null {
             <button type="button" className="b2b-cta" onClick={() => void install()}>
               {copy.install}
             </button>
-            <button
-              type="button"
-              className="text-[13px] text-muted transition-colors hover:text-fg"
-              onClick={dismiss}
-            >
+            <button type="button" className="btn btn--outline" onClick={dismiss}>
               {copy.dismiss}
             </button>
           </div>
