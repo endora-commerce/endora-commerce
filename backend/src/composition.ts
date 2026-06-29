@@ -114,6 +114,9 @@ import { pwaSettingsManifest } from './modules/pwa/manifest.js';
 // Feature 047 — Transactional Emails.
 import { transactionalEmailsModule } from './modules/transactional_emails/plugin.js';
 import { transactionalEmailsSettingsManifest } from './modules/transactional_emails/manifest.js';
+// Feature 048 — Newsletter.
+import { newsletterModule } from './modules/newsletter/plugin.js';
+import { newsletterSettingsManifest } from './modules/newsletter/manifest.js';
 import type { TransactionalEmailSender } from '@b2b/contracts';
 import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
 import { ORDER_CONFIRMATION_DEFAULT } from './modules/orders/email-templates/order-confirmation.default.js';
@@ -1861,6 +1864,31 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     }),
   );
 
+  // Feature 048 — Newsletter. Own-infrastructure bulk email: subscriber
+  // signup (per-channel opt-in), campaigns, automations, and a configurable
+  // sending provider. Channel/mailer/settings coupling is injected here so the
+  // module stays isolated (Principle I).
+  modules.push(
+    newsletterModule({
+      emFactory: em,
+      settings: settings.handle.settingsService,
+      tokenSecret:
+        process.env['NEWSLETTER_TOKEN_SECRET'] ??
+        process.env['SESSION_COOKIE_SECRET'] ??
+        'newsletter-dev-secret',
+      platformChannelId: platformSettingsChannelId,
+      resolveChannelIdByCode: async (code) =>
+        (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+      publicBaseUrl:
+        process.env['PUBLIC_API_BASE_URL'] ??
+        process.env['STOREFRONT_BASE_URL'] ??
+        'http://localhost:3000',
+      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
+      mailer: organizationsMailer,
+      auditLog: auditLogService,
+    }),
+  );
+
   // Shopping lists / quick order — depends on the RFQ service built above
   // so the "convert to RFQ" flow goes through the new createForCustomer API.
   modules.push(
@@ -2033,6 +2061,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     promptActionsSettingsManifest,
     pwaSettingsManifest,
     transactionalEmailsSettingsManifest,
+    newsletterSettingsManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();
