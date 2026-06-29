@@ -19,6 +19,8 @@ import { NewsletterSubscriberAdminService } from './services/subscriber-admin.se
 import { NewsletterTagService } from './services/tag.service.js';
 import { NewsletterCustomFieldService } from './services/custom-field.service.js';
 import { NewsletterAutomationService } from './services/automation.service.js';
+import { NewsletterTrackingService } from './services/tracking.service.js';
+import { NewsletterStatsService } from './services/stats.service.js';
 import { NewsletterProviderRegistry } from './services/provider/provider-registry.js';
 import {
   createCampaignPlanQueue,
@@ -81,6 +83,8 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
   );
   const tags = new NewsletterTagService(options.emFactory);
   const customFields = new NewsletterCustomFieldService(options.emFactory);
+  const tracking = new NewsletterTrackingService(options.emFactory);
+  const stats = new NewsletterStatsService(options.emFactory);
 
   const dispatch = new NewsletterCampaignDispatchService({
     emFactory: options.emFactory,
@@ -178,6 +182,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
         subscribers,
         optIn,
         tokens,
+        tracking,
         resolveChannelIdByCode: options.resolveChannelIdByCode,
         platformChannelId: options.platformChannelId,
         storefrontBaseUrl: options.storefrontBaseUrl,
@@ -189,6 +194,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
         tags,
         customFields,
         automations,
+        stats,
         requireAdmin: options.requireAdmin,
       });
     })(app);

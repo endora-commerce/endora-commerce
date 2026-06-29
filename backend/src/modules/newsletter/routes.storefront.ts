@@ -8,11 +8,19 @@ import { HttpError } from '../../http/error-envelope.js';
 import type { NewsletterSubscriberService } from './services/subscriber.service.js';
 import type { NewsletterOptInService } from './services/opt-in.service.js';
 import type { NewsletterTokenHelper } from './services/token.helper.js';
+import type { NewsletterTrackingService } from './services/tracking.service.js';
+
+/** 1×1 transparent GIF for open tracking. */
+const TRACKING_PIXEL = Buffer.from(
+  'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+  'base64',
+);
 
 export interface NewsletterStorefrontDeps {
   subscribers: NewsletterSubscriberService;
   optIn: NewsletterOptInService;
   tokens: NewsletterTokenHelper;
+  tracking: NewsletterTrackingService;
   /** Resolve a sales-channel code to its id; null when unknown. */
   resolveChannelIdByCode: (code: string) => Promise<string | null>;
   platformChannelId: string;
@@ -76,5 +84,28 @@ export async function registerNewsletterStorefrontRoutes(
     if (claims) await deps.subscribers.unsubscribe(claims.id, body.reason);
     // Always neutral — invalid tokens look the same as success.
     return reply.send({ data: { ok: true } });
+  });
+
+  // --- Engagement tracking (US6) -----------------------------------------
+  app.get('/api/v1/newsletter/o/:token.gif', async (request, reply) => {
+    const { token } = request.params as { token: string };
+    const claims = deps.tokens.verify(token, 'open');
+    if (claims) await deps.tracking.recordOpen(claims.id);
+    reply.header('content-type', 'image/gif');
+    reply.header('cache-control', 'no-store, no-cache, must-revalidate, private');
+    return reply.send(TRACKING_PIXEL);
+  });
+
+  app.get('/api/v1/newsletter/c/:token', async (request, reply) => {
+    const { token } = request.params as { token: string };
+    const { u } = request.query as { u?: string };
+    const claims = deps.tokens.verify(token, 'click');
+    // Only redirect to absolute http(s) destinations (no open-redirect to other schemes).
+    const dest = u && /^https?:\/\//i.test(u) ? u : null;
+    if (claims && dest) await deps.tracking.recordClick(claims.id, claims.linkId ?? null, dest);
+    if (!dest) {
+      return reply.status(410).send({ error: { code: 'GONE', message: 'Invalid link.' } });
+    }
+    return reply.redirect(dest);
   });
 }

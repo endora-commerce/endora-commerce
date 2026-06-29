@@ -23,6 +23,7 @@ import type { NewsletterSubscriberAdminService } from './services/subscriber-adm
 import type { NewsletterTagService } from './services/tag.service.js';
 import type { NewsletterCustomFieldService } from './services/custom-field.service.js';
 import type { NewsletterAutomationService } from './services/automation.service.js';
+import type { NewsletterStatsService } from './services/stats.service.js';
 
 export interface NewsletterAdminDeps {
   campaigns: NewsletterCampaignService;
@@ -31,6 +32,7 @@ export interface NewsletterAdminDeps {
   tags: NewsletterTagService;
   customFields: NewsletterCustomFieldService;
   automations: NewsletterAutomationService;
+  stats: NewsletterStatsService;
   requireAdmin: (permission?: string) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 }
 
@@ -76,6 +78,9 @@ export async function registerNewsletterAdminRoutes(
     const body = sendCampaignRequestSchema.pick({ expectedVersion: true }).parse(req.body);
     return reply.send({ data: await deps.campaigns.cancel(idOf(req), body.expectedVersion) });
   });
+  app.get(`${base}/campaigns/:id/stats`, read, async (req, reply) =>
+    reply.send({ data: await deps.stats.campaignStats(idOf(req)) }),
+  );
 
   // --- Subscribers -------------------------------------------------------
   app.get(`${base}/subscribers`, read, async (req, reply) => {
