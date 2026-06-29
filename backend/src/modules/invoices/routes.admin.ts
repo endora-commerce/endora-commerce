@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Invoice } from './entities/invoice.entity.js';
+import { Order } from '../orders/entities/order.entity.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
 /**
@@ -34,18 +35,26 @@ export async function registerInvoicesAdminRoutes(
         orderBy: { issuedAt: 'desc' },
         limit,
       });
+      // Resolve the customer-facing business id for each invoice's order so the
+      // admin list can show it instead of the raw order UUID.
+      const orderIds = [...new Set(rows.map((r) => r.orderId))];
+      const orders = orderIds.length
+        ? await em.find(Order, { id: { $in: orderIds } }, { fields: ['id', 'businessId'] })
+        : [];
+      const businessIdByOrderId = new Map(orders.map((o) => [o.id, o.businessId]));
       return {
-        data: rows.map(serialize),
+        data: rows.map((i) => serialize(i, businessIdByOrderId.get(i.orderId) ?? null)),
         pagination: { cursor: null, hasMore: false, limit: rows.length },
       };
     },
   );
 }
 
-function serialize(i: Invoice) {
+function serialize(i: Invoice, orderBusinessId: string | null) {
   return {
     id: i.id,
     orderId: i.orderId,
+    orderBusinessId,
     kind: i.kind,
     number: i.number,
     issuedAt: i.issuedAt.toISOString(),
