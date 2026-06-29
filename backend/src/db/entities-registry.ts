@@ -93,6 +93,9 @@ import { ReturnListSavedView } from '../modules/returns/entities/return-list-sav
 import { Payment } from '../modules/payments/entities/payment.entity.js';
 import { Shipment } from '../modules/shipments/entities/shipment.entity.js';
 import { Invoice } from '../modules/invoices/entities/invoice.entity.js';
+import { InvoiceLine } from '../modules/invoices/entities/invoice-line.entity.js';
+import { InvoiceNumberCounter } from '../modules/invoices/entities/invoice-number-counter.entity.js';
+import { InvoiceTemplate } from '../modules/invoices/entities/invoice-template.entity.js';
 import { OrganizationInvitation } from '../modules/organizations/entities/organization-invitation.entity.js';
 import { AdminUser } from '../modules/admin_users/entities/admin-user.entity.js';
 import { AdminRole } from '../modules/admin_roles/entities/admin-role.entity.js';
@@ -253,6 +256,9 @@ export const ALL_ENTITIES = [
   Payment,
   Shipment,
   Invoice,
+  InvoiceLine,
+  InvoiceNumberCounter,
+  InvoiceTemplate,
   // organization invitations (US3)
   OrganizationInvitation,
   // admin (US4)

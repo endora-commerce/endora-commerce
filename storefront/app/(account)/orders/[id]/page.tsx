@@ -11,6 +11,7 @@ import {
   type OrderComment,
 } from '../../../../lib/api/orders';
 import { getReturnable } from '../../../../lib/api/returns';
+import { listMyOrderInvoices, invoiceDownloadUrl } from '../../../../lib/api/invoices';
 import { getSessionCookie } from '../../../../lib/session';
 import { getServerContext } from '../../../../lib/server-context';
 import { StorefrontApiError } from '../../../../lib/api/client';
@@ -69,6 +70,14 @@ export default async function OrderConfirmationPage({
     returnEligible = false;
   }
 
+  // Invoices attached to this order (feature 047). Hidden when none are ready.
+  let invoices: Awaited<ReturnType<typeof listMyOrderInvoices>> = [];
+  try {
+    invoices = await listMyOrderInvoices(session, id);
+  } catch {
+    invoices = [];
+  }
+
   return (
     <div className="b2b-auth max-w-[720px]">
       <h1>Thank you — order placed</h1>
@@ -101,6 +110,17 @@ export default async function OrderConfirmationPage({
             Request return / complaint
           </Link>
         ) : null}
+        {invoices.map((inv) => (
+          <a
+            key={inv.id}
+            href={invoiceDownloadUrl(order.id, inv.id)}
+            target="_blank"
+            rel="noreferrer"
+            className="btn btn--outline btn--sm"
+          >
+            Download invoice {inv.number}
+          </a>
+        ))}
         <Link href="/orders" className="btn btn--ghost btn--sm">
           See all orders
         </Link>

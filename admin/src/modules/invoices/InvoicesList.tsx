@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { FileDown } from 'lucide-react';
+import { FileDown, Mail } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -46,6 +46,7 @@ export function InvoicesList(): ReactNode {
   const [rows, setRows] = useState<AdminInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [status, setStatus] = useState<'' | (typeof STATUSES)[number]>('');
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -71,6 +72,20 @@ export function InvoicesList(): ReactNode {
 
   const baseUrl = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? '';
 
+  const resendEmail = useCallback(
+    async (invoiceId: string): Promise<void> => {
+      setError(null);
+      setNotice(null);
+      try {
+        await apiClient.post(`/api/v1/admin/invoices/${invoiceId}/send-email`, {});
+        setNotice(t('invoices.emailSent'));
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to send.');
+      }
+    },
+    [t],
+  );
+
   return (
     <>
       <PageHeader
@@ -81,6 +96,11 @@ export function InvoicesList(): ReactNode {
       {error ? (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {notice ? (
+        <Alert className="mb-4">
+          <AlertDescription>{notice}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -144,20 +164,30 @@ export function InvoicesList(): ReactNode {
                       <Badge variant={STATUS_VARIANT[i.status]}>{t(`invoices.status.${i.status}`)}</Badge>
                     </TableCell>
                     <TableCell>
-                      {i.pdfReady ? (
-                        <Button asChild variant="outline" size="sm">
-                          <a
-                            href={`${baseUrl}/api/v1/orders/${i.orderId}/invoice`}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            <FileDown />
-                            PDF
-                          </a>
+                      <div className="flex items-center gap-2">
+                        {i.pdfReady ? (
+                          <Button asChild variant="outline" size="sm">
+                            <a
+                              href={`${baseUrl}/api/v1/admin/invoices/${i.id}/pdf`}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <FileDown />
+                              PDF
+                            </a>
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">{t('invoices.pdfNotReady')}</span>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(): void => void resendEmail(i.id)}
+                          title={t('invoices.resendEmail')}
+                        >
+                          <Mail />
                         </Button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">{t('invoices.pdfNotReady')}</span>
-                      )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

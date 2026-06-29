@@ -44,6 +44,7 @@ import { adminModule } from '../../src/modules/admin_users/plugin.js';
 import { inventoryModule } from '../../src/modules/inventory/plugin.js';
 import { shoppingListsModule } from '../../src/modules/shopping_lists/plugin.js';
 import { returnsModule } from '../../src/modules/returns/plugin.js';
+import { invoicesModule } from '../../src/modules/invoices/plugin.js';
 import { transactionalEmailsModule } from '../../src/modules/transactional_emails/plugin.js';
 import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/services/email-defaults-registry.js';
 import { newsletterModule } from '../../src/modules/newsletter/plugin.js';
@@ -75,6 +76,10 @@ import { ShipmentEmailNotifier } from '../../src/modules/shipments/services/ship
 import { OrderReturnContextProvider } from '../../src/modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from '../../src/modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from '../../src/modules/invoices/services/corrective-invoice.js';
+import {
+  InvoiceNumberGenerator,
+  createSettingsPatternResolver,
+} from '../../src/modules/invoices/services/invoice-number-generator.js';
 import { CreditTopupProvider } from '../../src/modules/credit_limits/services/credit-topup.js';
 import { ReturnEmailNotifier } from '../../src/modules/returns/services/return-email-notifier.js';
 import { creditLimitsModule } from '../../src/modules/credit_limits/plugin.js';
@@ -108,6 +113,7 @@ import { promptActionsSettingsManifest } from '../../src/modules/prompt_actions/
 import { pwaModule } from '../../src/modules/pwa/plugin.js';
 import { pwaSettingsManifest } from '../../src/modules/pwa/manifest.js';
 import { transactionalEmailsSettingsManifest } from '../../src/modules/transactional_emails/manifest.js';
+import { invoicesSettingsManifest } from '../../src/modules/invoices/manifest.js';
 import { SalesChannel } from '../../src/modules/sales_channels/entities/sales-channel.entity.js';
 import { Order } from '../../src/modules/orders/entities/order.entity.js';
 import {
@@ -1495,7 +1501,11 @@ export async function setupBackendServer(
         req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
       orderContext: new OrderReturnContextProvider(em),
       paymentRefund: new PaymentRefundProvider(em),
-      correctiveInvoice: new CorrectiveInvoiceProvider(em),
+      correctiveInvoice: new CorrectiveInvoiceProvider(
+        em,
+        new InvoiceNumberGenerator(createSettingsPatternResolver(settings.handle.settingsService)),
+        auditLogService,
+      ),
       creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
       auditLog: auditLogService,
       notifier: new ReturnEmailNotifier(
@@ -1508,6 +1518,35 @@ export async function setupBackendServer(
         },
       ),
     }),
+  );
+
+  // Feature 047 — Invoices.
+  modules.push(
+    invoicesModule({
+      emFactory: em,
+      eventBus,
+      requireAdmin: requireTestAdmin(permissionService),
+      requireCustomer: requireTestCustomer(),
+      settingsService: settings.handle.settingsService,
+      audit: auditLogService,
+      resolveAdminUserId: (req) =>
+        req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
+      resolveCustomerContext: (req) => ({
+        customerAccountId:
+          req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
+        organizationId:
+          req.testActor?.kind === 'customer'
+            ? req.testActor.organizationId ?? TEST_ORGANIZATION_ID
+            : TEST_ORGANIZATION_ID,
+      }),
+      getTransactionalEmailSender: () => transactionalEmailSender,
+      resolveRecipientEmail: async (order) =>
+        (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ?? null,
+      resolveLanguage: async (salesChannelId) =>
+        (salesChannelId
+          ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
+          : null) ?? 'en-US',
+    }).plugin,
   );
 
   // Feature 047 — Transactional Emails.
@@ -1676,6 +1715,7 @@ export async function setupBackendServer(
     pwaSettingsManifest,
     transactionalEmailsSettingsManifest,
     newsletterSettingsManifest,
+    invoicesSettingsManifest,
   ]);
 
   const app = await buildServer({
