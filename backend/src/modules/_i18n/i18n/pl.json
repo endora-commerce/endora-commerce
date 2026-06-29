@@ -37,6 +37,8 @@
   "appShell.nav.orders": "Zamówienia",
   "appShell.nav.returns": "Zwroty",
   "appShell.nav.transactionalEmails": "Maile transakcyjne",
+  "appShell.nav.emailBlocks": "Bloki maili",
+  "appShell.nav.emailTemplates": "Szablony maili",
   "appShell.section.messaging": "Wiadomości",
   "appShell.nav.newOrder": "Nowe zamówienie",
   "appShell.nav.orderStatuses": "Statusy zamówień",

@@ -37,6 +37,8 @@
   "appShell.nav.orders": "Orders",
   "appShell.nav.returns": "Returns",
   "appShell.nav.transactionalEmails": "Transactional Emails",
+  "appShell.nav.emailBlocks": "Email Blocks",
+  "appShell.nav.emailTemplates": "Email Templates",
   "appShell.section.messaging": "Messaging",
   "appShell.nav.newOrder": "New order",
   "appShell.nav.orderStatuses": "Order statuses",
