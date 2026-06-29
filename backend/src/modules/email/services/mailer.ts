@@ -14,8 +14,10 @@ export interface MailerSendInput {
   messageId: string;
   to: string;
   subject: string;
-  /** Plain-text body. Templates that need HTML can extend this interface. */
+  /** Plain-text body (always present; the readable alternative for HTML mail). */
   text: string;
+  /** Optional HTML body (feature 047). When present, sent as multipart alternative. */
+  html?: string;
   /** Optional structured payload retained alongside the email for audit. */
   meta?: Record<string, unknown>;
 }
