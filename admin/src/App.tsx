@@ -63,6 +63,13 @@ import { EmailEditor } from './modules/transactional_emails/pages/EmailEditor.js
 import { EmailBlocksPage } from './modules/transactional_emails/pages/EmailBlocksPage.js';
 import { EmailTemplatesPage } from './modules/transactional_emails/pages/EmailTemplatesPage.js';
 import { EmailFragmentEditor } from './modules/transactional_emails/pages/EmailFragmentEditor.js';
+import { SubscribersPage as NewsletterSubscribersPage } from './modules/newsletter/pages/SubscribersPage.js';
+import { CampaignsPage as NewsletterCampaignsPage } from './modules/newsletter/pages/CampaignsPage.js';
+import { CampaignEditor as NewsletterCampaignEditor } from './modules/newsletter/pages/CampaignEditor.js';
+import { AutomationsPage as NewsletterAutomationsPage } from './modules/newsletter/pages/AutomationsPage.js';
+import { AutomationBuilder as NewsletterAutomationBuilder } from './modules/newsletter/pages/AutomationBuilder.js';
+import { TagsPage as NewsletterTagsPage } from './modules/newsletter/pages/TagsPage.js';
+import { ProviderSettingsPage as NewsletterProviderPage } from './modules/newsletter/pages/ProviderSettingsPage.js';
 import { ReturnStatusesConfigPage } from './modules/returns/ReturnStatusesConfigPage.js';
 import { ReturnReasonsPage } from './modules/returns/ReturnReasonsPage.js';
 import { ReturnDeliveryMethodsPage } from './modules/returns/ReturnDeliveryMethodsPage.js';
@@ -181,6 +188,15 @@ export function App(): ReactNode {
         <Route path="/transactional-emails/templates" element={<EmailTemplatesPage />} />
         <Route path="/transactional-emails/templates/:id" element={<EmailFragmentEditor kind="template" />} />
         <Route path="/transactional-emails/:code" element={<EmailEditor />} />
+        <Route path="/newsletter/subscribers" element={<NewsletterSubscribersPage />} />
+        <Route path="/newsletter/campaigns" element={<NewsletterCampaignsPage />} />
+        <Route path="/newsletter/campaigns/new" element={<NewsletterCampaignEditor />} />
+        <Route path="/newsletter/campaigns/:id" element={<NewsletterCampaignEditor />} />
+        <Route path="/newsletter/automations" element={<NewsletterAutomationsPage />} />
+        <Route path="/newsletter/automations/new" element={<NewsletterAutomationBuilder />} />
+        <Route path="/newsletter/automations/:id" element={<NewsletterAutomationBuilder />} />
+        <Route path="/newsletter/tags" element={<NewsletterTagsPage />} />
+        <Route path="/newsletter/provider" element={<NewsletterProviderPage />} />
         <Route path="/carts" element={<CartsList />} />
         <Route path="/carts/:id" element={<CartDetail />} />
         <Route path="/invoices" element={<InvoicesList />} />

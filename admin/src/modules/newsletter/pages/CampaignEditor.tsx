@@ -1,0 +1,206 @@
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import type { CampaignDetail, CampaignTargetType, NewsletterTag } from '@b2b/contracts';
+import { PageHeader } from '@/components/ui/page-header';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useAuth } from '@/lib/auth';
+import { newsletterClient, textContentTree } from '../api/newsletter-client';
+
+function extractText(content: Record<string, unknown> | undefined): string {
+  const arr = (content?.['content'] as Array<{ props?: { text?: string } }> | undefined) ?? [];
+  return arr[0]?.props?.text ?? '';
+}
+
+export function CampaignEditor(): React.ReactElement {
+  const { id } = useParams<{ id: string }>();
+  const isNew = !id || id === 'new';
+  const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission('newsletter:write');
+
+  const [campaign, setCampaign] = useState<CampaignDetail | null>(null);
+  const [tags, setTags] = useState<NewsletterTag[]>([]);
+  const [name, setName] = useState('');
+  const [language, setLanguage] = useState('en-US');
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+  const [targetType, setTargetType] = useState<CampaignTargetType>('all');
+  const [targetTagIds, setTargetTagIds] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    newsletterClient.listTags().then((r) => setTags(r.items)).catch(() => undefined);
+    if (!isNew && id) {
+      newsletterClient
+        .getCampaign(id)
+        .then((c) => {
+          setCampaign(c);
+          setName(c.name);
+          setLanguage(c.language);
+          setSubject(c.subject);
+          setBody(extractText(c.content));
+          setTargetType(c.targetType);
+          setTargetTagIds(c.targetTagIds);
+        })
+        .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
+    }
+  }, [id, isNew]);
+
+  async function save(): Promise<CampaignDetail | null> {
+    setError(null);
+    try {
+      const payload = {
+        name,
+        language,
+        subject,
+        content: textContentTree(body),
+        targetType,
+        targetTagIds,
+      };
+      const saved = isNew
+        ? await newsletterClient.createCampaign(payload)
+        : await newsletterClient.updateCampaign(id!, { ...payload, expectedVersion: campaign!.version });
+      setCampaign(saved);
+      setNotice('Saved.');
+      if (isNew) navigate(`/newsletter/campaigns/${saved.id}`, { replace: true });
+      return saved;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      return null;
+    }
+  }
+
+  async function doPreview(): Promise<void> {
+    const saved = campaign ?? (await save());
+    if (!saved) return;
+    try {
+      const r = await newsletterClient.previewCampaign(saved.id);
+      setPreview(r.html);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function doSend(): Promise<void> {
+    const saved = (await save()) ?? campaign;
+    if (!saved) return;
+    try {
+      const sent = await newsletterClient.sendCampaign(saved.id, saved.version);
+      setCampaign(sent);
+      setNotice(`Campaign ${sent.status}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  if (!hasPermission('newsletter:read')) {
+    return (
+      <Alert>
+        <AlertDescription>You do not have permission to view the newsletter.</AlertDescription>
+      </Alert>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <PageHeader
+        title={isNew ? 'New campaign' : name || 'Campaign'}
+        back={{ label: 'Campaigns', to: '/newsletter/campaigns' }}
+        actions={
+          canWrite ? (
+            <>
+              <Button variant="outline" onClick={() => void doPreview()}>
+                Preview
+              </Button>
+              <Button variant="outline" onClick={() => void save()}>
+                Save
+              </Button>
+              <Button onClick={() => void doSend()}>Send</Button>
+            </>
+          ) : null
+        }
+      />
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {notice ? (
+        <Alert>
+          <AlertDescription>{notice}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Content</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Input placeholder="Campaign name" value={name} onChange={(e) => setName(e.target.value)} disabled={!canWrite} />
+          <Input placeholder="Language (e.g. en-US)" value={language} onChange={(e) => setLanguage(e.target.value)} disabled={!canWrite} />
+          <Input placeholder="Subject (supports {{var ...}})" value={subject} onChange={(e) => setSubject(e.target.value)} disabled={!canWrite} />
+          <Textarea
+            placeholder="Email body (plain text; supports {{var subscriber.email}} etc.)"
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={8}
+            disabled={!canWrite}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Audience</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <select
+            className="border rounded px-2 py-1 text-sm"
+            value={targetType}
+            onChange={(e) => setTargetType(e.target.value as CampaignTargetType)}
+            disabled={!canWrite}
+          >
+            <option value="all">All subscribers</option>
+            <option value="tag">Single tag</option>
+            <option value="tag_list">Tag list</option>
+            <option value="group">Manual group</option>
+          </select>
+          {(targetType === 'tag' || targetType === 'tag_list') ? (
+            <div className="flex flex-wrap gap-2">
+              {tags.map((t) => (
+                <label key={t.id} className="flex items-center gap-1 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={targetTagIds.includes(t.id)}
+                    onChange={(e) =>
+                      setTargetTagIds((prev) => (e.target.checked ? [...prev, t.id] : prev.filter((x) => x !== t.id)))
+                    }
+                    disabled={!canWrite}
+                  />
+                  {t.name}
+                </label>
+              ))}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      {preview ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Preview</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <iframe title="preview" srcDoc={preview} className="h-96 w-full rounded border" />
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
+  );
+}
