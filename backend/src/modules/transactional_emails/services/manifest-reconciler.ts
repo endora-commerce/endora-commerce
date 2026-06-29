@@ -23,6 +23,7 @@ export class TransactionalEmailCodeCollision extends Error {
 export interface ReconcileResult {
   created: number;
   updated: number;
+  pruned: number;
 }
 
 export class TransactionalEmailReconciler {
@@ -92,6 +93,17 @@ export class TransactionalEmailReconciler {
     }
 
     await em.flush();
-    return { created, updated };
+
+    // Prune orphans (FR-028): definitions whose owning module is no longer
+    // installed / no longer declares the code. All rows are reconciler-owned, so
+    // anything not currently declared is safe to remove; the FK cascade drops
+    // the associated admin customizations.
+    const declaredCodes = [...owners.keys()];
+    const pruned =
+      declaredCodes.length > 0
+        ? await em.nativeDelete(TransactionalEmail, { code: { $nin: declaredCodes } })
+        : await em.nativeDelete(TransactionalEmail, {});
+
+    return { created, updated, pruned };
   }
 }
