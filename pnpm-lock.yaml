@@ -397,13 +397,6 @@ importers:
         version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
 
   packages/email-components:
-    dependencies:
-      react:
-        specifier: ^19.0.0
-        version: 19.2.5
-      react-dom:
-        specifier: ^19.0.0
-        version: 19.2.5(react@19.2.5)
     devDependencies:
       '@measured/puck':
         specifier: '*'
@@ -411,6 +404,12 @@ importers:
       '@types/react':
         specifier: ^19.2.14
         version: 19.2.14
+      react:
+        specifier: ^19.0.0
+        version: 19.2.5
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.5(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

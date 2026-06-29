@@ -38,6 +38,8 @@
   "devDependencies": {
     "@measured/puck": "*",
     "@types/react": "^19.2.14",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "typescript": "^5.9.3",
     "vitest": "^2.1.4"
   }
