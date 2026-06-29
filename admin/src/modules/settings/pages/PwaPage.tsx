@@ -28,9 +28,9 @@ function channelLabel(name: SalesChannelSummary['name'], code: string): string {
 /**
  * PWA configuration page (feature 046, US2 + US4 admin surface). Edits the
  * global PWA identity + toggles, uploads the icon (sharp-derived sizes),
- * generates VAPID keys, and sends a broadcast push. Per-channel overrides are
- * available through the generic Settings screen; this page targets the global
- * scope for the common case.
+ * generates VAPID keys, and sends a broadcast push. The Scope selector switches
+ * between the global value and a per-Sales-Channel override; a per-channel scope
+ * can be reset back to the global value with "Reset to global".
  */
 export function PwaPage(): ReactNode {
   const [config, setConfig] = useState<PwaAdminConfig | null>(null);
@@ -103,6 +103,22 @@ export function PwaPage(): ReactNode {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resetToGlobal = async (): Promise<void> => {
+    if (!selectedChannelId) return;
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      await pwaClient.resetConfig(selectedChannelId);
+      setInfo('Channel override cleared; this channel now inherits the global configuration.');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Reset failed.');
     } finally {
       setBusy(false);
     }
@@ -197,6 +213,11 @@ export function PwaPage(): ReactNode {
         <span className="text-sm text-muted-foreground">
           {selectedChannelId ? 'Editing a per-channel override.' : 'Editing the global value.'}
         </span>
+        {selectedChannelId ? (
+          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void resetToGlobal()}>
+            Reset to global
+          </Button>
+        ) : null}
       </div>
 
       {error ? (

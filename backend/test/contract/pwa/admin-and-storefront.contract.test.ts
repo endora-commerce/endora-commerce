@@ -100,6 +100,53 @@ describe('PWA module — admin + storefront', () => {
     });
   });
 
+  it('writes a per-channel override and resets it back to global', async () => {
+    const channelId = (await h.salesChannels.resolver.getSystemDefault())!.id;
+
+    // Establish a distinct global value first.
+    const putGlobal = await h.app.inject({
+      method: 'PUT',
+      url: '/api/v1/admin/pwa/config',
+      cookies: adminCookie,
+      payload: { appName: 'Global Store' },
+    });
+    expect(putGlobal.statusCode).toBe(200);
+
+    // A per-channel override wins for that channel's scope.
+    const putChannel = await h.app.inject({
+      method: 'PUT',
+      url: '/api/v1/admin/pwa/config',
+      cookies: adminCookie,
+      payload: { salesChannelId: channelId, appName: 'Channel Store' },
+    });
+    expect(putChannel.statusCode).toBe(200);
+    await settleEvents();
+
+    const getOverride = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/pwa/config?salesChannelId=${channelId}`,
+      cookies: adminCookie,
+    });
+    expect(getOverride.json().appName).toBe('Channel Store');
+
+    // Reset clears the override; the channel inherits the global value again.
+    const reset = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/pwa/config/reset',
+      cookies: adminCookie,
+      payload: { salesChannelId: channelId },
+    });
+    expect(reset.statusCode).toBe(200);
+    await settleEvents();
+
+    const getAfter = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/pwa/config?salesChannelId=${channelId}`,
+      cookies: adminCookie,
+    });
+    expect(getAfter.json().appName).toBe('Global Store');
+  });
+
   it('rejects an unauthenticated admin config read', async () => {
     const r = await h.app.inject({ method: 'GET', url: '/api/v1/admin/pwa/config' });
     expect(r.statusCode).toBe(401);
