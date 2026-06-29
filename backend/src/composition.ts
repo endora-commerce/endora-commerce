@@ -1885,6 +1885,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         'http://localhost:3000',
       storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
       requireAdmin,
+      settingsWrite: settings.handle.adminService,
+      resolveAuditContext: (request) => ({
+        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+      }),
       mailer: organizationsMailer,
       auditLog: auditLogService,
       redis,

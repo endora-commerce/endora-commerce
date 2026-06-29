@@ -21,6 +21,8 @@ import { NewsletterCustomFieldService } from './services/custom-field.service.js
 import { NewsletterAutomationService } from './services/automation.service.js';
 import { NewsletterTrackingService } from './services/tracking.service.js';
 import { NewsletterStatsService } from './services/stats.service.js';
+import { NewsletterProviderAdminService, type SettingsWriter } from './services/provider-admin.service.js';
+import type { AdminAuditContext } from './services/provider-admin.types.js';
 import { NewsletterProviderRegistry } from './services/provider/provider-registry.js';
 import {
   createCampaignPlanQueue,
@@ -42,6 +44,10 @@ export interface NewsletterModuleOptions {
   publicBaseUrl: string;
   storefrontBaseUrl: string;
   requireAdmin: (permission?: string) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+  /** Settings admin write surface (provider config + secret). */
+  settingsWrite: SettingsWriter;
+  /** Resolve the admin audit context from a request (for secret writes). */
+  resolveAuditContext: (req: FastifyRequest) => AdminAuditContext;
   mailer?: Mailer;
   auditLog?: AuditLogService;
   /** Redis connection — when present, dispatch is queue-backed (Principle X). */
@@ -85,6 +91,12 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
   const customFields = new NewsletterCustomFieldService(options.emFactory);
   const tracking = new NewsletterTrackingService(options.emFactory);
   const stats = new NewsletterStatsService(options.emFactory);
+  const providerAdmin = new NewsletterProviderAdminService(
+    options.settings,
+    options.settingsWrite,
+    providers,
+    options.platformChannelId,
+  );
 
   const dispatch = new NewsletterCampaignDispatchService({
     emFactory: options.emFactory,
@@ -195,6 +207,8 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
         customFields,
         automations,
         stats,
+        providerAdmin,
+        resolveAuditContext: options.resolveAuditContext,
         requireAdmin: options.requireAdmin,
       });
     })(app);

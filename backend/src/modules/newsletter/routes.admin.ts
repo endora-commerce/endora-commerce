@@ -15,6 +15,7 @@ import {
   createAutomationRequestSchema,
   updateAutomationRequestSchema,
   automationActionRequestSchema,
+  putProviderRequestSchema,
 } from '@b2b/contracts';
 import { z } from 'zod';
 import type { NewsletterCampaignService } from './services/campaign.service.js';
@@ -24,6 +25,8 @@ import type { NewsletterTagService } from './services/tag.service.js';
 import type { NewsletterCustomFieldService } from './services/custom-field.service.js';
 import type { NewsletterAutomationService } from './services/automation.service.js';
 import type { NewsletterStatsService } from './services/stats.service.js';
+import type { NewsletterProviderAdminService } from './services/provider-admin.service.js';
+import type { AdminAuditContext } from './services/provider-admin.types.js';
 
 export interface NewsletterAdminDeps {
   campaigns: NewsletterCampaignService;
@@ -33,6 +36,8 @@ export interface NewsletterAdminDeps {
   customFields: NewsletterCustomFieldService;
   automations: NewsletterAutomationService;
   stats: NewsletterStatsService;
+  providerAdmin: NewsletterProviderAdminService;
+  resolveAuditContext: (req: FastifyRequest) => AdminAuditContext;
   requireAdmin: (permission?: string) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 }
 
@@ -176,5 +181,17 @@ export async function registerNewsletterAdminRoutes(
     reply.send({
       data: await deps.automations.pause(idOf(req), automationActionRequestSchema.parse(req.body).expectedVersion),
     }),
+  );
+
+  // --- Sending provider --------------------------------------------------
+  app.get(`${base}/provider`, read, async (_req, reply) =>
+    reply.send({ data: await deps.providerAdmin.getConfig() }),
+  );
+  app.put(`${base}/provider`, write, async (req, reply) => {
+    const body = putProviderRequestSchema.parse(req.body);
+    return reply.send({ data: await deps.providerAdmin.putConfig(body, deps.resolveAuditContext(req)) });
+  });
+  app.post(`${base}/provider/test`, write, async (_req, reply) =>
+    reply.send({ data: await deps.providerAdmin.test() }),
   );
 }
