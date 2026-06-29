@@ -49,6 +49,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1042.0",
     "@b2b/cms-components": "workspace:^",
     "@b2b/contracts": "workspace:*",
+    "@b2b/email-components": "workspace:^",
     "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.2.0",
     "@fastify/helmet": "^13.0.2",

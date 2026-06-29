@@ -6,6 +6,7 @@ import { Product } from '../../catalog/entities/product.entity.js';
 import { StockLevel } from '../entities/stock-level.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import type { Mailer } from '../../email/services/mailer.js';
+import type { InventoryTemplateEmailPort } from './low-stock-alert-service.js';
 
 export interface SubscribeInput {
   productId: string;
@@ -53,6 +54,7 @@ export class AvailabilityNotificationService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly mailer?: Mailer,
+    private readonly templateEmail?: InventoryTemplateEmailPort,
   ) {}
 
   /**
@@ -197,7 +199,7 @@ export class AvailabilityNotificationService {
     productId: string;
     variantId?: string | null;
   }): Promise<{ notified: number }> {
-    if (!this.mailer) return { notified: 0 };
+    if (!this.mailer && !this.templateEmail) return { notified: 0 };
     const em = this.emFactory();
     const where: Record<string, unknown> = {
       productId: input.productId,
@@ -233,17 +235,31 @@ export class AvailabilityNotificationService {
         row.notifiedAt = now;
         continue;
       }
-      await this.mailer.send({
-        messageId: `availability:${row.id}`,
-        to,
-        subject: `Back in stock: ${productName}`,
-        text: `Good news — "${productName}" is available again.`,
-        meta: {
-          productId: input.productId,
-          variantId: input.variantId ?? null,
-          notificationId: row.id,
-        },
-      });
+      const messageId = `availability:${row.id}`;
+      const meta = {
+        productId: input.productId,
+        variantId: input.variantId ?? null,
+        notificationId: row.id,
+      };
+      let sentViaTemplate = false;
+      if (this.templateEmail) {
+        sentViaTemplate = await this.templateEmail.trySend({
+          code: 'availability_back_in_stock',
+          to,
+          messageId,
+          variables: { product: { name: productName } },
+          meta,
+        });
+      }
+      if (!sentViaTemplate && this.mailer) {
+        await this.mailer.send({
+          messageId,
+          to,
+          subject: `Back in stock: ${productName}`,
+          text: `Good news — "${productName}" is available again.`,
+          meta,
+        });
+      }
       row.status = 'notified';
       row.notifiedAt = now;
       notified += 1;

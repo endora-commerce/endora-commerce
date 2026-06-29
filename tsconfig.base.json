@@ -37,7 +37,9 @@
       "@b2b/api-client": ["./packages/api-client/src/index.ts"],
       "@b2b/api-client/*": ["./packages/api-client/src/*"],
       "@b2b/cms-components": ["./packages/cms-components/src/index.ts"],
-      "@b2b/cms-components/*": ["./packages/cms-components/src/*"]
+      "@b2b/cms-components/*": ["./packages/cms-components/src/*"],
+      "@b2b/email-components": ["./packages/email-components/src/index.ts"],
+      "@b2b/email-components/*": ["./packages/email-components/src/*"]
     }
   }
 }

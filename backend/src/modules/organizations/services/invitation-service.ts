@@ -9,6 +9,7 @@ import { CustomerAccount } from '../../customer_accounts/entities/customer-accou
 import { OrganizationInvitation } from '../entities/organization-invitation.entity.js';
 import type { Mailer } from '../../email/services/mailer.js';
 import { buildInvitationEmail } from '../email-templates/invitation.js';
+import { noopOrgTemplateEmail, type OrgTemplateEmail } from './org-template-email.js';
 import {
   emitCustomerAccountCreated,
   type OrganizationEventBus,
@@ -45,14 +46,18 @@ export class InvitationService {
   private readonly mailer: Mailer | null;
   private readonly acceptBaseUrl: string;
 
+  private readonly templateEmail: OrgTemplateEmail;
+
   constructor(
     private readonly emFactory: () => EntityManager,
     mailer?: Mailer | null,
     options?: InvitationServiceOptions,
     private readonly events?: OrganizationEventBus,
+    templateEmail?: OrgTemplateEmail,
   ) {
     this.mailer = mailer ?? null;
     this.acceptBaseUrl = options?.acceptBaseUrl ?? 'https://storefront.local';
+    this.templateEmail = templateEmail ?? noopOrgTemplateEmail;
   }
 
   async invite(
@@ -102,7 +107,7 @@ export class InvitationService {
       throw err;
     }
 
-    if (this.mailer) {
+    if (this.mailer || this.templateEmail !== noopOrgTemplateEmail) {
       const organization = await em.findOne(Organization, { id: actor.organizationId });
       const inviter = actor.customerAccountId
         ? await em.findOne(CustomerAccount, { id: actor.customerAccountId })
@@ -110,17 +115,32 @@ export class InvitationService {
       const inviterName = inviter
         ? [inviter.firstName, inviter.lastName].filter(Boolean).join(' ').trim() || inviter.email
         : 'Platform support';
+      const organizationName = organization?.name ?? 'your organization';
       const message = buildInvitationEmail({
         invitationId: invitation.id,
         rawToken,
         inviteeEmail: invitation.email,
         inviterName,
-        organizationName: organization?.name ?? 'your organization',
+        organizationName,
         role: invitation.role,
         expiresAt: invitation.expiresAt,
         acceptBaseUrl: this.acceptBaseUrl,
       });
-      await this.mailer.send(message);
+      const acceptUrl = (message.meta as { acceptUrl?: string } | undefined)?.acceptUrl ?? '';
+      const sentViaTemplate = await this.templateEmail.trySend({
+        code: 'organization_invitation',
+        to: invitation.email,
+        messageId: message.messageId,
+        variables: {
+          organizationName,
+          inviterName,
+          roleLabel: invitation.role === 'organization_admin' ? 'Organization Admin' : 'Member',
+          acceptUrl,
+          expiresOn: invitation.expiresAt.toISOString().slice(0, 10),
+        },
+        meta: message.meta,
+      });
+      if (!sentViaTemplate && this.mailer) await this.mailer.send(message);
     }
 
     return { invitation, rawToken };

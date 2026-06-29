@@ -84,6 +84,51 @@ export const manifest = defineModuleManifest({
   dependencies: ['settings'],
   settings,
   i18n: { bundlesDir: 'i18n' },
+  // Feature 047 — transactional emails owned by this module. Default subject +
+  // content are registered at runtime via the EmailDefaultsRegistry.
+  transactionalEmails: [
+    {
+      code: 'order_confirmation',
+      name: 'Order confirmation',
+      group: 'orders',
+      variables: [
+        { key: 'order.businessId', label: 'Order number', sampleValue: 'ORD-1042' },
+        { key: 'customer.firstName', label: 'Customer first name', sampleValue: 'Anna' },
+        { key: 'order.shippingLine', label: 'Delivery method line', sampleValue: 'Courier — 15.00 PLN' },
+        { key: 'order.paymentLine', label: 'Payment method line', sampleValue: 'Card (+5.00 PLN)' },
+        { key: 'order.discountsText', label: 'Applied discounts', sampleValue: '  none' },
+        { key: 'order.summaryText', label: 'Order summary', sampleValue: '  Total: 1 230,00 PLN' },
+        { key: 'order.shippingAddressText', label: 'Shipping address', sampleValue: '  Anna Nowak\n  ul. Główna 1' },
+        { key: 'order.billingAddressText', label: 'Billing address', sampleValue: '  Acme Sp. z o.o.' },
+        { key: 'order.items', label: 'Order line items (list)' },
+      ],
+    },
+    {
+      code: 'order_comment',
+      name: 'Order comment notification',
+      group: 'orders',
+      variables: [
+        { key: 'order.businessId', label: 'Order number', sampleValue: 'ORD-1042' },
+        { key: 'comment.body', label: 'Comment body', sampleValue: 'Your order ships tomorrow.' },
+      ],
+    },
+    {
+      code: 'reorder_created',
+      name: 'Reorder created',
+      group: 'orders',
+      variables: [
+        { key: 'order.sourceBusinessId', label: 'Source order number', sampleValue: 'ORD-1000' },
+      ],
+    },
+    {
+      code: 'admin_created_order',
+      name: 'Admin-created order',
+      group: 'orders',
+      variables: [
+        { key: 'order.businessId', label: 'Order number', sampleValue: 'ORD-1042' },
+      ],
+    },
+  ],
   // Feature 038 — admin search/command-palette actions.
   actions: [
     {

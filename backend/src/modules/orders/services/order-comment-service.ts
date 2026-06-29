@@ -5,8 +5,10 @@ import { OrderComment } from '../entities/order-comment.entity.js';
 import { Order } from '../entities/order.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import type { Mailer } from '../../email/services/mailer.js';
+import type { TransactionalEmailSender } from '@b2b/contracts';
 import type { OrderStatusGraphService } from './order-status-graph-service.js';
 import { buildOrderCommentNotificationEmail } from '../email-templates/order-comment-notification.js';
+import { sendOrderTransactionalEmail } from './transactional-email-helper.js';
 
 /**
  * OrderCommentService — feature 038 (US5).
@@ -22,6 +24,7 @@ export class OrderCommentService {
     private readonly emFactory: () => EntityManager,
     private readonly graphService: OrderStatusGraphService,
     private readonly mailer?: Mailer,
+    private readonly getTransactionalEmailSender?: () => TransactionalEmailSender | undefined,
   ) {}
 
   async addByAdmin(
@@ -94,18 +97,28 @@ export class OrderCommentService {
   }
 
   private async notifyCustomer(em: EntityManager, order: Order, body: string): Promise<void> {
-    if (!this.mailer) return;
     const customer = await em.findOne(CustomerAccount, { id: order.placedByCustomerAccountId });
     if (!customer?.email) return;
+    const message = buildOrderCommentNotificationEmail({
+      to: customer.email,
+      orderId: order.id,
+      businessId: order.businessId,
+      body,
+    });
+    const sender = this.getTransactionalEmailSender?.();
     try {
-      await this.mailer.send(
-        buildOrderCommentNotificationEmail({
+      if (sender) {
+        await sendOrderTransactionalEmail(em, sender, order, {
+          code: 'order_comment',
           to: customer.email,
-          orderId: order.id,
-          businessId: order.businessId,
-          body,
-        }),
-      );
+          messageId: message.messageId,
+          variables: { order: { businessId: order.businessId }, comment: { body } },
+          meta: { orderId: order.id, kind: 'order_comment' },
+        });
+        return;
+      }
+      if (!this.mailer) return;
+      await this.mailer.send(message);
     } catch {
       // Notification delivery is best-effort; never block the comment.
     }

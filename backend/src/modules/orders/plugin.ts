@@ -89,6 +89,12 @@ export interface OrdersModuleOptions {
   auditLogService?: AuditLogService;
   /** Feature 034 — mailer for the order-confirmation e-mail (best-effort, post-commit). */
   mailer?: Mailer;
+  /**
+   * Feature 047 — late-bound transactional-email sender. When provided, the order
+   * confirmation is rendered from the admin-editable template instead of the
+   * in-code builder.
+   */
+  getTransactionalEmailSender?: () => import('@b2b/contracts').TransactionalEmailSender | undefined;
   /** Optional CreditLimit driver — wired by the credit_limits module composition root. */
   creditLimit?: CreditLimitPort;
   /**
@@ -373,6 +379,9 @@ export function commerceModule(options: OrdersModuleOptions) {
         // discount onto the Order.
         ...(options.promotionService ? { promotion: options.promotionService } : {}),
         ...(options.mailer ? { mailer: options.mailer } : {}),
+        ...(options.getTransactionalEmailSender
+          ? { getTransactionalEmailSender: options.getTransactionalEmailSender }
+          : {}),
       },
     );
     if (options.exposeCartService) options.exposeCartService(cartService);
@@ -409,11 +418,13 @@ export function commerceModule(options: OrdersModuleOptions) {
       options.emFactory,
       orderStatusGraphService,
       options.mailer,
+      options.getTransactionalEmailSender,
     );
     const orderReorderService = new OrderReorderService(
       options.emFactory,
       options.resolveReorderEnabled,
       options.mailer,
+      options.getTransactionalEmailSender,
     );
     const orderCloneToQuoteService = new OrderCloneToQuoteService(
       options.emFactory,
@@ -426,6 +437,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       orderService,
       addressService,
       options.mailer,
+      options.getTransactionalEmailSender,
     );
 
     const cartUpsellService = new CartUpsellService(options.emFactory);

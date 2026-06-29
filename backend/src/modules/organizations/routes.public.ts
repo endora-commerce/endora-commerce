@@ -15,6 +15,7 @@ import type { PasswordResetService } from '../customer_accounts/services/passwor
 import { SESSION_COOKIE_NAME } from '../auth/plugin.js';
 import type { Mailer } from '../email/services/mailer.js';
 import { buildVerificationEmail } from './email-templates/verification.js';
+import type { OrgTemplateEmail } from './services/org-template-email.js';
 
 /**
  * Anonymous endpoints: registration, email verification, customer login /
@@ -52,6 +53,8 @@ export interface OrganizationsPublicDeps {
   }) => Promise<{ cartMerge?: CartMergeOutcome }>;
   /** Dispatches verification email after registration. */
   mailer: Mailer;
+  /** Feature 047 — optional admin-editable template path. */
+  templateEmail?: OrgTemplateEmail;
   /** Storefront URL for verify link in the email body. */
   storefrontBaseUrl: string;
 }
@@ -77,15 +80,24 @@ export async function registerOrganizationsPublicRoutes(
       }
       let emailVerificationSent = false;
       try {
-        await deps.mailer.send(
-          buildVerificationEmail({
-            customerAccountId: result.customerAccount.id,
-            rawToken: result.verificationToken,
-            recipientEmail: result.customerAccount.email,
-            organizationName: result.organization.name,
-            storefrontBaseUrl: deps.storefrontBaseUrl,
-          }),
-        );
+        const message = buildVerificationEmail({
+          customerAccountId: result.customerAccount.id,
+          rawToken: result.verificationToken,
+          recipientEmail: result.customerAccount.email,
+          organizationName: result.organization.name,
+          storefrontBaseUrl: deps.storefrontBaseUrl,
+        });
+        const verifyUrl = (message.meta as { verifyUrl?: string } | undefined)?.verifyUrl ?? '';
+        const sentViaTemplate = deps.templateEmail
+          ? await deps.templateEmail.trySend({
+              code: 'email_verification',
+              to: result.customerAccount.email,
+              messageId: message.messageId,
+              variables: { organizationName: result.organization.name, verifyUrl },
+              meta: message.meta,
+            })
+          : false;
+        if (!sentViaTemplate) await deps.mailer.send(message);
         emailVerificationSent = true;
       } catch (err) {
         request.log.error({ err }, 'Failed to send verification email');

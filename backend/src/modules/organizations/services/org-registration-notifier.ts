@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { Organization } from '../entities/organization.entity.js';
 import type { AdminNotificationService } from '../../admin_notifications/services/admin-notification-service.js';
 import type { Mailer } from '../../email/services/mailer.js';
+import { noopOrgTemplateEmail, type OrgTemplateEmail } from './org-template-email.js';
 
 /**
  * OrgRegistrationNotifier — subscribes to `organization.registered.v1` and
@@ -24,6 +25,8 @@ export interface OrgRegistrationNotifierDeps {
   mailer: Mailer;
   resolveRecipients: () => Promise<string[]>;
   onError?: (err: unknown) => void;
+  /** Feature 047 — optional admin-editable template path. */
+  templateEmail?: OrgTemplateEmail;
 }
 
 export class OrgRegistrationNotifier {
@@ -65,15 +68,33 @@ export class OrgRegistrationNotifier {
       // Setting unreachable — degrade to "no email recipients".
     }
     if (recipients.length === 0) return;
+    const template = this.deps.templateEmail ?? noopOrgTemplateEmail;
+    const statusLabel =
+      org.status === 'pending_verification' ? 'Oczekuje na weryfikację' : 'Aktywna';
     for (const to of recipients) {
+      const messageId = `organization.registered.${org.id}.${to.toLowerCase()}`;
       try {
-        await this.deps.mailer.send({
-          messageId: `organization.registered.${org.id}.${to.toLowerCase()}`,
+        const sentViaTemplate = await template.trySend({
+          code: 'new_org_registration',
           to,
-          subject: `Nowa Organizacja: ${org.name}`,
-          text: this.composeBody(org),
+          messageId,
+          variables: {
+            organizationName: org.name,
+            taxId: org.taxId,
+            statusLabel,
+            linkPath: `/organizations/${org.id}`,
+          },
           meta: { organizationId: org.id, kind: 'organization.registered' },
         });
+        if (!sentViaTemplate) {
+          await this.deps.mailer.send({
+            messageId,
+            to,
+            subject: `Nowa Organizacja: ${org.name}`,
+            text: this.composeBody(org),
+            meta: { organizationId: org.id, kind: 'organization.registered' },
+          });
+        }
       } catch (err) {
         this.deps.onError?.(err);
       }

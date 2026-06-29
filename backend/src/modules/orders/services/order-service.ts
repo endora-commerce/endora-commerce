@@ -60,8 +60,12 @@ import type { PaymentAdapterRegistry } from '../../payment_methods/services/paym
 import type { OrderStatusRegistry } from '../../payment_methods/services/order-status-registry.port.js';
 import type { ShippingAdapterRegistry } from '../../delivery_methods/services/shipping-adapter-registry.js';
 import type { Mailer } from '../../email/services/mailer.js';
+import type { TransactionalEmailSender } from '@b2b/contracts';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
-import { buildOrderConfirmationEmail } from '../email-templates/order-confirmation.js';
+import {
+  buildOrderConfirmationEmail,
+  buildOrderConfirmationVariables,
+} from '../email-templates/order-confirmation.js';
 
 /**
  * Narrow port consumed by the order-placement transaction. The credit_limits
@@ -149,6 +153,15 @@ export class OrderService {
   private readonly confirmationRecipients:
     | ((input: { organizationId: string; salesChannelId: string }) => Promise<string[]>)
     | undefined;
+  /**
+   * Feature 047 — resolves the transactional-email sender (set late by
+   * composition once the transactional_emails module is built). When present,
+   * the order confirmation is rendered from the admin-editable template;
+   * otherwise the legacy in-code builder is used (backward compatible).
+   */
+  private readonly getTransactionalEmailSender:
+    | (() => TransactionalEmailSender | undefined)
+    | undefined;
 
   constructor(
     private readonly emFactory: () => EntityManager,
@@ -171,6 +184,7 @@ export class OrderService {
       resolveChannelFulfilmentStrategy?: (salesChannelId: string) => Promise<FulfilmentStrategy>;
       resolveChannelFulfilmentWarehouseOrder?: (salesChannelId: string) => Promise<string[]>;
       resolveChannelAllowNegativeStock?: (salesChannelId: string) => Promise<boolean>;
+      getTransactionalEmailSender?: () => TransactionalEmailSender | undefined;
     },
   ) {
     this.accessService = accessService ?? new OrderAccessService(emFactory);
@@ -181,6 +195,7 @@ export class OrderService {
     this.businessId = paymentDeps?.businessId;
     this.promotion = paymentDeps?.promotion;
     this.confirmationRecipients = paymentDeps?.confirmationRecipients;
+    this.getTransactionalEmailSender = paymentDeps?.getTransactionalEmailSender;
     this.resolveMinOrderValue = paymentDeps?.resolveMinOrderValue;
     this.resolveChannelFulfilmentStrategy = paymentDeps?.resolveChannelFulfilmentStrategy;
     this.resolveChannelFulfilmentWarehouseOrder =
@@ -234,6 +249,89 @@ export class OrderService {
       em.find(OrderItem, { orderId: order.id }),
     ]);
     if (!customer) return;
+
+    // Feature 047 — when the transactional_emails module is wired, send the
+    // admin-editable template; otherwise fall through to the legacy builder.
+    const sender = this.getTransactionalEmailSender?.();
+    if (sender) {
+      const channel = await em.findOne(SalesChannel, { id: order.salesChannelId });
+      const language = channel?.defaultLanguage ?? 'en-US';
+      const rendererKey =
+        this.paymentAdapters?.get(order.paymentMethodSnapshot.adapter ?? '')?.renderers?.email ?? null;
+      const deliveryMethod = await em.findOne(DeliveryMethod, { id: order.deliveryMethodId });
+      const shippingRendererKey =
+        this.shippingAdapters?.get(deliveryMethod?.adapter ?? '')?.renderers?.email ?? null;
+      const variables = buildOrderConfirmationVariables({
+        to: customer.email,
+        customerFirstName: customer.firstName,
+        order: {
+          id: order.id,
+          businessId: order.businessId,
+          deliveryMethodSnapshot: order.deliveryMethodSnapshot,
+          paymentMethodSnapshot: order.paymentMethodSnapshot,
+          paymentRendererKey: rendererKey,
+          shippingRendererKey,
+          subtotal: order.subtotal,
+          taxTotal: order.taxTotal,
+          discountTotal: order.discountTotal,
+          deliveryTotal: order.deliveryTotal,
+          total: order.total,
+          currency: order.currency,
+          promotionCode: order.promotionCode ?? null,
+          deliveryAddress: order.deliveryAddress,
+          billingAddress: order.billingAddress,
+        },
+        items: items.map((it) => ({
+          productSnapshot: { sku: it.productSnapshot.sku, name: it.productSnapshot.name },
+          quantity: it.quantity,
+          unitPrice: it.unitPrice,
+          lineTotal: it.lineTotal,
+        })),
+      });
+      const messageId = `order_confirmation:${order.id}`;
+      const meta = { kind: 'order_confirmation', orderId: order.id };
+      try {
+        await sender.send({
+          code: 'order_confirmation',
+          salesChannelId: order.salesChannelId,
+          language,
+          to: customer.email,
+          messageId,
+          variables,
+          meta,
+        });
+      } catch {
+        // best-effort: a mail failure never rolls back a placed order
+      }
+      if (this.confirmationRecipients) {
+        let extra: string[] = [];
+        try {
+          extra = await this.confirmationRecipients({
+            organizationId: order.organizationId,
+            salesChannelId: order.salesChannelId,
+          });
+        } catch {
+          extra = [];
+        }
+        for (const recipient of extra) {
+          if (recipient.toLowerCase() === customer.email.toLowerCase()) continue;
+          try {
+            await sender.send({
+              code: 'order_confirmation',
+              salesChannelId: order.salesChannelId,
+              language,
+              to: recipient,
+              messageId: `${messageId}:${recipient}`,
+              variables,
+              meta,
+            });
+          } catch {
+            // best-effort per recipient
+          }
+        }
+      }
+      return;
+    }
     const rendererKey =
       this.paymentAdapters?.get(order.paymentMethodSnapshot.adapter ?? '')?.renderers?.email ??
       null;

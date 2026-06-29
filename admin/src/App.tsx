@@ -58,6 +58,11 @@ import { OrderDetail } from './modules/orders/OrderDetail.js';
 import { OrderStatusConfigPage } from './modules/orders/OrderStatusConfigPage.js';
 import { ReturnsList } from './modules/returns/ReturnsList.js';
 import { ReturnDetail } from './modules/returns/ReturnDetail.js';
+import { EmailsList } from './modules/transactional_emails/pages/EmailsList.js';
+import { EmailEditor } from './modules/transactional_emails/pages/EmailEditor.js';
+import { EmailBlocksPage } from './modules/transactional_emails/pages/EmailBlocksPage.js';
+import { EmailTemplatesPage } from './modules/transactional_emails/pages/EmailTemplatesPage.js';
+import { EmailFragmentEditor } from './modules/transactional_emails/pages/EmailFragmentEditor.js';
 import { ReturnStatusesConfigPage } from './modules/returns/ReturnStatusesConfigPage.js';
 import { ReturnReasonsPage } from './modules/returns/ReturnReasonsPage.js';
 import { ReturnDeliveryMethodsPage } from './modules/returns/ReturnDeliveryMethodsPage.js';
@@ -170,6 +175,12 @@ export function App(): ReactNode {
         <Route path="/returns/reasons" element={<ReturnReasonsPage />} />
         <Route path="/returns/delivery-methods" element={<ReturnDeliveryMethodsPage />} />
         <Route path="/returns/:id" element={<ReturnDetail />} />
+        <Route path="/transactional-emails" element={<EmailsList />} />
+        <Route path="/transactional-emails/blocks" element={<EmailBlocksPage />} />
+        <Route path="/transactional-emails/blocks/:id" element={<EmailFragmentEditor kind="block" />} />
+        <Route path="/transactional-emails/templates" element={<EmailTemplatesPage />} />
+        <Route path="/transactional-emails/templates/:id" element={<EmailFragmentEditor kind="template" />} />
+        <Route path="/transactional-emails/:code" element={<EmailEditor />} />
         <Route path="/carts" element={<CartsList />} />
         <Route path="/carts/:id" element={<CartDetail />} />
         <Route path="/invoices" element={<InvoicesList />} />

@@ -27,6 +27,8 @@ import { manifest as mfaManifest } from '../mfa/manifest.js';
 import { manifest as promptActionsManifest } from '../prompt_actions/manifest.js';
 // Feature 046 — Progressive Web App (installability, caching, push).
 import { manifest as pwaManifest } from '../pwa/manifest.js';
+// Feature 047 — Transactional Emails (admin-editable email content + look).
+import { manifest as transactionalEmailsManifest } from '../transactional_emails/manifest.js';
 // Pass C retrofit — manifest backfills for every remaining legacy module.
 // These predate the lifecycle system; the manifest is the static record
 // required for the module to be considered active. A module on disk that
@@ -130,6 +132,8 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   { manifest: promptActionsManifest, filePath: pathFor('prompt_actions') },
   // Feature 046 — Progressive Web App module.
   { manifest: pwaManifest, filePath: pathFor('pwa') },
+  // Feature 047 — Transactional Emails module.
+  { manifest: transactionalEmailsManifest, filePath: pathFor('transactional_emails') },
   // Pass C retrofit — every remaining legacy module gets a manifest so
   // none of them are treated as inactive. Sort: alphabetical by id.
   { manifest: addressesManifest, filePath: pathFor('addresses') },

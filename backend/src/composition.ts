@@ -111,6 +111,35 @@ import { promptActionsSettingsManifest } from './modules/prompt_actions/manifest
 // Feature 046 — Progressive Web App.
 import { pwaModule } from './modules/pwa/plugin.js';
 import { pwaSettingsManifest } from './modules/pwa/manifest.js';
+// Feature 047 — Transactional Emails.
+import { transactionalEmailsModule } from './modules/transactional_emails/plugin.js';
+import { transactionalEmailsSettingsManifest } from './modules/transactional_emails/manifest.js';
+import type { TransactionalEmailSender } from '@b2b/contracts';
+import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
+import { ORDER_CONFIRMATION_DEFAULT } from './modules/orders/email-templates/order-confirmation.default.js';
+import {
+  ORDER_COMMENT_DEFAULT,
+  REORDER_CREATED_DEFAULT,
+  ADMIN_CREATED_ORDER_DEFAULT,
+} from './modules/orders/email-templates/secondary-defaults.js';
+import {
+  RETURN_AUTHORIZED_DEFAULT,
+  RETURN_REJECTED_DEFAULT,
+} from './modules/returns/email-templates/transactional-defaults.js';
+import {
+  EMAIL_VERIFICATION_DEFAULT,
+  ORGANIZATION_INVITATION_DEFAULT,
+  NEW_ORG_REGISTRATION_DEFAULT,
+} from './modules/organizations/email-templates/transactional-defaults.js';
+import { makeOrgTemplateEmail } from './modules/organizations/services/org-template-email.js';
+import {
+  LOW_STOCK_ALERT_DEFAULT,
+  AVAILABILITY_BACK_IN_STOCK_DEFAULT,
+} from './modules/inventory/email-templates/transactional-defaults.js';
+import { PAYMENT_STATUS_CHANGED_DEFAULT } from './modules/payments/email-templates/transactional-defaults.js';
+import { SHIPMENT_CREATED_DEFAULT } from './modules/shipments/email-templates/transactional-defaults.js';
+import { PaymentEmailNotifier } from './modules/payments/services/payment-email-notifier.js';
+import { ShipmentEmailNotifier } from './modules/shipments/services/shipment-email-notifier.js';
 import { SalesChannel } from './modules/sales_channels/entities/sales-channel.entity.js';
 import { Order } from './modules/orders/entities/order.entity.js';
 import {
@@ -703,11 +732,21 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveModerationMode,
   );
 
+  // Feature 047 — org emails resolve against the system-default sales channel.
+  const resolveScopeSalesChannelId = async (): Promise<string | null> =>
+    (await em().findOne(SalesChannel, { systemDefault: true }))?.id ?? null;
+  const resolveSalesChannelLanguage = async (salesChannelId: string): Promise<string> =>
+    (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US';
   const orgRegistrationNotifier = new OrgRegistrationNotifier({
     emFactory: em,
     adminNotificationService: adminNotifications.handle.adminNotificationService,
     mailer: organizationsMailer,
     resolveRecipients: resolveRegistrationRecipients,
+    templateEmail: makeOrgTemplateEmail({
+      getSender: () => transactionalEmailSender,
+      resolveScopeSalesChannelId,
+      resolveLanguage: resolveSalesChannelLanguage,
+    }),
   });
 
   const organizationContextService = new OrganizationContextService(em);
@@ -828,6 +867,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     });
   };
 
+  // Feature 047 — late-bound transactional-email sender. commerceModule (and
+  // other owning modules) read it via a getter; the transactional_emails module
+  // sets it through exposeSender once built.
+  let transactionalEmailSender: TransactionalEmailSender | undefined;
+
   const modules: ModulePlugin[] = [
     healthPlugin,
     authModulePlugin,
@@ -847,6 +891,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       eventBus,
       auditLogService,
       mailer: organizationsMailer,
+      // Feature 047 — late-bound; set once the transactional_emails module builds.
+      getTransactionalEmailSender: () => transactionalEmailSender,
       creditLimit: creditLimits.handle.creditLimitService,
       requireCustomer,
       requireAdmin,
@@ -1084,6 +1130,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireAdminAny,
       resolveCustomerContext: customerResolver,
       mailer: organizationsMailer,
+      getTransactionalEmailSender: () => transactionalEmailSender,
+      resolveScopeSalesChannelId,
+      resolveSalesChannelLanguage,
       auditLogService,
       moderationService: organizationModerationService,
       restrictionService: organizationRestrictionService,
@@ -1180,6 +1229,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireAdmin,
       eventBus,
       channelResolver: salesChannels.handle.resolver,
+      templateEmail: makeOrgTemplateEmail({
+        getSender: () => transactionalEmailSender,
+        resolveScopeSalesChannelId,
+        resolveLanguage: resolveSalesChannelLanguage,
+      }),
       settingsService: settings.handle.settingsService,
       dictionaryValidator: dictionaries.handle.validator,
       auditLogService,
@@ -1711,7 +1765,99 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         organizationsMailer,
         async (customerAccountId) =>
           (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
+        {
+          getTransactionalEmailSender: () => transactionalEmailSender,
+          resolveLanguage: async (salesChannelId) =>
+            (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
+        },
       ),
+    }),
+  );
+
+  // Feature 047 — Transactional Emails. Owning modules register their default
+  // subject + content here; the module reconciles all manifest-declared emails
+  // at boot and exposes the sender port for future send-site cutover.
+  emailDefaultsRegistry.register('order_confirmation', {
+    defaultSubject: ORDER_CONFIRMATION_DEFAULT.defaultSubject,
+    defaultContent: ORDER_CONFIRMATION_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('order_comment', {
+    defaultSubject: ORDER_COMMENT_DEFAULT.defaultSubject,
+    defaultContent: ORDER_COMMENT_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('reorder_created', {
+    defaultSubject: REORDER_CREATED_DEFAULT.defaultSubject,
+    defaultContent: REORDER_CREATED_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('admin_created_order', {
+    defaultSubject: ADMIN_CREATED_ORDER_DEFAULT.defaultSubject,
+    defaultContent: ADMIN_CREATED_ORDER_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('return_authorized', {
+    defaultSubject: RETURN_AUTHORIZED_DEFAULT.defaultSubject,
+    defaultContent: RETURN_AUTHORIZED_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('return_rejected', {
+    defaultSubject: RETURN_REJECTED_DEFAULT.defaultSubject,
+    defaultContent: RETURN_REJECTED_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('email_verification', {
+    defaultSubject: EMAIL_VERIFICATION_DEFAULT.defaultSubject,
+    defaultContent: EMAIL_VERIFICATION_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('organization_invitation', {
+    defaultSubject: ORGANIZATION_INVITATION_DEFAULT.defaultSubject,
+    defaultContent: ORGANIZATION_INVITATION_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('new_org_registration', {
+    defaultSubject: NEW_ORG_REGISTRATION_DEFAULT.defaultSubject,
+    defaultContent: NEW_ORG_REGISTRATION_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('low_stock_alert', {
+    defaultSubject: LOW_STOCK_ALERT_DEFAULT.defaultSubject,
+    defaultContent: LOW_STOCK_ALERT_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('availability_back_in_stock', {
+    defaultSubject: AVAILABILITY_BACK_IN_STOCK_DEFAULT.defaultSubject,
+    defaultContent: AVAILABILITY_BACK_IN_STOCK_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('payment_status_changed', {
+    defaultSubject: PAYMENT_STATUS_CHANGED_DEFAULT.defaultSubject,
+    defaultContent: PAYMENT_STATUS_CHANGED_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('shipment_created', {
+    defaultSubject: SHIPMENT_CREATED_DEFAULT.defaultSubject,
+    defaultContent: SHIPMENT_CREATED_DEFAULT.defaultContent,
+  });
+  // Feature 047 — net-new email subscribers (payment status + shipment created).
+  new PaymentEmailNotifier({
+    emFactory: em,
+    getTransactionalEmailSender: () => transactionalEmailSender,
+  }).attach(eventBus);
+  new ShipmentEmailNotifier({
+    emFactory: em,
+    getTransactionalEmailSender: () => transactionalEmailSender,
+  }).attach(eventBus);
+  modules.push(
+    transactionalEmailsModule({
+      emFactory: em,
+      settingsService: settings.handle.settingsService,
+      requireAdmin,
+      resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
+      manifests: REGISTERED_MANIFESTS.map((e) => e.manifest),
+      mailer: organizationsMailer,
+      auditLog: auditLogService,
+      settingsAdmin: settings.handle.adminService,
+      resolveAssetUrl: async (assetId) => {
+        try {
+          return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
+        } catch {
+          return null;
+        }
+      },
+      exposeSender: (sender) => {
+        transactionalEmailSender = sender;
+      },
     }),
   );
 
@@ -1886,6 +2032,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     blogManifest,
     promptActionsSettingsManifest,
     pwaSettingsManifest,
+    transactionalEmailsSettingsManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();

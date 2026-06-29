@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { ModuleSettingsManifestSchema } from './settings.js';
 import { ModuleActionsManifestSchema } from './admin-actions.js';
 import { modulePermissionDeclarationSchema } from './admin.js';
+import { transactionalEmailManifestEntrySchema } from './transactional-emails.js';
 
 // ---------------------------------------------------------------------------
 // Identifier / version regexes
@@ -87,6 +88,12 @@ export const ModuleManifestSchema = z.object({
    * when the module is enabled (feature 026).
    */
   permissions: z.array(modulePermissionDeclarationSchema).optional(),
+  /**
+   * Per-module transactional email declarations (feature 047). Each entry is
+   * reconciled into `transactional_emails` at boot; default subject/content are
+   * supplied separately at runtime via the EmailDefaultsRegistry.
+   */
+  transactionalEmails: z.array(transactionalEmailManifestEntrySchema).optional(),
 });
 export type ModuleManifest = z.infer<typeof ModuleManifestSchema>;
 

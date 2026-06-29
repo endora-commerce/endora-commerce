@@ -8,7 +8,9 @@ import type { Mailer } from '../../email/services/mailer.js';
 import type { Order } from '../entities/order.entity.js';
 import { OrderComment } from '../entities/order-comment.entity.js';
 import type { OrderService } from './order-service.js';
+import type { TransactionalEmailSender } from '@b2b/contracts';
 import { buildAdminCreatedOrderEmail } from '../email-templates/admin-created-order.js';
+import { sendOrderTransactionalEmail } from './transactional-email-helper.js';
 
 /** A new address typed on the create form (vs. an existing org address id). */
 export interface AdminCreateOrderInlineAddress {
@@ -52,6 +54,7 @@ export class OrderCreationAdminService {
     private readonly orderService: OrderService,
     private readonly addressService: AddressService,
     private readonly mailer?: Mailer,
+    private readonly getTransactionalEmailSender?: () => TransactionalEmailSender | undefined,
   ) {}
 
   async create(adminUserId: string | null, input: AdminCreateOrderInput): Promise<Order> {
@@ -166,11 +169,22 @@ export class OrderCreationAdminService {
     }
 
     // Notify the customer that an order was created for them (FR-011).
-    if (this.mailer && customer.email) {
+    if (customer.email) {
+      const sender = this.getTransactionalEmailSender?.();
       try {
-        await this.mailer.send(
-          buildAdminCreatedOrderEmail({ to: customer.email, businessId: order.businessId, orderId: order.id }),
-        );
+        if (sender) {
+          await sendOrderTransactionalEmail(em, sender, order, {
+            code: 'admin_created_order',
+            to: customer.email,
+            messageId: `order_created_for_you:${order.id}`,
+            variables: { order: { businessId: order.businessId, id: order.id } },
+            meta: { orderId: order.id, kind: 'order_created_for_you' },
+          });
+        } else if (this.mailer) {
+          await this.mailer.send(
+            buildAdminCreatedOrderEmail({ to: customer.email, businessId: order.businessId, orderId: order.id }),
+          );
+        }
       } catch {
         // best-effort
       }

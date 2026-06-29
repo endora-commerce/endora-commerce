@@ -18,6 +18,8 @@ export class SmtpMailer implements Mailer {
       to: input.to,
       subject: input.subject,
       text: input.text,
+      // Send a multipart alternative when an HTML body is provided (feature 047).
+      ...(input.html ? { html: input.html } : {}),
       messageId: input.messageId,
     });
   }

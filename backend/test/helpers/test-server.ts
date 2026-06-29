@@ -43,6 +43,32 @@ import { adminModule } from '../../src/modules/admin_users/plugin.js';
 import { inventoryModule } from '../../src/modules/inventory/plugin.js';
 import { shoppingListsModule } from '../../src/modules/shopping_lists/plugin.js';
 import { returnsModule } from '../../src/modules/returns/plugin.js';
+import { transactionalEmailsModule } from '../../src/modules/transactional_emails/plugin.js';
+import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/services/email-defaults-registry.js';
+import { ORDER_CONFIRMATION_DEFAULT } from '../../src/modules/orders/email-templates/order-confirmation.default.js';
+import {
+  ORDER_COMMENT_DEFAULT,
+  REORDER_CREATED_DEFAULT,
+  ADMIN_CREATED_ORDER_DEFAULT,
+} from '../../src/modules/orders/email-templates/secondary-defaults.js';
+import {
+  RETURN_AUTHORIZED_DEFAULT,
+  RETURN_REJECTED_DEFAULT,
+} from '../../src/modules/returns/email-templates/transactional-defaults.js';
+import {
+  EMAIL_VERIFICATION_DEFAULT,
+  ORGANIZATION_INVITATION_DEFAULT,
+  NEW_ORG_REGISTRATION_DEFAULT,
+} from '../../src/modules/organizations/email-templates/transactional-defaults.js';
+import { makeOrgTemplateEmail } from '../../src/modules/organizations/services/org-template-email.js';
+import {
+  LOW_STOCK_ALERT_DEFAULT,
+  AVAILABILITY_BACK_IN_STOCK_DEFAULT,
+} from '../../src/modules/inventory/email-templates/transactional-defaults.js';
+import { PAYMENT_STATUS_CHANGED_DEFAULT } from '../../src/modules/payments/email-templates/transactional-defaults.js';
+import { SHIPMENT_CREATED_DEFAULT } from '../../src/modules/shipments/email-templates/transactional-defaults.js';
+import { PaymentEmailNotifier } from '../../src/modules/payments/services/payment-email-notifier.js';
+import { ShipmentEmailNotifier } from '../../src/modules/shipments/services/shipment-email-notifier.js';
 import { OrderReturnContextProvider } from '../../src/modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from '../../src/modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from '../../src/modules/invoices/services/corrective-invoice.js';
@@ -78,6 +104,7 @@ import { promptActionsModule, type PromptActionsModuleOptions } from '../../src/
 import { promptActionsSettingsManifest } from '../../src/modules/prompt_actions/manifest.js';
 import { pwaModule } from '../../src/modules/pwa/plugin.js';
 import { pwaSettingsManifest } from '../../src/modules/pwa/manifest.js';
+import { transactionalEmailsSettingsManifest } from '../../src/modules/transactional_emails/manifest.js';
 import { SalesChannel } from '../../src/modules/sales_channels/entities/sales-channel.entity.js';
 import { Order } from '../../src/modules/orders/entities/order.entity.js';
 import {
@@ -651,6 +678,9 @@ export async function setupBackendServer(
     },
   });
 
+  // Feature 047 — late-bound transactional-email sender (mirrors composition).
+  let transactionalEmailSender: import('@b2b/contracts').TransactionalEmailSender | undefined;
+
   const modules: ModulePlugin[] = [
     async (app) => registerTestAuth(app, { sessionService, emFactory: em }),
     admin.plugin,
@@ -668,6 +698,7 @@ export async function setupBackendServer(
       emFactory: em,
       eventBus,
       auditLogService,
+      getTransactionalEmailSender: () => transactionalEmailSender,
       creditLimit: creditLimits.handle.creditLimitService,
       requireCustomer: requireTestCustomer(),
       requireAdmin: requireTestAdmin(permissionService),
@@ -776,11 +807,20 @@ export async function setupBackendServer(
         moderationMailer,
         async () => 'manual',
       );
+      const resolveScopeSalesChannelId = async (): Promise<string | null> =>
+        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null;
+      const resolveSalesChannelLanguage = async (salesChannelId: string): Promise<string> =>
+        (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US';
       const orgRegistrationNotifier = new OrgRegistrationNotifier({
         emFactory: em,
         adminNotificationService: adminNotifications.handle.adminNotificationService,
         mailer: moderationMailer,
         resolveRecipients: async () => [],
+        templateEmail: makeOrgTemplateEmail({
+          getSender: () => transactionalEmailSender,
+          resolveScopeSalesChannelId,
+          resolveLanguage: resolveSalesChannelLanguage,
+        }),
       });
       eventBus.on('organization.registered.v1', async (payload) => {
         const orgId = (payload as unknown as { organizationId: string }).organizationId;
@@ -825,6 +865,9 @@ export async function setupBackendServer(
           eventBus,
           sessionService,
           getMfaLoginPort: getTestMfaLoginPort,
+          getTransactionalEmailSender: () => transactionalEmailSender,
+          resolveScopeSalesChannelId,
+          resolveSalesChannelLanguage,
           requireCustomer: requireTestCustomer(),
           requireAdmin: requireTestAdmin(permissionService),
           requireAdminAny,
@@ -906,6 +949,13 @@ export async function setupBackendServer(
       requireCustomer: requireTestCustomer(),
       resolveCustomerContext: customerResolver,
       requireAdmin: requireTestAdmin(permissionService),
+      templateEmail: makeOrgTemplateEmail({
+        getSender: () => transactionalEmailSender,
+        resolveScopeSalesChannelId: async () =>
+          (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null,
+        resolveLanguage: async (id) =>
+          (await em().findOne(SalesChannel, { id }))?.defaultLanguage ?? 'en-US',
+      }),
       dictionaryValidator: dictionaries.handle.validator,
       auditLogService,
       resolveAdminAuditContext: (request) => ({
@@ -1448,7 +1498,90 @@ export async function setupBackendServer(
       notifier: new ReturnEmailNotifier(
         options.organizationsMailer ?? new ConsoleMailer(),
         async (cid) => (await em().findOne(CustomerAccount, { id: cid }))?.email ?? null,
+        {
+          getTransactionalEmailSender: () => transactionalEmailSender,
+          resolveLanguage: async (salesChannelId) =>
+            (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
+        },
       ),
+    }),
+  );
+
+  // Feature 047 — Transactional Emails.
+  emailDefaultsRegistry.register('order_confirmation', {
+    defaultSubject: ORDER_CONFIRMATION_DEFAULT.defaultSubject,
+    defaultContent: ORDER_CONFIRMATION_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('order_comment', {
+    defaultSubject: ORDER_COMMENT_DEFAULT.defaultSubject,
+    defaultContent: ORDER_COMMENT_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('reorder_created', {
+    defaultSubject: REORDER_CREATED_DEFAULT.defaultSubject,
+    defaultContent: REORDER_CREATED_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('admin_created_order', {
+    defaultSubject: ADMIN_CREATED_ORDER_DEFAULT.defaultSubject,
+    defaultContent: ADMIN_CREATED_ORDER_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('return_authorized', {
+    defaultSubject: RETURN_AUTHORIZED_DEFAULT.defaultSubject,
+    defaultContent: RETURN_AUTHORIZED_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('return_rejected', {
+    defaultSubject: RETURN_REJECTED_DEFAULT.defaultSubject,
+    defaultContent: RETURN_REJECTED_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('email_verification', {
+    defaultSubject: EMAIL_VERIFICATION_DEFAULT.defaultSubject,
+    defaultContent: EMAIL_VERIFICATION_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('organization_invitation', {
+    defaultSubject: ORGANIZATION_INVITATION_DEFAULT.defaultSubject,
+    defaultContent: ORGANIZATION_INVITATION_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('new_org_registration', {
+    defaultSubject: NEW_ORG_REGISTRATION_DEFAULT.defaultSubject,
+    defaultContent: NEW_ORG_REGISTRATION_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('low_stock_alert', {
+    defaultSubject: LOW_STOCK_ALERT_DEFAULT.defaultSubject,
+    defaultContent: LOW_STOCK_ALERT_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('availability_back_in_stock', {
+    defaultSubject: AVAILABILITY_BACK_IN_STOCK_DEFAULT.defaultSubject,
+    defaultContent: AVAILABILITY_BACK_IN_STOCK_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('payment_status_changed', {
+    defaultSubject: PAYMENT_STATUS_CHANGED_DEFAULT.defaultSubject,
+    defaultContent: PAYMENT_STATUS_CHANGED_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('shipment_created', {
+    defaultSubject: SHIPMENT_CREATED_DEFAULT.defaultSubject,
+    defaultContent: SHIPMENT_CREATED_DEFAULT.defaultContent,
+  });
+  new PaymentEmailNotifier({
+    emFactory: em,
+    getTransactionalEmailSender: () => transactionalEmailSender,
+  }).attach(eventBus);
+  new ShipmentEmailNotifier({
+    emFactory: em,
+    getTransactionalEmailSender: () => transactionalEmailSender,
+  }).attach(eventBus);
+  modules.push(
+    transactionalEmailsModule({
+      emFactory: em,
+      settingsService: settings.handle.settingsService,
+      requireAdmin: requireTestAdmin(permissionService),
+      resolveAdminUserId: (req) =>
+        req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
+      manifests: REGISTERED_MANIFESTS.map((e) => e.manifest),
+      mailer: options.organizationsMailer ?? new ConsoleMailer(),
+      auditLog: auditLogService,
+      settingsAdmin: settings.handle.adminService,
+      exposeSender: (sender) => {
+        transactionalEmailSender = sender;
+      },
     }),
   );
 
@@ -1507,6 +1640,7 @@ export async function setupBackendServer(
     mfaSettingsManifest,
     promptActionsSettingsManifest,
     pwaSettingsManifest,
+    transactionalEmailsSettingsManifest,
   ]);
 
   const app = await buildServer({

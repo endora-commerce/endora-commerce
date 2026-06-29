@@ -9,7 +9,7 @@ import { WarehouseService } from './services/warehouse-service.js';
 import { StockLevelService } from './services/stock-level-service.js';
 import { WarehouseChannelService } from './services/warehouse-channel-service.js';
 import { ThresholdAdminService } from './services/threshold-admin-service.js';
-import { LowStockAlertService } from './services/low-stock-alert-service.js';
+import { LowStockAlertService, type InventoryTemplateEmailPort } from './services/low-stock-alert-service.js';
 import { registerInventoryRoutes } from './routes.js';
 import { registerInventoryAdminRoutes } from './routes.admin.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
@@ -53,6 +53,8 @@ export interface InventoryModuleOptions {
   settingsService?: SettingsService;
   /** Optional mailer for low-stock alerts. Defaults to ConsoleMailer. */
   mailer?: Mailer;
+  /** Feature 047 — optional admin-editable template path for inventory emails. */
+  templateEmail?: InventoryTemplateEmailPort;
   /** Channel id used to read inventory.* settings for low-stock alerts. */
   settingsChannelId?: string;
   /** Lazy lookup for the system-default channel id; used by the
@@ -80,7 +82,11 @@ export interface InventoryModuleOptions {
 export function inventoryModule(options: InventoryModuleOptions) {
   return async (app: FastifyInstance): Promise<void> => {
     const mailer = options.mailer ?? new ConsoleMailer();
-    const availabilityService = new AvailabilityNotificationService(options.emFactory, mailer);
+    const availabilityService = new AvailabilityNotificationService(
+      options.emFactory,
+      mailer,
+      options.templateEmail,
+    );
     const availabilityWorker = new AvailabilityWorker(options.emFactory, mailer);
     if (options.eventBus) availabilityWorker.attach(options.eventBus);
 
@@ -115,6 +121,7 @@ export function inventoryModule(options: InventoryModuleOptions) {
       mailer,
       options.settingsService,
       options.settingsChannelId,
+      options.templateEmail,
     );
     if (options.eventBus) {
       lowStockAlertService.attach(options.eventBus);

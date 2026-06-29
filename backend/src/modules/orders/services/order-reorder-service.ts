@@ -8,7 +8,9 @@ import { CartItem } from '../../carts/entities/cart-item.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
 import type { Mailer } from '../../email/services/mailer.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
+import type { TransactionalEmailSender } from '@b2b/contracts';
 import { buildReorderCreatedEmail } from '../email-templates/reorder-created.js';
+import { sendOrderTransactionalEmail } from './transactional-email-helper.js';
 
 export interface ReorderUnavailableItem {
   productId: string;
@@ -41,6 +43,7 @@ export class OrderReorderService {
     private readonly emFactory: () => EntityManager,
     private readonly resolveReorderEnabled?: (salesChannelId: string) => Promise<boolean>,
     private readonly mailer?: Mailer,
+    private readonly getTransactionalEmailSender?: () => TransactionalEmailSender | undefined,
   ) {}
 
   async reorder(
@@ -110,10 +113,21 @@ export class OrderReorderService {
   }
 
   private async notify(em: EntityManager, order: Order): Promise<void> {
-    if (!this.mailer) return;
     const customer = await em.findOne(CustomerAccount, { id: order.placedByCustomerAccountId });
     if (!customer?.email) return;
+    const sender = this.getTransactionalEmailSender?.();
     try {
+      if (sender) {
+        await sendOrderTransactionalEmail(em, sender, order, {
+          code: 'reorder_created',
+          to: customer.email,
+          messageId: `order_reorder:${order.id}`,
+          variables: { order: { sourceBusinessId: order.businessId, id: order.id } },
+          meta: { sourceOrderId: order.id, kind: 'order_reorder' },
+        });
+        return;
+      }
+      if (!this.mailer) return;
       await this.mailer.send(
         buildReorderCreatedEmail({ to: customer.email, sourceBusinessId: order.businessId, orderId: order.id }),
       );

@@ -106,6 +106,26 @@ export const manifest = defineModuleManifest({
   dependencies: ['settings', 'sales_channels', 'dictionaries'],
   settings,
   i18n: { bundlesDir: 'i18n' },
+  // Feature 047 — admin-editable transactional emails owned by this module.
+  transactionalEmails: [
+    {
+      code: 'low_stock_alert',
+      name: 'Low stock alert',
+      group: 'inventory',
+      variables: [
+        { key: 'product.name', label: 'Product name', sampleValue: 'Widget' },
+        { key: 'product.sku', label: 'Product SKU', sampleValue: 'WID-001' },
+        { key: 'cumulativeOnHand', label: 'Cumulative on-hand', sampleValue: '3' },
+        { key: 'threshold', label: 'Threshold', sampleValue: '5' },
+      ],
+    },
+    {
+      code: 'availability_back_in_stock',
+      name: 'Back in stock notification',
+      group: 'inventory',
+      variables: [{ key: 'product.name', label: 'Product name', sampleValue: 'Widget' }],
+    },
+  ],
   actions: [
     {
       id: 'open-inventory',

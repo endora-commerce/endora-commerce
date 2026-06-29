@@ -86,6 +86,7 @@ import { Migration079OrderAppliedPromotions } from '../modules/orders/migrations
 import { Migration080ReturnsInit } from '../modules/returns/migrations/080_returns_init.js';
 import { Migration080PwaInit } from '../modules/pwa/migrations/080_pwa_init.js';
 import { Migration081SettingsHiddenFlag } from '../modules/settings/migrations/081_settings_hidden_flag.js';
+import { Migration082TransactionalEmailsInit } from '../modules/transactional_emails/migrations/082_transactional_emails_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -409,6 +410,10 @@ export default defineConfig({
       {
         name: 'Migration081SettingsHiddenFlag',
         class: Migration081SettingsHiddenFlag,
+      },
+      {
+        name: 'Migration082TransactionalEmailsInit',
+        class: Migration082TransactionalEmailsInit,
       },
     ],
     transactional: true,

@@ -18,6 +18,7 @@ import {
   Home as HomeIcon,
   Image as ImageIcon,
   Menu,
+  Inbox,
   KeyRound,
   Languages,
   LayoutDashboard,
@@ -111,6 +112,30 @@ const NAV: NavSection[] = [
       { to: '/returns', labelKey: 'appShell.nav.returns', icon: Package, requiredPermission: 'returns:read' },
       { to: '/quote-requests', labelKey: 'appShell.nav.quoteRequests', icon: FileText },
       { to: '/invoices', labelKey: 'appShell.nav.invoices', icon: Receipt },
+    ],
+  },
+  {
+    key: 'messaging',
+    labelKey: 'appShell.section.messaging',
+    items: [
+      {
+        to: '/transactional-emails',
+        labelKey: 'appShell.nav.transactionalEmails',
+        icon: Inbox,
+        requiredPermission: 'transactional_emails:read',
+      },
+      {
+        to: '/transactional-emails/blocks',
+        labelKey: 'appShell.nav.emailBlocks',
+        icon: Inbox,
+        requiredPermission: 'transactional_emails:read',
+      },
+      {
+        to: '/transactional-emails/templates',
+        labelKey: 'appShell.nav.emailTemplates',
+        icon: Inbox,
+        requiredPermission: 'transactional_emails:read',
+      },
     ],
   },
   {
