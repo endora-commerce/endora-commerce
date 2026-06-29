@@ -5,8 +5,8 @@ import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine } from '../entities/invoice-line.entity.js';
 import { Order } from '../../orders/entities/order.entity.js';
 import { OrderItem } from '../../orders/entities/order-item.entity.js';
-import { InvoiceNumberGenerator } from './invoice-number-generator.js';
-import { SellerSettingsResolver } from './seller-settings.js';
+import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
+import type { SellerSettingsResolver } from './seller-settings.js';
 import { buildInvoiceLines, type RawOrderLine } from './invoice-line-builder.js';
 
 function round2(n: number): number {

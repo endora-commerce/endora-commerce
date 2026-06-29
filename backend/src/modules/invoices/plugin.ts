@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { TransactionalEmailSender } from '@b2b/contracts';
 import type { ModulePlugin } from '../../http/server.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
-import { Order } from '../orders/entities/order.entity.js';
+import type { Order } from '../orders/entities/order.entity.js';
 import { Invoice } from './entities/invoice.entity.js';
 import { InvoiceService } from './services/invoice-service.js';
 import { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
