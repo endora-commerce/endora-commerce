@@ -140,6 +140,7 @@ const NAV: NavSection[] = [
       { to: '/newsletter/campaigns', labelKey: 'appShell.nav.newsletterCampaigns', icon: Inbox, requiredPermission: 'newsletter:read' },
       { to: '/newsletter/automations', labelKey: 'appShell.nav.newsletterAutomations', icon: Inbox, requiredPermission: 'newsletter:read' },
       { to: '/newsletter/tags', labelKey: 'appShell.nav.newsletterTags', icon: Inbox, requiredPermission: 'newsletter:read' },
+      { to: '/newsletter/blocks', labelKey: 'appShell.nav.newsletterBlocks', icon: Inbox, requiredPermission: 'newsletter:read' },
       { to: '/newsletter/provider', labelKey: 'appShell.nav.newsletterProvider', icon: Inbox, requiredPermission: 'newsletter:write' },
     ],
   },

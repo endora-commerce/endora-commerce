@@ -8,9 +8,13 @@ import type {
   CreateAutomationRequest,
   CreateCampaignRequest,
   CreateNewsletterCustomFieldRequest,
+  CreateNewsletterEmailBlockRequest,
   CreateNewsletterTagRequest,
   NewsletterCustomField,
+  NewsletterEmailBlockDetail,
+  NewsletterEmailBlockSummary,
   NewsletterTag,
+  UpdateNewsletterEmailBlockRequest,
   ProviderConfig,
   PutProviderRequest,
   RenderedEmail,
@@ -94,6 +98,17 @@ export const newsletterClient = {
     unwrap(apiClient.post<Wrap<AutomationDetail>>(`${BASE}/automations/${id}/activate`, { expectedVersion })),
   pauseAutomation: (id: string, expectedVersion: number): Promise<AutomationDetail> =>
     unwrap(apiClient.post<Wrap<AutomationDetail>>(`${BASE}/automations/${id}/pause`, { expectedVersion })),
+
+  // Email blocks
+  listBlocks: (): Promise<{ items: NewsletterEmailBlockSummary[] }> =>
+    unwrap(apiClient.get<Wrap<{ items: NewsletterEmailBlockSummary[] }>>(`${BASE}/blocks`)),
+  getBlock: (id: string): Promise<NewsletterEmailBlockDetail> =>
+    unwrap(apiClient.get<Wrap<NewsletterEmailBlockDetail>>(`${BASE}/blocks/${id}`)),
+  createBlock: (body: CreateNewsletterEmailBlockRequest): Promise<NewsletterEmailBlockDetail> =>
+    unwrap(apiClient.post<Wrap<NewsletterEmailBlockDetail>>(`${BASE}/blocks`, body)),
+  updateBlock: (id: string, body: UpdateNewsletterEmailBlockRequest): Promise<NewsletterEmailBlockDetail> =>
+    unwrap(apiClient.put<Wrap<NewsletterEmailBlockDetail>>(`${BASE}/blocks/${id}`, body)),
+  deleteBlock: (id: string): Promise<void> => apiClient.delete(`${BASE}/blocks/${id}`).then(() => undefined),
 
   // Provider
   getProvider: (): Promise<ProviderConfig> => unwrap(apiClient.get<Wrap<ProviderConfig>>(`${BASE}/provider`)),

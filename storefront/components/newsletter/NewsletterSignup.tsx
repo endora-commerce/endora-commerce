@@ -1,14 +1,15 @@
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { subscribeNewsletter } from '../../lib/api/newsletter';
+import { getNewsletterStatus, subscribeNewsletter } from '../../lib/api/newsletter';
 
 /**
  * Reusable newsletter signup form (feature 048, US1). Server-action form that
  * subscribes the entered email on the given sales channel, attaching any
  * preset tags (e.g. a "Promotions" footer form passes `tags={['promotions']}`).
- * Redirects to a thank-you page reflecting the opt-in outcome.
+ * Renders nothing when the newsletter module is disabled. Redirects to a
+ * thank-you page reflecting the opt-in outcome.
  */
-export function NewsletterSignup({
+export async function NewsletterSignup({
   channelCode,
   tags,
   title = 'Subscribe to our newsletter',
@@ -16,7 +17,10 @@ export function NewsletterSignup({
   channelCode: string;
   tags?: string[];
   title?: string;
-}): ReactNode {
+}): Promise<ReactNode> {
+  const status = await getNewsletterStatus(channelCode);
+  if (!status.enabled) return null;
+
   async function action(formData: FormData): Promise<void> {
     'use server';
     const email = String(formData.get('email') ?? '').trim();

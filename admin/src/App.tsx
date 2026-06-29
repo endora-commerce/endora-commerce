@@ -70,6 +70,7 @@ import { AutomationsPage as NewsletterAutomationsPage } from './modules/newslett
 import { AutomationBuilder as NewsletterAutomationBuilder } from './modules/newsletter/pages/AutomationBuilder.js';
 import { TagsPage as NewsletterTagsPage } from './modules/newsletter/pages/TagsPage.js';
 import { CampaignStats as NewsletterCampaignStats } from './modules/newsletter/pages/CampaignStats.js';
+import { BlocksPage as NewsletterBlocksPage } from './modules/newsletter/pages/BlocksPage.js';
 import { ProviderSettingsPage as NewsletterProviderPage } from './modules/newsletter/pages/ProviderSettingsPage.js';
 import { ReturnStatusesConfigPage } from './modules/returns/ReturnStatusesConfigPage.js';
 import { ReturnReasonsPage } from './modules/returns/ReturnReasonsPage.js';
@@ -198,6 +199,7 @@ export function App(): ReactNode {
         <Route path="/newsletter/automations/new" element={<NewsletterAutomationBuilder />} />
         <Route path="/newsletter/automations/:id" element={<NewsletterAutomationBuilder />} />
         <Route path="/newsletter/tags" element={<NewsletterTagsPage />} />
+        <Route path="/newsletter/blocks" element={<NewsletterBlocksPage />} />
         <Route path="/newsletter/provider" element={<NewsletterProviderPage />} />
         <Route path="/carts" element={<CartsList />} />
         <Route path="/carts/:id" element={<CartDetail />} />
