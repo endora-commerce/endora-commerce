@@ -1884,8 +1884,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         process.env['STOREFRONT_BASE_URL'] ??
         'http://localhost:3000',
       storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
+      requireAdmin,
       mailer: organizationsMailer,
       auditLog: auditLogService,
+      redis,
+      runWorkers,
     }),
   );
 

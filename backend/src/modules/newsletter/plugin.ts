@@ -1,44 +1,63 @@
+import { z } from 'zod';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type Redis from 'ioredis';
+import { NEWSLETTER_SETTING_CODES } from '@b2b/contracts';
 import type { ModulePlugin } from '../../http/server.js';
-import { defineModuleRoutes } from '../_lifecycle/plugin-helpers.js';
+import { defineModuleRoutes, defineModuleWorker } from '../_lifecycle/plugin-helpers.js';
 import type { SettingsService } from '../settings/services/settings.service.js';
 import type { Mailer } from '../email/services/mailer.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { NewsletterTokenHelper } from './services/token.helper.js';
 import { NewsletterOptInService } from './services/opt-in.service.js';
 import { NewsletterSubscriberService, type NewsletterLinkBuilder } from './services/subscriber.service.js';
+import { NewsletterContentService } from './services/content.service.js';
+import { NewsletterAudienceResolver } from './services/audience-resolver.js';
+import { NewsletterCampaignDispatchService } from './services/campaign-dispatch.service.js';
+import { NewsletterCampaignService } from './services/campaign.service.js';
+import { NewsletterProviderRegistry } from './services/provider/provider-registry.js';
+import {
+  createCampaignPlanQueue,
+  createSendQueue,
+  createCampaignPlanWorker,
+  createSendWorker,
+} from './services/queues/newsletter-queues.js';
 import { registerNewsletterStorefrontRoutes } from './routes.storefront.js';
+import { registerNewsletterAdminRoutes } from './routes.admin.js';
 
 export interface NewsletterModuleOptions {
   emFactory: () => EntityManager;
   settings: SettingsService;
-  /** HMAC secret for confirm/unsubscribe/open/click tokens. */
   tokenSecret: string;
-  /** Channel id used for platform-scoped Settings reads. */
   platformChannelId: string;
-  /** Resolve a sales-channel code to its id; null when unknown. */
   resolveChannelIdByCode: (code: string) => Promise<string | null>;
-  /** Public API base used to build email links (confirm/unsubscribe). */
   publicBaseUrl: string;
-  /** Storefront base used for post-action redirects. */
   storefrontBaseUrl: string;
+  requireAdmin: (permission?: string) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
   mailer?: Mailer;
   auditLog?: AuditLogService;
+  /** Redis connection — when present, dispatch is queue-backed (Principle X). */
+  redis?: Redis;
+  /** Whether this process runs queue consumers (BACKEND_ROLE != api). */
+  runWorkers?: boolean;
 }
 
 /**
- * Composition root for the newsletter module (feature 048). Builds the
- * subscriber/opt-in services and registers the public storefront routes,
- * gated on the module's enabled state (503 when disabled — US8).
+ * Composition root for the newsletter module (feature 048). Builds the service
+ * graph, the (optional) BullMQ dispatch queues + workers, and registers the
+ * storefront + admin routes, all gated on the module's enabled state.
  */
 export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin {
   const tokens = new NewsletterTokenHelper(options.tokenSecret);
   const optIn = new NewsletterOptInService(options.settings, tokens);
+  const content = new NewsletterContentService();
+  const audience = new NewsletterAudienceResolver(options.emFactory);
+  const providers = new NewsletterProviderRegistry(options.settings, options.platformChannelId);
 
   const links: NewsletterLinkBuilder = {
-    confirm: (token) => `${options.publicBaseUrl}/api/v1/newsletter/confirm?token=${encodeURIComponent(token)}`,
-    unsubscribe: (token) =>
-      `${options.publicBaseUrl}/api/v1/newsletter/unsubscribe?token=${encodeURIComponent(token)}`,
+    confirm: (t) => `${options.publicBaseUrl}/api/v1/newsletter/confirm?token=${encodeURIComponent(t)}`,
+    unsubscribe: (t) =>
+      `${options.publicBaseUrl}/api/v1/newsletter/unsubscribe?token=${encodeURIComponent(t)}`,
   };
 
   const subscribers = new NewsletterSubscriberService({
@@ -50,14 +69,87 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
 
-  return defineModuleRoutes('newsletter', async (app) => {
-    await registerNewsletterStorefrontRoutes(app, {
-      subscribers,
-      optIn,
-      tokens,
-      resolveChannelIdByCode: options.resolveChannelIdByCode,
-      platformChannelId: options.platformChannelId,
-      storefrontBaseUrl: options.storefrontBaseUrl,
-    });
+  const dispatch = new NewsletterCampaignDispatchService({
+    emFactory: options.emFactory,
+    audience,
+    content,
+    optIn,
+    links,
+    resolveProvider: () => providers.resolveProvider(),
+    resolveSender: () => providers.resolveSender(),
   });
+
+  // Producer-side queues (needed by the API to enqueue, regardless of worker role).
+  const planQueue = options.redis ? createCampaignPlanQueue(options.redis) : undefined;
+  const sendQueue = options.redis ? createSendQueue(options.redis) : undefined;
+
+  const campaigns = new NewsletterCampaignService({
+    emFactory: options.emFactory,
+    dispatch,
+    content,
+    isProviderConfigured: () => providers.isConfigured(),
+    ...(planQueue
+      ? {
+          enqueuePlan: async (campaignId: string, delayMs?: number) => {
+            const job = await planQueue.add(
+              'plan',
+              { campaignId },
+              delayMs ? { delay: delayMs } : {},
+            );
+            return job.id;
+          },
+        }
+      : {}),
+  });
+
+  return async (app) => {
+    // Queue consumers (Principle X): separable, pause on disable.
+    if (options.runWorkers && options.redis && planQueue && sendQueue) {
+      let rate = 14;
+      try {
+        rate = await options.settings.get(
+          NEWSLETTER_SETTING_CODES.RATE_LIMIT_PER_SECOND,
+          options.platformChannelId,
+          z.number(),
+        );
+      } catch {
+        // default
+      }
+      defineModuleWorker(
+        'newsletter',
+        createCampaignPlanWorker(options.redis, async (job) => {
+          const recordIds = await dispatch.planCampaign(job.data.campaignId);
+          for (const recordId of recordIds) await sendQueue.add('send', { recordId });
+        }),
+        { logger: app.log },
+      );
+      defineModuleWorker(
+        'newsletter',
+        createSendWorker(
+          options.redis,
+          async (job) => {
+            await dispatch.sendRecord(job.data.recordId);
+          },
+          rate,
+        ),
+        { logger: app.log },
+      );
+    }
+
+    await defineModuleRoutes('newsletter', async (scoped) => {
+      await registerNewsletterStorefrontRoutes(scoped, {
+        subscribers,
+        optIn,
+        tokens,
+        resolveChannelIdByCode: options.resolveChannelIdByCode,
+        platformChannelId: options.platformChannelId,
+        storefrontBaseUrl: options.storefrontBaseUrl,
+      });
+      await registerNewsletterAdminRoutes(scoped, {
+        campaigns,
+        subscribers,
+        requireAdmin: options.requireAdmin,
+      });
+    })(app);
+  };
 }

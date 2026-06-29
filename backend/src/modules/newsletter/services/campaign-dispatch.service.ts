@@ -28,18 +28,20 @@ export interface DispatchResult {
 
 /**
  * Per-recipient campaign dispatch (feature 048, US2 — the Principle-X core).
- * Each recipient is atomically claimed by inserting its `newsletter_send_records`
- * row with `ON CONFLICT DO NOTHING`; only freshly-claimed rows are sent. Re-runs
- * and N≥2 workers therefore never double-send. The send is idempotent on the
- * record id (used as the provider `messageId`).
+ *
+ * Split into the two queue phases so the BullMQ workers map onto it directly:
+ *  - `planCampaign`: resolve the audience and atomically claim a send record per
+ *    recipient (`INSERT … ON CONFLICT DO NOTHING`); returns the freshly-claimed
+ *    record ids. Re-runs claim nothing new, so N≥2 plan workers are safe.
+ *  - `sendRecord`: render + provider-send one claimed record, idempotent on the
+ *    record id (used as the provider `messageId`).
+ *
+ * `dispatchCampaign` runs both phases inline (used by tests and the console
+ * fallback path).
  */
 export class NewsletterCampaignDispatchService {
   constructor(private readonly deps: CampaignDispatchDeps) {}
 
-  /**
-   * Atomically claim a recipient. Returns the new record id, or null when the
-   * recipient was already claimed for this campaign.
-   */
   private async claim(em: EntityManager, campaignId: string, subscriberId: string): Promise<string | null> {
     const id = randomUUID();
     const rows = (await em.getConnection().execute(
@@ -55,49 +57,41 @@ export class NewsletterCampaignDispatchService {
     return rows.length > 0 ? (rows[0]?.id ?? null) : null;
   }
 
-  /** Dispatch one campaign to its full eligible audience. Safe to re-run. */
-  async dispatchCampaign(campaignId: string): Promise<DispatchResult> {
+  /** Phase 1: resolve audience, claim records, mark the campaign `sending`. */
+  async planCampaign(campaignId: string): Promise<string[]> {
     const em = this.deps.emFactory();
     const campaign = await em.findOneOrFail(NewsletterCampaign, { id: campaignId });
-
     const audienceIds = await this.deps.audience.resolve({
       type: campaign.targetType,
       tagIds: campaign.targetTagIds,
       campaignId: campaign.id,
     });
-
-    const provider = await this.deps.resolveProvider();
-    const sender = await this.deps.resolveSender();
-
-    const result: DispatchResult = { claimed: 0, sent: 0, failed: 0 };
+    const claimed: string[] = [];
     for (const subscriberId of audienceIds) {
       const recordId = await this.claim(em, campaign.id, subscriberId);
-      if (!recordId) continue; // already claimed — idempotent skip
-      result.claimed += 1;
-      await this.deliver(em, campaign, subscriberId, recordId, provider, sender, result);
+      if (recordId) claimed.push(recordId);
     }
-
-    campaign.status = 'sent';
-    await em.persistAndFlush(campaign);
-    return result;
+    if (campaign.status !== 'sent') {
+      campaign.status = 'sending';
+      await em.persistAndFlush(campaign);
+    }
+    return claimed;
   }
 
-  private async deliver(
-    em: EntityManager,
-    campaign: NewsletterCampaign,
-    subscriberId: string,
-    recordId: string,
-    provider: NewsletterSendProvider,
-    sender: { fromEmail: string; fromName: string },
-    result: DispatchResult,
-  ): Promise<void> {
-    const record = await em.findOneOrFail(NewsletterSendRecord, { id: recordId });
-    if (record.status === 'sent') {
-      result.sent += 1;
-      return;
-    }
-    const subscriber = await em.findOneOrFail(NewsletterSubscriber, { id: subscriberId });
-    const unsubscribeUrl = this.deps.links.unsubscribe(this.deps.optIn.mintUnsubscribeToken(subscriberId));
+  /** Phase 2: render + send one claimed record. Idempotent. */
+  async sendRecord(recordId: string): Promise<'sent' | 'failed' | 'skipped'> {
+    const em = this.deps.emFactory();
+    const record = await em.findOne(NewsletterSendRecord, { id: recordId });
+    if (!record || !record.campaignId) return 'skipped';
+    if (record.status === 'sent') return 'skipped';
+
+    const campaign = await em.findOneOrFail(NewsletterCampaign, { id: record.campaignId });
+    const subscriber = await em.findOneOrFail(NewsletterSubscriber, { id: record.subscriberId });
+    const provider = await this.deps.resolveProvider();
+    const sender = await this.deps.resolveSender();
+    const unsubscribeUrl = this.deps.links.unsubscribe(
+      this.deps.optIn.mintUnsubscribeToken(subscriber.id),
+    );
 
     const rendered = this.deps.content.render({
       subject: campaign.subject,
@@ -120,18 +114,35 @@ export class NewsletterCampaignDispatchService {
         subject: rendered.subject,
         html: rendered.html,
         text: rendered.text,
-        messageId: recordId,
+        messageId: record.id,
         headers: { 'List-Unsubscribe': `<${unsubscribeUrl}>` },
       });
       record.status = 'sent';
       record.sentAt = new Date();
       record.providerMessageId = res.providerMessageId ?? null;
-      result.sent += 1;
+      await em.persistAndFlush(record);
+      return 'sent';
     } catch (err) {
       record.status = 'failed';
       record.error = err instanceof Error ? err.message : String(err);
-      result.failed += 1;
+      await em.persistAndFlush(record);
+      return 'failed';
     }
-    await em.persistAndFlush(record);
+  }
+
+  /** Inline both phases (tests + console fallback). Safe to re-run. */
+  async dispatchCampaign(campaignId: string): Promise<DispatchResult> {
+    const claimedIds = await this.planCampaign(campaignId);
+    const result: DispatchResult = { claimed: claimedIds.length, sent: 0, failed: 0 };
+    for (const recordId of claimedIds) {
+      const outcome = await this.sendRecord(recordId);
+      if (outcome === 'sent') result.sent += 1;
+      else if (outcome === 'failed') result.failed += 1;
+    }
+    const em = this.deps.emFactory();
+    const campaign = await em.findOneOrFail(NewsletterCampaign, { id: campaignId });
+    campaign.status = 'sent';
+    await em.persistAndFlush(campaign);
+    return result;
   }
 }
