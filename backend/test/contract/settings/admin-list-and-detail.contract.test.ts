@@ -19,7 +19,11 @@ describe('admin settings list/detail (T029)', () => {
     await reconciler.apply([
       defineModuleSettingsManifest({
         moduleCode: 'us2_test_list',
-        groups: [{ code: 'us2_list_group', name: 'US2 List Group' }],
+        groups: [
+          { code: 'us2_list_group', name: 'US2 List Group' },
+          { code: 'us2_mixed_group', name: 'US2 Mixed Group' },
+          { code: 'us2_allhidden_group', name: 'US2 All-Hidden Group' },
+        ],
         settings: [
           {
             code: 'us2_list.title',
@@ -27,6 +31,29 @@ describe('admin settings list/detail (T029)', () => {
             groupCode: 'us2_list_group',
             valueType: 'string',
             defaultValue: 'default-title',
+          },
+          {
+            code: 'us2_mixed.visible',
+            name: 'Visible',
+            groupCode: 'us2_mixed_group',
+            valueType: 'string',
+            defaultValue: 'shown',
+          },
+          {
+            code: 'us2_mixed.hidden',
+            name: 'Hidden',
+            groupCode: 'us2_mixed_group',
+            valueType: 'string',
+            defaultValue: 'concealed',
+            hidden: true,
+          },
+          {
+            code: 'us2_allhidden.secret',
+            name: 'All Hidden',
+            groupCode: 'us2_allhidden_group',
+            valueType: 'string',
+            defaultValue: 'concealed',
+            hidden: true,
           },
         ],
       }),
@@ -57,6 +84,42 @@ describe('admin settings list/detail (T029)', () => {
     const group = body.groups.find((g) => g.code === 'us2_list_group');
     expect(group).toBeTruthy();
     expect(group!.settings.some((s) => s.code === 'us2_list.title')).toBe(true);
+  });
+
+  it('excludes hidden settings but keeps visible siblings in their group', async () => {
+    const r = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/settings',
+      cookies: adminCookie,
+    });
+    expect(r.statusCode).toBe(200);
+    const body = r.json() as { groups: Array<{ code: string; settings: Array<{ code: string }> }> };
+    const mixed = body.groups.find((g) => g.code === 'us2_mixed_group');
+    expect(mixed).toBeTruthy();
+    const codes = mixed!.settings.map((s) => s.code);
+    expect(codes).toContain('us2_mixed.visible');
+    expect(codes).not.toContain('us2_mixed.hidden');
+  });
+
+  it('drops a group whose every setting is hidden', async () => {
+    const r = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/settings',
+      cookies: adminCookie,
+    });
+    const body = r.json() as { groups: Array<{ code: string }> };
+    expect(body.groups.some((g) => g.code === 'us2_allhidden_group')).toBe(false);
+  });
+
+  it('still resolves a hidden setting by code (dedicated-surface access)', async () => {
+    const r = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/settings/us2_mixed.hidden',
+      cookies: adminCookie,
+    });
+    expect(r.statusCode).toBe(200);
+    const body = r.json() as { code: string };
+    expect(body.code).toBe('us2_mixed.hidden');
   });
 
   it('returns the setting detail with an ETag header', async () => {

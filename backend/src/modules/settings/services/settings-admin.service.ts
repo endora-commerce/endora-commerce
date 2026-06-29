@@ -71,8 +71,14 @@ export class SettingsAdminService {
         { group },
         { populate: ['salesChannels'], orderBy: { name: 'asc' } },
       );
+      // Hidden settings are managed only through their owning module's dedicated
+      // UI; exclude them from the generic Settings screen. A group whose every
+      // setting is hidden is dropped entirely (single-source-of-truth), but a
+      // genuinely empty group is preserved so group management still lists it.
+      const visible = settings.filter((s) => !s.hidden);
+      if (visible.length === 0 && settings.length > 0) continue;
       const settingsWithValues: Array<{ setting: Setting; values: SettingValue[] }> = [];
-      for (const setting of settings) {
+      for (const setting of visible) {
         const values = await em.find(
           SettingValue,
           { setting },

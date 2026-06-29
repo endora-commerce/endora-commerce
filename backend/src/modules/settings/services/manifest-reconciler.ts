@@ -302,6 +302,12 @@ export class ManifestReconciler {
           existing.enumOptions = nextEnumOptions;
           changed = true;
         }
+        // hidden is manifest-driven config — keep it in sync on every run.
+        const nextHidden = entry.hidden ?? false;
+        if (existing.hidden !== nextHidden) {
+          existing.hidden = nextHidden;
+          changed = true;
+        }
         if (options.force) {
           if (existing.valueType !== valueType) {
             existing.valueType = valueType;
@@ -334,6 +340,7 @@ export class ManifestReconciler {
           ownerModule: moduleCode,
           description: entry.description ?? null,
           enumOptions: entry.enumOptions ?? null,
+          hidden: entry.hidden ?? false,
         });
         if (entry.salesChannelCodes && entry.salesChannelCodes.length > 0) {
           for (const code of entry.salesChannelCodes) {
