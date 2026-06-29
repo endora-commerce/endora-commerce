@@ -1889,6 +1889,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveAuditContext: (request) => ({
         actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
       }),
+      requireCustomer,
+      resolveCustomerAccountId,
+      loadCustomerEmail: async (customerAccountId) =>
+        (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
       mailer: organizationsMailer,
       auditLog: auditLogService,
       redis,

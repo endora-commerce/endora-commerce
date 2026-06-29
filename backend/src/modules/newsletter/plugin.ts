@@ -32,8 +32,10 @@ import {
   createSendWorker,
   createAutomationStepWorker,
 } from './services/queues/newsletter-queues.js';
+import { NewsletterSelfService } from './services/self.service.js';
 import { registerNewsletterStorefrontRoutes } from './routes.storefront.js';
 import { registerNewsletterAdminRoutes } from './routes.admin.js';
+import { registerNewsletterSelfRoutes } from './routes.self.js';
 
 export interface NewsletterModuleOptions {
   emFactory: () => EntityManager;
@@ -48,6 +50,12 @@ export interface NewsletterModuleOptions {
   settingsWrite: SettingsWriter;
   /** Resolve the admin audit context from a request (for secret writes). */
   resolveAuditContext: (req: FastifyRequest) => AdminAuditContext;
+  /** Customer session guard (self routes). */
+  requireCustomer: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+  /** Resolve the signed-in customer's account id (org-less). */
+  resolveCustomerAccountId: (req: FastifyRequest) => string;
+  /** Resolve a customer account's email (cross-module lookup). */
+  loadCustomerEmail: (customerAccountId: string) => Promise<string | null>;
   mailer?: Mailer;
   auditLog?: AuditLogService;
   /** Redis connection — when present, dispatch is queue-backed (Principle X). */
@@ -97,6 +105,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
     providers,
     options.platformChannelId,
   );
+  const self = new NewsletterSelfService(options.emFactory, subscribers);
 
   const dispatch = new NewsletterCampaignDispatchService({
     emFactory: options.emFactory,
@@ -210,6 +219,12 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
         providerAdmin,
         resolveAuditContext: options.resolveAuditContext,
         requireAdmin: options.requireAdmin,
+      });
+      await registerNewsletterSelfRoutes(scoped, {
+        self,
+        requireCustomer: options.requireCustomer,
+        resolveCustomerAccountId: options.resolveCustomerAccountId,
+        loadCustomerEmail: options.loadCustomerEmail,
       });
     })(app);
   };
