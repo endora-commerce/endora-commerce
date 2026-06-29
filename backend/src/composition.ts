@@ -126,6 +126,12 @@ import {
   RETURN_AUTHORIZED_DEFAULT,
   RETURN_REJECTED_DEFAULT,
 } from './modules/returns/email-templates/transactional-defaults.js';
+import {
+  EMAIL_VERIFICATION_DEFAULT,
+  ORGANIZATION_INVITATION_DEFAULT,
+  NEW_ORG_REGISTRATION_DEFAULT,
+} from './modules/organizations/email-templates/transactional-defaults.js';
+import { makeOrgTemplateEmail } from './modules/organizations/services/org-template-email.js';
 import { SalesChannel } from './modules/sales_channels/entities/sales-channel.entity.js';
 import { Order } from './modules/orders/entities/order.entity.js';
 import {
@@ -718,11 +724,21 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveModerationMode,
   );
 
+  // Feature 047 — org emails resolve against the system-default sales channel.
+  const resolveScopeSalesChannelId = async (): Promise<string | null> =>
+    (await em().findOne(SalesChannel, { systemDefault: true }))?.id ?? null;
+  const resolveSalesChannelLanguage = async (salesChannelId: string): Promise<string> =>
+    (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US';
   const orgRegistrationNotifier = new OrgRegistrationNotifier({
     emFactory: em,
     adminNotificationService: adminNotifications.handle.adminNotificationService,
     mailer: organizationsMailer,
     resolveRecipients: resolveRegistrationRecipients,
+    templateEmail: makeOrgTemplateEmail({
+      getSender: () => transactionalEmailSender,
+      resolveScopeSalesChannelId,
+      resolveLanguage: resolveSalesChannelLanguage,
+    }),
   });
 
   const organizationContextService = new OrganizationContextService(em);
@@ -1106,6 +1122,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireAdminAny,
       resolveCustomerContext: customerResolver,
       mailer: organizationsMailer,
+      getTransactionalEmailSender: () => transactionalEmailSender,
+      resolveScopeSalesChannelId,
+      resolveSalesChannelLanguage,
       auditLogService,
       moderationService: organizationModerationService,
       restrictionService: organizationRestrictionService,
@@ -1768,6 +1787,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   emailDefaultsRegistry.register('return_rejected', {
     defaultSubject: RETURN_REJECTED_DEFAULT.defaultSubject,
     defaultContent: RETURN_REJECTED_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('email_verification', {
+    defaultSubject: EMAIL_VERIFICATION_DEFAULT.defaultSubject,
+    defaultContent: EMAIL_VERIFICATION_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('organization_invitation', {
+    defaultSubject: ORGANIZATION_INVITATION_DEFAULT.defaultSubject,
+    defaultContent: ORGANIZATION_INVITATION_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('new_org_registration', {
+    defaultSubject: NEW_ORG_REGISTRATION_DEFAULT.defaultSubject,
+    defaultContent: NEW_ORG_REGISTRATION_DEFAULT.defaultContent,
   });
   modules.push(
     transactionalEmailsModule({

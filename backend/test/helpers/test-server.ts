@@ -55,6 +55,12 @@ import {
   RETURN_AUTHORIZED_DEFAULT,
   RETURN_REJECTED_DEFAULT,
 } from '../../src/modules/returns/email-templates/transactional-defaults.js';
+import {
+  EMAIL_VERIFICATION_DEFAULT,
+  ORGANIZATION_INVITATION_DEFAULT,
+  NEW_ORG_REGISTRATION_DEFAULT,
+} from '../../src/modules/organizations/email-templates/transactional-defaults.js';
+import { makeOrgTemplateEmail } from '../../src/modules/organizations/services/org-template-email.js';
 import { OrderReturnContextProvider } from '../../src/modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from '../../src/modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from '../../src/modules/invoices/services/corrective-invoice.js';
@@ -793,11 +799,20 @@ export async function setupBackendServer(
         moderationMailer,
         async () => 'manual',
       );
+      const resolveScopeSalesChannelId = async (): Promise<string | null> =>
+        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null;
+      const resolveSalesChannelLanguage = async (salesChannelId: string): Promise<string> =>
+        (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US';
       const orgRegistrationNotifier = new OrgRegistrationNotifier({
         emFactory: em,
         adminNotificationService: adminNotifications.handle.adminNotificationService,
         mailer: moderationMailer,
         resolveRecipients: async () => [],
+        templateEmail: makeOrgTemplateEmail({
+          getSender: () => transactionalEmailSender,
+          resolveScopeSalesChannelId,
+          resolveLanguage: resolveSalesChannelLanguage,
+        }),
       });
       eventBus.on('organization.registered.v1', async (payload) => {
         const orgId = (payload as unknown as { organizationId: string }).organizationId;
@@ -842,6 +857,9 @@ export async function setupBackendServer(
           eventBus,
           sessionService,
           getMfaLoginPort: getTestMfaLoginPort,
+          getTransactionalEmailSender: () => transactionalEmailSender,
+          resolveScopeSalesChannelId,
+          resolveSalesChannelLanguage,
           requireCustomer: requireTestCustomer(),
           requireAdmin: requireTestAdmin(permissionService),
           requireAdminAny,
@@ -1498,6 +1516,18 @@ export async function setupBackendServer(
   emailDefaultsRegistry.register('return_rejected', {
     defaultSubject: RETURN_REJECTED_DEFAULT.defaultSubject,
     defaultContent: RETURN_REJECTED_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('email_verification', {
+    defaultSubject: EMAIL_VERIFICATION_DEFAULT.defaultSubject,
+    defaultContent: EMAIL_VERIFICATION_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('organization_invitation', {
+    defaultSubject: ORGANIZATION_INVITATION_DEFAULT.defaultSubject,
+    defaultContent: ORGANIZATION_INVITATION_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('new_org_registration', {
+    defaultSubject: NEW_ORG_REGISTRATION_DEFAULT.defaultSubject,
+    defaultContent: NEW_ORG_REGISTRATION_DEFAULT.defaultContent,
   });
   modules.push(
     transactionalEmailsModule({

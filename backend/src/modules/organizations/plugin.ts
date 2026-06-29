@@ -16,6 +16,7 @@ import { EmailVerificationService } from './services/email-verification-service.
 import { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
 import { AddressService } from '../addresses/services/address-service.js';
 import { InvitationService } from './services/invitation-service.js';
+import { makeOrgTemplateEmail } from './services/org-template-email.js';
 import { RoleService } from '../customer_accounts/services/role-service.js';
 import { PasswordResetService } from '../customer_accounts/services/password-reset-service.js';
 import { TotpEnrolmentService } from '../customer_accounts/services/totp-enrolment-service.js';
@@ -74,6 +75,12 @@ export interface OrganizationsModuleOptions {
   requireAdminAny?: RequireAdminAnyFactory;
   /** Mailer used to dispatch invitation + verification emails. Defaults to ConsoleMailer. */
   mailer?: Mailer;
+  /** Feature 047 — late-bound transactional-email sender (admin-editable templates). */
+  getTransactionalEmailSender?: () => import('@b2b/contracts').TransactionalEmailSender | undefined;
+  /** Feature 047 — resolves the scope channel for org emails (system-default). */
+  resolveScopeSalesChannelId?: () => Promise<string | null>;
+  /** Feature 047 — resolves the email language for a sales channel. */
+  resolveSalesChannelLanguage?: (salesChannelId: string) => Promise<string>;
   /** Storefront base URL for the invitation accept link. */
   storefrontBaseUrl?: string;
   /** Required when `requireAdmin` is set — audit trail for admin org mutations. */
@@ -108,6 +115,15 @@ export interface OrganizationsModuleOptions {
 export function organizationsModule(options: OrganizationsModuleOptions) {
   return async (app: FastifyInstance): Promise<void> => {
     const mailer = options.mailer ?? new ConsoleMailer();
+    const orgTemplateEmail = makeOrgTemplateEmail({
+      ...(options.getTransactionalEmailSender ? { getSender: options.getTransactionalEmailSender } : {}),
+      ...(options.resolveScopeSalesChannelId
+        ? { resolveScopeSalesChannelId: options.resolveScopeSalesChannelId }
+        : {}),
+      ...(options.resolveSalesChannelLanguage
+        ? { resolveLanguage: options.resolveSalesChannelLanguage }
+        : {}),
+    });
     const storefrontBaseUrl = options.storefrontBaseUrl ?? 'http://localhost:3000';
     const latestTokenByEmail = new Map<string, string>();
     const registrationService = new RegistrationService(
@@ -130,6 +146,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       mailer,
       { acceptBaseUrl: storefrontBaseUrl },
       options.eventBus as OrganizationEventBus,
+      orgTemplateEmail,
     );
     const roleService = new RoleService(options.emFactory);
     const passwordResetService = new PasswordResetService(options.emFactory);
@@ -144,6 +161,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       exposeTestProbe: options.exposeTestProbe ?? false,
       latestTokenByEmail,
       mailer,
+      templateEmail: orgTemplateEmail,
       storefrontBaseUrl,
       ...(options.onLogin ? { onLogin: options.onLogin } : {}),
     });
