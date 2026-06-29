@@ -251,6 +251,15 @@ export function OrderDetail(): ReactNode {
     }
   }, [id, t]);
 
+  const handleIssueInvoice = useCallback(async (): Promise<void> => {
+    try {
+      await apiClient.post(`/api/v1/admin/orders/${id}/invoices`, { kind: 'invoice' });
+      setInfo(t('orderDetail.issueInvoice.done'));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.issueInvoice.error'));
+    }
+  }, [id, t]);
+
   const handleStatus = useCallback(
     async (to: string): Promise<void> => {
       try {
@@ -333,6 +342,15 @@ export function OrderDetail(): ReactNode {
             >
               <FileText />
               {t('orderDetail.cloneToQuote.action')}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-card"
+              onClick={(): void => void handleIssueInvoice()}
+            >
+              <FileText />
+              {t('orderDetail.issueInvoice.action')}
             </Button>
             <Button asChild variant="outline" size="sm" className="bg-card">
               <a
