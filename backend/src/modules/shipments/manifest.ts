@@ -16,4 +16,13 @@ export const manifest = defineModuleManifest({
   description: 'Shipment record and the order_created / shipment_created / receive_shipment lifecycle.',
   version: '1.0.0',
   dependencies: [],
+  // Feature 047 — admin-editable transactional email owned by this module.
+  transactionalEmails: [
+    {
+      code: 'shipment_created',
+      name: 'Shipment created',
+      group: 'shipments',
+      variables: [{ key: 'order.businessId', label: 'Order number', sampleValue: 'ORD-1042' }],
+    },
+  ],
 });

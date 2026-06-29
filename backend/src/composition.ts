@@ -136,6 +136,10 @@ import {
   LOW_STOCK_ALERT_DEFAULT,
   AVAILABILITY_BACK_IN_STOCK_DEFAULT,
 } from './modules/inventory/email-templates/transactional-defaults.js';
+import { PAYMENT_STATUS_CHANGED_DEFAULT } from './modules/payments/email-templates/transactional-defaults.js';
+import { SHIPMENT_CREATED_DEFAULT } from './modules/shipments/email-templates/transactional-defaults.js';
+import { PaymentEmailNotifier } from './modules/payments/services/payment-email-notifier.js';
+import { ShipmentEmailNotifier } from './modules/shipments/services/shipment-email-notifier.js';
 import { SalesChannel } from './modules/sales_channels/entities/sales-channel.entity.js';
 import { Order } from './modules/orders/entities/order.entity.js';
 import {
@@ -1817,6 +1821,23 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     defaultSubject: AVAILABILITY_BACK_IN_STOCK_DEFAULT.defaultSubject,
     defaultContent: AVAILABILITY_BACK_IN_STOCK_DEFAULT.defaultContent,
   });
+  emailDefaultsRegistry.register('payment_status_changed', {
+    defaultSubject: PAYMENT_STATUS_CHANGED_DEFAULT.defaultSubject,
+    defaultContent: PAYMENT_STATUS_CHANGED_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('shipment_created', {
+    defaultSubject: SHIPMENT_CREATED_DEFAULT.defaultSubject,
+    defaultContent: SHIPMENT_CREATED_DEFAULT.defaultContent,
+  });
+  // Feature 047 — net-new email subscribers (payment status + shipment created).
+  new PaymentEmailNotifier({
+    emFactory: em,
+    getTransactionalEmailSender: () => transactionalEmailSender,
+  }).attach(eventBus);
+  new ShipmentEmailNotifier({
+    emFactory: em,
+    getTransactionalEmailSender: () => transactionalEmailSender,
+  }).attach(eventBus);
   modules.push(
     transactionalEmailsModule({
       emFactory: em,

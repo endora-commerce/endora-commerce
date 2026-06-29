@@ -65,6 +65,10 @@ import {
   LOW_STOCK_ALERT_DEFAULT,
   AVAILABILITY_BACK_IN_STOCK_DEFAULT,
 } from '../../src/modules/inventory/email-templates/transactional-defaults.js';
+import { PAYMENT_STATUS_CHANGED_DEFAULT } from '../../src/modules/payments/email-templates/transactional-defaults.js';
+import { SHIPMENT_CREATED_DEFAULT } from '../../src/modules/shipments/email-templates/transactional-defaults.js';
+import { PaymentEmailNotifier } from '../../src/modules/payments/services/payment-email-notifier.js';
+import { ShipmentEmailNotifier } from '../../src/modules/shipments/services/shipment-email-notifier.js';
 import { OrderReturnContextProvider } from '../../src/modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from '../../src/modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from '../../src/modules/invoices/services/corrective-invoice.js';
@@ -1548,6 +1552,22 @@ export async function setupBackendServer(
     defaultSubject: AVAILABILITY_BACK_IN_STOCK_DEFAULT.defaultSubject,
     defaultContent: AVAILABILITY_BACK_IN_STOCK_DEFAULT.defaultContent,
   });
+  emailDefaultsRegistry.register('payment_status_changed', {
+    defaultSubject: PAYMENT_STATUS_CHANGED_DEFAULT.defaultSubject,
+    defaultContent: PAYMENT_STATUS_CHANGED_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('shipment_created', {
+    defaultSubject: SHIPMENT_CREATED_DEFAULT.defaultSubject,
+    defaultContent: SHIPMENT_CREATED_DEFAULT.defaultContent,
+  });
+  new PaymentEmailNotifier({
+    emFactory: em,
+    getTransactionalEmailSender: () => transactionalEmailSender,
+  }).attach(eventBus);
+  new ShipmentEmailNotifier({
+    emFactory: em,
+    getTransactionalEmailSender: () => transactionalEmailSender,
+  }).attach(eventBus);
   modules.push(
     transactionalEmailsModule({
       emFactory: em,

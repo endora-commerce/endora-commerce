@@ -84,9 +84,11 @@ each variable's declared sample value (and any unsaved draft content), returning
 - `transactional_emails:read` — view emails, blocks, templates, branding, preview.
 - `transactional_emails:write` — edit content, branding, and manage blocks/templates.
 
-## Migrated emails
+## Registered emails
 
 All pre-existing transactional emails route through this mechanism: orders
 (confirmation, comment, reorder, admin-created), returns (authorized, rejected),
 organizations (verification, invitation, new-registration), and inventory
-(low-stock, back-in-stock).
+(low-stock, back-in-stock). Two net-new emails are also registered and dispatched
+via event subscribers: payments (`payment_status_changed`, on payment
+received/failed) and shipments (`shipment_created`, on shipment created).
