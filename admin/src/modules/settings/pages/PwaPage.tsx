@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ColorPicker } from '@/components/ui/color-picker';
 import { salesChannelsClient } from '@/modules/sales_channels/api/sales-channels-client';
 import { pwaClient } from '../api/pwa-client';
 
@@ -210,13 +211,23 @@ export function PwaPage(): ReactNode {
                   <Label htmlFor="pwa-short">Short name</Label>
                   <Input id="pwa-short" value={config.shortName} onChange={(e) => patch({ shortName: e.target.value })} />
                 </div>
-                <div>
-                  <Label htmlFor="pwa-theme">Theme color</Label>
-                  <Input id="pwa-theme" value={config.themeColor} onChange={(e) => patch({ themeColor: e.target.value })} placeholder="#1d4ed8" />
+                <div className="flex flex-col gap-1.5">
+                  <Label>Theme color</Label>
+                  <ColorPicker
+                    value={config.themeColor}
+                    onChange={(hex) => patch({ themeColor: hex })}
+                    label="Theme color"
+                    customLabel="Custom theme color"
+                  />
                 </div>
-                <div>
-                  <Label htmlFor="pwa-bg">Background color</Label>
-                  <Input id="pwa-bg" value={config.backgroundColor} onChange={(e) => patch({ backgroundColor: e.target.value })} placeholder="#fafafa" />
+                <div className="flex flex-col gap-1.5">
+                  <Label>Background color</Label>
+                  <ColorPicker
+                    value={config.backgroundColor}
+                    onChange={(hex) => patch({ backgroundColor: hex })}
+                    label="Background color"
+                    customLabel="Custom background color"
+                  />
                 </div>
                 <div>
                   <Label htmlFor="pwa-display">Display mode</Label>
