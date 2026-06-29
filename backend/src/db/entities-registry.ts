@@ -52,6 +52,19 @@ import { EmailBlock } from '../modules/transactional_emails/entities/email-block
 import { EmailBlockSalesChannel } from '../modules/transactional_emails/entities/email-block-sales-channel.entity.js';
 import { EmailTemplate } from '../modules/transactional_emails/entities/email-template.entity.js';
 import { EmailTemplateSalesChannel } from '../modules/transactional_emails/entities/email-template-sales-channel.entity.js';
+import { NewsletterSubscriber } from '../modules/newsletter/entities/newsletter-subscriber.entity.js';
+import { NewsletterTag } from '../modules/newsletter/entities/newsletter-tag.entity.js';
+import { NewsletterSubscriberTag } from '../modules/newsletter/entities/newsletter-subscriber-tag.entity.js';
+import { NewsletterCustomField } from '../modules/newsletter/entities/newsletter-custom-field.entity.js';
+import { NewsletterSuppression } from '../modules/newsletter/entities/newsletter-suppression.entity.js';
+import { NewsletterEmailBlock } from '../modules/newsletter/entities/newsletter-email-block.entity.js';
+import { NewsletterEmailBlockSalesChannel } from '../modules/newsletter/entities/newsletter-email-block-sales-channel.entity.js';
+import { NewsletterCampaign } from '../modules/newsletter/entities/newsletter-campaign.entity.js';
+import { NewsletterCampaignSubscriber } from '../modules/newsletter/entities/newsletter-campaign-subscriber.entity.js';
+import { NewsletterSendRecord } from '../modules/newsletter/entities/newsletter-send-record.entity.js';
+import { NewsletterEngagementEvent } from '../modules/newsletter/entities/newsletter-engagement-event.entity.js';
+import { NewsletterAutomation } from '../modules/newsletter/entities/newsletter-automation.entity.js';
+import { NewsletterAutomationRun } from '../modules/newsletter/entities/newsletter-automation-run.entity.js';
 import { Cart } from '../modules/carts/entities/cart.entity.js';
 import { CartItem } from '../modules/carts/entities/cart-item.entity.js';
 import { CartAuditEntry } from '../modules/carts/entities/cart-audit-entry.entity.js';
@@ -362,4 +375,18 @@ export const ALL_ENTITIES = [
   EmailBlockSalesChannel,
   EmailTemplate,
   EmailTemplateSalesChannel,
+  // newsletter (feature 048)
+  NewsletterSubscriber,
+  NewsletterTag,
+  NewsletterSubscriberTag,
+  NewsletterCustomField,
+  NewsletterSuppression,
+  NewsletterEmailBlock,
+  NewsletterEmailBlockSalesChannel,
+  NewsletterCampaign,
+  NewsletterCampaignSubscriber,
+  NewsletterSendRecord,
+  NewsletterEngagementEvent,
+  NewsletterAutomation,
+  NewsletterAutomationRun,
 ] as const;
