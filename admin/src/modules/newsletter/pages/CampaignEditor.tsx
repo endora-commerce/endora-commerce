@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { CampaignDetail, CampaignTargetType, NewsletterTag } from '@b2b/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -115,6 +115,11 @@ export function CampaignEditor(): React.ReactElement {
         actions={
           canWrite ? (
             <>
+              {!isNew ? (
+                <Link to={`/newsletter/campaigns/${id}/stats`}>
+                  <Button variant="outline">Stats</Button>
+                </Link>
+              ) : null}
               <Button variant="outline" onClick={() => void doPreview()}>
                 Preview
               </Button>

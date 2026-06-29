@@ -69,6 +69,7 @@ import { CampaignEditor as NewsletterCampaignEditor } from './modules/newsletter
 import { AutomationsPage as NewsletterAutomationsPage } from './modules/newsletter/pages/AutomationsPage.js';
 import { AutomationBuilder as NewsletterAutomationBuilder } from './modules/newsletter/pages/AutomationBuilder.js';
 import { TagsPage as NewsletterTagsPage } from './modules/newsletter/pages/TagsPage.js';
+import { CampaignStats as NewsletterCampaignStats } from './modules/newsletter/pages/CampaignStats.js';
 import { ProviderSettingsPage as NewsletterProviderPage } from './modules/newsletter/pages/ProviderSettingsPage.js';
 import { ReturnStatusesConfigPage } from './modules/returns/ReturnStatusesConfigPage.js';
 import { ReturnReasonsPage } from './modules/returns/ReturnReasonsPage.js';
@@ -192,6 +193,7 @@ export function App(): ReactNode {
         <Route path="/newsletter/campaigns" element={<NewsletterCampaignsPage />} />
         <Route path="/newsletter/campaigns/new" element={<NewsletterCampaignEditor />} />
         <Route path="/newsletter/campaigns/:id" element={<NewsletterCampaignEditor />} />
+        <Route path="/newsletter/campaigns/:id/stats" element={<NewsletterCampaignStats />} />
         <Route path="/newsletter/automations" element={<NewsletterAutomationsPage />} />
         <Route path="/newsletter/automations/new" element={<NewsletterAutomationBuilder />} />
         <Route path="/newsletter/automations/:id" element={<NewsletterAutomationBuilder />} />
