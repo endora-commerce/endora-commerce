@@ -20,6 +20,17 @@ export class SmtpMailer implements Mailer {
       text: input.text,
       // Send a multipart alternative when an HTML body is provided (feature 047).
       ...(input.html ? { html: input.html } : {}),
+      ...(input.attachments && input.attachments.length
+        ? {
+            attachments: input.attachments.map((a) => ({
+              filename: a.filename,
+              // nodemailer wants a Buffer/string; a Buffer is already one, a
+              // plain Uint8Array is wrapped without copying its backing memory.
+              content: Buffer.isBuffer(a.content) ? a.content : Buffer.from(a.content),
+              ...(a.contentType ? { contentType: a.contentType } : {}),
+            })),
+          }
+        : {}),
       messageId: input.messageId,
     });
   }

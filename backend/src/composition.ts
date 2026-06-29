@@ -52,6 +52,7 @@ import { returnsModule } from './modules/returns/plugin.js';
 import { OrderReturnContextProvider } from './modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from './modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from './modules/invoices/services/corrective-invoice.js';
+import { invoicesModule } from './modules/invoices/plugin.js';
 import { CreditTopupProvider } from './modules/credit_limits/services/credit-topup.js';
 import { ReturnEmailNotifier } from './modules/returns/services/return-email-notifier.js';
 import { AddressService } from './modules/addresses/services/address-service.js';
@@ -114,6 +115,7 @@ import { pwaSettingsManifest } from './modules/pwa/manifest.js';
 // Feature 047 — Transactional Emails.
 import { transactionalEmailsModule } from './modules/transactional_emails/plugin.js';
 import { transactionalEmailsSettingsManifest } from './modules/transactional_emails/manifest.js';
+import { invoicesSettingsManifest } from './modules/invoices/manifest.js';
 import type { TransactionalEmailSender } from '@b2b/contracts';
 import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
 import { ORDER_CONFIRMATION_DEFAULT } from './modules/orders/email-templates/order-confirmation.default.js';
@@ -138,6 +140,7 @@ import {
 } from './modules/inventory/email-templates/transactional-defaults.js';
 import { PAYMENT_STATUS_CHANGED_DEFAULT } from './modules/payments/email-templates/transactional-defaults.js';
 import { SHIPMENT_CREATED_DEFAULT } from './modules/shipments/email-templates/transactional-defaults.js';
+import { INVOICE_ISSUED_DEFAULT } from './modules/invoices/email-templates/invoice-issued.default.js';
 import { PaymentEmailNotifier } from './modules/payments/services/payment-email-notifier.js';
 import { ShipmentEmailNotifier } from './modules/shipments/services/shipment-email-notifier.js';
 import { SalesChannel } from './modules/sales_channels/entities/sales-channel.entity.js';
@@ -1744,6 +1747,31 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
   modules.push(customers.plugin);
 
+  // Feature 047 — Invoices. Owns issuance, numbering, PDF rendering, admin +
+  // customer routes. Constructed before returns so the corrective-invoice
+  // provider can draw correction numbers from the shared number generator.
+  const invoices = invoicesModule({
+    emFactory: em,
+    eventBus,
+    requireAdmin,
+    requireCustomer,
+    settingsService: settings.handle.settingsService,
+    audit: auditLogService,
+    resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
+    resolveCustomerContext: (req: FastifyRequest) => {
+      const c = customerResolver(req);
+      return { customerAccountId: c.customerAccountId, organizationId: c.organizationId };
+    },
+    getTransactionalEmailSender: () => transactionalEmailSender,
+    resolveRecipientEmail: async (order) =>
+      (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ?? null,
+    resolveLanguage: async (salesChannelId) =>
+      (salesChannelId
+        ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
+        : null) ?? 'en-US',
+  });
+  modules.push(invoices.plugin);
+
   // Feature 046 — Returns & Complaints (Refunds, RMA). Reads order facts only
   // through the OrderReturnContextPort (Principle I); settings drive the
   // free-return window and RMA prefix/suffix.
@@ -1758,7 +1786,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
       orderContext: new OrderReturnContextProvider(em),
       paymentRefund: new PaymentRefundProvider(em),
-      correctiveInvoice: new CorrectiveInvoiceProvider(em),
+      correctiveInvoice: new CorrectiveInvoiceProvider(em, invoices.handle.numberGenerator, auditLogService),
       creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
       auditLog: auditLogService,
       notifier: new ReturnEmailNotifier(
@@ -1828,6 +1856,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   emailDefaultsRegistry.register('shipment_created', {
     defaultSubject: SHIPMENT_CREATED_DEFAULT.defaultSubject,
     defaultContent: SHIPMENT_CREATED_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('invoice_issued', {
+    defaultSubject: INVOICE_ISSUED_DEFAULT.defaultSubject,
+    defaultContent: INVOICE_ISSUED_DEFAULT.defaultContent,
   });
   // Feature 047 — net-new email subscribers (payment status + shipment created).
   new PaymentEmailNotifier({
@@ -2033,6 +2065,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     promptActionsSettingsManifest,
     pwaSettingsManifest,
     transactionalEmailsSettingsManifest,
+    invoicesSettingsManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();

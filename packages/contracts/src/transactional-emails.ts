@@ -254,6 +254,12 @@ export interface TransactionalEmailSendInput {
   variables: Record<string, unknown>;
   /** Idempotency key — preserve the per-email message id used today. */
   messageId: string;
+  /**
+   * Optional binary attachments (feature 047 invoices — PDF delivery). Uses
+   * `Uint8Array` (not Node's `Buffer`) so this shared contract stays
+   * browser-safe for the api-client; a backend `Buffer` satisfies it.
+   */
+  attachments?: Array<{ filename: string; content: Uint8Array; contentType?: string }>;
   meta?: Record<string, unknown>;
 }
 

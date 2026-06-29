@@ -25,6 +25,7 @@ describe('permission inventory (SC-001)', () => {
     // +3 for feature 046 PWA (pwa:read, pwa:write, pwa:send_push).
     // +2 for feature 046 returns (returns:read, returns:write).
     // +2 for feature 047 transactional emails (transactional_emails:read, :write).
-    expect(assignable.size).toBe(42);
+    // +2 for feature 047 invoices (invoices:read, invoices:write).
+    expect(assignable.size).toBe(44);
   });
 });

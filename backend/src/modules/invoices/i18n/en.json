@@ -1,0 +1,20 @@
+{
+  "settings.sellerTaxId.label": "Seller VAT / NIP",
+  "settings.sellerCompanyData.label": "Seller company data",
+  "settings.autoIssueTriggerStatus.label": "Auto-issue on order status",
+  "settings.emailSendOnIssue.label": "Email invoice on issue",
+  "settings.emailDeliveryMode.label": "Invoice email delivery mode",
+  "settings.numberingInvoicePattern.label": "Invoice numbering pattern",
+  "settings.numberingProformaPattern.label": "Proforma numbering pattern",
+  "settings.numberingCorrectionPattern.label": "Correction numbering pattern",
+  "settings.storefrontBaseUrl.label": "Storefront base URL (invoice email links)",
+  "actions.openInvoices.label": "Open invoices",
+  "actions.openInvoices.description": "View and manage issued invoices and corrections",
+  "actions.invoiceTemplates.label": "Invoice templates",
+  "actions.invoiceTemplates.description": "Customize the invoice PDF layout (WYSIWYG)",
+  "list.title": "Invoices",
+  "errors.SELLER_SETTINGS_MISSING": "Configure the seller VAT/NIP and company data before issuing invoices.",
+  "errors.INVOICE_ALREADY_EXISTS": "An invoice of this kind already exists for the order.",
+  "errors.ORDER_NOT_FOUND": "Order not found.",
+  "errors.INVOICE_NOT_FOUND": "Invoice not found."
+}

@@ -1,0 +1,20 @@
+{
+  "settings.sellerTaxId.label": "NIP / VAT sprzedawcy",
+  "settings.sellerCompanyData.label": "Dane firmy sprzedawcy",
+  "settings.autoIssueTriggerStatus.label": "Automatyczne wystawianie wg statusu zamówienia",
+  "settings.emailSendOnIssue.label": "Wyślij fakturę mailem po wystawieniu",
+  "settings.emailDeliveryMode.label": "Tryb wysyłki faktury mailem",
+  "settings.numberingInvoicePattern.label": "Format numeracji faktur",
+  "settings.numberingProformaPattern.label": "Format numeracji proform",
+  "settings.numberingCorrectionPattern.label": "Format numeracji korekt",
+  "settings.storefrontBaseUrl.label": "Bazowy URL Storefront (linki w mailach z fakturą)",
+  "actions.openInvoices.label": "Otwórz faktury",
+  "actions.openInvoices.description": "Przeglądaj i zarządzaj wystawionymi fakturami i korektami",
+  "actions.invoiceTemplates.label": "Szablony faktur",
+  "actions.invoiceTemplates.description": "Dostosuj wygląd PDF faktury (WYSIWYG)",
+  "list.title": "Faktury",
+  "errors.SELLER_SETTINGS_MISSING": "Skonfiguruj NIP/VAT oraz dane firmy sprzedawcy przed wystawianiem faktur.",
+  "errors.INVOICE_ALREADY_EXISTS": "Faktura tego typu już istnieje dla tego zamówienia.",
+  "errors.ORDER_NOT_FOUND": "Nie znaleziono zamówienia.",
+  "errors.INVOICE_NOT_FOUND": "Nie znaleziono faktury."
+}

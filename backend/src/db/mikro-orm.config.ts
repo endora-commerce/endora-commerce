@@ -87,6 +87,7 @@ import { Migration080ReturnsInit } from '../modules/returns/migrations/080_retur
 import { Migration080PwaInit } from '../modules/pwa/migrations/080_pwa_init.js';
 import { Migration081SettingsHiddenFlag } from '../modules/settings/migrations/081_settings_hidden_flag.js';
 import { Migration082TransactionalEmailsInit } from '../modules/transactional_emails/migrations/082_transactional_emails_init.js';
+import { Migration083InvoicesModule } from '../modules/invoices/migrations/083_invoices_module.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -414,6 +415,10 @@ export default defineConfig({
       {
         name: 'Migration082TransactionalEmailsInit',
         class: Migration082TransactionalEmailsInit,
+      },
+      {
+        name: 'Migration083InvoicesModule',
+        class: Migration083InvoicesModule,
       },
     ],
     transactional: true,
