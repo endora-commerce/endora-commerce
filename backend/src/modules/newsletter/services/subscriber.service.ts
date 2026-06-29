@@ -30,6 +30,8 @@ export interface SubscriberServiceDeps {
   links: NewsletterLinkBuilder;
   mailer?: Mailer;
   auditLog?: AuditLogService;
+  /** Optional observability emitter (wraps the in-process EventBus). */
+  emitEvent?: (name: string, payload: Record<string, unknown>) => void;
 }
 
 /**
@@ -100,6 +102,11 @@ export class NewsletterSubscriberService {
       objectId: subscriber.id,
       stateAfter: { email, status: subscriber.status, source: input.source ?? null },
     });
+    this.deps.emitEvent?.('newsletter.subscribed.v1', {
+      subscriberId: subscriber.id,
+      email,
+      status: subscriber.status,
+    });
 
     return { status: subscriber.status === 'active' ? 'active' : 'pending' };
   }
@@ -148,8 +155,43 @@ export class NewsletterSubscriberService {
         objectId: subscriber.id,
         stateAfter: { status: 'unsubscribed', reason: reason ?? null },
       });
+      this.deps.emitEvent?.('newsletter.unsubscribed.v1', {
+        subscriberId: subscriber.id,
+        email: subscriber.email,
+        reason: reason ?? null,
+      });
     }
     return { ok: true };
+  }
+
+  /**
+   * Suppress an address on provider feedback (hard bounce / complaint — FR-035).
+   * Writes a suppression row (idempotent) so the address is excluded from all
+   * future sends regardless of targeting; a complaint/bounce suppression is NOT
+   * lifted by a later re-subscribe (only an explicit unsubscribe is).
+   */
+  async suppress(email: string, reason: 'bounce' | 'complaint', detail?: string): Promise<void> {
+    const em = this.deps.emFactory();
+    const normalized = email.trim().toLowerCase();
+    const existing = await em.findOne(NewsletterSuppression, { email: normalized });
+    if (existing) {
+      existing.reason = reason;
+      if (detail) existing.detail = detail;
+    } else {
+      em.create(NewsletterSuppression, { email: normalized, reason, detail: detail ?? null });
+    }
+    const subscriber = await em.findOne(NewsletterSubscriber, { email: normalized });
+    if (subscriber && subscriber.status === 'active') {
+      subscriber.status = 'deactivated';
+      subscriber.deactivatedAt = new Date();
+    }
+    await em.flush();
+    await this.deps.auditLog?.record({
+      action: `newsletter_${reason}`,
+      objectType: 'newsletter_subscriber',
+      objectId: subscriber?.id ?? normalized,
+      stateAfter: { email: normalized, reason },
+    });
   }
 
   private async mergeCustomFields(

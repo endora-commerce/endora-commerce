@@ -1895,6 +1895,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
       mailer: organizationsMailer,
       auditLog: auditLogService,
+      emitEvent: (name, payload) =>
+        eventBus.emit(name, {
+          eventId: randomUUID(),
+          occurredAt: new Date().toISOString(),
+          ...payload,
+        }),
       redis,
       runWorkers,
     }),

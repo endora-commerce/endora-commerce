@@ -59,6 +59,8 @@ export interface NewsletterModuleOptions {
   loadCustomerEmail: (customerAccountId: string) => Promise<string | null>;
   mailer?: Mailer;
   auditLog?: AuditLogService;
+  /** Optional observability emitter (wraps the in-process EventBus). */
+  emitEvent?: (name: string, payload: Record<string, unknown>) => void;
   /** Redis connection — when present, dispatch is queue-backed (Principle X). */
   redis?: Redis;
   /** Whether this process runs queue consumers (BACKEND_ROLE != api). */
@@ -90,6 +92,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
     links,
     ...(options.mailer ? { mailer: options.mailer } : {}),
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
+    ...(options.emitEvent ? { emitEvent: options.emitEvent } : {}),
   });
 
   const subscriberAdmin = new NewsletterSubscriberAdminService(
