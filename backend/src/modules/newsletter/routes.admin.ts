@@ -6,13 +6,26 @@ import {
   sendCampaignRequestSchema,
   previewCampaignRequestSchema,
   createSubscriberRequestSchema,
+  subscriberListQuerySchema,
+  unsubscribeSubscriberRequestSchema,
+  createNewsletterTagRequestSchema,
+  updateNewsletterTagRequestSchema,
+  createNewsletterCustomFieldRequestSchema,
+  updateNewsletterCustomFieldRequestSchema,
 } from '@b2b/contracts';
+import { z } from 'zod';
 import type { NewsletterCampaignService } from './services/campaign.service.js';
 import type { NewsletterSubscriberService } from './services/subscriber.service.js';
+import type { NewsletterSubscriberAdminService } from './services/subscriber-admin.service.js';
+import type { NewsletterTagService } from './services/tag.service.js';
+import type { NewsletterCustomFieldService } from './services/custom-field.service.js';
 
 export interface NewsletterAdminDeps {
   campaigns: NewsletterCampaignService;
   subscribers: NewsletterSubscriberService;
+  subscriberAdmin: NewsletterSubscriberAdminService;
+  tags: NewsletterTagService;
+  customFields: NewsletterCustomFieldService;
   requireAdmin: (permission?: string) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 }
 
@@ -25,55 +38,56 @@ export async function registerNewsletterAdminRoutes(
   deps: NewsletterAdminDeps,
 ): Promise<void> {
   const base = '/api/v1/admin/newsletter';
+  const read = { preHandler: deps.requireAdmin(READ) };
+  const write = { preHandler: deps.requireAdmin(WRITE) };
+  const idOf = (req: FastifyRequest): string => (req.params as { id: string }).id;
 
   // --- Campaigns ---------------------------------------------------------
-  app.get(`${base}/campaigns`, { preHandler: deps.requireAdmin(READ) }, async (_req, reply) => {
-    return reply.send({ data: await deps.campaigns.list() });
-  });
-
-  app.get(`${base}/campaigns/:id`, { preHandler: deps.requireAdmin(READ) }, async (req, reply) => {
-    const { id } = req.params as { id: string };
-    return reply.send({ data: await deps.campaigns.get(id) });
-  });
-
-  app.post(`${base}/campaigns`, { preHandler: deps.requireAdmin(WRITE) }, async (req, reply) => {
-    const body = createCampaignRequestSchema.parse(req.body);
-    return reply.status(201).send({ data: await deps.campaigns.create(body) });
-  });
-
-  app.put(`${base}/campaigns/:id`, { preHandler: deps.requireAdmin(WRITE) }, async (req, reply) => {
-    const { id } = req.params as { id: string };
-    const body = updateCampaignRequestSchema.parse(req.body);
-    return reply.send({ data: await deps.campaigns.update(id, body) });
-  });
-
-  app.put(`${base}/campaigns/:id/group`, { preHandler: deps.requireAdmin(WRITE) }, async (req, reply) => {
-    const { id } = req.params as { id: string };
-    const body = setCampaignGroupRequestSchema.parse(req.body);
-    return reply.send({ data: await deps.campaigns.setGroup(id, body.subscriberIds) });
-  });
-
-  app.post(`${base}/campaigns/:id/preview`, { preHandler: deps.requireAdmin(READ) }, async (req, reply) => {
-    const { id } = req.params as { id: string };
+  app.get(`${base}/campaigns`, read, async (_req, reply) => reply.send({ data: await deps.campaigns.list() }));
+  app.get(`${base}/campaigns/:id`, read, async (req, reply) =>
+    reply.send({ data: await deps.campaigns.get(idOf(req)) }),
+  );
+  app.post(`${base}/campaigns`, write, async (req, reply) =>
+    reply.status(201).send({ data: await deps.campaigns.create(createCampaignRequestSchema.parse(req.body)) }),
+  );
+  app.put(`${base}/campaigns/:id`, write, async (req, reply) =>
+    reply.send({ data: await deps.campaigns.update(idOf(req), updateCampaignRequestSchema.parse(req.body)) }),
+  );
+  app.put(`${base}/campaigns/:id/group`, write, async (req, reply) =>
+    reply.send({
+      data: await deps.campaigns.setGroup(idOf(req), setCampaignGroupRequestSchema.parse(req.body).subscriberIds),
+    }),
+  );
+  app.post(`${base}/campaigns/:id/preview`, read, async (req, reply) => {
     const body = previewCampaignRequestSchema.parse(req.body ?? {});
-    return reply.send({ data: await deps.campaigns.preview(id, body.subscriberId) });
+    return reply.send({ data: await deps.campaigns.preview(idOf(req), body.subscriberId) });
   });
-
-  app.post(`${base}/campaigns/:id/send`, { preHandler: deps.requireAdmin(WRITE) }, async (req, reply) => {
-    const { id } = req.params as { id: string };
+  app.post(`${base}/campaigns/:id/send`, write, async (req, reply) => {
     const body = sendCampaignRequestSchema.parse(req.body);
     const scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : undefined;
-    return reply.send({ data: await deps.campaigns.send(id, body.expectedVersion, scheduledAt) });
+    return reply.send({ data: await deps.campaigns.send(idOf(req), body.expectedVersion, scheduledAt) });
   });
-
-  app.post(`${base}/campaigns/:id/cancel`, { preHandler: deps.requireAdmin(WRITE) }, async (req, reply) => {
-    const { id } = req.params as { id: string };
+  app.post(`${base}/campaigns/:id/cancel`, write, async (req, reply) => {
     const body = sendCampaignRequestSchema.pick({ expectedVersion: true }).parse(req.body);
-    return reply.send({ data: await deps.campaigns.cancel(id, body.expectedVersion) });
+    return reply.send({ data: await deps.campaigns.cancel(idOf(req), body.expectedVersion) });
   });
 
-  // --- Subscribers (manual / API create) ---------------------------------
-  app.post(`${base}/subscribers`, { preHandler: deps.requireAdmin(WRITE) }, async (req, reply) => {
+  // --- Subscribers -------------------------------------------------------
+  app.get(`${base}/subscribers`, read, async (req, reply) => {
+    const query = subscriberListQuerySchema.parse(req.query);
+    return reply.send({ data: await deps.subscriberAdmin.list(query) });
+  });
+  app.get(`${base}/subscribers/export`, read, async (req, reply) => {
+    const query = subscriberListQuerySchema.partial().parse(req.query);
+    const csv = await deps.subscriberAdmin.exportCsv(query);
+    reply.header('content-type', 'text/csv; charset=utf-8');
+    reply.header('content-disposition', 'attachment; filename="newsletter-subscribers.csv"');
+    return reply.send(csv);
+  });
+  app.get(`${base}/subscribers/:id`, read, async (req, reply) =>
+    reply.send({ data: await deps.subscriberAdmin.getDetail(idOf(req)) }),
+  );
+  app.post(`${base}/subscribers`, write, async (req, reply) => {
     const body = createSubscriberRequestSchema.parse(req.body);
     const result = await deps.subscribers.subscribe({
       email: body.email,
@@ -83,5 +97,50 @@ export async function registerNewsletterAdminRoutes(
       ...(body.customFields ? { customFields: body.customFields } : {}),
     });
     return reply.status(201).send({ data: result });
+  });
+  app.post(`${base}/subscribers/:id/unsubscribe`, write, async (req, reply) => {
+    const body = unsubscribeSubscriberRequestSchema.parse(req.body);
+    await deps.subscribers.unsubscribe(idOf(req), body.reason);
+    return reply.send({ data: await deps.subscriberAdmin.getDetail(idOf(req)) });
+  });
+  app.post(`${base}/subscribers/:id/deactivate`, write, async (req, reply) => {
+    const body = z.object({ expectedVersion: z.number().int() }).parse(req.body);
+    return reply.send({ data: await deps.subscriberAdmin.deactivate(idOf(req), body.expectedVersion) });
+  });
+  app.delete(`${base}/subscribers/:id`, write, async (req, reply) => {
+    await deps.subscriberAdmin.remove(idOf(req));
+    return reply.status(204).send();
+  });
+
+  // --- Tags --------------------------------------------------------------
+  app.get(`${base}/tags`, read, async (_req, reply) => reply.send({ data: { items: await deps.tags.list() } }));
+  app.post(`${base}/tags`, write, async (req, reply) =>
+    reply.status(201).send({ data: await deps.tags.create(createNewsletterTagRequestSchema.parse(req.body)) }),
+  );
+  app.patch(`${base}/tags/:id`, write, async (req, reply) =>
+    reply.send({ data: await deps.tags.update(idOf(req), updateNewsletterTagRequestSchema.parse(req.body)) }),
+  );
+  app.delete(`${base}/tags/:id`, write, async (req, reply) => {
+    await deps.tags.remove(idOf(req));
+    return reply.status(204).send();
+  });
+
+  // --- Custom fields -----------------------------------------------------
+  app.get(`${base}/custom-fields`, read, async (_req, reply) =>
+    reply.send({ data: { items: await deps.customFields.list() } }),
+  );
+  app.post(`${base}/custom-fields`, write, async (req, reply) =>
+    reply
+      .status(201)
+      .send({ data: await deps.customFields.create(createNewsletterCustomFieldRequestSchema.parse(req.body)) }),
+  );
+  app.patch(`${base}/custom-fields/:id`, write, async (req, reply) =>
+    reply.send({
+      data: await deps.customFields.update(idOf(req), updateNewsletterCustomFieldRequestSchema.parse(req.body)),
+    }),
+  );
+  app.delete(`${base}/custom-fields/:id`, write, async (req, reply) => {
+    await deps.customFields.remove(idOf(req));
+    return reply.status(204).send();
   });
 }

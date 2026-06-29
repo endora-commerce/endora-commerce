@@ -15,6 +15,9 @@ import { NewsletterContentService } from './services/content.service.js';
 import { NewsletterAudienceResolver } from './services/audience-resolver.js';
 import { NewsletterCampaignDispatchService } from './services/campaign-dispatch.service.js';
 import { NewsletterCampaignService } from './services/campaign.service.js';
+import { NewsletterSubscriberAdminService } from './services/subscriber-admin.service.js';
+import { NewsletterTagService } from './services/tag.service.js';
+import { NewsletterCustomFieldService } from './services/custom-field.service.js';
 import { NewsletterProviderRegistry } from './services/provider/provider-registry.js';
 import {
   createCampaignPlanQueue,
@@ -68,6 +71,13 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
     ...(options.mailer ? { mailer: options.mailer } : {}),
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
+
+  const subscriberAdmin = new NewsletterSubscriberAdminService(
+    options.emFactory,
+    options.auditLog,
+  );
+  const tags = new NewsletterTagService(options.emFactory);
+  const customFields = new NewsletterCustomFieldService(options.emFactory);
 
   const dispatch = new NewsletterCampaignDispatchService({
     emFactory: options.emFactory,
@@ -148,6 +158,9 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
       await registerNewsletterAdminRoutes(scoped, {
         campaigns,
         subscribers,
+        subscriberAdmin,
+        tags,
+        customFields,
         requireAdmin: options.requireAdmin,
       });
     })(app);
