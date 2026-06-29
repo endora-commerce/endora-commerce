@@ -1,3 +1,4 @@
+import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import webpush from 'web-push';
 import { z } from 'zod';
@@ -7,6 +8,10 @@ import {
   CreatePushMessageRequestSchema,
   UpdatePwaConfigRequestSchema,
 } from '@b2b/contracts';
+import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
+import { CustomerGroup } from '../price_lists/entities/customer-group.entity.js';
+import { Organization } from '../organizations/entities/organization.entity.js';
+import { SalesChannel } from '../sales_channels/entities/sales-channel.entity.js';
 import type { PwaConfigResolver } from './services/pwa-config-resolver.js';
 import { PwaIconInvalid, type PwaIconService } from './services/pwa-icon-service.js';
 import type { PushSubscriptionService } from './services/push-subscription-service.js';
@@ -42,6 +47,7 @@ const BoolSchema = z.boolean();
 
 export interface PwaAdminRoutesDeps {
   requireAdmin: RequireAdminFactory;
+  emFactory: () => EntityManager;
   configResolver: PwaConfigResolver;
   iconService: PwaIconService;
   subscriptionService: PushSubscriptionService;
@@ -225,4 +231,57 @@ export async function registerPwaAdminRoutes(
     });
     return reply.code(202).send(result);
   });
+
+  // ---- Audience Rule Builder pickers (targeting criteria) -----------------
+  // Lists feeding the admin Rule Builder when composing a targeted send.
+  // Gated by the page's base read permission so a read-only viewer can still
+  // see the available targets.
+
+  app.get('/api/v1/admin/pwa/rule-targets/sales-channels', { preHandler: readGate }, async () => {
+    const em = deps.emFactory();
+    const rows = await em.find(SalesChannel, {}, { orderBy: { code: 'asc' } });
+    return { data: { items: rows.map((r) => ({ id: r.id, code: r.code, name: r.name })) } };
+  });
+
+  app.get('/api/v1/admin/pwa/rule-targets/customer-groups', { preHandler: readGate }, async () => {
+    const em = deps.emFactory();
+    const rows = await em.find(CustomerGroup, {}, { orderBy: { code: 'asc' } });
+    return { data: { items: rows.map((r) => ({ id: r.id, code: r.code, name: r.name })) } };
+  });
+
+  app.get<{ Querystring: { search?: string; limit?: string } }>(
+    '/api/v1/admin/pwa/rule-targets/organizations',
+    { preHandler: readGate },
+    async (request) => {
+      const em = deps.emFactory();
+      const limit = Math.min(200, Math.max(1, Number(request.query.limit ?? '100')));
+      const search = (request.query.search ?? '').trim();
+      const where: Record<string, unknown> = {};
+      if (search) where['name'] = { $ilike: `%${search}%` };
+      const rows = await em.find(Organization, where, { orderBy: { name: 'asc' }, limit });
+      return { data: { items: rows.map((r) => ({ id: r.id, name: r.name, taxId: r.taxId })) } };
+    },
+  );
+
+  app.get<{ Querystring: { search?: string; limit?: string } }>(
+    '/api/v1/admin/pwa/rule-targets/customers',
+    { preHandler: readGate },
+    async (request) => {
+      const em = deps.emFactory();
+      const limit = Math.min(200, Math.max(1, Number(request.query.limit ?? '100')));
+      const search = (request.query.search ?? '').trim();
+      const where: Record<string, unknown> = {};
+      if (search) where['email'] = { $ilike: `%${search}%` };
+      const rows = await em.find(CustomerAccount, where, { orderBy: { email: 'asc' }, limit });
+      return {
+        data: {
+          items: rows.map((r) => ({
+            id: r.id,
+            email: r.email,
+            organizationId: r.organizationId ?? null,
+          })),
+        },
+      };
+    },
+  );
 }

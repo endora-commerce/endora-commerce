@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { KeyRound, Save, Send, Upload } from 'lucide-react';
-import type { PwaAdminConfig, PwaDisplayMode, SalesChannelSummary } from '@b2b/contracts';
+import type {
+  PushAudience,
+  PushAudienceRule,
+  PwaAdminConfig,
+  PwaDisplayMode,
+  SalesChannelSummary,
+} from '@b2b/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -10,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { salesChannelsClient } from '@/modules/sales_channels/api/sales-channels-client';
 import { pwaClient } from '../api/pwa-client';
+import { PushAudienceRuleBuilder } from '../PushAudienceRuleBuilder';
 
 /** Pick a display label from a multilingual sales-channel name. */
 function channelLabel(name: SalesChannelSummary['name'], code: string): string {
@@ -40,6 +47,9 @@ export function PwaPage(): ReactNode {
   const [pushTitle, setPushTitle] = useState('');
   const [pushBody, setPushBody] = useState('');
   const [pushUrl, setPushUrl] = useState('');
+  // Audience targeting — 'all' broadcasts; 'rule' narrows via the Rule Builder.
+  const [audienceMode, setAudienceMode] = useState<'all' | 'rule'>('all');
+  const [audienceRule, setAudienceRule] = useState<PushAudienceRule>({ kind: 'all' });
 
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
@@ -138,12 +148,17 @@ export function PwaPage(): ReactNode {
     setError(null);
     setInfo(null);
     try {
+      // A 'rule' audience that resolves to "all" is equivalent to a broadcast.
+      const audience: PushAudience =
+        audienceMode === 'rule' && audienceRule.kind !== 'all'
+          ? { kind: 'rule', rule: audienceRule }
+          : { kind: 'all' };
       const res = await pwaClient.sendMessage({
         salesChannelId: selectedChannelId,
         title: pushTitle,
         body: pushBody,
         ...(pushUrl ? { url: pushUrl } : {}),
-        audience: { kind: 'all' },
+        audience,
       });
       setInfo(`Queued ${res.queuedDeliveries} notification(s).`);
       setPushTitle('');
@@ -303,9 +318,37 @@ export function PwaPage(): ReactNode {
                 <Input id="push-body" value={pushBody} onChange={(e) => setPushBody(e.target.value)} />
               </div>
               <div>
-                <Label htmlFor="push-url">Link (opened on tap)</Label>
+                <Label htmlFor="push-url">Link (optional, opened on tap)</Label>
                 <Input id="push-url" value={pushUrl} onChange={(e) => setPushUrl(e.target.value)} placeholder="/account/orders/123" />
               </div>
+
+              <div className="space-y-2">
+                <Label>Audience</Label>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="push-audience-mode"
+                      checked={audienceMode === 'all'}
+                      onChange={() => setAudienceMode('all')}
+                    />
+                    All subscribers
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="push-audience-mode"
+                      checked={audienceMode === 'rule'}
+                      onChange={() => setAudienceMode('rule')}
+                    />
+                    Target by criteria
+                  </label>
+                </div>
+                {audienceMode === 'rule' ? (
+                  <PushAudienceRuleBuilder value={audienceRule} onChange={setAudienceRule} disabled={busy} />
+                ) : null}
+              </div>
+
               {!selectedChannelId ? (
                 <p className="text-sm text-muted-foreground">
                   Select a sales channel in the Scope selector above to send a notification.
@@ -317,7 +360,10 @@ export function PwaPage(): ReactNode {
                   disabled={busy || !selectedChannelId || !config.pushEnabled || !pushTitle || !pushBody}
                   onClick={() => void sendPush()}
                 >
-                  <Send className="mr-2 h-4 w-4" /> Send to all subscribers
+                  <Send className="mr-2 h-4 w-4" />{' '}
+                  {audienceMode === 'rule' && audienceRule.kind !== 'all'
+                    ? 'Send to targeted subscribers'
+                    : 'Send to all subscribers'}
                 </Button>
               </div>
             </CardContent>
