@@ -21,6 +21,7 @@ import { NewsletterCustomFieldService } from './services/custom-field.service.js
 import { NewsletterAutomationService } from './services/automation.service.js';
 import { NewsletterTrackingService } from './services/tracking.service.js';
 import { NewsletterStatsService } from './services/stats.service.js';
+import { NewsletterEmailBlockService } from './services/email-block.service.js';
 import { NewsletterProviderAdminService, type SettingsWriter } from './services/provider-admin.service.js';
 import type { AdminAuditContext } from './services/provider-admin.types.js';
 import { NewsletterProviderRegistry } from './services/provider/provider-registry.js';
@@ -99,6 +100,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
   const customFields = new NewsletterCustomFieldService(options.emFactory);
   const tracking = new NewsletterTrackingService(options.emFactory);
   const stats = new NewsletterStatsService(options.emFactory);
+  const blocks = new NewsletterEmailBlockService(options.emFactory);
   const providerAdmin = new NewsletterProviderAdminService(
     options.settings,
     options.settingsWrite,
@@ -217,6 +219,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
         automations,
         stats,
         providerAdmin,
+        blocks,
         resolveAuditContext: options.resolveAuditContext,
         requireAdmin: options.requireAdmin,
       });

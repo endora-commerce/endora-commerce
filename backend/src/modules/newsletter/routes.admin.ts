@@ -16,6 +16,8 @@ import {
   updateAutomationRequestSchema,
   automationActionRequestSchema,
   putProviderRequestSchema,
+  createNewsletterEmailBlockRequestSchema,
+  updateNewsletterEmailBlockRequestSchema,
 } from '@b2b/contracts';
 import { z } from 'zod';
 import type { NewsletterCampaignService } from './services/campaign.service.js';
@@ -27,6 +29,7 @@ import type { NewsletterAutomationService } from './services/automation.service.
 import type { NewsletterStatsService } from './services/stats.service.js';
 import type { NewsletterProviderAdminService } from './services/provider-admin.service.js';
 import type { AdminAuditContext } from './services/provider-admin.types.js';
+import type { NewsletterEmailBlockService } from './services/email-block.service.js';
 
 export interface NewsletterAdminDeps {
   campaigns: NewsletterCampaignService;
@@ -37,6 +40,7 @@ export interface NewsletterAdminDeps {
   automations: NewsletterAutomationService;
   stats: NewsletterStatsService;
   providerAdmin: NewsletterProviderAdminService;
+  blocks: NewsletterEmailBlockService;
   resolveAuditContext: (req: FastifyRequest) => AdminAuditContext;
   requireAdmin: (permission?: string) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 }
@@ -194,4 +198,22 @@ export async function registerNewsletterAdminRoutes(
   app.post(`${base}/provider/test`, write, async (_req, reply) =>
     reply.send({ data: await deps.providerAdmin.test() }),
   );
+
+  // --- Reusable email blocks ---------------------------------------------
+  app.get(`${base}/blocks`, read, async (_req, reply) =>
+    reply.send({ data: { items: await deps.blocks.list() } }),
+  );
+  app.get(`${base}/blocks/:id`, read, async (req, reply) =>
+    reply.send({ data: await deps.blocks.get(idOf(req)) }),
+  );
+  app.post(`${base}/blocks`, write, async (req, reply) =>
+    reply.status(201).send({ data: await deps.blocks.create(createNewsletterEmailBlockRequestSchema.parse(req.body)) }),
+  );
+  app.put(`${base}/blocks/:id`, write, async (req, reply) =>
+    reply.send({ data: await deps.blocks.update(idOf(req), updateNewsletterEmailBlockRequestSchema.parse(req.body)) }),
+  );
+  app.delete(`${base}/blocks/:id`, write, async (req, reply) => {
+    await deps.blocks.remove(idOf(req));
+    return reply.status(204).send();
+  });
 }
