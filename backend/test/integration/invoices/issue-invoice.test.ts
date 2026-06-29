@@ -20,7 +20,7 @@ interface IssueResponse {
     netTotal: number;
     taxTotal: number;
     grossTotal: number;
-    lines: Array<{ ordinal: number; name: string; grossValue: number }>;
+    lines: Array<{ ordinal: number; name: string; netValue: number; grossValue: number }>;
     vatSummary: Array<{ taxRate: number; netTotal: number; vatAmount: number; grossTotal: number }>;
     seller: { taxId: string; legalName: string };
     buyer: { name: string; taxId: string };
@@ -118,6 +118,32 @@ describe('invoices — issue + download (US1)', () => {
     });
     expect(res.statusCode).toBe(422);
     await setSellerSettings(h); // restore for any later tests
+  });
+
+  it('itemizes delivery and discount as lines, reconciling to the order total', async () => {
+    const { orderId } = await seedInvoiceableOrder(h.em(), {
+      salesChannelId: CH,
+      deliveryTotal: 30,
+      discountTotal: 100,
+    });
+    const res = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/orders/${orderId}/invoices`,
+      cookies: ADMIN_COOKIE,
+      payload: { kind: 'invoice' },
+    });
+    expect(res.statusCode).toBe(201);
+    const { data } = res.json() as IssueResponse;
+    const names = data.lines.map((l) => l.name);
+    expect(names).toContain('Dostawa');
+    expect(names).toContain('Rabat');
+    expect(data.lines.find((l) => l.name === 'Rabat')?.netValue).toBe(-100);
+    // products gross 6648.15 + delivery 30 - discount 100 = 6578.15 = order total
+    expect(data.grossTotal).toBe(6578.15);
+    // internal reconciliation still holds
+    for (const row of data.vatSummary) {
+      expect(row.netTotal + row.vatAmount).toBeCloseTo(row.grossTotal, 2);
+    }
   });
 
   it('numbers increment within the same channel and year', async () => {

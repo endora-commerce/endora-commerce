@@ -53,8 +53,6 @@ Generates, numbers, renders, corrects, and emails invoices for orders.
   `packages/cms-components`) — invoice authoring is admin-only and the real
   layout is server-side pdfmake; this avoids coupling invoice components into the
   shared CMS/email component package.
-- Invoice lines currently itemize **products only**; delivery/discount lines are
-  not yet itemized (totals are internally consistent).
 - Audit-log entries are written on issue (`invoice.issued`) and correction
   (`invoice.corrected`).
 - PDF is rendered on demand; caching into `assets_library` (`pdf_asset_id`) is a

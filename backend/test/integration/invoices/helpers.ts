@@ -19,9 +19,19 @@ export interface SeededInvoiceOrder {
  */
 export async function seedInvoiceableOrder(
   em: EntityManager,
-  opts: { salesChannelId?: string; paymentStatus?: 'paid' | 'awaiting_payment' } = {},
+  opts: {
+    salesChannelId?: string;
+    paymentStatus?: 'paid' | 'awaiting_payment';
+    deliveryTotal?: number;
+    discountTotal?: number;
+  } = {},
 ): Promise<SeededInvoiceOrder> {
   const salesChannelId = opts.salesChannelId ?? randomUUID();
+  const deliveryTotal = opts.deliveryTotal ?? 0;
+  const discountTotal = opts.discountTotal ?? 0;
+  // Base products: net 5405, VAT 1243.15. Order model adds delivery and
+  // subtracts discount on the gross without extra VAT.
+  const total = 6648.15 + deliveryTotal - discountTotal;
   const order = em.create(Order, {
     organizationId: TEST_ORGANIZATION_ID,
     placedByCustomerAccountId: TEST_CUSTOMER_ID,
@@ -44,8 +54,9 @@ export async function seedInvoiceableOrder(
     paymentMethodSnapshot: { code: 'pm', name: 'Przelew', kind: 'bank_transfer' },
     subtotal: '5405.00',
     taxTotal: '1243.15',
-    deliveryTotal: '0.00',
-    total: '6648.15',
+    deliveryTotal: deliveryTotal.toFixed(2),
+    discountTotal: discountTotal.toFixed(2),
+    total: total.toFixed(2),
     currency: 'PLN',
     placedAt: new Date(),
   });

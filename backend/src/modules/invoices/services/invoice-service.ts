@@ -76,6 +76,30 @@ export class InvoiceService {
         orderItemId: it.id,
       };
     });
+
+    // Itemize the order's non-product amounts so the invoice total reconciles
+    // with the order total. The order model adds delivery + payment surcharge
+    // and subtracts the discount on the gross without extra VAT, so each is a
+    // 0%-VAT line (the discount is a negative line).
+    const deliveryTotal = Number(order.deliveryTotal ?? 0);
+    if (deliveryTotal > 0) {
+      raw.push({ name: 'Dostawa', unit: 'usł.', quantity: 1, unitNetPrice: deliveryTotal, taxRate: 0, netValue: deliveryTotal });
+    }
+    const surcharge = Number(order.paymentMethodSnapshot?.additionalPrice ?? 0);
+    if (surcharge > 0) {
+      raw.push({
+        name: 'Dopłata za metodę płatności',
+        unit: 'usł.',
+        quantity: 1,
+        unitNetPrice: surcharge,
+        taxRate: 0,
+        netValue: surcharge,
+      });
+    }
+    const discountTotal = Number(order.discountTotal ?? 0);
+    if (discountTotal > 0) {
+      raw.push({ name: 'Rabat', unit: 'usł.', quantity: 1, unitNetPrice: -discountTotal, taxRate: 0, netValue: -discountTotal });
+    }
     const built = buildInvoiceLines(raw);
 
     const issuedAt = new Date();
