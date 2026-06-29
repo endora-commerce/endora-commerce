@@ -113,6 +113,7 @@ import { pwaModule } from './modules/pwa/plugin.js';
 import { pwaSettingsManifest } from './modules/pwa/manifest.js';
 // Feature 047 — Transactional Emails.
 import { transactionalEmailsModule } from './modules/transactional_emails/plugin.js';
+import { transactionalEmailsSettingsManifest } from './modules/transactional_emails/manifest.js';
 import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
 import { ORDER_CONFIRMATION_DEFAULT } from './modules/orders/email-templates/order-confirmation.default.js';
 import { SalesChannel } from './modules/sales_channels/entities/sales-channel.entity.js';
@@ -1735,6 +1736,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       manifests: REGISTERED_MANIFESTS.map((e) => e.manifest),
       mailer: organizationsMailer,
       auditLog: auditLogService,
+      settingsAdmin: settings.handle.adminService,
       resolveAssetUrl: async (assetId) => {
         try {
           return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
@@ -1916,6 +1918,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     blogManifest,
     promptActionsSettingsManifest,
     pwaSettingsManifest,
+    transactionalEmailsSettingsManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();

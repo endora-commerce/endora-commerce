@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest } from '@b2b/contracts';
 import type { SettingsService } from '../settings/services/settings.service.js';
+import type { SettingsAdminService } from '../settings/services/settings-admin.service.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { Mailer } from '../email/services/mailer.js';
 import { ContentResolver } from './services/content-resolver.js';
@@ -24,6 +25,8 @@ export interface TransactionalEmailsModuleOptions {
   mailer?: Mailer;
   auditLog?: AuditLogService;
   resolveAssetUrl?: AssetUrlResolver;
+  /** Settings admin service used to persist branding values (US2). */
+  settingsAdmin?: SettingsAdminService;
   /** Exposes the sender back to composition so owning modules can send. */
   exposeSender?: (sender: TransactionalEmailService) => void;
 }
@@ -38,7 +41,11 @@ export function transactionalEmailsModule(
 ): (app: FastifyInstance) => Promise<void> {
   return async (app: FastifyInstance): Promise<void> => {
     const contentResolver = new ContentResolver();
-    const branding = new BrandingService(options.settingsService, options.resolveAssetUrl);
+    const branding = new BrandingService(
+      options.settingsService,
+      options.resolveAssetUrl,
+      options.settingsAdmin ? { admin: options.settingsAdmin, emFactory: options.emFactory } : undefined,
+    );
     const embeds = new EmbedResolver();
 
     const service = new TransactionalEmailService({

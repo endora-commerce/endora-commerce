@@ -12,6 +12,7 @@ import type {
   PatchEmailTemplateRequest,
   PreviewEmailResponse,
   PutEmailBlockContentRequest,
+  PutEmailBrandingRequest,
   PutEmailContentRequest,
   ResolvedEmailContent,
   TransactionalEmailDetail,
@@ -69,9 +70,11 @@ export const transactionalEmailsClient = {
   ): Promise<PreviewEmailResponse> =>
     unwrap(apiClient.post<Wrap<PreviewEmailResponse>>(`${BASE}/${encodeURIComponent(code)}/preview`, body)),
 
-  // Branding (read)
+  // Branding (read + write)
   branding: (salesChannelId: string | null): Promise<EmailBranding> =>
     unwrap(apiClient.get<Wrap<EmailBranding>>(`${BASE}/branding${scopeQs(salesChannelId)}`)),
+  putBranding: (salesChannelId: string | null, body: PutEmailBrandingRequest): Promise<EmailBranding> =>
+    unwrap(apiClient.put<Wrap<EmailBranding>>(`${BASE}/branding${scopeQs(salesChannelId)}`, body)),
 
   // Blocks
   listBlocks: (salesChannelId?: string): Promise<{ items: EmailBlockSummary[] }> =>

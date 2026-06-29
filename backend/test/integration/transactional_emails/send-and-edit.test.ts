@@ -45,6 +45,12 @@ describe('transactional emails — edit + send (US1)', () => {
   });
 
   it('returns the module default before any customization', async () => {
+    // Order-independent: ensure no global override exists first (shared test DB).
+    await h.app.inject({
+      method: 'DELETE',
+      url: `${BASE}/order_confirmation/content?language=en-US`,
+      cookies: ADMIN_COOKIE,
+    });
     const res = await h.app.inject({
       method: 'GET',
       url: `${BASE}/order_confirmation?language=en-US`,

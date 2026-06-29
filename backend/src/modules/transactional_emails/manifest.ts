@@ -15,7 +15,7 @@ export const TRANSACTIONAL_EMAILS_SETTING_CODES = {
   FOOTER_BLOCK_CODE: 'transactional_emails.footer_block_code',
 } as const;
 
-const settings = defineModuleSettingsManifest({
+export const transactionalEmailsSettingsManifest = defineModuleSettingsManifest({
   moduleCode: 'transactional_emails',
   groups: [{ code: 'transactional_emails', name: 'Transactional Emails' }],
   settings: [
@@ -61,7 +61,7 @@ export const manifest = defineModuleManifest({
     'Admin-editable transactional email content and look (global + per sales channel), email-safe blocks/templates, variables, and preview.',
   version: '1.0.0',
   dependencies: ['settings', 'sales_channels', 'email', 'assets_library'],
-  settings,
+  settings: transactionalEmailsSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'transactional_emails:read', label: 'View transactional emails' },

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { EmailBlockSummary } from '@b2b/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -88,7 +89,11 @@ export function EmailBlocksPage(): React.ReactElement {
             <tbody>
               {items.map((b) => (
                 <tr key={b.id} className="border-b last:border-0">
-                  <td className="p-3">{b.name}</td>
+                  <td className="p-3">
+                    <Link className="font-medium text-primary hover:underline" to={`/transactional-emails/blocks/${b.id}`}>
+                      {b.name}
+                    </Link>
+                  </td>
                   <td className="p-3 font-mono text-xs">{b.code}</td>
                   <td className="p-3">{b.scope}</td>
                   <td className="p-3">{b.isSystem ? 'Yes' : '—'}</td>

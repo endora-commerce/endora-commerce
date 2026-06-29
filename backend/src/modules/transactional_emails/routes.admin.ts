@@ -6,6 +6,7 @@ import {
   patchEmailBlockRequestSchema,
   patchEmailTemplateRequestSchema,
   previewEmailRequestSchema,
+  putEmailBrandingRequestSchema,
   putEmailBlockContentRequestSchema,
   putEmailContentQuerySchema,
   putEmailContentRequestSchema,
@@ -102,10 +103,18 @@ export async function registerTransactionalEmailsAdminRoutes(
     return reply.code(204).send();
   });
 
-  // --- Branding (read) ----------------------------------------------------
+  // --- Branding (read + write) -------------------------------------------
   app.get(`${base}/branding`, { preHandler: requireAdmin(READ) }, async (request) => {
     const q = emailScopeQuerySchema.parse(request.query);
     return { data: await branding.resolve(q.salesChannelId ?? null) };
+  });
+  app.put(`${base}/branding`, { preHandler: requireAdmin(WRITE) }, async (request) => {
+    const q = emailScopeQuerySchema.parse(request.query);
+    const body = putEmailBrandingRequestSchema.parse(request.body);
+    const data = await branding.update(q.salesChannelId ?? null, body, {
+      actorAdminUserId: resolveAdminUserId(request),
+    });
+    return { data };
   });
 
   // --- Email definitions --------------------------------------------------

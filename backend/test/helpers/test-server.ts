@@ -81,6 +81,7 @@ import { promptActionsModule, type PromptActionsModuleOptions } from '../../src/
 import { promptActionsSettingsManifest } from '../../src/modules/prompt_actions/manifest.js';
 import { pwaModule } from '../../src/modules/pwa/plugin.js';
 import { pwaSettingsManifest } from '../../src/modules/pwa/manifest.js';
+import { transactionalEmailsSettingsManifest } from '../../src/modules/transactional_emails/manifest.js';
 import { SalesChannel } from '../../src/modules/sales_channels/entities/sales-channel.entity.js';
 import { Order } from '../../src/modules/orders/entities/order.entity.js';
 import {
@@ -1470,6 +1471,7 @@ export async function setupBackendServer(
       manifests: REGISTERED_MANIFESTS.map((e) => e.manifest),
       mailer: options.organizationsMailer ?? new ConsoleMailer(),
       auditLog: auditLogService,
+      settingsAdmin: settings.handle.adminService,
     }),
   );
 
@@ -1528,6 +1530,7 @@ export async function setupBackendServer(
     mfaSettingsManifest,
     promptActionsSettingsManifest,
     pwaSettingsManifest,
+    transactionalEmailsSettingsManifest,
   ]);
 
   const app = await buildServer({

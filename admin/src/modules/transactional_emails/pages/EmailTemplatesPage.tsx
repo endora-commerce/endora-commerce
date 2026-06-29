@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { EmailTemplateSummary } from '@b2b/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -87,7 +88,11 @@ export function EmailTemplatesPage(): React.ReactElement {
             <tbody>
               {items.map((t) => (
                 <tr key={t.id} className="border-b last:border-0">
-                  <td className="p-3">{t.name}</td>
+                  <td className="p-3">
+                    <Link className="font-medium text-primary hover:underline" to={`/transactional-emails/templates/${t.id}`}>
+                      {t.name}
+                    </Link>
+                  </td>
                   <td className="p-3 font-mono text-xs">{t.code}</td>
                   <td className="p-3">{t.scope}</td>
                   <td className="p-3 text-right">

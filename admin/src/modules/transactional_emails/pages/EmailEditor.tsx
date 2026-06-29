@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/auth';
 import { salesChannelsClient } from '@/modules/sales_channels/api/sales-channels-client';
 import { transactionalEmailsClient } from '../api/transactional-emails-client';
 import { EmailEditorPane } from '../components/EmailEditorPane';
+import { BrandingPanel } from '../components/BrandingPanel';
 
 const emptyData: Data = { root: { props: {} }, content: [] };
 
@@ -207,6 +208,8 @@ export function EmailEditor(): React.ReactElement {
           Preview
         </Button>
       </div>
+
+      <BrandingPanel salesChannelId={channelId} />
     </div>
   );
 }
