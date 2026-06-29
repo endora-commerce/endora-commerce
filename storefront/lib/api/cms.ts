@@ -1,5 +1,28 @@
-import type { CmsPage, CmsResolvedHook, CmsResolvedPage } from '@b2b/contracts';
+import type { CmsPage, CmsResolvedBlock, CmsResolvedHook, CmsResolvedPage } from '@b2b/contracts';
 import { apiGet, StorefrontApiError, type RequestContext } from './client';
+
+/**
+ * Fetch a published CMS block by its code (per the request's sales channel +
+ * language). Returns null on 404 so callers can fall back to default content.
+ */
+export async function getCmsBlockByCode(
+  code: string,
+  ctx: RequestContext,
+): Promise<CmsResolvedBlock | null> {
+  const qs = new URLSearchParams({ code });
+  if (ctx.locale) qs.set('language', ctx.locale);
+  try {
+    const res = await apiGet<{ data: CmsResolvedBlock }>(
+      `/api/v1/cms/blocks/by-code?${qs.toString()}`,
+      ctx,
+      { revalidate: 60, tags: ['cms:block', `cms:block:${code}`] },
+    );
+    return res.data;
+  } catch (err) {
+    if (err instanceof StorefrontApiError && err.status === 404) return null;
+    throw err;
+  }
+}
 
 /**
  * Public CMS paths must match `cmsPagePathSchema` (lowercase kebab segments).

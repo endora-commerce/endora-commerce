@@ -53,4 +53,15 @@ describe('Newsletter storefront routes (feature 048)', () => {
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toContain('image/gif');
   });
+
+  it('seeds the predefined newsletter_consent CMS block linking to the privacy policy', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/cms/blocks/by-code?code=newsletter_consent',
+    });
+    expect(res.statusCode).toBe(200);
+    const block = res.json().data as { code: string; content: { data: unknown } };
+    expect(block.code).toBe('newsletter_consent');
+    expect(JSON.stringify(block.content.data)).toContain('/privacy-policy');
+  });
 });
