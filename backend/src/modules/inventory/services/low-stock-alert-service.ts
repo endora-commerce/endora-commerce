@@ -7,6 +7,17 @@ import { Product } from '../../catalog/entities/product.entity.js';
 import { StockLevel } from '../entities/stock-level.entity.js';
 import { INVENTORY_SETTING_CODES } from '../manifest.js';
 
+/** Feature 047 — structural port for sending via the admin-editable templates. */
+export interface InventoryTemplateEmailPort {
+  trySend(input: {
+    code: string;
+    to: string;
+    messageId: string;
+    variables: Record<string, unknown>;
+    meta?: Record<string, unknown> | undefined;
+  }): Promise<boolean>;
+}
+
 export interface LowStockSummaryRow {
   productId: string;
   productSku: string;
@@ -44,6 +55,7 @@ export class LowStockAlertService {
     /** Channel id used to read inventory settings — typically the
      *  system default. */
     private readonly settingsChannelId?: string,
+    private readonly templateEmail?: InventoryTemplateEmailPort,
   ) {}
 
   attach(eventBus: EventBus): void {
@@ -121,16 +133,28 @@ export class LowStockAlertService {
     const recipient = await this.resolveRecipient();
     if (!recipient) return;
     const productName = product.name['en-US'] ?? Object.values(product.name)[0] ?? product.sku;
+    const messageId = `inventory.low-stock:${product.id}:${Date.now()}`;
+    const meta = { productId: product.id, cumulativeOnHand: cumulative, threshold };
+    if (this.templateEmail) {
+      const sent = await this.templateEmail.trySend({
+        code: 'low_stock_alert',
+        to: recipient,
+        messageId,
+        variables: {
+          product: { name: productName, sku: product.sku },
+          cumulativeOnHand: cumulative,
+          threshold,
+        },
+        meta,
+      });
+      if (sent) return;
+    }
     await this.mailer.send({
-      messageId: `inventory.low-stock:${product.id}:${Date.now()}`,
+      messageId,
       to: recipient,
       subject: `Low stock: ${productName}`,
       text: `Cumulative on-hand for "${productName}" (SKU ${product.sku}) has crossed the low-stock threshold.\n\n  Current cumulative on-hand: ${cumulative}\n  Threshold: ${threshold}\n`,
-      meta: {
-        productId: product.id,
-        cumulativeOnHand: cumulative,
-        threshold,
-      },
+      meta,
     });
   }
 

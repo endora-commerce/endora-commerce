@@ -61,6 +61,10 @@ import {
   NEW_ORG_REGISTRATION_DEFAULT,
 } from '../../src/modules/organizations/email-templates/transactional-defaults.js';
 import { makeOrgTemplateEmail } from '../../src/modules/organizations/services/org-template-email.js';
+import {
+  LOW_STOCK_ALERT_DEFAULT,
+  AVAILABILITY_BACK_IN_STOCK_DEFAULT,
+} from '../../src/modules/inventory/email-templates/transactional-defaults.js';
 import { OrderReturnContextProvider } from '../../src/modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from '../../src/modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from '../../src/modules/invoices/services/corrective-invoice.js';
@@ -941,6 +945,13 @@ export async function setupBackendServer(
       requireCustomer: requireTestCustomer(),
       resolveCustomerContext: customerResolver,
       requireAdmin: requireTestAdmin(permissionService),
+      templateEmail: makeOrgTemplateEmail({
+        getSender: () => transactionalEmailSender,
+        resolveScopeSalesChannelId: async () =>
+          (await salesChannels.handle.resolver.getSystemDefault())?.id ?? null,
+        resolveLanguage: async (id) =>
+          (await em().findOne(SalesChannel, { id }))?.defaultLanguage ?? 'en-US',
+      }),
       dictionaryValidator: dictionaries.handle.validator,
       auditLogService,
       resolveAdminAuditContext: (request) => ({
@@ -1528,6 +1539,14 @@ export async function setupBackendServer(
   emailDefaultsRegistry.register('new_org_registration', {
     defaultSubject: NEW_ORG_REGISTRATION_DEFAULT.defaultSubject,
     defaultContent: NEW_ORG_REGISTRATION_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('low_stock_alert', {
+    defaultSubject: LOW_STOCK_ALERT_DEFAULT.defaultSubject,
+    defaultContent: LOW_STOCK_ALERT_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('availability_back_in_stock', {
+    defaultSubject: AVAILABILITY_BACK_IN_STOCK_DEFAULT.defaultSubject,
+    defaultContent: AVAILABILITY_BACK_IN_STOCK_DEFAULT.defaultContent,
   });
   modules.push(
     transactionalEmailsModule({

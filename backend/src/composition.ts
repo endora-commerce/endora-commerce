@@ -132,6 +132,10 @@ import {
   NEW_ORG_REGISTRATION_DEFAULT,
 } from './modules/organizations/email-templates/transactional-defaults.js';
 import { makeOrgTemplateEmail } from './modules/organizations/services/org-template-email.js';
+import {
+  LOW_STOCK_ALERT_DEFAULT,
+  AVAILABILITY_BACK_IN_STOCK_DEFAULT,
+} from './modules/inventory/email-templates/transactional-defaults.js';
 import { SalesChannel } from './modules/sales_channels/entities/sales-channel.entity.js';
 import { Order } from './modules/orders/entities/order.entity.js';
 import {
@@ -1221,6 +1225,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       requireAdmin,
       eventBus,
       channelResolver: salesChannels.handle.resolver,
+      templateEmail: makeOrgTemplateEmail({
+        getSender: () => transactionalEmailSender,
+        resolveScopeSalesChannelId,
+        resolveLanguage: resolveSalesChannelLanguage,
+      }),
       settingsService: settings.handle.settingsService,
       dictionaryValidator: dictionaries.handle.validator,
       auditLogService,
@@ -1799,6 +1808,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   emailDefaultsRegistry.register('new_org_registration', {
     defaultSubject: NEW_ORG_REGISTRATION_DEFAULT.defaultSubject,
     defaultContent: NEW_ORG_REGISTRATION_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('low_stock_alert', {
+    defaultSubject: LOW_STOCK_ALERT_DEFAULT.defaultSubject,
+    defaultContent: LOW_STOCK_ALERT_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('availability_back_in_stock', {
+    defaultSubject: AVAILABILITY_BACK_IN_STOCK_DEFAULT.defaultSubject,
+    defaultContent: AVAILABILITY_BACK_IN_STOCK_DEFAULT.defaultContent,
   });
   modules.push(
     transactionalEmailsModule({
