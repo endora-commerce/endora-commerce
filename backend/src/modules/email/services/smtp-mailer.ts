@@ -24,7 +24,9 @@ export class SmtpMailer implements Mailer {
         ? {
             attachments: input.attachments.map((a) => ({
               filename: a.filename,
-              content: a.content,
+              // nodemailer wants a Buffer/string; a Buffer is already one, a
+              // plain Uint8Array is wrapped without copying its backing memory.
+              content: Buffer.isBuffer(a.content) ? a.content : Buffer.from(a.content),
               ...(a.contentType ? { contentType: a.contentType } : {}),
             })),
           }

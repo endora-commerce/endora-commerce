@@ -76,7 +76,7 @@ describe('invoices — invoice email dispatch (US5)', () => {
     expect(last.code).toBe('invoice_issued');
     expect(last.to).toBe('buyer@example.com');
     expect(last.attachments).toHaveLength(1);
-    expect(last.attachments?.[0]?.content.subarray(0, 5).toString('utf8')).toBe('%PDF-');
+    expect(Buffer.from(last.attachments![0]!.content).subarray(0, 5).toString('utf8')).toBe('%PDF-');
   });
 
   it('link mode sends no attachment but supplies a download URL variable', async () => {

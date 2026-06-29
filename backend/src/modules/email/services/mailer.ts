@@ -19,7 +19,7 @@ export interface MailerSendInput {
   /** Optional HTML body (feature 047). When present, sent as multipart alternative. */
   html?: string;
   /** Optional binary attachments (feature 047 invoices — PDF delivery). */
-  attachments?: Array<{ filename: string; content: Buffer; contentType?: string }>;
+  attachments?: Array<{ filename: string; content: Uint8Array; contentType?: string }>;
   /** Optional structured payload retained alongside the email for audit. */
   meta?: Record<string, unknown>;
 }
