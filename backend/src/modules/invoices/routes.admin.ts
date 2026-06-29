@@ -4,8 +4,12 @@ import { issueInvoiceRequestSchema, sendInvoiceEmailRequestSchema } from '@b2b/c
 import { Invoice } from './entities/invoice.entity.js';
 import { Order } from '../orders/entities/order.entity.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import { z } from 'zod';
 import type { InvoiceService } from './services/invoice-service.js';
 import type { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
+import type { InvoiceTemplateService } from './services/invoice-template-service.js';
+import { INVOICE_PAGE_BUILDER_DESCRIPTOR } from './pdf-components/descriptor.js';
+import { sampleInvoiceDetail } from './pdf-components/sample.js';
 
 /** Minimal email-dispatch seam — implemented by the US5 dispatcher. */
 export interface InvoiceEmailDispatcher {
@@ -26,15 +30,18 @@ export interface InvoicesAdminDeps {
   requireAdmin: RequireAdminFactory;
   invoiceService: InvoiceService;
   pdfRenderer: InvoicePdfRenderer;
+  templateService: InvoiceTemplateService;
   emailDispatcher?: InvoiceEmailDispatcher;
   resolveAdminUserId?: (req: FastifyRequest) => string | null;
 }
+
+const RENDER_LANGUAGE = 'pl-PL';
 
 export async function registerInvoicesAdminRoutes(
   app: FastifyInstance,
   deps: InvoicesAdminDeps,
 ): Promise<void> {
-  const { emFactory, requireAdmin, invoiceService, pdfRenderer } = deps;
+  const { emFactory, requireAdmin, invoiceService, pdfRenderer, templateService } = deps;
 
   // List ------------------------------------------------------------------
   app.get(
@@ -82,7 +89,8 @@ export async function registerInvoicesAdminRoutes(
     { preHandler: requireAdmin('invoices:read') },
     async (request, reply) => {
       const detail = await invoiceService.buildDetail(request.params.id);
-      const pdf = await pdfRenderer.render(detail);
+      const tree = await templateService.resolveTree(detail.salesChannelId, RENDER_LANGUAGE);
+      const pdf = await pdfRenderer.render(detail, 'pl', tree);
       reply
         .header('content-type', 'application/pdf')
         .header('content-disposition', `attachment; filename="invoice-${detail.number.replace(/\W+/g, '_')}.pdf"`);
@@ -135,6 +143,76 @@ export async function registerInvoicesAdminRoutes(
         messageId,
       });
       return { data: { ok } };
+    },
+  );
+
+  // --- Invoice templates (US6) ------------------------------------------
+  app.get(
+    '/api/v1/admin/invoice-templates',
+    { preHandler: requireAdmin('invoices:read') },
+    async () => ({ data: await templateService.list() }),
+  );
+
+  app.get(
+    '/api/v1/admin/invoice-templates/page-builder/config',
+    { preHandler: requireAdmin('invoices:read') },
+    async () => ({ data: INVOICE_PAGE_BUILDER_DESCRIPTOR }),
+  );
+
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/invoice-templates/:id',
+    { preHandler: requireAdmin('invoices:read') },
+    async (request) => ({ data: await templateService.get(request.params.id) }),
+  );
+
+  const createTemplateSchema = z.object({
+    code: z.string().min(1).max(180),
+    name: z.string().min(1).max(200),
+    salesChannelId: z.string().uuid().nullable().optional(),
+  });
+  app.post(
+    '/api/v1/admin/invoice-templates',
+    { preHandler: requireAdmin('invoices:write'), schema: { body: createTemplateSchema } },
+    async (request, reply) => {
+      const body = createTemplateSchema.parse(request.body);
+      const created = await templateService.create({
+        code: body.code,
+        name: body.name,
+        salesChannelId: body.salesChannelId ?? null,
+      });
+      reply.status(201);
+      return { data: created };
+    },
+  );
+
+  const saveContentSchema = z.object({ data: z.unknown(), version: z.number().int() });
+  app.put<{ Params: { id: string; language: string } }>(
+    '/api/v1/admin/invoice-templates/:id/content/:language',
+    { preHandler: requireAdmin('invoices:write'), schema: { body: saveContentSchema } },
+    async (request) => {
+      const body = saveContentSchema.parse(request.body);
+      return {
+        data: await templateService.saveContent(
+          request.params.id,
+          request.params.language,
+          body.data,
+          body.version,
+        ),
+      };
+    },
+  );
+
+  // Preview: render a sample invoice through the template's tree (GET so it can
+  // be opened directly as a link from the admin editor).
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/admin/invoice-templates/:id/preview',
+    { preHandler: requireAdmin('invoices:write') },
+    async (request, reply) => {
+      const tpl = await templateService.get(request.params.id);
+      const tree = await templateService.resolveTree(tpl.salesChannelId, RENDER_LANGUAGE);
+      const pdf = await pdfRenderer.render(sampleInvoiceDetail(), 'pl', tree);
+      reply.header('content-type', 'application/pdf').header('content-disposition', 'inline; filename="preview.pdf"');
+      return reply.send(pdf);
     },
   );
 }

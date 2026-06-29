@@ -24,6 +24,14 @@ Generates, numbers, renders, corrects, and emails invoices for orders.
   (`link` mode). Idempotent, best-effort.
 - **Customer access** — `GET /api/v1/orders/:id/invoices` and `.../:invoiceId/pdf`
   (ownership-guarded); surfaced on the storefront order page.
+- **WYSIWYG templates (US6)** — a seeded global generic template + optional
+  per-channel templates, authored in a dedicated Puck editor in the admin
+  (`/invoices/templates`). The PDF renderer maps the template's Puck tree to
+  pdfmake sections (`InvoiceHeader`, `InvoiceParties`, `InvoiceLineItems`,
+  `InvoiceVatSummary`, `InvoiceTotals`, `InvoiceNotes`, `InvoiceKsef`), falling
+  back to the built-in layout when no valid template applies (FR-016). Endpoints
+  under `/api/v1/admin/invoice-templates` (list/get/create, `PUT content/:lang`,
+  `GET .../preview`, page-builder config).
 - **Settings** — seller VAT/NIP + company data (JSON), numbering patterns,
   auto-issue trigger, email toggle + delivery mode, storefront base URL — all
   global + per-channel.
@@ -41,9 +49,10 @@ Generates, numbers, renders, corrects, and emails invoices for orders.
 
 ## Deferred / follow-ups
 
-- **US6 — WYSIWYG invoice templates** (Puck authoring → pdfmake mapping,
-  per-channel templates, admin editor, `packages/cms-components/src/invoices`).
-  Not yet implemented; the built-in pdfmake layout is the FR-016 fallback.
+- The invoice Puck config lives in the **admin module** (not
+  `packages/cms-components`) — invoice authoring is admin-only and the real
+  layout is server-side pdfmake; this avoids coupling invoice components into the
+  shared CMS/email component package.
 - Invoice lines currently itemize **products only**; delivery/discount lines are
   not yet itemized (totals are internally consistent).
 - Audit-log call sites on issue/correction/email are a follow-up.

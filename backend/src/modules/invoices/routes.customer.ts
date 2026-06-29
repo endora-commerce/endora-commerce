@@ -6,6 +6,7 @@ import { Invoice } from './entities/invoice.entity.js';
 import { Order } from '../orders/entities/order.entity.js';
 import type { InvoiceService } from './services/invoice-service.js';
 import type { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
+import type { InvoiceTemplateService } from './services/invoice-template-service.js';
 
 export interface InvoicesCustomerDeps {
   emFactory: () => EntityManager;
@@ -13,6 +14,7 @@ export interface InvoicesCustomerDeps {
   resolveCustomerContext: (req: FastifyRequest) => { customerAccountId: string; organizationId: string };
   invoiceService: InvoiceService;
   pdfRenderer: InvoicePdfRenderer;
+  templateService: InvoiceTemplateService;
 }
 
 /**
@@ -24,7 +26,7 @@ export async function registerInvoicesCustomerRoutes(
   app: FastifyInstance,
   deps: InvoicesCustomerDeps,
 ): Promise<void> {
-  const { emFactory, requireCustomer, resolveCustomerContext, invoiceService, pdfRenderer } = deps;
+  const { emFactory, requireCustomer, resolveCustomerContext, invoiceService, pdfRenderer, templateService } = deps;
 
   async function ownedOrderOr404(req: FastifyRequest, orderId: string): Promise<Order> {
     const ctx = resolveCustomerContext(req);
@@ -78,7 +80,8 @@ export async function registerInvoicesCustomerRoutes(
       });
       if (!inv) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
       const detail = await invoiceService.buildDetail(inv.id);
-      const pdf = await pdfRenderer.render(detail);
+      const tree = await templateService.resolveTree(detail.salesChannelId, 'pl-PL');
+      const pdf = await pdfRenderer.render(detail, 'pl', tree);
       reply
         .header('content-type', 'application/pdf')
         .header('content-disposition', `attachment; filename="invoice-${detail.number.replace(/\W+/g, '_')}.pdf"`);

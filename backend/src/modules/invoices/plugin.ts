@@ -11,6 +11,7 @@ import { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
 import { InvoiceNumberGenerator, createSettingsPatternResolver } from './services/invoice-number-generator.js';
 import { SellerSettingsResolver, type SettingsReader } from './services/seller-settings.js';
 import { InvoiceEmailDispatcher } from './services/invoice-email-dispatch.js';
+import { InvoiceTemplateService } from './services/invoice-template-service.js';
 import { registerInvoicesAdminRoutes } from './routes.admin.js';
 import { registerInvoicesCustomerRoutes } from './routes.customer.js';
 import { INVOICES_SETTING_CODES } from './manifest.js';
@@ -41,6 +42,7 @@ export interface InvoicesModuleHandle {
   invoiceService: InvoiceService;
   pdfRenderer: InvoicePdfRenderer;
   numberGenerator: InvoiceNumberGenerator;
+  templateService: InvoiceTemplateService;
   emailDispatcher?: InvoiceEmailDispatcher;
 }
 
@@ -54,6 +56,7 @@ export function invoicesModule(options: InvoicesModuleOptions): {
   const sellerSettings = new SellerSettingsResolver(options.settingsService);
   const invoiceService = new InvoiceService(options.emFactory, numberGenerator, sellerSettings);
   const pdfRenderer = new InvoicePdfRenderer();
+  const templateService = new InvoiceTemplateService(options.emFactory);
 
   let emailDispatcher: InvoiceEmailDispatcher | undefined;
   if (options.getTransactionalEmailSender && options.resolveRecipientEmail && options.resolveLanguage) {
@@ -72,6 +75,7 @@ export function invoicesModule(options: InvoicesModuleOptions): {
     invoiceService,
     pdfRenderer,
     numberGenerator,
+    templateService,
     ...(emailDispatcher ? { emailDispatcher } : {}),
   };
 
@@ -106,11 +110,14 @@ export function invoicesModule(options: InvoicesModuleOptions): {
   }
 
   const plugin: ModulePlugin = async (app: FastifyInstance) => {
+    // Seed the system generic template once (idempotent).
+    await templateService.ensureGenericSeed().catch(() => undefined);
     await registerInvoicesAdminRoutes(app, {
       emFactory: options.emFactory,
       requireAdmin: options.requireAdmin,
       invoiceService,
       pdfRenderer,
+      templateService,
       ...(emailDispatcher ? { emailDispatcher } : {}),
       ...(options.resolveAdminUserId ? { resolveAdminUserId: options.resolveAdminUserId } : {}),
     });
@@ -121,6 +128,7 @@ export function invoicesModule(options: InvoicesModuleOptions): {
         resolveCustomerContext: options.resolveCustomerContext,
         invoiceService,
         pdfRenderer,
+        templateService,
       });
     }
   };

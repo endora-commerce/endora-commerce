@@ -1,0 +1,57 @@
+import type { InvoiceDetail } from '@b2b/contracts';
+
+/** A representative invoice used for template preview rendering (US6). */
+export function sampleInvoiceDetail(): InvoiceDetail {
+  return {
+    id: '00000000-0000-4000-8000-0000000000aa',
+    orderId: '00000000-0000-4000-8000-0000000000bb',
+    salesChannelId: null,
+    kind: 'invoice',
+    number: 'FV 26/2026',
+    status: 'ready',
+    currency: 'PLN',
+    issuedAt: '2026-05-04T10:00:00.000Z',
+    saleDate: '2026-05-04',
+    paymentDueDate: '2026-05-18',
+    paymentMethod: 'Przelew',
+    netTotal: 5405,
+    taxTotal: 1243.15,
+    grossTotal: 6648.15,
+    paidTotal: 0,
+    amountDue: 6648.15,
+    total: 6648.15,
+    originalInvoiceId: null,
+    templateId: null,
+    pdfAssetId: null,
+    ksefReferenceNumber: null,
+    ksefProcessedAt: null,
+    lines: [
+      { ordinal: 1, name: 'Example Server', unit: 'szt.', quantity: 1, unitNetPrice: 900, taxRate: 0.23, netValue: 900, grossValue: 1107 },
+      { ordinal: 2, name: 'Example Labour Hours', unit: 'h', quantity: 26.5, unitNetPrice: 170, taxRate: 0.23, netValue: 4505, grossValue: 5541.15 },
+    ],
+    vatSummary: [{ taxRate: 0.23, netTotal: 5405, vatAmount: 1243.15, grossTotal: 6648.15 }],
+    seller: {
+      legalName: 'Example Seller Sp. z o.o.',
+      addressLine1: 'ul. Przykładowa 2',
+      addressLine2: '',
+      postalCode: '00-001',
+      city: 'Warszawa',
+      country: 'PL',
+      taxId: '1234567890',
+      bankName: 'Bank Pekao S.A.',
+      bankAccount: '00 1234 5678 0000 0000 0000 0000',
+      swift: 'PKOPPLPW',
+      email: '',
+      phone: '',
+    },
+    buyer: {
+      name: 'Example Buyer Sp. z o.o.',
+      taxId: '1231231230',
+      addressLine1: 'ul. Testowa 1',
+      addressLine2: '',
+      postalCode: '00-002',
+      city: 'Warszawa',
+      country: 'PL',
+    },
+  };
+}
