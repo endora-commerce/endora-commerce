@@ -1,0 +1,18 @@
+{
+  "actions": {
+    "openNewsletter": {
+      "label": "Newsletter",
+      "description": "Zarządzaj subskrybentami, kampaniami i automatyzacjami newslettera"
+    }
+  },
+  "newsletter": {
+    "nav": {
+      "subscribers": "Subskrybenci",
+      "campaigns": "Kampanie",
+      "automations": "Automatyzacje",
+      "tags": "Tagi",
+      "customFields": "Pola dodatkowe",
+      "provider": "Usługa wysyłki"
+    }
+  }
+}

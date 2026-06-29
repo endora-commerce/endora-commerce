@@ -26,6 +26,7 @@ describe('permission inventory (SC-001)', () => {
     // +2 for feature 046 returns (returns:read, returns:write).
     // +2 for feature 047 transactional emails (transactional_emails:read, :write).
     // +2 for feature 047 invoices (invoices:read, invoices:write).
-    expect(assignable.size).toBe(44);
+    // +2 for feature 048 newsletter (newsletter:read, newsletter:write).
+    expect(assignable.size).toBe(46);
   });
 });

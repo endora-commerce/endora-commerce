@@ -4,6 +4,9 @@ import type { ReactNode } from 'react';
 import { registerStandaloneCustomer } from '../../../lib/api/auth';
 import { StorefrontApiError } from '../../../lib/api/client';
 import { setSessionCookie } from '../../../lib/session';
+import { getServerContext } from '../../../lib/server-context';
+import { subscribeNewsletter } from '../../../lib/api/newsletter';
+import { NewsletterConsent } from '../../../components/newsletter/NewsletterConsent';
 
 /**
  * Feature 040, US1 — standalone (org-less) customer registration. On success
@@ -20,6 +23,8 @@ export default async function RegisterCustomerPage({
 }): Promise<ReactNode> {
   const params = await searchParams;
   const orgRequired = params.orgRequired === '1';
+  const { ctx } = await getServerContext();
+  const channelCode = ctx.salesChannelCode ?? 'default';
 
   return (
     <div className="b2b-auth">
@@ -61,6 +66,9 @@ export default async function RegisterCustomerPage({
           />
         </div>
         <input type="hidden" name="acceptedTermsVersion" value="2025-01" />
+        <div className="b2b-auth__field">
+          <NewsletterConsent channelCode={channelCode} ctx={ctx} />
+        </div>
         <div className="b2b-auth__actions">
           <button type="submit">Create account</button>
         </div>
@@ -90,6 +98,20 @@ async function registerCustomerAction(formData: FormData): Promise<void> {
     const message =
       err instanceof StorefrontApiError ? err.message : 'Registration failed. Please try again.';
     redirect(`/register-customer?error=${encodeURIComponent(message)}`);
+  }
+  // Newsletter consent (feature 048): subscribe the new account's email when the
+  // consent checkbox was ticked. Never block registration on a subscribe failure.
+  if (formData.get('newsletterConsent') === 'on' && result.customerAccount?.email) {
+    try {
+      const { ctx } = await getServerContext();
+      await subscribeNewsletter({
+        email: result.customerAccount.email,
+        channelCode: ctx.salesChannelCode ?? 'default',
+        source: 'registration',
+      });
+    } catch {
+      // ignore — consent subscription is best-effort
+    }
   }
   if (result.sessionCookieValue) {
     await setSessionCookie(result.sessionCookieValue);

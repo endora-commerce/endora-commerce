@@ -1,0 +1,18 @@
+{
+  "actions": {
+    "openNewsletter": {
+      "label": "Newsletter",
+      "description": "Manage newsletter subscribers, campaigns, and automations"
+    }
+  },
+  "newsletter": {
+    "nav": {
+      "subscribers": "Subscribers",
+      "campaigns": "Campaigns",
+      "automations": "Automations",
+      "tags": "Tags",
+      "customFields": "Custom fields",
+      "provider": "Sending provider"
+    }
+  }
+}

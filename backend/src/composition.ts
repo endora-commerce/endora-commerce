@@ -115,6 +115,9 @@ import { pwaSettingsManifest } from './modules/pwa/manifest.js';
 // Feature 047 — Transactional Emails.
 import { transactionalEmailsModule } from './modules/transactional_emails/plugin.js';
 import { transactionalEmailsSettingsManifest } from './modules/transactional_emails/manifest.js';
+// Feature 048 — Newsletter.
+import { newsletterModule } from './modules/newsletter/plugin.js';
+import { newsletterSettingsManifest } from './modules/newsletter/manifest.js';
 import { invoicesSettingsManifest } from './modules/invoices/manifest.js';
 import type { TransactionalEmailSender } from '@b2b/contracts';
 import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
@@ -1893,6 +1896,51 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     }),
   );
 
+  // Feature 048 — Newsletter. Own-infrastructure bulk email: subscriber
+  // signup (per-channel opt-in), campaigns, automations, and a configurable
+  // sending provider. Channel/mailer/settings coupling is injected here so the
+  // module stays isolated (Principle I).
+  modules.push(
+    newsletterModule({
+      emFactory: em,
+      settings: settings.handle.settingsService,
+      tokenSecret:
+        process.env['NEWSLETTER_TOKEN_SECRET'] ??
+        process.env['SESSION_COOKIE_SECRET'] ??
+        'newsletter-dev-secret',
+      // Settings reads need a real channel UUID (the per-channel override
+      // lookup casts to uuid); the system default channel is the platform fallback.
+      platformChannelId:
+        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      resolveChannelIdByCode: async (code) =>
+        (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+      publicBaseUrl:
+        process.env['PUBLIC_API_BASE_URL'] ??
+        process.env['STOREFRONT_BASE_URL'] ??
+        'http://localhost:3000',
+      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
+      requireAdmin,
+      settingsWrite: settings.handle.adminService,
+      resolveAuditContext: (request) => ({
+        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+      }),
+      requireCustomer,
+      resolveCustomerAccountId,
+      loadCustomerEmail: async (customerAccountId) =>
+        (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
+      mailer: organizationsMailer,
+      auditLog: auditLogService,
+      emitEvent: (name, payload) =>
+        eventBus.emit(name, {
+          eventId: randomUUID(),
+          occurredAt: new Date().toISOString(),
+          ...payload,
+        }),
+      redis,
+      runWorkers,
+    }),
+  );
+
   // Shopping lists / quick order — depends on the RFQ service built above
   // so the "convert to RFQ" flow goes through the new createForCustomer API.
   modules.push(
@@ -2065,6 +2113,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     promptActionsSettingsManifest,
     pwaSettingsManifest,
     transactionalEmailsSettingsManifest,
+    newsletterSettingsManifest,
     invoicesSettingsManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
