@@ -1876,7 +1876,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         process.env['NEWSLETTER_TOKEN_SECRET'] ??
         process.env['SESSION_COOKIE_SECRET'] ??
         'newsletter-dev-secret',
-      platformChannelId: platformSettingsChannelId,
+      // Settings reads need a real channel UUID (the per-channel override
+      // lookup casts to uuid); the system default channel is the platform fallback.
+      platformChannelId:
+        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
       resolveChannelIdByCode: async (code) =>
         (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
       publicBaseUrl:

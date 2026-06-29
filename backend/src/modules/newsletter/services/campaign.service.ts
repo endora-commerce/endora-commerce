@@ -184,7 +184,7 @@ export class NewsletterCampaignService {
     return {
       ...this.toSummary(c),
       content: c.content,
-      salesChannelId: c.salesChannelId,
+      salesChannelId: c.salesChannelId ?? null,
       language: c.language,
       targetTagIds: c.targetTagIds,
       trackingEnabled: c.trackingEnabled,

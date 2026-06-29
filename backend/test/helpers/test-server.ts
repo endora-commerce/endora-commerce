@@ -1593,7 +1593,7 @@ export async function setupBackendServer(
       emFactory: em,
       settings: settings.handle.settingsService,
       tokenSecret: 'test-newsletter-secret',
-      platformChannelId: 'default',
+      platformChannelId: (await salesChannels.handle.resolver.getSystemDefault())?.id ?? 'default',
       resolveChannelIdByCode: async (code) =>
         (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
       publicBaseUrl: 'http://localhost',
