@@ -117,6 +117,10 @@ import { transactionalEmailsSettingsManifest } from './modules/transactional_ema
 import type { TransactionalEmailSender } from '@b2b/contracts';
 import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
 import { ORDER_CONFIRMATION_DEFAULT } from './modules/orders/email-templates/order-confirmation.default.js';
+import {
+  RETURN_AUTHORIZED_DEFAULT,
+  RETURN_REJECTED_DEFAULT,
+} from './modules/returns/email-templates/transactional-defaults.js';
 import { SalesChannel } from './modules/sales_channels/entities/sales-channel.entity.js';
 import { Order } from './modules/orders/entities/order.entity.js';
 import {
@@ -1724,6 +1728,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         organizationsMailer,
         async (customerAccountId) =>
           (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
+        {
+          getTransactionalEmailSender: () => transactionalEmailSender,
+          resolveLanguage: async (salesChannelId) =>
+            (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
+        },
       ),
     }),
   );
@@ -1734,6 +1743,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   emailDefaultsRegistry.register('order_confirmation', {
     defaultSubject: ORDER_CONFIRMATION_DEFAULT.defaultSubject,
     defaultContent: ORDER_CONFIRMATION_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('return_authorized', {
+    defaultSubject: RETURN_AUTHORIZED_DEFAULT.defaultSubject,
+    defaultContent: RETURN_AUTHORIZED_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('return_rejected', {
+    defaultSubject: RETURN_REJECTED_DEFAULT.defaultSubject,
+    defaultContent: RETURN_REJECTED_DEFAULT.defaultContent,
   });
   modules.push(
     transactionalEmailsModule({

@@ -76,6 +76,27 @@ export const manifest = defineModuleManifest({
   dependencies: ['settings'],
   settings,
   i18n: { bundlesDir: 'i18n' },
+  // Feature 047 — admin-editable transactional emails owned by this module.
+  transactionalEmails: [
+    {
+      code: 'return_authorized',
+      name: 'Return authorized',
+      group: 'returns',
+      variables: [
+        { key: 'rmaNumber', label: 'RMA number', sampleValue: 'RMA-1042' },
+        { key: 'returnCaseId', label: 'Return case ID', sampleValue: '…' },
+      ],
+    },
+    {
+      code: 'return_rejected',
+      name: 'Return rejected',
+      group: 'returns',
+      variables: [
+        { key: 'reason', label: 'Rejection reason', sampleValue: 'Item used beyond inspection' },
+        { key: 'returnCaseId', label: 'Return case ID', sampleValue: '…' },
+      ],
+    },
+  ],
   permissions: [
     { code: 'returns:read', label: 'View returns / RMA cases' },
     { code: 'returns:write', label: 'Manage returns / RMA cases, settlement, and configuration' },

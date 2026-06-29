@@ -46,6 +46,10 @@ import { returnsModule } from '../../src/modules/returns/plugin.js';
 import { transactionalEmailsModule } from '../../src/modules/transactional_emails/plugin.js';
 import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/services/email-defaults-registry.js';
 import { ORDER_CONFIRMATION_DEFAULT } from '../../src/modules/orders/email-templates/order-confirmation.default.js';
+import {
+  RETURN_AUTHORIZED_DEFAULT,
+  RETURN_REJECTED_DEFAULT,
+} from '../../src/modules/returns/email-templates/transactional-defaults.js';
 import { OrderReturnContextProvider } from '../../src/modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from '../../src/modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from '../../src/modules/invoices/services/corrective-invoice.js';
@@ -1456,6 +1460,11 @@ export async function setupBackendServer(
       notifier: new ReturnEmailNotifier(
         options.organizationsMailer ?? new ConsoleMailer(),
         async (cid) => (await em().findOne(CustomerAccount, { id: cid }))?.email ?? null,
+        {
+          getTransactionalEmailSender: () => transactionalEmailSender,
+          resolveLanguage: async (salesChannelId) =>
+            (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
+        },
       ),
     }),
   );
@@ -1464,6 +1473,14 @@ export async function setupBackendServer(
   emailDefaultsRegistry.register('order_confirmation', {
     defaultSubject: ORDER_CONFIRMATION_DEFAULT.defaultSubject,
     defaultContent: ORDER_CONFIRMATION_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('return_authorized', {
+    defaultSubject: RETURN_AUTHORIZED_DEFAULT.defaultSubject,
+    defaultContent: RETURN_AUTHORIZED_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('return_rejected', {
+    defaultSubject: RETURN_REJECTED_DEFAULT.defaultSubject,
+    defaultContent: RETURN_REJECTED_DEFAULT.defaultContent,
   });
   modules.push(
     transactionalEmailsModule({
