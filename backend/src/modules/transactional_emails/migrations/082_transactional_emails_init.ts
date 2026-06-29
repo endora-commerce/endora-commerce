@@ -25,7 +25,7 @@ function jsonbLiteral(value: unknown): string {
   return JSON.stringify(value).replace(/'/g, "''");
 }
 
-export class Migration081TransactionalEmailsInit extends Migration {
+export class Migration082TransactionalEmailsInit extends Migration {
   override async up(): Promise<void> {
     // --- Definitions + module defaults -------------------------------------
     this.addSql(`

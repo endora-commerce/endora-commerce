@@ -90,6 +90,14 @@ export const SettingManifestEntrySchema = z
      * options.
      */
     enumOptions: z.array(z.string().min(1)).min(1).optional(),
+    /**
+     * When true, the setting is registered and remains fully readable/writable
+     * through its owning module's dedicated surface (e.g. the PWA settings
+     * page), but is excluded from the generic admin Settings screen so it is
+     * managed in exactly one place. A group whose settings are all hidden does
+     * not appear in the generic Settings list at all.
+     */
+    hidden: z.boolean().optional(),
   })
   .refine((s) => s.valueType !== 'secret' || s.defaultValue === '', {
     message:

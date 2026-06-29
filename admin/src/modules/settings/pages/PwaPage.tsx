@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { KeyRound, Save, Send, Upload } from 'lucide-react';
-import type { PwaAdminConfig, PwaDisplayMode, SalesChannelSummary } from '@b2b/contracts';
+import type {
+  PushAudience,
+  PushAudienceRule,
+  PwaAdminConfig,
+  PwaDisplayMode,
+  SalesChannelSummary,
+} from '@b2b/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -8,8 +14,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ColorPicker } from '@/components/ui/color-picker';
 import { salesChannelsClient } from '@/modules/sales_channels/api/sales-channels-client';
 import { pwaClient } from '../api/pwa-client';
+import { PushAudienceRuleBuilder } from '../PushAudienceRuleBuilder';
 
 /** Pick a display label from a multilingual sales-channel name. */
 function channelLabel(name: SalesChannelSummary['name'], code: string): string {
@@ -20,9 +28,9 @@ function channelLabel(name: SalesChannelSummary['name'], code: string): string {
 /**
  * PWA configuration page (feature 046, US2 + US4 admin surface). Edits the
  * global PWA identity + toggles, uploads the icon (sharp-derived sizes),
- * generates VAPID keys, and sends a broadcast push. Per-channel overrides are
- * available through the generic Settings screen; this page targets the global
- * scope for the common case.
+ * generates VAPID keys, and sends a broadcast push. The Scope selector switches
+ * between the global value and a per-Sales-Channel override; a per-channel scope
+ * can be reset back to the global value with "Reset to global".
  */
 export function PwaPage(): ReactNode {
   const [config, setConfig] = useState<PwaAdminConfig | null>(null);
@@ -40,6 +48,9 @@ export function PwaPage(): ReactNode {
   const [pushTitle, setPushTitle] = useState('');
   const [pushBody, setPushBody] = useState('');
   const [pushUrl, setPushUrl] = useState('');
+  // Audience targeting — 'all' broadcasts; 'rule' narrows via the Rule Builder.
+  const [audienceMode, setAudienceMode] = useState<'all' | 'rule'>('all');
+  const [audienceRule, setAudienceRule] = useState<PushAudienceRule>({ kind: 'all' });
 
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
@@ -97,6 +108,22 @@ export function PwaPage(): ReactNode {
     }
   };
 
+  const resetToGlobal = async (): Promise<void> => {
+    if (!selectedChannelId) return;
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      await pwaClient.resetConfig(selectedChannelId);
+      setInfo('Channel override cleared; this channel now inherits the global configuration.');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Reset failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const generateVapid = async (): Promise<void> => {
     setBusy(true);
     setError(null);
@@ -138,12 +165,17 @@ export function PwaPage(): ReactNode {
     setError(null);
     setInfo(null);
     try {
+      // A 'rule' audience that resolves to "all" is equivalent to a broadcast.
+      const audience: PushAudience =
+        audienceMode === 'rule' && audienceRule.kind !== 'all'
+          ? { kind: 'rule', rule: audienceRule }
+          : { kind: 'all' };
       const res = await pwaClient.sendMessage({
         salesChannelId: selectedChannelId,
         title: pushTitle,
         body: pushBody,
         ...(pushUrl ? { url: pushUrl } : {}),
-        audience: { kind: 'all' },
+        audience,
       });
       setInfo(`Queued ${res.queuedDeliveries} notification(s).`);
       setPushTitle('');
@@ -181,6 +213,11 @@ export function PwaPage(): ReactNode {
         <span className="text-sm text-muted-foreground">
           {selectedChannelId ? 'Editing a per-channel override.' : 'Editing the global value.'}
         </span>
+        {selectedChannelId ? (
+          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void resetToGlobal()}>
+            Reset to global
+          </Button>
+        ) : null}
       </div>
 
       {error ? (
@@ -210,13 +247,23 @@ export function PwaPage(): ReactNode {
                   <Label htmlFor="pwa-short">Short name</Label>
                   <Input id="pwa-short" value={config.shortName} onChange={(e) => patch({ shortName: e.target.value })} />
                 </div>
-                <div>
-                  <Label htmlFor="pwa-theme">Theme color</Label>
-                  <Input id="pwa-theme" value={config.themeColor} onChange={(e) => patch({ themeColor: e.target.value })} placeholder="#1d4ed8" />
+                <div className="flex flex-col gap-1.5">
+                  <Label>Theme color</Label>
+                  <ColorPicker
+                    value={config.themeColor}
+                    onChange={(hex) => patch({ themeColor: hex })}
+                    label="Theme color"
+                    customLabel="Custom theme color"
+                  />
                 </div>
-                <div>
-                  <Label htmlFor="pwa-bg">Background color</Label>
-                  <Input id="pwa-bg" value={config.backgroundColor} onChange={(e) => patch({ backgroundColor: e.target.value })} placeholder="#fafafa" />
+                <div className="flex flex-col gap-1.5">
+                  <Label>Background color</Label>
+                  <ColorPicker
+                    value={config.backgroundColor}
+                    onChange={(hex) => patch({ backgroundColor: hex })}
+                    label="Background color"
+                    customLabel="Custom background color"
+                  />
                 </div>
                 <div>
                   <Label htmlFor="pwa-display">Display mode</Label>
@@ -303,9 +350,37 @@ export function PwaPage(): ReactNode {
                 <Input id="push-body" value={pushBody} onChange={(e) => setPushBody(e.target.value)} />
               </div>
               <div>
-                <Label htmlFor="push-url">Link (opened on tap)</Label>
+                <Label htmlFor="push-url">Link (optional, opened on tap)</Label>
                 <Input id="push-url" value={pushUrl} onChange={(e) => setPushUrl(e.target.value)} placeholder="/account/orders/123" />
               </div>
+
+              <div className="space-y-2">
+                <Label>Audience</Label>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="push-audience-mode"
+                      checked={audienceMode === 'all'}
+                      onChange={() => setAudienceMode('all')}
+                    />
+                    All subscribers
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="push-audience-mode"
+                      checked={audienceMode === 'rule'}
+                      onChange={() => setAudienceMode('rule')}
+                    />
+                    Target by criteria
+                  </label>
+                </div>
+                {audienceMode === 'rule' ? (
+                  <PushAudienceRuleBuilder value={audienceRule} onChange={setAudienceRule} disabled={busy} />
+                ) : null}
+              </div>
+
               {!selectedChannelId ? (
                 <p className="text-sm text-muted-foreground">
                   Select a sales channel in the Scope selector above to send a notification.
@@ -317,7 +392,10 @@ export function PwaPage(): ReactNode {
                   disabled={busy || !selectedChannelId || !config.pushEnabled || !pushTitle || !pushBody}
                   onClick={() => void sendPush()}
                 >
-                  <Send className="mr-2 h-4 w-4" /> Send to all subscribers
+                  <Send className="mr-2 h-4 w-4" />{' '}
+                  {audienceMode === 'rule' && audienceRule.kind !== 'all'
+                    ? 'Send to targeted subscribers'
+                    : 'Send to all subscribers'}
                 </Button>
               </div>
             </CardContent>

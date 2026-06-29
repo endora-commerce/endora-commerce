@@ -32,12 +32,22 @@ describe('GET /api/v1/admin/invoices', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
-      data: Array<{ id: string; status: string; pdfReady: boolean; total: number }>;
+      data: Array<{
+        id: string;
+        status: string;
+        pdfReady: boolean;
+        total: number;
+        orderBusinessId: string | null;
+      }>;
     };
     expect(Array.isArray(body.data)).toBe(true);
     // Seeded fixtures include both pending + ready invoices.
     expect(body.data.length).toBeGreaterThan(0);
     expect(body.data.some((i) => i.status === 'ready' && i.pdfReady === true)).toBe(true);
+    // The customer-facing order business id is resolved for display.
+    expect(
+      body.data.every((i) => typeof i.orderBusinessId === 'string' && i.orderBusinessId.length > 0),
+    ).toBe(true);
   });
 
   it('filters by status', async () => {

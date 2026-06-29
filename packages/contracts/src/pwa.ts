@@ -102,11 +102,78 @@ export const SubscribeResponseSchema = z.object({
 });
 export type SubscribeResponse = z.infer<typeof SubscribeResponseSchema>;
 
+// --- Audience rule AST (Rule Builder targeting) ----------------------------
+//
+// Mirrors the price-list Application Rule AST so the admin can reuse the same
+// Rule Builder UX. A push send is already scoped to one sales channel; the rule
+// narrows that channel's active subscribers by their resolved customer context
+// (organization, customer group) or by an explicit customer list. Anonymous
+// subscribers (no linked customer account) only match `salesChannel` criteria
+// and `{ kind: 'all' }`.
+
+export const pushAudienceCriterionTypeSchema = z.enum([
+  'salesChannel',
+  'customerGroup',
+  'organization',
+  'customer',
+]);
+export type PushAudienceCriterionType = z.infer<typeof pushAudienceCriterionTypeSchema>;
+
+const pushAudienceCriterionNodeSchema = z.object({
+  kind: z.literal('criterion'),
+  type: pushAudienceCriterionTypeSchema,
+  values: z.array(z.string()).max(2000),
+});
+
+const pushAudienceAllNodeSchema = z.object({ kind: z.literal('all') });
+
+export type PushAudienceAllNode = { kind: 'all' };
+export type PushAudienceCriterionNode = {
+  kind: 'criterion';
+  type: PushAudienceCriterionType;
+  values: string[];
+};
+export type PushAudienceGroupNode = {
+  kind: 'group';
+  op: 'AND' | 'OR';
+  children: PushAudienceRule[];
+};
+export type PushAudienceRule =
+  | PushAudienceAllNode
+  | PushAudienceCriterionNode
+  | PushAudienceGroupNode;
+
+const pushAudienceRuleNodeSchema: z.ZodType<PushAudienceRule> = z.lazy(() =>
+  z.discriminatedUnion('kind', [
+    pushAudienceAllNodeSchema,
+    pushAudienceCriterionNodeSchema,
+    z.object({
+      kind: z.literal('group'),
+      op: z.enum(['AND', 'OR']),
+      children: z.array(pushAudienceRuleNodeSchema).min(1).max(20),
+    }),
+  ]),
+);
+
+function pushAudienceRuleDepth(node: PushAudienceRule): number {
+  if (node.kind !== 'group') return 0;
+  return 1 + Math.max(...node.children.map(pushAudienceRuleDepth));
+}
+
+export const pushAudienceRuleSchema = pushAudienceRuleNodeSchema.refine(
+  (node) => pushAudienceRuleDepth(node) <= 5,
+  { message: 'rule_depth_exceeds_5' },
+);
+
 export const PushAudienceSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('all') }),
   z.object({
     kind: z.literal('customers'),
     customerAccountIds: z.array(z.string().uuid()).min(1),
+  }),
+  z.object({
+    kind: z.literal('rule'),
+    rule: pushAudienceRuleSchema,
   }),
 ]);
 export type PushAudience = z.infer<typeof PushAudienceSchema>;

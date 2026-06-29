@@ -1,10 +1,19 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Queue } from 'bullmq';
 import type { PushAudience, PushTrigger } from '@b2b/contracts';
+import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
+import { Organization } from '../../organizations/entities/organization.entity.js';
 import { PushMessage } from '../entities/push-message.entity.js';
 import { PushMessageDelivery } from '../entities/push-message-delivery.entity.js';
 import { PushSubscription } from '../entities/push-subscription.entity.js';
+import { evaluatePushAudienceRule } from './push-audience-evaluator.js';
 import type { PushDeliveryJobData } from './push-delivery-queue.js';
+
+/** Resolved customer context for a linked subscription, used by rule targeting. */
+interface CustomerContext {
+  organizationId: string | null;
+  customerGroupId: string | null;
+}
 
 export interface CreateMessageInput {
   salesChannelId: string;
@@ -94,10 +103,71 @@ export class PushMessageService {
     if (audience.kind === 'all') {
       return em.find(PushSubscription, { salesChannelId, status: 'active' });
     }
-    return em.find(PushSubscription, {
-      salesChannelId,
-      status: 'active',
-      customerAccountId: { $in: audience.customerAccountIds },
+    if (audience.kind === 'customers') {
+      return em.find(PushSubscription, {
+        salesChannelId,
+        status: 'active',
+        customerAccountId: { $in: audience.customerAccountIds },
+      });
+    }
+
+    // kind === 'rule' — narrow active channel subscribers by their resolved
+    // customer context. Anonymous subscribers only match salesChannel/all.
+    const subscriptions = await em.find(PushSubscription, { salesChannelId, status: 'active' });
+    const accountIds = [
+      ...new Set(
+        subscriptions
+          .map((s) => s.customerAccountId)
+          .filter((id): id is string => typeof id === 'string'),
+      ),
+    ];
+    const contexts = await this.loadCustomerContexts(em, accountIds);
+    return subscriptions.filter((sub) => {
+      const ctx = sub.customerAccountId ? contexts.get(sub.customerAccountId) : undefined;
+      return evaluatePushAudienceRule(audience.rule, {
+        salesChannelId,
+        customerAccountId: sub.customerAccountId ?? null,
+        organizationId: ctx?.organizationId ?? null,
+        customerGroupId: ctx?.customerGroupId ?? null,
+      });
     });
+  }
+
+  /**
+   * Batch-resolve `{ organizationId, effective customerGroupId }` for each
+   * linked customer account. The effective group follows the same chain the
+   * pricing engine uses: `account.customerGroupId ?? organization.customerGroupId`.
+   */
+  private async loadCustomerContexts(
+    em: EntityManager,
+    accountIds: string[],
+  ): Promise<Map<string, CustomerContext>> {
+    const map = new Map<string, CustomerContext>();
+    if (accountIds.length === 0) return map;
+
+    const accounts = await em.find(CustomerAccount, { id: { $in: accountIds } });
+    const orgIds = [
+      ...new Set(
+        accounts
+          .map((a) => a.organizationId)
+          .filter((id): id is string => typeof id === 'string'),
+      ),
+    ];
+    const orgGroups = new Map<string, string | null>();
+    if (orgIds.length > 0) {
+      const orgs = await em.find(Organization, { id: { $in: orgIds } });
+      for (const org of orgs) orgGroups.set(org.id, org.customerGroupId ?? null);
+    }
+
+    for (const account of accounts) {
+      const orgGroup = account.organizationId
+        ? orgGroups.get(account.organizationId) ?? null
+        : null;
+      map.set(account.id, {
+        organizationId: account.organizationId ?? null,
+        customerGroupId: account.customerGroupId ?? orgGroup,
+      });
+    }
+    return map;
   }
 }

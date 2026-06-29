@@ -39,7 +39,8 @@ export class Setting {
     | 'updatedAt'
     | 'description'
     | 'globalValue'
-    | 'enumOptions';
+    | 'enumOptions'
+    | 'hidden';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -83,6 +84,15 @@ export class Setting {
    */
   @Property({ type: 'json', nullable: true, fieldName: 'enum_options' })
   enumOptions?: string[] | null;
+
+  /**
+   * When true, the setting is excluded from the generic admin Settings screen
+   * and managed exclusively through its owning module's dedicated UI (e.g. the
+   * PWA settings page). It stays fully readable/writable by code. Manifest-
+   * driven config, kept in sync on every reconciliation.
+   */
+  @Property({ type: 'boolean', default: false })
+  hidden: boolean = false;
 
   /**
    * Sales-channel scope. Empty collection ⇒ "applies to all sales channels"

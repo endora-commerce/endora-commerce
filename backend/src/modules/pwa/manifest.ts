@@ -1,4 +1,10 @@
-import { defineModuleManifest, defineModuleSettingsManifest, PWA_PERMISSIONS, PWA_SETTING_CODES } from '@b2b/contracts';
+import {
+  defineModuleManifest,
+  defineModuleSettingsManifest,
+  PWA_PERMISSIONS,
+  PWA_SETTING_CODES,
+  type SettingManifestEntry,
+} from '@b2b/contracts';
 
 /**
  * PWA module — feature 046.
@@ -14,10 +20,10 @@ import { defineModuleManifest, defineModuleSettingsManifest, PWA_PERMISSIONS, PW
  * the optional FCM service-account JSON are `secret` value types (encrypted at rest).
  */
 
-const settings = defineModuleSettingsManifest({
-  moduleCode: 'pwa',
-  groups: [{ code: 'pwa', name: 'Progressive Web App' }],
-  settings: [
+// Every PWA setting is managed exclusively from the dedicated PWA settings
+// page (/settings/pwa). Marking them `hidden: true` (applied below) keeps them
+// out of the generic Settings screen so each value lives in exactly one place.
+const pwaSettingEntries: SettingManifestEntry[] = [
     {
       code: PWA_SETTING_CODES.APP_NAME,
       name: 'App name',
@@ -106,7 +112,12 @@ const settings = defineModuleSettingsManifest({
       valueType: 'secret',
       defaultValue: '',
     },
-  ],
+];
+
+const settings = defineModuleSettingsManifest({
+  moduleCode: 'pwa',
+  groups: [{ code: 'pwa', name: 'Progressive Web App' }],
+  settings: pwaSettingEntries.map((entry) => ({ ...entry, hidden: true })),
 });
 
 /** Settings-only export consumed by the boot-time ManifestReconciler list. */

@@ -6,7 +6,9 @@ import { useEffect, useState } from 'react';
  * Add-to-home-screen prompt (feature 046, US1). Captures the
  * `beforeinstallprompt` event and offers a single, dismissible install
  * pop-up. Renders nothing on browsers that do not fire the event (graceful
- * degradation — no broken install UI, US1 scenario 3).
+ * degradation — no broken install UI, US1 scenario 3). Dismissing it (the "X"
+ * or "Not now") suppresses the pop-up for 30 days, persisted in localStorage,
+ * so it does not reappear on every navigation.
  *
  * Presented as a floating card pop-up consistent with the Storefront design
  * system (surface/line tokens, `shadow-lg`, the shared `b2b-cta` atom and the
@@ -20,6 +22,23 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 const DISMISS_KEY = 'b2b:pwa:install-dismissed';
+/** Suppress the prompt for 30 days after the user dismisses it (US1). */
+const DISMISS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * True while a previous dismissal is still within its 30-day window. The stored
+ * value is the dismissal's expiry epoch (ms); a legacy `'1'` parses below the
+ * current time and is treated as expired, so such users simply get one more
+ * chance to dismiss for 30 days.
+ */
+function isDismissActive(): boolean {
+  try {
+    const expiry = Number(window.localStorage.getItem(DISMISS_KEY));
+    return Number.isFinite(expiry) && expiry > Date.now();
+  } catch {
+    return false;
+  }
+}
 
 interface Copy {
   title: string;
@@ -55,12 +74,16 @@ export function InstallPrompt(): React.ReactElement | null {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (window.localStorage.getItem(DISMISS_KEY) === '1') return;
+    if (isDismissActive()) return;
 
     setLang(document.documentElement.lang || 'en');
 
     const handler = (event: Event) => {
       event.preventDefault();
+      // Re-check at fire time: the browser can re-emit the event after the user
+      // dismissed it during this session (e.g. on navigation), so honour the
+      // 30-day window here too instead of re-showing the pop-up.
+      if (isDismissActive()) return;
       setDeferred(event as BeforeInstallPromptEvent);
     };
     window.addEventListener('beforeinstallprompt', handler);
@@ -72,7 +95,11 @@ export function InstallPrompt(): React.ReactElement | null {
   const copy = pickCopy(lang);
 
   const dismiss = () => {
-    window.localStorage.setItem(DISMISS_KEY, '1');
+    try {
+      window.localStorage.setItem(DISMISS_KEY, String(Date.now() + DISMISS_TTL_MS));
+    } catch {
+      // Storage unavailable (private mode quota): still hide for this session.
+    }
     setDeferred(null);
   };
 

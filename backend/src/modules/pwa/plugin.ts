@@ -133,6 +133,7 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
     });
     await registerPwaAdminRoutes(app, {
       requireAdmin: options.requireAdmin,
+      emFactory: options.emFactory,
       configResolver,
       iconService,
       subscriptionService,
