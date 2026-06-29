@@ -23,6 +23,7 @@ import {
 interface AdminInvoice {
   id: string;
   orderId: string;
+  orderBusinessId: string | null;
   kind: 'proforma' | 'invoice' | 'correction';
   number: string;
   issuedAt: string;
@@ -133,7 +134,7 @@ export function InvoicesList(): ReactNode {
                         to={`/orders/${i.orderId}`}
                         className="font-mono text-xs underline underline-offset-2"
                       >
-                        {i.orderId.slice(0, 8)}
+                        {i.orderBusinessId ?? i.orderId.slice(0, 8)}
                       </Link>
                     </TableCell>
                     <TableCell className="tabular-nums">
