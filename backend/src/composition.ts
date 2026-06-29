@@ -118,6 +118,11 @@ import type { TransactionalEmailSender } from '@b2b/contracts';
 import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
 import { ORDER_CONFIRMATION_DEFAULT } from './modules/orders/email-templates/order-confirmation.default.js';
 import {
+  ORDER_COMMENT_DEFAULT,
+  REORDER_CREATED_DEFAULT,
+  ADMIN_CREATED_ORDER_DEFAULT,
+} from './modules/orders/email-templates/secondary-defaults.js';
+import {
   RETURN_AUTHORIZED_DEFAULT,
   RETURN_REJECTED_DEFAULT,
 } from './modules/returns/email-templates/transactional-defaults.js';
@@ -1743,6 +1748,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   emailDefaultsRegistry.register('order_confirmation', {
     defaultSubject: ORDER_CONFIRMATION_DEFAULT.defaultSubject,
     defaultContent: ORDER_CONFIRMATION_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('order_comment', {
+    defaultSubject: ORDER_COMMENT_DEFAULT.defaultSubject,
+    defaultContent: ORDER_COMMENT_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('reorder_created', {
+    defaultSubject: REORDER_CREATED_DEFAULT.defaultSubject,
+    defaultContent: REORDER_CREATED_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('admin_created_order', {
+    defaultSubject: ADMIN_CREATED_ORDER_DEFAULT.defaultSubject,
+    defaultContent: ADMIN_CREATED_ORDER_DEFAULT.defaultContent,
   });
   emailDefaultsRegistry.register('return_authorized', {
     defaultSubject: RETURN_AUTHORIZED_DEFAULT.defaultSubject,

@@ -103,6 +103,31 @@ export const manifest = defineModuleManifest({
         { key: 'order.items', label: 'Order line items (list)' },
       ],
     },
+    {
+      code: 'order_comment',
+      name: 'Order comment notification',
+      group: 'orders',
+      variables: [
+        { key: 'order.businessId', label: 'Order number', sampleValue: 'ORD-1042' },
+        { key: 'comment.body', label: 'Comment body', sampleValue: 'Your order ships tomorrow.' },
+      ],
+    },
+    {
+      code: 'reorder_created',
+      name: 'Reorder created',
+      group: 'orders',
+      variables: [
+        { key: 'order.sourceBusinessId', label: 'Source order number', sampleValue: 'ORD-1000' },
+      ],
+    },
+    {
+      code: 'admin_created_order',
+      name: 'Admin-created order',
+      group: 'orders',
+      variables: [
+        { key: 'order.businessId', label: 'Order number', sampleValue: 'ORD-1042' },
+      ],
+    },
   ],
   // Feature 038 — admin search/command-palette actions.
   actions: [

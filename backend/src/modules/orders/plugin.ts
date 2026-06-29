@@ -418,11 +418,13 @@ export function commerceModule(options: OrdersModuleOptions) {
       options.emFactory,
       orderStatusGraphService,
       options.mailer,
+      options.getTransactionalEmailSender,
     );
     const orderReorderService = new OrderReorderService(
       options.emFactory,
       options.resolveReorderEnabled,
       options.mailer,
+      options.getTransactionalEmailSender,
     );
     const orderCloneToQuoteService = new OrderCloneToQuoteService(
       options.emFactory,
@@ -435,6 +437,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       orderService,
       addressService,
       options.mailer,
+      options.getTransactionalEmailSender,
     );
 
     const cartUpsellService = new CartUpsellService(options.emFactory);
