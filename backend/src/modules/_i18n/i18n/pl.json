@@ -1428,6 +1428,8 @@
   "adminRoles.permission.orders:write": "Edycja zamówień / zmiana statusu",
   "adminRoles.permission.returns:read": "Podgląd zwrotów / spraw RMA",
   "adminRoles.permission.returns:write": "Zarządzanie zwrotami / sprawami RMA i rozliczeniem",
+  "adminRoles.permission.invoices:read": "Podgląd faktur i pobieranie PDF faktur",
+  "adminRoles.permission.invoices:write": "Wystawianie/korygowanie faktur, edycja szablonów i konfiguracja fakturowania",
   "adminRoles.permission.transactional_emails:read": "Podgląd maili transakcyjnych",
   "adminRoles.permission.transactional_emails:write": "Zarządzanie mailami transakcyjnymi, blokami, szablonami i brandingiem",
   "adminRoles.permission.rfqs:handle": "Obsługa zapytań ofertowych",

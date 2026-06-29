@@ -1428,6 +1428,8 @@
   "adminRoles.permission.orders:write": "Edit orders / change status",
   "adminRoles.permission.returns:read": "View returns / RMA cases",
   "adminRoles.permission.returns:write": "Manage returns / RMA cases and settlement",
+  "adminRoles.permission.invoices:read": "View invoices and download invoice PDFs",
+  "adminRoles.permission.invoices:write": "Issue/correct invoices, edit templates, and configure invoicing",
   "adminRoles.permission.transactional_emails:read": "View transactional emails",
   "adminRoles.permission.transactional_emails:write": "Manage transactional emails, blocks, templates, and branding",
   "adminRoles.permission.rfqs:handle": "Handle quote requests",

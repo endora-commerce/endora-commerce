@@ -138,6 +138,7 @@ import {
 } from './modules/inventory/email-templates/transactional-defaults.js';
 import { PAYMENT_STATUS_CHANGED_DEFAULT } from './modules/payments/email-templates/transactional-defaults.js';
 import { SHIPMENT_CREATED_DEFAULT } from './modules/shipments/email-templates/transactional-defaults.js';
+import { INVOICE_ISSUED_DEFAULT } from './modules/invoices/email-templates/invoice-issued.default.js';
 import { PaymentEmailNotifier } from './modules/payments/services/payment-email-notifier.js';
 import { ShipmentEmailNotifier } from './modules/shipments/services/shipment-email-notifier.js';
 import { SalesChannel } from './modules/sales_channels/entities/sales-channel.entity.js';
@@ -1828,6 +1829,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   emailDefaultsRegistry.register('shipment_created', {
     defaultSubject: SHIPMENT_CREATED_DEFAULT.defaultSubject,
     defaultContent: SHIPMENT_CREATED_DEFAULT.defaultContent,
+  });
+  emailDefaultsRegistry.register('invoice_issued', {
+    defaultSubject: INVOICE_ISSUED_DEFAULT.defaultSubject,
+    defaultContent: INVOICE_ISSUED_DEFAULT.defaultContent,
   });
   // Feature 047 — net-new email subscribers (payment status + shipment created).
   new PaymentEmailNotifier({
