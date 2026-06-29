@@ -1747,6 +1747,22 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
   modules.push(customers.plugin);
 
+  // Feature 047 — Invoices. Owns issuance, numbering, PDF rendering, admin +
+  // customer routes. Constructed before returns so the corrective-invoice
+  // provider can draw correction numbers from the shared number generator.
+  const invoices = invoicesModule({
+    emFactory: em,
+    requireAdmin,
+    requireCustomer,
+    settingsService: settings.handle.settingsService,
+    resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
+    resolveCustomerContext: (req: FastifyRequest) => {
+      const c = customerResolver(req);
+      return { customerAccountId: c.customerAccountId, organizationId: c.organizationId };
+    },
+  });
+  modules.push(invoices.plugin);
+
   // Feature 046 — Returns & Complaints (Refunds, RMA). Reads order facts only
   // through the OrderReturnContextPort (Principle I); settings drive the
   // free-return window and RMA prefix/suffix.
@@ -1761,7 +1777,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
       orderContext: new OrderReturnContextProvider(em),
       paymentRefund: new PaymentRefundProvider(em),
-      correctiveInvoice: new CorrectiveInvoiceProvider(em),
+      correctiveInvoice: new CorrectiveInvoiceProvider(em, invoices.handle.numberGenerator),
       creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
       auditLog: auditLogService,
       notifier: new ReturnEmailNotifier(
@@ -1776,23 +1792,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       ),
     }),
   );
-
-  // Feature 047 — Invoices. Owns issuance, numbering, PDF rendering, admin +
-  // customer routes. Reads orders read-only; settings drive numbering + seller
-  // data. The email dispatcher is injected after the transactional sender is
-  // exposed (see below).
-  const invoices = invoicesModule({
-    emFactory: em,
-    requireAdmin,
-    requireCustomer,
-    settingsService: settings.handle.settingsService,
-    resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
-    resolveCustomerContext: (req: FastifyRequest) => {
-      const c = customerResolver(req);
-      return { customerAccountId: c.customerAccountId, organizationId: c.organizationId };
-    },
-  });
-  modules.push(invoices.plugin);
 
   // Feature 047 — Transactional Emails. Owning modules register their default
   // subject + content here; the module reconciles all manifest-declared emails

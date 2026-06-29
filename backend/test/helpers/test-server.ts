@@ -73,6 +73,10 @@ import { ShipmentEmailNotifier } from '../../src/modules/shipments/services/ship
 import { OrderReturnContextProvider } from '../../src/modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from '../../src/modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from '../../src/modules/invoices/services/corrective-invoice.js';
+import {
+  InvoiceNumberGenerator,
+  createSettingsPatternResolver,
+} from '../../src/modules/invoices/services/invoice-number-generator.js';
 import { CreditTopupProvider } from '../../src/modules/credit_limits/services/credit-topup.js';
 import { ReturnEmailNotifier } from '../../src/modules/returns/services/return-email-notifier.js';
 import { creditLimitsModule } from '../../src/modules/credit_limits/plugin.js';
@@ -1494,7 +1498,10 @@ export async function setupBackendServer(
         req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
       orderContext: new OrderReturnContextProvider(em),
       paymentRefund: new PaymentRefundProvider(em),
-      correctiveInvoice: new CorrectiveInvoiceProvider(em),
+      correctiveInvoice: new CorrectiveInvoiceProvider(
+        em,
+        new InvoiceNumberGenerator(createSettingsPatternResolver(settings.handle.settingsService)),
+      ),
       creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
       auditLog: auditLogService,
       notifier: new ReturnEmailNotifier(
