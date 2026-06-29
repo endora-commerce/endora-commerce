@@ -55,7 +55,8 @@ import { manifest as manifest_47 } from '../settings/manifest.js';
 import { manifest as manifest_48 } from '../shipments/manifest.js';
 import { manifest as manifest_49 } from '../shopping_lists/manifest.js';
 import { manifest as manifest_50 } from '../taxes/manifest.js';
-import { manifest as manifest_51 } from '../webhooks/manifest.js';
+import { manifest as manifest_51 } from '../transactional_emails/manifest.js';
+import { manifest as manifest_52 } from '../webhooks/manifest.js';
 
 export interface DiscoveredManifestEntry {
   id: string;
@@ -114,5 +115,6 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'shipments', manifest: manifest_48 },
   { id: 'shopping_lists', manifest: manifest_49 },
   { id: 'taxes', manifest: manifest_50 },
-  { id: 'webhooks', manifest: manifest_51 },
+  { id: 'transactional_emails', manifest: manifest_51 },
+  { id: 'webhooks', manifest: manifest_52 },
 ];

@@ -43,6 +43,9 @@ import { adminModule } from '../../src/modules/admin_users/plugin.js';
 import { inventoryModule } from '../../src/modules/inventory/plugin.js';
 import { shoppingListsModule } from '../../src/modules/shopping_lists/plugin.js';
 import { returnsModule } from '../../src/modules/returns/plugin.js';
+import { transactionalEmailsModule } from '../../src/modules/transactional_emails/plugin.js';
+import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/services/email-defaults-registry.js';
+import { ORDER_CONFIRMATION_DEFAULT } from '../../src/modules/orders/email-templates/order-confirmation.default.js';
 import { OrderReturnContextProvider } from '../../src/modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from '../../src/modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from '../../src/modules/invoices/services/corrective-invoice.js';
@@ -1449,6 +1452,24 @@ export async function setupBackendServer(
         options.organizationsMailer ?? new ConsoleMailer(),
         async (cid) => (await em().findOne(CustomerAccount, { id: cid }))?.email ?? null,
       ),
+    }),
+  );
+
+  // Feature 047 — Transactional Emails.
+  emailDefaultsRegistry.register('order_confirmation', {
+    defaultSubject: ORDER_CONFIRMATION_DEFAULT.defaultSubject,
+    defaultContent: ORDER_CONFIRMATION_DEFAULT.defaultContent,
+  });
+  modules.push(
+    transactionalEmailsModule({
+      emFactory: em,
+      settingsService: settings.handle.settingsService,
+      requireAdmin: requireTestAdmin(permissionService),
+      resolveAdminUserId: (req) =>
+        req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
+      manifests: REGISTERED_MANIFESTS.map((e) => e.manifest),
+      mailer: options.organizationsMailer ?? new ConsoleMailer(),
+      auditLog: auditLogService,
     }),
   );
 

@@ -111,6 +111,10 @@ import { promptActionsSettingsManifest } from './modules/prompt_actions/manifest
 // Feature 046 — Progressive Web App.
 import { pwaModule } from './modules/pwa/plugin.js';
 import { pwaSettingsManifest } from './modules/pwa/manifest.js';
+// Feature 047 — Transactional Emails.
+import { transactionalEmailsModule } from './modules/transactional_emails/plugin.js';
+import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
+import { ORDER_CONFIRMATION_DEFAULT } from './modules/orders/email-templates/order-confirmation.default.js';
 import { SalesChannel } from './modules/sales_channels/entities/sales-channel.entity.js';
 import { Order } from './modules/orders/entities/order.entity.js';
 import {
@@ -1712,6 +1716,32 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         async (customerAccountId) =>
           (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
       ),
+    }),
+  );
+
+  // Feature 047 — Transactional Emails. Owning modules register their default
+  // subject + content here; the module reconciles all manifest-declared emails
+  // at boot and exposes the sender port for future send-site cutover.
+  emailDefaultsRegistry.register('order_confirmation', {
+    defaultSubject: ORDER_CONFIRMATION_DEFAULT.defaultSubject,
+    defaultContent: ORDER_CONFIRMATION_DEFAULT.defaultContent,
+  });
+  modules.push(
+    transactionalEmailsModule({
+      emFactory: em,
+      settingsService: settings.handle.settingsService,
+      requireAdmin,
+      resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
+      manifests: REGISTERED_MANIFESTS.map((e) => e.manifest),
+      mailer: organizationsMailer,
+      auditLog: auditLogService,
+      resolveAssetUrl: async (assetId) => {
+        try {
+          return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
+        } catch {
+          return null;
+        }
+      },
     }),
   );
 

@@ -84,6 +84,21 @@ export const manifest = defineModuleManifest({
   dependencies: ['settings'],
   settings,
   i18n: { bundlesDir: 'i18n' },
+  // Feature 047 — transactional emails owned by this module. Default subject +
+  // content are registered at runtime via the EmailDefaultsRegistry.
+  transactionalEmails: [
+    {
+      code: 'order_confirmation',
+      name: 'Order confirmation',
+      group: 'orders',
+      variables: [
+        { key: 'order.businessId', label: 'Order number', sampleValue: 'ORD-1042' },
+        { key: 'customer.firstName', label: 'Customer first name', sampleValue: 'Anna' },
+        { key: 'order.total', label: 'Order total', sampleValue: '1 230,00 PLN' },
+        { key: 'order.items', label: 'Order line items (list)' },
+      ],
+    },
+  ],
   // Feature 038 — admin search/command-palette actions.
   actions: [
     {

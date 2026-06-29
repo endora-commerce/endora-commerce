@@ -46,6 +46,12 @@ import { PushSubscription } from '../modules/pwa/entities/push-subscription.enti
 import { PushMessage } from '../modules/pwa/entities/push-message.entity.js';
 import { PushMessageDelivery } from '../modules/pwa/entities/push-message-delivery.entity.js';
 import { PwaIconRendition } from '../modules/pwa/entities/pwa-icon-rendition.entity.js';
+import { TransactionalEmail } from '../modules/transactional_emails/entities/transactional-email.entity.js';
+import { TransactionalEmailContent } from '../modules/transactional_emails/entities/transactional-email-content.entity.js';
+import { EmailBlock } from '../modules/transactional_emails/entities/email-block.entity.js';
+import { EmailBlockSalesChannel } from '../modules/transactional_emails/entities/email-block-sales-channel.entity.js';
+import { EmailTemplate } from '../modules/transactional_emails/entities/email-template.entity.js';
+import { EmailTemplateSalesChannel } from '../modules/transactional_emails/entities/email-template-sales-channel.entity.js';
 import { Cart } from '../modules/carts/entities/cart.entity.js';
 import { CartItem } from '../modules/carts/entities/cart-item.entity.js';
 import { CartAuditEntry } from '../modules/carts/entities/cart-audit-entry.entity.js';
@@ -349,4 +355,11 @@ export const ALL_ENTITIES = [
   PushMessage,
   PushMessageDelivery,
   PwaIconRendition,
+  // transactional emails (feature 047)
+  TransactionalEmail,
+  TransactionalEmailContent,
+  EmailBlock,
+  EmailBlockSalesChannel,
+  EmailTemplate,
+  EmailTemplateSalesChannel,
 ] as const;
