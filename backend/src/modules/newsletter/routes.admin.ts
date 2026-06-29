@@ -12,6 +12,9 @@ import {
   updateNewsletterTagRequestSchema,
   createNewsletterCustomFieldRequestSchema,
   updateNewsletterCustomFieldRequestSchema,
+  createAutomationRequestSchema,
+  updateAutomationRequestSchema,
+  automationActionRequestSchema,
 } from '@b2b/contracts';
 import { z } from 'zod';
 import type { NewsletterCampaignService } from './services/campaign.service.js';
@@ -19,6 +22,7 @@ import type { NewsletterSubscriberService } from './services/subscriber.service.
 import type { NewsletterSubscriberAdminService } from './services/subscriber-admin.service.js';
 import type { NewsletterTagService } from './services/tag.service.js';
 import type { NewsletterCustomFieldService } from './services/custom-field.service.js';
+import type { NewsletterAutomationService } from './services/automation.service.js';
 
 export interface NewsletterAdminDeps {
   campaigns: NewsletterCampaignService;
@@ -26,6 +30,7 @@ export interface NewsletterAdminDeps {
   subscriberAdmin: NewsletterSubscriberAdminService;
   tags: NewsletterTagService;
   customFields: NewsletterCustomFieldService;
+  automations: NewsletterAutomationService;
   requireAdmin: (permission?: string) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 }
 
@@ -143,4 +148,28 @@ export async function registerNewsletterAdminRoutes(
     await deps.customFields.remove(idOf(req));
     return reply.status(204).send();
   });
+
+  // --- Automations -------------------------------------------------------
+  app.get(`${base}/automations`, read, async (_req, reply) =>
+    reply.send({ data: await deps.automations.list() }),
+  );
+  app.get(`${base}/automations/:id`, read, async (req, reply) =>
+    reply.send({ data: await deps.automations.get(idOf(req)) }),
+  );
+  app.post(`${base}/automations`, write, async (req, reply) =>
+    reply.status(201).send({ data: await deps.automations.create(createAutomationRequestSchema.parse(req.body)) }),
+  );
+  app.put(`${base}/automations/:id`, write, async (req, reply) =>
+    reply.send({ data: await deps.automations.update(idOf(req), updateAutomationRequestSchema.parse(req.body)) }),
+  );
+  app.post(`${base}/automations/:id/activate`, write, async (req, reply) =>
+    reply.send({
+      data: await deps.automations.activate(idOf(req), automationActionRequestSchema.parse(req.body).expectedVersion),
+    }),
+  );
+  app.post(`${base}/automations/:id/pause`, write, async (req, reply) =>
+    reply.send({
+      data: await deps.automations.pause(idOf(req), automationActionRequestSchema.parse(req.body).expectedVersion),
+    }),
+  );
 }

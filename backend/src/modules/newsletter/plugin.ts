@@ -18,12 +18,15 @@ import { NewsletterCampaignService } from './services/campaign.service.js';
 import { NewsletterSubscriberAdminService } from './services/subscriber-admin.service.js';
 import { NewsletterTagService } from './services/tag.service.js';
 import { NewsletterCustomFieldService } from './services/custom-field.service.js';
+import { NewsletterAutomationService } from './services/automation.service.js';
 import { NewsletterProviderRegistry } from './services/provider/provider-registry.js';
 import {
   createCampaignPlanQueue,
   createSendQueue,
+  createAutomationStepQueue,
   createCampaignPlanWorker,
   createSendWorker,
+  createAutomationStepWorker,
 } from './services/queues/newsletter-queues.js';
 import { registerNewsletterStorefrontRoutes } from './routes.storefront.js';
 import { registerNewsletterAdminRoutes } from './routes.admin.js';
@@ -92,6 +95,21 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
   // Producer-side queues (needed by the API to enqueue, regardless of worker role).
   const planQueue = options.redis ? createCampaignPlanQueue(options.redis) : undefined;
   const sendQueue = options.redis ? createSendQueue(options.redis) : undefined;
+  const automationStepQueue = options.redis ? createAutomationStepQueue(options.redis) : undefined;
+
+  const automations = new NewsletterAutomationService({
+    emFactory: options.emFactory,
+    content,
+    optIn,
+    links,
+    resolveProvider: () => providers.resolveProvider(),
+    resolveSender: () => providers.resolveSender(),
+    enqueueStep: async (runId, stepIndex, delayMs) => {
+      if (automationStepQueue) {
+        await automationStepQueue.add('step', { runId, stepIndex }, delayMs ? { delay: delayMs } : {});
+      }
+    },
+  });
 
   const campaigns = new NewsletterCampaignService({
     emFactory: options.emFactory,
@@ -144,6 +162,15 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
         ),
         { logger: app.log },
       );
+      if (automationStepQueue) {
+        defineModuleWorker(
+          'newsletter',
+          createAutomationStepWorker(options.redis, async (job) => {
+            await automations.processStep(job.data.runId, job.data.stepIndex);
+          }),
+          { logger: app.log },
+        );
+      }
     }
 
     await defineModuleRoutes('newsletter', async (scoped) => {
@@ -161,6 +188,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
         subscriberAdmin,
         tags,
         customFields,
+        automations,
         requireAdmin: options.requireAdmin,
       });
     })(app);
