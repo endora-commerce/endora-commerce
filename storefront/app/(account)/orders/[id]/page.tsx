@@ -10,6 +10,7 @@ import {
   resolveOrderStatusLabel,
   type OrderComment,
 } from '../../../../lib/api/orders';
+import { getReturnable } from '../../../../lib/api/returns';
 import { getSessionCookie } from '../../../../lib/session';
 import { getServerContext } from '../../../../lib/server-context';
 import { StorefrontApiError } from '../../../../lib/api/client';
@@ -57,6 +58,17 @@ export default async function OrderConfirmationPage({
   const isTerminal = order.status === 'completed' || order.status === 'cancelled';
   const awaitingPayment = !isTerminal && order.paymentStatus === 'awaiting_payment';
 
+  // Surface a return/complaint entry point directly on the order — only when the
+  // order is actually eligible (entered a completing status, items still
+  // returnable). Falls back to hidden on any error so the page never breaks.
+  let returnEligible = false;
+  try {
+    const returnable = await getReturnable(session, id);
+    returnEligible = returnable.eligible;
+  } catch {
+    returnEligible = false;
+  }
+
   return (
     <div className="b2b-auth max-w-[720px]">
       <h1>Thank you — order placed</h1>
@@ -84,6 +96,11 @@ export default async function OrderConfirmationPage({
             Order again → quote request
           </button>
         </form>
+        {returnEligible ? (
+          <Link href={`/returns/new?orderId=${order.id}`} className="btn btn--outline btn--sm">
+            Request return / complaint
+          </Link>
+        ) : null}
         <Link href="/orders" className="btn btn--ghost btn--sm">
           See all orders
         </Link>
