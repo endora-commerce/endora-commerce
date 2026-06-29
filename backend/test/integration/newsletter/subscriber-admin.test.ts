@@ -47,8 +47,12 @@ describe('newsletter subscriber admin (US3)', () => {
     em.create(NewsletterSubscriberTag, { subscriberId: a.id, tagId: tag.id });
     await em.flush();
 
-    const all = await admin.list({ page: 1, pageSize: 50 });
-    expect(all.total).toBe(2);
+    // Note: other (contract) tests may commit subscribers into the shared test
+    // DB, so assert presence rather than an exact global count.
+    const all = await admin.list({ page: 1, pageSize: 200 });
+    expect(all.total).toBeGreaterThanOrEqual(2);
+    expect(all.items.some((i) => i.email === 'a@x.test')).toBe(true);
+    expect(all.items.some((i) => i.email === 'b@x.test')).toBe(true);
 
     const filtered = await admin.list({ page: 1, pageSize: 50, tag: 'vip' });
     expect(filtered.total).toBe(1);

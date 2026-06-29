@@ -16,6 +16,7 @@ import { quoteRequestsModule } from '../../src/modules/quote_requests/plugin.js'
 import { customersModule } from '../../src/modules/customers/plugin.js';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../src/http/error-envelope.js';
+import { randomUUID } from 'node:crypto';
 import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
 import { AdminUser } from '../../src/modules/admin_users/entities/admin-user.entity.js';
 import { AdminUserService } from '../../src/modules/admin_users/services/admin-user-service.js';
@@ -45,6 +46,8 @@ import { shoppingListsModule } from '../../src/modules/shopping_lists/plugin.js'
 import { returnsModule } from '../../src/modules/returns/plugin.js';
 import { transactionalEmailsModule } from '../../src/modules/transactional_emails/plugin.js';
 import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/services/email-defaults-registry.js';
+import { newsletterModule } from '../../src/modules/newsletter/plugin.js';
+import { newsletterSettingsManifest } from '../../src/modules/newsletter/manifest.js';
 import { ORDER_CONFIRMATION_DEFAULT } from '../../src/modules/orders/email-templates/order-confirmation.default.js';
 import {
   ORDER_COMMENT_DEFAULT,
@@ -1586,6 +1589,37 @@ export async function setupBackendServer(
   );
 
   modules.push(
+    newsletterModule({
+      emFactory: em,
+      settings: settings.handle.settingsService,
+      tokenSecret: 'test-newsletter-secret',
+      platformChannelId: 'default',
+      resolveChannelIdByCode: async (code) =>
+        (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+      publicBaseUrl: 'http://localhost',
+      storefrontBaseUrl: 'http://localhost',
+      requireAdmin: requireTestAdmin(permissionService),
+      settingsWrite: settings.handle.adminService,
+      resolveAuditContext: (req) => ({
+        actorAdminUserId: req.testActor?.kind === 'admin' ? req.testActor.adminUserId : null,
+      }),
+      requireCustomer: requireTestCustomer(),
+      resolveCustomerAccountId: (req) =>
+        req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : '',
+      loadCustomerEmail: async (customerAccountId) =>
+        (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
+      mailer: options.organizationsMailer ?? new ConsoleMailer(),
+      auditLog: auditLogService,
+      emitEvent: (name, payload) =>
+        eventBus.emit(name, {
+          eventId: randomUUID(),
+          occurredAt: new Date().toISOString(),
+          ...payload,
+        }),
+    }),
+  );
+
+  modules.push(
     shoppingListsModule({
       emFactory: em,
       rfqService: quoteRequests.handle().rfqService,
@@ -1641,6 +1675,7 @@ export async function setupBackendServer(
     promptActionsSettingsManifest,
     pwaSettingsManifest,
     transactionalEmailsSettingsManifest,
+    newsletterSettingsManifest,
   ]);
 
   const app = await buildServer({
