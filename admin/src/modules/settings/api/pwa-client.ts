@@ -31,6 +31,10 @@ export const pwaClient = {
     return apiClient.put<{ updated: number }>(`/api/v1/admin/pwa/config`, body);
   },
 
+  resetConfig(salesChannelId: string): Promise<{ reset: number }> {
+    return apiClient.post<{ reset: number }>(`/api/v1/admin/pwa/config/reset`, { salesChannelId });
+  },
+
   generateVapid(): Promise<VapidKeyPairResponse> {
     return apiClient.post<VapidKeyPairResponse>(`/api/v1/admin/pwa/vapid/generate`, {});
   },

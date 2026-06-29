@@ -35,6 +35,12 @@ export interface SettingsWritePort {
     expectedVersion: string | null,
     actor: AdminAuditContext,
   ): Promise<unknown>;
+  /** Remove per-channel override rows so the channel inherits the global value. */
+  resetValues(
+    code: string,
+    channelCodes: string[] | undefined,
+    actor: AdminAuditContext,
+  ): Promise<unknown>;
 }
 
 const StringSchema = z.string();
@@ -145,6 +151,24 @@ export async function registerPwaAdminRoutes(
       }
     }
     return reply.send({ updated: writes.length });
+  });
+
+  // POST /admin/pwa/config/reset — drop a channel's per-channel overrides so it
+  // inherits the global PWA config again. Only meaningful for a concrete channel.
+  app.post('/api/v1/admin/pwa/config/reset', { preHandler: writeGate }, async (request, reply) => {
+    const body = z.object({ salesChannelId: z.string().uuid() }).parse(request.body);
+    const channelCode = await deps.channelCodeForId(body.salesChannelId);
+    if (!channelCode) {
+      return reply.code(400).send({
+        error: { code: 'PWA_CHANNEL_UNKNOWN', message: 'Unknown sales channel.' },
+      });
+    }
+    const actor = deps.resolveAuditContext(request);
+    const codes = Object.values(PWA_SETTING_CODES);
+    for (const code of codes) {
+      await deps.settingsWrite.resetValues(code, [channelCode], actor);
+    }
+    return reply.send({ reset: codes.length });
   });
 
   // POST /admin/pwa/vapid/generate — generate + persist a VAPID key pair.
