@@ -20,6 +20,15 @@ export class SmtpMailer implements Mailer {
       text: input.text,
       // Send a multipart alternative when an HTML body is provided (feature 047).
       ...(input.html ? { html: input.html } : {}),
+      ...(input.attachments && input.attachments.length
+        ? {
+            attachments: input.attachments.map((a) => ({
+              filename: a.filename,
+              content: a.content,
+              ...(a.contentType ? { contentType: a.contentType } : {}),
+            })),
+          }
+        : {}),
       messageId: input.messageId,
     });
   }

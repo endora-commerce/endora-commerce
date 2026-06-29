@@ -11,8 +11,9 @@ import type { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
 export interface InvoiceEmailDispatcher {
   dispatch(
     invoiceId: string,
-    opts: { mode?: 'attachment' | 'link'; messageId: string },
+    opts?: { mode?: 'attachment' | 'link'; messageId?: string },
   ): Promise<boolean>;
+  sendOnIssueEnabled(salesChannelId: string | null): Promise<boolean>;
 }
 
 /**
@@ -101,6 +102,10 @@ export async function registerInvoicesAdminRoutes(
         ...(body.paymentDueDate ? { paymentDueDate: body.paymentDueDate } : {}),
         ...(issuedBy ? { issuedBy } : {}),
       });
+      // Best-effort send-on-issue (FR-024); never fails the issuance.
+      if (deps.emailDispatcher && (await deps.emailDispatcher.sendOnIssueEnabled(detail.salesChannelId))) {
+        await deps.emailDispatcher.dispatch(detail.id);
+      }
       reply.status(201);
       return { data: detail };
     },

@@ -1752,6 +1752,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // provider can draw correction numbers from the shared number generator.
   const invoices = invoicesModule({
     emFactory: em,
+    eventBus,
     requireAdmin,
     requireCustomer,
     settingsService: settings.handle.settingsService,
@@ -1760,6 +1761,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       const c = customerResolver(req);
       return { customerAccountId: c.customerAccountId, organizationId: c.organizationId };
     },
+    getTransactionalEmailSender: () => transactionalEmailSender,
+    resolveRecipientEmail: async (order) =>
+      (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ?? null,
+    resolveLanguage: async (salesChannelId) =>
+      (salesChannelId
+        ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
+        : null) ?? 'en-US',
   });
   modules.push(invoices.plugin);
 

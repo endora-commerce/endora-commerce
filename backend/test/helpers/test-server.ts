@@ -1520,6 +1520,7 @@ export async function setupBackendServer(
   modules.push(
     invoicesModule({
       emFactory: em,
+      eventBus,
       requireAdmin: requireTestAdmin(permissionService),
       requireCustomer: requireTestCustomer(),
       settingsService: settings.handle.settingsService,
@@ -1533,6 +1534,13 @@ export async function setupBackendServer(
             ? req.testActor.organizationId ?? TEST_ORGANIZATION_ID
             : TEST_ORGANIZATION_ID,
       }),
+      getTransactionalEmailSender: () => transactionalEmailSender,
+      resolveRecipientEmail: async (order) =>
+        (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ?? null,
+      resolveLanguage: async (salesChannelId) =>
+        (salesChannelId
+          ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
+          : null) ?? 'en-US',
     }).plugin,
   );
 

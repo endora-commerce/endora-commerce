@@ -254,6 +254,8 @@ export interface TransactionalEmailSendInput {
   variables: Record<string, unknown>;
   /** Idempotency key — preserve the per-email message id used today. */
   messageId: string;
+  /** Optional binary attachments (feature 047 invoices — PDF delivery). */
+  attachments?: Array<{ filename: string; content: Buffer; contentType?: string }>;
   meta?: Record<string, unknown>;
 }
 

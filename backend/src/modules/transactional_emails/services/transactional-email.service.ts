@@ -102,6 +102,7 @@ export class TransactionalEmailService implements TransactionalEmailSender {
       subject: rendered.subject,
       text: rendered.text,
       html: rendered.html,
+      ...(input.attachments ? { attachments: input.attachments } : {}),
       ...(input.meta ? { meta: input.meta } : {}),
     });
   }
