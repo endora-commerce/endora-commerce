@@ -4,6 +4,7 @@ import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine } from '../entities/invoice-line.entity.js';
 import { Order } from '../../orders/entities/order.entity.js';
 import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
+import type { InvoiceAuditRecorder } from './invoice-service.js';
 import type {
   CorrectiveInvoiceInput,
   CorrectiveInvoicePort,
@@ -27,6 +28,7 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly numbers?: InvoiceNumberGenerator,
+    private readonly audit?: InvoiceAuditRecorder,
   ) {}
 
   async createCorrection(input: CorrectiveInvoiceInput): Promise<CorrectiveInvoiceResult> {
@@ -95,6 +97,22 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
       await tx.flush();
       return inv;
     });
+
+    if (this.audit) {
+      await this.audit
+        .record({
+          action: 'invoice.corrected',
+          objectType: 'invoice',
+          objectId: invoice.id,
+          stateAfter: {
+            number: invoice.number,
+            orderId: input.orderId,
+            originalInvoiceId: original?.id ?? null,
+            credited,
+          },
+        })
+        .catch(() => undefined);
+    }
 
     return { invoiceId: invoice.id, number: invoice.number, status: invoice.status };
   }

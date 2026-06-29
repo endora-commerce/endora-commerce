@@ -55,7 +55,8 @@ Generates, numbers, renders, corrects, and emails invoices for orders.
   shared CMS/email component package.
 - Invoice lines currently itemize **products only**; delivery/discount lines are
   not yet itemized (totals are internally consistent).
-- Audit-log call sites on issue/correction/email are a follow-up.
+- Audit-log entries are written on issue (`invoice.issued`) and correction
+  (`invoice.corrected`).
 - PDF is rendered on demand; caching into `assets_library` (`pdf_asset_id`) is a
   future optimization.
 - A dedicated admin invoice detail page (management actions live on the list).

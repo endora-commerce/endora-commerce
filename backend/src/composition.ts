@@ -1756,6 +1756,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdmin,
     requireCustomer,
     settingsService: settings.handle.settingsService,
+    audit: auditLogService,
     resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
     resolveCustomerContext: (req: FastifyRequest) => {
       const c = customerResolver(req);
@@ -1785,7 +1786,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
       orderContext: new OrderReturnContextProvider(em),
       paymentRefund: new PaymentRefundProvider(em),
-      correctiveInvoice: new CorrectiveInvoiceProvider(em, invoices.handle.numberGenerator),
+      correctiveInvoice: new CorrectiveInvoiceProvider(em, invoices.handle.numberGenerator, auditLogService),
       creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
       auditLog: auditLogService,
       notifier: new ReturnEmailNotifier(

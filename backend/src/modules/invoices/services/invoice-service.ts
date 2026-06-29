@@ -19,6 +19,19 @@ export interface IssueInvoiceOptions {
   issuedBy?: string;
 }
 
+/** Minimal audit-log seam (FR-035). */
+export interface InvoiceAuditRecorder {
+  record(input: {
+    actorAdminUserId?: string | null;
+    action: string;
+    objectType: string;
+    objectId: string;
+    stateAfter?: Record<string, unknown> | null;
+  }): Promise<unknown>;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Core invoice issuance + read service (feature 047, US1). Issues invoices /
  * proformas (and is reused by the corrective-invoice provider for credit
@@ -30,6 +43,7 @@ export class InvoiceService {
     private readonly emFactory: () => EntityManager,
     private readonly numbers: InvoiceNumberGenerator,
     private readonly sellerSettings: SellerSettingsResolver,
+    private readonly audit?: InvoiceAuditRecorder,
   ) {}
 
   /** Issue an invoice/proforma for an order. Idempotent per (order, kind). */
@@ -117,6 +131,25 @@ export class InvoiceService {
       await tx.flush();
       return inv;
     });
+
+    // Audit (FR-035) — best-effort; never fails issuance.
+    if (this.audit) {
+      await this.audit
+        .record({
+          actorAdminUserId: opts.issuedBy && UUID_RE.test(opts.issuedBy) ? opts.issuedBy : null,
+          action: 'invoice.issued',
+          objectType: 'invoice',
+          objectId: invoice.id,
+          stateAfter: {
+            number: invoice.number,
+            kind: invoice.kind,
+            orderId,
+            salesChannelId: order.salesChannelId,
+            grossTotal: built.grossTotal,
+          },
+        })
+        .catch(() => undefined);
+    }
 
     return this.buildDetail(invoice.id);
   }

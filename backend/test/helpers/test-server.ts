@@ -1501,6 +1501,7 @@ export async function setupBackendServer(
       correctiveInvoice: new CorrectiveInvoiceProvider(
         em,
         new InvoiceNumberGenerator(createSettingsPatternResolver(settings.handle.settingsService)),
+        auditLogService,
       ),
       creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
       auditLog: auditLogService,
@@ -1524,6 +1525,7 @@ export async function setupBackendServer(
       requireAdmin: requireTestAdmin(permissionService),
       requireCustomer: requireTestCustomer(),
       settingsService: settings.handle.settingsService,
+      audit: auditLogService,
       resolveAdminUserId: (req) =>
         req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
       resolveCustomerContext: (req) => ({

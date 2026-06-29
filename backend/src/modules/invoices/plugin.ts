@@ -6,7 +6,7 @@ import type { ModulePlugin } from '../../http/server.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { Order } from '../orders/entities/order.entity.js';
 import { Invoice } from './entities/invoice.entity.js';
-import { InvoiceService } from './services/invoice-service.js';
+import { InvoiceService, type InvoiceAuditRecorder } from './services/invoice-service.js';
 import { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
 import { InvoiceNumberGenerator, createSettingsPatternResolver } from './services/invoice-number-generator.js';
 import { SellerSettingsResolver, type SettingsReader } from './services/seller-settings.js';
@@ -36,6 +36,8 @@ export interface InvoicesModuleOptions {
   resolveLanguage?: (salesChannelId: string | null) => Promise<string>;
   /** FR-002 — auto-issue on order status change. */
   eventBus?: InvoicesEventBus;
+  /** FR-035 — audit-log recorder for issuance / correction. */
+  audit?: InvoiceAuditRecorder;
 }
 
 export interface InvoicesModuleHandle {
@@ -54,7 +56,12 @@ export function invoicesModule(options: InvoicesModuleOptions): {
     createSettingsPatternResolver(options.settingsService),
   );
   const sellerSettings = new SellerSettingsResolver(options.settingsService);
-  const invoiceService = new InvoiceService(options.emFactory, numberGenerator, sellerSettings);
+  const invoiceService = new InvoiceService(
+    options.emFactory,
+    numberGenerator,
+    sellerSettings,
+    options.audit,
+  );
   const pdfRenderer = new InvoicePdfRenderer();
   const templateService = new InvoiceTemplateService(options.emFactory);
 
