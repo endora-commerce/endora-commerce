@@ -72,6 +72,66 @@ function formatAddress(a: OrderConfirmationAddress): string {
   return lines.map((l) => `  ${l}`).join('\n');
 }
 
+/**
+ * Feature 047 — builds the variable bundle for the admin-editable
+ * `order_confirmation` template. Reuses the exact same formatting (money,
+ * addresses, payment/shipping renderers) as the legacy builder so the default
+ * template renders output equivalent to today's email (SC-003).
+ */
+export function buildOrderConfirmationVariables(
+  input: BuildOrderConfirmationEmailInput & { customerFirstName?: string },
+): Record<string, unknown> {
+  const { order, items } = input;
+  const currency = order.currency;
+  const discountTotal = Number(order.discountTotal);
+
+  const paymentLine = resolvePaymentEmailRenderer(order.paymentRendererKey)({
+    name: order.paymentMethodSnapshot.name,
+    kind: order.paymentMethodSnapshot.kind,
+    additionalPrice: Number(order.paymentMethodSnapshot.additionalPrice ?? 0),
+    currency,
+  });
+  const shippingLine = resolveShippingEmailRenderer(order.shippingRendererKey ?? null)({
+    name: order.deliveryMethodSnapshot.name,
+    cost: Number(order.deliveryTotal),
+    currency,
+  });
+
+  const summaryLines = [
+    `  Subtotal: ${money(order.subtotal, currency)}`,
+    `  Tax: ${money(order.taxTotal, currency)}`,
+    `  Delivery: ${money(order.deliveryTotal, currency)}`,
+  ];
+  if (discountTotal > 0) summaryLines.push(`  Discount: -${money(discountTotal, currency)}`);
+  summaryLines.push(`  Total: ${money(order.total, currency)}`);
+
+  const discountsText =
+    discountTotal > 0 || order.promotionCode
+      ? `  ${order.promotionCode ? `${order.promotionCode}: ` : ''}-${money(discountTotal, currency)}`
+      : `  none`;
+
+  return {
+    order: {
+      businessId: order.businessId,
+      currency,
+      shippingLine,
+      paymentLine,
+      discountsText,
+      summaryText: summaryLines.join('\n'),
+      shippingAddressText: formatAddress(order.deliveryAddress),
+      billingAddressText: formatAddress(order.billingAddress),
+      items: items.map((it) => ({
+        name: it.productSnapshot.name,
+        sku: it.productSnapshot.sku,
+        quantity: it.quantity,
+        unitPrice: money(it.unitPrice, currency),
+        lineTotal: money(it.lineTotal, currency),
+      })),
+    },
+    customer: { firstName: input.customerFirstName ?? '' },
+  };
+}
+
 export function buildOrderConfirmationEmail(
   input: BuildOrderConfirmationEmailInput,
 ): MailerSendInput {

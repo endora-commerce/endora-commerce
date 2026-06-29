@@ -655,6 +655,9 @@ export async function setupBackendServer(
     },
   });
 
+  // Feature 047 — late-bound transactional-email sender (mirrors composition).
+  let transactionalEmailSender: import('@b2b/contracts').TransactionalEmailSender | undefined;
+
   const modules: ModulePlugin[] = [
     async (app) => registerTestAuth(app, { sessionService, emFactory: em }),
     admin.plugin,
@@ -672,6 +675,7 @@ export async function setupBackendServer(
       emFactory: em,
       eventBus,
       auditLogService,
+      getTransactionalEmailSender: () => transactionalEmailSender,
       creditLimit: creditLimits.handle.creditLimitService,
       requireCustomer: requireTestCustomer(),
       requireAdmin: requireTestAdmin(permissionService),
@@ -1472,6 +1476,9 @@ export async function setupBackendServer(
       mailer: options.organizationsMailer ?? new ConsoleMailer(),
       auditLog: auditLogService,
       settingsAdmin: settings.handle.adminService,
+      exposeSender: (sender) => {
+        transactionalEmailSender = sender;
+      },
     }),
   );
 

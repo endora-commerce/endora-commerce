@@ -1,27 +1,41 @@
 // Default content + subject for the `order_confirmation` transactional email
 // (feature 047). Registered with the EmailDefaultsRegistry at composition time.
-// Uses only email-safe components and the default header/footer blocks; the
-// line-item list is rendered via the directive `for` loop.
+// Reproduces the legacy plain-text confirmation layout (SC-003) using only
+// email-safe components: a single body EmailText with the directive `for` loop
+// over line items, plus the default header/footer blocks.
 
 const DEFAULT_LANGUAGES = ['en-US', 'pl-PL'];
 
-function tree(greeting: string, intro: string, itemsLabel: string, totalLabel: string) {
+function bodyTree(thanks: string, orderLabel: string, productsLabel: string, deliveryLabel: string, paymentLabel: string, discountsLabel: string, summaryLabel: string, shippingAddrLabel: string, billingAddrLabel: string) {
+  const text = [
+    thanks,
+    '',
+    `${orderLabel}: {{var order.businessId}}`,
+    '',
+    `${productsLabel}:`,
+    '{{for item in order.items}}  {{var item.quantity}} × {{var item.name}} ({{var item.sku}}) — {{var item.lineTotal}}',
+    '{{/for}}',
+    `${deliveryLabel}: {{var order.shippingLine}}`,
+    `${paymentLabel}: {{var order.paymentLine}}`,
+    '',
+    `${discountsLabel}:`,
+    '{{var order.discountsText}}',
+    '',
+    `${summaryLabel}:`,
+    '{{var order.summaryText}}',
+    '',
+    `${shippingAddrLabel}:`,
+    '{{var order.shippingAddressText}}',
+    '',
+    `${billingAddrLabel}:`,
+    '{{var order.billingAddressText}}',
+  ].join('\n');
+
   return {
     root: { props: {} },
     content: [
       { type: 'EmailInsertBlock', props: { id: 'oc-header', code: 'default_email_header' } },
-      { type: 'EmailHeading', props: { id: 'oc-greeting', level: 'h2', text: greeting, align: 'left' } },
-      { type: 'EmailText', props: { id: 'oc-intro', text: intro, align: 'left' } },
-      { type: 'EmailHeading', props: { id: 'oc-items-h', level: 'h3', text: itemsLabel, align: 'left' } },
-      {
-        type: 'EmailText',
-        props: {
-          id: 'oc-items',
-          text: '{{for item in order.items}}{{var item.name}} × {{var item.quantity}} — {{var item.lineTotal}}\n{{/for}}',
-          align: 'left',
-        },
-      },
-      { type: 'EmailText', props: { id: 'oc-total', text: `${totalLabel}: {{var order.total}}`, align: 'left' } },
+      { type: 'EmailText', props: { id: 'oc-body', text, align: 'left' } },
       { type: 'EmailInsertBlock', props: { id: 'oc-footer', code: 'default_email_footer' } },
     ],
     zones: {},
@@ -36,17 +50,27 @@ export const ORDER_CONFIRMATION_DEFAULT = {
   defaultContent: {
     schema_version: 1,
     languages: {
-      'en-US': tree(
-        'Thank you for your order, {{var customer.firstName}}!',
-        'Your order {{var order.businessId}} has been received and is being processed.',
-        'Order items',
-        'Order total',
+      'en-US': bodyTree(
+        'Thank you for your order.',
+        'Order',
+        'Products',
+        'Delivery method',
+        'Payment method',
+        'Applied discounts',
+        'Summary',
+        'Shipping address',
+        'Billing address',
       ),
-      'pl-PL': tree(
-        'Dziękujemy za zamówienie, {{var customer.firstName}}!',
-        'Twoje zamówienie {{var order.businessId}} zostało przyjęte i jest przetwarzane.',
-        'Pozycje zamówienia',
-        'Łączna kwota',
+      'pl-PL': bodyTree(
+        'Dziękujemy za zamówienie.',
+        'Zamówienie',
+        'Produkty',
+        'Metoda dostawy',
+        'Metoda płatności',
+        'Zastosowane rabaty',
+        'Podsumowanie',
+        'Adres dostawy',
+        'Adres rozliczeniowy',
       ),
     },
   } as Record<string, unknown>,

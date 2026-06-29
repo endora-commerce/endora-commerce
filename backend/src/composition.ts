@@ -114,6 +114,7 @@ import { pwaSettingsManifest } from './modules/pwa/manifest.js';
 // Feature 047 — Transactional Emails.
 import { transactionalEmailsModule } from './modules/transactional_emails/plugin.js';
 import { transactionalEmailsSettingsManifest } from './modules/transactional_emails/manifest.js';
+import type { TransactionalEmailSender } from '@b2b/contracts';
 import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
 import { ORDER_CONFIRMATION_DEFAULT } from './modules/orders/email-templates/order-confirmation.default.js';
 import { SalesChannel } from './modules/sales_channels/entities/sales-channel.entity.js';
@@ -833,6 +834,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     });
   };
 
+  // Feature 047 — late-bound transactional-email sender. commerceModule (and
+  // other owning modules) read it via a getter; the transactional_emails module
+  // sets it through exposeSender once built.
+  let transactionalEmailSender: TransactionalEmailSender | undefined;
+
   const modules: ModulePlugin[] = [
     healthPlugin,
     authModulePlugin,
@@ -852,6 +858,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       eventBus,
       auditLogService,
       mailer: organizationsMailer,
+      // Feature 047 — late-bound; set once the transactional_emails module builds.
+      getTransactionalEmailSender: () => transactionalEmailSender,
       creditLimit: creditLimits.handle.creditLimitService,
       requireCustomer,
       requireAdmin,
@@ -1743,6 +1751,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         } catch {
           return null;
         }
+      },
+      exposeSender: (sender) => {
+        transactionalEmailSender = sender;
       },
     }),
   );

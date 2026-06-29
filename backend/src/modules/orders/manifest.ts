@@ -94,7 +94,12 @@ export const manifest = defineModuleManifest({
       variables: [
         { key: 'order.businessId', label: 'Order number', sampleValue: 'ORD-1042' },
         { key: 'customer.firstName', label: 'Customer first name', sampleValue: 'Anna' },
-        { key: 'order.total', label: 'Order total', sampleValue: '1 230,00 PLN' },
+        { key: 'order.shippingLine', label: 'Delivery method line', sampleValue: 'Courier — 15.00 PLN' },
+        { key: 'order.paymentLine', label: 'Payment method line', sampleValue: 'Card (+5.00 PLN)' },
+        { key: 'order.discountsText', label: 'Applied discounts', sampleValue: '  none' },
+        { key: 'order.summaryText', label: 'Order summary', sampleValue: '  Total: 1 230,00 PLN' },
+        { key: 'order.shippingAddressText', label: 'Shipping address', sampleValue: '  Anna Nowak\n  ul. Główna 1' },
+        { key: 'order.billingAddressText', label: 'Billing address', sampleValue: '  Acme Sp. z o.o.' },
         { key: 'order.items', label: 'Order line items (list)' },
       ],
     },
