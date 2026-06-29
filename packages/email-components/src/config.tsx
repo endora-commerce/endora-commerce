@@ -101,7 +101,6 @@ export const EmailImage: ComponentConfig<EmailImageProps> = {
   render: ({ src, alt, width, align }) => (
     <div style={{ textAlign: align }}>
       {src ? (
-        // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt={alt} width={width} style={{ maxWidth: '100%' }} />
       ) : (
         <span style={{ color: '#9ca3af' }}>[image]</span>

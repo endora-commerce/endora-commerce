@@ -29,9 +29,11 @@ import type { Mailer } from '../../email/services/mailer.js';
 import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { TransactionalEmail } from '../entities/transactional-email.entity.js';
 import { TransactionalEmailContent } from '../entities/transactional-email-content.entity.js';
-import { ContentResolver, type ResolvedContent } from './content-resolver.js';
-import { BrandingService, type ResolvedBranding } from './branding.service.js';
-import { EmbedResolver } from './embed-resolver.js';
+import type { ContentResolver} from './content-resolver.js';
+import { type ResolvedContent } from './content-resolver.js';
+import type { BrandingService} from './branding.service.js';
+import { type ResolvedBranding } from './branding.service.js';
+import type { EmbedResolver } from './embed-resolver.js';
 
 const KNOWN_COMPONENTS: ReadonlySet<string> = new Set(EMAIL_SAFE_COMPONENT_NAMES);
 

@@ -8,7 +8,7 @@
 
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PuckDataTree } from '@b2b/email-components/schema/envelope';
-import { TransactionalEmail } from '../entities/transactional-email.entity.js';
+import type { TransactionalEmail } from '../entities/transactional-email.entity.js';
 import { TransactionalEmailContent } from '../entities/transactional-email-content.entity.js';
 
 export type ContentSource = 'channel' | 'global' | 'default';
