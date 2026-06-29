@@ -66,7 +66,6 @@ import { ShipmentService } from '../shipments/services/shipment-service.js';
 import { ReceiveShipmentHandler } from '../shipments/services/receive-shipment-handler.js';
 import type { ShippingEventBus } from '../shipments/services/events.js';
 import { registerShipmentsRoutes } from '../shipments/routes.js';
-import { registerInvoicesAdminRoutes } from '../invoices/routes.admin.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
 /**
@@ -555,11 +554,6 @@ export function commerceModule(options: OrdersModuleOptions) {
         ? { salesChannelMembership: options.salesChannelMembership }
         : {}),
     });
-    await registerInvoicesAdminRoutes(app, {
-      emFactory: options.emFactory,
-      requireAdmin: options.requireAdmin,
-    });
-
     // Feature 034 — payment lifecycle: receive_payment ingress, retry, history.
     await registerPaymentsRoutes(app, {
       requireAdmin: options.requireAdmin,

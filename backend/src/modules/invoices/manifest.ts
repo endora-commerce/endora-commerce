@@ -22,7 +22,7 @@ export const INVOICES_SETTING_CODES = {
   STOREFRONT_BASE_URL: 'invoices.storefront_base_url',
 } as const;
 
-const settings = defineModuleSettingsManifest({
+export const invoicesSettingsManifest = defineModuleSettingsManifest({
   moduleCode: 'invoices',
   groups: [{ code: 'invoices', name: 'Invoices' }],
   settings: [
@@ -114,7 +114,7 @@ export const manifest = defineModuleManifest({
   description: 'Invoice generation, numbering, PDF templates, corrections, and email delivery.',
   version: '2.0.0',
   dependencies: ['settings'],
-  settings,
+  settings: invoicesSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   // Feature 047 — admin-editable transactional email owned by this module.
   transactionalEmails: [

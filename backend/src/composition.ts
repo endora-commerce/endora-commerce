@@ -52,6 +52,7 @@ import { returnsModule } from './modules/returns/plugin.js';
 import { OrderReturnContextProvider } from './modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from './modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from './modules/invoices/services/corrective-invoice.js';
+import { invoicesModule } from './modules/invoices/plugin.js';
 import { CreditTopupProvider } from './modules/credit_limits/services/credit-topup.js';
 import { ReturnEmailNotifier } from './modules/returns/services/return-email-notifier.js';
 import { AddressService } from './modules/addresses/services/address-service.js';
@@ -114,6 +115,7 @@ import { pwaSettingsManifest } from './modules/pwa/manifest.js';
 // Feature 047 — Transactional Emails.
 import { transactionalEmailsModule } from './modules/transactional_emails/plugin.js';
 import { transactionalEmailsSettingsManifest } from './modules/transactional_emails/manifest.js';
+import { invoicesSettingsManifest } from './modules/invoices/manifest.js';
 import type { TransactionalEmailSender } from '@b2b/contracts';
 import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
 import { ORDER_CONFIRMATION_DEFAULT } from './modules/orders/email-templates/order-confirmation.default.js';
@@ -1775,6 +1777,23 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     }),
   );
 
+  // Feature 047 — Invoices. Owns issuance, numbering, PDF rendering, admin +
+  // customer routes. Reads orders read-only; settings drive numbering + seller
+  // data. The email dispatcher is injected after the transactional sender is
+  // exposed (see below).
+  const invoices = invoicesModule({
+    emFactory: em,
+    requireAdmin,
+    requireCustomer,
+    settingsService: settings.handle.settingsService,
+    resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
+    resolveCustomerContext: (req: FastifyRequest) => {
+      const c = customerResolver(req);
+      return { customerAccountId: c.customerAccountId, organizationId: c.organizationId };
+    },
+  });
+  modules.push(invoices.plugin);
+
   // Feature 047 — Transactional Emails. Owning modules register their default
   // subject + content here; the module reconciles all manifest-declared emails
   // at boot and exposes the sender port for future send-site cutover.
@@ -2038,6 +2057,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     promptActionsSettingsManifest,
     pwaSettingsManifest,
     transactionalEmailsSettingsManifest,
+    invoicesSettingsManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();
