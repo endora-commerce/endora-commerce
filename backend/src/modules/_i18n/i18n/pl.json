@@ -1430,6 +1430,8 @@
   "adminRoles.permission.returns:write": "Zarządzanie zwrotami / sprawami RMA i rozliczeniem",
   "adminRoles.permission.transactional_emails:read": "Podgląd maili transakcyjnych",
   "adminRoles.permission.transactional_emails:write": "Zarządzanie mailami transakcyjnymi, blokami, szablonami i brandingiem",
+  "adminRoles.permission.newsletter:read": "Podgląd newslettera",
+  "adminRoles.permission.newsletter:write": "Zarządzanie subskrybentami, kampaniami, automatyzacjami i usługą wysyłki newslettera",
   "adminRoles.permission.rfqs:handle": "Obsługa zapytań ofertowych",
   "adminRoles.permission.customers:read": "Wyświetlanie klientów",
   "adminRoles.permission.customers:impersonate": "Podszywanie się pod klientów",

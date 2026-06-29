@@ -1430,6 +1430,8 @@
   "adminRoles.permission.returns:write": "Manage returns / RMA cases and settlement",
   "adminRoles.permission.transactional_emails:read": "View transactional emails",
   "adminRoles.permission.transactional_emails:write": "Manage transactional emails, blocks, templates, and branding",
+  "adminRoles.permission.newsletter:read": "View newsletter",
+  "adminRoles.permission.newsletter:write": "Manage newsletter subscribers, campaigns, automations, and provider",
   "adminRoles.permission.rfqs:handle": "Handle quote requests",
   "adminRoles.permission.customers:read": "View customers",
   "adminRoles.permission.customers:impersonate": "Impersonate customers",
