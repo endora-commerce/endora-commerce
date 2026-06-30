@@ -180,42 +180,44 @@ export function PageBuilderEditor({
       {!descriptor && !error ? (
         <p className="text-sm text-muted-foreground">{t('pageBuilder.loadingConfig')}</p>
       ) : null}
-      <div className="flex justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={(): void => setFullscreen((f) => !f)}
-          aria-pressed={fullscreen}
-        >
-          {fullscreen ? (
-            <>
-              <Minimize2 className="mr-1 h-4 w-4" />
-              {t('pageBuilder.fullscreen.exit')}
-            </>
-          ) : (
-            <>
-              <Maximize2 className="mr-1 h-4 w-4" />
-              {t('pageBuilder.fullscreen.enter')}
-            </>
-          )}
-        </Button>
-      </div>
       <div
         className={cn(
           'overflow-hidden rounded-md border',
           fullscreen ? 'min-h-0 flex-1' : 'min-h-[640px]',
         )}
       >
-        {/* Content is persisted by the surrounding editor's own Save actions, so
-            Puck's built-in "Publish" header button is redundant and misleading —
-            hide it by emptying the header-actions slot. */}
+        {/* The surrounding editor's own Save actions persist content, so Puck's
+            built-in "Publish" header button is redundant — replace the
+            header-actions slot with the Fullscreen toggle so it sits in the
+            toolbar alongside Puck's left/right panel-visibility buttons. */}
         <Puck
           key={contentKey}
           config={config}
           data={editorData}
           onChange={onChange}
-          overrides={{ headerActions: () => <></> }}
+          overrides={{
+            headerActions: () => (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={(): void => setFullscreen((f) => !f)}
+                aria-pressed={fullscreen}
+              >
+                {fullscreen ? (
+                  <>
+                    <Minimize2 className="mr-1 h-4 w-4" />
+                    {t('pageBuilder.fullscreen.exit')}
+                  </>
+                ) : (
+                  <>
+                    <Maximize2 className="mr-1 h-4 w-4" />
+                    {t('pageBuilder.fullscreen.enter')}
+                  </>
+                )}
+              </Button>
+            ),
+          }}
         />
       </div>
     </div>
