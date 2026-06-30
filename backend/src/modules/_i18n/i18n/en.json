@@ -235,6 +235,7 @@
   "appShell.palette.sub.platformConfiguration": "Platform configuration",
   "appShell.palette.sub.apiKeys": "Machine-to-machine bearer tokens",
   "appShell.palette.sub.webhooks": "Event subscriptions & deliveries",
+  "appShell.palette.sub.creditLimits": "Customer credit limits & balances",
   "loginPage.title": "Sign in to the admin panel",
   "loginPage.heading": "B2B Admin · sign in",
   "loginPage.subheading": "Use the email and password issued by your platform administrator.",

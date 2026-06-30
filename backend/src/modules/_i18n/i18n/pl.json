@@ -235,6 +235,7 @@
   "appShell.palette.sub.platformConfiguration": "Konfiguracja platformy",
   "appShell.palette.sub.apiKeys": "Tokeny bearer dla integracji maszynowych",
   "appShell.palette.sub.webhooks": "Subskrypcje zdarzeń i dostarczenia",
+  "appShell.palette.sub.creditLimits": "Limity kredytowe i salda klientów",
   "loginPage.title": "Zaloguj się do panelu administracyjnego",
   "loginPage.heading": "Admin B2B · logowanie",
   "loginPage.subheading": "Użyj adresu e-mail i hasła wydanych przez administratora platformy.",
