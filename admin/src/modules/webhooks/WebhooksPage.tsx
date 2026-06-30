@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
+import { Check, Copy, Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
 import type { Webhook, WebhookDelivery } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
@@ -55,6 +55,18 @@ export function WebhooksPage(): ReactNode {
   const [filter, setFilter] = useState<'all' | 'failed' | 'dead_lettered'>('all');
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [revealedSecret, setRevealedSecret] = useState<{ name: string; secret: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const copySecret = useCallback(async (secret: string): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(secret);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard unavailable — the input is selectable as a fallback */
+    }
+  }, []);
 
   const refreshWebhooks = useCallback(async (): Promise<void> => {
     setLoadingHooks(true);
@@ -95,8 +107,15 @@ export function WebhooksPage(): ReactNode {
   const handleCreate = useCallback(
     async (input: { name: string; url: string; eventTypes: string[] }): Promise<void> => {
       try {
-        await apiClient.post<{ data: Webhook }>('/api/v1/admin/webhooks', input);
+        const res = await apiClient.post<{ data: Webhook & { secret: string } }>(
+          '/api/v1/admin/webhooks',
+          input,
+        );
         setInfo(t('webhooks.create.success'));
+        if (res.data.secret) {
+          setRevealedSecret({ name: input.name, secret: res.data.secret });
+          setCopied(false);
+        }
         await refreshWebhooks();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('webhooks.error.create'));
@@ -165,6 +184,45 @@ export function WebhooksPage(): ReactNode {
       {info ? (
         <Alert variant="success" className="mb-4">
           <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {revealedSecret ? (
+        <Alert variant="warning" className="mb-4">
+          <AlertDescription>
+            <p className="font-medium">{t('webhooks.revealed.title')}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{revealedSecret.name}</p>
+            <div className="mt-2 flex items-center gap-2">
+              <Input
+                readOnly
+                value={revealedSecret.secret}
+                className="flex-1 bg-card font-mono text-sm"
+                onFocus={(e): void => e.currentTarget.select()}
+                aria-label={t('webhooks.revealed.title')}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={(): void => void copySecret(revealedSecret.secret)}
+              >
+                {copied ? <Check className="mr-1 h-4 w-4" /> : <Copy className="mr-1 h-4 w-4" />}
+                {copied ? t('webhooks.revealed.copied') : t('webhooks.revealed.copy')}
+              </Button>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              onClick={(): void => {
+                setRevealedSecret(null);
+                setCopied(false);
+              }}
+            >
+              {t('webhooks.revealed.confirm')}
+            </Button>
+          </AlertDescription>
         </Alert>
       ) : null}
 
