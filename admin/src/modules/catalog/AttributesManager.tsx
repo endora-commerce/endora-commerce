@@ -62,6 +62,7 @@ const FLAG_KEYS = [
   'isComparable',
   'massEditable',
   'quickSearchable',
+  'isPromoRule',
 ] as const;
 type FlagKey = (typeof FLAG_KEYS)[number];
 type FlagSet = Record<FlagKey, boolean>;
@@ -74,6 +75,7 @@ function flagsOf(a: AdminAttribute): FlagSet {
     isComparable: a.isComparable,
     massEditable: a.massEditable,
     quickSearchable: a.quickSearchable,
+    isPromoRule: a.isPromoRule,
   };
 }
 function flagsEqual(a: FlagSet, b: FlagSet): boolean {
@@ -138,6 +140,7 @@ export function AttributesManager(): ReactNode {
       isComparable: input.isComparable,
       massEditable: input.massEditable,
       quickSearchable: input.quickSearchable,
+      isPromoRule: input.isPromoRule,
       ...(input.valueType === 'number' || input.valueType === 'price'
         ? { displayAsSlider: input.displayAsSlider }
         : {}),
@@ -297,6 +300,7 @@ export function AttributesManager(): ReactNode {
                   <TableHead>{t('attributes.column.comparable')}</TableHead>
                   <TableHead>{t('attributes.column.massEditable')}</TableHead>
                   <TableHead>{t('attributes.column.quickSearchable')}</TableHead>
+                  <TableHead>{t('attributes.column.promoRule')}</TableHead>
                   <TableHead className="text-right">{t('attributes.column.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -360,6 +364,7 @@ interface AttributeFormValues {
   isComparable: boolean;
   massEditable: boolean;
   quickSearchable: boolean;
+  isPromoRule: boolean;
 }
 
 interface AttributeFormProps {
@@ -393,6 +398,7 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
   const [isComparable, setIsComparable] = useState(attribute?.isComparable ?? false);
   const [massEditable, setMassEditable] = useState(attribute?.massEditable ?? false);
   const [quickSearchable, setQuickSearchable] = useState(attribute?.quickSearchable ?? false);
+  const [isPromoRule, setIsPromoRule] = useState(attribute?.isPromoRule ?? false);
   const [busy, setBusy] = useState(false);
   const isNumeric = valueType === 'number' || valueType === 'price';
 
@@ -409,6 +415,7 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
     isComparable,
     massEditable,
     quickSearchable,
+    isPromoRule,
   });
 
   const reset = (): void => {
@@ -423,6 +430,7 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
     setIsComparable(false);
     setMassEditable(false);
     setQuickSearchable(false);
+    setIsPromoRule(false);
   };
 
   return (
@@ -535,6 +543,10 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
             onChange={(e): void => setQuickSearchable(e.target.checked)}
           />
           {t('attributes.column.quickSearchable')}
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox checked={isPromoRule} onChange={(e): void => setIsPromoRule(e.target.checked)} />
+          {t('attributes.flag.promoRule')}
         </label>
       </div>
       <div className="flex gap-2">
