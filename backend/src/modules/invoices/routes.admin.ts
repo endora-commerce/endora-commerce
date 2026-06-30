@@ -58,9 +58,31 @@ export async function registerInvoicesAdminRoutes(
       if (q['filter[issuedFrom]']) issuedAt['$gte'] = new Date(q['filter[issuedFrom]'] as string);
       if (q['filter[issuedTo]']) issuedAt['$lte'] = new Date(q['filter[issuedTo]'] as string);
       if (Object.keys(issuedAt).length) where['issuedAt'] = issuedAt;
+      const total: Record<string, number> = {};
+      if (q['filter[totalMin]'] && Number.isFinite(Number(q['filter[totalMin]'])))
+        total['$gte'] = Number(q['filter[totalMin]']);
+      if (q['filter[totalMax]'] && Number.isFinite(Number(q['filter[totalMax]'])))
+        total['$lte'] = Number(q['filter[totalMax]']);
+      if (Object.keys(total).length) where['total'] = total;
+
+      const em = emFactory();
+
+      // Filter by order number (business id): resolve matching orders first,
+      // then constrain invoices to those order ids. A no-match short-circuits.
+      const orderNumber = q['filter[orderNumber]']?.trim();
+      if (orderNumber) {
+        const matchingOrders = await em.find(
+          Order,
+          { businessId: { $ilike: `%${orderNumber}%` } },
+          { fields: ['id'], limit: 500 },
+        );
+        if (matchingOrders.length === 0) {
+          return { data: [], pagination: { cursor: null, hasMore: false, limit: 0 } };
+        }
+        where['orderId'] = { $in: matchingOrders.map((o) => o.id) };
+      }
 
       const limit = Math.min(Math.max(Number.parseInt(q['limit'] ?? '50', 10), 1), 200);
-      const em = emFactory();
       const rows = await em.find(Invoice, where, { orderBy: { issuedAt: 'desc' }, limit });
       const orderIds = [...new Set(rows.map((r) => r.orderId))];
       const orders = orderIds.length
