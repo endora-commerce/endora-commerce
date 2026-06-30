@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Puck, type Data } from '@measured/puck';
 import '@measured/puck/puck.css';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
+import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
 import { invoicePuckConfig } from './invoice-puck-config';
 
@@ -29,8 +31,19 @@ export function InvoiceTemplateEditor(): ReactNode {
   const [draft, setDraft] = useState<Data>(emptyData);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
 
   const baseUrl = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? '';
+
+  // Allow exiting fullscreen with Escape.
+  useEffect(() => {
+    if (!fullscreen) return undefined;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setFullscreen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fullscreen]);
 
   const load = useCallback(async (): Promise<void> => {
     try {
@@ -102,14 +115,47 @@ export function InvoiceTemplateEditor(): ReactNode {
       ) : null}
       <Card>
         <CardContent className="pt-6">
-          <div className="min-h-[560px] overflow-hidden rounded-md border">
-            <Puck
-              key={`${id}:${LANGUAGE}`}
-              config={invoicePuckConfig}
-              data={draft}
-              onChange={setDraft}
-              overrides={{ headerActions: () => <></> }}
-            />
+          <div
+            className={cn(
+              'space-y-3',
+              fullscreen && 'fixed inset-0 z-50 flex flex-col overflow-auto bg-background p-4',
+            )}
+          >
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={(): void => setFullscreen((f) => !f)}
+                aria-pressed={fullscreen}
+              >
+                {fullscreen ? (
+                  <>
+                    <Minimize2 className="mr-1 h-4 w-4" />
+                    {t('invoiceTemplates.fullscreen.exit')}
+                  </>
+                ) : (
+                  <>
+                    <Maximize2 className="mr-1 h-4 w-4" />
+                    {t('invoiceTemplates.fullscreen.enter')}
+                  </>
+                )}
+              </Button>
+            </div>
+            <div
+              className={cn(
+                'overflow-hidden rounded-md border',
+                fullscreen ? 'min-h-0 flex-1' : 'min-h-[560px]',
+              )}
+            >
+              <Puck
+                key={`${id}:${LANGUAGE}`}
+                config={invoicePuckConfig}
+                data={draft}
+                onChange={setDraft}
+                overrides={{ headerActions: () => <></> }}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

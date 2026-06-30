@@ -1648,6 +1648,8 @@
   "invoiceTemplates.description": "Dostosuj wygląd PDF faktury (WYSIWYG), globalnie lub per kanał sprzedaży.",
   "invoiceTemplates.create": "Utwórz szablon",
   "invoiceTemplates.saved": "Zapisano szablon.",
+  "invoiceTemplates.fullscreen.enter": "Pełny ekran",
+  "invoiceTemplates.fullscreen.exit": "Zamknij pełny ekran",
   "invoiceTemplates.editTitle": "Szablon faktury",
   "invoiceTemplates.editDescription": "Ułóż sekcje faktury; podgląd renderuje przykładową fakturę.",
   "invoiceTemplates.preview": "Podgląd PDF",
