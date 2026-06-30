@@ -132,27 +132,6 @@ export function EmailEditorPane({ data, onChange, editorKey }: EmailEditorPanePr
 
   return (
     <div className={cn('space-y-3', fullscreen && 'fixed inset-0 z-50 flex flex-col overflow-auto bg-background p-4')}>
-      <div className="flex justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={(): void => setFullscreen((f) => !f)}
-          aria-pressed={fullscreen}
-        >
-          {fullscreen ? (
-            <>
-              <Minimize2 className="mr-1 h-4 w-4" />
-              Exit fullscreen
-            </>
-          ) : (
-            <>
-              <Maximize2 className="mr-1 h-4 w-4" />
-              Fullscreen
-            </>
-          )}
-        </Button>
-      </div>
       <div
         className={cn(
           'overflow-hidden rounded-md border',
@@ -165,7 +144,29 @@ export function EmailEditorPane({ data, onChange, editorKey }: EmailEditorPanePr
             config={config}
             data={data ?? emptyData}
             onChange={onChange}
-            overrides={{ headerActions: () => <></> }}
+            overrides={{
+              headerActions: () => (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={(): void => setFullscreen((f) => !f)}
+                  aria-pressed={fullscreen}
+                >
+                  {fullscreen ? (
+                    <>
+                      <Minimize2 className="mr-1 h-4 w-4" />
+                      Exit fullscreen
+                    </>
+                  ) : (
+                    <>
+                      <Maximize2 className="mr-1 h-4 w-4" />
+                      Fullscreen
+                    </>
+                  )}
+                </Button>
+              ),
+            }}
           />
         </EmailEmbedsProvider>
       </div>

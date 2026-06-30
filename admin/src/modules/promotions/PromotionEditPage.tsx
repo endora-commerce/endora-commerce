@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -9,6 +10,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { RuleBuilder, type RuleAttributeField, type RuleFieldOptions } from '@/components/rule-builder/RuleBuilder';
 import { useTranslation } from '@/i18n/useTranslation';
 import type { PromotionAction, PromotionActionType, PromotionRule } from '@b2b/contracts';
@@ -356,11 +365,20 @@ export const PromotionEditPage = (): ReactNode => {
 function CouponsSection({ promotionId }: { promotionId: string }): ReactNode {
   const t = useTranslation('core');
   const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const reload = useCallback(() => {
-    void promotionsClient.listCoupons(promotionId).then(setCoupons).catch(() => setCoupons([]));
+    void promotionsClient
+      .listCoupons(promotionId)
+      .then((rows) => {
+        setCoupons(rows);
+        // Drop any selection that no longer exists.
+        setSelected((prev) => new Set(rows.filter((c) => prev.has(c.id)).map((c) => c.id)));
+      })
+      .catch(() => setCoupons([]));
   }, [promotionId]);
   useEffect(() => reload(), [reload]);
 
@@ -372,6 +390,34 @@ function CouponsSection({ promotionId }: { promotionId: string }): ReactNode {
       reload();
     } catch (e) {
       setErr(e instanceof ApiError ? e.envelope.error.message : t('promotions.error.save'));
+    }
+  };
+
+  const toggle = (id: string): void => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const allSelected = coupons.length > 0 && selected.size === coupons.length;
+  const toggleAll = (): void => {
+    setSelected(allSelected ? new Set() : new Set(coupons.map((c) => c.id)));
+  };
+
+  const bulkSetActive = async (isActive: boolean): Promise<void> => {
+    if (selected.size === 0) return;
+    setErr(null);
+    setBusy(true);
+    try {
+      await promotionsClient.bulkSetCouponActive(promotionId, [...selected], isActive);
+      reload();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.envelope.error.message : t('promotions.error.save'));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -399,13 +445,71 @@ function CouponsSection({ promotionId }: { promotionId: string }): ReactNode {
         {coupons.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('promotions.coupons.empty')}</p>
         ) : (
-          <ul className="flex flex-col gap-1 text-sm">
-            {coupons.map((c) => (
-              <li key={c.id} className="font-mono">
-                {c.code} <span className="text-muted-foreground">({c.limitScope})</span>
-              </li>
-            ))}
-          </ul>
+          <>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy || selected.size === 0}
+                onClick={() => void bulkSetActive(true)}
+              >
+                {t('promotions.coupons.activate')}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy || selected.size === 0}
+                onClick={() => void bulkSetActive(false)}
+              >
+                {t('promotions.coupons.deactivate')}
+              </Button>
+              {selected.size > 0 ? (
+                <span className="text-sm text-muted-foreground">
+                  {t('promotions.coupons.selectedCount', { count: selected.size })}
+                </span>
+              ) : null}
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-8">
+                    <Checkbox
+                      checked={allSelected}
+                      onChange={toggleAll}
+                      aria-label={t('promotions.coupons.colCode')}
+                    />
+                  </TableHead>
+                  <TableHead>{t('promotions.coupons.colCode')}</TableHead>
+                  <TableHead>{t('promotions.coupons.colScope')}</TableHead>
+                  <TableHead>{t('promotions.coupons.colStatus')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {coupons.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selected.has(c.id)}
+                        onChange={() => toggle(c.id)}
+                        aria-label={c.code}
+                      />
+                    </TableCell>
+                    <TableCell className="font-mono">{c.code}</TableCell>
+                    <TableCell className="text-muted-foreground">{c.limitScope}</TableCell>
+                    <TableCell>
+                      <Badge variant={c.isActive ? 'success' : 'secondary'}>
+                        {c.isActive
+                          ? t('promotions.coupons.active')
+                          : t('promotions.coupons.inactive')}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </>
         )}
       </CardContent>
     </Card>

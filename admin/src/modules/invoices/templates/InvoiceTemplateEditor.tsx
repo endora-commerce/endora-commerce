@@ -121,27 +121,6 @@ export function InvoiceTemplateEditor(): ReactNode {
               fullscreen && 'fixed inset-0 z-50 flex flex-col overflow-auto bg-background p-4',
             )}
           >
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={(): void => setFullscreen((f) => !f)}
-                aria-pressed={fullscreen}
-              >
-                {fullscreen ? (
-                  <>
-                    <Minimize2 className="mr-1 h-4 w-4" />
-                    {t('invoiceTemplates.fullscreen.exit')}
-                  </>
-                ) : (
-                  <>
-                    <Maximize2 className="mr-1 h-4 w-4" />
-                    {t('invoiceTemplates.fullscreen.enter')}
-                  </>
-                )}
-              </Button>
-            </div>
             <div
               className={cn(
                 'overflow-hidden rounded-md border',
@@ -153,7 +132,29 @@ export function InvoiceTemplateEditor(): ReactNode {
                 config={invoicePuckConfig}
                 data={draft}
                 onChange={setDraft}
-                overrides={{ headerActions: () => <></> }}
+                overrides={{
+                  headerActions: () => (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={(): void => setFullscreen((f) => !f)}
+                      aria-pressed={fullscreen}
+                    >
+                      {fullscreen ? (
+                        <>
+                          <Minimize2 className="mr-1 h-4 w-4" />
+                          {t('invoiceTemplates.fullscreen.exit')}
+                        </>
+                      ) : (
+                        <>
+                          <Maximize2 className="mr-1 h-4 w-4" />
+                          {t('invoiceTemplates.fullscreen.enter')}
+                        </>
+                      )}
+                    </Button>
+                  ),
+                }}
               />
             </div>
           </div>

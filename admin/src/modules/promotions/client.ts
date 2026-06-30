@@ -80,6 +80,17 @@ export const promotionsClient = {
       .then((r) => r.data.items),
   listCoupons: (id: string): Promise<Coupon[]> =>
     apiClient.get<{ data: Coupon[] }>(`/api/v1/admin/promotions/${id}/coupons`).then((r) => r.data),
+  bulkSetCouponActive: (
+    id: string,
+    couponIds: string[],
+    isActive: boolean,
+  ): Promise<{ updated: number }> =>
+    apiClient
+      .post<{ data: { updated: number } }>(`/api/v1/admin/promotions/${id}/coupons/bulk-active`, {
+        couponIds,
+        isActive,
+      })
+      .then((r) => r.data),
   createCoupon: (id: string, code: string): Promise<Coupon> =>
     apiClient
       .post<{ data: Coupon }>(`/api/v1/admin/promotions/${id}/coupons`, { code })
@@ -107,6 +118,11 @@ export const promotionRulesClient = {
     apiClient.get<{ data: PromotionRuleRecord[] }>('/api/v1/admin/promotion-rules').then((r) => r.data),
   create: (input: { name: string; description?: string | null; definition: PromotionRule }): Promise<PromotionRuleRecord> =>
     apiClient.post<{ data: PromotionRuleRecord }>('/api/v1/admin/promotion-rules', input).then((r) => r.data),
+  update: (
+    id: string,
+    input: { name: string; description?: string | null; definition: PromotionRule },
+  ): Promise<PromotionRuleRecord> =>
+    apiClient.put<{ data: PromotionRuleRecord }>(`/api/v1/admin/promotion-rules/${id}`, input).then((r) => r.data),
   remove: (id: string): Promise<void> => apiClient.delete<void>(`/api/v1/admin/promotion-rules/${id}`),
 };
 

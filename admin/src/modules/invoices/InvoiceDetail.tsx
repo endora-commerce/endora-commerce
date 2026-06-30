@@ -183,7 +183,7 @@ export function InvoiceDetail(): ReactNode {
               label={t('invoiceDetail.field.order')}
               value={
                 <Link to={`/orders/${invoice.orderId}`} className="font-mono text-xs underline underline-offset-2">
-                  {invoice.orderId.slice(0, 8)}
+                  {invoice.orderBusinessId ?? invoice.orderId.slice(0, 8)}
                 </Link>
               }
             />
@@ -248,18 +248,26 @@ export function InvoiceDetail(): ReactNode {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {invoice.lines.map((l) => (
-                <TableRow key={l.ordinal}>
-                  <TableCell>{l.ordinal}</TableCell>
-                  <TableCell>{l.name}</TableCell>
-                  <TableCell>{l.unit}</TableCell>
-                  <TableCell className="text-right tabular-nums">{l.quantity}</TableCell>
-                  <TableCell className="text-right tabular-nums">{money(l.unitNetPrice)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{Math.round(l.taxRate * 100)}%</TableCell>
-                  <TableCell className="text-right tabular-nums">{money(l.netValue)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{money(l.grossValue)}</TableCell>
+              {invoice.lines.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center text-muted-foreground">
+                    {t('common.state.empty')}
+                  </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                invoice.lines.map((l) => (
+                  <TableRow key={l.ordinal}>
+                    <TableCell>{l.ordinal}</TableCell>
+                    <TableCell>{l.name}</TableCell>
+                    <TableCell>{l.unit}</TableCell>
+                    <TableCell className="text-right tabular-nums">{l.quantity}</TableCell>
+                    <TableCell className="text-right tabular-nums">{money(l.unitNetPrice)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{Math.round(l.taxRate * 100)}%</TableCell>
+                    <TableCell className="text-right tabular-nums">{money(l.netValue)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{money(l.grossValue)}</TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -281,14 +289,22 @@ export function InvoiceDetail(): ReactNode {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invoice.vatSummary.map((v) => (
-                  <TableRow key={v.taxRate}>
-                    <TableCell className="text-right tabular-nums">{Math.round(v.taxRate * 100)}%</TableCell>
-                    <TableCell className="text-right tabular-nums">{money(v.netTotal)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{money(v.vatAmount)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{money(v.grossTotal)}</TableCell>
+                {invoice.vatSummary.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                      {t('common.state.empty')}
+                    </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  invoice.vatSummary.map((v) => (
+                    <TableRow key={v.taxRate}>
+                      <TableCell className="text-right tabular-nums">{Math.round(v.taxRate * 100)}%</TableCell>
+                      <TableCell className="text-right tabular-nums">{money(v.netTotal)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{money(v.vatAmount)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{money(v.grossTotal)}</TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
