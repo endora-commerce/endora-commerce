@@ -107,6 +107,11 @@ export const promotionRulesClient = {
     apiClient.get<{ data: PromotionRuleRecord[] }>('/api/v1/admin/promotion-rules').then((r) => r.data),
   create: (input: { name: string; description?: string | null; definition: PromotionRule }): Promise<PromotionRuleRecord> =>
     apiClient.post<{ data: PromotionRuleRecord }>('/api/v1/admin/promotion-rules', input).then((r) => r.data),
+  update: (
+    id: string,
+    input: { name: string; description?: string | null; definition: PromotionRule },
+  ): Promise<PromotionRuleRecord> =>
+    apiClient.put<{ data: PromotionRuleRecord }>(`/api/v1/admin/promotion-rules/${id}`, input).then((r) => r.data),
   remove: (id: string): Promise<void> => apiClient.delete<void>(`/api/v1/admin/promotion-rules/${id}`),
 };
 
