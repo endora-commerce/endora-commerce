@@ -233,6 +233,8 @@
   "appShell.palette.sub.dictionary": "Kraje, waluty, języki",
   "appShell.palette.sub.dictionaryAudit": "Nierozwiązane referencje rejestrów",
   "appShell.palette.sub.platformConfiguration": "Konfiguracja platformy",
+  "appShell.palette.sub.apiKeys": "Tokeny bearer dla integracji maszynowych",
+  "appShell.palette.sub.webhooks": "Subskrypcje zdarzeń i dostarczenia",
   "loginPage.title": "Zaloguj się do panelu administracyjnego",
   "loginPage.heading": "Admin B2B · logowanie",
   "loginPage.subheading": "Użyj adresu e-mail i hasła wydanych przez administratora platformy.",

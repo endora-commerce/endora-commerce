@@ -233,6 +233,8 @@
   "appShell.palette.sub.dictionary": "Countries, currencies, languages",
   "appShell.palette.sub.dictionaryAudit": "Unresolved registry references",
   "appShell.palette.sub.platformConfiguration": "Platform configuration",
+  "appShell.palette.sub.apiKeys": "Machine-to-machine bearer tokens",
+  "appShell.palette.sub.webhooks": "Event subscriptions & deliveries",
   "loginPage.title": "Sign in to the admin panel",
   "loginPage.heading": "B2B Admin · sign in",
   "loginPage.subheading": "Use the email and password issued by your platform administrator.",
