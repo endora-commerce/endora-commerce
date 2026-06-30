@@ -1,12 +1,17 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Puck, type Config, type ComponentConfig, type Data } from '@measured/puck';
+import { Component, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Puck, Render, type Config, type ComponentConfig, type Data } from '@measured/puck';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import '@measured/puck/puck.css';
 // Self-contained, prefix-isolated (`cmsc:`) stylesheet for the shared CMS components
 // (feature 041, FR-012b). This is the admin's ONLY change; it carries its own token
 // values + no preflight, so it cannot restyle admin chrome.
 import '@b2b/cms-components/styles.css';
-import { defaultPageBuilderConfig, makeMissingComponentConfig } from '@b2b/cms-components';
+import {
+  defaultPageBuilderConfig,
+  makeMissingComponentConfig,
+  CmsRenderProvider,
+  type CmsRenderEmbeds,
+} from '@b2b/cms-components';
 import type { CmsPageBuilderDescriptor } from '@b2b/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -15,6 +20,44 @@ import { useTranslation } from '@/i18n/useTranslation';
 import { cmsClient } from '../api/cms-client';
 
 const emptyData: Data = { root: { props: {} }, content: [] };
+
+/**
+ * Guards a best-effort on-canvas embed preview: if rendering a referenced
+ * block/template tree throws (e.g. an unknown extension component or a
+ * malformed tree), the placeholder simply disappears instead of taking the
+ * whole editor down with it.
+ */
+class PreviewBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { failed: false };
+  }
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  override render(): ReactNode {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
+/**
+ * Renders a block/template's stored content (per-language Puck trees) into an
+ * on-canvas preview so the InsertBlock/InsertTemplate embeds show their actual
+ * content instead of just printing the referenced code. Prefers Polish, then
+ * English, then any available language.
+ */
+function previewNode(content: { languages?: Record<string, unknown> }): ReactNode {
+  const langs = content.languages ?? {};
+  const tree = langs['pl-PL'] ?? langs['en-US'] ?? Object.values(langs)[0] ?? null;
+  if (!tree) return null;
+  return (
+    <PreviewBoundary>
+      <Render config={defaultPageBuilderConfig} data={tree as Data} />
+    </PreviewBoundary>
+  );
+}
 
 /**
  * Merges the locally-bundled `defaultPageBuilderConfig` from
@@ -108,6 +151,7 @@ export function PageBuilderEditor({
   const t = useTranslation('cms');
   const [descriptor, setDescriptor] = useState<CmsPageBuilderDescriptor | null>(null);
   const [blockOptions, setBlockOptions] = useState<BlockOption[]>([]);
+  const [embeds, setEmbeds] = useState<CmsRenderEmbeds>({ blocks: {}, templates: {} });
   const [error, setError] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
 
@@ -136,24 +180,49 @@ export function PageBuilderEditor({
     };
   }, []);
 
-  // Available CMS blocks power the InsertBlock dropdown. Best-effort: a failure
-  // leaves the dropdown empty rather than breaking the editor.
+  // Available CMS blocks power the InsertBlock dropdown; their resolved content
+  // (and templates') power the on-canvas embed previews. Best-effort: any
+  // failure degrades to an empty dropdown / code-only placeholder rather than
+  // breaking the editor.
   useEffect(() => {
     let live = true;
-    cmsClient
-      .listBlocks()
-      .then((res) => {
-        if (!live) return;
-        setBlockOptions(
-          res.data.map((b) => ({
-            label: b.name ? `${b.name} (${b.code})` : b.code,
-            value: b.code,
-          })),
-        );
-      })
-      .catch(() => {
-        /* leave options empty on failure */
-      });
+    void (async (): Promise<void> => {
+      const [blockRes, templateRes] = await Promise.all([
+        cmsClient.listBlocks().catch(() => ({ data: [] })),
+        cmsClient.listTemplates().catch(() => ({ data: [] })),
+      ]);
+      if (!live) return;
+      setBlockOptions(
+        blockRes.data.map((b) => ({
+          label: b.name ? `${b.name} (${b.code})` : b.code,
+          value: b.code,
+        })),
+      );
+
+      const blockPreviews: Record<string, ReactNode> = {};
+      await Promise.all(
+        blockRes.data.map(async (b) => {
+          try {
+            const detail = await cmsClient.getBlock(b.id);
+            blockPreviews[b.code] = previewNode(detail.content);
+          } catch {
+            /* leave the code-only fallback */
+          }
+        }),
+      );
+      const templatePreviews: Record<string, ReactNode> = {};
+      await Promise.all(
+        templateRes.data.map(async (tpl) => {
+          try {
+            const detail = await cmsClient.getTemplate(tpl.id);
+            templatePreviews[tpl.code] = previewNode(detail.content);
+          } catch {
+            /* leave the code-only fallback */
+          }
+        }),
+      );
+      if (live) setEmbeds({ blocks: blockPreviews, templates: templatePreviews });
+    })();
     return () => {
       live = false;
     };
@@ -189,36 +258,41 @@ export function PageBuilderEditor({
         {/* The surrounding editor's own Save actions persist content, so Puck's
             built-in "Publish" header button is redundant — replace the
             header-actions slot with the Fullscreen toggle so it sits in the
-            toolbar alongside Puck's left/right panel-visibility buttons. */}
-        <Puck
-          key={contentKey}
-          config={config}
-          data={editorData}
-          onChange={onChange}
-          overrides={{
-            headerActions: () => (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={(): void => setFullscreen((f) => !f)}
-                aria-pressed={fullscreen}
-              >
-                {fullscreen ? (
-                  <>
-                    <Minimize2 className="mr-1 h-4 w-4" />
-                    {t('pageBuilder.fullscreen.exit')}
-                  </>
-                ) : (
-                  <>
-                    <Maximize2 className="mr-1 h-4 w-4" />
-                    {t('pageBuilder.fullscreen.enter')}
-                  </>
-                )}
-              </Button>
-            ),
-          }}
-        />
+            toolbar alongside Puck's left/right panel-visibility buttons. The
+            CmsRenderProvider feeds resolved block/template previews to the
+            InsertBlock / InsertTemplate embeds so they render their content on
+            the canvas. */}
+        <CmsRenderProvider embeds={embeds}>
+          <Puck
+            key={contentKey}
+            config={config}
+            data={editorData}
+            onChange={onChange}
+            overrides={{
+              headerActions: () => (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={(): void => setFullscreen((f) => !f)}
+                  aria-pressed={fullscreen}
+                >
+                  {fullscreen ? (
+                    <>
+                      <Minimize2 className="mr-1 h-4 w-4" />
+                      {t('pageBuilder.fullscreen.exit')}
+                    </>
+                  ) : (
+                    <>
+                      <Maximize2 className="mr-1 h-4 w-4" />
+                      {t('pageBuilder.fullscreen.enter')}
+                    </>
+                  )}
+                </Button>
+              ),
+            }}
+          />
+        </CmsRenderProvider>
       </div>
     </div>
   );
