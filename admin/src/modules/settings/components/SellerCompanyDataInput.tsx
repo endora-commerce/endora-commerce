@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { CountrySelect } from '@/components/country-select';
 import { useTranslation } from '@/i18n/useTranslation';
 
 /**
@@ -66,12 +67,21 @@ export function SellerCompanyDataInput({ value, onChange }: Props): ReactNode {
           <Label htmlFor={`seller-${field}`} className="text-xs">
             {t(`editor.sellerCompanyData.${field}`)}
           </Label>
-          <Input
-            id={`seller-${field}`}
-            value={obj[field] ?? ''}
-            maxLength={field === 'country' ? 2 : undefined}
-            onChange={(e): void => setField(field, e.target.value)}
-          />
+          {field === 'country' ? (
+            <CountrySelect
+              id={`seller-${field}`}
+              ariaLabel={t(`editor.sellerCompanyData.${field}`)}
+              value={obj[field] ?? null}
+              clearable
+              onChange={(code): void => setField(field, code ?? '')}
+            />
+          ) : (
+            <Input
+              id={`seller-${field}`}
+              value={obj[field] ?? ''}
+              onChange={(e): void => setField(field, e.target.value)}
+            />
+          )}
         </div>
       ))}
     </div>
