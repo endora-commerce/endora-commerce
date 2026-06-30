@@ -493,6 +493,11 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.customers', href: '/organizations' },
     { labelKey: 'appShell.nav.invoices', href: null },
   ] },
+  { test: /^\/invoices\/(?!templates)[^/]+\/?$/, build: () => [
+    { labelKey: 'appShell.section.customers', href: '/organizations' },
+    { labelKey: 'appShell.nav.invoices', href: '/invoices' },
+    { labelKey: 'appShell.crumb.detail', href: null },
+  ] },
   { test: /^\/credit-limits\/?$/, build: () => [
     { labelKey: 'appShell.section.customers', href: '/organizations' },
     { labelKey: 'appShell.nav.creditLimits', href: null },
