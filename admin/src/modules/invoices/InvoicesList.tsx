@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
@@ -34,6 +35,7 @@ interface AdminInvoice {
 }
 
 const STATUSES = ['pending', 'ready', 'cancelled'] as const;
+const KINDS = ['proforma', 'invoice', 'correction'] as const;
 
 const STATUS_VARIANT: Record<AdminInvoice['status'], 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
   pending: 'warning',
@@ -48,6 +50,31 @@ export function InvoicesList(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [status, setStatus] = useState<'' | (typeof STATUSES)[number]>('');
+  const [kind, setKind] = useState<'' | (typeof KINDS)[number]>('');
+  const [orderNumber, setOrderNumber] = useState('');
+  const [issuedFrom, setIssuedFrom] = useState('');
+  const [issuedTo, setIssuedTo] = useState('');
+  const [totalMin, setTotalMin] = useState('');
+  const [totalMax, setTotalMax] = useState('');
+
+  const hasFilters =
+    status !== '' ||
+    kind !== '' ||
+    orderNumber.trim() !== '' ||
+    issuedFrom !== '' ||
+    issuedTo !== '' ||
+    totalMin !== '' ||
+    totalMax !== '';
+
+  const clearFilters = useCallback((): void => {
+    setStatus('');
+    setKind('');
+    setOrderNumber('');
+    setIssuedFrom('');
+    setIssuedTo('');
+    setTotalMin('');
+    setTotalMax('');
+  }, []);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -55,6 +82,12 @@ export function InvoicesList(): ReactNode {
     try {
       const params = new URLSearchParams();
       if (status) params.set('filter[status]', status);
+      if (kind) params.set('filter[kind]', kind);
+      if (orderNumber.trim()) params.set('filter[orderNumber]', orderNumber.trim());
+      if (issuedFrom) params.set('filter[issuedFrom]', `${issuedFrom}T00:00:00.000Z`);
+      if (issuedTo) params.set('filter[issuedTo]', `${issuedTo}T23:59:59.999Z`);
+      if (totalMin.trim()) params.set('filter[totalMin]', totalMin.trim());
+      if (totalMax.trim()) params.set('filter[totalMax]', totalMax.trim());
       const path =
         '/api/v1/admin/invoices' + (params.toString() ? `?${params.toString()}` : '');
       const res = await apiClient.get<{ data: AdminInvoice[] }>(path);
@@ -64,10 +97,13 @@ export function InvoicesList(): ReactNode {
     } finally {
       setLoading(false);
     }
-  }, [status]);
+  }, [status, kind, orderNumber, issuedFrom, issuedTo, totalMin, totalMax]);
 
+  // Debounced so typing in the order-number / total inputs doesn't refetch
+  // on every keystroke.
   useEffect(() => {
-    void refresh();
+    const id = setTimeout(() => void refresh(), 300);
+    return (): void => clearTimeout(id);
   }, [refresh]);
 
   const baseUrl = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? '';
@@ -106,20 +142,91 @@ export function InvoicesList(): ReactNode {
 
       <Card className="mb-4">
         <CardContent className="pt-6">
-          <div className="space-y-2 md:max-w-xs">
-            <Label htmlFor="istatus">{t('invoices.fields.status')}</Label>
-            <Select
-              id="istatus"
-              value={status}
-              onChange={(e): void => setStatus(e.target.value as typeof status)}
-            >
-              <option value="">{t('invoices.status.all')}</option>
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {t(`invoices.status.${s}`)}
-                </option>
-              ))}
-            </Select>
+          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4">
+            <div className="space-y-2">
+              <Label htmlFor="iorder">{t('invoices.fields.orderNumber')}</Label>
+              <Input
+                id="iorder"
+                value={orderNumber}
+                onChange={(e): void => setOrderNumber(e.target.value)}
+                placeholder={t('invoices.filters.orderNumberPlaceholder')}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ikind">{t('invoices.fields.kind')}</Label>
+              <Select
+                id="ikind"
+                value={kind}
+                onChange={(e): void => setKind(e.target.value as typeof kind)}
+              >
+                <option value="">{t('invoices.kind.all')}</option>
+                {KINDS.map((k) => (
+                  <option key={k} value={k}>
+                    {t(`invoices.kind.${k}`)}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="istatus">{t('invoices.fields.status')}</Label>
+              <Select
+                id="istatus"
+                value={status}
+                onChange={(e): void => setStatus(e.target.value as typeof status)}
+              >
+                <option value="">{t('invoices.status.all')}</option>
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {t(`invoices.status.${s}`)}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ifrom">{t('invoices.fields.issuedFrom')}</Label>
+              <Input
+                id="ifrom"
+                type="date"
+                value={issuedFrom}
+                onChange={(e): void => setIssuedFrom(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ito">{t('invoices.fields.issuedTo')}</Label>
+              <Input
+                id="ito"
+                type="date"
+                value={issuedTo}
+                onChange={(e): void => setIssuedTo(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="itmin">{t('invoices.fields.totalMin')}</Label>
+              <Input
+                id="itmin"
+                type="number"
+                step="0.01"
+                min="0"
+                value={totalMin}
+                onChange={(e): void => setTotalMin(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="itmax">{t('invoices.fields.totalMax')}</Label>
+              <Input
+                id="itmax"
+                type="number"
+                step="0.01"
+                min="0"
+                value={totalMax}
+                onChange={(e): void => setTotalMax(e.target.value)}
+              />
+            </div>
+            <div className="flex items-end">
+              <Button type="button" variant="outline" disabled={!hasFilters} onClick={clearFilters}>
+                {t('invoices.filters.clear')}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
