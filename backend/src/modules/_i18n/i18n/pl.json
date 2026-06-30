@@ -164,6 +164,7 @@
   "fulfilment.saveError": "Nie udało się zapisać strategii realizacji.",
   "appShell.nav.quoteRequests": "Zapytania ofertowe",
   "appShell.nav.invoices": "Faktury",
+  "appShell.nav.invoiceTemplates": "Szablony faktur",
   "appShell.nav.products": "Produkty",
   "appShell.nav.categories": "Kategorie",
   "appShell.nav.attributes": "Atrybuty",
