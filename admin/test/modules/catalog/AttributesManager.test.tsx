@@ -105,11 +105,9 @@ describe('AttributesManager — Mass-editable toggle (T027)', () => {
     const row = keyCell.closest('tr')!;
     expect(row).not.toBeNull();
 
-    // Column order in the table is searchable → filterable → variantAxis →
-    // comparable → massEditable → quickSearchable, so the Mass-editable toggle
-    // is the second-to-last checkbox in the row.
-    const checkboxes = within(row).getAllByRole('checkbox') as HTMLInputElement[];
-    const massEditableCheckbox = checkboxes[checkboxes.length - 2]!;
+    // Select the Mass-editable toggle by its stable aria-label
+    // (`${attributeKey}-${flagKey}`) so the test is unaffected by column order.
+    const massEditableCheckbox = within(row).getByLabelText('brand-massEditable') as HTMLInputElement;
     expect(massEditableCheckbox.checked).toBe(false);
 
     const user = userEvent.setup();
@@ -133,9 +131,7 @@ describe('AttributesManager — Mass-editable toggle (T027)', () => {
 
     const keyCell = await screen.findByText('brand');
     const row = keyCell.closest('tr')!;
-    const checkboxes = within(row).getAllByRole('checkbox') as HTMLInputElement[];
-    // massEditable is the second-to-last checkbox (quickSearchable follows it).
-    const massEditableCheckbox = checkboxes[checkboxes.length - 2]!;
+    const massEditableCheckbox = within(row).getByLabelText('brand-massEditable') as HTMLInputElement;
     expect(massEditableCheckbox.checked).toBe(true);
   });
 });

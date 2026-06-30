@@ -111,6 +111,8 @@
   "bulkOperations.outcome.failed": "Failed",
   "attributes.column.massEditable": "Mass-editable",
   "attributes.column.quickSearchable": "Quick-searchable",
+  "attributes.column.promoRule": "Promotion rules",
+  "attributes.flag.promoRule": "Usable in promotion rules (offered in the Promotion Rule criterion picker)",
   "attributes.flag.massEditable": "Mass-editable (offered in the Products Bulk Edit dialog)",
   "attributesList.filter.massEditable": "Mass-editable only",
   "productsList.empty.title": "No products match these filters",

@@ -111,6 +111,8 @@
   "bulkOperations.outcome.failed": "Niepowodzenie",
   "attributes.column.massEditable": "Edycja masowa",
   "attributes.column.quickSearchable": "Szybkie wyszukiwanie",
+  "attributes.column.promoRule": "Reguły promocyjne",
+  "attributes.flag.promoRule": "Dostępny w regułach promocyjnych (w selektorze kryteriów Reguły Promocyjnej)",
   "attributes.flag.massEditable": "Włącz do okna „Edycja masowa” produktów",
   "attributesList.filter.massEditable": "Tylko masowo edytowalne",
   "productsList.empty.title": "Brak produktów pasujących do filtrów",
