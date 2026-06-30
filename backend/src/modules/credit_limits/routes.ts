@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
   adjustCreditLimitRequestSchema,
@@ -8,10 +9,12 @@ import { HttpError } from '../../http/error-envelope.js';
 import type { CreditLimitService } from './services/credit-limit-service.js';
 import type { CreditLimit } from './entities/credit-limit.entity.js';
 import type { CreditLimitReservation } from './entities/credit-limit-reservation.entity.js';
+import { Organization } from '../organizations/entities/organization.entity.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
 export interface CreditLimitsDeps {
   creditLimitService: CreditLimitService;
+  emFactory: () => EntityManager;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   requireAdmin: RequireAdminFactory;
   resolveCustomerContext: (req: FastifyRequest) => {
@@ -24,7 +27,19 @@ export async function registerCreditLimitsRoutes(
   app: FastifyInstance,
   deps: CreditLimitsDeps,
 ): Promise<void> {
-  const { creditLimitService, requireCustomer, requireAdmin, resolveCustomerContext } = deps;
+  const { creditLimitService, emFactory, requireCustomer, requireAdmin, resolveCustomerContext } = deps;
+
+  /** Resolve organization names for the given ids (read-only, missing ⇒ absent). */
+  const loadOrgNames = async (ids: string[]): Promise<Map<string, string>> => {
+    const unique = [...new Set(ids)].filter(Boolean);
+    if (unique.length === 0) return new Map();
+    const orgs = await emFactory().find(
+      Organization,
+      { id: { $in: unique } },
+      { fields: ['id', 'name'] },
+    );
+    return new Map(orgs.map((o) => [o.id, o.name]));
+  };
 
   app.get(
     '/api/v1/me/credit-limit',
@@ -49,10 +64,11 @@ export async function registerCreditLimitsRoutes(
     { preHandler: requireAdmin('credit_limits:manage') },
     async () => {
       const rows = await creditLimitService.listAll();
+      const names = await loadOrgNames(rows.map((l) => l.organizationId));
       const data = await Promise.all(
         rows.map(async (l) => {
           const reservations = await creditLimitService.listActiveReservations(l.id);
-          return serializeView(l, reservations);
+          return serializeView(l, reservations, names.get(l.organizationId) ?? null);
         }),
       );
       return { data };
@@ -85,7 +101,8 @@ export async function registerCreditLimitsRoutes(
         ...(adminId !== undefined ? { grantedByAdminUserId: adminId } : {}),
       });
       reply.status(201);
-      return { data: serializeView(limit, []) };
+      const names = await loadOrgNames([request.params.id]);
+      return { data: serializeView(limit, [], names.get(request.params.id) ?? null) };
     },
   );
 
@@ -102,7 +119,8 @@ export async function registerCreditLimitsRoutes(
         );
       }
       const reservations = await creditLimitService.listActiveReservations(limit.id);
-      return { data: serializeView(limit, reservations) };
+      const names = await loadOrgNames([request.params.id]);
+      return { data: serializeView(limit, reservations, names.get(request.params.id) ?? null) };
     },
   );
 
@@ -130,7 +148,8 @@ export async function registerCreditLimitsRoutes(
           );
         }
         const reservations = await creditLimitService.listActiveReservations(result.limit.id);
-        return { data: serializeView(result.limit, reservations) };
+        const names = await loadOrgNames([request.params.id]);
+        return { data: serializeView(result.limit, reservations, names.get(request.params.id) ?? null) };
       } catch (err) {
         if (err instanceof Error && err.message === 'CREDIT_LIMIT_NOT_GRANTED') {
           throw new HttpError(
@@ -148,11 +167,13 @@ export async function registerCreditLimitsRoutes(
 function serializeView(
   limit: CreditLimit,
   reservations: CreditLimitReservation[],
+  organizationName?: string | null,
 ): Record<string, unknown> {
   const granted = Number(limit.grantedAmount);
   const reservedSum = reservations.reduce((acc, r) => acc + Number(r.amount), 0);
   return {
     organizationId: limit.organizationId,
+    organizationName: organizationName ?? null,
     grantedAmount: granted,
     availableAmount: granted - reservedSum,
     currency: limit.currency,

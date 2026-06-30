@@ -32,6 +32,7 @@ export function creditLimitsModule(
     plugin: async (app) => {
       await registerCreditLimitsRoutes(app, {
         creditLimitService,
+        emFactory: options.emFactory,
         requireCustomer: options.requireCustomer,
         requireAdmin: options.requireAdmin,
         resolveCustomerContext: options.resolveCustomerContext,
