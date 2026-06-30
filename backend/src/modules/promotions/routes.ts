@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import {
+  bulkCouponActiveRequestSchema,
   cartSnapshotSchema,
   generateCouponsRequestSchema,
   upsertPromotionRequestSchema,
@@ -204,6 +205,21 @@ export async function registerPromotionRoutes(
       const coupon = await couponService.createSingle(request.params.id, code);
       reply.status(201);
       return { data: serializeCoupon(coupon) };
+    },
+  );
+
+  // Bulk activate/deactivate selected coupons of a promotion.
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/promotions/:id/coupons/bulk-active',
+    { preHandler: writeGate, schema: { body: bulkCouponActiveRequestSchema } },
+    async (request) => {
+      const body = bulkCouponActiveRequestSchema.parse(request.body);
+      const updated = await couponService.setActiveBulk(
+        request.params.id,
+        body.couponIds,
+        body.isActive,
+      );
+      return { data: { updated } };
     },
   );
 

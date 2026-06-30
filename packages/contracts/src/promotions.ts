@@ -459,6 +459,13 @@ export const generateCouponsRequestSchema = z.object({
 });
 export type GenerateCouponsRequest = z.infer<typeof generateCouponsRequestSchema>;
 
+/** Bulk activate/deactivate coupons of a promotion by id. */
+export const bulkCouponActiveRequestSchema = z.object({
+  couponIds: z.array(uuidSchema).min(1).max(100_000),
+  isActive: z.boolean(),
+});
+export type BulkCouponActiveRequest = z.infer<typeof bulkCouponActiveRequestSchema>;
+
 // --- Cart application ------------------------------------------------------
 
 export const cartLineSchema = z.object({

@@ -74,6 +74,64 @@ describe('Promotion coupons (feature 045)', () => {
     expect((list.json() as { data: unknown[] }).data).toHaveLength(1);
   });
 
+  it('bulk-deactivates and re-activates selected coupons', async () => {
+    const id = await createCouponPromotion();
+    const codes = ['BULK1', 'BULK2', 'BULK3'];
+    for (const code of codes) {
+      await h.app.inject({
+        method: 'POST',
+        url: `/api/v1/admin/promotions/${id}/coupons`,
+        cookies: adminCookie,
+        payload: { code },
+      });
+    }
+    const list = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/promotions/${id}/coupons`,
+      cookies: adminCookie,
+    });
+    const rows = (list.json() as { data: Array<{ id: string; code: string; isActive: boolean }> }).data;
+    const ids = rows.slice(0, 2).map((r) => r.id);
+
+    const off = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/promotions/${id}/coupons/bulk-active`,
+      cookies: adminCookie,
+      payload: { couponIds: ids, isActive: false },
+    });
+    expect(off.statusCode).toBe(200);
+    expect((off.json() as { data: { updated: number } }).data.updated).toBe(2);
+
+    const afterOff = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/promotions/${id}/coupons`,
+      cookies: adminCookie,
+    });
+    const byId = new Map(
+      (afterOff.json() as { data: Array<{ id: string; isActive: boolean }> }).data.map((r) => [r.id, r.isActive]),
+    );
+    expect(byId.get(ids[0]!)).toBe(false);
+    expect(byId.get(ids[1]!)).toBe(false);
+    // The unselected coupon stays active.
+    expect([...byId.values()].filter((a) => a).length).toBe(1);
+
+    const on = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/promotions/${id}/coupons/bulk-active`,
+      cookies: adminCookie,
+      payload: { couponIds: ids, isActive: true },
+    });
+    expect(on.statusCode).toBe(200);
+    const afterOn = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/promotions/${id}/coupons`,
+      cookies: adminCookie,
+    });
+    expect(
+      (afterOn.json() as { data: Array<{ isActive: boolean }> }).data.every((r) => r.isActive),
+    ).toBe(true);
+  });
+
   it('applies only when the matching code is presented', async () => {
     const id = await createCouponPromotion();
     await h.app.inject({
