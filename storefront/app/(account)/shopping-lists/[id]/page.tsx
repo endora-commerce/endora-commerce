@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
@@ -136,9 +136,29 @@ export default async function ShoppingListDetailPage({
         </p>
       ) : (
         <>
-        <form action={convertSelectedToCartAction}>
+        {/*
+          The per-row "Save" / "Remove" controls and the "Convert" buttons each
+          need their own form, but a table can't host nested forms (the browser
+          drops the inner ones, which is why Remove appeared to do nothing).
+          Instead we declare every form once here as a sibling of the table and
+          wire the in-cell controls to them via the HTML `form` attribute.
+        */}
+        <form id="sl-convert" action={convertSelectedToCartAction}>
           <input type="hidden" name="listId" value={list.id} />
-          <table className="b2b-account__table">
+        </form>
+        {list.items.map((it) => (
+          <Fragment key={`forms-${it.id}`}>
+            <form id={`sl-qty-${it.id}`} action={updateQtyAction}>
+              <input type="hidden" name="listId" value={list.id} />
+              <input type="hidden" name="itemId" value={it.id} />
+            </form>
+            <form id={`sl-remove-${it.id}`} action={removeAction}>
+              <input type="hidden" name="listId" value={list.id} />
+              <input type="hidden" name="itemId" value={it.id} />
+            </form>
+          </Fragment>
+        ))}
+        <table className="b2b-account__table">
             <thead>
               <tr>
                 <th></th>
@@ -152,7 +172,7 @@ export default async function ShoppingListDetailPage({
               {list.items.map((it) => (
                 <tr key={it.id}>
                   <td>
-                    <input type="checkbox" name="itemIds" value={it.id} />
+                    <input type="checkbox" name="itemIds" value={it.id} form="sl-convert" />
                   </td>
                   <td>
                     {(() => {
@@ -176,31 +196,30 @@ export default async function ShoppingListDetailPage({
                     ) : null}
                   </td>
                   <td>
-                    <UpdateQtyForm listId={list.id} itemId={it.id} qty={it.quantity} />
+                    <UpdateQtyForm itemId={it.id} qty={it.quantity} />
                   </td>
                   <td>{it.note ?? ''}</td>
                   <td>
-                    <RemoveItemForm listId={list.id} itemId={it.id} />
+                    <RemoveItemForm itemId={it.id} />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
           <div className="mt-6 mb-10 flex flex-wrap gap-2">
-            <button type="submit" formAction={convertAllToCartAction} className="btn btn--primary">
+            <button type="submit" form="sl-convert" formAction={convertAllToCartAction} className="btn btn--primary">
               Convert all to cart
             </button>
-            <button type="submit" className="btn btn--outline">
+            <button type="submit" form="sl-convert" className="btn btn--outline">
               Convert selected to cart
             </button>
-            <button type="submit" formAction={convertAllToRfqAction} className="btn btn--outline">
+            <button type="submit" form="sl-convert" formAction={convertAllToRfqAction} className="btn btn--outline">
               Convert all to RFQ
             </button>
-            <button type="submit" formAction={convertSelectedToRfqAction} className="btn btn--outline">
+            <button type="submit" form="sl-convert" formAction={convertSelectedToRfqAction} className="btn btn--outline">
               Convert selected to RFQ
             </button>
           </div>
-        </form>
         <div className="mb-10 flex flex-wrap gap-2 border-t border-line pt-6">
           <ClearListButton listId={list.id} clearAction={clearListAction} />
         </div>
@@ -210,44 +229,38 @@ export default async function ShoppingListDetailPage({
   );
 }
 
-function UpdateQtyForm({
-  listId,
-  itemId,
-  qty,
-}: {
-  listId: string;
-  itemId: string;
-  qty: number;
-}): ReactNode {
+/**
+ * Per-row quantity editor. The control lives inside a table cell but is wired
+ * to the standalone `sl-qty-<itemId>` form (declared as a table sibling) via
+ * the HTML `form` attribute, so it submits independently of the convert form.
+ */
+function UpdateQtyForm({ itemId, qty }: { itemId: string; qty: number }): ReactNode {
+  const formId = `sl-qty-${itemId}`;
   return (
-    <form action={updateQtyAction} style={{ display: 'inline-flex', gap: '0.25rem' }}>
-      <input type="hidden" name="listId" value={listId} />
-      <input type="hidden" name="itemId" value={itemId} />
+    <span style={{ display: 'inline-flex', gap: '0.25rem' }}>
       <input
         type="number"
         name="quantity"
+        form={formId}
         min={1}
         max={9999}
         defaultValue={qty}
         className="rounded-md border border-line px-2 py-1 text-sm"
         style={{ width: '4rem' }}
       />
-      <button type="submit" className="btn btn--outline btn--sm">
+      <button type="submit" form={formId} className="btn btn--outline btn--sm">
         Save
       </button>
-    </form>
+    </span>
   );
 }
 
-function RemoveItemForm({ listId, itemId }: { listId: string; itemId: string }): ReactNode {
+/** Per-row remove button, wired to the standalone `sl-remove-<itemId>` form. */
+function RemoveItemForm({ itemId }: { itemId: string }): ReactNode {
   return (
-    <form action={removeAction} style={{ display: 'inline' }}>
-      <input type="hidden" name="listId" value={listId} />
-      <input type="hidden" name="itemId" value={itemId} />
-      <button type="submit" className="btn btn--outline btn--sm">
-        Remove
-      </button>
-    </form>
+    <button type="submit" form={`sl-remove-${itemId}`} className="btn btn--outline btn--sm">
+      Remove
+    </button>
   );
 }
 
