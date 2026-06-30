@@ -29,6 +29,11 @@ const ACTION_TYPES: PromotionActionType[] = [
   'buy_x_units_amount_off',
 ];
 
+/** Deep-copy a rule definition so the promotion owns an independent snapshot. */
+function cloneRule(rule: PromotionRule): PromotionRule {
+  return JSON.parse(JSON.stringify(rule)) as PromotionRule;
+}
+
 function defaultAction(type: PromotionActionType): PromotionAction {
   switch (type) {
     case 'free_delivery':
@@ -68,9 +73,10 @@ export const PromotionEditPage = (): ReactNode => {
   const [stopFurther, setStopFurther] = useState(false);
   const [action, setAction] = useState<PromotionAction>(defaultAction('percentage_off_cart'));
   const [rule, setRule] = useState<PromotionRule>({ kind: 'all' });
-  const [ruleMode, setRuleMode] = useState<'inline' | 'saved'>('inline');
-  const [ruleId, setRuleId] = useState<string>('');
   const [savedRules, setSavedRules] = useState<PromotionRuleRecord[]>([]);
+  // Legacy promotions that linked a saved rule by id: resolved into an
+  // independent snapshot once `savedRules` has loaded.
+  const [pendingRuleId, setPendingRuleId] = useState<string | null>(null);
   const [usageGlobal, setUsageGlobal] = useState('');
   const [usagePerOrg, setUsagePerOrg] = useState('');
   const [usagePerCustomer, setUsagePerCustomer] = useState('');
@@ -123,10 +129,12 @@ export const PromotionEditPage = (): ReactNode => {
         setPriority(p.priority);
         setStopFurther(p.stopFurther);
         if (p.action) setAction(p.action);
-        setRule(p.rule ?? { kind: 'all' });
-        if (p.ruleId) {
-          setRuleMode('saved');
-          setRuleId(p.ruleId);
+        if (p.rule) {
+          setRule(p.rule);
+        } else if (p.ruleId) {
+          setPendingRuleId(p.ruleId);
+        } else {
+          setRule({ kind: 'all' });
         }
         setUsageGlobal(p.usageLimitGlobal != null ? String(p.usageLimitGlobal) : '');
         setUsagePerOrg(p.usageLimitPerOrganization != null ? String(p.usageLimitPerOrganization) : '');
@@ -137,6 +145,17 @@ export const PromotionEditPage = (): ReactNode => {
       )
       .finally(() => setLoading(false));
   }, [id, isNew, t]);
+
+  // Resolve a legacy linked rule into an independent snapshot once the saved
+  // rule list is available.
+  useEffect(() => {
+    if (!pendingRuleId) return;
+    const found = savedRules.find((r) => r.id === pendingRuleId);
+    if (found) {
+      setRule(cloneRule(found.definition));
+      setPendingRuleId(null);
+    }
+  }, [pendingRuleId, savedRules]);
 
   const intOrNull = (s: string): number | null => {
     const n = Number(s);
@@ -156,7 +175,7 @@ export const PromotionEditPage = (): ReactNode => {
           priority,
           stopFurther,
           action,
-          ...(ruleMode === 'saved' && ruleId ? { ruleId } : { rule }),
+          rule,
           code: code.trim() === '' ? null : code,
           usageLimitGlobal: intOrNull(usageGlobal),
           usageLimitPerOrganization: intOrNull(usagePerOrg),
@@ -172,7 +191,7 @@ export const PromotionEditPage = (): ReactNode => {
       }
     },
     [
-      name, description, isActive, priority, stopFurther, action, rule, ruleMode, ruleId, code,
+      name, description, isActive, priority, stopFurther, action, rule, code,
       usageGlobal, usagePerOrg, usagePerCustomer, isNew, id, navigate, t,
     ],
   );
@@ -258,30 +277,33 @@ export const PromotionEditPage = (): ReactNode => {
             <CardTitle>{t('promotions.edit.rule')}</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-              <Select className="w-48" value={ruleMode} onChange={(e) => setRuleMode(e.target.value as 'inline' | 'saved')}>
-                <option value="inline">{t('promotions.edit.ruleInline')}</option>
-                <option value="saved">{t('promotions.edit.ruleSaved')}</option>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="ruleCopyFrom">{t('promotions.edit.ruleCopyFrom')}</Label>
+              <Select
+                id="ruleCopyFrom"
+                className="w-72"
+                value=""
+                disabled={savedRules.length === 0}
+                onChange={(e) => {
+                  const found = savedRules.find((r) => r.id === e.target.value);
+                  if (found) setRule(cloneRule(found.definition));
+                }}
+              >
+                <option value="">—</option>
+                {savedRules.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
               </Select>
-              {ruleMode === 'saved' ? (
-                <Select className="w-72" value={ruleId} onChange={(e) => setRuleId(e.target.value)}>
-                  <option value="">—</option>
-                  {savedRules.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </Select>
-              ) : null}
+              <p className="text-xs text-muted-foreground">{t('promotions.edit.ruleCopyHint')}</p>
             </div>
-            {ruleMode === 'inline' ? (
-              <RuleBuilder
-                value={rule}
-                onChange={setRule}
-                attributeFields={attributeFields}
-                fieldOptions={fieldOptions}
-              />
-            ) : null}
+            <RuleBuilder
+              value={rule}
+              onChange={setRule}
+              attributeFields={attributeFields}
+              fieldOptions={fieldOptions}
+            />
           </CardContent>
         </Card>
 
