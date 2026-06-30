@@ -146,7 +146,11 @@ export function InvoicesList(): ReactNode {
               <TableBody>
                 {rows.map((i) => (
                   <TableRow key={i.id}>
-                    <TableCell className="font-medium">{i.number}</TableCell>
+                    <TableCell className="font-medium">
+                      <Link to={`/invoices/${i.id}`} className="underline underline-offset-2">
+                        {i.number}
+                      </Link>
+                    </TableCell>
                     <TableCell>{t(`invoices.kind.${i.kind}`)}</TableCell>
                     <TableCell>{formatDateTime(i.issuedAt)}</TableCell>
                     <TableCell>
