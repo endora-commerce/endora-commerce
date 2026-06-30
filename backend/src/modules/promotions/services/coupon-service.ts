@@ -55,6 +55,26 @@ export class CouponService {
     return this.emFactory().findOne(PromotionCoupon, { code, isActive: true });
   }
 
+  /**
+   * Bulk activate/deactivate coupons by id, scoped to a promotion so an id from
+   * another promotion can never be flipped. Returns the number of rows updated.
+   */
+  async setActiveBulk(
+    promotionId: string,
+    couponIds: string[],
+    isActive: boolean,
+  ): Promise<number> {
+    if (couponIds.length === 0) return 0;
+    const em = this.emFactory();
+    const coupons = await em.find(PromotionCoupon, {
+      id: { $in: couponIds },
+      promotionId,
+    });
+    for (const c of coupons) c.isActive = isActive;
+    await em.flush();
+    return coupons.length;
+  }
+
   /** Create a single specified coupon for a promotion. Rejects duplicates. */
   async createSingle(promotionId: string, code: string): Promise<PromotionCoupon> {
     const em = this.emFactory();
