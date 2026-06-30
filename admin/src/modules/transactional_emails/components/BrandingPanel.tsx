@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import type { EmailBranding } from '@b2b/contracts';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ColorPicker } from '@/components/ui/color-picker';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AssetFieldPicker } from '@/components/asset-picker/AssetFieldPicker';
 import { useAuth } from '@/lib/auth';
@@ -94,8 +94,14 @@ export function BrandingPanel({ salesChannelId }: BrandingPanelProps): React.Rea
           ) : null}
         </div>
         <div className="space-y-1">
-          <Label htmlFor="te-accent">Accent color</Label>
-          <Input id="te-accent" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} className="max-w-[160px]" />
+          <Label>Accent color</Label>
+          <ColorPicker
+            value={accentColor}
+            onChange={setAccentColor}
+            label="Accent color"
+            customLabel="Custom accent color"
+            disabled={!canWrite}
+          />
         </div>
         <Button onClick={() => void save()} disabled={!canWrite || busy}>
           Save branding
