@@ -103,6 +103,8 @@ export const invoiceSchema = z.object({
 export type Invoice = z.infer<typeof invoiceSchema>;
 
 export const invoiceDetailSchema = invoiceSchema.extend({
+  /** Human-readable order business id (e.g. `ORD-…`); null if the order is gone. */
+  orderBusinessId: z.string().nullable(),
   lines: z.array(invoiceLineSchema),
   vatSummary: z.array(vatSummaryRowSchema),
   seller: sellerCompanyDataSchema,

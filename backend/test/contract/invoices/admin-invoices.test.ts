@@ -55,9 +55,14 @@ describe('invoices admin API (US1 contract)', () => {
     const id = await issue();
     const res = await h.app.inject({ method: 'GET', url: `/api/v1/admin/invoices/${id}`, cookies: ADMIN_COOKIE });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { data: { lines: unknown[]; seller: { taxId: string } } };
+    const body = res.json() as {
+      data: { lines: unknown[]; seller: { taxId: string }; orderBusinessId: string | null };
+    };
     expect(body.data.lines.length).toBe(2);
     expect(body.data.seller.taxId).toBe('1234567890');
+    // BUG 1 — detail must expose the order's human-readable business id.
+    expect(typeof body.data.orderBusinessId).toBe('string');
+    expect(body.data.orderBusinessId).toMatch(/^ORD-/);
   });
 
   it('regenerate-pdf returns the detail (200)', async () => {

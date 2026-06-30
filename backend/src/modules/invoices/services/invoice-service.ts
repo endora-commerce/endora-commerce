@@ -183,6 +183,7 @@ export class InvoiceService {
     const em = this.emFactory();
     const inv = await em.findOne(Invoice, { id: invoiceId });
     if (!inv) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
+    const order = await em.findOne(Order, { id: inv.orderId }, { fields: ['id', 'businessId'] });
     const lineRows = await em.find(InvoiceLine, { invoiceId }, { orderBy: { ordinal: 'asc' } });
 
     const lines = lineRows.map((l) => ({
@@ -217,6 +218,7 @@ export class InvoiceService {
     return {
       id: inv.id,
       orderId: inv.orderId,
+      orderBusinessId: order?.businessId ?? null,
       salesChannelId: inv.salesChannelId ?? null,
       kind: inv.kind,
       number: inv.number,

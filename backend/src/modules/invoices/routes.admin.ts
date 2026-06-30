@@ -141,12 +141,18 @@ export async function registerInvoicesAdminRoutes(
     },
   );
 
-  // Regenerate PDF (no-op for on-demand rendering; kept for the contract) -
+  // Regenerate PDF — the PDF is rendered on demand, so "regenerate" actually
+  // re-runs the full render pipeline (template tree + pdfmake) to validate that
+  // a fresh document can be produced and to surface any rendering error to the
+  // operator instead of silently doing nothing. Returns the refreshed detail.
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/invoices/:id/regenerate-pdf',
     { preHandler: requireAdmin('invoices:write') },
     async (request) => {
-      return { data: await invoiceService.buildDetail(request.params.id) };
+      const detail = await invoiceService.buildDetail(request.params.id);
+      const tree = await templateService.resolveTree(detail.salesChannelId, RENDER_LANGUAGE);
+      await pdfRenderer.render(detail, 'pl', tree);
+      return { data: detail };
     },
   );
 

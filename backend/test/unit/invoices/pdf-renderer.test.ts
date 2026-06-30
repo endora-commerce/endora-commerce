@@ -5,6 +5,7 @@ import type { InvoiceDetail } from '@b2b/contracts';
 const detail: InvoiceDetail = {
   id: '00000000-0000-4000-8000-000000000001',
   orderId: '00000000-0000-4000-8000-000000000002',
+  orderBusinessId: 'ORD-TEST-0001',
   salesChannelId: '00000000-0000-4000-8000-000000000003',
   kind: 'invoice',
   number: 'FV 26/2026',
