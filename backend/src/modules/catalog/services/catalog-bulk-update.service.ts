@@ -210,6 +210,12 @@ export class CatalogBulkUpdateService {
       touchedAny = true;
     }
 
+    // Attribute Set — assign (or clear, with null) on every selected product.
+    if (fields.attributeSetId !== undefined) {
+      partial.attributeSetId = fields.attributeSetId;
+      touchedAny = true;
+    }
+
     // Categories — translate {mode, categoryIds} into the partial's
     // categoryIds field (which the single-product PATCH treats as the
     // canonical set when present). For `add` mode, union the target with
@@ -253,7 +259,8 @@ export class CatalogBulkUpdateService {
         fields.status === undefined &&
         fields.visibility === undefined &&
         fields.categories === undefined &&
-        fields.salesChannels === undefined
+        fields.salesChannels === undefined &&
+        fields.attributeSetId === undefined
       ) {
         // Nothing else to do for this product and at least one attribute
         // was skipped — report skip with the first dropped key for

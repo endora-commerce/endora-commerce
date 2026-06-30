@@ -48,6 +48,12 @@ interface AdminCategory {
   sortOrder: number;
 }
 
+interface AttributeSetSummary {
+  id: string;
+  code: string;
+  name: Record<string, string>;
+}
+
 interface BulkUpdateResultRow {
   productId: string;
   status: 'succeeded' | 'skipped' | 'failed';
@@ -126,6 +132,10 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
   const [categoriesMode, setCategoriesMode] = useState<BulkMode>('add');
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
 
+  const [touchAttributeSet, setTouchAttributeSet] = useState(false);
+  // '' represents "no attribute set" (cleared); a uuid assigns that set.
+  const [attributeSetId, setAttributeSetId] = useState<string>('');
+
   const [attributeValues, setAttributeValues] = useState<Record<string, unknown>>({});
   const [touchedAttrs, setTouchedAttrs] = useState<Set<string>>(new Set());
 
@@ -133,6 +143,7 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
   const [attrs, setAttrs] = useState<AdminAttributeSummary[]>([]);
   const [channels, setChannels] = useState<SalesChannel[]>([]);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
+  const [attributeSets, setAttributeSets] = useState<AttributeSetSummary[]>([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -144,7 +155,7 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
     let cancelled = false;
     (async (): Promise<void> => {
       try {
-        const [attrRes, chRes, catRes] = await Promise.all([
+        const [attrRes, chRes, catRes, setRes] = await Promise.all([
           apiClient.get<{ data: { items: AdminAttributeSummary[] } }>(
             '/api/v1/admin/catalog/attributes/by-flag?flag=isMassEditable',
           ),
@@ -158,11 +169,15 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
           apiClient
             .get<{ data: AdminCategory[] }>('/api/v1/admin/catalog/categories')
             .catch(() => ({ data: [] as AdminCategory[] })),
+          apiClient
+            .get<{ data: AttributeSetSummary[] }>('/api/v1/admin/catalog/attribute-sets')
+            .catch(() => ({ data: [] as AttributeSetSummary[] })),
         ]);
         if (cancelled) return;
         setAttrs(attrRes.data?.items ?? []);
         setChannels(chRes.items ?? chRes.data ?? []);
         setCategories(catRes.data ?? []);
+        setAttributeSets(setRes.data ?? []);
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof ApiError ? e.envelope.error.message : String(e));
@@ -180,8 +195,9 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
       touchVisibility ||
       touchChannels ||
       touchCategories ||
+      touchAttributeSet ||
       touchedAttrs.size > 0,
-    [touchStatus, touchVisibility, touchChannels, touchCategories, touchedAttrs],
+    [touchStatus, touchVisibility, touchChannels, touchCategories, touchAttributeSet, touchedAttrs],
   );
 
   const submit = useCallback(async (): Promise<void> => {
@@ -200,6 +216,10 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
       }
       if (touchCategories) {
         fields.categories = { mode: categoriesMode, categoryIds };
+      }
+      if (touchAttributeSet) {
+        // '' clears the set (null); a uuid assigns it.
+        fields.attributeSetId = attributeSetId === '' ? null : attributeSetId;
       }
       if (touchedAttrs.size > 0) {
         const av: Record<string, unknown> = {};
@@ -257,6 +277,8 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
     touchCategories,
     categoriesMode,
     categoryIds,
+    touchAttributeSet,
+    attributeSetId,
     touchedAttrs,
     attributeValues,
     productIds,
@@ -399,6 +421,27 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
                 onChange={setCategoryIds}
                 disabled={!touchCategories}
               />
+            </FieldGroup>
+
+            <FieldGroup
+              label={t('productsList.bulkEdit.section.attributeSet')}
+              touched={touchAttributeSet}
+              onToggle={setTouchAttributeSet}
+              t={t}
+            >
+              <select
+                className="b2b-field"
+                disabled={!touchAttributeSet}
+                value={attributeSetId}
+                onChange={(e): void => setAttributeSetId(e.target.value)}
+              >
+                <option value="">{t('productsList.bulkEdit.attributeSet.none')}</option>
+                {attributeSets.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name['en-US'] ?? s.name['pl-PL'] ?? Object.values(s.name)[0] ?? s.code}
+                  </option>
+                ))}
+              </select>
             </FieldGroup>
 
             {attrs.length > 0 ? (

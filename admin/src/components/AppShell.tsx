@@ -448,6 +448,21 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
     { labelKey: 'appShell.nav.promotions', href: null },
   ] },
+  { test: /^\/promotions\/new\/?$/, build: () => [
+    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
+    { labelKey: 'appShell.nav.promotions', href: '/promotions' },
+    { labelKey: 'promotions.edit.titleNew', href: null },
+  ] },
+  { test: /^\/promotions\/[^/]+\/stats\/?$/, build: () => [
+    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
+    { labelKey: 'appShell.nav.promotions', href: '/promotions' },
+    { labelKey: 'promotionStats.title', href: null },
+  ] },
+  { test: /^\/promotions\/[^/]+\/?$/, build: () => [
+    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
+    { labelKey: 'appShell.nav.promotions', href: '/promotions' },
+    { labelKey: 'promotions.edit.titleEdit', href: null },
+  ] },
   { test: /^\/taxes\/?$/, build: () => [
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
     { labelKey: 'appShell.nav.taxes', href: null },
@@ -477,6 +492,11 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   { test: /^\/invoices\/?$/, build: () => [
     { labelKey: 'appShell.section.customers', href: '/organizations' },
     { labelKey: 'appShell.nav.invoices', href: null },
+  ] },
+  { test: /^\/invoices\/(?!templates)[^/]+\/?$/, build: () => [
+    { labelKey: 'appShell.section.customers', href: '/organizations' },
+    { labelKey: 'appShell.nav.invoices', href: '/invoices' },
+    { labelKey: 'appShell.crumb.detail', href: null },
   ] },
   { test: /^\/credit-limits\/?$/, build: () => [
     { labelKey: 'appShell.section.customers', href: '/organizations' },
@@ -654,6 +674,8 @@ const PALETTE_ITEMS: PaletteItem[] = [
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionary', sub: 'appShell.palette.sub.dictionary', icon: Languages, to: '/dictionary', keywords: 'dictionary countries currencies languages i18n słownik kraje waluty języki' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionaryAudit', sub: 'appShell.palette.sub.dictionaryAudit', icon: ListChecks, to: '/admin/dictionaries/audit', keywords: 'dictionary audit orphan references audyt słownika' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.settings', sub: 'appShell.palette.sub.platformConfiguration', icon: Settings, to: '/settings', keywords: 'settings configuration config ustawienia konfiguracja' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.apiKeys', sub: 'appShell.palette.sub.apiKeys', icon: KeyRound, to: '/api-keys', keywords: 'api keys bearer token integration klucze api token integracja' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.webhooks', sub: 'appShell.palette.sub.webhooks', icon: Webhook, to: '/webhooks', keywords: 'webhook webhooks events signing secret integration webhooki zdarzenia integracja' },
   // Feature 020 — the Actions group is now sourced from the module
   // registry via useAdminActions(); the previously-hardcoded "New
   // product" and "Import products" entries are declared by the

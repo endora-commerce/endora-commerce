@@ -42,7 +42,10 @@ export async function registerWebhooksAdminRoutes(
         ...(adminId !== undefined ? { createdByAdminUserId: adminId } : {}),
       });
       reply.status(201);
-      return { data: serializeWebhook(w) };
+      // Reveal the signing secret once, on creation, so the operator can share
+      // it with the receiving system (it is never returned by the list/update
+      // endpoints again).
+      return { data: { ...serializeWebhook(w), secret: w.secret } };
     },
   );
 

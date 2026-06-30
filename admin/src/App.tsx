@@ -80,6 +80,7 @@ import { QuickOrderOnBehalfPage } from './modules/quick_order/QuickOrderOnBehalf
 import { CartsList } from './modules/carts/CartsList.js';
 import { CartDetail } from './modules/carts/CartDetail.js';
 import { InvoicesList } from './modules/invoices/InvoicesList.js';
+import { InvoiceDetail } from './modules/invoices/InvoiceDetail.js';
 import { InvoiceTemplatesPage } from './modules/invoices/templates/InvoiceTemplatesPage.js';
 import { InvoiceTemplateEditor } from './modules/invoices/templates/InvoiceTemplateEditor.js';
 import { TaxesPage } from './modules/taxes/TaxesPage.js';
@@ -208,6 +209,7 @@ export function App(): ReactNode {
         <Route path="/invoices" element={<InvoicesList />} />
         <Route path="/invoices/templates" element={<InvoiceTemplatesPage />} />
         <Route path="/invoices/templates/:id" element={<InvoiceTemplateEditor />} />
+        <Route path="/invoices/:id" element={<InvoiceDetail />} />
         <Route path="/taxes" element={<TaxesPage />} />
         <Route path="/promotions" element={<PromotionsPage />} />
         <Route path="/promotions/new" element={<PromotionEditPage />} />

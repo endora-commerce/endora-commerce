@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   BULK_OPERATION_TYPES,
   type BulkOperation,
@@ -67,6 +67,17 @@ const KNOWN_OPERATION_TYPES = new Set<string>([
   BULK_OPERATION_TYPES.SEARCH_REINDEX,
 ]);
 
+/** Resolved product info for the per-element Product column. */
+interface ProductInfo {
+  name: string;
+  sku: string;
+}
+
+/** Pick a display name from the multilingual product `name` record. */
+function resolveProductName(name: Record<string, string>): string {
+  return name['en-US'] ?? name['en'] ?? Object.values(name)[0] ?? '';
+}
+
 export function BulkOperationDetailPage(): ReactNode {
   const t = useTranslation('catalog');
   const { id = '' } = useParams<{ id: string }>();
@@ -75,6 +86,7 @@ export function BulkOperationDetailPage(): ReactNode {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elementFilter, setElementFilter] = useState<ElementFilter>('all');
+  const [productInfo, setProductInfo] = useState<Record<string, ProductInfo>>({});
 
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
@@ -111,6 +123,45 @@ export function BulkOperationDetailPage(): ReactNode {
     }, POLL_INTERVAL_MS);
     return (): void => window.clearInterval(handle);
   }, [isActive]);
+
+  // Stable key over the distinct product ids in the result set so the lookup
+  // below doesn't refetch on every poll when the id set is unchanged.
+  const productIdsKey = useMemo(
+    () => Array.from(new Set((op?.results ?? []).map((r) => r.productId))).join('|'),
+    [op?.results],
+  );
+
+  // Resolve product name + SKU for the Product column (results only carry the
+  // product id). Batched in chunks via the admin batch-by-id endpoint.
+  useEffect(() => {
+    const ids = productIdsKey ? productIdsKey.split('|') : [];
+    if (ids.length === 0) {
+      setProductInfo({});
+      return undefined;
+    }
+    let cancelled = false;
+    void (async (): Promise<void> => {
+      const map: Record<string, ProductInfo> = {};
+      const CHUNK = 500;
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const chunk = ids.slice(i, i + CHUNK);
+        try {
+          const res = await apiClient.post<{
+            data: Array<{ id: string; sku: string; name: Record<string, string> }>;
+          }>('/api/v1/admin/catalog/products/batch-by-id', { ids: chunk, pageSize: CHUNK });
+          for (const p of res.data) {
+            map[p.id] = { name: resolveProductName(p.name), sku: p.sku };
+          }
+        } catch {
+          /* fall back to the raw id for this chunk */
+        }
+      }
+      if (!cancelled) setProductInfo(map);
+    })();
+    return (): void => {
+      cancelled = true;
+    };
+  }, [productIdsKey]);
 
   const typeLabel = op
     ? KNOWN_OPERATION_TYPES.has(op.type)
@@ -265,7 +316,22 @@ export function BulkOperationDetailPage(): ReactNode {
                 <TableBody>
                   {filteredResults.slice(0, 1000).map((r) => (
                     <TableRow key={r.productId}>
-                      <TableCell className="font-mono text-xs">{r.productId}</TableCell>
+                      <TableCell>
+                        {(() => {
+                          const info = productInfo[r.productId];
+                          if (!info) {
+                            return <span className="font-mono text-xs">{r.productId}</span>;
+                          }
+                          return (
+                            <Link to={`/catalog/products/${r.productId}`} className="flex flex-col">
+                              <span className="font-medium">{info.name || r.productId}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {t('productsList.column.sku')}: {info.sku}
+                              </span>
+                            </Link>
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={OUTCOME_BADGE[r.status]}>
                           {t(`bulkOperations.outcome.${r.status}`)}
