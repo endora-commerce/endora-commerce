@@ -14,4 +14,5 @@ export * from './directives/directive-engine.js';
 export * from './tree/walk-embeds.js';
 export * from './defaults/default-header.js';
 export * from './defaults/default-footer.js';
+export * from './components/email-embeds-context.js';
 export * from './config.js';

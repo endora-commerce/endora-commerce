@@ -7,6 +7,7 @@
 // `schema/component-types.ts` (EMAIL_SAFE_COMPONENT_NAMES).
 
 import type { ComponentConfig, Config } from '@measured/puck';
+import { useEmailEmbeds } from './components/email-embeds-context.js';
 import type {
   EmailButtonProps,
   EmailColumnsProps,
@@ -152,22 +153,32 @@ export const EmailInsertBlock: ComponentConfig<EmailInsertBlockProps> = {
   label: 'Insert block',
   fields: { code: { type: 'text', label: 'Block code' } },
   defaultProps: { code: '' },
-  render: ({ code }) => (
-    <div style={{ padding: 8, border: '1px dashed #cbd5e1', color: '#64748b' }}>
-      {code ? `Block "${code}"` : 'Choose a block'}
-    </div>
-  ),
+  render: ({ code }) => {
+    const { blocks } = useEmailEmbeds();
+    const preview = code ? blocks[code] : null;
+    if (preview) return <>{preview}</>;
+    return (
+      <div style={{ padding: 8, border: '1px dashed #cbd5e1', color: '#64748b' }}>
+        {code ? `Block "${code}"` : 'Choose a block'}
+      </div>
+    );
+  },
 };
 
 export const EmailInsertTemplate: ComponentConfig<EmailInsertTemplateProps> = {
   label: 'Insert template',
   fields: { code: { type: 'text', label: 'Template code' } },
   defaultProps: { code: '' },
-  render: ({ code }) => (
-    <div style={{ padding: 8, border: '1px dashed #cbd5e1', color: '#64748b' }}>
-      {code ? `Template "${code}"` : 'Choose a template'}
-    </div>
-  ),
+  render: ({ code }) => {
+    const { templates } = useEmailEmbeds();
+    const preview = code ? templates[code] : null;
+    if (preview) return <>{preview}</>;
+    return (
+      <div style={{ padding: 8, border: '1px dashed #cbd5e1', color: '#64748b' }}>
+        {code ? `Template "${code}"` : 'Choose a template'}
+      </div>
+    );
+  },
 };
 
 export const defaultEmailBuilderConfig: Config = {
