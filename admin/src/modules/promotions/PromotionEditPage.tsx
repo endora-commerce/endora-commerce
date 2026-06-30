@@ -315,7 +315,18 @@ export const PromotionEditPage = (): ReactNode => {
         </div>
       </form>
 
-      {!isNew && id ? <CouponsSection promotionId={id} /> : null}
+      {!isNew && id ? (
+        <CouponsSection promotionId={id} />
+      ) : (
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle>{t('promotions.coupons.title')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">{t('promotions.coupons.saveFirst')}</p>
+          </CardContent>
+        </Card>
+      )}
     </>
   );
 };
