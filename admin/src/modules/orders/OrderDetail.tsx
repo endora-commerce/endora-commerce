@@ -140,10 +140,22 @@ interface OrderCommentRow {
   createdAt: string;
 }
 
+/** Invoice row for this order, from the admin invoices list endpoint. */
+interface OrderInvoiceRow {
+  id: string;
+  kind: string;
+  number: string;
+  status: string;
+  pdfReady: boolean;
+  issuedAt: string;
+}
+
 export function OrderDetail(): ReactNode {
   const t = useTranslation('core');
+  const baseUrl = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? '';
   const { id = '' } = useParams<{ id: string }>();
   const [order, setOrder] = useState<OrderDetail | null>(null);
+  const [invoices, setInvoices] = useState<OrderInvoiceRow[]>([]);
   const [graph, setGraph] = useState<StatusGraph | null>(null);
   const [comments, setComments] = useState<OrderCommentRow[]>([]);
   const [commentBody, setCommentBody] = useState('');
@@ -200,6 +212,23 @@ export function OrderDetail(): ReactNode {
     void loadComments();
   }, [loadComments]);
 
+  // Invoices issued for this order, newest first; drives the "Invoice PDF"
+  // download link (the PDF endpoint is keyed by invoice id, not order id).
+  const loadInvoices = useCallback(async (): Promise<void> => {
+    try {
+      const res = await apiClient.get<{ data: OrderInvoiceRow[] }>(
+        `/api/v1/admin/invoices?filter[orderId]=${id}`,
+      );
+      setInvoices(res.data);
+    } catch {
+      setInvoices([]);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    void loadInvoices();
+  }, [loadInvoices]);
+
   const handleAddComment = useCallback(async (): Promise<void> => {
     if (!commentBody.trim()) return;
     try {
@@ -255,10 +284,11 @@ export function OrderDetail(): ReactNode {
     try {
       await apiClient.post(`/api/v1/admin/orders/${id}/invoices`, { kind: 'invoice' });
       setInfo(t('orderDetail.issueInvoice.done'));
+      await loadInvoices();
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.issueInvoice.error'));
     }
-  }, [id, t]);
+  }, [id, loadInvoices, t]);
 
   const handleStatus = useCallback(
     async (to: string): Promise<void> => {
@@ -352,16 +382,24 @@ export function OrderDetail(): ReactNode {
               <FileText />
               {t('orderDetail.issueInvoice.action')}
             </Button>
-            <Button asChild variant="outline" size="sm" className="bg-card">
-              <a
-                href={`${import.meta.env['VITE_API_BASE_URL'] ?? ''}/api/v1/orders/${order.id}/invoice`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <FileDown />
-                {t('orderDetail.invoicePdf')}
-              </a>
-            </Button>
+            {(() => {
+              // Newest invoice first (the list is ordered issuedAt desc); only
+              // a fully rendered invoice exposes a downloadable PDF.
+              const ready = invoices.find((inv) => inv.pdfReady);
+              if (!ready) return null;
+              return (
+                <Button asChild variant="outline" size="sm" className="bg-card">
+                  <a
+                    href={`${baseUrl}/api/v1/admin/invoices/${ready.id}/pdf`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <FileDown />
+                    {t('orderDetail.invoicePdf')}
+                  </a>
+                </Button>
+              );
+            })()}
           </>
         }
       />
