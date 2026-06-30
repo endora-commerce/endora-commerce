@@ -580,6 +580,9 @@ const bulkUpdateFieldsObject = z.object({
       categoryIds: z.array(uuidSchema),
     })
     .optional(),
+  // Feature 022 — assign (or clear, with null) the Attribute Set on every
+  // selected product.
+  attributeSetId: uuidSchema.nullable().optional(),
   attributeValues: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -597,6 +600,7 @@ export const bulkUpdateProductsRequestSchema = z.object({
       f.visibility !== undefined ||
       f.salesChannels !== undefined ||
       f.categories !== undefined ||
+      f.attributeSetId !== undefined ||
       (f.attributeValues !== undefined && Object.keys(f.attributeValues).length > 0),
     { message: 'at least one field must be present' },
   ),

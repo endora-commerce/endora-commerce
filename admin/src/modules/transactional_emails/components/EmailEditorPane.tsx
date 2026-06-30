@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Puck, type Config, type ComponentConfig, type Data } from '@measured/puck';
 import '@measured/puck/puck.css';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import {
   defaultEmailBuilderConfig,
   EmailEmbedsProvider,
   renderEmailHtml,
   type EmailEmbeds,
 } from '@b2b/email-components';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { transactionalEmailsClient } from '../api/transactional-emails-client';
 
 const emptyData: Data = { root: { props: {} }, content: [] };
@@ -70,6 +73,7 @@ export function EmailEditorPane({ data, onChange, editorKey }: EmailEditorPanePr
   const [blockOptions, setBlockOptions] = useState<CodeOption[]>([]);
   const [templateOptions, setTemplateOptions] = useState<CodeOption[]>([]);
   const [embeds, setEmbeds] = useState<EmailEmbeds>({ blocks: {}, templates: {} });
+  const [fullscreen, setFullscreen] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -114,19 +118,57 @@ export function EmailEditorPane({ data, onChange, editorKey }: EmailEditorPanePr
     };
   }, []);
 
+  // Allow exiting fullscreen with Escape.
+  useEffect(() => {
+    if (!fullscreen) return undefined;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setFullscreen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fullscreen]);
+
   const config = useMemo(() => mergeConfig(blockOptions, templateOptions), [blockOptions, templateOptions]);
 
   return (
-    <div className="min-h-[560px] overflow-hidden rounded-md border">
-      <EmailEmbedsProvider value={embeds}>
-        <Puck
-          key={editorKey}
-          config={config}
-          data={data ?? emptyData}
-          onChange={onChange}
-          overrides={{ headerActions: () => <></> }}
-        />
-      </EmailEmbedsProvider>
+    <div className={cn('space-y-3', fullscreen && 'fixed inset-0 z-50 flex flex-col overflow-auto bg-background p-4')}>
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={(): void => setFullscreen((f) => !f)}
+          aria-pressed={fullscreen}
+        >
+          {fullscreen ? (
+            <>
+              <Minimize2 className="mr-1 h-4 w-4" />
+              Exit fullscreen
+            </>
+          ) : (
+            <>
+              <Maximize2 className="mr-1 h-4 w-4" />
+              Fullscreen
+            </>
+          )}
+        </Button>
+      </div>
+      <div
+        className={cn(
+          'overflow-hidden rounded-md border',
+          fullscreen ? 'min-h-0 flex-1' : 'min-h-[560px]',
+        )}
+      >
+        <EmailEmbedsProvider value={embeds}>
+          <Puck
+            key={editorKey}
+            config={config}
+            data={data ?? emptyData}
+            onChange={onChange}
+            overrides={{ headerActions: () => <></> }}
+          />
+        </EmailEmbedsProvider>
+      </div>
     </div>
   );
 }

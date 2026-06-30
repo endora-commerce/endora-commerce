@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
 import { ImageSettingInput } from './ImageSettingInput';
+import { SellerCompanyDataInput, SELLER_COMPANY_DATA_CODE } from './SellerCompanyDataInput';
 
 /**
  * String settings that hold an image URL get a file-upload editor (drag-and-drop
@@ -183,6 +184,8 @@ export function SettingRowEditor({
               </option>
             ))}
           </select>
+        ) : setting.code === SELLER_COMPANY_DATA_CODE ? (
+          <SellerCompanyDataInput value={draft.text} onChange={setText} />
         ) : isImageUrlSetting(setting) ? (
           <ImageSettingInput value={draft.text} onChange={setText} />
         ) : isSecret ? (

@@ -28,6 +28,7 @@ interface ActiveReservation {
 
 interface CreditLimitView {
   organizationId: string;
+  organizationName: string | null;
   grantedAmount: number;
   availableAmount: number;
   currency: string;
@@ -43,6 +44,7 @@ export function CreditLimitsPage(): ReactNode {
   const [info, setInfo] = useState<string | null>(null);
   const [orgIdInput, setOrgIdInput] = useState('');
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+  const [selectedOrgName, setSelectedOrgName] = useState<string | null>(null);
   const [selected, setSelected] = useState<CreditLimitView | null>(null);
   const [selectedLoading, setSelectedLoading] = useState(false);
 
@@ -63,18 +65,33 @@ export function CreditLimitsPage(): ReactNode {
     void refreshList();
   }, [refreshList]);
 
-  const loadSelected = useCallback(async (orgId: string): Promise<void> => {
+  const loadSelected = useCallback(async (orgId: string, knownName?: string | null): Promise<void> => {
     setSelectedLoading(true);
     setSelected(null);
     setSelectedOrgId(orgId);
+    setSelectedOrgName(knownName ?? null);
     try {
       const res = await apiClient.get<{ data: CreditLimitView }>(
         `/api/v1/admin/organizations/${orgId}/credit-limit`,
       );
       setSelected(res.data);
+      setSelectedOrgName(res.data.organizationName ?? knownName ?? null);
     } catch (err) {
       if (err instanceof ApiError && err.envelope.error.code === 'CREDIT_LIMIT_NOT_GRANTED') {
         setSelected(null);
+        // No limit yet ⇒ no name from the credit-limit payload. Best-effort
+        // resolve the organization name so the grant panel shows it (falls
+        // back to the id prefix if the lookup isn't permitted).
+        if (!knownName) {
+          try {
+            const org = await apiClient.get<{ data: { name: string } }>(
+              `/api/v1/admin/organizations/${orgId}`,
+            );
+            setSelectedOrgName(org.data.name);
+          } catch {
+            /* keep the id-prefix fallback */
+          }
+        }
       } else {
         setError(err instanceof ApiError ? err.envelope.error.message : t('creditLimits.error.lookup'));
       }
@@ -95,7 +112,7 @@ export function CreditLimitsPage(): ReactNode {
           t('creditLimits.success.grant', {
             amount: input.grantedAmount,
             currency: input.currency,
-            orgId: selectedOrgId.slice(0, 8),
+            orgId: selectedOrgName ?? selectedOrgId.slice(0, 8),
           }),
         );
         await loadSelected(selectedOrgId);
@@ -104,7 +121,7 @@ export function CreditLimitsPage(): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : t('creditLimits.error.grant'));
       }
     },
-    [selectedOrgId, loadSelected, refreshList, t],
+    [selectedOrgId, selectedOrgName, loadSelected, refreshList, t],
   );
 
   const handleAdjust = useCallback(
@@ -119,14 +136,14 @@ export function CreditLimitsPage(): ReactNode {
           `/api/v1/admin/organizations/${selectedOrgId}/credit-limit`,
           input,
         );
-        setInfo(t('creditLimits.success.adjust', { orgId: selectedOrgId.slice(0, 8) }));
+        setInfo(t('creditLimits.success.adjust', { orgId: selectedOrgName ?? selectedOrgId.slice(0, 8) }));
         await loadSelected(selectedOrgId);
         await refreshList();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('creditLimits.error.adjust'));
       }
     },
-    [selectedOrgId, loadSelected, refreshList, t],
+    [selectedOrgId, selectedOrgName, loadSelected, refreshList, t],
   );
 
   return (
@@ -169,7 +186,11 @@ export function CreditLimitsPage(): ReactNode {
                 {rows.map((r) => (
                   <TableRow key={r.organizationId}>
                     <TableCell>
-                      <code className="font-mono text-xs">{r.organizationId.slice(0, 8)}</code>
+                      {r.organizationName ? (
+                        <span className="font-medium">{r.organizationName}</span>
+                      ) : (
+                        <code className="font-mono text-xs">{r.organizationId.slice(0, 8)}</code>
+                      )}
                     </TableCell>
                     <TableCell>
                       {r.grantedAmount.toFixed(2)} {r.currency}
@@ -185,7 +206,7 @@ export function CreditLimitsPage(): ReactNode {
                         size="sm"
                         onClick={(): void => {
                           setOrgIdInput(r.organizationId);
-                          void loadSelected(r.organizationId);
+                          void loadSelected(r.organizationId, r.organizationName);
                         }}
                       >
                         {t('creditLimits.action.open')}
@@ -229,7 +250,7 @@ export function CreditLimitsPage(): ReactNode {
         selected ? (
           <ExistingLimitPanel limit={selected} onAdjust={handleAdjust} />
         ) : (
-          <GrantPanel orgId={selectedOrgId} onGrant={handleGrant} />
+          <GrantPanel orgId={selectedOrgId} orgName={selectedOrgName} onGrant={handleGrant} />
         )
       ) : null}
     </>
@@ -256,7 +277,7 @@ function ExistingLimitPanel({
       <CardHeader>
         <CardTitle>
           {t('creditLimits.adjust.title', {
-            orgId: limit.organizationId.slice(0, 8),
+            orgId: limit.organizationName ?? limit.organizationId.slice(0, 8),
             currency: limit.currency,
           })}
         </CardTitle>
@@ -342,9 +363,11 @@ function ExistingLimitPanel({
 
 function GrantPanel({
   orgId,
+  orgName,
   onGrant,
 }: {
   orgId: string;
+  orgName: string | null;
   onGrant: (input: { grantedAmount: number; currency: string; reason?: string }) => Promise<void>;
 }): ReactNode {
   const t = useTranslation('core');
@@ -354,7 +377,7 @@ function GrantPanel({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t('creditLimits.grant.title', { orgId: orgId.slice(0, 8) })}</CardTitle>
+        <CardTitle>{t('creditLimits.grant.title', { orgId: orgName ?? orgId.slice(0, 8) })}</CardTitle>
       </CardHeader>
       <CardContent>
         <p className="mb-4 text-sm text-muted-foreground">

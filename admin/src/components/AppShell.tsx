@@ -448,6 +448,21 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
     { labelKey: 'appShell.nav.promotions', href: null },
   ] },
+  { test: /^\/promotions\/new\/?$/, build: () => [
+    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
+    { labelKey: 'appShell.nav.promotions', href: '/promotions' },
+    { labelKey: 'promotions.edit.titleNew', href: null },
+  ] },
+  { test: /^\/promotions\/[^/]+\/stats\/?$/, build: () => [
+    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
+    { labelKey: 'appShell.nav.promotions', href: '/promotions' },
+    { labelKey: 'promotionStats.title', href: null },
+  ] },
+  { test: /^\/promotions\/[^/]+\/?$/, build: () => [
+    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
+    { labelKey: 'appShell.nav.promotions', href: '/promotions' },
+    { labelKey: 'promotions.edit.titleEdit', href: null },
+  ] },
   { test: /^\/taxes\/?$/, build: () => [
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
     { labelKey: 'appShell.nav.taxes', href: null },
@@ -477,6 +492,11 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   { test: /^\/invoices\/?$/, build: () => [
     { labelKey: 'appShell.section.customers', href: '/organizations' },
     { labelKey: 'appShell.nav.invoices', href: null },
+  ] },
+  { test: /^\/invoices\/(?!templates)[^/]+\/?$/, build: () => [
+    { labelKey: 'appShell.section.customers', href: '/organizations' },
+    { labelKey: 'appShell.nav.invoices', href: '/invoices' },
+    { labelKey: 'appShell.crumb.detail', href: null },
   ] },
   { test: /^\/credit-limits\/?$/, build: () => [
     { labelKey: 'appShell.section.customers', href: '/organizations' },
