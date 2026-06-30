@@ -164,6 +164,7 @@
   "fulfilment.saveError": "Could not save the fulfilment strategy.",
   "appShell.nav.quoteRequests": "Quote requests",
   "appShell.nav.invoices": "Invoices",
+  "appShell.nav.invoiceTemplates": "Invoice templates",
   "appShell.nav.products": "Products",
   "appShell.nav.categories": "Categories",
   "appShell.nav.attributes": "Attributes",

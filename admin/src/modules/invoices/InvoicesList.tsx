@@ -127,6 +127,11 @@ export function InvoicesList(): ReactNode {
       <PageHeader
         title={t('invoices.title')}
         description={t('invoices.description')}
+        actions={
+          <Button asChild variant="outline" size="sm">
+            <Link to="/invoices/templates">{t('invoiceTemplates.title')}</Link>
+          </Button>
+        }
       />
 
       {error ? (
