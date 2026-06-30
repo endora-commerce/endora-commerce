@@ -1600,6 +1600,8 @@
   "invoiceTemplates.description": "Customize the invoice PDF layout (WYSIWYG), globally or per sales channel.",
   "invoiceTemplates.create": "Create template",
   "invoiceTemplates.saved": "Template saved.",
+  "invoiceTemplates.fullscreen.enter": "Fullscreen",
+  "invoiceTemplates.fullscreen.exit": "Exit fullscreen",
   "invoiceTemplates.editTitle": "Invoice template",
   "invoiceTemplates.editDescription": "Arrange the invoice sections; preview renders a sample invoice.",
   "invoiceTemplates.preview": "Preview PDF",
