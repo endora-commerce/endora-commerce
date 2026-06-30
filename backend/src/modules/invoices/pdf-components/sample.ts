@@ -5,6 +5,7 @@ export function sampleInvoiceDetail(): InvoiceDetail {
   return {
     id: '00000000-0000-4000-8000-0000000000aa',
     orderId: '00000000-0000-4000-8000-0000000000bb',
+    orderBusinessId: 'ORD-2024-000123',
     salesChannelId: null,
     kind: 'invoice',
     number: 'FV 26/2026',
