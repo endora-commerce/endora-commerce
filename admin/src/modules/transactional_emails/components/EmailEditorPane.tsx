@@ -1,8 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Puck, type Config, type ComponentConfig, type Data } from '@measured/puck';
 import '@measured/puck/puck.css';
 import { Maximize2, Minimize2 } from 'lucide-react';
-import { defaultEmailBuilderConfig } from '@b2b/email-components';
+import {
+  defaultEmailBuilderConfig,
+  EmailEmbedsProvider,
+  renderEmailHtml,
+  type EmailEmbeds,
+} from '@b2b/email-components';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { transactionalEmailsClient } from '../api/transactional-emails-client';
@@ -12,6 +17,16 @@ const emptyData: Data = { root: { props: {} }, content: [] };
 interface CodeOption {
   label: string;
   value: string;
+}
+
+/**
+ * Render a block/template's stored content (per-language Puck trees) into an
+ * on-canvas HTML preview. Prefers Polish, then English, then any language.
+ */
+function previewNode(content: Record<string, unknown>): ReactNode {
+  const tree = content['pl-PL'] ?? content['en-US'] ?? Object.values(content)[0] ?? null;
+  const html = renderEmailHtml(tree as never, { document: false });
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 /**
@@ -57,16 +72,47 @@ export interface EmailEditorPaneProps {
 export function EmailEditorPane({ data, onChange, editorKey }: EmailEditorPaneProps): React.ReactElement {
   const [blockOptions, setBlockOptions] = useState<CodeOption[]>([]);
   const [templateOptions, setTemplateOptions] = useState<CodeOption[]>([]);
+  const [embeds, setEmbeds] = useState<EmailEmbeds>({ blocks: {}, templates: {} });
   const [fullscreen, setFullscreen] = useState(false);
 
   useEffect(() => {
     let live = true;
-    void transactionalEmailsClient.listBlocks().then((res) => {
-      if (live) setBlockOptions(res.items.map((b) => ({ label: `${b.name} (${b.code})`, value: b.code })));
-    });
-    void transactionalEmailsClient.listTemplates().then((res) => {
-      if (live) setTemplateOptions(res.items.map((t) => ({ label: `${t.name} (${t.code})`, value: t.code })));
-    });
+    void (async (): Promise<void> => {
+      const [blockRes, templateRes] = await Promise.all([
+        transactionalEmailsClient.listBlocks().catch(() => ({ items: [] })),
+        transactionalEmailsClient.listTemplates().catch(() => ({ items: [] })),
+      ]);
+      if (!live) return;
+      setBlockOptions(blockRes.items.map((b) => ({ label: `${b.name} (${b.code})`, value: b.code })));
+      setTemplateOptions(templateRes.items.map((t) => ({ label: `${t.name} (${t.code})`, value: t.code })));
+
+      // Best-effort: resolve each block/template's content into an inline canvas
+      // preview so InsertBlock/InsertTemplate render the referenced content
+      // instead of just printing its code.
+      const blockPreviews: Record<string, ReactNode> = {};
+      await Promise.all(
+        blockRes.items.map(async (b) => {
+          try {
+            const detail = await transactionalEmailsClient.getBlock(b.id);
+            blockPreviews[b.code] = previewNode(detail.content);
+          } catch {
+            /* leave the code-only fallback */
+          }
+        }),
+      );
+      const templatePreviews: Record<string, ReactNode> = {};
+      await Promise.all(
+        templateRes.items.map(async (tpl) => {
+          try {
+            const detail = await transactionalEmailsClient.getTemplate(tpl.id);
+            templatePreviews[tpl.code] = previewNode(detail.content);
+          } catch {
+            /* leave the code-only fallback */
+          }
+        }),
+      );
+      if (live) setEmbeds({ blocks: blockPreviews, templates: templatePreviews });
+    })();
     return () => {
       live = false;
     };
@@ -113,13 +159,15 @@ export function EmailEditorPane({ data, onChange, editorKey }: EmailEditorPanePr
           fullscreen ? 'min-h-0 flex-1' : 'min-h-[560px]',
         )}
       >
-        <Puck
-          key={editorKey}
-          config={config}
-          data={data ?? emptyData}
-          onChange={onChange}
-          overrides={{ headerActions: () => <></> }}
-        />
+        <EmailEmbedsProvider value={embeds}>
+          <Puck
+            key={editorKey}
+            config={config}
+            data={data ?? emptyData}
+            onChange={onChange}
+            overrides={{ headerActions: () => <></> }}
+          />
+        </EmailEmbedsProvider>
       </div>
     </div>
   );
