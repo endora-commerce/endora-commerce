@@ -115,36 +115,6 @@ const NAV: NavSection[] = [
     ],
   },
   {
-    key: 'messaging',
-    labelKey: 'appShell.section.messaging',
-    items: [
-      {
-        to: '/transactional-emails',
-        labelKey: 'appShell.nav.transactionalEmails',
-        icon: Inbox,
-        requiredPermission: 'transactional_emails:read',
-      },
-      {
-        to: '/transactional-emails/blocks',
-        labelKey: 'appShell.nav.emailBlocks',
-        icon: Inbox,
-        requiredPermission: 'transactional_emails:read',
-      },
-      {
-        to: '/transactional-emails/templates',
-        labelKey: 'appShell.nav.emailTemplates',
-        icon: Inbox,
-        requiredPermission: 'transactional_emails:read',
-      },
-      { to: '/newsletter/subscribers', labelKey: 'appShell.nav.newsletterSubscribers', icon: Inbox, requiredPermission: 'newsletter:read' },
-      { to: '/newsletter/campaigns', labelKey: 'appShell.nav.newsletterCampaigns', icon: Inbox, requiredPermission: 'newsletter:read' },
-      { to: '/newsletter/automations', labelKey: 'appShell.nav.newsletterAutomations', icon: Inbox, requiredPermission: 'newsletter:read' },
-      { to: '/newsletter/tags', labelKey: 'appShell.nav.newsletterTags', icon: Inbox, requiredPermission: 'newsletter:read' },
-      { to: '/newsletter/blocks', labelKey: 'appShell.nav.newsletterBlocks', icon: Inbox, requiredPermission: 'newsletter:read' },
-      { to: '/newsletter/provider', labelKey: 'appShell.nav.newsletterProvider', icon: Inbox, requiredPermission: 'newsletter:write' },
-    ],
-  },
-  {
     key: 'catalog',
     labelKey: 'appShell.section.catalog',
     items: [
@@ -247,6 +217,36 @@ const NAV: NavSection[] = [
       { to: '/blog/posts', labelKey: 'appShell.nav.blogPosts', icon: Newspaper, requiredPermission: 'blog.read' },
       { to: '/blog/categories', labelKey: 'appShell.nav.blogCategories', icon: Newspaper, requiredPermission: 'blog.read' },
       { to: '/blog/tags', labelKey: 'appShell.nav.blogTags', icon: Newspaper, requiredPermission: 'blog.read' },
+    ],
+  },
+  {
+    key: 'messaging',
+    labelKey: 'appShell.section.messaging',
+    items: [
+      {
+        to: '/transactional-emails',
+        labelKey: 'appShell.nav.transactionalEmails',
+        icon: Inbox,
+        requiredPermission: 'transactional_emails:read',
+      },
+      {
+        to: '/transactional-emails/blocks',
+        labelKey: 'appShell.nav.emailBlocks',
+        icon: Inbox,
+        requiredPermission: 'transactional_emails:read',
+      },
+      {
+        to: '/transactional-emails/templates',
+        labelKey: 'appShell.nav.emailTemplates',
+        icon: Inbox,
+        requiredPermission: 'transactional_emails:read',
+      },
+      { to: '/newsletter/subscribers', labelKey: 'appShell.nav.newsletterSubscribers', icon: Inbox, requiredPermission: 'newsletter:read' },
+      { to: '/newsletter/campaigns', labelKey: 'appShell.nav.newsletterCampaigns', icon: Inbox, requiredPermission: 'newsletter:read' },
+      { to: '/newsletter/automations', labelKey: 'appShell.nav.newsletterAutomations', icon: Inbox, requiredPermission: 'newsletter:read' },
+      { to: '/newsletter/tags', labelKey: 'appShell.nav.newsletterTags', icon: Inbox, requiredPermission: 'newsletter:read' },
+      { to: '/newsletter/blocks', labelKey: 'appShell.nav.newsletterBlocks', icon: Inbox, requiredPermission: 'newsletter:read' },
+      { to: '/newsletter/provider', labelKey: 'appShell.nav.newsletterProvider', icon: Inbox, requiredPermission: 'newsletter:write' },
     ],
   },
   {
