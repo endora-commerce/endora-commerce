@@ -308,6 +308,8 @@
   "apiKeys.action.revokeConfirm": "Revoke this key? Calls using it will start failing immediately.",
   "apiKeys.revealed.title": "Save this bearer token now — it will not be shown again.",
   "apiKeys.revealed.confirm": "I have stored it",
+  "apiKeys.revealed.copy": "Copy token",
+  "apiKeys.revealed.copied": "Copied!",
   "apiKeys.create.title": "Create new key",
   "apiKeys.create.nameLabel": "Name",
   "apiKeys.create.namePlaceholder": "e.g. PIM sync",
