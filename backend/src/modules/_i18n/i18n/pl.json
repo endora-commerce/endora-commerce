@@ -310,6 +310,8 @@
   "apiKeys.action.revokeConfirm": "Unieważnić ten klucz? Wywołania z jego użyciem natychmiast zaczną się nie udawać.",
   "apiKeys.revealed.title": "Zapisz teraz ten token bearer — nie zostanie ponownie pokazany.",
   "apiKeys.revealed.confirm": "Zapisałem",
+  "apiKeys.revealed.copy": "Kopiuj token",
+  "apiKeys.revealed.copied": "Skopiowano!",
   "apiKeys.create.title": "Utwórz nowy klucz",
   "apiKeys.create.nameLabel": "Nazwa",
   "apiKeys.create.namePlaceholder": "np. synchronizacja PIM",

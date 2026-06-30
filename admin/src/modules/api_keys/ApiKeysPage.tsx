@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Check, Copy, Trash2 } from 'lucide-react';
 import type { ApiKey, CreateApiKeyResponse } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
@@ -43,6 +43,17 @@ export function ApiKeysPage(): ReactNode {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [revealedToken, setRevealedToken] = useState<{ name: string; token: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const copyToken = useCallback(async (token: string): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(token);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard unavailable — the input is selectable as a fallback */
+    }
+  }, []);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -105,14 +116,33 @@ export function ApiKeysPage(): ReactNode {
           <AlertTitle>{t('apiKeys.revealed.title')}</AlertTitle>
           <AlertDescription>
             <p className="text-xs text-muted-foreground">{revealedToken.name}</p>
-            <code className="mt-2 block break-all rounded bg-muted px-2 py-1 font-mono text-xs">
-              {revealedToken.token}
-            </code>
+            <div className="mt-2 flex items-center gap-2">
+              <Input
+                readOnly
+                value={revealedToken.token}
+                className="flex-1 bg-card font-mono text-sm"
+                onFocus={(e): void => e.currentTarget.select()}
+                aria-label={t('apiKeys.revealed.title')}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={(): void => void copyToken(revealedToken.token)}
+              >
+                {copied ? <Check className="mr-1 h-4 w-4" /> : <Copy className="mr-1 h-4 w-4" />}
+                {copied ? t('apiKeys.revealed.copied') : t('apiKeys.revealed.copy')}
+              </Button>
+            </div>
             <Button
               variant="outline"
               size="sm"
               className="mt-3"
-              onClick={(): void => setRevealedToken(null)}
+              onClick={(): void => {
+                setRevealedToken(null);
+                setCopied(false);
+              }}
             >
               {t('apiKeys.revealed.confirm')}
             </Button>
