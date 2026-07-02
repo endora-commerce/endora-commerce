@@ -92,7 +92,7 @@ export function TagsPage(): React.ReactElement {
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>Custom fields</CardTitle>
+          <CardTitle>Custom subscriber fields</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {canWrite ? (
