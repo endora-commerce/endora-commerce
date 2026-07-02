@@ -176,6 +176,7 @@ export default async function CartPage({
                 updateAction={updateAction}
                 removeAction={removeAction}
                 saveToListAction={saveToListAction}
+                locale={locale}
                 strings={strings.line}
               />
             ))}
@@ -193,7 +194,7 @@ export default async function CartPage({
             </div>
           </div>
 
-          <UpsellStrip upsells={upsells} strings={strings.upsells} />
+          <UpsellStrip upsells={upsells} locale={locale} strings={strings.upsells} />
         </div>
 
         <aside className="sticky top-[96px] rounded-md border border-line bg-surface p-[20px]">
@@ -204,6 +205,7 @@ export default async function CartPage({
             discount={cart.discount ?? null}
             grandTotal={cart.grandTotal ?? cart.subtotal}
             itemCount={cart.items.length}
+            locale={locale}
             strings={strings.totals}
           />
 

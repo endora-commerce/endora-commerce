@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { formatMoneyObject } from '../lib/i18n/money';
 
 /**
  * UpsellStrip — Industria-themed up-sell card grid (feature 027 US1).
@@ -16,18 +17,18 @@ export interface UpsellLineViewModel {
 
 interface UpsellStripProps {
   upsells: UpsellLineViewModel[];
+  /** Active Sales Channel display locale (e.g. `pl-PL`). */
+  locale?: string;
   strings: {
     heading: string;
     noPriceLabel: string;
   };
 }
 
-function formatMoney(m: { amount: number; currency: string }): string {
-  return `${m.amount.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${m.currency}`;
-}
-
-export function UpsellStrip({ upsells, strings }: UpsellStripProps): ReactNode {
+export function UpsellStrip({ upsells, locale, strings }: UpsellStripProps): ReactNode {
   if (upsells.length === 0) return null;
+  const formatMoney = (m: { amount: number; currency: string }): string =>
+    formatMoneyObject(m, locale);
   return (
     <section className="mt-[28px]" aria-label={strings.heading}>
       <div className="mb-3 flex items-end justify-between">

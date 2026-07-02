@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
+import { formatMoney } from '@/lib/money';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -199,7 +200,7 @@ export function CartsList(): ReactNode {
                   header: t('carts.column.total'),
                   render: (c) => (
                     <span className="tabular-nums">
-                      {c.total.amount.toFixed(2)} {c.total.currency}
+                      {formatMoney(c.total.amount, c.total.currency)}
                     </span>
                   ),
                   meta: (c) => `${c.itemCount} items`,

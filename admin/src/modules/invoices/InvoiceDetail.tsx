@@ -4,6 +4,7 @@ import { FileDown, Mail, RefreshCw } from 'lucide-react';
 import type { InvoiceDetail as InvoiceDetailData } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
+import { formatMoney } from '@/lib/money';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -96,7 +97,7 @@ export function InvoiceDetail(): ReactNode {
       </Alert>
     );
 
-  const money = (n: number): string => `${n.toFixed(2)} ${invoice.currency}`;
+  const money = (n: number): string => formatMoney(n, invoice.currency);
 
   return (
     <>

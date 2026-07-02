@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { ProductLinkSummary } from './ProductLinksSections';
+import { formatMoney } from '../lib/i18n/money';
 
 /**
  * Feature 002 US4 — "You may also need" section on the
@@ -60,7 +61,7 @@ export function CrossSellSection(props: {
               </span>
               {link.product.price ? (
                 <span className="font-mono text-[12px] font-medium text-accent">
-                  {link.product.price.amount.toFixed(2)} {link.product.price.currency}
+                  {formatMoney(link.product.price.amount, link.product.price.currency, props.locale)}
                 </span>
               ) : null}
             </a>

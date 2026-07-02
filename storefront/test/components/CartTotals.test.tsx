@@ -26,13 +26,15 @@ describe('CartTotals — SSR rendering', () => {
         discount={null}
         grandTotal={{ amount: 100, currency: 'PLN' }}
         itemCount={2}
+        locale="pl-PL"
         strings={STRINGS}
       />,
     );
     expect(html).toContain('Subtotal (2 items)');
     expect(html).toContain('Total');
     expect(html).toContain('Delivery');
-    expect(html).toContain('100,00 PLN');
+    // pl-PL currency style renders the złoty symbol with an nbsp separator.
+    expect(html).toMatch(/100,00\s*zł/);
     expect(html).not.toContain('Discount');
   });
 
@@ -43,14 +45,15 @@ describe('CartTotals — SSR rendering', () => {
         discount={{ code: 'SAVE10', amount: 10, currency: 'PLN' }}
         grandTotal={{ amount: 90, currency: 'PLN' }}
         itemCount={1}
+        locale="pl-PL"
         strings={STRINGS}
       />,
     );
     expect(html).toContain('Discount (SAVE10)');
     expect(html).toContain('Subtotal (1 item)');
     // The "−" sign + amount may be split by a comment marker; match either form.
-    expect(html).toMatch(/−[^<]*<!--.*?-->[^>]*10,00 PLN|−10,00 PLN/);
-    expect(html).toContain('90,00 PLN');
+    expect(html).toMatch(/−[^<]*<!--.*?-->[^>]*10,00\s*zł|−10,00\s*zł/);
+    expect(html).toMatch(/90,00\s*zł/);
   });
 
   it('formats fractional currency with pl-PL locale', () => {
@@ -60,10 +63,11 @@ describe('CartTotals — SSR rendering', () => {
         discount={null}
         grandTotal={{ amount: 12.345, currency: 'EUR' }}
         itemCount={1}
+        locale="pl-PL"
         strings={STRINGS}
       />,
     );
-    // pl-PL uses comma as decimal separator: 12,35 EUR (rounded).
-    expect(html).toContain('12,35 EUR');
+    // pl-PL uses comma as decimal separator + the € symbol: 12,35 € (rounded).
+    expect(html).toMatch(/12,35\s*€/);
   });
 });

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { listRfqs, type RfqStatus, type RfqSummary } from '../../../lib/api/rfq';
 import { getSessionCookie } from '../../../lib/session';
+import { formatMoney } from '../../../lib/i18n/money';
 
 /**
  * Customer Quote Requests list (feature 008 / T033). Renders every
@@ -88,7 +89,7 @@ export default async function QuoteRequestsPage(): Promise<ReactNode> {
 function formatTotal(r: RfqSummary): string {
   const total = r.totalAtAgreedPrice ?? r.totalAtCustomerPrice;
   if (total === null) return '—';
-  return `${total.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} ${r.currency}`;
+  return formatMoney(total, r.currency);
 }
 
 function RfqStatusBadge({

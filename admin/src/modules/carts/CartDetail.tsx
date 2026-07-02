@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
+import { formatMoney } from '@/lib/money';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -185,8 +186,8 @@ export function CartDetail(): ReactNode {
                 <TableRow key={it.id}>
                   <TableCell>{it.productName}</TableCell>
                   <TableCell className="tabular-nums">{it.quantity}</TableCell>
-                  <TableCell className="tabular-nums">{it.unitPrice.amount.toFixed(2)} {it.unitPrice.currency}</TableCell>
-                  <TableCell className="tabular-nums">{it.lineTotal.amount.toFixed(2)} {it.lineTotal.currency}</TableCell>
+                  <TableCell className="tabular-nums">{formatMoney(it.unitPrice.amount, it.unitPrice.currency)}</TableCell>
+                  <TableCell className="tabular-nums">{formatMoney(it.lineTotal.amount, it.lineTotal.currency)}</TableCell>
                 </TableRow>
               ))}
               {cart.discount && cart.discount.amount > 0 ? (
@@ -195,13 +196,13 @@ export function CartDetail(): ReactNode {
                     {t('carts.column.discount')}
                   </TableCell>
                   <TableCell className="tabular-nums text-ok">
-                    −{cart.discount.amount.toFixed(2)} {cart.discount.currency}
+                    −{formatMoney(cart.discount.amount, cart.discount.currency)}
                   </TableCell>
                 </TableRow>
               ) : null}
               <TableRow>
                 <TableCell colSpan={3} className="text-right font-semibold">{t('carts.column.total')}</TableCell>
-                <TableCell className="tabular-nums font-semibold">{cart.total.amount.toFixed(2)} {cart.total.currency}</TableCell>
+                <TableCell className="tabular-nums font-semibold">{formatMoney(cart.total.amount, cart.total.currency)}</TableCell>
               </TableRow>
             </TableBody>
           </Table>

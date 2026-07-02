@@ -15,6 +15,7 @@ import { listMyOrderInvoices, invoiceDownloadUrl } from '../../../../lib/api/inv
 import { getSessionCookie } from '../../../../lib/session';
 import { getServerContext } from '../../../../lib/server-context';
 import { StorefrontApiError } from '../../../../lib/api/client';
+import { formatMoney } from '../../../../lib/i18n/money';
 
 /**
  * Order confirmation page (T158). Renders the order the buyer just placed
@@ -166,10 +167,10 @@ export default async function OrderConfirmationPage({
               </td>
               <td>{it.quantity}</td>
               <td>
-                {it.unitPrice.toFixed(2)} {order.currency}
+                {formatMoney(it.unitPrice, order.currency, locale)}
               </td>
               <td className="text-right">
-                {it.lineTotal.toFixed(2)} {order.currency}
+                {formatMoney(it.lineTotal, order.currency, locale)}
               </td>
             </tr>
           ))}
@@ -180,7 +181,7 @@ export default async function OrderConfirmationPage({
               Subtotal
             </th>
             <td className="text-right">
-              {order.subtotal.toFixed(2)} {order.currency}
+              {formatMoney(order.subtotal, order.currency, locale)}
             </td>
           </tr>
           <tr>
@@ -188,7 +189,7 @@ export default async function OrderConfirmationPage({
               Tax
             </th>
             <td className="text-right">
-              {order.taxTotal.toFixed(2)} {order.currency}
+              {formatMoney(order.taxTotal, order.currency, locale)}
             </td>
           </tr>
           {order.discountTotal > 0 ? (
@@ -197,7 +198,7 @@ export default async function OrderConfirmationPage({
                 Discount
               </th>
               <td className="text-right">
-                −{order.discountTotal.toFixed(2)} {order.currency}
+                −{formatMoney(order.discountTotal, order.currency, locale)}
               </td>
             </tr>
           ) : null}
@@ -206,7 +207,7 @@ export default async function OrderConfirmationPage({
               Delivery
             </th>
             <td className="text-right">
-              {order.deliveryTotal.toFixed(2)} {order.currency}
+              {formatMoney(order.deliveryTotal, order.currency, locale)}
             </td>
           </tr>
           <tr>
@@ -215,7 +216,7 @@ export default async function OrderConfirmationPage({
             </th>
             <td className="text-right">
               <strong>
-                {order.total.toFixed(2)} {order.currency}
+                {formatMoney(order.total, order.currency, locale)}
               </strong>
             </td>
           </tr>

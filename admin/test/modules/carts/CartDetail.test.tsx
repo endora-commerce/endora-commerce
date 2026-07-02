@@ -132,8 +132,10 @@ describe('CartDetail', () => {
       expect(screen.getByText('Sample')).toBeInTheDocument();
     });
     // The amount appears twice — once in the line-total cell and once
-    // in the grand-total row. Assert at least one is present.
-    expect(screen.getAllByText('39.98 PLN').length).toBeGreaterThanOrEqual(1);
+    // in the grand-total row. Assert at least one is present. PLN renders in
+    // its pl-PL currency style ("39,98 zł") with a non-breaking space before
+    // the symbol, so match tolerantly.
+    expect(screen.getAllByText(/39,98\s*zł/).length).toBeGreaterThanOrEqual(1);
   });
 
   it('reject button is disabled until a reason is typed; clicking submits', async () => {

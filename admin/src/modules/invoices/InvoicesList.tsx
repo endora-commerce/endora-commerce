@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { FileDown, Mail } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
+import { formatMoney } from '@/lib/money';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -274,7 +275,7 @@ export function InvoicesList(): ReactNode {
                       </Link>
                     </TableCell>
                     <TableCell className="tabular-nums">
-                      {i.total.toFixed(2)} {i.currency}
+                      {formatMoney(i.total, i.currency)}
                     </TableCell>
                     <TableCell>
                       <Badge variant={STATUS_VARIANT[i.status]}>{t(`invoices.status.${i.status}`)}</Badge>

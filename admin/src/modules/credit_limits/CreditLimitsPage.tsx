@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
+import { formatMoney } from '@/lib/money';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -193,10 +194,10 @@ export function CreditLimitsPage(): ReactNode {
                       )}
                     </TableCell>
                     <TableCell>
-                      {r.grantedAmount.toFixed(2)} {r.currency}
+                      {formatMoney(r.grantedAmount, r.currency)}
                     </TableCell>
                     <TableCell>
-                      {r.availableAmount.toFixed(2)} {r.currency}
+                      {formatMoney(r.availableAmount, r.currency)}
                     </TableCell>
                     <TableCell>{r.activeReservations.length}</TableCell>
                     <TableCell>{formatDateTime(r.grantedAt)}</TableCell>
@@ -307,7 +308,7 @@ function ExistingLimitPanel({
                     <code className="font-mono text-xs">{r.orderId.slice(0, 8)}</code>
                   </TableCell>
                   <TableCell>
-                    {r.amount.toFixed(2)} {limit.currency}
+                    {formatMoney(r.amount, limit.currency)}
                   </TableCell>
                   <TableCell>{formatDateTime(r.createdAt)}</TableCell>
                 </TableRow>

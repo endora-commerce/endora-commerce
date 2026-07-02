@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
+import { formatMoney } from '@/lib/money';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -467,7 +468,7 @@ export function OrdersList(): ReactNode {
       header: t('orders.column.total'),
       render: (o) => (
         <span className="tabular-nums">
-          {o.total.toFixed(2)} {o.currency}
+          {formatMoney(o.total, o.currency)}
         </span>
       ),
     },

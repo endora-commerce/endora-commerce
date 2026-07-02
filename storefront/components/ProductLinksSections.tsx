@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { formatMoney } from '../lib/i18n/money';
 
 /**
  * Feature 002 US4 — Related + Up-sell sections rendered after the
@@ -33,7 +34,7 @@ export interface ProductLinksLabels {
   seeAll: string;
 }
 
-function LinkCard({ link }: { link: ProductLinkSummary }): ReactNode {
+function LinkCard({ link, locale }: { link: ProductLinkSummary; locale?: string | undefined }): ReactNode {
   return (
     <li className="overflow-hidden rounded-md border border-line bg-surface transition hover:border-[var(--ink-700)] hover:shadow-sm">
       <a
@@ -55,7 +56,7 @@ function LinkCard({ link }: { link: ProductLinkSummary }): ReactNode {
         </span>
         {link.product.price ? (
           <span className="font-mono text-[12px] font-medium text-accent">
-            {link.product.price.amount.toFixed(2)} {link.product.price.currency}
+            {formatMoney(link.product.price.amount, link.product.price.currency, locale)}
           </span>
         ) : null}
       </a>
@@ -67,6 +68,8 @@ export function ProductLinksSections(props: {
   related: ProductLinkSummary[];
   upSell: ProductLinkSummary[];
   labels: ProductLinksLabels;
+  /** Active Sales Channel display locale (e.g. `pl-PL`). */
+  locale?: string;
 }): ReactNode {
   if (props.related.length === 0 && props.upSell.length === 0) return null;
 
@@ -79,7 +82,7 @@ export function ProductLinksSections(props: {
           </h2>
           <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 p-0">
             {props.related.map((link) => (
-              <LinkCard key={link.id} link={link} />
+              <LinkCard key={link.id} link={link} locale={props.locale} />
             ))}
           </ul>
         </section>
@@ -91,7 +94,7 @@ export function ProductLinksSections(props: {
           </h2>
           <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 p-0">
             {props.upSell.map((link) => (
-              <LinkCard key={link.id} link={link} />
+              <LinkCard key={link.id} link={link} locale={props.locale} />
             ))}
           </ul>
         </section>

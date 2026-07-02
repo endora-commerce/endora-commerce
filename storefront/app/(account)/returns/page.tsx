@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { listMyReturns } from '../../../lib/api/returns';
 import { getSessionCookie } from '../../../lib/session';
+import { formatMoney } from '../../../lib/i18n/money';
 
 /**
  * Returns / RMA history (feature 046, US1). The backend enforces ownership:
@@ -41,7 +42,7 @@ export default async function ReturnsListPage(): Promise<ReactNode> {
                 <td>{c.kind}</td>
                 <td>{c.statusLabel}</td>
                 <td className="text-right">
-                  {c.totalRefundAmount.toFixed(2)} {c.currency}
+                  {formatMoney(c.totalRefundAmount, c.currency)}
                 </td>
                 <td>
                   <Link href={`/returns/${c.id}`}>Open</Link>

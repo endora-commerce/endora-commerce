@@ -15,6 +15,7 @@ import { CountrySelect } from '@/components/country-select';
 import { ProductPicker } from '@/modules/catalog/components/ProductPicker';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useUnsavedChangesPrompt } from '@/lib/use-unsaved-changes-prompt';
+import { formatMoney as formatMoneyShared } from '@/lib/money';
 
 interface ItemRow {
   productId: string;
@@ -144,11 +145,7 @@ function customerLabel(c: AdminCustomerListItem): string {
 }
 
 function formatMoney(amount: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount);
-  } catch {
-    return `${amount.toFixed(2)} ${currency}`;
-  }
+  return formatMoneyShared(amount, currency);
 }
 
 /**

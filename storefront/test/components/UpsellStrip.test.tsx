@@ -31,6 +31,7 @@ describe('UpsellStrip — SSR rendering', () => {
           ONE_UPSELL,
           { ...ONE_UPSELL, productId: 'p-up-2', productSlug: 'shiny-grommet', productName: 'Shiny grommet' },
         ]}
+        locale="pl-PL"
         strings={STRINGS}
       />,
     );
@@ -39,7 +40,7 @@ describe('UpsellStrip — SSR rendering', () => {
     expect(html).toContain('href="/p/shiny-grommet"');
     expect(html).toContain('Premium bracket');
     expect(html).toContain('Shiny grommet');
-    expect(html).toContain('49,99 PLN');
+    expect(html).toMatch(/49,99\s*zł/);
   });
 
   it('falls back to noPriceLabel when an up-sell has no resolved price', () => {

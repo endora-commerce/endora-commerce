@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { FileDown } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
+import { formatMoney as formatMoneyShared } from '@/lib/money';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -52,7 +53,7 @@ const INVOICE_STATUS_VARIANT: Record<InvoiceRow['status'], BadgeProps['variant']
 };
 
 function money(amount: number, currency: string): string {
-  return `${amount.toFixed(2)} ${currency}`;
+  return formatMoneyShared(amount, currency);
 }
 
 /**

@@ -91,7 +91,9 @@ describe('CartsList', () => {
     await waitFor(() => {
       expect(screen.getByText('buyer@example.com')).toBeInTheDocument();
     });
-    expect(screen.getByText('124.50 PLN')).toBeInTheDocument();
+    // PLN renders in its pl-PL currency style ("124,50 zł"); the space before
+    // the symbol is a non-breaking space, so match tolerantly.
+    expect(screen.getByText(/124,50\s*zł/)).toBeInTheDocument();
     // 'active' appears multiple times (status filter option + status badge);
     // assert at least one is rendered.
     expect(screen.getAllByText('active').length).toBeGreaterThan(0);

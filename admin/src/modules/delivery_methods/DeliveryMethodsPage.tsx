@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
+import { formatMoney } from '@/lib/money';
 import { useTranslation } from '@/i18n/useTranslation';
 import {
   Table,
@@ -178,7 +179,7 @@ export function DeliveryMethodsPage(): ReactNode {
                       <code className="font-mono text-xs">{r.adapter}</code>
                     </TableCell>
                     <TableCell className="tabular-nums">
-                      {r.cost.amount.toFixed(2)} {r.cost.currency}
+                      {formatMoney(r.cost.amount, r.cost.currency)}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {r.statusOnSuccess} / {r.statusOnFailure}

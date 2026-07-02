@@ -12,6 +12,7 @@ import {
 } from '../../../../lib/api/rfq';
 import { getSessionCookie } from '../../../../lib/session';
 import { StorefrontApiError } from '../../../../lib/api/client';
+import { formatMoney } from '../../../../lib/i18n/money';
 
 /**
  * Customer Quote Request detail (feature 008 / T034). Mode-driven UI:
@@ -64,7 +65,7 @@ export default async function QuoteRequestDetailPage({
   const taxRate = rfq.taxRate ?? 0;
   const taxTotal = total !== null ? total * taxRate : null;
   const grossTotal = total !== null && taxTotal !== null ? total + taxTotal : null;
-  const fmt = (n: number): string => n.toLocaleString('pl-PL', { minimumFractionDigits: 2 });
+  const fmt = (n: number): string => formatMoney(n, currency);
 
   return (
     <div className="mx-auto max-w-[1360px] px-[24px]" style={{ paddingTop: 24, paddingBottom: 48 }}>
@@ -166,9 +167,7 @@ export default async function QuoteRequestDetailPage({
                   <td>{it.desiredUnitPrice !== null ? it.desiredUnitPrice.toFixed(2) : '—'}</td>
                   <td>{it.agreedUnitPrice !== null ? it.agreedUnitPrice.toFixed(2) : '—'}</td>
                   <td style={{ fontWeight: 600 }}>
-                    {lineTotal !== null
-                      ? `${lineTotal.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} ${it.lineCurrency}`
-                      : '—'}
+                    {lineTotal !== null ? formatMoney(lineTotal, it.lineCurrency) : '—'}
                   </td>
                 </tr>
               );
@@ -183,7 +182,7 @@ export default async function QuoteRequestDetailPage({
                       Suma netto
                     </td>
                     <td>
-                      {fmt(total)} {currency}
+                      {fmt(total)}
                     </td>
                   </tr>
                   <tr>
@@ -191,7 +190,7 @@ export default async function QuoteRequestDetailPage({
                       VAT ({(taxRate * 100).toFixed(0)}%)
                     </td>
                     <td>
-                      {fmt(taxTotal ?? 0)} {currency}
+                      {fmt(taxTotal ?? 0)}
                     </td>
                   </tr>
                 </>
@@ -201,7 +200,7 @@ export default async function QuoteRequestDetailPage({
                   {taxRate > 0 ? 'Suma brutto' : 'Suma'}
                 </th>
                 <th>
-                  {fmt(grossTotal ?? total)} {currency}
+                  {fmt(grossTotal ?? total)}
                 </th>
               </tr>
             </tfoot>
