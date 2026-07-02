@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SalesChannelPicker } from '@/components/sales-channel-picker/SalesChannelPicker';
 import { PageHeader } from '@/components/ui/page-header';
 import { useTranslation } from '@/i18n/useTranslation';
 import {
@@ -94,11 +95,12 @@ export function InvoiceTemplatesPage(): ReactNode {
           </div>
           <div className="space-y-1">
             <Label htmlFor="tchan">{t('invoiceTemplates.fields.channel')}</Label>
-            <Input
+            <SalesChannelPicker
               id="tchan"
+              value={channelId.trim() ? channelId : null}
+              onChange={(id): void => setChannelId(id ?? '')}
               placeholder={t('invoiceTemplates.fields.channelHint')}
-              value={channelId}
-              onChange={(e): void => setChannelId(e.target.value)}
+              clearable
             />
           </div>
           <div className="flex items-end">

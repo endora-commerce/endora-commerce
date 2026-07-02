@@ -3,7 +3,7 @@ import { Check, Copy, Trash2 } from 'lucide-react';
 import type { ApiKey, CreateApiKeyResponse } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -112,15 +112,17 @@ export function ApiKeysPage(): ReactNode {
       ) : null}
 
       {revealedToken ? (
-        <Alert variant="warning" className="mb-4">
-          <AlertTitle>{t('apiKeys.revealed.title')}</AlertTitle>
-          <AlertDescription>
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>{t('apiKeys.revealed.title')}</CardTitle>
+          </CardHeader>
+          <CardContent>
             <p className="text-xs text-muted-foreground">{revealedToken.name}</p>
             <div className="mt-2 flex items-center gap-2">
               <Input
                 readOnly
                 value={revealedToken.token}
-                className="flex-1 bg-card font-mono text-sm"
+                className="flex-1 bg-muted font-mono text-sm text-foreground"
                 onFocus={(e): void => e.currentTarget.select()}
                 aria-label={t('apiKeys.revealed.title')}
               />
@@ -146,8 +148,8 @@ export function ApiKeysPage(): ReactNode {
             >
               {t('apiKeys.revealed.confirm')}
             </Button>
-          </AlertDescription>
-        </Alert>
+          </CardContent>
+        </Card>
       ) : null}
 
       <Card className="mb-4">

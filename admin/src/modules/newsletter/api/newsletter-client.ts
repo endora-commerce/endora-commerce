@@ -76,6 +76,8 @@ export const newsletterClient = {
     unwrap(apiClient.post<Wrap<CampaignDetail>>(`${BASE}/campaigns`, body)),
   updateCampaign: (id: string, body: UpdateCampaignRequest): Promise<CampaignDetail> =>
     unwrap(apiClient.put<Wrap<CampaignDetail>>(`${BASE}/campaigns/${id}`, body)),
+  setCampaignGroup: (id: string, subscriberIds: string[]): Promise<CampaignDetail> =>
+    unwrap(apiClient.put<Wrap<CampaignDetail>>(`${BASE}/campaigns/${id}/group`, { subscriberIds })),
   previewCampaign: (id: string, subscriberId?: string): Promise<RenderedEmail> =>
     unwrap(apiClient.post<Wrap<RenderedEmail>>(`${BASE}/campaigns/${id}/preview`, { subscriberId })),
   sendCampaign: (id: string, expectedVersion: number, scheduledAt?: string): Promise<CampaignDetail> =>

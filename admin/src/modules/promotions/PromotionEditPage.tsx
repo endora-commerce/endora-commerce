@@ -19,6 +19,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { RuleBuilder, type RuleAttributeField, type RuleFieldOptions } from '@/components/rule-builder/RuleBuilder';
+import { PaginationFooter } from '@/components/PaginationFooter';
+import { usePageSizePreference } from '@/lib/use-page-size-preference';
 import { useTranslation } from '@/i18n/useTranslation';
 import type { PromotionAction, PromotionActionType, PromotionRule } from '@b2b/contracts';
 import { promotionsClient, promotionRulesClient, type Coupon } from './client';
@@ -369,6 +371,8 @@ function CouponsSection({ promotionId }: { promotionId: string }): ReactNode {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const { pageSize, setPageSize } = usePageSizePreference('promotion-coupons');
 
   const reload = useCallback(() => {
     void promotionsClient
@@ -381,6 +385,13 @@ function CouponsSection({ promotionId }: { promotionId: string }): ReactNode {
       .catch(() => setCoupons([]));
   }, [promotionId]);
   useEffect(() => reload(), [reload]);
+
+  // Keep the current page within bounds as the list or page size changes.
+  const pageCount = Math.max(1, Math.ceil(coupons.length / pageSize));
+  useEffect(() => {
+    setPage((p) => Math.min(p, pageCount - 1));
+  }, [pageCount]);
+  const visibleCoupons = coupons.slice(page * pageSize, page * pageSize + pageSize);
 
   const add = async (): Promise<void> => {
     setErr(null);
@@ -487,7 +498,7 @@ function CouponsSection({ promotionId }: { promotionId: string }): ReactNode {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {coupons.map((c) => (
+                {visibleCoupons.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell>
                       <Checkbox
@@ -509,6 +520,17 @@ function CouponsSection({ promotionId }: { promotionId: string }): ReactNode {
                 ))}
               </TableBody>
             </Table>
+            <PaginationFooter
+              page={page}
+              pageSize={pageSize}
+              total={coupons.length}
+              onPageSizeChange={(next) => {
+                setPageSize(next);
+                setPage(0);
+              }}
+              onPrev={() => setPage((p) => Math.max(0, p - 1))}
+              onNext={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+            />
           </>
         )}
       </CardContent>

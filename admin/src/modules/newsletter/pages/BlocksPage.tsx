@@ -17,6 +17,15 @@ export function BlocksPage(): React.ReactElement {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [body, setBody] = useState('');
+  // Inline edit state for an existing block; null when the create form is shown.
+  const [edit, setEdit] = useState<{
+    id: string;
+    code: string;
+    name: string;
+    body: string;
+    active: boolean;
+    version: number;
+  } | null>(null);
 
   const load = useCallback(() => {
     newsletterClient
@@ -25,6 +34,26 @@ export function BlocksPage(): React.ReactElement {
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
   useEffect(() => load(), [load]);
+
+  const startEdit = useCallback((id: string): void => {
+    setError(null);
+    newsletterClient
+      .getBlock(id)
+      .then((b) => {
+        // The create form authors a single plain-text EmailText block; mirror
+        // that here by lifting the first text node back into the textarea.
+        const first = (b.content as { content?: Array<{ props?: { text?: string } }> }).content?.[0];
+        setEdit({
+          id: b.id,
+          code: b.code,
+          name: b.name,
+          body: first?.props?.text ?? '',
+          active: b.active,
+          version: b.version,
+        });
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+  }, []);
 
   async function run(fn: () => Promise<unknown>): Promise<void> {
     setError(null);
@@ -52,7 +81,58 @@ export function BlocksPage(): React.ReactElement {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      {canWrite ? (
+      {canWrite && edit ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Edit block</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Input value={edit.code} readOnly disabled className="max-w-sm font-mono" />
+            <Input
+              placeholder="name"
+              value={edit.name}
+              onChange={(e) => setEdit((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
+              className="max-w-sm"
+            />
+            <Textarea
+              placeholder="Block content (plain text)"
+              value={edit.body}
+              onChange={(e) => setEdit((prev) => (prev ? { ...prev, body: e.target.value } : prev))}
+              rows={4}
+            />
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={edit.active}
+                onChange={(e) => setEdit((prev) => (prev ? { ...prev, active: e.target.checked } : prev))}
+              />
+              Active
+            </label>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() =>
+                  void run(async () => {
+                    await newsletterClient.updateBlock(edit.id, {
+                      name: edit.name,
+                      content: textContentTree(edit.body),
+                      active: edit.active,
+                      expectedVersion: edit.version,
+                    });
+                    setEdit(null);
+                  })
+                }
+              >
+                Save changes
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setEdit(null)}>
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+      {canWrite && !edit ? (
         <Card>
           <CardHeader>
             <CardTitle>New block</CardTitle>
@@ -98,13 +178,18 @@ export function BlocksPage(): React.ReactElement {
                   <td className="p-3">{b.isSystem ? 'Yes' : '—'}</td>
                   {canWrite ? (
                     <td className="p-3">
-                      {!b.isSystem ? (
-                        <Button variant="ghost" size="sm" onClick={() => void run(() => newsletterClient.deleteBlock(b.id))}>
-                          Delete
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => startEdit(b.id)}>
+                          Edit
                         </Button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">protected</span>
-                      )}
+                        {!b.isSystem ? (
+                          <Button variant="ghost" size="sm" onClick={() => void run(() => newsletterClient.deleteBlock(b.id))}>
+                            Delete
+                          </Button>
+                        ) : (
+                          <span className="self-center text-xs text-muted-foreground">protected</span>
+                        )}
+                      </div>
                     </td>
                   ) : null}
                 </tr>
