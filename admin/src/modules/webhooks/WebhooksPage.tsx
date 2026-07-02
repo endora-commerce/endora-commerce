@@ -188,15 +188,17 @@ export function WebhooksPage(): ReactNode {
       ) : null}
 
       {revealedSecret ? (
-        <Alert variant="warning" className="mb-4">
-          <AlertDescription>
-            <p className="font-medium">{t('webhooks.revealed.title')}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{revealedSecret.name}</p>
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>{t('webhooks.revealed.title')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">{revealedSecret.name}</p>
             <div className="mt-2 flex items-center gap-2">
               <Input
                 readOnly
                 value={revealedSecret.secret}
-                className="flex-1 bg-card font-mono text-sm"
+                className="flex-1 bg-muted font-mono text-sm text-foreground"
                 onFocus={(e): void => e.currentTarget.select()}
                 aria-label={t('webhooks.revealed.title')}
               />
@@ -222,8 +224,8 @@ export function WebhooksPage(): ReactNode {
             >
               {t('webhooks.revealed.confirm')}
             </Button>
-          </AlertDescription>
-        </Alert>
+          </CardContent>
+        </Card>
       ) : null}
 
       <Card className="mb-4">
