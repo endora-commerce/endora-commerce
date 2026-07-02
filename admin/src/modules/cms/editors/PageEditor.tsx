@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
+import { SaveButtonGroup } from '@/components/ui/save-button-group';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useTranslation } from '@/i18n/useTranslation';
@@ -153,7 +154,7 @@ export function PageEditor(): ReactNode {
     });
   };
 
-  const save = async (): Promise<void> => {
+  const save = async (): Promise<boolean> => {
     setSaving(true);
     setError(null);
     try {
@@ -167,11 +168,17 @@ export function PageEditor(): ReactNode {
       setPage(saved);
       setDraftData(null);
       if (isNew) navigate(`/cms/pages/${saved.id}`, { replace: true });
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  const saveAndExit = async (): Promise<void> => {
+    if (await save()) navigate('/cms/pages');
   };
 
   const lifecycle = async (action: 'publish' | 'archive' | 'unarchive'): Promise<void> => {
@@ -218,9 +225,14 @@ export function PageEditor(): ReactNode {
                 {t('common.unarchive')}
               </Button>
             ) : null}
-            <Button type="button" onClick={() => void save()} disabled={saving}>
-              {saving ? t('common.saving') : t('common.save')}
-            </Button>
+            <SaveButtonGroup
+              onSave={() => void save()}
+              onSaveAndExit={() => void saveAndExit()}
+              saving={saving}
+              saveLabel={t('common.save')}
+              savingLabel={t('common.saving')}
+              saveAndExitLabel={t('common.saveAndExit')}
+            />
           </div>
         }
       />

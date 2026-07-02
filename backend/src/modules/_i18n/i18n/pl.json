@@ -260,6 +260,7 @@
   "profilePage.language.saved": "Zapisano preferencję językową.",
   "profilePage.language.failed": "Nie udało się zapisać preferencji językowej. Spróbuj ponownie.",
   "common.action.save": "Zapisz",
+  "common.action.saveAndExit": "Zapisz i wyjdź",
   "common.action.cancel": "Anuluj",
   "common.action.delete": "Usuń",
   "common.action.create": "Utwórz",

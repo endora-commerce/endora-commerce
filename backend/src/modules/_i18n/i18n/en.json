@@ -260,6 +260,7 @@
   "profilePage.language.saved": "Language preference saved.",
   "profilePage.language.failed": "Could not save language preference. Please try again.",
   "common.action.save": "Save",
+  "common.action.saveAndExit": "Save and exit",
   "common.action.cancel": "Cancel",
   "common.action.delete": "Delete",
   "common.action.create": "Create",

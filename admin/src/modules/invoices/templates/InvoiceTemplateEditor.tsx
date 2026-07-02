@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Puck, type Data } from '@measured/puck';
 import '@measured/puck/puck.css';
 import { Maximize2, Minimize2 } from 'lucide-react';
@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
+import { SaveButtonGroup } from '@/components/ui/save-button-group';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
 import { invoicePuckConfig } from './invoice-puck-config';
@@ -27,6 +28,7 @@ const LANGUAGE = 'pl-PL';
 export function InvoiceTemplateEditor(): ReactNode {
   const t = useTranslation('core');
   const { id = '' } = useParams();
+  const navigate = useNavigate();
   const [tpl, setTpl] = useState<TemplateDetail | null>(null);
   const [draft, setDraft] = useState<Data>(emptyData);
   const [error, setError] = useState<string | null>(null);
@@ -60,8 +62,8 @@ export function InvoiceTemplateEditor(): ReactNode {
     void load();
   }, [load]);
 
-  const save = useCallback(async (): Promise<void> => {
-    if (!tpl) return;
+  const save = useCallback(async (): Promise<boolean> => {
+    if (!tpl) return false;
     setError(null);
     setNotice(null);
     try {
@@ -71,10 +73,16 @@ export function InvoiceTemplateEditor(): ReactNode {
       );
       setTpl((prev) => (prev ? { ...prev, version: res.data.version } : prev));
       setNotice(t('invoiceTemplates.saved'));
+      return true;
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to save.');
+      return false;
     }
   }, [tpl, draft, t]);
+
+  const saveAndExit = useCallback(async (): Promise<void> => {
+    if (await save()) navigate('/invoices/templates');
+  }, [save, navigate]);
 
   return (
     <>
@@ -97,9 +105,14 @@ export function InvoiceTemplateEditor(): ReactNode {
                 </a>
               </Button>
             ) : null}
-            <Button size="sm" onClick={(): void => void save()}>
-              {t('common.action.save')}
-            </Button>
+            <SaveButtonGroup
+              size="sm"
+              onSave={() => void save()}
+              onSaveAndExit={() => void saveAndExit()}
+              saveLabel={t('common.action.save')}
+              savingLabel={t('common.action.save')}
+              saveAndExitLabel={t('common.action.saveAndExit')}
+            />
           </div>
         }
       />
