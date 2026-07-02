@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import type { CampaignDetail, CampaignTargetType, NewsletterTag } from '@b2b/contracts';
+import type {
+  CampaignDetail,
+  CampaignTargetType,
+  NewsletterTag,
+  SubscriberSummary,
+} from '@b2b/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -24,6 +29,11 @@ export function CampaignEditor(): React.ReactElement {
 
   const [campaign, setCampaign] = useState<CampaignDetail | null>(null);
   const [tags, setTags] = useState<NewsletterTag[]>([]);
+  const [subscribers, setSubscribers] = useState<SubscriberSummary[]>([]);
+  const [targetSubscriberIds, setTargetSubscriberIds] = useState<string[]>([]);
+  // Only persist the manual group when the operator actually edits it, so
+  // saving unrelated fields on an existing group campaign doesn't wipe it.
+  const [groupTouched, setGroupTouched] = useState(false);
   const [name, setName] = useState('');
   const [language, setLanguage] = useState('en-US');
   const [subject, setSubject] = useState('');
@@ -36,6 +46,11 @@ export function CampaignEditor(): React.ReactElement {
 
   useEffect(() => {
     newsletterClient.listTags().then((r) => setTags(r.items)).catch(() => undefined);
+    // Active subscribers back the manual-group picker.
+    newsletterClient
+      .listSubscribers({ status: 'active', pageSize: 200 })
+      .then((r) => setSubscribers(r.items))
+      .catch(() => undefined);
     if (!isNew && id) {
       newsletterClient
         .getCampaign(id)
@@ -63,9 +78,14 @@ export function CampaignEditor(): React.ReactElement {
         targetType,
         targetTagIds,
       };
-      const saved = isNew
+      let saved = isNew
         ? await newsletterClient.createCampaign(payload)
         : await newsletterClient.updateCampaign(id!, { ...payload, expectedVersion: campaign!.version });
+      // A manual group is stored separately from the campaign record; persist
+      // the picked subscribers once the campaign has an id.
+      if (targetType === 'group' && (isNew || groupTouched)) {
+        saved = await newsletterClient.setCampaignGroup(saved.id, targetSubscriberIds);
+      }
       setCampaign(saved);
       setNotice('Saved.');
       if (isNew) navigate(`/newsletter/campaigns/${saved.id}`, { replace: true });
@@ -177,21 +197,74 @@ export function CampaignEditor(): React.ReactElement {
             <option value="group">Manual group</option>
           </select>
           {(targetType === 'tag' || targetType === 'tag_list') ? (
-            <div className="flex flex-wrap gap-2">
-              {tags.map((t) => (
-                <label key={t.id} className="flex items-center gap-1 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={targetTagIds.includes(t.id)}
-                    onChange={(e) =>
-                      setTargetTagIds((prev) => (e.target.checked ? [...prev, t.id] : prev.filter((x) => x !== t.id)))
-                    }
-                    disabled={!canWrite}
-                  />
-                  {t.name}
-                </label>
-              ))}
-            </div>
+            tags.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No tags yet — create tags on the{' '}
+                <Link to="/newsletter/tags" className="underline">
+                  Tags &amp; fields
+                </Link>{' '}
+                page first.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <p className="w-full text-sm text-muted-foreground">
+                  {targetType === 'tag' ? 'Select a tag:' : 'Select one or more tags:'}
+                </p>
+                {tags.map((t) => (
+                  <label key={t.id} className="flex items-center gap-1 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={targetTagIds.includes(t.id)}
+                      onChange={(e) =>
+                        setTargetTagIds((prev) =>
+                          e.target.checked
+                            ? targetType === 'tag'
+                              ? [t.id]
+                              : [...prev, t.id]
+                            : prev.filter((x) => x !== t.id),
+                        )
+                      }
+                      disabled={!canWrite}
+                    />
+                    {t.name}
+                  </label>
+                ))}
+              </div>
+            )
+          ) : null}
+          {targetType === 'group' ? (
+            subscribers.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No active subscribers to add to a manual group yet.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Pick the subscribers for this campaign&apos;s manual group:
+                </p>
+                <div className="flex max-h-64 flex-col gap-1 overflow-y-auto rounded border p-2">
+                  {subscribers.map((s) => (
+                    <label key={s.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={targetSubscriberIds.includes(s.id)}
+                        onChange={(e) => {
+                          setGroupTouched(true);
+                          setTargetSubscriberIds((prev) =>
+                            e.target.checked ? [...prev, s.id] : prev.filter((x) => x !== s.id),
+                          );
+                        }}
+                        disabled={!canWrite}
+                      />
+                      {s.email}
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {targetSubscriberIds.length} selected — saved when you save the campaign.
+                </p>
+              </div>
+            )
           ) : null}
         </CardContent>
       </Card>
