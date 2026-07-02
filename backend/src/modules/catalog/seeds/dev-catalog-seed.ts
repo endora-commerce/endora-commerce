@@ -56,6 +56,71 @@ interface SeedRow<T> {
   data: T;
 }
 
+/** Singularized, lower-cased leaf noun for prose (e.g. "Screws" → "screw"). */
+function leafNoun(leafNameEn: string): string {
+  const lower = leafNameEn.toLowerCase();
+  return lower.endsWith('s') ? lower.slice(0, -1) : lower;
+}
+
+/**
+ * Build a richer, multi-paragraph product description (≥3 paragraphs, 3-4
+ * sentences each) so the seeded catalog reads like real merchandising copy
+ * rather than a one-line stub. Deterministic — derived purely from the
+ * product's own attributes so re-seeding is stable.
+ */
+function buildProductDescription(input: {
+  productName: string;
+  leafNameEn: string;
+  color: string;
+  material: string;
+  weightKg: number;
+  certification: string | null;
+}): string {
+  const { productName, leafNameEn, color, material, weightKg, certification } = input;
+  const noun = leafNoun(leafNameEn);
+  const category = leafNameEn.toLowerCase();
+
+  const overview = [
+    `The ${productName} is a professional-grade ${color} ${noun} machined from ${material} for demanding industrial and trade applications.`,
+    `It has been designed to deliver consistent performance across high-volume B2B workflows where reliability matters more than anything else.`,
+    `Every unit is inspected before dispatch so what arrives on your workbench behaves exactly like the sample you evaluated.`,
+    `This makes it a dependable default choice when you standardise your ${category} line across multiple sites.`,
+  ].join(' ');
+
+  const specs = [
+    `Built from ${material}, the ${noun} balances strength and weight at roughly ${weightKg} kg per unit, keeping handling comfortable without sacrificing durability.`,
+    `The ${color} finish resists everyday wear and stays legible on the shelf, which helps warehouse teams pick the right item quickly.`,
+    certification
+      ? `It ships with ${certification} conformity documentation, so it slots straight into regulated procurement processes.`
+      : `It follows our standard internal quality baseline, so tolerances stay predictable from batch to batch.`,
+    `Dimensional consistency between batches means downstream assembly steps rarely need rework.`,
+  ].join(' ');
+
+  const ordering = [
+    `Because this ${noun} is stocked for recurring orders, it is well suited to blanket purchase agreements and scheduled replenishment.`,
+    `Volume pricing tiers reward larger baskets, and lead times stay short thanks to steady on-hand inventory.`,
+    `Pair it with the related items in the ${category} category to build a complete, compatible kit in a single order.`,
+    `If you need a tailored quote for a large project, request one and our team will respond with contract terms.`,
+  ].join(' ');
+
+  return `${overview}\n\n${specs}\n\n${ordering}`;
+}
+
+/** Deterministic background colour (hex, no #) per leaf slug for demo images. */
+function leafImageColor(slug: string): string {
+  const palette: Record<string, string> = {
+    screws: '1f6feb',
+    bolts: '8250df',
+    wrenches: 'bf8700',
+    drills: 'cf222e',
+    cables: '1a7f37',
+    sensors: '0969da',
+    gloves: 'bc4c00',
+    helmets: '6e7781',
+  };
+  return palette[slug] ?? '30363d';
+}
+
 function mustBeNonProduction(): void {
   // The seed is destructive (it truncates the public catalog/business tables),
   // so it refuses NODE_ENV=production by default. A deliberate demo deployment
@@ -388,15 +453,24 @@ async function main(): Promise<void> {
   await em.persistAndFlush(assignments);
 
   // --- Products --------------------------------------------------------
+  // `productLeaves[k]` records the leaf each product belongs to, so its name,
+  // SKU/slug AND its category link all reference the SAME leaf. Previously the
+  // name loop used a 1-based index while the category loop used a 0-based one,
+  // which shifted every product into the neighbouring category (e.g. a product
+  // named "Screws …" ended up filed under Helmets).
   const products: Product[] = [];
+  const productLeaves: Category[] = [];
   for (let i = 1; i <= PRODUCT_COUNT; i++) {
     const idx = String(i).padStart(4, '0');
     const leaf = leaves[i % leaves.length]!;
+    productLeaves.push(leaf);
     const color = COLOR_VALUES[i % COLOR_VALUES.length]!;
     const material = MATERIAL_VALUES[i % MATERIAL_VALUES.length]!;
     const weight = Number(((i % 50) / 10 + 0.1).toFixed(1));
     const price = 9.99 + (i % 100) * 1.5;
-    const productName = `${leaf.name['en-US']} ${idx}`;
+    const leafNameEn = leaf.name['en-US'] ?? leaf.slug;
+    const productName = `${leafNameEn} ${idx}`;
+    const certification = i % 7 === 0 ? 'ISO9001' : null;
     products.push(
       em.create(Product, {
         sku: `DEMO-${leaf.slug.toUpperCase()}-${idx}`,
@@ -405,14 +479,21 @@ async function main(): Promise<void> {
         status: 'active',
         name: { 'en-US': productName },
         description: {
-          'en-US': `Synthetic ${leaf.name['en-US']?.toLowerCase()} #${idx} — ${color} ${material}, ${weight}kg.`,
+          'en-US': buildProductDescription({
+            productName,
+            leafNameEn,
+            color,
+            material,
+            weightKg: weight,
+            certification,
+          }),
         },
         visibility: 'public',
         attributeValues: {
           color,
           material,
           weight_kg: weight,
-          certification: i % 7 === 0 ? 'ISO9001' : null,
+          certification,
           defaultPrice: price,
         },
       }),
@@ -470,7 +551,9 @@ async function main(): Promise<void> {
   const productCategoryParams: unknown[] = [];
   const salesChannelProductParams: unknown[] = [];
   for (const [idx, p] of products.entries()) {
-    const leaf = leaves[idx % leaves.length]!;
+    // Same leaf the product was named/slugged after — keeps category
+    // membership consistent with the product name.
+    const leaf = productLeaves[idx]!;
     productCategoryRows.push('(?, ?)');
     productCategoryParams.push(p.id, leaf.id);
     salesChannelProductRows.push('(?, ?)');
@@ -483,6 +566,41 @@ async function main(): Promise<void> {
   await conn.execute(
     `insert into sales_channel_products (sales_channel_id, product_id) values ${salesChannelProductRows.join(', ')}`,
     salesChannelProductParams,
+  );
+
+  // --- Product images (demo) ------------------------------------------
+  // Attach 2-3 image Assets to every simple product so storefront cards and
+  // the PDP render real <img> tags out of the box. URLs are deterministic
+  // placeholder images labelled with the product name and tinted per
+  // category, so re-seeding is stable and the insert stays offline (only the
+  // browser fetches the URL at render time). `position` drives ordering and
+  // the resolved `primaryAssetUrl` (position 0 = hero image).
+  const imageAssetRows: string[] = [];
+  const imageAssetParams: unknown[] = [];
+  const productImageRows: string[] = [];
+  const productImageParams: unknown[] = [];
+  for (const [idx, p] of products.entries()) {
+    const leaf = productLeaves[idx]!;
+    const bg = leafImageColor(leaf.slug);
+    const imageCount = 2 + (idx % 2); // 2 or 3 images per product
+    const label = encodeURIComponent(p.name['en-US'] ?? p.slug);
+    for (let n = 0; n < imageCount; n++) {
+      const assetId = crypto.randomUUID();
+      const url = `https://placehold.co/800x800/${bg}/ffffff.png?text=${label}%0A${n + 1}`;
+      imageAssetRows.push(`(?, 'image', ?, 'image/png', 51200, ?, now(), now())`);
+      imageAssetParams.push(assetId, `${p.slug}-${n + 1}.png`, url);
+      productImageRows.push('(?, ?, ?)');
+      productImageParams.push(p.id, assetId, n);
+    }
+  }
+  await conn.execute(
+    `insert into assets (id, kind, filename, mime_type, size_bytes, storage_url, created_at, updated_at)
+     values ${imageAssetRows.join(', ')}`,
+    imageAssetParams,
+  );
+  await conn.execute(
+    `insert into product_assets (product_id, asset_id, position) values ${productImageRows.join(', ')}`,
+    productImageParams,
   );
 
   // --- Composite product wiring (T133, US5) ---------------------------
