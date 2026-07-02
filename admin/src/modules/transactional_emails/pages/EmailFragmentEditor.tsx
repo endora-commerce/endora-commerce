@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import type { Data } from '@measured/puck';
 import type { EmailBlockDetail, EmailTemplateDetail } from '@b2b/contracts';
 import { PageHeader } from '@/components/ui/page-header';
-import { Button } from '@/components/ui/button';
+import { SaveButtonGroup } from '@/components/ui/save-button-group';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -26,6 +26,7 @@ export interface EmailFragmentEditorProps {
  */
 export function EmailFragmentEditor({ kind }: EmailFragmentEditorProps): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('transactional_emails:write');
 
@@ -61,8 +62,8 @@ export function EmailFragmentEditor({ kind }: EmailFragmentEditorProps): React.R
     setContent((detail?.content[lang] as Data) ?? emptyData);
   };
 
-  const save = async (): Promise<void> => {
-    if (!detail) return;
+  const save = async (): Promise<boolean> => {
+    if (!detail) return false;
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -73,10 +74,18 @@ export function EmailFragmentEditor({ kind }: EmailFragmentEditorProps): React.R
         : await transactionalEmailsClient.putTemplateContent(id, language, body);
       setDetail(updated);
       setNotice('Saved.');
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      return false;
     } finally {
       setBusy(false);
+    }
+  };
+
+  const saveAndExit = async (): Promise<void> => {
+    if (await save()) {
+      navigate(kind === 'block' ? '/transactional-emails/blocks' : '/transactional-emails/templates');
     }
   };
 
@@ -129,9 +138,15 @@ export function EmailFragmentEditor({ kind }: EmailFragmentEditorProps): React.R
         </CardContent>
       </Card>
 
-      <Button onClick={() => void save()} disabled={!canWrite || busy}>
-        Save
-      </Button>
+      <SaveButtonGroup
+        onSave={() => void save()}
+        onSaveAndExit={() => void saveAndExit()}
+        saving={busy}
+        disabled={!canWrite}
+        saveLabel="Save"
+        savingLabel="Save"
+        saveAndExitLabel="Save and exit"
+      />
     </div>
   );
 }

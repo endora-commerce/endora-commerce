@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import type { Data } from '@measured/puck';
 import type { TransactionalEmailDetail } from '@b2b/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
+import { SaveButtonGroup } from '@/components/ui/save-button-group';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,6 +20,7 @@ const emptyData: Data = { root: { props: {} }, content: [] };
 
 export function EmailEditor(): React.ReactElement {
   const { code = '' } = useParams<{ code: string }>();
+  const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('transactional_emails:write');
 
@@ -63,7 +65,7 @@ export function EmailEditor(): React.ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, channelId]);
 
-  const save = async (): Promise<void> => {
+  const save = async (): Promise<boolean> => {
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -71,11 +73,17 @@ export function EmailEditor(): React.ReactElement {
       await transactionalEmailsClient.saveContent(code, channelId, language, { subject, content });
       setNotice('Saved.');
       await load(language);
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      return false;
     } finally {
       setBusy(false);
     }
+  };
+
+  const saveAndExit = async (): Promise<void> => {
+    if (await save()) navigate('/transactional-emails');
   };
 
   const reset = async (): Promise<void> => {
@@ -198,9 +206,15 @@ export function EmailEditor(): React.ReactElement {
       </Card>
 
       <div className="flex gap-2">
-        <Button onClick={() => void save()} disabled={!canWrite || busy}>
-          Save
-        </Button>
+        <SaveButtonGroup
+          onSave={() => void save()}
+          onSaveAndExit={() => void saveAndExit()}
+          saving={busy}
+          disabled={!canWrite}
+          saveLabel="Save"
+          savingLabel="Save"
+          saveAndExitLabel="Save and exit"
+        />
         <Button variant="outline" onClick={() => void reset()} disabled={!canWrite || busy}>
           Reset to default
         </Button>
