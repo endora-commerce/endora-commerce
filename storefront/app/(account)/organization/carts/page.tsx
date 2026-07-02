@@ -6,6 +6,7 @@ import {
 } from '../../../../lib/api/cart';
 import { getSessionCookie, getAnonCartCookie } from '../../../../lib/session';
 import { getMe } from '../../../../lib/api/account';
+import { formatMoney } from '../../../../lib/i18n/money';
 
 /**
  * Organization-Administrator visibility view (feature 027 US4).
@@ -91,7 +92,7 @@ export default async function OrganizationCartsPage(): Promise<ReactNode> {
                 </td>
                 <td>{cart.itemCount}</td>
                 <td>
-                  {cart.total.amount.toFixed(2)} {cart.total.currency}
+                  {formatMoney(cart.total.amount, cart.total.currency)}
                 </td>
                 <td>{new Date(cart.lastActivityAt).toLocaleString()}</td>
                 <td>

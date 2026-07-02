@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { formatMoneyObject } from '../lib/i18n/money';
 
 /**
  * CartLine — Industria-themed cart row (feature 027 US1).
@@ -35,6 +36,8 @@ interface CartLineProps {
   updateAction: (formData: FormData) => Promise<void>;
   removeAction: (formData: FormData) => Promise<void>;
   saveToListAction: (formData: FormData) => Promise<void>;
+  /** Active Sales Channel display locale (e.g. `pl-PL`). */
+  locale?: string;
   strings: {
     qtyLabel: string;
     unitPriceLabel: string;
@@ -50,17 +53,16 @@ interface CartLineProps {
   };
 }
 
-function formatMoney(m: { amount: number; currency: string }): string {
-  return `${m.amount.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${m.currency}`;
-}
-
 export function CartLine({
   line,
   updateAction,
   removeAction,
   saveToListAction,
+  locale,
   strings,
 }: CartLineProps): ReactNode {
+  const formatMoney = (m: { amount: number; currency: string }): string =>
+    formatMoneyObject(m, locale);
   const unavailableLabel =
     line.unavailable && line.unavailableReason
       ? strings.unavailable[line.unavailableReason]

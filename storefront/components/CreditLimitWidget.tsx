@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { CreditLimitView } from '../lib/api/credit-limit';
+import { formatMoney } from '../lib/i18n/money';
 
 /**
  * Credit limit summary widget (T219). Used by Account and Checkout to
@@ -11,10 +12,13 @@ export interface CreditLimitWidgetProps {
   limit: CreditLimitView;
   /** When true, expands the active-reservations table inline. */
   showReservations?: boolean;
+  /** Active Sales Channel display locale (e.g. `pl-PL`). */
+  locale?: string;
 }
 
 export function CreditLimitWidget(props: CreditLimitWidgetProps): ReactNode {
-  const { limit } = props;
+  const { limit, locale } = props;
+  const money = (amount: number): string => formatMoney(amount, limit.currency, locale);
   const reservedSum = limit.grantedAmount - limit.availableAmount;
   const fillPct =
     limit.grantedAmount > 0
@@ -25,14 +29,12 @@ export function CreditLimitWidget(props: CreditLimitWidgetProps): ReactNode {
     <section className="rounded-md border border-line bg-surface p-[16px]">
       <h3 className="m-0 mb-2 text-[1rem]">Credit limit</h3>
       <p className="m-0 mb-2">
-        <strong>
-          {limit.availableAmount.toFixed(2)} {limit.currency}
-        </strong>{' '}
+        <strong>{money(limit.availableAmount)}</strong>{' '}
         available of{' '}
-        {limit.grantedAmount.toFixed(2)} {limit.currency}
+        {money(limit.grantedAmount)}
         {' · '}
         <span className="text-muted">
-          {reservedSum.toFixed(2)} {limit.currency} reserved across{' '}
+          {money(reservedSum)} reserved across{' '}
           {limit.activeReservations.length} order(s)
         </span>
       </p>
@@ -56,9 +58,7 @@ export function CreditLimitWidget(props: CreditLimitWidgetProps): ReactNode {
             {limit.activeReservations.map((r) => (
               <tr key={r.orderId}>
                 <td>{r.orderId.slice(0, 8)}</td>
-                <td>
-                  {r.amount.toFixed(2)} {limit.currency}
-                </td>
+                <td>{money(r.amount)}</td>
                 <td>{new Date(r.createdAt).toLocaleString()}</td>
               </tr>
             ))}

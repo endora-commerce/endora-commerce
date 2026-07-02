@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { formatMoneyObject } from '../lib/i18n/money';
 
 /**
  * CartTotals — Industria-themed summary block (feature 027 US1).
@@ -18,6 +19,8 @@ interface CartTotalsProps {
   discount: { code: string | null; amount: number; currency: string } | null;
   grandTotal: { amount: number; currency: string };
   itemCount: number;
+  /** Active Sales Channel display locale (e.g. `pl-PL`). */
+  locale?: string;
   strings: {
     subtotalLabel: (itemCount: number) => string;
     discountLabel: (code: string | null) => string;
@@ -27,17 +30,16 @@ interface CartTotalsProps {
   };
 }
 
-function formatMoney(m: { amount: number; currency: string }): string {
-  return `${m.amount.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${m.currency}`;
-}
-
 export function CartTotals({
   subtotal,
   discount,
   grandTotal,
   itemCount,
+  locale,
   strings,
 }: CartTotalsProps): ReactNode {
+  const formatMoney = (m: { amount: number; currency: string }): string =>
+    formatMoneyObject(m, locale);
   return (
     <>
       <div className="flex justify-between py-[6px] text-[13px] text-[color:var(--ink-600)]">

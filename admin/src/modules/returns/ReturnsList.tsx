@@ -15,6 +15,7 @@ import { PaginationFooter } from '@/components/PaginationFooter';
 import { usePageSizePreference } from '@/lib/use-page-size-preference';
 import { orderStatusBadgeStyle } from '@/modules/orders/orderStatusColor';
 import { formatDateTime } from '@/lib/format';
+import { formatMoney } from '@/lib/money';
 import { useTranslation } from '@/i18n/useTranslation';
 import type { AdminReturnRow, ReturnStatusDto } from '@b2b/contracts';
 
@@ -217,7 +218,7 @@ export function ReturnsList(): ReactNode {
       header: t('returns.col.refund'),
       render: (r) => (
         <span className="tabular-nums">
-          {r.totalRefundAmount.toFixed(2)} {r.currency}
+          {formatMoney(r.totalRefundAmount, r.currency)}
         </span>
       ),
     },

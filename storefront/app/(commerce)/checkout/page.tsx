@@ -19,6 +19,7 @@ import { ShippingMethods } from '../../../components/checkout/ShippingMethods';
 import { AddressSection } from '../../../components/checkout/AddressSection';
 import { CouponField } from '../../../components/checkout/CouponField';
 import { getServerContext } from '../../../lib/server-context';
+import { formatMoney } from '../../../lib/i18n/money';
 import { OrganizationModerationBanner } from '../../../components/OrganizationModerationBanner';
 import { StorefrontApiError } from '../../../lib/api/client';
 import { getMe } from '../../../lib/api/account';
@@ -157,10 +158,10 @@ export default async function CheckoutPage({
 
         {creditLimit ? (
           <div className="mt-[16px]">
-            <CreditLimitWidget limit={creditLimit} />
+            <CreditLimitWidget limit={creditLimit} locale={locale} />
             {creditAvailable < cartTotal ? (
               <p className="b2b-auth__hint">
-                Your cart total ({cartTotal.toFixed(2)} {cart.subtotal.currency}) exceeds the
+                Your cart total ({formatMoney(cartTotal, cart.subtotal.currency, locale)}) exceeds the
                 available credit. The credit-limit payment option is hidden until you reduce
                 the cart or contact support to raise your limit.
               </p>
@@ -187,7 +188,7 @@ export default async function CheckoutPage({
                 </td>
                 <td className="text-right">x {it.quantity}</td>
                 <td className="text-right">
-                  {(it.unitPrice.amount * it.quantity).toFixed(2)} {it.unitPrice.currency}
+                  {formatMoney(it.unitPrice.amount * it.quantity, it.unitPrice.currency, locale)}
                 </td>
               </tr>
             ))}
@@ -196,7 +197,7 @@ export default async function CheckoutPage({
                 Subtotal
               </th>
               <th className="text-right">
-                {cart.subtotal.amount.toFixed(2)} {cart.subtotal.currency}
+                {formatMoney(cart.subtotal.amount, cart.subtotal.currency, locale)}
               </th>
             </tr>
             {cart.discount ? (
@@ -205,7 +206,7 @@ export default async function CheckoutPage({
                   Discount ({cart.discount.code})
                 </th>
                 <th className="text-right">
-                  −{cart.discount.amount.toFixed(2)} {cart.discount.currency}
+                  −{formatMoney(cart.discount.amount, cart.discount.currency, locale)}
                 </th>
               </tr>
             ) : null}
@@ -216,7 +217,7 @@ export default async function CheckoutPage({
                 </th>
                 <th className="text-right">
                   <strong>
-                    {cart.grandTotal.amount.toFixed(2)} {cart.grandTotal.currency}
+                    {formatMoney(cart.grandTotal.amount, cart.grandTotal.currency, locale)}
                   </strong>
                 </th>
               </tr>

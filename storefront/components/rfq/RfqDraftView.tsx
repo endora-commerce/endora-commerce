@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
+import { formatMoney as formatMoneyShared } from '../../lib/i18n/money';
 import {
   clearRfqDraft,
   readRfqDraft,
@@ -362,7 +363,7 @@ function Breadcrumbs({ t }: { t: Strings }): ReactNode {
 }
 
 function formatMoney(amount: number, currency: string): string {
-  return `${amount.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+  return formatMoneyShared(amount, currency);
 }
 
 interface Strings {

@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { EChart } from '@/components/charts/echart';
 import { useTranslation } from '@/i18n/useTranslation';
 import { PageHeader } from '@/components/ui/page-header';
+import { formatMoney } from '@/lib/money';
 import type { PromotionStatsGroupBy, PromotionUsageStats } from '@b2b/contracts';
 import { promotionsClient } from './client';
 
@@ -53,7 +54,7 @@ export const PromotionStatsPage = (): ReactNode => {
             <CardTitle>{t('promotionStats.totalDiscount')}</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold tabular-nums">
-            {(data?.totalDiscount ?? 0).toFixed(2)} {data?.currency ?? ''}
+            {formatMoney(data?.totalDiscount ?? 0, data?.currency ?? 'PLN')}
           </CardContent>
         </Card>
       </div>

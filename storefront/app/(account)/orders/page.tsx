@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { listMyOrders, resolveOrderStatusLabel } from '../../../lib/api/orders';
 import { getSessionCookie } from '../../../lib/session';
 import { getServerContext } from '../../../lib/server-context';
+import { formatMoney } from '../../../lib/i18n/money';
 
 /**
  * Orders list (T159 / FR-053). Backend's `GET /orders` already enforces
@@ -52,7 +53,7 @@ export default async function OrdersListPage(): Promise<ReactNode> {
               <td>{resolveOrderStatusLabel(o, locale)}</td>
               <td>{o.paymentStatus}</td>
               <td className="text-right">
-                {o.total.toFixed(2)} {o.currency}
+                {formatMoney(o.total, o.currency, locale)}
               </td>
               <td>
                 <Link href={`/orders/${o.id}`}>Open</Link>

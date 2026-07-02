@@ -44,13 +44,14 @@ describe('CartLine — SSR rendering', () => {
         updateAction={noopAction}
         removeAction={noopAction}
         saveToListAction={noopAction}
+        locale="pl-PL"
         strings={STRINGS}
       />,
     );
     expect(html).toContain('Brass widget');
     expect(html).toContain('value="3"');
-    expect(html).toContain('12,50 PLN');
-    expect(html).toContain('37,50 PLN');
+    expect(html).toMatch(/12,50\s*zł/);
+    expect(html).toMatch(/37,50\s*zł/);
   });
 
   it('renders three forms (qty / remove / save-to-list) so SSR/no-JS still works', () => {

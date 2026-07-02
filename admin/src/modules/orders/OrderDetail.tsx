@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
+import { formatMoney } from '@/lib/money';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -623,11 +624,11 @@ export function OrderDetail(): ReactNode {
                         </TableCell>
                         <TableCell>{it.quantity}</TableCell>
                         <TableCell className="tabular-nums">
-                          {it.unitPrice.toFixed(2)} {order.currency}
+                          {formatMoney(it.unitPrice, order.currency)}
                         </TableCell>
                         <TableCell>{(it.taxRate * 100).toFixed(1)}%</TableCell>
                         <TableCell className="tabular-nums text-right">
-                          {it.lineTotal.toFixed(2)} {order.currency}
+                          {formatMoney(it.lineTotal, order.currency)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -638,7 +639,7 @@ export function OrderDetail(): ReactNode {
                         {t('orderDetail.totals.subtotal')}
                       </th>
                       <td className="tabular-nums text-right">
-                        {order.subtotal.toFixed(2)} {order.currency}
+                        {formatMoney(order.subtotal, order.currency)}
                       </td>
                     </tr>
                     <tr>
@@ -646,7 +647,7 @@ export function OrderDetail(): ReactNode {
                         {t('orderDetail.totals.tax')}
                       </th>
                       <td className="tabular-nums text-right">
-                        {order.taxTotal.toFixed(2)} {order.currency}
+                        {formatMoney(order.taxTotal, order.currency)}
                       </td>
                     </tr>
                     {order.discountTotal > 0 ? (
@@ -658,7 +659,7 @@ export function OrderDetail(): ReactNode {
                             : ''}
                         </th>
                         <td className="tabular-nums text-right text-ok">
-                          −{order.discountTotal.toFixed(2)} {order.currency}
+                          −{formatMoney(order.discountTotal, order.currency)}
                         </td>
                       </tr>
                     ) : null}
@@ -667,7 +668,7 @@ export function OrderDetail(): ReactNode {
                         {t('orderDetail.totals.delivery')}
                       </th>
                       <td className="tabular-nums text-right">
-                        {order.deliveryTotal.toFixed(2)} {order.currency}
+                        {formatMoney(order.deliveryTotal, order.currency)}
                       </td>
                     </tr>
                     <tr>
@@ -675,7 +676,7 @@ export function OrderDetail(): ReactNode {
                         {t('orderDetail.totals.total')}
                       </th>
                       <td className="tabular-nums text-right font-semibold">
-                        {order.total.toFixed(2)} {order.currency}
+                        {formatMoney(order.total, order.currency)}
                       </td>
                     </tr>
                   </tfoot>

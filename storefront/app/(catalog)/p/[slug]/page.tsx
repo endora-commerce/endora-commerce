@@ -345,6 +345,7 @@ export default async function ProductPage({
               items={product.groupedItems}
               addToCartLabel={t('product.grouped.addBundleToCart')}
               addToCartAction={addGroupedToCartAction}
+              locale={locale}
             />
           ) : null}
 
@@ -419,6 +420,7 @@ export default async function ProductPage({
             upSell: t('product.links.upSell'),
             seeAll: t('product.links.seeAll'),
           }}
+          locale={locale}
         />
       ) : null}
       <Hook code="product.bottom" />
