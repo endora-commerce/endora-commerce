@@ -121,6 +121,43 @@ function leafImageColor(slug: string): string {
   return palette[slug] ?? '30363d';
 }
 
+/**
+ * Line-art product glyphs (viewBox 0 0 100 100, fill none, stroke) mirroring
+ * the Storefront UI reference project (`specs/b2b-platform-storefront-ui/
+ * project/industria-icons.jsx` → `ProductGlyph`). Keyed by demo leaf slug; the
+ * default `box` glyph covers anything else. These replace the old
+ * `placehold.co` text tiles with the design's own minimalist product art.
+ */
+const LEAF_GLYPHS: Record<string, string> = {
+  screws: `<ellipse cx="50" cy="16" rx="18" ry="6"/><line x1="40" y1="16" x2="60" y2="16"/><path d="M40 20 V64 L50 86 L60 64 V20"/><line x1="40" y1="30" x2="60" y2="26"/><line x1="40" y1="42" x2="60" y2="38"/><line x1="40" y1="54" x2="60" y2="50"/>`,
+  bolts: `<polygon points="34 16 50 8 66 16 66 34 50 42 34 34"/><line x1="50" y1="8" x2="50" y2="42"/><rect x="42" y="42" width="16" height="46" rx="1"/><line x1="42" y1="52" x2="58" y2="52"/><line x1="42" y1="62" x2="58" y2="62"/><line x1="42" y1="72" x2="58" y2="72"/>`,
+  wrenches: `<path d="M70 14 a16 16 0 0 1 14 22 l-44 44 a8 8 0 0 1 -12 -12 l44 -44 a16 16 0 0 1 -2 -10 z"/><circle cx="78" cy="22" r="3"/>`,
+  drills: `<rect x="44" y="10" width="12" height="16"/><path d="M44 26 h12 v40 l-6 20 -6 -20 z"/><path d="M44 34 l12 6 M44 46 l12 6 M44 58 l12 6"/>`,
+  cables: `<path d="M14 30 C 30 30, 30 70, 50 70 S 70 30, 86 30"/><path d="M14 38 C 30 38, 30 78, 50 78 S 70 38, 86 38"/><path d="M14 46 C 30 46, 30 86, 50 86 S 70 46, 86 46"/>`,
+  sensors: `<circle cx="50" cy="50" r="14"/><rect x="36" y="50" width="28" height="30" rx="2" transform="rotate(-90 50 50)"/><line x1="76" y1="36" x2="86" y2="36"/><line x1="76" y1="50" x2="86" y2="50"/><line x1="76" y1="64" x2="86" y2="64"/><circle cx="50" cy="50" r="5"/>`,
+  gloves: `<path d="M34 86 V50 c0 -4 6 -4 6 0 V34 c0 -5 7 -5 7 0 v14 M47 48 V26 c0 -5 7 -5 7 0 v22 M54 48 V30 c0 -5 7 -5 7 0 v18 M61 48 V40 c0 -6 8 -5 8 2 v14 c0 18 -8 30 -18 30 H44 c-6 0 -10 -4 -10 -10 Z"/><line x1="34" y1="70" x2="69" y2="70"/>`,
+  helmets: `<path d="M20 64 a30 30 0 0 1 60 0 Z"/><path d="M40 36 q10 -6 20 0"/><line x1="50" y1="34" x2="50" y2="64"/><rect x="16" y="64" width="68" height="8" rx="4"/>`,
+};
+const DEFAULT_GLYPH = `<rect x="20" y="30" width="60" height="50" rx="4"/><line x1="20" y1="44" x2="80" y2="44"/>`;
+
+/**
+ * Build an `data:image/svg+xml` product placeholder: a soft category-tinted
+ * panel with the leaf's line-art glyph centred (60% box, matching the
+ * reference `.gallery__main` layout) and a small monospace position index so
+ * the 2–3 gallery images of a product stay visually distinct.
+ */
+function productPlaceholderSvg(leafSlug: string, bgHex: string, index: number): string {
+  const glyph = LEAF_GLYPHS[leafSlug] ?? DEFAULT_GLYPH;
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="800" height="800">` +
+    `<rect width="100" height="100" fill="#fbfbfc"/>` +
+    `<circle cx="50" cy="50" r="30" fill="#${bgHex}" opacity="0.06"/>` +
+    `<g fill="none" stroke="#9ca3af" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" transform="translate(20 20) scale(0.6)">${glyph}</g>` +
+    `<text x="92" y="94" font-size="6" fill="#c7ccd1" text-anchor="end" font-family="monospace">${String(index + 1).padStart(2, '0')}</text>` +
+    `</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
 function mustBeNonProduction(): void {
   // The seed is destructive (it truncates the public catalog/business tables),
   // so it refuses NODE_ENV=production by default. A deliberate demo deployment
@@ -570,11 +607,12 @@ async function main(): Promise<void> {
 
   // --- Product images (demo) ------------------------------------------
   // Attach 2-3 image Assets to every simple product so storefront cards and
-  // the PDP render real <img> tags out of the box. URLs are deterministic
-  // placeholder images labelled with the product name and tinted per
-  // category, so re-seeding is stable and the insert stays offline (only the
-  // browser fetches the URL at render time). `position` drives ordering and
-  // the resolved `primaryAssetUrl` (position 0 = hero image).
+  // the PDP render real <img> tags out of the box. Images are inline
+  // `data:image/svg+xml` placeholders built from the Storefront UI reference
+  // glyphs (`productPlaceholderSvg`), so re-seeding is stable, fully offline
+  // (no external `placehold.co` fetch at render time), and visually matches
+  // the design. `position` drives ordering and the resolved `primaryAssetUrl`
+  // (position 0 = hero image).
   const imageAssetRows: string[] = [];
   const imageAssetParams: unknown[] = [];
   const productImageRows: string[] = [];
@@ -583,12 +621,11 @@ async function main(): Promise<void> {
     const leaf = productLeaves[idx]!;
     const bg = leafImageColor(leaf.slug);
     const imageCount = 2 + (idx % 2); // 2 or 3 images per product
-    const label = encodeURIComponent(p.name['en-US'] ?? p.slug);
     for (let n = 0; n < imageCount; n++) {
       const assetId = crypto.randomUUID();
-      const url = `https://placehold.co/800x800/${bg}/ffffff.png?text=${label}%0A${n + 1}`;
-      imageAssetRows.push(`(?, 'image', ?, 'image/png', 51200, ?, now(), now())`);
-      imageAssetParams.push(assetId, `${p.slug}-${n + 1}.png`, url);
+      const url = productPlaceholderSvg(leaf.slug, bg, n);
+      imageAssetRows.push(`(?, 'image', ?, 'image/svg+xml', ?, ?, now(), now())`);
+      imageAssetParams.push(assetId, `${p.slug}-${n + 1}.svg`, Buffer.byteLength(url), url);
       productImageRows.push('(?, ?, ?)');
       productImageParams.push(p.id, assetId, n);
     }

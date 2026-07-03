@@ -27,13 +27,20 @@ const item = (
   url = `/asset/${id}.jpg`,
 ): GalleryItem => ({ id, position, labels, asset: { id: `a-${id}`, kind: 'image', url } });
 
+const video = (
+  id: string,
+  labels: GalleryItem['labels'] = [],
+  position = 0,
+  url = `/asset/${id}.mp4`,
+): GalleryItem => ({ id, position, labels, asset: { id: `a-${id}`, kind: 'video', url } });
+
 describe('GallerySwitcher — SSR contract', () => {
   it('renders placeholder when gallery is empty', () => {
     const html = renderToString(<GallerySwitcher gallery={[]} alt="Widget" />);
-    expect(html).toContain('aspect-[4/3]');
+    expect(html).toContain('aspect-square');
   });
 
-  it('renders Base Image as the primary main image (first <img>)', () => {
+  it('starts the carousel on the Base Image', () => {
     const html = renderToString(
       <GallerySwitcher
         gallery={[
@@ -44,11 +51,13 @@ describe('GallerySwitcher — SSR contract', () => {
         alt="Widget"
       />,
     );
-    const firstMain = html.match(/<img[^>]*class="w-full rounded-md"[^>]*>/);
-    expect(firstMain?.[0] ?? '').toContain('src="/asset/base.jpg"');
+    // The active slide is exposed on the stage via data-active-src, and the
+    // track is shifted to it (index 1 → -100%).
+    expect(html).toContain('data-active-src="/asset/base.jpg"');
+    expect(html).toContain('translateX(-100%)');
   });
 
-  it('falls back to first item when no Base Image is set', () => {
+  it('falls back to the first item when no Base Image is set', () => {
     const html = renderToString(
       <GallerySwitcher
         gallery={[
@@ -58,8 +67,8 @@ describe('GallerySwitcher — SSR contract', () => {
         alt="Widget"
       />,
     );
-    const firstMain = html.match(/<img[^>]*class="w-full rounded-md"[^>]*>/);
-    expect(firstMain?.[0] ?? '').toContain('src="/asset/thumb.jpg"');
+    expect(html).toContain('data-active-src="/asset/thumb.jpg"');
+    expect(html).toContain('translateX(-0%)');
   });
 
   it('marks the Small Image as highlighted in the thumbnail strip', () => {
@@ -87,7 +96,27 @@ describe('GallerySwitcher — SSR contract', () => {
         alt="Widget"
       />,
     );
-    const stripImgs = html.match(/<img[^>]*class="h-\[64px\][^>]*>/g);
-    expect(stripImgs?.length ?? 0).toBe(3);
+    const thumbs = html.match(/class="[^"]*h-\[72px\][^"]*"/g);
+    expect(thumbs?.length ?? 0).toBe(3);
+  });
+
+  it('renders a video item in the main view with a <video> element', () => {
+    const html = renderToString(
+      <GallerySwitcher
+        gallery={[video('1', ['base_image'], 0, '/asset/clip.mp4')]}
+        alt="Widget"
+      />,
+    );
+    expect(html).toContain('<video');
+    expect(html).toContain('src="/asset/clip.mp4"');
+    // No zoom pill for video main views.
+    expect(html).not.toContain('Powiększ');
+  });
+
+  it('shows the zoom pill for image main views', () => {
+    const html = renderToString(
+      <GallerySwitcher gallery={[item('1', ['base_image'], 0)]} alt="Widget" />,
+    );
+    expect(html).toContain('Powiększ');
   });
 });

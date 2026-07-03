@@ -27,6 +27,9 @@ type MessageKey =
   | 'product.requestQuote'
   | 'product.addToCart'
   | 'product.details'
+  | 'product.tabs.description'
+  | 'product.tabs.parameters'
+  | 'product.tabs.attachments'
   | 'product.packaging.singlePiece'
   | 'product.packaging.pieces'
   | 'product.inStock'
@@ -128,6 +131,9 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'product.requestQuote': 'Request a quote',
     'product.addToCart': 'Add to cart',
     'product.details': 'Details',
+    'product.tabs.description': 'Description',
+    'product.tabs.parameters': 'Parameters',
+    'product.tabs.attachments': 'Attachments',
     'product.packaging.singlePiece': 'Single piece',
     'product.packaging.pieces': 'pcs',
     'product.inStock': 'In stock',
@@ -235,6 +241,9 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'product.requestQuote': 'Zapytaj o oferte',
     'product.addToCart': 'Dodaj do koszyka',
     'product.details': 'Szczegóły',
+    'product.tabs.description': 'Opis',
+    'product.tabs.parameters': 'Parametry',
+    'product.tabs.attachments': 'Załączniki',
     'product.packaging.singlePiece': 'Pojedyncza sztuka',
     'product.packaging.pieces': 'szt.',
     'product.inStock': 'Dostepny',

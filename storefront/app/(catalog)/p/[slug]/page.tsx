@@ -6,13 +6,13 @@ import { ProductGallery } from '../../../../components/ProductGallery';
 import { GallerySwitcher } from '../../../../components/GallerySwitcher';
 import { AttachmentsList } from '../../../../components/AttachmentsList';
 import { ProductLinksSections } from '../../../../components/ProductLinksSections';
+import { ProductTabs, type ProductTab } from '../../../../components/ProductTabs';
 import { BundleConfigurator } from '../../../../components/BundleConfigurator';
 import { GroupedSummary } from '../../../../components/GroupedSummary';
 import { VirtualCta } from '../../../../components/VirtualCta';
 import { VariantPicker } from '../../../../components/VariantPicker';
 import { PriceTag } from '../../../../components/PriceTag';
 import { PdpPriceToggle } from '../../../../components/pricing/PdpPriceToggle';
-import { PdpStickyBuyBar } from '../../../../components/mobile/PdpStickyBuyBar';
 import { StockBadge } from '../../../../components/StockBadge';
 import { NotifyWhenAvailableDialog } from '../../../../components/inventory/NotifyWhenAvailableDialog';
 import { BackorderHint } from '../../../../components/inventory/BackorderHint';
@@ -138,19 +138,86 @@ export default async function ProductPage({
       ? product.variants.find((v) => v.sku === selectedVariantSku)?.id ?? null
       : null;
 
-  // Feature 044 / US3 — mobile sticky add-to-cart bar visibility mirrors the
-  // inline "Add to cart" conditions (simple/configurable, priced, not
-  // quote-only, not notify-only). The datasheet shortcut points at the first
-  // attachment, when present.
-  const showStickyBuyBar =
+  // The "Add to compare" toggle rides in the ProductBuyActions second row when
+  // that row renders; otherwise it's shown on its own below the action zone.
+  const buyShowCart = !!product.price && !stock?.showNotifyButton;
+  const buyShowQuote = rfqSettings.showAddToQuoteOnPdp;
+  const buyActionsRendered =
     (product.type === 'simple' || product.type === 'configurable') &&
     !isQuoteOnly &&
-    !!product.price &&
-    !stock?.showNotifyButton &&
-    // The sticky bar has no packaging-unit selector; for packaging products keep
-    // the full inline buy row (which does) as the single control on mobile.
-    (product.packagingUnits?.length ?? 0) === 0;
-  const datasheetHref = product.attachments?.[0]?.asset.url;
+    (!!product.price || buyShowQuote) &&
+    (buyShowCart || buyShowQuote);
+
+  // Industria PDP detail tabs (below the gallery). "Opis" (description) is the
+  // lead tab; "Parametry" and "Załączniki" are added only when they have
+  // content — mirroring the reference `.tabs`/`.tabpanel` section.
+  const visibleAttributes =
+    (product as { visibleAttributes?: Array<{ key: string; label: string; valueType: string; valueRendered: string }> })
+      .visibleAttributes ?? null;
+  const hasAttributeValues = Object.keys(product.attributeValues).length > 0;
+  const productTabs: ProductTab[] = [];
+  if (product.description) {
+    productTabs.push({
+      id: 'description',
+      label: t('product.tabs.description'),
+      panel: (
+        <p className="max-w-[70ch] whitespace-pre-line text-[15px] leading-[1.7] text-muted">
+          {product.description}
+        </p>
+      ),
+    });
+  }
+  if (hasAttributeValues || (visibleAttributes && visibleAttributes.length > 0)) {
+    productTabs.push({
+      id: 'parameters',
+      label: t('product.tabs.parameters'),
+      panel: (
+        <div className="flex flex-col gap-6">
+          {hasAttributeValues ? (
+            <div>
+              {product.attributeSet ? (
+                <p className="mb-2 text-[0.875rem] text-muted">
+                  {product.attributeSet.name[locale] ??
+                    product.attributeSet.name['en-US'] ??
+                    Object.values(product.attributeSet.name)[0] ??
+                    product.attributeSet.code}
+                </p>
+              ) : null}
+              <table className="w-full border-collapse">
+                <tbody>
+                  {Object.entries(product.attributeValues).map(([key, value]) => (
+                    <tr key={key}>
+                      <th
+                        scope="row"
+                        className="border-b border-line p-[8px] text-left text-[13px] font-medium text-muted"
+                      >
+                        {key}
+                      </th>
+                      <td className="border-b border-line p-[8px] text-left font-mono text-[13px]">
+                        {String(value)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+          {/* Feature 012 / US6 — "Parametry produktu": only attributes the
+              operator flagged isVisibleOnProductPage AND that have a value on
+              this product. Renders null when nothing matches (FR-030). */}
+          <ParametryTab attributes={visibleAttributes} locale={locale} />
+        </div>
+      ),
+    });
+  }
+  if (product.attachments && product.attachments.length > 0) {
+    productTabs.push({
+      id: 'attachments',
+      label: t('product.tabs.attachments'),
+      count: product.attachments.length,
+      panel: <AttachmentsList attachments={product.attachments} locale={locale} />,
+    });
+  }
 
   return (
     <div className="mx-auto max-w-[1360px] px-[24px] pt-[18px] pb-[64px] max-md:pb-[96px]">
@@ -193,36 +260,39 @@ export default async function ProductPage({
               SKU: <strong className="font-medium text-fg">{product.sku}</strong>
             </span>
           </div>
-          {product.description ? (
-            <p className="mb-4 text-[15px] leading-[1.55] text-muted">{product.description}</p>
-          ) : null}
-
-          {/* Keep the stock badge directly beside the price (not pushed to the
-              opposite edge) so availability reads as part of the price block. */}
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            {resolvedPrice && resolvedPrice.displayMode === 'both' ? (
+          {/* Give the price extra breathing room (above + below) so it draws the
+              eye on the PDP. In both-mode the net/gross switch pins to the price
+              block's top-right and the stock badge drops below; otherwise the
+              badge sits directly beside the price. */}
+          {resolvedPrice && resolvedPrice.displayMode === 'both' ? (
+            <div className="my-7">
               <PdpPriceToggle
                 basePrice={resolvedPrice.basePrice}
                 salePrice={resolvedPrice.salePrice}
                 locale={locale}
                 labels={{ net: 'NETTO', gross: 'BRUTTO' }}
               />
-            ) : (
+              <div className="mt-3">
+                <StockBadge product={product} stock={stock} locale={locale} />
+              </div>
+            </div>
+          ) : (
+            <div className="my-7 flex flex-wrap items-center gap-3">
               <PriceTag
                 price={product.price}
                 resolved={resolvedPrice}
                 locale={locale}
                 variant="pdp"
               />
-            )}
-            <StockBadge product={product} stock={stock} locale={locale} />
-          </div>
+              <StockBadge product={product} stock={stock} locale={locale} />
+            </div>
+          )}
 
           {stock?.backorderEnabled && stock.isOutOfStock ? (
             <BackorderHint label={t('product.backorder.hint')} />
           ) : null}
 
-          <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
+          <div className="mt-4 flex flex-col items-stretch gap-3">
             {/* Feature 002 US5 — type switch for the action zone:
               * - simple/configurable keep the legacy Add-to-cart + RFQ
               * - grouped → GroupedSummary
@@ -269,9 +339,8 @@ export default async function ProductPage({
                       singlePieceLabel={t('product.packaging.singlePiece')}
                       piecesLabel={t('product.packaging.pieces')}
                       addToCartAction={addToCartAction}
-                      addToCartLabel={t('product.addToCart')}
-                      hideQuantityCartOnMobile={showStickyBuyBar}
-                      // First action in the row, right before "Dodaj do zapytania".
+                      addToCartLabel="Dodaj do koszyka"
+                      // Secondary actions row, next to compare + quote.
                       leadingAction={
                         <AddToShoppingListButton
                           apiBase={PDP_API_BASE}
@@ -281,6 +350,8 @@ export default async function ProductPage({
                           removeLabel="Usuń z listy zakupowej"
                         />
                       }
+                      // Secondary actions row, alongside the shopping-list + quote.
+                      compareAction={<CompareToggle productId={product.id} variant="inline" />}
                     />
                   ) : (
                     // No buy-actions row (no price and RFQ-on-PDP off): still
@@ -319,9 +390,11 @@ export default async function ProductPage({
               />
             ) : null}
           </div>
-          <div className="mt-3">
-            <CompareToggle productId={product.id} variant="inline" />
-          </div>
+          {!buyActionsRendered ? (
+            <div className="mt-3">
+              <CompareToggle productId={product.id} variant="inline" />
+            </div>
+          ) : null}
           <Hook code="product.buttons.after" />
 
           {product.type === 'configurable' && product.variants.length > 0 ? (
@@ -362,54 +435,10 @@ export default async function ProductPage({
             />
           ) : null}
 
-          {product.attachments && product.attachments.length > 0 ? (
-            <AttachmentsList attachments={product.attachments} locale={locale} />
-          ) : null}
-
-          {Object.keys(product.attributeValues).length > 0 ? (
-            <div style={{ marginTop: 24 }}>
-              {product.attributeSet ? (
-                <p className="mb-2 text-[0.875rem] text-muted">
-                  {product.attributeSet.name[locale] ??
-                    product.attributeSet.name['en-US'] ??
-                    Object.values(product.attributeSet.name)[0] ??
-                    product.attributeSet.code}
-                </p>
-              ) : null}
-              <table className="w-full border-collapse">
-                <tbody>
-                  {Object.entries(product.attributeValues).map(([key, value]) => (
-                    <tr key={key}>
-                      <th
-                        scope="row"
-                        className="border-b border-line p-[8px] text-left text-[13px] font-medium text-muted"
-                      >
-                        {key}
-                      </th>
-                      <td className="border-b border-line p-[8px] text-left font-mono text-[13px]">
-                        {String(value)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-
-          {/* Feature 012 / US6 — "Parametry produktu" tab. Surfaces only
-              attributes the operator has flagged isVisibleOnProductPage
-              AND that have a value on this product. Renders the resolved
-              per-locale option label for select-style values. Returns
-              null (omits the tab) when nothing matches (FR-030). */}
-          <ParametryTab
-            attributes={
-              (product as { visibleAttributes?: Array<{ key: string; label: string; valueType: string; valueRendered: string }> })
-                .visibleAttributes ?? null
-            }
-            locale={locale}
-          />
         </div>
       </article>
+
+      {productTabs.length > 0 ? <ProductTabs tabs={productTabs} /> : null}
 
       {product.links ? (
         <ProductLinksSections
@@ -424,16 +453,6 @@ export default async function ProductPage({
         />
       ) : null}
       <Hook code="product.bottom" />
-
-      {showStickyBuyBar ? (
-        <PdpStickyBuyBar
-          productId={product.id}
-          {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
-          addToCartAction={addToCartAction}
-          addToCartLabel={t('product.addToCart')}
-          {...(datasheetHref ? { datasheetHref } : {})}
-        />
-      ) : null}
 
       <script
         type="application/ld+json"

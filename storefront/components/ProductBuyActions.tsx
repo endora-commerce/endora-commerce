@@ -40,17 +40,15 @@ export interface ProductBuyActionsProps {
   addToCartAction: (formData: FormData) => void | Promise<void>;
   addToCartLabel: string;
   /**
-   * Optional action rendered as the first button in the row, before "Add to
-   * quote" (e.g. the Add-to-shopping-list heart button).
+   * Optional action rendered in the top row next to the quantity cluster
+   * (e.g. the Add-to-shopping-list heart button).
    */
   leadingAction?: ReactNode;
   /**
-   * Feature 044 / US3 — on phones the PDP shows a sticky add-to-cart bar with
-   * its own quantity stepper + cart button. When that bar is present this hides
-   * the inline quantity cluster + cart button on mobile (keeping the
-   * shopping-list / quote actions) so the controls are not duplicated.
+   * Optional secondary action rendered in the actions row alongside the
+   * shopping-list and quote buttons (e.g. the Add-to-compare toggle).
    */
-  hideQuantityCartOnMobile?: boolean;
+  compareAction?: ReactNode;
 }
 
 export function ProductBuyActions({
@@ -67,7 +65,7 @@ export function ProductBuyActions({
   addToCartAction,
   addToCartLabel,
   leadingAction,
-  hideQuantityCartOnMobile = false,
+  compareAction,
 }: ProductBuyActionsProps): ReactNode {
   const units = packagingUnits ?? [];
   const defaultUnit = units.find((u) => u.isDefault) ?? null;
@@ -80,9 +78,6 @@ export function ProductBuyActions({
 
   const selectedUnit = units.find((u) => u.id === unitId) ?? null;
   const resultingPieces = selectedUnit ? selectedUnit.baseQuantity * qty : null;
-  // When the mobile sticky buy bar owns the quantity + cart, hide those inline
-  // controls on phones to avoid the duplicated row the buyer would otherwise see.
-  const mobileHide = hideQuantityCartOnMobile ? ' max-md:hidden' : '';
 
   const addToQuote = (): void => {
     // Piece-based: when a packaging unit is selected we add the resulting
@@ -100,66 +95,105 @@ export function ProductBuyActions({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {units.length > 0 ? (
-        <select
-          aria-label="Jednostka"
-          value={unitId}
-          onChange={(e): void => setUnitId(e.target.value)}
-          className={`rounded-sm border border-line px-[8px] py-[6px] text-[13px]${mobileHide}`}
-        >
-          <option value="">{singlePieceLabel}</option>
-          {units.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.name} ({u.baseQuantity} {piecesLabel})
-            </option>
-          ))}
-        </select>
-      ) : null}
+    // On desktop, shrink to the widest row (the secondary actions row) instead
+    // of the full column, so the full-width cart CTA lines up with those buttons
+    // rather than sticking out past them (`md:self-start` opts out of the
+    // parent's stretch). On mobile keep it full-width for a big tap target.
+    <div className="flex w-full flex-col gap-3 md:w-fit md:self-start">
+      {/* Quantity cluster (packaging unit + amount). */}
+      <div className="flex flex-wrap items-center gap-2">
+        {units.length > 0 ? (
+          <select
+            aria-label="Jednostka"
+            value={unitId}
+            onChange={(e): void => setUnitId(e.target.value)}
+            className="rounded-sm border border-line px-[8px] py-[6px] text-[13px]"
+          >
+            <option value="">{singlePieceLabel}</option>
+            {units.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name} ({u.baseQuantity} {piecesLabel})
+              </option>
+            ))}
+          </select>
+        ) : null}
 
-      <label htmlFor={`buy-qty-${productId}`} className={`text-[12px]${mobileHide}`}>
-        Ilość
-      </label>
-      <input
-        id={`buy-qty-${productId}`}
-        type="number"
-        min={1}
-        max={9999}
-        value={qty}
-        onChange={(e): void => {
-          const n = Number(e.target.value);
-          setQty(Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1);
-        }}
-        className={`w-[5rem] rounded-sm border border-line px-[8px] py-[6px]${mobileHide}`}
-      />
+        <label htmlFor={`buy-qty-${productId}`} className="text-[12px]">
+          Ilość
+        </label>
+        <input
+          id={`buy-qty-${productId}`}
+          type="number"
+          min={1}
+          max={9999}
+          value={qty}
+          onChange={(e): void => {
+            const n = Number(e.target.value);
+            setQty(Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1);
+          }}
+          className="w-[5rem] rounded-sm border border-line px-[8px] py-[6px]"
+        />
 
-      {resultingPieces !== null ? (
-        <span className={`text-[12px] text-muted${mobileHide}`}>
-          = {resultingPieces.toLocaleString('pl-PL')} {piecesLabel}
-        </span>
-      ) : null}
+        {resultingPieces !== null ? (
+          <span className="text-[12px] text-muted">
+            = {resultingPieces.toLocaleString('pl-PL')} {piecesLabel}
+          </span>
+        ) : null}
+      </div>
 
-      {leadingAction ?? null}
-
-      {showQuote ? (
-        <button type="button" onClick={addToQuote} className="btn btn--outline btn--sm">
-          {quoteAdded ? 'Dodano ✓' : 'Dodaj do zapytania'}
-        </button>
-      ) : null}
-
+      {/* Primary CTA — Add to cart. Prominent, full-width, dark (Industria
+          `.btn--dark.btn--lg.btn--block` in the reference pricepanel). */}
       {showCart ? (
-        <form action={addToCartAction} className={mobileHide ? 'max-md:hidden' : undefined}>
+        <form action={addToCartAction} className="w-full">
           <input type="hidden" name="productId" value={productId} />
           {variantId ? <input type="hidden" name="variantId" value={variantId} /> : null}
           {selectedUnit ? (
             <input type="hidden" name="packagingUnitId" value={selectedUnit.id} />
           ) : null}
           <input type="hidden" name="quantity" value={qty} />
-          <button type="submit" className="b2b-cta">
-            {addToCartLabel}
+          <button
+            type="submit"
+            className="b2b-cta h-[48px] w-full justify-center text-[14px] font-semibold"
+          >
+            <CartIcon /> {addToCartLabel}
           </button>
         </form>
       ) : null}
+
+      {/* Secondary actions — shopping list, compare, quote. */}
+      {leadingAction || compareAction || showQuote ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {leadingAction ?? null}
+          {compareAction ?? null}
+          {showQuote ? (
+            <button type="button" onClick={addToQuote} className="btn btn--outline h-[40px]">
+              {quoteAdded ? 'Dodano ✓' : 'Dodaj do zapytania'}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function CartIcon(): ReactNode {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={16}
+      height={16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="9" cy="21" r="1" />
+      <circle cx="20" cy="21" r="1" />
+      <path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6" />
+    </svg>
   );
 }

@@ -27,7 +27,7 @@ export function PdpPriceToggle(props: {
   const labels = props.labels ?? { net: 'NETTO', gross: 'BRUTTO' };
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+    <div className="flex items-start justify-between gap-4">
       <BaseSalePriceBlock
         basePrice={props.basePrice}
         salePrice={props.salePrice ?? null}
@@ -36,8 +36,9 @@ export function PdpPriceToggle(props: {
         {...(props.vatRate !== undefined ? { vatRate: props.vatRate } : {})}
         variant="pdp"
       />
+      {/* Net/gross switch — pinned to the top-right of the price block. */}
       <div
-        className="inline-flex items-center gap-[2px] rounded-md border border-line bg-surface-alt p-[2px]"
+        className="inline-flex shrink-0 items-center gap-[2px] rounded-md border border-line bg-surface-alt p-[2px]"
         role="radiogroup"
         aria-label="Netto / brutto"
       >

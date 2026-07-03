@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react';
 import type { ProductAsset } from '@b2b/contracts';
+import { GallerySwitcher, type GallerySwitcherItem } from './GallerySwitcher';
 
 /**
- * Image-only gallery for the reference theme. PDFs and certificates are
- * surfaced as a small links list below the grid so server-only rendering
- * still exposes them. Themes that need richer behaviour (lightbox, video)
- * replace this component entirely.
+ * PDP gallery for products that expose flat `assets` (no label-aware
+ * `gallery` payload). Images and videos are mapped into the shared
+ * `GallerySwitcher` presentation — square main viewport, zoom pill, and a
+ * thumbnail strip below the main view (Industria design). PDFs and
+ * certificates are surfaced as a small links list under the gallery.
  */
 export function ProductGallery(props: {
   assets: ProductAsset[];
@@ -14,33 +16,29 @@ export function ProductGallery(props: {
    *  (resolved from the `product_image_placeholder_url` setting). */
   placeholderUrl?: string | null;
 }): ReactNode {
-  const images = props.assets.filter((a) => a.kind === 'image');
+  const media = props.assets.filter((a) => a.kind === 'image' || a.kind === 'video');
   const documents = props.assets.filter((a) => a.kind === 'pdf' || a.kind === 'certificate');
+
+  const gallery: GallerySwitcherItem[] = media.map((a, i) => ({
+    id: a.id,
+    position: i,
+    labels: i === 0 ? ['base_image'] : [],
+    asset: { id: a.id, kind: a.kind, url: a.url },
+  }));
 
   return (
     <div>
-      {images.length > 0 ? (
-        <ul className="m-0 grid list-none grid-cols-1 gap-3 p-0">
-          {images.map((img) => (
-            <li key={img.id}>
-              <img
-                src={img.url}
-                alt={img.altText ?? props.alt}
-                loading="lazy"
-                className="w-full rounded-md"
-              />
-            </li>
-          ))}
-        </ul>
+      {gallery.length > 0 ? (
+        <GallerySwitcher gallery={gallery} alt={props.alt} />
       ) : props.placeholderUrl ? (
         <img
           src={props.placeholderUrl}
           alt={props.alt}
           loading="lazy"
-          className="aspect-[4/3] w-full rounded-md object-contain bg-surface-alt"
+          className="aspect-square w-full rounded-md border border-line bg-surface object-contain"
         />
       ) : (
-        <div className="aspect-[4/3] rounded-md bg-surface-alt" aria-hidden="true" />
+        <div className="aspect-square rounded-md bg-surface-alt" aria-hidden="true" />
       )}
       {documents.length > 0 ? (
         <ul className="m-0 mt-3 flex list-none gap-3 p-0">
