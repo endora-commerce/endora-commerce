@@ -1178,6 +1178,7 @@ select:focus-visible {
 @keyframes m-fade-slide { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes m-level-in { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
 
+
 /* Mobile mega-menu drawer — ported 1:1 from the Industria Mobile design
    (specs/b2b-platform-storefront-ui/project/industria-mobile.css .mm*). Token
    references (--ink-*, --surface, --line, --brand-*) re-theme in dark mode. */

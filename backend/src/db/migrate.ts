@@ -41,8 +41,14 @@ async function main(): Promise<void> {
         break;
       }
       case 'fresh': {
-        const schemaGen = orm.getSchemaGenerator();
-        await schemaGen.dropSchema({ dropMigrationsTable: true });
+        // Drop the entire schema by name rather than relying on
+        // `dropSchema()`, which only removes tables present in the current
+        // entity metadata. Tables that exist in the DB but are no longer (or
+        // not yet) reflected in metadata — e.g. pivot tables — would survive
+        // that path and make Migration001 fail with "relation already exists".
+        // A raw `DROP SCHEMA ... CASCADE` guarantees a clean slate.
+        const conn = orm.em.getConnection();
+        await conn.execute('drop schema public cascade; create schema public;');
         const applied = await migrator.up();
         process.stdout.write(`dropped and re-applied ${applied.length} migration(s)\n`);
         break;

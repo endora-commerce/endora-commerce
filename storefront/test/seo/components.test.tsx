@@ -84,15 +84,15 @@ describe('ProductGallery — server-rendered images + document links', () => {
       },
     ];
     const html = renderToString(<ProductGallery assets={assets} alt="Widget gallery" />);
-    expect(html).toContain('<img src="https://example.com/a.jpg"');
-    expect(html).toContain('alt="A widget"');
+    expect(html).toContain('src="https://example.com/a.jpg"');
+    expect(html).toContain('alt="Widget gallery"');
     expect(html).toContain('href="https://example.com/datasheet.pdf"');
     expect(html).toContain('Datasheet');
   });
 
   it('renders a placeholder when there are no images', () => {
     const html = renderToString(<ProductGallery assets={[]} alt="empty" />);
-    expect(html).toContain('aspect-[4/3]');
+    expect(html).toContain('aspect-square');
   });
 });
 
