@@ -31,6 +31,12 @@ export function AddToShoppingListButton(props: {
   /** Optional label shown when the product IS in the list (e.g. "Remove from list"). */
   removeLabel?: string;
   className?: string;
+  /**
+   * Render the label as visible text next to the heart (a full button) instead
+   * of the icon-only card heart. Used in the PDP action zone so it lines up with
+   * the other labelled buttons. The hover tooltip is dropped in this mode.
+   */
+  showLabel?: boolean;
 }): ReactNode {
   const [state, setState] = useState<'idle' | 'busy' | 'error'>('idle');
   /** Whether this product is currently in the customer's default list. */
@@ -100,6 +106,22 @@ export function AddToShoppingListButton(props: {
 
   const activeLabel = inList ? (props.removeLabel ?? 'Usuń z listy zakupowej') : props.label;
   const tooltip = state === 'error' ? 'Nie udało się zmienić listy' : activeLabel;
+
+  if (props.showLabel) {
+    return (
+      <button
+        type="button"
+        onClick={(): void => void toggle()}
+        disabled={state === 'busy'}
+        aria-pressed={inList}
+        className={props.className ?? 'btn btn--outline'}
+        aria-label={activeLabel}
+      >
+        <HeartIcon filled={inList} />
+        {activeLabel}
+      </button>
+    );
+  }
 
   return (
     <span className="group relative inline-flex">

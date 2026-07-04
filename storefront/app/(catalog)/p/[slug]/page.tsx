@@ -348,6 +348,8 @@ export default async function ProductPage({
                           {...(selectedVariantId ? { variantId: selectedVariantId } : {})}
                           label="Dodaj do listy zakupowej"
                           removeLabel="Usuń z listy zakupowej"
+                          showLabel
+                          className="btn btn--outline h-[40px] w-full justify-center md:w-auto"
                         />
                       }
                       // Secondary actions row, alongside the shopping-list + quote.
