@@ -81,10 +81,10 @@ export function CompareToggle(props: {
 
   if (props.variant === 'inline') {
     return (
-      <span className="inline-flex flex-col gap-1">
+      <span className="flex w-full flex-col gap-1 md:inline-flex md:w-auto">
         <button
           type="button"
-          className={`inline-flex h-[40px] items-center gap-2 rounded-[6px] border px-[14px] py-[9px] text-[13px] font-medium transition disabled:cursor-wait disabled:opacity-50 ${
+          className={`inline-flex h-[40px] w-full items-center justify-center gap-2 rounded-[6px] border px-[14px] py-[9px] text-[13px] font-medium transition disabled:cursor-wait disabled:opacity-50 md:w-auto md:justify-start ${
             active
               ? 'border-accent bg-accent text-white'
               : 'border-line bg-surface text-fg-soft hover:border-[var(--ink-700)] hover:text-fg'

@@ -160,13 +160,18 @@ export function ProductBuyActions({
         </form>
       ) : null}
 
-      {/* Secondary actions — shopping list, compare, quote. */}
+      {/* Secondary actions — shopping list, compare, quote. Stacked full-width
+          on mobile (matching the cart CTA), a compact row on desktop. */}
       {leadingAction || compareAction || showQuote ? (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
           {leadingAction ?? null}
           {compareAction ?? null}
           {showQuote ? (
-            <button type="button" onClick={addToQuote} className="btn btn--outline h-[40px]">
+            <button
+              type="button"
+              onClick={addToQuote}
+              className="btn btn--outline h-[40px] w-full justify-center md:w-auto"
+            >
               {quoteAdded ? 'Dodano ✓' : 'Dodaj do zapytania'}
             </button>
           ) : null}
