@@ -29,7 +29,7 @@ export function ProductTabs({ tabs }: { tabs: ProductTab[] }): ReactNode {
     <section className="mt-12">
       <div
         role="tablist"
-        className="flex gap-1 overflow-x-auto border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex gap-1 touch-pan-x overflow-x-auto border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {tabs.map((t) => {
           const isActive = t.id === activeId;

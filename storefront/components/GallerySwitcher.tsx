@@ -1,6 +1,13 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type TouchEvent as ReactTouchEvent,
+} from 'react';
+import { createPortal } from 'react-dom';
 
 const SLIDE_EASING = 'transform 420ms cubic-bezier(0.22, 1, 0.36, 1)';
 
@@ -86,12 +93,50 @@ export function GallerySwitcher(props: {
     setIndex(next);
   };
 
+  // Touch swipe — a mostly-horizontal drag flips to the neighbouring slide.
+  // Vertical drags are ignored here (and the viewport sets `touch-action: pan-y`)
+  // so the page still scrolls normally under a finger on the image.
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart = (e: ReactTouchEvent): void => {
+    const t = e.touches[0];
+    if (t) touchStart.current = { x: t.clientX, y: t.clientY };
+  };
+  const onTouchEnd = (e: ReactTouchEvent): void => {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start) return;
+    const t = e.changedTouches[0];
+    if (!t) return;
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) > 44 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      goTo(dx < 0 ? safeIndex + 1 : safeIndex - 1);
+    }
+  };
+
+  // While the lightbox is open, lock body scroll and let Escape close it.
+  useEffect(() => {
+    if (!zoomed) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setZoomed(false);
+    };
+    document.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [zoomed]);
+
   return (
     <div className="flex flex-col gap-3">
       {/* Main viewport — square panel (`.gallery__main`) with a sliding track. */}
       <div
-        className="group relative aspect-square overflow-hidden rounded-md border border-line bg-surface"
+        className="group relative aspect-square touch-pan-y overflow-hidden rounded-md border border-line bg-surface"
         data-active-src={active.asset.url}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
       >
         <div
           className="gallery-track flex h-full w-full"
@@ -175,7 +220,7 @@ export function GallerySwitcher(props: {
 
       {/* Thumbnail strip — BELOW the main view. Scrolls horizontally on phones
           so a long gallery never overflows the viewport (Industria Mobile §04). */}
-      <ul className="m-0 flex list-none gap-2 overflow-x-auto p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <ul className="m-0 flex list-none gap-2 touch-pan-x overflow-x-auto p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {props.gallery.map((item, i) => {
           const isSmall = item.labels.includes('small_image');
           const isVideo = item.asset.kind === 'video';
@@ -223,8 +268,12 @@ export function GallerySwitcher(props: {
       </ul>
 
       {/* Lightbox — opens over the active image via the zoom pill. Arrows here
-          too, so the buyer can browse without leaving the enlarged view. */}
-      {zoomed && !activeIsVideo ? (
+          too, so the buyer can browse without leaving the enlarged view.
+          Rendered through a portal to <body> so the fixed overlay escapes the
+          gallery's transformed / will-change ancestors and truly fills the
+          viewport (otherwise it is trapped inside the product card on mobile). */}
+      {zoomed && !activeIsVideo && typeof document !== 'undefined'
+        ? createPortal(
         <div
           role="dialog"
           aria-modal="true"
@@ -232,7 +281,11 @@ export function GallerySwitcher(props: {
           onClick={() => setZoomed(false)}
           className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-6"
         >
-          <div className="relative grid h-full w-full place-items-center overflow-hidden">
+          <div
+            className="relative grid h-full w-full touch-pan-y place-items-center overflow-hidden"
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
+          >
             <div
               className="gallery-track flex h-full w-full items-center"
               style={{ transform: `translateX(-${safeIndex * 100}%)`, transition: slideTransition }}
@@ -287,8 +340,10 @@ export function GallerySwitcher(props: {
           >
             ×
           </button>
-        </div>
-      ) : null}
+        </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
