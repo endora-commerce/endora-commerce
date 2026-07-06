@@ -507,6 +507,8 @@
   "promotions.coupons.empty": "Brak kuponów. Dodaj pojedynczy kod lub wygeneruj partię.",
   "promotions.coupons.saveFirst": "Najpierw zapisz promocję, aby dodać kody kuponów lub wygenerować partię.",
   "promotions.coupons.colCode": "Kod",
+  "promotions.coupons.copyCode": "Kopiuj kod",
+  "promotions.coupons.copied": "Skopiowano",
   "promotions.coupons.colScope": "Zakres",
   "promotions.coupons.colStatus": "Status",
   "promotions.coupons.active": "Aktywny",

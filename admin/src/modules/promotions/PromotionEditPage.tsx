@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Check, Copy } from 'lucide-react';
 import { ApiError } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -364,6 +365,44 @@ export const PromotionEditPage = (): ReactNode => {
   );
 };
 
+// Renders a coupon code with a hover-revealed copy affordance. Clicking the
+// code text or the copy icon writes the code to the clipboard; the icon briefly
+// switches to a check mark to confirm.
+function CouponCodeCell({ code }: { code: string }): ReactNode {
+  const t = useTranslation('core');
+  const [copied, setCopied] = useState(false);
+
+  const copy = useCallback(async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard API unavailable (e.g. insecure context) — silently ignore.
+    }
+  }, [code]);
+
+  return (
+    <button
+      type="button"
+      onClick={() => void copy()}
+      title={copied ? t('promotions.coupons.copied') : t('promotions.coupons.copyCode')}
+      aria-label={t('promotions.coupons.copyCode')}
+      className="group inline-flex items-center gap-1.5 font-mono hover:opacity-80"
+    >
+      {code}
+      {copied ? (
+        <Check className="size-3.5 text-green-600" aria-hidden />
+      ) : (
+        <Copy
+          className="size-3.5 opacity-0 transition-opacity group-hover:opacity-60"
+          aria-hidden
+        />
+      )}
+    </button>
+  );
+}
+
 function CouponsSection({ promotionId }: { promotionId: string }): ReactNode {
   const t = useTranslation('core');
   const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -507,7 +546,9 @@ function CouponsSection({ promotionId }: { promotionId: string }): ReactNode {
                         aria-label={c.code}
                       />
                     </TableCell>
-                    <TableCell className="font-mono">{c.code}</TableCell>
+                    <TableCell>
+                      <CouponCodeCell code={c.code} />
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{c.limitScope}</TableCell>
                     <TableCell>
                       <Badge variant={c.isActive ? 'success' : 'secondary'}>

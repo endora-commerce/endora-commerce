@@ -507,6 +507,8 @@
   "promotions.coupons.empty": "No coupons yet. Add a single code or generate a batch.",
   "promotions.coupons.saveFirst": "Save the promotion first to add coupon codes or generate a batch.",
   "promotions.coupons.colCode": "Code",
+  "promotions.coupons.copyCode": "Copy code",
+  "promotions.coupons.copied": "Copied",
   "promotions.coupons.colScope": "Scope",
   "promotions.coupons.colStatus": "Status",
   "promotions.coupons.active": "Active",
