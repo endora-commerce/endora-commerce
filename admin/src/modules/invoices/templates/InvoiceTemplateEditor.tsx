@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Puck, type Data } from '@measured/puck';
 import '@measured/puck/puck.css';
@@ -34,48 +34,8 @@ export function InvoiceTemplateEditor(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError] = useState<string | null>(null);
-  const previewUrlRef = useRef<string | null>(null);
 
   const baseUrl = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? '';
-
-  // Fetch the rendered preview PDF through the authenticated (cookie) fetch
-  // path and expose it as a same-origin blob URL. A direct <iframe src> to the
-  // API origin is blocked by the backend's X-Frame-Options in the cross-origin
-  // dev setup, so we proxy the bytes into a blob URL that frames cleanly.
-  const loadPreview = useCallback(
-    async (tplId: string): Promise<void> => {
-      setPreviewLoading(true);
-      setPreviewError(null);
-      try {
-        const res = await fetch(`${baseUrl}/api/v1/admin/invoice-templates/${tplId}/preview`, {
-          credentials: 'include',
-          headers: { Accept: 'application/pdf' },
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const blob = await res.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-        previewUrlRef.current = objectUrl;
-        setPreviewUrl(objectUrl);
-      } catch {
-        setPreviewError(t('invoiceTemplates.previewError'));
-      } finally {
-        setPreviewLoading(false);
-      }
-    },
-    [baseUrl, t],
-  );
-
-  // Revoke the last object URL when the editor unmounts.
-  useEffect(
-    () => () => {
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-    },
-    [],
-  );
 
   // Allow exiting fullscreen with Escape.
   useEffect(() => {
@@ -93,11 +53,10 @@ export function InvoiceTemplateEditor(): ReactNode {
       setTpl(res.data);
       const tree = res.data.content.languages?.[LANGUAGE] ?? emptyData;
       setDraft(tree);
-      void loadPreview(res.data.id);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load template.');
     }
-  }, [id, loadPreview]);
+  }, [id]);
 
   useEffect(() => {
     void load();
@@ -114,13 +73,12 @@ export function InvoiceTemplateEditor(): ReactNode {
       );
       setTpl((prev) => (prev ? { ...prev, version: res.data.version } : prev));
       setNotice(t('invoiceTemplates.saved'));
-      void loadPreview(tpl.id);
       return true;
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to save.');
       return false;
     }
-  }, [tpl, draft, t, loadPreview]);
+  }, [tpl, draft, t]);
 
   const saveAndExit = useCallback(async (): Promise<void> => {
     if (await save()) navigate('/invoices/templates');
@@ -208,51 +166,6 @@ export function InvoiceTemplateEditor(): ReactNode {
                         </>
                       )}
                     </Button>
-                  ),
-                  // Render the live PDF preview alongside the section-arrangement
-                  // drop zone inside Puck's canvas, instead of stacking it as a
-                  // separate card below the editor. `children` is the default
-                  // canvas (the invoice-section drop zone).
-                  preview: ({ children }) => (
-                    <div className="flex h-full min-h-0 flex-col lg:flex-row">
-                      <div className="min-w-0 flex-1 overflow-auto">{children}</div>
-                      <div className="flex min-h-0 w-full flex-col border-t bg-muted/30 lg:w-1/2 lg:border-l lg:border-t-0">
-                        <div className="flex items-center justify-between border-b px-3 py-2">
-                          <span className="text-sm font-semibold">
-                            {t('invoiceTemplates.previewTitle')}
-                          </span>
-                          {tpl ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={previewLoading}
-                              onClick={(): void => void loadPreview(tpl.id)}
-                            >
-                              {t('invoiceTemplates.previewRefresh')}
-                            </Button>
-                          ) : null}
-                        </div>
-                        <div className="min-h-0 flex-1 overflow-auto p-2">
-                          {previewError ? (
-                            <Alert variant="destructive">
-                              <AlertDescription>{previewError}</AlertDescription>
-                            </Alert>
-                          ) : previewUrl ? (
-                            <iframe
-                              title={t('invoiceTemplates.previewTitle')}
-                              src={previewUrl}
-                              className="h-full min-h-[520px] w-full rounded-md border bg-white"
-                            />
-                          ) : (
-                            <p className="text-sm text-muted-foreground">
-                              {previewLoading
-                                ? t('common.state.loading')
-                                : t('invoiceTemplates.previewEmpty')}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
                   ),
                 }}
               />
