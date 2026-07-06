@@ -45,7 +45,7 @@ const SC_WRITE = 'sales_channels:write';
 
 const ListQuerySchema = z.object({
   page: z.coerce.number().int().nonnegative().optional(),
-  pageSize: z.coerce.number().int().positive().max(100).optional(),
+  pageSize: z.coerce.number().int().positive().max(200).optional(),
   activeOnly: z
     .union([z.boolean(), z.enum(['true', 'false'])])
     .transform((v) => (typeof v === 'string' ? v === 'true' : v))
