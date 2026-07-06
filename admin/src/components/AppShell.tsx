@@ -242,6 +242,12 @@ const NAV: NavSection[] = [
         icon: Inbox,
         requiredPermission: 'transactional_emails:read',
       },
+    ],
+  },
+  {
+    key: 'newsletter',
+    labelKey: 'appShell.section.newsletter',
+    items: [
       { to: '/newsletter/subscribers', labelKey: 'appShell.nav.newsletterSubscribers', icon: Inbox, requiredPermission: 'newsletter:read' },
       { to: '/newsletter/campaigns', labelKey: 'appShell.nav.newsletterCampaigns', icon: Inbox, requiredPermission: 'newsletter:read' },
       { to: '/newsletter/automations', labelKey: 'appShell.nav.newsletterAutomations', icon: Inbox, requiredPermission: 'newsletter:read' },
