@@ -209,47 +209,57 @@ export function InvoiceTemplateEditor(): ReactNode {
                       )}
                     </Button>
                   ),
+                  // Render the live PDF preview alongside the section-arrangement
+                  // drop zone inside Puck's canvas, instead of stacking it as a
+                  // separate card below the editor. `children` is the default
+                  // canvas (the invoice-section drop zone).
+                  preview: ({ children }) => (
+                    <div className="flex h-full min-h-0 flex-col lg:flex-row">
+                      <div className="min-w-0 flex-1 overflow-auto">{children}</div>
+                      <div className="flex min-h-0 w-full flex-col border-t bg-muted/30 lg:w-1/2 lg:border-l lg:border-t-0">
+                        <div className="flex items-center justify-between border-b px-3 py-2">
+                          <span className="text-sm font-semibold">
+                            {t('invoiceTemplates.previewTitle')}
+                          </span>
+                          {tpl ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={previewLoading}
+                              onClick={(): void => void loadPreview(tpl.id)}
+                            >
+                              {t('invoiceTemplates.previewRefresh')}
+                            </Button>
+                          ) : null}
+                        </div>
+                        <div className="min-h-0 flex-1 overflow-auto p-2">
+                          {previewError ? (
+                            <Alert variant="destructive">
+                              <AlertDescription>{previewError}</AlertDescription>
+                            </Alert>
+                          ) : previewUrl ? (
+                            <iframe
+                              title={t('invoiceTemplates.previewTitle')}
+                              src={previewUrl}
+                              className="h-full min-h-[520px] w-full rounded-md border bg-white"
+                            />
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              {previewLoading
+                                ? t('common.state.loading')
+                                : t('invoiceTemplates.previewEmpty')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ),
                 }}
               />
             </div>
           </div>
         </CardContent>
       </Card>
-
-      {!fullscreen ? (
-        <Card className="mt-4">
-          <CardContent className="pt-6">
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-semibold">{t('invoiceTemplates.previewTitle')}</h2>
-              {tpl ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={previewLoading}
-                  onClick={(): void => void loadPreview(tpl.id)}
-                >
-                  {t('invoiceTemplates.previewRefresh')}
-                </Button>
-              ) : null}
-            </div>
-            {previewError ? (
-              <Alert variant="destructive">
-                <AlertDescription>{previewError}</AlertDescription>
-              </Alert>
-            ) : previewUrl ? (
-              <iframe
-                title={t('invoiceTemplates.previewTitle')}
-                src={previewUrl}
-                className="h-[720px] w-full rounded-md border bg-white"
-              />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {previewLoading ? t('common.state.loading') : t('invoiceTemplates.previewEmpty')}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      ) : null}
     </>
   );
 }
