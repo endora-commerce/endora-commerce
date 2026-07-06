@@ -141,5 +141,15 @@ export const manifest = defineModuleManifest({
       keywords: ['newsletter', 'campaign', 'subscribers', 'marketing', 'automation'],
       weight: 230,
     },
+    {
+      id: 'new-newsletter-campaign',
+      labelKey: 'actions.newCampaign.label',
+      descriptionKey: 'actions.newCampaign.description',
+      icon: 'Plus',
+      targetRoute: '/newsletter/campaigns/new',
+      requiredPermission: 'newsletter:write',
+      keywords: ['newsletter', 'campaign', 'new', 'create', 'send'],
+      weight: 231,
+    },
   ],
 });

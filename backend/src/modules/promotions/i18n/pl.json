@@ -1,4 +1,8 @@
 {
+  "actions.openPromotions.label": "Promocje",
+  "actions.openPromotions.description": "Zarządzaj promocjami, rabatami, kuponami i regułami",
+  "actions.newPromotion.label": "Nowa promocja",
+  "actions.newPromotion.description": "Utwórz nową promocję",
   "list.title": "Promocje",
   "list.new": "Nowa promocja",
   "fields.name": "Nazwa",

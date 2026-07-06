@@ -1,6 +1,8 @@
 {
   "actions.openTransactionalEmails.label": "Transactional emails",
   "actions.openTransactionalEmails.description": "Edit transactional email content, look, blocks, and templates",
+  "actions.openEmailTemplates.label": "Email templates",
+  "actions.openEmailTemplates.description": "Manage transactional email layout templates",
   "settings.logoAssetId.label": "Email header logo",
   "settings.accentColor.label": "Email accent color",
   "settings.headerBlockCode.label": "Default header block",
