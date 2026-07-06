@@ -1,6 +1,8 @@
 {
   "actions.openTransactionalEmails.label": "Maile transakcyjne",
   "actions.openTransactionalEmails.description": "Edytuj treść i wygląd maili transakcyjnych, bloki i szablony",
+  "actions.openEmailTemplates.label": "Szablony maili",
+  "actions.openEmailTemplates.description": "Zarządzaj szablonami układu maili transakcyjnych",
   "settings.logoAssetId.label": "Logo nagłówka maila",
   "settings.accentColor.label": "Kolor akcentu maila",
   "settings.headerBlockCode.label": "Domyślny blok nagłówka",

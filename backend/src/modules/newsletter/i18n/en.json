@@ -3,6 +3,10 @@
     "openNewsletter": {
       "label": "Newsletter",
       "description": "Manage newsletter subscribers, campaigns, and automations"
+    },
+    "newCampaign": {
+      "label": "New newsletter campaign",
+      "description": "Create and send a new newsletter campaign"
     }
   },
   "newsletter": {

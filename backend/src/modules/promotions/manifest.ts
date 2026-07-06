@@ -34,4 +34,26 @@ export const manifest = defineModuleManifest({
     { code: PROMOTION_PERMISSIONS.WRITE, label: 'Create + edit promotions and rules' },
     { code: PROMOTION_PERMISSIONS.DELETE, label: 'Delete promotions and rules' },
   ],
+  actions: [
+    {
+      id: 'open-promotions',
+      labelKey: 'actions.openPromotions.label',
+      descriptionKey: 'actions.openPromotions.description',
+      icon: 'Tag',
+      targetRoute: '/promotions',
+      requiredPermission: PROMOTION_PERMISSIONS.READ,
+      keywords: ['promotion', 'promotions', 'discount', 'coupon', 'marketing'],
+      weight: 250,
+    },
+    {
+      id: 'new-promotion',
+      labelKey: 'actions.newPromotion.label',
+      descriptionKey: 'actions.newPromotion.description',
+      icon: 'Plus',
+      targetRoute: '/promotions/new',
+      requiredPermission: PROMOTION_PERMISSIONS.WRITE,
+      keywords: ['promotion', 'new', 'create', 'discount', 'coupon'],
+      weight: 251,
+    },
+  ],
 });

@@ -3,6 +3,10 @@
     "openNewsletter": {
       "label": "Newsletter",
       "description": "Zarządzaj subskrybentami, kampaniami i automatyzacjami newslettera"
+    },
+    "newCampaign": {
+      "label": "Nowa kampania newslettera",
+      "description": "Utwórz i wyślij nową kampanię newslettera"
     }
   },
   "newsletter": {

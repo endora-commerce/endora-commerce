@@ -81,5 +81,15 @@ export const manifest = defineModuleManifest({
       keywords: ['email', 'transactional', 'notifications', 'templates'],
       weight: 240,
     },
+    {
+      id: 'open-email-templates',
+      labelKey: 'actions.openEmailTemplates.label',
+      descriptionKey: 'actions.openEmailTemplates.description',
+      icon: 'FileText',
+      targetRoute: '/transactional-emails/templates',
+      requiredPermission: 'transactional_emails:read',
+      keywords: ['email', 'templates', 'layout', 'transactional'],
+      weight: 241,
+    },
   ],
 });
