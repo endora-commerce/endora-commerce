@@ -167,7 +167,17 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
     const preferredLanguage = parsePreferredLanguage(
       request.headers['accept-language'],
     );
-    const productMeta = await loadProductMeta(em, items.map((it) => it.productId), preferredLanguage);
+    // Never block a cart read on a product-meta lookup hiccup (schema drift,
+    // a malformed product row, a since-deleted product): fall back to empty
+    // meta so lines still render with null names rather than 500ing the whole
+    // cart. Mirrors the recompute/coupon/promotion guards below.
+    let productMeta: Map<string, ProductMeta>;
+    try {
+      productMeta = await loadProductMeta(em, items.map((it) => it.productId), preferredLanguage);
+    } catch (err) {
+      request.log.warn({ err, cartId: cart.id }, 'cart product-meta lookup failed; rendering without names');
+      productMeta = new Map();
+    }
 
     // Feature 027 §R5 — re-pricing on read (FR-008).
     let recomputedPrices: Map<string, { amount: number; currency: string }> | null = null;
