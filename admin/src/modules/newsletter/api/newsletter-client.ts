@@ -24,6 +24,8 @@ import type {
   TestProviderResponse,
   UpdateAutomationRequest,
   UpdateCampaignRequest,
+  UpdateNewsletterCustomFieldRequest,
+  UpdateNewsletterTagRequest,
 } from '@b2b/contracts';
 
 type Wrap<T> = { data: T };
@@ -58,6 +60,8 @@ export const newsletterClient = {
   listTags: (): Promise<{ items: NewsletterTag[] }> => unwrap(apiClient.get<Wrap<{ items: NewsletterTag[] }>>(`${BASE}/tags`)),
   createTag: (body: CreateNewsletterTagRequest): Promise<NewsletterTag> =>
     unwrap(apiClient.post<Wrap<NewsletterTag>>(`${BASE}/tags`, body)),
+  updateTag: (id: string, body: UpdateNewsletterTagRequest): Promise<NewsletterTag> =>
+    unwrap(apiClient.patch<Wrap<NewsletterTag>>(`${BASE}/tags/${id}`, body)),
   deleteTag: (id: string): Promise<void> => apiClient.delete(`${BASE}/tags/${id}`).then(() => undefined),
 
   // Custom fields
@@ -65,6 +69,8 @@ export const newsletterClient = {
     unwrap(apiClient.get<Wrap<{ items: NewsletterCustomField[] }>>(`${BASE}/custom-fields`)),
   createCustomField: (body: CreateNewsletterCustomFieldRequest): Promise<NewsletterCustomField> =>
     unwrap(apiClient.post<Wrap<NewsletterCustomField>>(`${BASE}/custom-fields`, body)),
+  updateCustomField: (id: string, body: UpdateNewsletterCustomFieldRequest): Promise<NewsletterCustomField> =>
+    unwrap(apiClient.patch<Wrap<NewsletterCustomField>>(`${BASE}/custom-fields/${id}`, body)),
   deleteCustomField: (id: string): Promise<void> => apiClient.delete(`${BASE}/custom-fields/${id}`).then(() => undefined),
 
   // Campaigns
