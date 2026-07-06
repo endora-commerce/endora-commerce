@@ -58,6 +58,15 @@ describe('admin sales-channels CRUD + lifecycle (T029-T033)', () => {
     expect(def?.systemDefault).toBe(true);
   });
 
+  it('GET /admin/sales-channels accepts pageSize=200 (SalesChannelPicker uses it)', async () => {
+    const r = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/sales-channels?pageSize=200&activeOnly=false',
+      cookies: adminCookie,
+    });
+    expect(r.statusCode).toBe(200);
+  });
+
   it('GET /admin/sales-channels/{code} returns full detail with ETag', async () => {
     const r = await h.app.inject({
       method: 'GET',
