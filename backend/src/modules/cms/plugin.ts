@@ -11,8 +11,9 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 
-import { PageBuilderRegistry } from './services/page-builder-registry.js';
+import { PageBuilderRegistry, type PageBuilderBreakpointsResolver } from './services/page-builder-registry.js';
 import { reconcileSeededHooks } from './services/seed-hooks.js';
+import { resolvePageBuilderBreakpointsFromEnv } from './manifest.js';
 import { CmsPageService } from './services/cms-page-service.js';
 import { CmsBlockService } from './services/cms-block-service.js';
 import { CmsTemplateService } from './services/cms-template-service.js';
@@ -51,28 +52,44 @@ export interface CmsModuleHandle {
   cache: CmsCache | undefined;
   /** Idempotent reconciler — called by composition before HTTP starts. */
   reconcile: () => Promise<{ inserted: number; preservedExisting: number }>;
+  /** Late-bound resolver for breakpoint settings (wired from composition after Settings module boots). */
+  setPageBuilderBreakpointsResolver: (resolver: PageBuilderBreakpointsResolver) => void;
 }
 
 export function cmsModule(options: CmsModuleOptions): {
   plugin: (app: FastifyInstance) => Promise<void>;
   handle: CmsModuleHandle;
 } {
-  const pageBuilderRegistry = new PageBuilderRegistry();
+  const pageBuilderRegistry = new PageBuilderRegistry({
+    breakpoints: resolvePageBuilderBreakpointsFromEnv(),
+  });
   // Register the CMS module's own built-in components in metadata-only
   // form. Their actual React renderers live in @b2b/cms-components.
   // Field shapes are intentionally minimal at v1 ship; admin-side controls
   // expand them as the editor matures.
   pageBuilderRegistry.register('cms', {
     components: {
-      Row: { fields: { gap: { type: 'number', label: 'Gap' } } },
+      Row: {
+        fields: {
+          gap: { type: 'number', label: 'Gap' },
+          align: {
+            type: 'select',
+            label: 'Align',
+            options: ['stretch', 'start', 'center', 'end'].map((v) => ({ label: v, value: v })),
+          },
+        },
+        contexts: ['cms'],
+      },
       Columns: {
         fields: {
-          count: { type: 'number', label: 'Number of columns' },
-          widths: { type: 'array', label: 'Column widths (percent)' },
+          columns: { type: 'number', label: 'Number of columns' },
+          widths: { type: 'text', label: 'Column widths (percent)' },
+          gap: { type: 'number', label: 'Gap' },
         },
+        contexts: ['cms'],
       },
-      Text: { fields: { tiptapHtml: { type: 'richtext', label: 'Text' } } },
-      RichContent: { fields: { content: { type: 'richtext', label: 'Content' } } },
+      Text: { fields: { tiptapHtml: { type: 'richtext', label: 'Text' } }, contexts: ['cms'] },
+      RichContent: { fields: { content: { type: 'richtext', label: 'Content' } }, contexts: ['cms'] },
       Heading: {
         fields: {
           level: {
@@ -82,6 +99,7 @@ export function cmsModule(options: CmsModuleOptions): {
           },
           text: { type: 'text', label: 'Text' },
         },
+        contexts: ['cms'],
       },
       Button: {
         fields: {
@@ -93,12 +111,15 @@ export function cmsModule(options: CmsModuleOptions): {
             options: ['primary', 'secondary', 'ghost'].map((v) => ({ label: v, value: v })),
           },
         },
+        contexts: ['cms'],
       },
       InsertBlock: {
         fields: { code: { type: 'text', label: 'Block code', required: true } },
+        contexts: ['cms'],
       },
       InsertTemplate: {
         fields: { code: { type: 'text', label: 'Template code', required: true } },
+        contexts: ['cms'],
       },
     },
   });
@@ -137,6 +158,9 @@ export function cmsModule(options: CmsModuleOptions): {
     storefrontResolver,
     cache,
     reconcile: () => reconcileSeededHooks(options.emFactory),
+    setPageBuilderBreakpointsResolver: (resolver) => {
+      pageBuilderRegistry.setBreakpointsResolver(resolver);
+    },
   };
 
   const plugin = async (app: FastifyInstance) => {

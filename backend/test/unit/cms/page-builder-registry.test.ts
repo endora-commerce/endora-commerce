@@ -6,13 +6,15 @@ describe('PageBuilderRegistry', () => {
     const reg = new PageBuilderRegistry();
     reg.register('cms', {
       components: {
-        Row: { fields: { gap: { type: 'number' } } },
+        Row: { fields: { gap: { type: 'number' } }, contexts: ['cms'] },
       },
     });
     const desc = reg.describe();
     expect(desc.components).toHaveLength(1);
     expect(desc.components[0]!.name).toBe('Row');
     expect(desc.components[0]!.ownerModule).toBe('cms');
+    expect(desc.components[0]!.contexts).toEqual(['cms']);
+    expect(desc.breakpoints).toEqual({ tabletMin: 768, desktopMin: 1024 });
   });
 
   it('merges registrations from multiple modules', () => {

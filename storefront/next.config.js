@@ -23,7 +23,7 @@ const nextConfig = {
   // Workspace packages publish TypeScript source (main: "./src/index.ts") and use the
   // NodeNext convention of `.js` extensions in relative imports that resolve to `.tsx`/`.ts`
   // sources. Next.js needs both to be told to compile the source AND to rewrite extensions.
-  transpilePackages: ['@b2b/cms-components', '@b2b/api-client', '@b2b/contracts'],
+  transpilePackages: ['@b2b/cms-components', '@b2b/page-builder-core', '@b2b/api-client', '@b2b/contracts'],
   webpack(config) {
     config.resolve.extensionAlias = {
       ...(config.resolve.extensionAlias ?? {}),

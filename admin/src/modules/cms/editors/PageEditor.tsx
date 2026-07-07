@@ -16,6 +16,7 @@ import { normalize } from '@/lib/admin-actions/normalize';
 import { ContentLanguageTabs } from '../components/ContentLanguageTabs';
 import { PageBuilderEditor } from '../components/PageBuilderEditor';
 import { ScopePicker, type CmsScopeValue } from '../components/ScopePicker';
+import { resolveScopedContentLanguage } from '../components/scope-utils';
 import { cmsClient } from '../api/cms-client';
 
 interface FormState {
@@ -97,6 +98,17 @@ export function PageEditor(): ReactNode {
     void load().catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, [load]);
 
+  useEffect(() => {
+    if (!isNew) return;
+    setPage(null);
+    setForm(blankForm);
+    setScope({ salesChannelIds: [], languages: [] });
+    setActiveLanguage(null);
+    setDraftData(null);
+    setSlugEdited(false);
+    setError(null);
+  }, [isNew, id]);
+
   // React Router reuses this component instance across `/cms/pages/:id`
   // navigations, so local state survives an id change. Drop any unsaved draft
   // when the edited page changes, otherwise the previous page's edits would
@@ -117,11 +129,11 @@ export function PageEditor(): ReactNode {
     [activeLanguage, draftData, page],
   );
 
-  const saveMeta = async (): Promise<CmsPageDetail> => {
+  const saveMeta = async (contentLanguage: string | null): Promise<CmsPageDetail> => {
     const meta =
-      activeLanguage && (form.metaTitle || form.metaDescription || form.metaKeywords)
+      contentLanguage && (form.metaTitle || form.metaDescription || form.metaKeywords)
         ? {
-            [activeLanguage]: {
+            [contentLanguage]: {
               ...(form.metaTitle ? { title: form.metaTitle } : {}),
               ...(form.metaDescription ? { description: form.metaDescription } : {}),
               ...(form.metaKeywords ? { keywords: form.metaKeywords } : {}),
@@ -155,12 +167,27 @@ export function PageEditor(): ReactNode {
   };
 
   const save = async (): Promise<boolean> => {
+    if (scope.salesChannelIds.length === 0) {
+      setError(t('pageEditor.errors.selectChannel'));
+      return false;
+    }
+    if (scope.languages.length === 0) {
+      setError(t('pageEditor.errors.selectLanguage'));
+      return false;
+    }
+
+    const contentLanguage = resolveScopedContentLanguage(scope, activeLanguage);
+    if (!contentLanguage) {
+      setError(t('pageEditor.errors.selectLanguage'));
+      return false;
+    }
+
     setSaving(true);
     setError(null);
     try {
-      let saved = await saveMeta();
-      if (activeLanguage && currentData) {
-        saved = await cmsClient.putPageContent(saved.id, activeLanguage, {
+      let saved = await saveMeta(contentLanguage);
+      if (currentData) {
+        saved = await cmsClient.putPageContent(saved.id, contentLanguage, {
           data: currentData,
           version: saved.version,
         });

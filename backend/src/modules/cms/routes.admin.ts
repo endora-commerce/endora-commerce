@@ -42,7 +42,7 @@ export async function registerCmsAdminRoutes(
   });
 
   app.get('/api/v1/admin/cms/page-builder/config', { preHandler: requireRead }, async () => ({
-    data: deps.pageBuilderRegistry.describe(),
+    data: await deps.pageBuilderRegistry.describe(),
   }));
 
   app.post('/api/v1/admin/cms/pages', { preHandler: requireWrite }, async (request, reply) => {

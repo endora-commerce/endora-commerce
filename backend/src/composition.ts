@@ -80,6 +80,7 @@ import { importExportModule } from './modules/import_export/plugin.js';
 import { seoModule } from './modules/seo/plugin.js';
 import { i18nModule } from './modules/languages/plugin.js';
 import { cmsModule } from './modules/cms/plugin.js';
+import { CMS_PAGE_BUILDER_SETTING_CODES, cmsSettingsManifest } from './modules/cms/manifest.js';
 import { megamenuModule } from './modules/megamenu/plugin.js';
 import { registerMegamenuAssetReferences } from './modules/megamenu/services/asset-references.js';
 import { registerMegamenuCmsReferences } from './modules/megamenu/services/cms-references.js';
@@ -702,6 +703,27 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
 
   const platformSettingsChannelId = process.env['ORGANIZATIONS_SETTINGS_CHANNEL_ID'] ?? 'default';
+
+  const pageBuilderBreakpointSchema = z.number().int().positive();
+  cms.handle.setPageBuilderBreakpointsResolver(async () => {
+    try {
+      const [tabletMin, desktopMin] = await Promise.all([
+        settings.handle.settingsService.get(
+          CMS_PAGE_BUILDER_SETTING_CODES.BREAKPOINT_TABLET_MIN,
+          platformSettingsChannelId,
+          pageBuilderBreakpointSchema,
+        ),
+        settings.handle.settingsService.get(
+          CMS_PAGE_BUILDER_SETTING_CODES.BREAKPOINT_DESKTOP_MIN,
+          platformSettingsChannelId,
+          pageBuilderBreakpointSchema,
+        ),
+      ]);
+      return { tabletMin, desktopMin };
+    } catch {
+      return cms.handle.pageBuilderRegistry.getBreakpoints();
+    }
+  });
 
   const resolveModerationMode = async (): Promise<'auto' | 'manual'> => {
     try {
@@ -2115,6 +2137,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     transactionalEmailsSettingsManifest,
     newsletterSettingsManifest,
     invoicesSettingsManifest,
+    cmsSettingsManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();

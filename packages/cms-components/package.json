@@ -23,6 +23,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "peerDependencies": {
+    "@b2b/page-builder-core": "workspace:^",
     "@measured/puck": "*",
     "@tiptap/core": "^3.22.5",
     "@tiptap/extension-text-align": "3.22.5",
@@ -46,6 +47,7 @@
     }
   },
   "devDependencies": {
+    "@b2b/page-builder-core": "workspace:^",
     "@tailwindcss/cli": "4",
     "@tiptap/core": "^3.22.5",
     "@tiptap/extension-text-align": "3.22.5",

@@ -47,6 +47,8 @@ export function registerPromotionsPageBuilderComponents(
           },
         },
         previewIcon: 'ticket',
+        /** Omit email/invoice — this component is storefront-only. */
+        contexts: ['cms'],
       },
     },
   });
@@ -84,6 +86,7 @@ export const PromoBanner: ComponentConfig<Props> = {
     ] },
   },
   defaultProps: { headline: 'Spring sale', tone: 'info' },
+  contexts: ['cms'],
   render: ({ headline, codeInput, tone }) => (
     <div className={`promo-banner promo-${tone}`}>
       <strong>{headline}</strong>
@@ -147,6 +150,52 @@ overwrites on collisions; reviewers should reject changes that produce a
 warning. By convention, prefix names with the contributing module's
 domain when ambiguity is likely (`PromoBanner`, `CatalogProductCard`,
 etc.).
+
+## Context availability (`contexts`)
+
+Every component declares which Page Builder surfaces may expose it via
+`contexts`:
+
+| Context | Used by |
+|---------|---------|
+| `cms` | CMS pages, blocks, templates, blog |
+| `email` | Transactional email editor |
+| `newsletter` | Newsletter campaigns (alias of email-safe set) |
+| `invoice` | Invoice PDF template editor |
+
+Register on the backend descriptor:
+
+```ts
+contexts: ['cms'], // default when omitted in registry — CMS-only
+```
+
+In `@b2b/cms-components`, wrap the Puck config with
+`definePageBuilderComponent` from `@b2b/page-builder-core` so the admin
+palette filter stays in sync. Components without `email` / `invoice` in
+`contexts` never appear in those editors (e.g. a product carousel).
+
+## Responsive props and visibility (CMS only)
+
+The CMS Page Builder supports per-breakpoint overrides with inheritance
+(mobile ← tablet ← desktop). Use `createResponsiveField` from
+`@b2b/page-builder-core` for individual props and
+`withResponsiveVisibility` for a per-component **Visibility** control.
+
+Default breakpoints (configurable via Settings
+`cms.page_builder.breakpoint.*` or env `CMS_PB_BREAKPOINT_*`):
+
+- Mobile: &lt; 768px
+- Tablet: 768–1023px
+- Desktop: ≥ 1024px
+
+Email and invoice builders use a single layout width and do not expose
+responsive fields.
+
+## Nesting (slots)
+
+Layout components (`Row`, `Columns`) use Puck **slot** fields — nested
+content is stored in `props`, not the legacy `zones` map. Saved content
+is upgraded automatically from `schema_version` 1 → 2 at read time.
 
 ## Schema versioning
 

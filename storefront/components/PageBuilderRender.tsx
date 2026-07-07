@@ -1,23 +1,48 @@
 'use client';
 
 import { Render } from '@measured/puck';
+import type { CSSProperties, ReactNode } from 'react';
+import { breakpointCssVars, type PageBuilderBreakpoints } from '@b2b/page-builder-core';
 import { defaultPageBuilderConfig } from '@b2b/cms-components';
+
+export function PageBuilderBreakpointProvider({
+  breakpoints,
+  children,
+  style,
+}: {
+  breakpoints?: PageBuilderBreakpoints;
+  children: ReactNode;
+  style?: CSSProperties;
+}): ReactNode {
+  return (
+    <div style={{ ...breakpointCssVars(breakpoints), ...style }}>
+      {children}
+    </div>
+  );
+}
 
 /**
  * Client-side wrapper around Puck's `<Render>`.
  *
- * Puck's `<Render>` mounts a `DropZone` that passes a `renderDropZone`
- * function prop down to every Page Builder component, including the
- * `'use client'` `RichContent`/`Text` leaves. When `<Render>` runs inside a
- * Server Component, that function prop crosses the RSC boundary and React
- * aborts the server render ("Functions cannot be passed directly to Client
- * Components"), then switches the subtree to client-only rendering — leaving
- * an empty server tree and producing a hydration mismatch.
+ * Puck's `<Render>` mounts slot renderers that pass function props down to
+ * every Page Builder component, including the `'use client'` `RichContent`/`Text`
+ * leaves. When `<Render>` runs inside a Server Component, that function prop
+ * crosses the RSC boundary and React aborts the server render.
  *
  * Keeping `<Render>` inside this Client Component boundary means the whole
  * Page Builder tree renders on the client (SSR + hydration via the same code
  * path), so the function prop never crosses an RSC boundary.
  */
-export function PageBuilderRender({ data }: { data: unknown }) {
-  return <Render config={defaultPageBuilderConfig} data={data as never} />;
+export function PageBuilderRender({
+  data,
+  breakpoints,
+}: {
+  data: unknown;
+  breakpoints?: PageBuilderBreakpoints;
+}) {
+  return (
+    <PageBuilderBreakpointProvider {...(breakpoints === undefined ? {} : { breakpoints })}>
+      <Render config={defaultPageBuilderConfig} data={data as never} />
+    </PageBuilderBreakpointProvider>
+  );
 }

@@ -1,9 +1,26 @@
-import { type ComponentConfig } from '@measured/puck';
-import type { HeadingProps } from '../schema/component-types.js';
+'use client';
 
-// Per-level font sizes + alignment, expressed as `cmsc:`-prefixed utilities
-// (verbatim from the former `sizeMap` px values). Feature 041.
-const sizeClass: Record<HeadingProps['level'], string> = {
+import { type ComponentConfig, type PuckComponent } from '@measured/puck';
+import {
+  PB_RESPONSIVE_METADATA,
+  resolveTextAlignClassForTier,
+  responsiveTextAlignClass,
+  withHideOn,
+} from '@b2b/page-builder-core';
+import { usePreviewBreakpointTier } from '@b2b/page-builder-core/client';
+import type { HeadingLevel, HeadingProps } from '../schema/component-types.js';
+
+function normalizeHeadingLevel(level: unknown): HeadingLevel {
+  if (typeof level === 'string' && /^h[1-6]$/.test(level)) {
+    return level as HeadingLevel;
+  }
+  if (typeof level === 'number' && level >= 1 && level <= 6) {
+    return `h${level}` as HeadingLevel;
+  }
+  return 'h2';
+}
+
+const sizeClass: Record<HeadingLevel, string> = {
   h1: 'cmsc:text-[48px]',
   h2: 'cmsc:text-[40px]',
   h3: 'cmsc:text-[32px]',
@@ -12,13 +29,22 @@ const sizeClass: Record<HeadingProps['level'], string> = {
   h6: 'cmsc:text-[18px]',
 };
 
-const alignClass: Record<HeadingProps['align'], string> = {
-  left: 'cmsc:text-left',
-  center: 'cmsc:text-center',
-  right: 'cmsc:text-right',
+const HeadingEditingRender: PuckComponent<HeadingProps> = ({ level, text, align }) => {
+  const tier = usePreviewBreakpointTier();
+  const Tag = normalizeHeadingLevel(level);
+  const className = `cmsc:font-sans cmsc:m-0 cmsc:text-[#15202b] cmsc:leading-[1.12] cmsc:font-bold ${sizeClass[Tag]} ${resolveTextAlignClassForTier(align, tier, 'left')}`;
+
+  return <Tag className={className}>{text}</Tag>;
 };
 
-export const Heading: ComponentConfig<HeadingProps> = {
+const HeadingPublishedRender: PuckComponent<HeadingProps> = ({ level, text, align }) => {
+  const Tag = normalizeHeadingLevel(level);
+  const className = `cmsc:font-sans cmsc:m-0 cmsc:text-[#15202b] cmsc:leading-[1.12] cmsc:font-bold ${sizeClass[Tag]} ${responsiveTextAlignClass(align, 'left')}`;
+
+  return <Tag className={className}>{text}</Tag>;
+};
+
+const headingConfig: ComponentConfig<{ props: HeadingProps }> = {
   label: 'Heading',
   fields: {
     level: {
@@ -37,6 +63,7 @@ export const Heading: ComponentConfig<HeadingProps> = {
     align: {
       type: 'select',
       label: 'Align',
+      metadata: PB_RESPONSIVE_METADATA,
       options: [
         { label: 'Left', value: 'left' },
         { label: 'Center', value: 'center' },
@@ -49,10 +76,8 @@ export const Heading: ComponentConfig<HeadingProps> = {
     text: 'Section heading',
     align: 'left',
   },
-  render: ({ level, text, align }) => {
-    const Tag = level;
-    const className = `cmsc:font-sans cmsc:m-0 cmsc:text-[#15202b] cmsc:leading-[1.12] cmsc:font-bold ${sizeClass[level]} ${alignClass[align]}`;
-
-    return <Tag className={className}>{text}</Tag>;
-  },
+  render: (props) =>
+    props.puck?.isEditing ? <HeadingEditingRender {...props} /> : <HeadingPublishedRender {...props} />,
 };
+
+export const Heading = withHideOn(headingConfig);

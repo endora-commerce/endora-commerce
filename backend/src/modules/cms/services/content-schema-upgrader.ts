@@ -4,14 +4,15 @@
 // version. Each upgrade step is keyed by the version number it produces;
 // the upgrader chains steps until `schema_version === CURRENT_SCHEMA_VERSION`.
 //
-// At v1 ship the only "upgrade" is the v0→v1 normalization (envelope
-// without a `schema_version` field gets one set to 1). Future Puck or
-// component-shape bumps add new steps here.
+// v1 → v2: migrate legacy Puck DropZone `zones` maps into slot props on
+// Row/Columns (Puck 0.20+).
 
 import {
   CURRENT_SCHEMA_VERSION,
   type ContentEnvelope,
+  type PuckDataTree,
 } from '@b2b/cms-components/schema/envelope';
+import { migratePuckTreeZonesToSlots } from '@b2b/cms-components/schema/migrate-slots';
 
 export class CmsSchemaUpgradeFailedError extends Error {
   override readonly name = 'CmsSchemaUpgradeFailedError';
@@ -25,10 +26,23 @@ export class CmsSchemaUpgradeFailedError extends Error {
 
 type UpgradeStep = (input: ContentEnvelope) => ContentEnvelope;
 
+function upgradeLanguagesToSlots(languages: ContentEnvelope['languages']): ContentEnvelope['languages'] {
+  const next: ContentEnvelope['languages'] = {};
+  for (const [lang, tree] of Object.entries(languages)) {
+    next[lang] = migratePuckTreeZonesToSlots(tree as PuckDataTree);
+  }
+  return next;
+}
+
 const UPGRADERS: Record<number, UpgradeStep | undefined> = {
   // 0 → 1: introduce the schema_version field. The envelope shape is the
   // same; we just stamp the version.
   0: (env) => ({ schema_version: 1, languages: env.languages }),
+  // 1 → 2: migrate legacy DropZone zones into slot props.
+  1: (env) => ({
+    schema_version: 2,
+    languages: upgradeLanguagesToSlots(env.languages),
+  }),
 };
 
 /**

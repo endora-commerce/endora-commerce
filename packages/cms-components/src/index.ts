@@ -1,14 +1,8 @@
 // @b2b/cms-components — shared Page Builder components for the CMS module
 // (feature 014).
-//
-// This is the canonical home for the React components that Puck composes
-// in the admin editor and that the storefront renders via <Render>. The
-// content of this file fills in across Phase 2 (foundational components)
-// and grows over time as backend modules contribute their own components
-// through the SPI defined in
-// backend/src/modules/cms/services/page-builder-registry.ts.
 
 import type { ComponentConfig, Config } from '@measured/puck';
+import { definePageBuilderComponent, withHideOn } from '@b2b/page-builder-core';
 import { Button } from './components/Button.js';
 import { Columns } from './components/Columns.js';
 import { Heading } from './components/Heading.js';
@@ -31,6 +25,7 @@ export * from './components/Text.js';
 export * from './components/render-context.js';
 export * from './schema/component-types.js';
 export * from './schema/envelope.js';
+export * from './schema/migrate-slots.js';
 
 export const defaultPageBuilderConfig: Config = {
   categories: {
@@ -50,14 +45,42 @@ export const defaultPageBuilderConfig: Config = {
     },
   },
   components: {
-    Row,
-    Columns,
-    Text,
-    RichContent,
-    Heading,
-    Button,
-    InsertBlock,
-    InsertTemplate,
+    Row: definePageBuilderComponent({
+      ...(Row as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['align', 'gap', 'padding'],
+    }),
+    Columns: definePageBuilderComponent({
+      ...(Columns as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['gap'],
+    }),
+    Text: definePageBuilderComponent({
+      ...(withHideOn(Text as unknown as ComponentConfig) as ComponentConfig),
+      contexts: ['cms'],
+    }),
+    RichContent: definePageBuilderComponent({
+      ...(withHideOn(RichContent as unknown as ComponentConfig) as ComponentConfig),
+      contexts: ['cms'],
+    }),
+    Heading: definePageBuilderComponent({
+      ...(Heading as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['align'],
+    }),
+    Button: definePageBuilderComponent({
+      ...(Button as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['variant'],
+    }),
+    InsertBlock: definePageBuilderComponent({
+      ...(withHideOn(InsertBlock as unknown as ComponentConfig) as ComponentConfig),
+      contexts: ['cms'],
+    }),
+    InsertTemplate: definePageBuilderComponent({
+      ...(withHideOn(InsertTemplate as unknown as ComponentConfig) as ComponentConfig),
+      contexts: ['cms'],
+    }),
   },
 };
 

@@ -32,6 +32,7 @@ export function registerTestExtension(registry: PageBuilderRegistry): void {
           },
         },
         previewIcon: 'callout',
+        contexts: ['cms'],
       },
     },
   });

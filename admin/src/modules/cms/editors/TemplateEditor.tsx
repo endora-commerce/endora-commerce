@@ -14,6 +14,7 @@ import { useTranslation } from '@/i18n/useTranslation';
 import { ContentLanguageTabs } from '../components/ContentLanguageTabs';
 import { PageBuilderEditor } from '../components/PageBuilderEditor';
 import { ScopePicker, type CmsScopeValue } from '../components/ScopePicker';
+import { resolveScopedContentLanguage } from '../components/scope-utils';
 import { cmsClient } from '../api/cms-client';
 
 interface FormState {
@@ -62,6 +63,16 @@ export function TemplateEditor(): ReactNode {
   }, [load]);
 
   useEffect(() => {
+    if (!isNew) return;
+    setTemplate(null);
+    setForm(blankForm);
+    setScope({ salesChannelIds: [], languages: [] });
+    setActiveLanguage(null);
+    setDraftData(null);
+    setError(null);
+  }, [isNew, id]);
+
+  useEffect(() => {
     if (!activeLanguage && scope.languages.length > 0) setActiveLanguage(scope.languages[0] ?? null);
     if (activeLanguage && !scope.languages.includes(activeLanguage)) {
       setActiveLanguage(scope.languages[0] ?? null);
@@ -74,6 +85,21 @@ export function TemplateEditor(): ReactNode {
   );
 
   const save = async (): Promise<boolean> => {
+    if (scope.salesChannelIds.length === 0) {
+      setError(t('templateEditor.errors.selectChannel'));
+      return false;
+    }
+    if (scope.languages.length === 0) {
+      setError(t('templateEditor.errors.selectLanguage'));
+      return false;
+    }
+
+    const contentLanguage = resolveScopedContentLanguage(scope, activeLanguage);
+    if (!contentLanguage) {
+      setError(t('templateEditor.errors.selectLanguage'));
+      return false;
+    }
+
     setSaving(true);
     setError(null);
     try {
@@ -93,8 +119,8 @@ export function TemplateEditor(): ReactNode {
             languages: scope.languages,
             version: template!.version,
           });
-      if (activeLanguage && currentData) {
-        saved = await cmsClient.putTemplateContent(saved.id, activeLanguage, {
+      if (currentData) {
+        saved = await cmsClient.putTemplateContent(saved.id, contentLanguage, {
           data: currentData,
           version: saved.version,
         });

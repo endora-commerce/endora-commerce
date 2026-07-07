@@ -8,6 +8,7 @@ import {
   renderEmailHtml,
   type EmailEmbeds,
 } from '@b2b/email-components';
+import { filterConfigByContext } from '@b2b/page-builder-core';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { transactionalEmailsClient } from '../api/transactional-emails-client';
@@ -128,7 +129,10 @@ export function EmailEditorPane({ data, onChange, editorKey }: EmailEditorPanePr
     return () => window.removeEventListener('keydown', onKey);
   }, [fullscreen]);
 
-  const config = useMemo(() => mergeConfig(blockOptions, templateOptions), [blockOptions, templateOptions]);
+  const config = useMemo(
+    () => filterConfigByContext(mergeConfig(blockOptions, templateOptions), 'email'),
+    [blockOptions, templateOptions],
+  );
 
   return (
     <div className={cn('space-y-3', fullscreen && 'fixed inset-0 z-50 flex flex-col overflow-auto bg-background p-4')}>

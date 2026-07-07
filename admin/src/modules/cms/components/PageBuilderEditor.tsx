@@ -1,4 +1,4 @@
-import { Component, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Puck, Render, type Config, type ComponentConfig, type Data } from '@measured/puck';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import '@measured/puck/puck.css';
@@ -12,6 +12,8 @@ import {
   CmsRenderProvider,
   type CmsRenderEmbeds,
 } from '@b2b/cms-components';
+import { DEFAULT_BREAKPOINTS, filterConfigByContext } from '@b2b/page-builder-core';
+import { createPageBuilderEditorPlugin } from '@b2b/page-builder-core/editor';
 import type { CmsPageBuilderDescriptor } from '@b2b/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -127,6 +129,16 @@ function mergeConfig(
   return { ...base, components, categories } as Config;
 }
 
+function buildViewports(descriptor: CmsPageBuilderDescriptor | null) {
+  const tabletMin = descriptor?.breakpoints?.tabletMin ?? DEFAULT_BREAKPOINTS.tabletMin;
+  const desktopMin = descriptor?.breakpoints?.desktopMin ?? DEFAULT_BREAKPOINTS.desktopMin;
+  return [
+    { width: 360, label: 'Mobile', icon: 'Smartphone' as const },
+    { width: tabletMin, label: 'Tablet', icon: 'Tablet' as const },
+    { width: desktopMin, label: 'Desktop', icon: 'Monitor' as const },
+  ];
+}
+
 export function PageBuilderEditor({
   data,
   onChange,
@@ -228,11 +240,46 @@ export function PageBuilderEditor({
     };
   }, []);
 
-  const config = useMemo(
-    () => mergeConfig(descriptor, t('pageBuilder.extensions'), blockOptions),
-    [descriptor, t, blockOptions],
-  );
+  const config = useMemo(() => {
+    const merged = mergeConfig(descriptor, t('pageBuilder.extensions'), blockOptions);
+    return filterConfigByContext(merged, 'cms');
+  }, [descriptor, t, blockOptions]);
+  const viewports = useMemo(() => buildViewports(descriptor), [descriptor]);
+  const plugins = useMemo(() => [createPageBuilderEditorPlugin()], []);
   const editorData = data ?? emptyData;
+
+  const headerActionsStateRef = useRef({ fullscreen, setFullscreen, t });
+  headerActionsStateRef.current = { fullscreen, setFullscreen, t };
+
+  const puckOverrides = useMemo(
+    () => ({
+      headerActions: (): ReactNode => {
+        const { fullscreen: isFullscreen, setFullscreen: setFs, t: translate } = headerActionsStateRef.current;
+        return (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={(): void => setFs((f) => !f)}
+            aria-pressed={isFullscreen}
+          >
+            {isFullscreen ? (
+              <>
+                <Minimize2 className="mr-1 h-4 w-4" />
+                {translate('pageBuilder.fullscreen.exit')}
+              </>
+            ) : (
+              <>
+                <Maximize2 className="mr-1 h-4 w-4" />
+                {translate('pageBuilder.fullscreen.enter')}
+              </>
+            )}
+          </Button>
+        );
+      },
+    }),
+    [],
+  );
 
   return (
     <div
@@ -268,29 +315,9 @@ export function PageBuilderEditor({
             config={config}
             data={editorData}
             onChange={onChange}
-            overrides={{
-              headerActions: () => (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={(): void => setFullscreen((f) => !f)}
-                  aria-pressed={fullscreen}
-                >
-                  {fullscreen ? (
-                    <>
-                      <Minimize2 className="mr-1 h-4 w-4" />
-                      {t('pageBuilder.fullscreen.exit')}
-                    </>
-                  ) : (
-                    <>
-                      <Maximize2 className="mr-1 h-4 w-4" />
-                      {t('pageBuilder.fullscreen.enter')}
-                    </>
-                  )}
-                </Button>
-              ),
-            }}
+            viewports={viewports}
+            plugins={plugins}
+            overrides={puckOverrides}
           />
         </CmsRenderProvider>
       </div>

@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import type { Config, ComponentConfig } from '@measured/puck';
+import { definePageBuilderComponent } from '@b2b/page-builder-core';
 
 /**
  * Dedicated Puck config for invoice PDF templates (feature 047, US6). Kept in
@@ -262,11 +263,15 @@ function renderKsef(): ReactElement {
   );
 }
 
-function staticSection(render: () => ReactElement): ComponentConfig {
-  return { fields: {}, render };
+function invoiceSection<T extends ComponentConfig>(config: T): T {
+  return definePageBuilderComponent({ ...config, contexts: ['invoice'] }) as T;
 }
 
-const notes: ComponentConfig<{ text: string }> = {
+function staticSection(render: () => ReactElement): ComponentConfig {
+  return invoiceSection({ fields: {}, render });
+}
+
+const notes: ComponentConfig<{ text: string }> = invoiceSection({
   fields: { text: { type: 'textarea', label: 'Notes text' } },
   defaultProps: { text: '' },
   render: ({ text }) => (
@@ -280,7 +285,7 @@ const notes: ComponentConfig<{ text: string }> = {
       )}
     </Section>
   ),
-};
+});
 
 export const invoicePuckConfig: Config = {
   components: {

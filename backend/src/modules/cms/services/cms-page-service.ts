@@ -227,14 +227,19 @@ export class CmsPageService {
           [language]: data,
         },
       };
-      const languages = row.languages.includes(language) ? row.languages : [...row.languages, language];
-      await this.assertLanguagesInChannelScope(tx, languages, await this.channelIdsFor(id, tx));
+      if (!row.languages.includes(language)) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.CMS_LANGUAGE_NOT_IN_CHANNEL_SCOPE,
+          `CMS Page language "${language}" is not assigned to this page.`,
+        );
+      }
 
       await tx.getConnection().execute(
         `update cms_pages
-         set content = ?::jsonb, languages = ?::jsonb, version = version + 1, updated_at = now()
+         set content = ?::jsonb, version = version + 1, updated_at = now()
          where id = ?`,
-        [JSON.stringify(content), JSON.stringify(languages), id],
+        [JSON.stringify(content), id],
       );
     });
 
@@ -314,6 +319,32 @@ export class CmsPageService {
     }
   }
 
+  private channelLanguageCodes(value: unknown): string[] {
+    if (Array.isArray(value)) {
+      return value.filter((item): item is string => typeof item === 'string');
+    }
+    if (typeof value === 'string') {
+      try {
+        const parsed: unknown = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((item): item is string => typeof item === 'string');
+        }
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  private resolvedChannelLanguageCodes(languages: unknown, defaultLanguage: unknown): string[] {
+    const codes = this.channelLanguageCodes(languages);
+    if (codes.length > 0) return codes;
+    if (typeof defaultLanguage === 'string' && defaultLanguage.length > 0) {
+      return [defaultLanguage];
+    }
+    return [];
+  }
+
   private async assertLanguagesInChannelScope(
     em: EntityManager,
     languages: string[],
@@ -323,12 +354,16 @@ export class CmsPageService {
 
     const placeholders = salesChannelIds.map(() => '?').join(', ');
     const rows = (await em.getConnection().execute(
-      `select languages
+      `select languages, default_language
        from sales_channels
        where id in (${placeholders})`,
       salesChannelIds,
-    )) as Array<{ languages: string[] }>;
-    const allowed = new Set(rows.flatMap((row) => row.languages));
+    )) as Array<{ languages: unknown; default_language: unknown }>;
+    const allowed = new Set(
+      rows.flatMap((row) =>
+        this.resolvedChannelLanguageCodes(row.languages, row.default_language),
+      ),
+    );
     const unsupported = languages.find((language) => !allowed.has(language));
     if (unsupported) {
       throw new HttpError(

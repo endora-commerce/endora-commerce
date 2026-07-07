@@ -228,6 +228,15 @@ export type CmsHookAttachmentRequest = z.infer<typeof cmsHookAttachmentRequestSc
 // Page Builder config descriptor
 // ────────────────────────────────────────────────────────────────────
 
+export const pageBuilderContextSchema = z.enum(['cms', 'email', 'invoice', 'newsletter']);
+export type PageBuilderContext = z.infer<typeof pageBuilderContextSchema>;
+
+export const pageBuilderBreakpointsSchema = z.object({
+  tabletMin: z.number().int().positive(),
+  desktopMin: z.number().int().positive(),
+});
+export type PageBuilderBreakpoints = z.infer<typeof pageBuilderBreakpointsSchema>;
+
 export const cmsFieldDescriptorSchema = z.object({
   type: z.enum([
     'text',
@@ -257,12 +266,14 @@ export type CmsFieldDescriptor = z.infer<typeof cmsFieldDescriptorSchema>;
 
 export const cmsPageBuilderDescriptorSchema = z.object({
   schemaVersion: z.number().int(),
+  breakpoints: pageBuilderBreakpointsSchema.optional(),
   components: z.array(
     z.object({
       name: z.string(),
       ownerModule: z.string(),
       fields: z.record(z.string(), cmsFieldDescriptorSchema),
       previewIcon: z.string().optional(),
+      contexts: z.array(pageBuilderContextSchema).min(1).optional(),
     }),
   ),
 });

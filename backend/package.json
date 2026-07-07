@@ -50,6 +50,7 @@
     "@b2b/cms-components": "workspace:^",
     "@b2b/contracts": "workspace:*",
     "@b2b/email-components": "workspace:^",
+    "@b2b/page-builder-core": "workspace:^",
     "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.2.0",
     "@fastify/helmet": "^13.0.2",

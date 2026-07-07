@@ -12,13 +12,23 @@
 // React render functions live in @b2b/cms-components (or in per-module
 // extension packages); the storefront imports them directly.
 
-import type { CmsFieldDescriptor, CmsPageBuilderDescriptor } from '@b2b/contracts/cms.js';
+import type {
+  CmsFieldDescriptor,
+  CmsPageBuilderDescriptor,
+  PageBuilderBreakpoints,
+  PageBuilderContext,
+} from '@b2b/contracts/cms.js';
+import { DEFAULT_BREAKPOINTS } from '@b2b/page-builder-core';
+
+export type PageBuilderBreakpointsResolver = () => Promise<PageBuilderBreakpoints>;
 
 export interface ComponentRegistration {
   ownerModule: string;
   fields: Record<string, CmsFieldDescriptor>;
   /** Optional admin-side palette icon hint. */
   previewIcon?: string;
+  /** Contexts where this component is available. Defaults to CMS-only. */
+  contexts?: PageBuilderContext[];
 }
 
 export interface PartialPageBuilderConfig {
@@ -26,9 +36,30 @@ export interface PartialPageBuilderConfig {
   components?: Record<string, Omit<ComponentRegistration, 'ownerModule'>>;
 }
 
+export interface PageBuilderRegistryOptions {
+  breakpoints?: PageBuilderBreakpoints;
+}
+
 export class PageBuilderRegistry {
   private readonly components = new Map<string, ComponentRegistration>();
   private readonly schemaVersion = 1;
+  private readonly breakpoints: PageBuilderBreakpoints;
+  private breakpointsResolver?: PageBuilderBreakpointsResolver;
+
+  constructor(options: PageBuilderRegistryOptions = {}) {
+    this.breakpoints = options.breakpoints ?? { ...DEFAULT_BREAKPOINTS };
+  }
+
+  setBreakpointsResolver(resolver: PageBuilderBreakpointsResolver): void {
+    this.breakpointsResolver = resolver;
+  }
+
+  async resolveBreakpoints(): Promise<PageBuilderBreakpoints> {
+    if (this.breakpointsResolver) {
+      return this.breakpointsResolver();
+    }
+    return this.getBreakpoints();
+  }
 
   /**
    * Register a partial config from a contributing module. Multiple calls
@@ -39,7 +70,7 @@ export class PageBuilderRegistry {
     for (const [name, entry] of Object.entries(partial.components)) {
       if (this.components.has(name)) {
         const existing = this.components.get(name)!;
-         
+
         console.warn(
           `[cms/page-builder-registry] Component "${name}" already registered by ` +
             `"${existing.ownerModule}"; overwriting with registration from "${moduleCode}".`,
@@ -49,6 +80,7 @@ export class PageBuilderRegistry {
         ownerModule: moduleCode,
         fields: entry.fields,
         ...(entry.previewIcon !== undefined ? { previewIcon: entry.previewIcon } : {}),
+        contexts: entry.contexts ?? ['cms'],
       });
     }
   }
@@ -61,19 +93,26 @@ export class PageBuilderRegistry {
     return new Set(this.components.keys());
   }
 
+  getBreakpoints(): PageBuilderBreakpoints {
+    return { ...this.breakpoints };
+  }
+
   /**
    * Returns the metadata view used by the admin `/page-builder/config`
    * endpoint. Excludes React render functions — those come from
    * `@b2b/cms-components` and per-module extension packages.
    */
-  describe(): CmsPageBuilderDescriptor {
+  async describe(): Promise<CmsPageBuilderDescriptor> {
+    const breakpoints = await this.resolveBreakpoints();
     return {
       schemaVersion: this.schemaVersion,
+      breakpoints,
       components: Array.from(this.components.entries()).map(([name, reg]) => ({
         name,
         ownerModule: reg.ownerModule,
         fields: reg.fields,
         ...(reg.previewIcon !== undefined ? { previewIcon: reg.previewIcon } : {}),
+        contexts: reg.contexts ?? ['cms'],
       })),
     };
   }

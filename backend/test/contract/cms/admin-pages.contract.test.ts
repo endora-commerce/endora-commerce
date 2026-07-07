@@ -130,6 +130,39 @@ describe('admin CMS Pages contract (T036)', () => {
     });
   });
 
+  it('accepts defaultLanguage when channel languages jsonb is empty (legacy rows)', async () => {
+    const em = h.em();
+    const code = `lg${String(Date.now()).slice(-8)}`;
+    const rows = (await em.getConnection().execute(
+      `insert into sales_channels
+         (id, code, name, languages, default_language, currencies, default_currency, active, system_default, version, is_public, status, created_at, updated_at)
+       values (gen_random_uuid(), ?, ?::jsonb, '[]'::jsonb, 'pl-PL', '["PLN"]'::jsonb, 'PLN', true, false, 1, true, 'active', now(), now())
+       returning id::text as id`,
+      [code, JSON.stringify({ 'en-US': 'Legacy language channel' })],
+    )) as Array<{ id: string }>;
+    const legacyChannelId = rows[0]!.id;
+
+    const slug = `legacy-lang-page-${Date.now()}`;
+    const res = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/cms/pages',
+      headers: { 'content-type': 'application/json' },
+      cookies: adminCookie,
+      payload: JSON.stringify({
+        name: 'Legacy language page',
+        slug,
+        active: true,
+        salesChannelIds: [legacyChannelId],
+        languages: ['pl-PL'],
+      }),
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toMatchObject({
+      data: { slug, languages: ['pl-PL'], salesChannelIds: [legacyChannelId] },
+    });
+  });
+
   it('rejects a duplicate slug in the same sales channel with CMS_SLUG_CONFLICT', async () => {
     const slug = `contract-dupe-${Date.now()}`;
     const first = await createPage(slug);

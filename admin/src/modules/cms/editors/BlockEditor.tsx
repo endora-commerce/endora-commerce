@@ -15,6 +15,7 @@ import { normalize } from '@/lib/admin-actions/normalize';
 import { ContentLanguageTabs } from '../components/ContentLanguageTabs';
 import { PageBuilderEditor } from '../components/PageBuilderEditor';
 import { ScopePicker, type CmsScopeValue } from '../components/ScopePicker';
+import { resolveScopedContentLanguage } from '../components/scope-utils';
 import { cmsClient } from '../api/cms-client';
 
 interface FormState {
@@ -82,6 +83,17 @@ export function BlockEditor(): ReactNode {
     void load().catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, [load]);
 
+  useEffect(() => {
+    if (!isNew) return;
+    setBlock(null);
+    setForm(blankForm);
+    setScope({ salesChannelIds: [], languages: [] });
+    setActiveLanguage(null);
+    setDraftData(null);
+    setCodeEdited(false);
+    setError(null);
+  }, [isNew, id]);
+
   // React Router reuses this component instance across `/cms/blocks/:id`
   // navigations, so local state survives an id change. Drop any unsaved draft
   // when the edited block changes, otherwise the previous block's edits would
@@ -103,6 +115,21 @@ export function BlockEditor(): ReactNode {
   );
 
   const save = async (): Promise<boolean> => {
+    if (scope.salesChannelIds.length === 0) {
+      setError(t('blockEditor.errors.selectChannel'));
+      return false;
+    }
+    if (scope.languages.length === 0) {
+      setError(t('blockEditor.errors.selectLanguage'));
+      return false;
+    }
+
+    const contentLanguage = resolveScopedContentLanguage(scope, activeLanguage);
+    if (!contentLanguage) {
+      setError(t('blockEditor.errors.selectLanguage'));
+      return false;
+    }
+
     setSaving(true);
     setError(null);
     try {
@@ -124,8 +151,8 @@ export function BlockEditor(): ReactNode {
             languages: scope.languages,
             version: block!.version,
           });
-      if (activeLanguage && currentData) {
-        saved = await cmsClient.putBlockContent(saved.id, activeLanguage, {
+      if (currentData) {
+        saved = await cmsClient.putBlockContent(saved.id, contentLanguage, {
           data: currentData,
           version: saved.version,
         });

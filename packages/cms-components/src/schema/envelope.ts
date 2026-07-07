@@ -6,7 +6,7 @@
 // (backend/src/modules/cms/services/content-schema-upgrader.ts) walks every
 // row and rewrites trees in place when a bump is taken.
 
-export const CURRENT_SCHEMA_VERSION = 1 as const;
+export const CURRENT_SCHEMA_VERSION = 2 as const;
 
 /**
  * A single Puck data tree as produced by the editor for one language.

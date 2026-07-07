@@ -7,6 +7,7 @@
 // `schema/component-types.ts` (EMAIL_SAFE_COMPONENT_NAMES).
 
 import type { ComponentConfig, Config } from '@measured/puck';
+import { definePageBuilderComponent } from '@b2b/page-builder-core';
 import { useEmailEmbeds } from './components/email-embeds-context.js';
 import type {
   EmailButtonProps,
@@ -181,6 +182,12 @@ export const EmailInsertTemplate: ComponentConfig<EmailInsertTemplateProps> = {
   },
 };
 
+const emailContext = { contexts: ['email', 'newsletter'] as const };
+
+function emailComponent<T extends ComponentConfig>(config: T): T {
+  return definePageBuilderComponent({ ...config, ...emailContext }) as T;
+}
+
 export const defaultEmailBuilderConfig: Config = {
   categories: {
     content: {
@@ -198,14 +205,14 @@ export const defaultEmailBuilderConfig: Config = {
     },
   },
   components: {
-    EmailHeading,
-    EmailText,
-    EmailButton,
-    EmailImage,
-    EmailDivider,
-    EmailSpacer,
-    EmailColumns,
-    EmailInsertBlock,
-    EmailInsertTemplate,
+    EmailHeading: emailComponent(EmailHeading),
+    EmailText: emailComponent(EmailText),
+    EmailButton: emailComponent(EmailButton),
+    EmailImage: emailComponent(EmailImage),
+    EmailDivider: emailComponent(EmailDivider),
+    EmailSpacer: emailComponent(EmailSpacer),
+    EmailColumns: emailComponent(EmailColumns),
+    EmailInsertBlock: emailComponent(EmailInsertBlock),
+    EmailInsertTemplate: emailComponent(EmailInsertTemplate),
   },
 };

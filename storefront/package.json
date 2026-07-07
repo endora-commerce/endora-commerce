@@ -18,6 +18,7 @@
     "@b2b/api-client": "workspace:*",
     "@b2b/cms-components": "workspace:^",
     "@b2b/contracts": "workspace:*",
+    "@b2b/page-builder-core": "workspace:^",
     "@measured/puck": "^0.20.2",
     "@tailwindcss/postcss": "^4.2.4",
     "next": "^15.5.15",
