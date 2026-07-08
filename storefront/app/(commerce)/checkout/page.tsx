@@ -10,6 +10,7 @@ import {
 } from '../../../lib/api/cart';
 import { listAddresses, createAddress } from '../../../lib/api/organization';
 import { listDeliveryMethods, listPaymentMethods } from '../../../lib/api/methods';
+import { listCountries } from '../../../lib/api/dictionary';
 import { placeOrder } from '../../../lib/api/orders';
 import { getMyCreditLimit } from '../../../lib/api/credit-limit';
 import { getResolvedQuickOrderDefaults } from '../../../lib/api/quick-order';
@@ -57,6 +58,7 @@ export default async function CheckoutPage({
     Awaited<ReturnType<typeof getMyCreditLimit>> | null,
     Awaited<ReturnType<typeof getMe>> | null,
     Awaited<ReturnType<typeof getResolvedQuickOrderDefaults>> | null,
+    Awaited<ReturnType<typeof listCountries>>,
   ];
   try {
     loaded = await Promise.all([
@@ -71,6 +73,8 @@ export default async function CheckoutPage({
       getMe(session).catch(() => null),
       // Feature 039 (US2) — resolved default ordering preferences to pre-select.
       getResolvedQuickOrderDefaults(session).catch(() => null),
+      // Feature 049 — active countries for the address country picker.
+      listCountries({ locale }).catch(() => []),
     ]);
   } catch (err) {
     // A stale/expired `b2b_session` cookie is still truthy, so it slips past
@@ -82,8 +86,16 @@ export default async function CheckoutPage({
     }
     throw err;
   }
-  const [cartResult, addresses, deliveryMethods, paymentMethodsRaw, creditLimit, me, defaults] =
-    loaded;
+  const [
+    cartResult,
+    addresses,
+    deliveryMethods,
+    paymentMethodsRaw,
+    creditLimit,
+    me,
+    defaults,
+    countries,
+  ] = loaded;
   if (cartResult.newAnonCookie) await setAnonCartCookie(cartResult.newAnonCookie);
   const cart = cartResult.cart;
   const canTransact = me?.organization?.canTransact ?? true;
@@ -130,6 +142,7 @@ export default async function CheckoutPage({
           deliveryAddresses={deliveryAddrs}
           billingAddresses={billingAddrs}
           locale={locale}
+          countries={countries}
           preferredShippingAddressId={defaults?.shippingAddressId ?? null}
           preferredBillingAddressId={defaults?.billingAddressId ?? null}
           organizationName={me?.organization?.legalName || me?.organization?.name || null}

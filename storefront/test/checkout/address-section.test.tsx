@@ -30,6 +30,7 @@ describe('AddressSection', () => {
         deliveryAddresses={[saved('d1', 'delivery')]}
         billingAddresses={[saved('b1', 'billing')]}
         locale="en-US"
+        countries={[{ code: 'PL', label: 'Poland' }]}
       />,
     );
     expect(html).toContain('name="deliveryAddressId"');
@@ -42,7 +43,12 @@ describe('AddressSection', () => {
 
   it('renders required new-address inputs when the org has no saved addresses', () => {
     const html = renderToString(
-      <AddressSection deliveryAddresses={[]} billingAddresses={[]} locale="en-US" />,
+      <AddressSection
+        deliveryAddresses={[]}
+        billingAddresses={[]}
+        locale="en-US"
+        countries={[{ code: 'PL', label: 'Poland' }]}
+      />,
     );
     expect(html).toContain('name="delivery_recipientName"');
     expect(html).toContain('name="delivery_street"');
