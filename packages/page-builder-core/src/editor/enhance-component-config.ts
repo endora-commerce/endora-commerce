@@ -1,5 +1,6 @@
 import type { ComponentConfig, Fields } from '@measured/puck';
 import { createEditorNameField } from '../fields/editor-name-field.js';
+import type { ComponentContextMeta } from '../define-component.js';
 import { EDITOR_NAME_FIELD_KEY } from '../types/editor-chrome.js';
 import { isResponsiveField } from '../types/responsive.js';
 
@@ -35,9 +36,9 @@ function orderFields(fields: Fields): Fields {
 /**
  * Adds editor chrome (Name field) and orders fields for the tabbed sidebar.
  */
-export function enhancePageBuilderComponent<Props extends Record<string, unknown>>(
-  config: ComponentConfig<{ props: Props }>,
-): ComponentConfig<{ props: Props }> {
+export function enhancePageBuilderComponent(
+  config: ComponentConfig & ComponentContextMeta,
+): ComponentConfig & ComponentContextMeta {
   const baseFields = config.fields ?? {};
   const mergedFields = {
     ...(EDITOR_NAME_FIELD_KEY in baseFields ? {} : { [EDITOR_NAME_FIELD_KEY]: EDITOR_NAME_FIELD }),
@@ -47,21 +48,24 @@ export function enhancePageBuilderComponent<Props extends Record<string, unknown
   const orderedFields = orderFields(mergedFields);
   const previousResolveFields = config.resolveFields;
 
-  return {
+  const next: ComponentConfig & ComponentContextMeta = {
     ...config,
-    fields: orderedFields as Fields<Props>,
+    fields: orderedFields,
     defaultProps: {
       ...(config.defaultProps ?? {}),
-    } as Props,
-    resolveFields: previousResolveFields
-      ? (data, params) => {
-          const resolved = previousResolveFields(data, params);
-          const merged = {
-            ...(EDITOR_NAME_FIELD_KEY in resolved ? {} : { [EDITOR_NAME_FIELD_KEY]: EDITOR_NAME_FIELD }),
-            ...resolved,
-          } as Fields;
-          return orderFields(merged) as Fields<Props>;
-        }
-      : undefined,
-  } as ComponentConfig<{ props: Props }>;
+    },
+  };
+
+  if (previousResolveFields) {
+    next.resolveFields = (data, params) => {
+      const resolved = previousResolveFields(data, params);
+      const merged = {
+        ...(EDITOR_NAME_FIELD_KEY in resolved ? {} : { [EDITOR_NAME_FIELD_KEY]: EDITOR_NAME_FIELD }),
+        ...resolved,
+      } as Fields;
+      return orderFields(merged);
+    };
+  }
+
+  return next;
 }

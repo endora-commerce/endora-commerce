@@ -7,7 +7,7 @@
 // `schema/component-types.ts` (EMAIL_SAFE_COMPONENT_NAMES).
 
 import type { ComponentConfig, Config } from '@measured/puck';
-import { definePageBuilderComponent } from '@b2b/page-builder-core';
+import { definePageBuilderComponent, type PageBuilderComponentDefinition, type PageBuilderContext } from '@b2b/page-builder-core';
 import { useEmailEmbeds } from './components/email-embeds-context.js';
 import type {
   EmailButtonProps,
@@ -182,10 +182,13 @@ export const EmailInsertTemplate: ComponentConfig<EmailInsertTemplateProps> = {
   },
 };
 
-const emailContext = { contexts: ['email', 'newsletter'] as const };
+const emailContexts: PageBuilderContext[] = ['email', 'newsletter'];
 
-function emailComponent<T extends ComponentConfig>(config: T): T {
-  return definePageBuilderComponent({ ...config, ...emailContext }) as T;
+function emailComponent(config: unknown): PageBuilderComponentDefinition {
+  return definePageBuilderComponent({
+    ...(config as PageBuilderComponentDefinition),
+    contexts: emailContexts,
+  });
 }
 
 export const defaultEmailBuilderConfig: Config = {

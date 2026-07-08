@@ -10,7 +10,13 @@ import {
   writeScopedValue,
 } from './scoped-field.js';
 import { getStoredScope } from '../editor/settings-scope-store.js';
-import { hasResponsiveOverride, isResponsiveField, settingsScopeToTier, type SettingsScope } from '../types/responsive.js';
+import {
+  hasResponsiveOverride,
+  isResponsiveField,
+  settingsScopeToTier,
+  type ResponsiveProp,
+  type SettingsScope,
+} from '../types/responsive.js';
 import { useComponentScope } from '../editor/use-component-scope.js';
 import { usePageBuilderPuck } from '../editor/use-page-builder-puck.js';
 
@@ -56,7 +62,8 @@ function useScopedLocalValue<T>(
 }
 
 function numberFallback(value: unknown, field: { min?: number }): number {
-  return responsiveBaseSeed(value, field.min ?? 0);
+  const fallback = field.min ?? 0;
+  return responsiveBaseSeed(value as number | ResponsiveProp<number> | undefined, fallback);
 }
 
 const ResponsiveNumberControl = memo(function ResponsiveNumberControl({
@@ -67,7 +74,7 @@ const ResponsiveNumberControl = memo(function ResponsiveNumberControl({
   readOnly,
   label,
   labelIcon,
-  Label: LabelComponent,
+  Label: labelComponent,
   id,
 }: ResponsiveFieldProps<unknown> & {
   field: { min?: number; max?: number; step?: number };
@@ -106,7 +113,7 @@ const ResponsiveNumberControl = memo(function ResponsiveNumberControl({
         scope={scope}
         fallback={fallback}
         onChange={onChange}
-        readOnly={readOnly === true ? true : undefined}
+        {...(readOnly === true ? { readOnly: true } : {})}
       />
       <input
         id={id ?? `pb-${name}`}
@@ -129,16 +136,17 @@ const ResponsiveNumberControl = memo(function ResponsiveNumberControl({
     </div>
   );
 
-  if (!LabelComponent) return control;
+  if (!labelComponent) return control;
 
+  const Label = labelComponent;
   return (
-    <LabelComponent
+    <Label
       label={label || name}
       icon={labelIcon}
-      readOnly={readOnly}
+      {...(readOnly === true ? { readOnly: true } : {})}
     >
       {control}
-    </LabelComponent>
+    </Label>
   );
 });
 
@@ -150,10 +158,12 @@ const ResponsiveSelectControl = memo(function ResponsiveSelectControl({
   readOnly,
   label,
   labelIcon,
-  Label: LabelComponent,
+  Label: labelComponent,
   id,
 }: ResponsiveFieldProps<unknown> & {
-  field: { options?: { label: string; value: string | number | boolean | object | null | undefined }[] };
+  field: {
+    options?: readonly { label: string; value: string | number | boolean | object | null | undefined }[];
+  };
 }): ReactElement {
   const componentId = usePageBuilderPuck((s) => s.selectedItem?.props.id as string | undefined);
   const componentIdRef = useRef(componentId);
@@ -189,7 +199,7 @@ const ResponsiveSelectControl = memo(function ResponsiveSelectControl({
         scope={scope}
         fallback={fallback}
         onChange={onChange}
-        readOnly={readOnly === true ? true : undefined}
+        {...(readOnly === true ? { readOnly: true } : {})}
       />
       <select
         id={id ?? `pb-${name}`}
@@ -214,12 +224,17 @@ const ResponsiveSelectControl = memo(function ResponsiveSelectControl({
     </div>
   );
 
-  if (!LabelComponent) return control;
+  if (!labelComponent) return control;
 
+  const Label = labelComponent;
   return (
-    <LabelComponent label={label || name} icon={labelIcon} readOnly={readOnly}>
+    <Label
+      label={label || name}
+      icon={labelIcon}
+      {...(readOnly === true ? { readOnly: true } : {})}
+    >
       {control}
-    </LabelComponent>
+    </Label>
   );
 });
 
@@ -234,5 +249,7 @@ export function renderResponsiveSelectField(props: ResponsiveFieldProps<unknown>
   if (!isResponsiveField(props.field)) {
     return <>{props.children}</>;
   }
-  return <ResponsiveSelectControl {...props} field={props.field} />;
+  return <ResponsiveSelectControl {...props} field={props.field as ResponsiveFieldProps<unknown>['field'] & {
+    options?: readonly { label: string; value: string | number | boolean | object | null | undefined }[];
+  }} />;
 }

@@ -1469,7 +1469,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           id: row.id,
           code: row.code,
           language,
-          content: { data },
+          content: { schemaVersion: 1, data },
         };
       },
     },

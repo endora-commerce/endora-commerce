@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 import { FieldLabel } from '@measured/puck';
+import type { Field } from '@measured/puck';
 import { SETTINGS_SCOPE_LABELS, type SettingsScope } from '../types/responsive.js';
 import { fieldTabForName, componentHasResponsiveFields } from './field-tabs.js';
 import { setStoredScope } from './settings-scope-store.js';
@@ -178,7 +179,7 @@ function FieldsTabPanelInner({
         {hasResponsive && activeTab === 'responsive' ? <ScopeSelectorControl /> : null}
         {childEntries.map(({ child, fieldName }) => {
           if (!fieldName) return <div key="pb-field-unknown">{child}</div>;
-          const field = fields?.[fieldName];
+          const field = fields?.[fieldName] as Field | undefined;
           const tab = fieldTabForName(fieldName, field);
           const visible = !hasResponsive || tab === activeTab;
           return (

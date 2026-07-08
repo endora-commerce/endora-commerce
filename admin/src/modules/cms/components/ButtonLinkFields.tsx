@@ -75,8 +75,7 @@ function LinkSlugFieldControl({
   label: string;
 }): ReactElement {
   const linkType = usePageBuilderPuck(
-    (s: { selectedItem?: { props?: { linkType?: string } } }) =>
-      s.selectedItem?.props?.linkType ?? 'url',
+    (s) => (s.selectedItem?.props as { linkType?: string } | undefined)?.linkType ?? 'url',
   );
   const [query, setQuery] = useState('');
   const [products, setProducts] = useState<AdminProduct[]>([]);

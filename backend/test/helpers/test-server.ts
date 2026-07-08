@@ -1298,7 +1298,7 @@ export async function setupBackendServer(
           id: row.id,
           code: row.code,
           language,
-          content: { data },
+          content: { schemaVersion: 1, data },
         };
       },
     },

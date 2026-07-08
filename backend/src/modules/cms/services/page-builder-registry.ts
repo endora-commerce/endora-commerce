@@ -19,7 +19,7 @@ import type {
   PageBuilderBreakpoints,
   PageBuilderContext,
 } from '@b2b/contracts/cms.js';
-import { DEFAULT_BREAKPOINTS } from '@b2b/page-builder-core';
+import { DEFAULT_BREAKPOINTS } from '@b2b/page-builder-core/types/responsive';
 
 export type PageBuilderBreakpointsResolver = () => Promise<PageBuilderBreakpoints>;
 

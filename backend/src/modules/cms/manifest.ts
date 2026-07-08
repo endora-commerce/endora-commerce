@@ -1,5 +1,5 @@
 import { defineModuleManifest, defineModuleSettingsManifest } from '@b2b/contracts';
-import { DEFAULT_BREAKPOINTS, type PageBuilderBreakpoints } from '@b2b/page-builder-core';
+import { DEFAULT_BREAKPOINTS, type PageBuilderBreakpoints } from '@b2b/page-builder-core/types/responsive';
 
 export const CMS_PAGE_BUILDER_SETTING_CODES = {
   BREAKPOINT_TABLET_MIN: 'cms.page_builder.breakpoint.tablet_min',

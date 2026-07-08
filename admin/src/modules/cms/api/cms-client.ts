@@ -20,7 +20,7 @@ import type {
   PatchCmsTemplateRequest,
   PutCmsPageContentRequest,
   PutCmsColorPaletteRequest,
-  type CmsColorPaletteEntry,
+  CmsColorPaletteEntry,
 } from '@b2b/contracts';
 
 export type {
@@ -44,6 +44,7 @@ export type {
   PatchCmsTemplateRequest,
   PutCmsPageContentRequest,
   PutCmsColorPaletteRequest,
+  CmsColorPaletteEntry,
 };
 
 export interface ListPagesQuery {

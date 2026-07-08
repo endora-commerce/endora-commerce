@@ -4,21 +4,20 @@ import { enhancePageBuilderComponent } from './editor/enhance-component-config.j
 
 export type ComponentContextMeta = {
   /** Contexts where this component is available. Defaults to `['cms']`. */
-  contexts?: PageBuilderContext[];
+  contexts?: readonly PageBuilderContext[];
   /** Prop keys that support per-breakpoint overrides in the CMS editor. */
-  responsiveFields?: string[];
+  responsiveFields?: readonly string[];
 };
 
-export type PageBuilderComponentDefinition<Props extends Record<string, unknown> = Record<string, unknown>> =
-  ComponentConfig<{ props: Props }> & ComponentContextMeta;
+export type PageBuilderComponentDefinition = ComponentConfig & ComponentContextMeta;
 
 /**
  * Attach Page Builder metadata to a Puck component config. Metadata is stored
  * on the config object for palette filtering; it does not affect Puck runtime.
  */
-export function definePageBuilderComponent<Props extends Record<string, unknown>>(
-  definition: PageBuilderComponentDefinition<Props>,
-): PageBuilderComponentDefinition<Props> {
+export function definePageBuilderComponent(
+  definition: PageBuilderComponentDefinition,
+): PageBuilderComponentDefinition {
   return enhancePageBuilderComponent({
     contexts: ['cms'],
     ...definition,
@@ -27,12 +26,12 @@ export function definePageBuilderComponent<Props extends Record<string, unknown>
 
 export function getComponentContexts(config: ComponentConfig): PageBuilderContext[] {
   const meta = config as ComponentContextMeta;
-  return meta.contexts ?? ['cms'];
+  return [...(meta.contexts ?? ['cms'])];
 }
 
 export function getResponsiveFields(config: ComponentConfig): string[] {
   const meta = config as ComponentContextMeta;
-  return meta.responsiveFields ?? [];
+  return [...(meta.responsiveFields ?? [])];
 }
 
 /** Filter a Puck config palette to components allowed in the given context. */

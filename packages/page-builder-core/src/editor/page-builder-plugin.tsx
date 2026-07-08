@@ -10,7 +10,7 @@ import { renderResponsiveNumberField, renderResponsiveSelectField } from '../fie
 const STABLE_FIELD_TYPES = {
   number: (props: Parameters<typeof renderResponsiveNumberField>[0]) => renderResponsiveNumberField(props),
   select: (props: Parameters<typeof renderResponsiveSelectField>[0]) => renderResponsiveSelectField(props),
-};
+} as NonNullable<NonNullable<Plugin['overrides']>['fieldTypes']>;
 
 const STABLE_FIELDS_OVERRIDE = ({
   children,

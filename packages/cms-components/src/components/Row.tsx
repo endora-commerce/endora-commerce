@@ -93,7 +93,7 @@ function slotContentItems(value: unknown): Array<{ type: string; props: Record<s
 }
 
 function RowColumnsSlot({
-  content: Content,
+  content: slotContent,
   gap,
   rowGap,
   verticalAlign,
@@ -111,6 +111,7 @@ function RowColumnsSlot({
   tier: ReturnType<typeof usePreviewBreakpointTier>;
   editing: boolean;
 }): ReactElement {
+  const Content = slotContent;
   const resolvedGap = resolveResponsiveNumber(gap, tier, 24);
   const resolvedRowGap = resolveResponsiveNumber(rowGap, tier, 24);
   const align = verticalAlignToCss(resolveVerticalAlign(verticalAlign, tier));

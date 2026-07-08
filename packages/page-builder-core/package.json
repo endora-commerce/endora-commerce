@@ -10,6 +10,7 @@
     ".": "./src/index.ts",
     "./editor": "./src/editor.ts",
     "./client": "./src/client.ts",
+    "./types/responsive": "./src/types/responsive.ts",
     "./*": "./src/*.ts"
   },
   "engines": {

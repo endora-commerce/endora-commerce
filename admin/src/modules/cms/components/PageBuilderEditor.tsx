@@ -1,4 +1,4 @@
-import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Component, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { Puck, Render, type Config, type ComponentConfig, type Data } from '@measured/puck';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import '@measured/puck/puck.css';
@@ -266,7 +266,7 @@ export function PageBuilderEditor({
 
   const puckOverrides = useMemo(
     () => ({
-      headerActions: (): ReactNode => {
+      headerActions: (): ReactElement => {
         const { fullscreen: isFullscreen, setFullscreen: setFs, t: translate } = headerActionsStateRef.current;
         return (
           <Button
