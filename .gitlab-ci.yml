@@ -69,33 +69,25 @@ quality:
 # Backend: ~2000 DB-backed tests, run SERIALLY per process (vitest singleFork).
 # Sharded across `parallel` job instances — each instance gets its OWN
 # postgres/redis/meilisearch services, and `vitest --shard` splits the test files
-# between them. 4 shards on a concurrent=2 runner ⇒ 2 waves.
+# between them. 6 shards on a concurrent=2 runner ⇒ 3 waves.
 #
 # NOTE: the speedup is bounded by the runner's `concurrent` setting — N shards
 # only run at once if the runner can execute N jobs concurrently. With
 # concurrent=1 the shards queue and you gain nothing (and pay per-shard setup).
 # Sized for a 4 vCPU / 8 GB runner with `concurrent = 2`.
 #
-# Memory: the singleFork worker accumulates ~10 MB of retained heap PER test
-# file (each file rebuilds the whole module graph and the fork never fully
-# reclaims it). At ~130 files/shard that climbs past 1.5 GB and the worker is
-# OOM-killed by the host (silent "Worker exited unexpectedly") or — once the
-# NODE_OPTIONS cap below is in force — dies with an explicit "heap out of
-# memory". Two levers keep each shard in budget:
-#   1. parallel=4 → ~65 files/shard, so peak heap roughly halves. With
-#      concurrent=2 the shards run in 2 waves, so peak CONCURRENT host memory
-#      is unchanged (still 2 live shards + their 3 services each).
-#   2. --max-old-space-size=1536 caps each shard's V8 old-space. Inside the
-#      docker executor Node otherwise sees the host's 8 GB and lets the heap
-#      grow toward ~2 GB before collecting hard; two such heaps + services tip
-#      the host over. The cap forces earlier GC and turns any remaining
-#      overflow into an actionable heap error instead of a silent SIGKILL.
-# The proper long-term fix is to plug the per-file leak in the test harness;
-# until then, add shards as the suite grows.
+# Memory: the singleFork worker accumulates retained heap PER test file (each
+# file rebuilds the module graph and the fork never fully reclaims it). A shard
+# that runs too many files can approach the NODE_OPTIONS cap and the worker is
+# OOM-killed — Vitest then reports a spurious `write EPIPE` unhandled error
+# even when every test passed (tinypool IPC to a dead child). Two levers:
+#   1. parallel=6 → fewer files/shard, lower peak heap per job.
+#   2. --max-old-space-size=1536 caps each shard's V8 old-space.
+# Benches (*.bench.ts) are excluded from CI unless PERF_RUN=true (see vitest.config).
 test:backend:
   stage: test
   image: node:22.17-slim
-  parallel: 4
+  parallel: 6
   services:
     - name: postgres:16-alpine
       alias: postgres
