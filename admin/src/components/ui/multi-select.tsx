@@ -20,6 +20,18 @@ export interface MultiSelectProps {
   disabled?: boolean;
   /** Optional leading icon for the trigger (e.g. a Columns glyph). */
   icon?: ReactNode;
+  /** Show a search box in the panel to filter options (diacritic-insensitive). */
+  searchable?: boolean;
+  /** Placeholder for the search box when `searchable`. */
+  searchPlaceholder?: string;
+}
+
+/** NFD-normalise, strip combining marks, case-fold — mirrors the combobox. */
+function normalize(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
 }
 
 /**
@@ -39,9 +51,12 @@ export function MultiSelect({
   className,
   disabled = false,
   icon,
+  searchable = false,
+  searchPlaceholder,
 }: MultiSelectProps): ReactNode {
   const reactId = useId();
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,6 +70,16 @@ export function MultiSelect({
     document.addEventListener('pointerdown', handler);
     return (): void => document.removeEventListener('pointerdown', handler);
   }, [open]);
+
+  // Reset the search box each time the panel closes.
+  useEffect(() => {
+    if (!open) setQuery('');
+  }, [open]);
+
+  const visibleOptions =
+    searchable && query.trim() !== ''
+      ? options.filter((o) => normalize(o.label).includes(normalize(query)))
+      : options;
 
   const selectedSet = new Set(selected);
   const summary =
@@ -97,12 +122,29 @@ export function MultiSelect({
         <div
           role="listbox"
           aria-multiselectable="true"
-          className="absolute z-20 mt-1 max-h-72 w-max min-w-full overflow-auto rounded-md border bg-popover p-1 shadow-md"
+          className="absolute z-20 mt-1 flex max-h-72 w-max min-w-full flex-col overflow-hidden rounded-md border bg-popover p-1 shadow-md"
         >
-          {options.length === 0 ? (
-            <p className="px-2 py-1.5 text-sm text-muted-foreground">—</p>
+          {searchable ? (
+            <input
+              type="text"
+              autoFocus
+              value={query}
+              onChange={(e): void => setQuery(e.target.value)}
+              placeholder={searchPlaceholder ?? 'Search…'}
+              aria-label={searchPlaceholder ?? 'Search options'}
+              className={cn(
+                'mb-1 h-8 w-full rounded-sm border border-input bg-transparent px-2 text-sm',
+                'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+              )}
+            />
+          ) : null}
+          <div className="overflow-auto">
+          {visibleOptions.length === 0 ? (
+            <p className="px-2 py-1.5 text-sm text-muted-foreground">
+              {options.length === 0 ? '—' : 'No matches'}
+            </p>
           ) : (
-            options.map((opt) => {
+            visibleOptions.map((opt) => {
               const checked = selectedSet.has(opt.value);
               return (
                 <label
@@ -121,6 +163,7 @@ export function MultiSelect({
               );
             })
           )}
+          </div>
         </div>
       ) : null}
     </div>
