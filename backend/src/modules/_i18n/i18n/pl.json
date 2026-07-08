@@ -1465,6 +1465,8 @@
   "adminRoles.permission.orders:write": "Edycja zamówień / zmiana statusu",
   "adminRoles.permission.returns:read": "Podgląd zwrotów / spraw RMA",
   "adminRoles.permission.returns:write": "Zarządzanie zwrotami / sprawami RMA i rozliczeniem",
+  "adminRoles.permission.stripe:read": "Podgląd konfiguracji Stripe",
+  "adminRoles.permission.stripe:write": "Zarządzanie konfiguracją Stripe i metodami płatności",
   "adminRoles.permission.invoices:read": "Podgląd faktur i pobieranie PDF faktur",
   "adminRoles.permission.invoices:write": "Wystawianie/korygowanie faktur, edycja szablonów i konfiguracja fakturowania",
   "adminRoles.permission.transactional_emails:read": "Podgląd maili transakcyjnych",
