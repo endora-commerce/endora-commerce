@@ -317,6 +317,12 @@ async function submitAction(formData: FormData): Promise<void> {
   if (order.nextAction?.kind === 'redirect_to_gateway') {
     redirect(order.nextAction.url);
   }
+  // Feature 049 — a Stripe method in the inline display mode returns no
+  // redirect (nextAction `none`); collect payment on the inline Payment Element
+  // step before landing on the Success Page.
+  if (order.paymentMethod?.code?.startsWith('stripe_')) {
+    redirect(`/checkout/pay?id=${order.id}`);
+  }
   redirect(`/checkout/success?id=${order.id}`);
 }
 

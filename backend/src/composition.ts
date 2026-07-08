@@ -120,6 +120,7 @@ import { transactionalEmailsSettingsManifest } from './modules/transactional_ema
 import { newsletterModule } from './modules/newsletter/plugin.js';
 import { newsletterSettingsManifest } from './modules/newsletter/manifest.js';
 import { invoicesSettingsManifest } from './modules/invoices/manifest.js';
+import { stripeSettingsManifest } from './modules/stripe/manifest.js';
 import type { TransactionalEmailSender } from '@b2b/contracts';
 import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
 import { ORDER_CONFIRMATION_DEFAULT } from './modules/orders/email-templates/order-confirmation.default.js';
@@ -2140,6 +2141,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     transactionalEmailsSettingsManifest,
     newsletterSettingsManifest,
     invoicesSettingsManifest,
+    stripeSettingsManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();
