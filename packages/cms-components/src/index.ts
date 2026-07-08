@@ -4,8 +4,9 @@
 import type { ComponentConfig, Config } from '@measured/puck';
 import { definePageBuilderComponent, withHideOn } from '@b2b/page-builder-core';
 import { Button } from './components/Button.js';
-import { Columns } from './components/Columns.js';
+import { Column } from './components/Column.js';
 import { Heading } from './components/Heading.js';
+import { Image } from './components/Image.js';
 import { InsertBlock } from './components/InsertBlock.js';
 import { InsertTemplate } from './components/InsertTemplate.js';
 import { MissingComponentPlaceholder } from './components/MissingComponentPlaceholder.js';
@@ -14,8 +15,9 @@ import { Row } from './components/Row.js';
 import { Text } from './components/Text.js';
 
 export * from './components/Button.js';
-export * from './components/Columns.js';
+export * from './components/Column.js';
 export * from './components/Heading.js';
+export * from './components/Image.js';
 export * from './components/InsertBlock.js';
 export * from './components/InsertTemplate.js';
 export * from './components/MissingComponentPlaceholder.js';
@@ -23,20 +25,20 @@ export * from './components/RichContent.js';
 export * from './components/Row.js';
 export * from './components/Text.js';
 export * from './components/render-context.js';
+export * from './components/box-styles.js';
 export * from './schema/component-types.js';
 export * from './schema/envelope.js';
-export * from './schema/migrate-slots.js';
 
 export const defaultPageBuilderConfig: Config = {
   categories: {
     layout: {
       title: 'Layout',
-      components: ['Row', 'Columns'],
+      components: ['Row'],
       defaultExpanded: true,
     },
     content: {
       title: 'Content',
-      components: ['Heading', 'Text', 'RichContent', 'Button'],
+      components: ['Heading', 'Text', 'RichContent', 'Button', 'Image'],
       defaultExpanded: true,
     },
     embeds: {
@@ -48,30 +50,48 @@ export const defaultPageBuilderConfig: Config = {
     Row: definePageBuilderComponent({
       ...(Row as unknown as ComponentConfig),
       contexts: ['cms'],
-      responsiveFields: ['align', 'gap', 'padding'],
+      responsiveFields: [
+        'contentMaxWidth',
+        'customMaxWidthPx',
+        'contentPosition',
+        'minHeight',
+        'gap',
+        'rowGap',
+        'verticalAlign',
+        'margin',
+        'padding',
+        'border',
+      ],
     }),
-    Columns: definePageBuilderComponent({
-      ...(Columns as unknown as ComponentConfig),
+    Column: definePageBuilderComponent({
+      ...(Column as unknown as ComponentConfig),
       contexts: ['cms'],
-      responsiveFields: ['gap'],
+      responsiveFields: ['span', 'margin', 'padding', 'border'],
     }),
     Text: definePageBuilderComponent({
       ...(withHideOn(Text as unknown as ComponentConfig) as ComponentConfig),
       contexts: ['cms'],
+      responsiveFields: ['fontSize', 'fontWeight', 'textAlign', 'lineHeight', 'margin', 'padding', 'border'],
     }),
     RichContent: definePageBuilderComponent({
       ...(withHideOn(RichContent as unknown as ComponentConfig) as ComponentConfig),
       contexts: ['cms'],
+      responsiveFields: ['margin', 'padding', 'border'],
     }),
     Heading: definePageBuilderComponent({
       ...(Heading as unknown as ComponentConfig),
       contexts: ['cms'],
-      responsiveFields: ['align'],
+      responsiveFields: ['fontSize', 'fontWeight', 'textAlign', 'lineHeight', 'margin', 'padding', 'border'],
     }),
     Button: definePageBuilderComponent({
       ...(Button as unknown as ComponentConfig),
       contexts: ['cms'],
-      responsiveFields: ['variant'],
+      responsiveFields: ['variant', 'margin', 'padding', 'border'],
+    }),
+    Image: definePageBuilderComponent({
+      ...(withHideOn(Image as unknown as ComponentConfig) as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['widthMode', 'widthPx', 'align', 'margin', 'padding', 'border'],
     }),
     InsertBlock: definePageBuilderComponent({
       ...(withHideOn(InsertBlock as unknown as ComponentConfig) as ComponentConfig),

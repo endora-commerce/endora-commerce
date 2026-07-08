@@ -153,12 +153,11 @@ describe('legacy cms_pages migration (T092)', () => {
       data: {
         slug: string;
         language: string;
-        content: { schemaVersion: number; data: { content: Array<{ type: string; props: Record<string, unknown> }> } };
+        content: { data: { content: Array<{ type: string; props: Record<string, unknown> }> } };
       };
     };
     expect(body.data.slug).toBe('about-us-legacy');
     expect(body.data.language).toBe('en-US');
-    expect(body.data.content.schemaVersion).toBe(1);
     const node = body.data.content.data.content[0];
     expect(node?.type).toBe('Text');
     expect(node?.props['tiptapHtml']).toBe('<p>About us</p>');

@@ -11,7 +11,7 @@ import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales
  * `specs/014-cms/quickstart.md` § "End-to-end smoke":
  *
  *   1. Admin creates a Page with the Default channel + en-US, drops
- *      Row + Columns + Heading + Text + Button, saves, publishes.
+ *      Row (with columns) + Heading + Text + Button, saves, publishes.
  *   2. Storefront sees the rendered page at the slug.
  *   3. Admin creates a Block "homepage-hero" and attaches it to
  *      `homepage.top` (a seeded Hook).
@@ -72,24 +72,99 @@ describe('CMS quickstart smoke (T100)', () => {
           type: 'Row',
           props: {
             id: 'r1',
-            gap: 16,
+            gap: 24,
+            rowGap: 24,
+            sectionLayout: 'in_flow',
+            contentMaxWidth: 'none',
+            contentPosition: 'top',
+            minHeight: 0,
+            verticalAlign: 'stretch',
+            columnDivider: false,
+            reverseOnMobile: false,
+            margin: { mode: 'uniform', value: 0 },
+            padding: { mode: 'uniform', value: 0 },
+            border: { mode: 'none' },
+            background: 'transparent',
+            cornerRadius: 'none',
+            shadow: 'none',
+            overflow: false,
+            content: [
+              {
+                type: 'Column',
+                props: {
+                  id: 'col-1',
+                  span: 6,
+                  margin: { mode: 'uniform', value: 0 },
+                  padding: { mode: 'uniform', value: 0 },
+                  border: { mode: 'none' },
+                  background: 'transparent',
+                  cornerRadius: 'none',
+                  shadow: 'none',
+                  content: [
+                    {
+                      type: 'Heading',
+                      props: {
+                        id: 'h1',
+                        level: 'h1',
+                        text: 'Welcome',
+                        textAlign: 'left',
+                        margin: { mode: 'uniform', value: 0 },
+                        padding: { mode: 'uniform', value: 0 },
+                        border: { mode: 'none' },
+                      },
+                    },
+                  ],
+                },
+              },
+              {
+                type: 'Column',
+                props: {
+                  id: 'col-2',
+                  span: 6,
+                  margin: { mode: 'uniform', value: 0 },
+                  padding: { mode: 'uniform', value: 0 },
+                  border: { mode: 'none' },
+                  background: 'transparent',
+                  cornerRadius: 'none',
+                  shadow: 'none',
+                  content: [
+                    {
+                      type: 'Text',
+                      props: {
+                        id: 't1',
+                        text: 'Hello world',
+                        fontFamily: 'sans',
+                        fontStyle: 'normal',
+                        color: '#243447',
+                        fontSize: 16,
+                        fontWeight: 400,
+                        textAlign: 'left',
+                        lineHeight: 1.65,
+                        margin: { mode: 'uniform', value: 0 },
+                        padding: { mode: 'uniform', value: 0 },
+                        border: { mode: 'none' },
+                      },
+                    },
+                    {
+                      type: 'Button',
+                      props: {
+                        id: 'b1',
+                        label: 'Shop',
+                        linkType: 'url',
+                        linkSlug: '',
+                        href: '/catalog',
+                        target: '_self',
+                        variant: 'primary',
+                        margin: { mode: 'uniform', value: 0 },
+                        padding: { mode: 'uniform', value: 0 },
+                        border: { mode: 'none' },
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
           },
-        },
-        {
-          type: 'Columns',
-          props: { id: 'cols', count: 2, widths: [50, 50] },
-        },
-        {
-          type: 'Heading',
-          props: { id: 'h1', level: 'h1', text: 'Welcome' },
-        },
-        {
-          type: 'Text',
-          props: { id: 't1', tiptapHtml: '<p>Hello world</p>' },
-        },
-        {
-          type: 'Button',
-          props: { id: 'b1', label: 'Shop', href: '/catalog', variant: 'primary' },
         },
       ],
     };
@@ -215,7 +290,20 @@ describe('CMS quickstart smoke (T100)', () => {
       payload: JSON.stringify({
         data: {
           root: { props: {} },
-          content: [{ type: 'Text', props: { id: 'tt', tiptapHtml: '<p>Free shipping over 200 EUR</p>' } }],
+          content: [{
+            type: 'Text',
+            props: {
+              id: 'tt',
+              text: 'Free shipping over 200 EUR',
+              fontFamily: 'sans',
+              fontStyle: 'normal',
+              color: '#243447',
+              fontSize: 16,
+              fontWeight: 400,
+              textAlign: 'left',
+              lineHeight: 1.65,
+            },
+          }],
         },
         version: template.version,
       }),

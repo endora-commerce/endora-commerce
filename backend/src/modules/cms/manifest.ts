@@ -4,6 +4,7 @@ import { DEFAULT_BREAKPOINTS, type PageBuilderBreakpoints } from '@b2b/page-buil
 export const CMS_PAGE_BUILDER_SETTING_CODES = {
   BREAKPOINT_TABLET_MIN: 'cms.page_builder.breakpoint.tablet_min',
   BREAKPOINT_DESKTOP_MIN: 'cms.page_builder.breakpoint.desktop_min',
+  COLOR_PALETTE: 'cms.page_builder.color_palette',
 } as const;
 
 const settings = defineModuleSettingsManifest({
@@ -27,6 +28,15 @@ const settings = defineModuleSettingsManifest({
       groupCode: 'cms_page_builder',
       valueType: 'number',
       defaultValue: DEFAULT_BREAKPOINTS.desktopMin,
+    },
+    {
+      code: CMS_PAGE_BUILDER_SETTING_CODES.COLOR_PALETTE,
+      name: 'Page Builder color palette',
+      description:
+        'Global named colors available in the CMS Page Builder color fields. Each entry has a display name and hex value.',
+      groupCode: 'cms_page_builder',
+      valueType: 'json',
+      defaultValue: [],
     },
   ],
 });

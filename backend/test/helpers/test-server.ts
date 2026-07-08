@@ -1288,7 +1288,7 @@ export async function setupBackendServer(
         )) as Array<{
           id: string;
           code: string;
-          content: { schema_version?: number; languages?: Record<string, unknown> };
+          content: { languages?: Record<string, unknown> };
         }>;
         const row = rows[0];
         if (!row) return null;
@@ -1298,7 +1298,7 @@ export async function setupBackendServer(
           id: row.id,
           code: row.code,
           language,
-          content: { schemaVersion: row.content.schema_version ?? 1, data },
+          content: { data },
         };
       },
     },

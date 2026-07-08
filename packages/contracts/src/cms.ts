@@ -20,7 +20,8 @@ export const cmsPageStatusSchema = z.enum(['draft', 'published', 'archived']);
 export type CmsPageStatus = z.infer<typeof cmsPageStatusSchema>;
 
 export const cmsContentEnvelopeSchema = z.object({
-  schema_version: z.number().int().min(1),
+  /** @deprecated Ignored — legacy rows may still carry this key. */
+  schema_version: z.number().int().min(1).optional(),
   /** Per-language Puck data trees. The trees are opaque at this boundary. */
   languages: z.record(z.string().min(2), z.unknown()),
 });
@@ -264,9 +265,26 @@ export const cmsFieldDescriptorSchema = z.object({
 });
 export type CmsFieldDescriptor = z.infer<typeof cmsFieldDescriptorSchema>;
 
+export const cmsColorPaletteEntrySchema = z.object({
+  id: uuidSchema,
+  name: z.string().min(1).max(64),
+  hex: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+});
+export type CmsColorPaletteEntry = z.infer<typeof cmsColorPaletteEntrySchema>;
+
+export const cmsColorPaletteSchema = z.array(cmsColorPaletteEntrySchema);
+export type CmsColorPalette = z.infer<typeof cmsColorPaletteSchema>;
+
+export const putCmsColorPaletteRequestSchema = z.object({
+  entries: cmsColorPaletteSchema,
+  expectedVersion: z.string().optional(),
+});
+export type PutCmsColorPaletteRequest = z.infer<typeof putCmsColorPaletteRequestSchema>;
+
 export const cmsPageBuilderDescriptorSchema = z.object({
   schemaVersion: z.number().int(),
   breakpoints: pageBuilderBreakpointsSchema.optional(),
+  colorPalette: cmsColorPaletteSchema.optional(),
   components: z.array(
     z.object({
       name: z.string(),
@@ -296,7 +314,7 @@ export const cmsResolvedBlockSchema = z.object({
   id: uuidSchema,
   code: z.string(),
   language: z.string(),
-  content: z.object({ schemaVersion: z.number().int(), data: z.unknown() }),
+  content: z.object({ data: z.unknown() }),
 });
 export type CmsResolvedBlock = z.infer<typeof cmsResolvedBlockSchema>;
 
@@ -313,7 +331,7 @@ export const cmsResolvedPageSchema = z.object({
     description: z.string().nullable(),
     keywords: z.string().nullable(),
   }),
-  content: z.object({ schemaVersion: z.number().int(), data: z.unknown() }),
+  content: z.object({ data: z.unknown() }),
   embeds: z.object({
     blocks: z.record(z.string(), cmsResolvedBlockSchema),
     templates: z.record(z.string(), cmsResolvedTemplateSchema),

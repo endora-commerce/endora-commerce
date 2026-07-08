@@ -14,6 +14,7 @@
 
 import type {
   CmsFieldDescriptor,
+  CmsColorPaletteEntry,
   CmsPageBuilderDescriptor,
   PageBuilderBreakpoints,
   PageBuilderContext,
@@ -21,6 +22,8 @@ import type {
 import { DEFAULT_BREAKPOINTS } from '@b2b/page-builder-core';
 
 export type PageBuilderBreakpointsResolver = () => Promise<PageBuilderBreakpoints>;
+
+export type ColorPaletteResolver = () => Promise<CmsColorPaletteEntry[]>;
 
 export interface ComponentRegistration {
   ownerModule: string;
@@ -45,6 +48,7 @@ export class PageBuilderRegistry {
   private readonly schemaVersion = 1;
   private readonly breakpoints: PageBuilderBreakpoints;
   private breakpointsResolver?: PageBuilderBreakpointsResolver;
+  private colorPaletteResolver?: ColorPaletteResolver;
 
   constructor(options: PageBuilderRegistryOptions = {}) {
     this.breakpoints = options.breakpoints ?? { ...DEFAULT_BREAKPOINTS };
@@ -52,6 +56,10 @@ export class PageBuilderRegistry {
 
   setBreakpointsResolver(resolver: PageBuilderBreakpointsResolver): void {
     this.breakpointsResolver = resolver;
+  }
+
+  setColorPaletteResolver(resolver: ColorPaletteResolver): void {
+    this.colorPaletteResolver = resolver;
   }
 
   async resolveBreakpoints(): Promise<PageBuilderBreakpoints> {
@@ -104,9 +112,11 @@ export class PageBuilderRegistry {
    */
   async describe(): Promise<CmsPageBuilderDescriptor> {
     const breakpoints = await this.resolveBreakpoints();
+    const colorPalette = this.colorPaletteResolver ? await this.colorPaletteResolver() : [];
     return {
       schemaVersion: this.schemaVersion,
       breakpoints,
+      colorPalette,
       components: Array.from(this.components.entries()).map(([name, reg]) => ({
         name,
         ownerModule: reg.ownerModule,

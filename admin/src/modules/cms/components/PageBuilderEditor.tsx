@@ -20,6 +20,8 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
 import { cmsClient } from '../api/cms-client';
+import { PageBuilderColorPaletteProvider } from './ColorPaletteProvider';
+import { createButtonLinkSlugField } from './ButtonLinkFields';
 
 const emptyData: Data = { root: { props: {} }, content: [] };
 
@@ -99,6 +101,17 @@ function mergeConfig(
           label: 'Block',
           options: [{ label: '—', value: '' }, ...blockOptions],
         },
+      },
+    } as ComponentConfig;
+  }
+
+  const button = components['Button'];
+  if (button) {
+    components['Button'] = {
+      ...button,
+      fields: {
+        ...button.fields,
+        linkSlug: createButtonLinkSlugField(),
       },
     } as ComponentConfig;
   }
@@ -310,15 +323,17 @@ export function PageBuilderEditor({
             InsertBlock / InsertTemplate embeds so they render their content on
             the canvas. */}
         <CmsRenderProvider embeds={embeds}>
-          <Puck
-            key={contentKey}
-            config={config}
-            data={editorData}
-            onChange={onChange}
-            viewports={viewports}
-            plugins={plugins}
-            overrides={puckOverrides}
-          />
+          <PageBuilderColorPaletteProvider initialEntries={descriptor?.colorPalette ?? []}>
+            <Puck
+              key={contentKey}
+              config={config}
+              data={editorData}
+              onChange={onChange}
+              viewports={viewports}
+              plugins={plugins}
+              overrides={puckOverrides}
+            />
+          </PageBuilderColorPaletteProvider>
         </CmsRenderProvider>
       </div>
     </div>

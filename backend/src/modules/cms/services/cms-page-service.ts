@@ -22,14 +22,14 @@ type PageRow = {
   meta_title: Record<string, string> | null;
   meta_description: Record<string, string> | null;
   meta_keywords: Record<string, string> | null;
-  content: { schema_version?: number; languages?: Record<string, unknown> };
+  content: { languages?: Record<string, unknown> };
   languages: string[];
   version: number;
   created_at: Date | string;
   updated_at: Date | string;
 };
 
-const emptyContent = { schema_version: 1, languages: {} };
+const emptyContent = { languages: {} };
 
 export class CmsPageService {
   constructor(
@@ -221,7 +221,6 @@ export class CmsPageService {
       await this.assertBlockEmbedsExist(tx, data, await this.channelIdsFor(id, tx));
 
       const content = {
-        schema_version: row.content.schema_version ?? 1,
         languages: {
           ...(row.content.languages ?? {}),
           [language]: data,
@@ -479,7 +478,6 @@ export class CmsPageService {
       ...(await this.toSummary(row)),
       meta: this.combineMeta(row),
       content: {
-        schema_version: row.content.schema_version ?? 1,
         languages: row.content.languages ?? {},
       },
     };

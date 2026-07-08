@@ -7,7 +7,7 @@ import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';
 import { Organization } from './modules/organizations/entities/organization.entity.js';
 import { AdminRole } from './modules/admin_roles/entities/admin-role.entity.js';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES, cmsColorPaletteSchema } from '@b2b/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
 import { registerHealthRoutes } from './modules/health_checks/routes.js';
@@ -725,6 +725,28 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     }
   });
 
+  cms.handle.setColorPaletteResolver(async () => {
+    try {
+      return await settings.handle.settingsService.get(
+        CMS_PAGE_BUILDER_SETTING_CODES.COLOR_PALETTE,
+        platformSettingsChannelId,
+        cmsColorPaletteSchema,
+      );
+    } catch {
+      return [];
+    }
+  });
+
+  cms.handle.setColorPaletteWriter(async (entries, expectedVersion, actor) => {
+    await settings.handle.adminService.setValueForAllChannels(
+      CMS_PAGE_BUILDER_SETTING_CODES.COLOR_PALETTE,
+      entries,
+      expectedVersion,
+      actor,
+    );
+    return entries;
+  });
+
   const resolveModerationMode = async (): Promise<'auto' | 'manual'> => {
     try {
       return await settings.handle.settingsService.get(
@@ -1437,7 +1459,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         )) as Array<{
           id: string;
           code: string;
-          content: { schema_version?: number; languages?: Record<string, unknown> };
+          content: { languages?: Record<string, unknown> };
         }>;
         const row = rows[0];
         if (!row) return null;
@@ -1447,7 +1469,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           id: row.id,
           code: row.code,
           language,
-          content: { schemaVersion: row.content.schema_version ?? 1, data },
+          content: { data },
         };
       },
     },

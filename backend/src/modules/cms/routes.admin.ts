@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   createCmsBlockRequestSchema,
   createCmsHookRequestSchema,
@@ -9,9 +9,11 @@ import {
   patchCmsHookRequestSchema,
   patchCmsPageRequestSchema,
   patchCmsTemplateRequestSchema,
+  putCmsColorPaletteRequestSchema,
   putCmsPageContentRequestSchema,
 } from '@b2b/contracts';
 import type { RequireAdminFactory } from './plugin.js';
+import type { ColorPaletteAuditContext, ColorPaletteWriter } from './plugin.js';
 import type { CmsPageService } from './services/cms-page-service.js';
 import type { PageBuilderRegistry } from './services/page-builder-registry.js';
 import type { CmsBlockService } from './services/cms-block-service.js';
@@ -26,6 +28,8 @@ export async function registerCmsAdminRoutes(
     hookService: CmsHookService;
     templateService: CmsTemplateService;
     pageBuilderRegistry: PageBuilderRegistry;
+    getColorPaletteWriter?: () => ColorPaletteWriter | null;
+    resolveAdminAuditContext?: (req: FastifyRequest) => ColorPaletteAuditContext;
     requireAdmin?: RequireAdminFactory;
   },
 ): Promise<void> {
@@ -44,6 +48,22 @@ export async function registerCmsAdminRoutes(
   app.get('/api/v1/admin/cms/page-builder/config', { preHandler: requireRead }, async () => ({
     data: await deps.pageBuilderRegistry.describe(),
   }));
+
+  app.put('/api/v1/admin/cms/page-builder/color-palette', { preHandler: requireWrite }, async (request) => {
+    const writer = deps.getColorPaletteWriter?.();
+    if (!writer) {
+      throw new Error('Color palette writer is not configured.');
+    }
+    const body = putCmsColorPaletteRequestSchema.parse(request.body);
+    const rid = request.headers['x-request-id'];
+    const actor =
+      deps.resolveAdminAuditContext?.(request) ?? {
+        actorAdminUserId: null,
+        requestId: typeof rid === 'string' ? rid : null,
+      };
+    const entries = await writer(body.entries, body.expectedVersion ?? null, actor);
+    return { data: { entries } };
+  });
 
   app.post('/api/v1/admin/cms/pages', { preHandler: requireWrite }, async (request, reply) => {
     const body = createCmsPageRequestSchema.parse(request.body);

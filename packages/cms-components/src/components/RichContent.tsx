@@ -4,10 +4,13 @@ import { generateHTML, type Editor, type JSONContent } from '@tiptap/core';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
-import { type ComponentConfig } from '@measured/puck';
+import { type ComponentConfig, type PuckComponent } from '@measured/puck';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { usePreviewBreakpointTier } from '@b2b/page-builder-core/client';
 import type { RichContentProps } from '../schema/component-types.js';
+import { BoxStyled } from './box-styles.js';
+import { BOX_BORDER_FIELD, BOX_MARGIN_FIELD, BOX_PADDING_FIELD, DEFAULT_BOX_PROPS } from '../fields/shared-fields.js';
 
 const defaultContent: JSONContent = {
   type: 'doc',
@@ -412,6 +415,27 @@ function RichContentField({
   return shell;
 }
 
+const RichContentEditingRender: PuckComponent<RichContentProps> = ({ content, html, ...box }) => {
+  const tier = usePreviewBreakpointTier();
+  const safeHtml = useMemo(() => htmlFromTiptap(content) || sanitizeHtml(html), [content, html]);
+
+  return (
+    <BoxStyled previewTier={tier} {...box}>
+      <div className={PROSE} dangerouslySetInnerHTML={{ __html: safeHtml }} />
+    </BoxStyled>
+  );
+};
+
+const RichContentPublishedRender: PuckComponent<RichContentProps> = ({ content, html, ...box }) => {
+  const safeHtml = useMemo(() => htmlFromTiptap(content) || sanitizeHtml(html), [content, html]);
+
+  return (
+    <BoxStyled {...box}>
+      <div className={PROSE} dangerouslySetInnerHTML={{ __html: safeHtml }} />
+    </BoxStyled>
+  );
+};
+
 export const RichContent: ComponentConfig<RichContentProps> = {
   label: 'Rich Content',
   fields: {
@@ -423,14 +447,19 @@ export const RichContent: ComponentConfig<RichContentProps> = {
       ),
     },
     html: { type: 'textarea', label: 'HTML fallback' },
+    margin: BOX_MARGIN_FIELD,
+    padding: BOX_PADDING_FIELD,
+    border: BOX_BORDER_FIELD,
   },
   defaultProps: {
     content: defaultContent,
     html: '',
+    ...DEFAULT_BOX_PROPS,
   },
-  render: ({ content, html }) => {
-    const safeHtml = useMemo(() => htmlFromTiptap(content) || sanitizeHtml(html), [content, html]);
-
-    return <div className={PROSE} dangerouslySetInnerHTML={{ __html: safeHtml }} />;
-  },
+  render: (props) =>
+    props.puck?.isEditing ? (
+      <RichContentEditingRender {...props} />
+    ) : (
+      <RichContentPublishedRender {...props} />
+    ),
 };

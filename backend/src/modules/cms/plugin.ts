@@ -10,8 +10,9 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
+import type { CmsColorPaletteEntry } from '@b2b/contracts';
 
-import { PageBuilderRegistry, type PageBuilderBreakpointsResolver } from './services/page-builder-registry.js';
+import { PageBuilderRegistry, type PageBuilderBreakpointsResolver, type ColorPaletteResolver } from './services/page-builder-registry.js';
 import { reconcileSeededHooks } from './services/seed-hooks.js';
 import { resolvePageBuilderBreakpointsFromEnv } from './manifest.js';
 import { CmsPageService } from './services/cms-page-service.js';
@@ -27,6 +28,17 @@ import { registerCmsStorefrontRoutes } from './routes.storefront.js';
 export type RequireAdminFactory = (
   permission?: string,
 ) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+
+export interface ColorPaletteAuditContext {
+  actorAdminUserId: string | null;
+  requestId?: string | null;
+}
+
+export type ColorPaletteWriter = (
+  entries: CmsColorPaletteEntry[],
+  expectedVersion: string | null,
+  actor: ColorPaletteAuditContext,
+) => Promise<CmsColorPaletteEntry[]>;
 
 export interface CmsModuleOptions {
   emFactory: () => EntityManager;
@@ -54,6 +66,11 @@ export interface CmsModuleHandle {
   reconcile: () => Promise<{ inserted: number; preservedExisting: number }>;
   /** Late-bound resolver for breakpoint settings (wired from composition after Settings module boots). */
   setPageBuilderBreakpointsResolver: (resolver: PageBuilderBreakpointsResolver) => void;
+  /** Late-bound resolver for the global Page Builder color palette. */
+  setColorPaletteResolver: (resolver: ColorPaletteResolver) => void;
+  /** Late-bound writer for the global Page Builder color palette. */
+  setColorPaletteWriter: (writer: ColorPaletteWriter) => void;
+  getColorPaletteWriter: () => ColorPaletteWriter | null;
 }
 
 export function cmsModule(options: CmsModuleOptions): {
@@ -80,15 +97,20 @@ export function cmsModule(options: CmsModuleOptions): {
         },
         contexts: ['cms'],
       },
-      Columns: {
+      Column: {
         fields: {
-          columns: { type: 'number', label: 'Number of columns' },
-          widths: { type: 'text', label: 'Column widths (percent)' },
-          gap: { type: 'number', label: 'Gap' },
+          span: { type: 'number', label: 'Width (1–12)' },
         },
         contexts: ['cms'],
       },
-      Text: { fields: { tiptapHtml: { type: 'richtext', label: 'Text' } }, contexts: ['cms'] },
+      Text: { fields: { text: { type: 'text', label: 'Text' } }, contexts: ['cms'] },
+      Image: {
+        fields: {
+          src: { type: 'text', label: 'Image URL', required: true },
+          alt: { type: 'text', label: 'Alt text' },
+        },
+        contexts: ['cms'],
+      },
       RichContent: { fields: { content: { type: 'richtext', label: 'Content' } }, contexts: ['cms'] },
       Heading: {
         fields: {
@@ -148,6 +170,8 @@ export function cmsModule(options: CmsModuleOptions): {
   const hookService = new CmsHookService(options.emFactory, cache);
   const storefrontResolver = new StorefrontResolver(options.emFactory, cache);
 
+  let colorPaletteWriter: ColorPaletteWriter | null = null;
+
   const handle: CmsModuleHandle = {
     pageBuilderRegistry,
     pageService,
@@ -161,6 +185,13 @@ export function cmsModule(options: CmsModuleOptions): {
     setPageBuilderBreakpointsResolver: (resolver) => {
       pageBuilderRegistry.setBreakpointsResolver(resolver);
     },
+    setColorPaletteResolver: (resolver) => {
+      pageBuilderRegistry.setColorPaletteResolver(resolver);
+    },
+    setColorPaletteWriter: (writer) => {
+      colorPaletteWriter = writer;
+    },
+    getColorPaletteWriter: () => colorPaletteWriter,
   };
 
   const plugin = async (app: FastifyInstance) => {
@@ -170,6 +201,7 @@ export function cmsModule(options: CmsModuleOptions): {
       templateService,
       hookService,
       pageBuilderRegistry,
+      getColorPaletteWriter: () => colorPaletteWriter,
       ...(options.requireAdmin ? { requireAdmin: options.requireAdmin } : {}),
     });
     await registerCmsStorefrontRoutes(app, { storefrontResolver });

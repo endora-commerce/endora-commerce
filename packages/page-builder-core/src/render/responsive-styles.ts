@@ -48,6 +48,22 @@ export function buildResponsiveNumberVars(
   } as CSSProperties;
 }
 
+/** Unitless responsive CSS custom properties (font-weight, line-height multipliers). */
+export function buildResponsiveCSSValueVars(
+  name: string,
+  value: number | ResponsiveProp<number> | undefined,
+  fallback: number,
+): CSSProperties {
+  const responsive = normalizeResponsive(value, fallback);
+  const tablet = responsive.tablet ?? responsive.base;
+  const desktop = responsive.desktop ?? tablet;
+  return {
+    [`--pb-${name}`]: String(responsive.base),
+    [`--pb-${name}-md`]: String(tablet),
+    [`--pb-${name}-lg`]: String(desktop),
+  } as CSSProperties;
+}
+
 const ROW_ALIGN_CLASS: Record<string, string> = {
   stretch: 'cmsc:items-stretch',
   start: 'cmsc:items-start',
@@ -83,17 +99,35 @@ export function resolveRowAlignClassForTier(
   return ROW_ALIGN_CLASS[resolved] ?? 'cmsc:items-stretch';
 }
 
-export function responsiveTextAlignClass(
+export function textAlignDataAttrs(
   value: ResponsiveProp<string> | string | undefined,
   fallback: string,
+): Record<string, string> {
+  const normalized = normalizeResponsive(value, fallback);
+  const tablet = normalized.tablet ?? normalized.base;
+  const desktop = normalized.desktop ?? normalized.tablet ?? normalized.base;
+  return {
+    'data-align': normalized.base,
+    'data-align-md': tablet,
+    'data-align-lg': desktop,
+  };
+}
+
+export function resolveTextAlignForTier(
+  value: ResponsiveProp<string> | string | undefined,
+  tier: BreakpointTier,
+  fallback: string,
+): 'left' | 'center' | 'right' {
+  const resolved = resolveResponsive(value, tier, fallback);
+  if (resolved === 'center' || resolved === 'right') return resolved;
+  return 'left';
+}
+
+export function responsiveTextAlignClass(
+  _value: ResponsiveProp<string> | string | undefined,
+  _fallback: string,
 ): string {
-  const mobile = resolveResponsive(value, 'mobile', fallback);
-  const tablet = resolveResponsive(value, 'tablet', fallback);
-  const desktop = resolveResponsive(value, 'desktop', fallback);
-  const classes = [TEXT_ALIGN_CLASS[mobile] ?? TEXT_ALIGN_CLASS.left, 'cmsc-pb-text-align'];
-  if (tablet !== mobile) classes.push(`cmsc-pb-text-align-md-${tablet}`);
-  if (desktop !== tablet) classes.push(`cmsc-pb-text-align-lg-${desktop}`);
-  return classes.join(' ');
+  return 'cmsc-pb-text-align';
 }
 
 export function resolveTextAlignClassForTier(

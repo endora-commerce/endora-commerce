@@ -18,7 +18,7 @@ type PageRow = {
   meta_title: Record<string, string> | null;
   meta_description: Record<string, string> | null;
   meta_keywords: Record<string, string> | null;
-  content: { schema_version?: number; languages?: Record<string, unknown> };
+  content: { languages?: Record<string, unknown> };
   languages: string[];
 };
 
@@ -31,14 +31,14 @@ type ChannelRow = {
 type BlockRow = {
   id: string;
   code: string;
-  content: { schema_version?: number; languages?: Record<string, unknown> };
+  content: { languages?: Record<string, unknown> };
   languages: string[];
 };
 
 type TemplateRow = {
   id: string;
   code: string;
-  content: { schema_version?: number; languages?: Record<string, unknown> };
+  content: { languages?: Record<string, unknown> };
   languages: string[];
 };
 
@@ -100,7 +100,6 @@ export class StorefrontResolver {
         keywords: page.meta_keywords?.[language] ?? null,
       },
       content: {
-        schemaVersion: page.content.schema_version ?? 1,
         data,
       },
       embeds,
@@ -148,7 +147,6 @@ export class StorefrontResolver {
       code: block.code,
       language,
       content: {
-        schemaVersion: block.content.schema_version ?? 1,
         data: block.content.languages?.[language] ?? {},
       },
     };
@@ -222,7 +220,6 @@ export class StorefrontResolver {
         code: block.code,
         language,
         content: {
-          schemaVersion: block.content.schema_version ?? 1,
           data: block.content.languages?.[language] ?? {},
         },
       });
@@ -280,7 +277,6 @@ export class StorefrontResolver {
           code: block.code,
           language: blockLanguage,
           content: {
-            schemaVersion: block.content.schema_version ?? 1,
             data: blockData,
           },
         };
@@ -300,7 +296,6 @@ export class StorefrontResolver {
           code: template.code,
           language: templateLanguage,
           content: {
-            schemaVersion: template.content.schema_version ?? 1,
             data: templateData,
           },
         };

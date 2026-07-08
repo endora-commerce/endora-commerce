@@ -32,7 +32,7 @@ export class CmsTemplate {
   description?: string | null;
 
   @Property({ type: 'json' })
-  content: Record<string, unknown> = { schema_version: 1, languages: {} };
+  content: Record<string, unknown> = { languages: {} };
 
   @Property({ type: 'json' })
   languages: string[] = [];

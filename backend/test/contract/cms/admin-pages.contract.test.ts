@@ -224,7 +224,6 @@ describe('admin CMS Pages contract (T036)', () => {
       data: {
         id: page.id,
         content: {
-          schema_version: 1,
           languages: {
             'en-US': data,
           },

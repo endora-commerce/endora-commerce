@@ -194,16 +194,17 @@ responsive fields.
 ## Nesting (slots)
 
 Layout components (`Row`, `Columns`) use Puck **slot** fields — nested
-content is stored in `props`, not the legacy `zones` map. Saved content
-is upgraded automatically from `schema_version` 1 → 2 at read time.
+content is stored in `props`, not the legacy `zones` map.
 
-## Schema versioning
+## Box model (CMS layout + content)
 
-When a component's `props` shape changes in a backwards-incompatible way,
-bump its `schema_version` and add an upgrader in
-`backend/src/modules/cms/services/content-schema-upgrader.ts`. The
-upgrader walks every saved tree at boot and rewrites nodes in place, so
-authors don't have to re-edit pages by hand.
+Layout and content components expose **outer spacing** (margin), **inner
+spacing** (padding), and **border** fields on the Responsive tab. Values
+support uniform or per-side editing. **Columns** use a responsive column
+count (1–12 per breakpoint) with equal-width tracks.
+
+Use `createSpacingField`, `createBorderField`, and `createColorField` from
+`@b2b/page-builder-core` when adding new CMS components.
 
 ## Testing
 
