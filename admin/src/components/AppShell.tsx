@@ -153,6 +153,12 @@ const NAV: NavSection[] = [
       { to: '/taxes', labelKey: 'appShell.nav.taxes', icon: Receipt },
       { to: '/delivery-methods', labelKey: 'appShell.nav.deliveryMethods', icon: Truck },
       { to: '/payment-methods', labelKey: 'appShell.nav.paymentMethods', icon: CreditCard },
+      {
+        to: '/settings/stripe',
+        labelKey: 'appShell.nav.stripe',
+        icon: CreditCard,
+        requiredPermission: 'stripe:read',
+      },
     ],
   },
   {

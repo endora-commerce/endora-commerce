@@ -184,6 +184,7 @@
   "appShell.nav.taxes": "Taxes",
   "appShell.nav.deliveryMethods": "Delivery methods",
   "appShell.nav.paymentMethods": "Payment methods",
+  "appShell.nav.stripe": "Stripe",
   "appShell.nav.customers": "Customers",
   "appShell.nav.customersOnline": "Online customers",
   "appShell.nav.organizations": "Organizations",
