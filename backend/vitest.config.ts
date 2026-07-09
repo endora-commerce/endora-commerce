@@ -23,9 +23,19 @@ export default mergeConfig(
       fileParallelism: false,
       hookTimeout: 30_000,
       testTimeout: 30_000,
-      // CI shards can hit tinypool EPIPE during pool shutdown when the worker
-      // is under memory pressure — allow extra time for graceful teardown.
-      ...(isCi ? { teardownTimeout: 60_000 } : {}),
+      ...(isCi
+        ? {
+            // Junit + tinypool fork shutdown race → spurious `write EPIPE` after all
+            // tests passed (vitest 2.x). Default reporter only on CI shards; GitLab
+            // still gets pass/fail from the job exit code.
+            reporters: ['default'],
+            outputFile: undefined,
+            teardownTimeout: 60_000,
+            // Last resort: tests already green; don't fail the pipeline on IPC noise.
+            // Fixed properly in vitest ≥4 (pool shutdown). Remove when upgraded.
+            // dangerouslyIgnoreUnhandledErrors: true,
+          }
+        : {}),
     },
   }),
 );
