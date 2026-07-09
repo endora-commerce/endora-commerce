@@ -1,13 +1,15 @@
 import { defineConfig, mergeConfig } from 'vitest/config';
 import baseConfig from '../vitest.config.base.js';
 
+const isCi = process.env['CI'] === 'true' || process.env['CI'] === '1';
+
 export default mergeConfig(
   baseConfig,
   defineConfig({
     test: {
       name: 'backend',
       environment: 'node',
-      include: ['test/**/*.test.ts', 'test/**/*.bench.ts', 'src/**/*.test.ts'],
+      include: ['test/**/*.test.ts', 'src/**/*.test.ts'],
       setupFiles: [],
       // Forces DATABASE_URL → b2b_test, auto-creates the DB on first run, and
       // applies migrations. Runs once in the parent process before any worker
@@ -21,6 +23,9 @@ export default mergeConfig(
       fileParallelism: false,
       hookTimeout: 30_000,
       testTimeout: 30_000,
+      // CI shards can hit tinypool EPIPE during pool shutdown when the worker
+      // is under memory pressure — allow extra time for graceful teardown.
+      ...(isCi ? { teardownTimeout: 60_000 } : {}),
     },
   }),
 );
