@@ -87,7 +87,7 @@ quality:
 test:backend:
   stage: test
   image: node:22.17-slim
-  parallel: 6
+  parallel: 8
   services:
     - name: postgres:16-alpine
       alias: postgres
