@@ -20,7 +20,14 @@ describe('fieldTabForName', () => {
   });
 
   it('routes data metadata fields to data tab', () => {
-    expect(fieldTabForName('source', { type: 'select', label: 'Source', metadata: PB_DATA_METADATA })).toBe('data');
+    expect(
+      fieldTabForName('source', {
+        type: 'select',
+        label: 'Source',
+        options: [{ label: 'Manual', value: 'manual' }],
+        metadata: PB_DATA_METADATA,
+      }),
+    ).toBe('data');
   });
 
   it('detects responsive fields on a component', () => {
@@ -35,7 +42,12 @@ describe('fieldTabForName', () => {
   it('detects data fields on a component', () => {
     expect(
       componentHasDataFields({
-        source: { type: 'select', label: 'Source', metadata: PB_DATA_METADATA },
+        source: {
+          type: 'select',
+          label: 'Source',
+          options: [{ label: 'Manual', value: 'manual' }],
+          metadata: PB_DATA_METADATA,
+        },
         columns: { type: 'number', label: 'Columns' },
       }),
     ).toBe(true);
