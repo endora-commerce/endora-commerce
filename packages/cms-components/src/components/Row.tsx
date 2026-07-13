@@ -19,6 +19,7 @@ import { usePreviewBreakpointTier } from '@b2b/page-builder-core/client';
 import type { RowContentMaxWidth, RowProps, RowSectionLayout } from '../schema/component-types.js';
 import { BoxStyled } from './box-styles.js';
 import { createDefaultColumnItem } from './Column.js';
+import { ROW_SLOT_EDIT_PROPS } from '../editor/slot-edit-props.js';
 import {
   BACKGROUND_FIELD,
   BOX_BORDER_FIELD,
@@ -112,14 +113,14 @@ function RowColumnsSlot({
   editing: boolean;
 }): ReactElement {
   const Content = slotContent;
-  const resolvedGap = resolveResponsiveNumber(gap, tier, 24);
-  const resolvedRowGap = resolveResponsiveNumber(rowGap, tier, 24);
+  const resolvedGap = resolveResponsiveNumber(gap, tier, 24) + (editing ? 12 : 0);
+  const resolvedRowGap = resolveResponsiveNumber(rowGap, tier, 24) + (editing ? 8 : 0);
   const align = verticalAlignToCss(resolveVerticalAlign(verticalAlign, tier));
   const verticalAlignResponsive = normalizeResponsive(verticalAlign, 'stretch');
 
   return (
     <div
-      className={`cmsc-pb-row-cols cmsc:grid cmsc:w-full ${columnDivider ? 'cmsc-pb-col-divider' : ''} ${reverseOnMobile ? 'cmsc-pb-cols-reverse-mobile' : ''} ${editing ? '' : 'cmsc-pb-gap cmsc-pb-row-gap cmsc-pb-cols-align'}`}
+      className={`cmsc-pb-row-cols cmsc:grid cmsc:w-full ${editing ? 'cmsc-pb-row-cols--editing' : 'cmsc-pb-gap cmsc-pb-row-gap cmsc-pb-cols-align'} ${columnDivider ? 'cmsc-pb-col-divider' : ''} ${reverseOnMobile ? 'cmsc-pb-cols-reverse-mobile' : ''}`}
       style={
         editing
           ? {
@@ -143,7 +144,7 @@ function RowColumnsSlot({
               verticalAlignResponsive.base,
           })}
     >
-      {editing ? <Content minEmptyHeight={96} /> : <Content />}
+      {editing ? <Content {...ROW_SLOT_EDIT_PROPS} /> : <Content />}
     </div>
   );
 }
@@ -173,7 +174,7 @@ const RowEditingRender: PuckComponent<RowProps> = (props) => {
         className={`cmsc:flex cmsc:flex-col cmsc:w-full ${sectionLayoutClass(sectionLayout)} ${overflow ? 'cmsc:overflow-hidden' : ''}`}
         style={{
           justifyContent: contentPositionToJustify(position),
-          minHeight: `${resolveResponsiveNumber(minHeight, tier, 0)}px`,
+          minHeight: `${Math.max(resolveResponsiveNumber(minHeight, tier, 0), 120)}px`,
         }}
       >
         <div

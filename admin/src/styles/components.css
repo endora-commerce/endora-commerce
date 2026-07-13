@@ -324,6 +324,14 @@
   font-size: 13px; color: var(--fg-muted);
   flex: 1; min-width: 0;
 }
+.b2b-topbar__crumbs-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
 .b2b-topbar__crumbs .crumb-sep { color: var(--fg-disabled); }
 .b2b-topbar__crumbs .crumb-cur { color: var(--fg); font-weight: 500; }
 .b2b-topbar__crumbs .crumb-link {
@@ -375,6 +383,20 @@
   margin: 0 auto;
 }
 .b2b-page--wide { max-width: 1600px; }
+
+/* CMS content editors — settings above, page builder in its own row below */
+.cms-content-editor__builder {
+  width: 100%;
+  min-width: 0;
+}
+.cms-content-editor__builder .cms-page-builder {
+  min-height: calc(100vh - 320px);
+}
+@media (max-width: 1023px) {
+  .cms-content-editor__builder .cms-page-builder {
+    min-height: min(70vh, 640px);
+  }
+}
 
 .b2b-page-head {
   display: flex; align-items: flex-start; gap: 16px;
@@ -1343,3 +1365,56 @@ textarea.b2b-field {
   background: var(--surface-sunken);
   color: var(--fg);
 }
+
+/* ============================================================
+   Page builder — drag & drop affordances (Puck preview)
+   ============================================================ */
+[data-puck-preview] [class*='DropZone-hitbox'] {
+  height: 36px;
+  bottom: -18px;
+  z-index: 2;
+}
+
+[data-puck-preview] [class*='DropZone--isDestination'] {
+  outline: 2px solid var(--puck-color-azure-04, #0158ad) !important;
+  outline-offset: 2px !important;
+}
+
+[data-puck-preview] [data-dnd-placeholder] {
+  opacity: 0.55 !important;
+  min-height: 52px !important;
+  border-radius: 6px !important;
+}
+
+.pb-component-overlay {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.pb-component-overlay__label {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 4;
+  max-width: calc(100% - 8px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: var(--puck-color-azure-04, #0158ad);
+  pointer-events: none;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
+}
+
+[data-puck-preview]:has([data-puck-dragging]) [class*='DropZone--isEnabled'] {
+  outline: 1px dashed var(--puck-color-azure-06, #6499cf);
+  outline-offset: 1px;
+}
+

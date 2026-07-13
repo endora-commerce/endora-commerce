@@ -44,6 +44,9 @@
     },
     "@tiptap/starter-kit": {
       "optional": true
+    },
+    "leaflet": {
+      "optional": true
     }
   },
   "devDependencies": {
@@ -58,6 +61,8 @@
     "react-dom": "^19.2.5",
     "tailwindcss": "4",
     "typescript": "^5.9.3",
+    "leaflet": "^1.9.4",
+    "@types/leaflet": "^1.9.21",
     "vitest": "^2.1.4"
   }
 }

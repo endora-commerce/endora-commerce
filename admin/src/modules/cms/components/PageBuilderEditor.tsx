@@ -10,6 +10,7 @@ import {
   defaultPageBuilderConfig,
   makeMissingComponentConfig,
   CmsRenderProvider,
+  withCmsPageRoot,
   type CmsRenderEmbeds,
 } from '@b2b/cms-components';
 import { DEFAULT_BREAKPOINTS, filterConfigByContext } from '@b2b/page-builder-core';
@@ -21,7 +22,14 @@ import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
 import { cmsClient } from '../api/cms-client';
 import { PageBuilderColorPaletteProvider } from './ColorPaletteProvider';
+import { AdminCatalogPreviewProvider } from './AdminCatalogPreviewProvider';
 import { createButtonLinkSlugField } from './ButtonLinkFields';
+import {
+  createCategorySlugField,
+  createCategorySlugsField,
+  createProductSlugField,
+  createProductSlugsField,
+} from './CatalogPickers';
 
 const emptyData: Data = { root: { props: {} }, content: [] };
 
@@ -116,6 +124,42 @@ function mergeConfig(
     } as ComponentConfig;
   }
 
+  const productCard = components['ProductCard'];
+  if (productCard) {
+    components['ProductCard'] = {
+      ...productCard,
+      fields: { ...productCard.fields, productSlug: createProductSlugField() },
+    } as ComponentConfig;
+  }
+
+  for (const name of ['ProductGrid', 'ProductSlider'] as const) {
+    const cfg = components[name];
+    if (cfg) {
+      components[name] = {
+        ...cfg,
+        fields: {
+          ...cfg.fields,
+          productSlugs: createProductSlugsField(),
+          categorySlug: createCategorySlugField(),
+        },
+      } as ComponentConfig;
+    }
+  }
+
+  for (const name of ['CategoryList', 'CategoryGrid'] as const) {
+    const cfg = components[name];
+    if (cfg) {
+      components[name] = {
+        ...cfg,
+        fields: {
+          ...cfg.fields,
+          categorySlugs: createCategorySlugsField(),
+          parentSlug: createCategorySlugField(),
+        },
+      } as ComponentConfig;
+    }
+  }
+
   if (descriptor) {
     for (const entry of descriptor.components) {
       if (components[entry.name]) continue;
@@ -156,6 +200,7 @@ export function PageBuilderEditor({
   data,
   onChange,
   contentKey,
+  pageContainer = false,
 }: {
   data: Data | null;
   onChange: (data: Data) => void;
@@ -172,6 +217,8 @@ export function PageBuilderEditor({
    * state), so editing stays smooth and never loses focus.
    */
   contentKey?: string;
+  /** Wrap the canvas in the CMS page max-width container (pages only). */
+  pageContainer?: boolean;
 }): ReactNode {
   const t = useTranslation('cms');
   const [descriptor, setDescriptor] = useState<CmsPageBuilderDescriptor | null>(null);
@@ -255,8 +302,9 @@ export function PageBuilderEditor({
 
   const config = useMemo(() => {
     const merged = mergeConfig(descriptor, t('pageBuilder.extensions'), blockOptions);
-    return filterConfigByContext(merged, 'cms');
-  }, [descriptor, t, blockOptions]);
+    const filtered = filterConfigByContext(merged, 'cms');
+    return pageContainer ? withCmsPageRoot(filtered) : filtered;
+  }, [descriptor, t, blockOptions, pageContainer]);
   const viewports = useMemo(() => buildViewports(descriptor), [descriptor]);
   const plugins = useMemo(() => [createPageBuilderEditorPlugin()], []);
   const editorData = data ?? emptyData;
@@ -297,7 +345,7 @@ export function PageBuilderEditor({
   return (
     <div
       className={cn(
-        'space-y-3',
+        'cms-page-builder space-y-3',
         fullscreen && 'fixed inset-0 z-50 flex flex-col overflow-auto bg-background p-4',
       )}
     >
@@ -311,8 +359,8 @@ export function PageBuilderEditor({
       ) : null}
       <div
         className={cn(
-          'overflow-hidden rounded-md border',
-          fullscreen ? 'min-h-0 flex-1' : 'min-h-[640px]',
+          'cms-page-builder__canvas overflow-hidden border',
+          fullscreen ? 'min-h-0 flex-1 rounded-md' : 'min-h-[640px] rounded-md',
         )}
       >
         {/* The surrounding editor's own Save actions persist content, so Puck's
@@ -323,17 +371,19 @@ export function PageBuilderEditor({
             InsertBlock / InsertTemplate embeds so they render their content on
             the canvas. */}
         <CmsRenderProvider embeds={embeds}>
-          <PageBuilderColorPaletteProvider initialEntries={descriptor?.colorPalette ?? []}>
-            <Puck
-              key={contentKey}
-              config={config}
-              data={editorData}
-              onChange={onChange}
-              viewports={viewports}
-              plugins={plugins}
-              overrides={puckOverrides}
-            />
-          </PageBuilderColorPaletteProvider>
+          <AdminCatalogPreviewProvider>
+            <PageBuilderColorPaletteProvider initialEntries={descriptor?.colorPalette ?? []}>
+              <Puck
+                key={contentKey}
+                config={config}
+                data={editorData}
+                onChange={onChange}
+                viewports={viewports}
+                plugins={plugins}
+                overrides={puckOverrides}
+              />
+            </PageBuilderColorPaletteProvider>
+          </AdminCatalogPreviewProvider>
         </CmsRenderProvider>
       </div>
     </div>

@@ -143,6 +143,42 @@ export function cmsModule(options: CmsModuleOptions): {
         fields: { code: { type: 'text', label: 'Template code', required: true } },
         contexts: ['cms'],
       },
+      RawHtml: {
+        fields: { html: { type: 'textarea', label: 'HTML' } },
+        contexts: ['cms'],
+      },
+      RawJs: {
+        fields: { script: { type: 'textarea', label: 'JavaScript' } },
+        contexts: ['cms'],
+      },
+      Video: {
+        fields: { url: { type: 'text', label: 'Video URL' } },
+        contexts: ['cms'],
+      },
+      ContentSlider: { fields: {}, contexts: ['cms'] },
+      Tabs: { fields: {}, contexts: ['cms'] },
+      Accordion: { fields: {}, contexts: ['cms'] },
+      ProductCard: {
+        fields: { productSlug: { type: 'text', label: 'Product slug' } },
+        contexts: ['cms'],
+      },
+      ProductGrid: { fields: {}, contexts: ['cms'] },
+      ProductSlider: { fields: {}, contexts: ['cms'] },
+      CategoryList: { fields: {}, contexts: ['cms'] },
+      CategoryGrid: { fields: {}, contexts: ['cms'] },
+      Map: {
+        fields: {
+          provider: {
+            type: 'select',
+            label: 'Provider',
+            options: [
+              { label: 'Leaflet + OSM', value: 'leaflet' },
+              { label: 'Google Maps', value: 'google' },
+            ],
+          },
+        },
+        contexts: ['cms'],
+      },
     },
   });
 

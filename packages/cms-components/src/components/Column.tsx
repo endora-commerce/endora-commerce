@@ -23,6 +23,7 @@ import {
   DEFAULT_BOX_PROPS,
   SHADOW_FIELD,
 } from '../fields/shared-fields.js';
+import { COLUMN_SLOT_EDIT_PROPS } from '../editor/slot-edit-props.js';
 
 const HIDE_ON_FIELD = createHideOnField();
 
@@ -67,8 +68,8 @@ const ColumnEditingRender: PuckComponent<ColumnProps> = (props) => {
 
   return (
     <ColumnShell span={span} hideOn={hideOn} editing tier={tier} dragRef={puck?.dragRef}>
-      <BoxStyled previewTier={tier} className="cmsc:h-full cmsc:w-full" {...box}>
-        <Content minEmptyHeight={96} />
+      <BoxStyled previewTier={tier} className="cmsc-pb-column-inner cmsc:h-full cmsc:w-full" {...box}>
+        <Content {...COLUMN_SLOT_EDIT_PROPS} />
       </BoxStyled>
     </ColumnShell>
   );

@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useTranslation } from '@/i18n/useTranslation';
 import { normalize } from '@/lib/admin-actions/normalize';
 import { ContentLanguageTabs } from '../components/ContentLanguageTabs';
+import { CmsContentEditorLayout } from '../components/CmsContentEditorLayout';
 import { PageBuilderEditor } from '../components/PageBuilderEditor';
 import { ScopePicker, type CmsScopeValue } from '../components/ScopePicker';
 import { resolveScopedContentLanguage } from '../components/scope-utils';
@@ -228,50 +229,52 @@ export function PageEditor(): ReactNode {
   };
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title={isNew ? t('pageEditor.title.new') : form.name || t('pageEditor.title.edit')}
-        description={t('pageEditor.description')}
-        actions={
-          <div className="flex gap-2">
-            <Button asChild variant="outline">
-              <Link to="/cms/pages">{t('common.back')}</Link>
-            </Button>
-            {!isNew && page?.status !== 'published' ? (
-              <Button type="button" variant="outline" onClick={() => void lifecycle('publish')}>
-                {t('common.publish')}
-              </Button>
-            ) : null}
-            {!isNew && page?.status === 'published' ? (
-              <Button type="button" variant="outline" onClick={() => void lifecycle('archive')}>
-                {t('common.archive')}
-              </Button>
-            ) : null}
-            {!isNew && page?.status === 'archived' ? (
-              <Button type="button" variant="outline" onClick={() => void lifecycle('unarchive')}>
-                {t('common.unarchive')}
-              </Button>
-            ) : null}
-            <SaveButtonGroup
-              onSave={() => void save()}
-              onSaveAndExit={() => void saveAndExit()}
-              saving={saving}
-              saveLabel={t('common.save')}
-              savingLabel={t('common.saving')}
-              saveAndExitLabel={t('common.saveAndExit')}
-            />
-          </div>
-        }
-      />
-
-      {error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <div className="grid grid-cols-12 gap-4">
-        <div className="col-span-4 space-y-4">
+    <CmsContentEditorLayout
+      header={
+        <>
+          <PageHeader
+            title={isNew ? t('pageEditor.title.new') : form.name || t('pageEditor.title.edit')}
+            description={t('pageEditor.description')}
+            actions={
+              <div className="flex gap-2">
+                <Button asChild variant="outline">
+                  <Link to="/cms/pages">{t('common.back')}</Link>
+                </Button>
+                {!isNew && page?.status !== 'published' ? (
+                  <Button type="button" variant="outline" onClick={() => void lifecycle('publish')}>
+                    {t('common.publish')}
+                  </Button>
+                ) : null}
+                {!isNew && page?.status === 'published' ? (
+                  <Button type="button" variant="outline" onClick={() => void lifecycle('archive')}>
+                    {t('common.archive')}
+                  </Button>
+                ) : null}
+                {!isNew && page?.status === 'archived' ? (
+                  <Button type="button" variant="outline" onClick={() => void lifecycle('unarchive')}>
+                    {t('common.unarchive')}
+                  </Button>
+                ) : null}
+                <SaveButtonGroup
+                  onSave={() => void save()}
+                  onSaveAndExit={() => void saveAndExit()}
+                  saving={saving}
+                  saveLabel={t('common.save')}
+                  savingLabel={t('common.saving')}
+                  saveAndExitLabel={t('common.saveAndExit')}
+                />
+              </div>
+            }
+          />
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
+        </>
+      }
+      settings={
+        <>
           <Card>
             <CardHeader>
               <CardTitle className="text-base">{t('pageEditor.metadata')}</CardTitle>
@@ -286,8 +289,6 @@ export function PageEditor(): ReactNode {
                     setForm((f) => ({
                       ...f,
                       name,
-                      // Keep the slug in sync with the name on new pages until
-                      // the operator overrides it.
                       ...(isNew && !slugEdited ? { slug: slugify(name) } : {}),
                     }));
                   }}
@@ -350,24 +351,26 @@ export function PageEditor(): ReactNode {
             </CardContent>
           </Card>
           <ScopePicker value={scope} onChange={setScope} />
-        </div>
-
-        <div className="col-span-8 space-y-3">
-          <ContentLanguageTabs
-            languages={scope.languages}
-            activeLanguage={activeLanguage}
-            onChange={(language) => {
-              setDraftData(null);
-              setActiveLanguage(language);
-            }}
-          />
-          <PageBuilderEditor
-            data={currentData}
-            onChange={setDraftData}
-            contentKey={`${id ?? 'new'}:${activeLanguage ?? ''}`}
-          />
-        </div>
-      </div>
-    </div>
+        </>
+      }
+      languageTabs={
+        <ContentLanguageTabs
+          languages={scope.languages}
+          activeLanguage={activeLanguage}
+          onChange={(language) => {
+            setDraftData(null);
+            setActiveLanguage(language);
+          }}
+        />
+      }
+      builder={
+        <PageBuilderEditor
+          data={currentData}
+          onChange={setDraftData}
+          contentKey={`${id ?? 'new'}:${activeLanguage ?? ''}`}
+          pageContainer
+        />
+      }
+    />
   );
 }

@@ -3,30 +3,57 @@
 
 import type { ComponentConfig, Config } from '@measured/puck';
 import { definePageBuilderComponent, withHideOn } from '@b2b/page-builder-core';
+import { Accordion } from './components/Accordion.js';
 import { Button } from './components/Button.js';
+import { CategoryGrid } from './components/CategoryGrid.js';
+import { CategoryList } from './components/CategoryList.js';
 import { Column } from './components/Column.js';
+import { ContentSlider } from './components/ContentSlider.js';
 import { Heading } from './components/Heading.js';
 import { Image } from './components/Image.js';
 import { InsertBlock } from './components/InsertBlock.js';
 import { InsertTemplate } from './components/InsertTemplate.js';
+import { Map } from './components/Map.js';
 import { MissingComponentPlaceholder } from './components/MissingComponentPlaceholder.js';
+import { ProductCard } from './components/ProductCard.js';
+import { ProductGrid } from './components/ProductGrid.js';
+import { ProductSlider } from './components/ProductSlider.js';
+import { RawHtml } from './components/RawHtml.js';
+import { RawJs } from './components/RawJs.js';
 import { RichContent } from './components/RichContent.js';
 import { Row } from './components/Row.js';
+import { Tabs } from './components/Tabs.js';
 import { Text } from './components/Text.js';
+import { Video } from './components/Video.js';
 
+export * from './components/Accordion.js';
 export * from './components/Button.js';
+export * from './components/CategoryGrid.js';
+export * from './components/CategoryList.js';
 export * from './components/Column.js';
+export * from './components/ContentSlider.js';
 export * from './components/Heading.js';
 export * from './components/Image.js';
 export * from './components/InsertBlock.js';
 export * from './components/InsertTemplate.js';
+export * from './components/Map.js';
 export * from './components/MissingComponentPlaceholder.js';
+export * from './components/ProductCard.js';
+export * from './components/ProductGrid.js';
+export * from './components/ProductSlider.js';
+export * from './components/RawHtml.js';
+export * from './components/RawJs.js';
 export * from './components/RichContent.js';
 export * from './components/Row.js';
+export * from './components/Tabs.js';
 export * from './components/Text.js';
+export * from './components/Video.js';
+export * from './components/CmsPageContainer.js';
 export * from './components/render-context.js';
+export * from './components/catalog-preview-context.js';
 export * from './components/box-styles.js';
 export * from './schema/component-types.js';
+export * from './schema/catalog-types.js';
 export * from './schema/envelope.js';
 
 export const defaultPageBuilderConfig: Config = {
@@ -40,6 +67,22 @@ export const defaultPageBuilderConfig: Config = {
       title: 'Content',
       components: ['Heading', 'Text', 'RichContent', 'Button', 'Image'],
       defaultExpanded: true,
+    },
+    media: {
+      title: 'Media',
+      components: ['Video', 'Map'],
+    },
+    catalog: {
+      title: 'Catalog',
+      components: ['ProductCard', 'ProductGrid', 'ProductSlider', 'CategoryList', 'CategoryGrid'],
+    },
+    interactive: {
+      title: 'Interactive',
+      components: ['ContentSlider', 'Tabs', 'Accordion'],
+    },
+    advanced: {
+      title: 'Advanced',
+      components: ['RawHtml', 'RawJs'],
     },
     embeds: {
       title: 'Embeds',
@@ -69,7 +112,7 @@ export const defaultPageBuilderConfig: Config = {
       responsiveFields: ['span', 'margin', 'padding', 'border'],
     }),
     Text: definePageBuilderComponent({
-      ...(withHideOn(Text as unknown as ComponentConfig) as ComponentConfig),
+      ...(Text as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['fontSize', 'fontWeight', 'textAlign', 'lineHeight', 'margin', 'padding', 'border'],
     }),
@@ -89,9 +132,69 @@ export const defaultPageBuilderConfig: Config = {
       responsiveFields: ['variant', 'margin', 'padding', 'border'],
     }),
     Image: definePageBuilderComponent({
-      ...(withHideOn(Image as unknown as ComponentConfig) as ComponentConfig),
+      ...(Image as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['widthMode', 'widthPx', 'align', 'margin', 'padding', 'border'],
+    }),
+    Video: definePageBuilderComponent({
+      ...(Video as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['maxWidth', 'align', 'margin', 'padding', 'border'],
+    }),
+    Map: definePageBuilderComponent({
+      ...(Map as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['height', 'margin', 'padding', 'border'],
+    }),
+    ProductCard: definePageBuilderComponent({
+      ...(ProductCard as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['margin', 'padding', 'border'],
+    }),
+    ProductGrid: definePageBuilderComponent({
+      ...(ProductGrid as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['columns', 'gap', 'view', 'margin', 'padding', 'border'],
+    }),
+    ProductSlider: definePageBuilderComponent({
+      ...(ProductSlider as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['slidesPerView', 'gap', 'margin', 'padding', 'border'],
+    }),
+    CategoryList: definePageBuilderComponent({
+      ...(CategoryList as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['margin', 'padding', 'border'],
+    }),
+    CategoryGrid: definePageBuilderComponent({
+      ...(CategoryGrid as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['columns', 'gap', 'margin', 'padding', 'border'],
+    }),
+    ContentSlider: definePageBuilderComponent({
+      ...(ContentSlider as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['slidesPerView', 'gap', 'margin', 'padding', 'border'],
+    }),
+    Tabs: definePageBuilderComponent({
+      ...(Tabs as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['margin', 'padding', 'border'],
+    }),
+    Accordion: definePageBuilderComponent({
+      ...(Accordion as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['margin', 'padding', 'border'],
+    }),
+    RawHtml: definePageBuilderComponent({
+      ...(RawHtml as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['margin', 'padding', 'border'],
+    }),
+    RawJs: definePageBuilderComponent({
+      ...(RawJs as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['margin', 'padding', 'border'],
     }),
     InsertBlock: definePageBuilderComponent({
       ...(withHideOn(InsertBlock as unknown as ComponentConfig) as ComponentConfig),

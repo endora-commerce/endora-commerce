@@ -21,6 +21,7 @@ import { getStoredScope } from '../editor/settings-scope-store.js';
 import { useComponentScope } from '../editor/use-component-scope.js';
 import { usePageBuilderPuck } from '../editor/use-page-builder-puck.js';
 import { PuckFieldLabel } from './puck-field-label.js';
+import { NativeColorInput } from './native-color-input.js';
 
 const inputClassName = '_Input-input_bsxfo_26';
 
@@ -66,11 +67,11 @@ function SideEditor({
           </option>
         ))}
       </select>
-      <input
-        type="color"
-        disabled={readOnly}
+      <NativeColorInput
+        className="h-9 w-full cursor-pointer rounded border border-border p-0.5"
+        readOnly={readOnly}
         value={side.color.startsWith('#') ? side.color : '#d9e0e7'}
-        onChange={(e): void => onChange({ ...side, color: e.target.value })}
+        onCommit={(hex): void => onChange({ ...side, color: hex })}
       />
     </div>
   );

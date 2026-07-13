@@ -2,9 +2,11 @@ export {
   DEFAULT_BREAKPOINTS,
   PAGE_BUILDER_CONTEXTS,
   PB_RESPONSIVE_METADATA,
+  PB_DATA_METADATA,
   SETTINGS_SCOPE_LABELS,
   hasResponsiveOverride,
   hideOnDataAttrs,
+  isDataField,
   isHiddenOnTier,
   isResponsiveField,
   isResponsiveProp,
@@ -97,5 +99,6 @@ export {
 export { createSpacingField } from './fields/spacing-field.js';
 export { createBorderField } from './fields/border-field.js';
 export { createColorField } from './fields/color-field.js';
+export { NativeColorInput } from './fields/native-color-input.js';
 
 export { withHideOn } from './visibility/with-hide-on.js';

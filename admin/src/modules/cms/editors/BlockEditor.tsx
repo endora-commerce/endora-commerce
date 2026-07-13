@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useTranslation } from '@/i18n/useTranslation';
 import { normalize } from '@/lib/admin-actions/normalize';
 import { ContentLanguageTabs } from '../components/ContentLanguageTabs';
+import { CmsContentEditorLayout } from '../components/CmsContentEditorLayout';
 import { PageBuilderEditor } from '../components/PageBuilderEditor';
 import { ScopePicker, type CmsScopeValue } from '../components/ScopePicker';
 import { resolveScopedContentLanguage } from '../components/scope-utils';
@@ -174,33 +175,37 @@ export function BlockEditor(): ReactNode {
   };
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title={isNew ? t('blockEditor.title.new') : form.name || t('blockEditor.title.edit')}
-        description={t('blockEditor.description')}
-        actions={
-          <div className="flex gap-2">
-            <Button asChild variant="outline">
-              <Link to="/cms/blocks">{t('common.back')}</Link>
-            </Button>
-            <SaveButtonGroup
-              onSave={() => void save()}
-              onSaveAndExit={() => void saveAndExit()}
-              saving={saving}
-              saveLabel={t('common.save')}
-              savingLabel={t('common.saving')}
-              saveAndExitLabel={t('common.saveAndExit')}
-            />
-          </div>
-        }
-      />
-      {error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      <div className="grid grid-cols-12 gap-4">
-        <div className="col-span-4 space-y-4">
+    <CmsContentEditorLayout
+      header={
+        <>
+          <PageHeader
+            title={isNew ? t('blockEditor.title.new') : form.name || t('blockEditor.title.edit')}
+            description={t('blockEditor.description')}
+            actions={
+              <div className="flex gap-2">
+                <Button asChild variant="outline">
+                  <Link to="/cms/blocks">{t('common.back')}</Link>
+                </Button>
+                <SaveButtonGroup
+                  onSave={() => void save()}
+                  onSaveAndExit={() => void saveAndExit()}
+                  saving={saving}
+                  saveLabel={t('common.save')}
+                  savingLabel={t('common.saving')}
+                  saveAndExitLabel={t('common.saveAndExit')}
+                />
+              </div>
+            }
+          />
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
+        </>
+      }
+      settings={
+        <>
           <Card>
             <CardHeader>
               <CardTitle className="text-base">{t('blockEditor.metadata')}</CardTitle>
@@ -215,8 +220,6 @@ export function BlockEditor(): ReactNode {
                     setForm((f) => ({
                       ...f,
                       name,
-                      // New block: keep the code in sync with the name until
-                      // the editor overrides it.
                       ...(isNew && !codeEdited ? { code: codeFromName(name) } : {}),
                     }));
                   }}
@@ -251,23 +254,25 @@ export function BlockEditor(): ReactNode {
             </CardContent>
           </Card>
           <ScopePicker value={scope} onChange={setScope} />
-        </div>
-        <div className="col-span-8 space-y-3">
-          <ContentLanguageTabs
-            languages={scope.languages}
-            activeLanguage={activeLanguage}
-            onChange={(language) => {
-              setDraftData(null);
-              setActiveLanguage(language);
-            }}
-          />
-          <PageBuilderEditor
-            data={currentData}
-            onChange={setDraftData}
-            contentKey={`${id ?? 'new'}:${activeLanguage ?? ''}`}
-          />
-        </div>
-      </div>
-    </div>
+        </>
+      }
+      languageTabs={
+        <ContentLanguageTabs
+          languages={scope.languages}
+          activeLanguage={activeLanguage}
+          onChange={(language) => {
+            setDraftData(null);
+            setActiveLanguage(language);
+          }}
+        />
+      }
+      builder={
+        <PageBuilderEditor
+          data={currentData}
+          onChange={setDraftData}
+          contentKey={`${id ?? 'new'}:${activeLanguage ?? ''}`}
+        />
+      }
+    />
   );
 }

@@ -41,7 +41,7 @@ export function BlocksListPage(): ReactNode {
   }, [load]);
 
   return (
-    <div className="space-y-4">
+    <div className="b2b-page b2b-page--wide space-y-4">
       <PageHeader
         title={t('blocksList.title')}
         description={t('blocksList.description')}

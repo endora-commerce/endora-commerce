@@ -132,3 +132,143 @@ export interface InsertBlockProps extends HideOnProps {
 export interface InsertTemplateProps extends HideOnProps {
   code: string;
 }
+
+export type VideoProvider = 'auto' | 'youtube' | 'vimeo' | 'generic';
+export type VideoAspectRatio = '16:9' | '4:3' | '1:1';
+
+export interface RawHtmlProps extends HideOnProps, BoxStyleProps {
+  html: string;
+  sanitize?: boolean;
+}
+
+export interface RawJsProps extends HideOnProps, BoxStyleProps {
+  script: string;
+  runOnce?: boolean;
+}
+
+export interface VideoProps extends HideOnProps, BoxStyleProps {
+  url: string;
+  provider?: VideoProvider;
+  aspectRatio?: VideoAspectRatio;
+  title?: string;
+  autoplay?: boolean;
+  muted?: boolean;
+  loop?: boolean;
+  controls?: boolean;
+  maxWidth?: number | ResponsiveProp<number>;
+  align?: ImageAlign | ResponsiveProp<ImageAlign>;
+}
+
+export interface ContentSliderProps extends HideOnProps, BoxStyleProps {
+  slides: Slot;
+  slidesPerView?: number | ResponsiveProp<number>;
+  gap?: number | ResponsiveProp<number>;
+  autoplay?: boolean;
+  intervalMs?: number;
+  showArrows?: boolean;
+  showDots?: boolean;
+}
+
+export interface TabItem {
+  label: string;
+  content: string;
+}
+
+export interface TabsProps extends HideOnProps, BoxStyleProps {
+  items: TabItem[];
+  defaultTab?: number;
+  variant?: 'underline' | 'pills' | 'boxed';
+  align?: 'start' | 'center' | 'stretch';
+}
+
+export interface AccordionItem {
+  title: string;
+  content: string;
+}
+
+export interface AccordionProps extends HideOnProps, BoxStyleProps {
+  items: AccordionItem[];
+  allowMultiple?: boolean;
+  defaultOpen?: number[];
+  iconPosition?: 'start' | 'end';
+  variant?: 'default' | 'flush' | 'bordered';
+}
+
+export type ProductSource = 'manual' | 'category' | 'query';
+
+export interface CmsProductCardProps extends HideOnProps, BoxStyleProps {
+  productSlug: string;
+  showPrice?: boolean;
+  showSku?: boolean;
+  showStock?: boolean;
+  imageRatio?: 'square' | '4:3';
+  variant?: 'default' | 'compact' | 'horizontal';
+  ctaLabel?: string;
+}
+
+export interface ProductGridProps extends HideOnProps, BoxStyleProps {
+  source?: ProductSource;
+  productSlugs?: string[];
+  categorySlug?: string;
+  searchQuery?: string;
+  limit?: number;
+  columns?: number | ResponsiveProp<number>;
+  gap?: number | ResponsiveProp<number>;
+  view?: 'grid' | 'list' | ResponsiveProp<'grid' | 'list'>;
+}
+
+export interface ProductSliderProps extends HideOnProps, BoxStyleProps {
+  source?: ProductSource;
+  productSlugs?: string[];
+  categorySlug?: string;
+  searchQuery?: string;
+  limit?: number;
+  slidesPerView?: number | ResponsiveProp<number>;
+  gap?: number | ResponsiveProp<number>;
+  autoplay?: boolean;
+  intervalMs?: number;
+  showArrows?: boolean;
+  showDots?: boolean;
+}
+
+export type CategorySelectionMode = 'all' | 'manual' | 'childrenOf';
+
+export interface CategoryListProps extends HideOnProps, BoxStyleProps {
+  selectionMode?: CategorySelectionMode;
+  categorySlugs?: string[];
+  parentSlug?: string;
+  layout?: 'list' | 'inline' | 'chips';
+  showCounts?: boolean;
+  maxDepth?: number;
+}
+
+export interface CategoryGridProps extends HideOnProps, BoxStyleProps {
+  selectionMode?: CategorySelectionMode;
+  categorySlugs?: string[];
+  parentSlug?: string;
+  columns?: number | ResponsiveProp<number>;
+  gap?: number | ResponsiveProp<number>;
+  showImage?: boolean;
+  cardStyle?: 'overlay' | 'stacked' | 'minimal';
+  showCounts?: boolean;
+  maxDepth?: number;
+}
+
+export interface MapMarker {
+  lat: number;
+  lng: number;
+  label?: string;
+  link?: string;
+}
+
+export type MapProvider = 'leaflet' | 'google';
+
+export interface MapProps extends HideOnProps, BoxStyleProps {
+  provider?: MapProvider;
+  height?: number | ResponsiveProp<number>;
+  centerLat?: number;
+  centerLng?: number;
+  zoom?: number;
+  markers?: MapMarker[];
+  googleApiKey?: string;
+}

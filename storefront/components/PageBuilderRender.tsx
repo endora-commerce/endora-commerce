@@ -3,7 +3,7 @@
 import { Render } from '@measured/puck';
 import type { CSSProperties, ReactNode } from 'react';
 import { breakpointCssVars, type PageBuilderBreakpoints } from '@b2b/page-builder-core';
-import { defaultPageBuilderConfig } from '@b2b/cms-components';
+import { defaultPageBuilderConfig, withCmsPageRoot } from '@b2b/cms-components';
 
 export function PageBuilderBreakpointProvider({
   breakpoints,
@@ -36,13 +36,18 @@ export function PageBuilderBreakpointProvider({
 export function PageBuilderRender({
   data,
   breakpoints,
+  pageContainer = false,
 }: {
   data: unknown;
   breakpoints?: PageBuilderBreakpoints;
+  /** Wrap content in the CMS page max-width shell (storefront pages only). */
+  pageContainer?: boolean;
 }) {
+  const config = pageContainer ? withCmsPageRoot(defaultPageBuilderConfig) : defaultPageBuilderConfig;
+
   return (
     <PageBuilderBreakpointProvider {...(breakpoints === undefined ? {} : { breakpoints })}>
-      <Render config={defaultPageBuilderConfig} data={data as never} />
+      <Render config={config} data={data as never} />
     </PageBuilderBreakpointProvider>
   );
 }

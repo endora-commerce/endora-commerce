@@ -760,6 +760,7 @@ export function AppShell(): ReactNode {
   }, [location.pathname]);
 
   const crumbs = useMemo(() => buildCrumbs(location.pathname), [location.pathname]);
+  const isCmsRoute = location.pathname.startsWith('/cms');
 
   return (
     <div
@@ -981,7 +982,7 @@ export function AppShell(): ReactNode {
               <Menu size={20} />
             </button>
           ) : null}
-          <div className="b2b-topbar__crumbs">
+          <div className={isCmsRoute ? 'b2b-topbar__crumbs-inner b2b-page b2b-page--wide' : 'b2b-topbar__crumbs'}>
             {crumbs.map((c, i) => (
               <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 {i > 0 ? <ChevronRight size={12} className="crumb-sep" /> : null}

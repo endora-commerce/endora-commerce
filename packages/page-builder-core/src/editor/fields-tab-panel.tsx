@@ -13,7 +13,7 @@ import {
 import { FieldLabel } from '@measured/puck';
 import type { Field } from '@measured/puck';
 import { SETTINGS_SCOPE_LABELS, type SettingsScope } from '../types/responsive.js';
-import { fieldTabForName, componentHasResponsiveFields } from './field-tabs.js';
+import { fieldTabForName, componentHasDataFields, componentHasResponsiveFields } from './field-tabs.js';
 import { setStoredScope } from './settings-scope-store.js';
 import {
   getStoredSettingsTab,
@@ -28,8 +28,16 @@ const SCOPE_OPTIONS: SettingsScope[] = ['base', 'tablet', 'desktop'];
 
 const TAB_LABELS: Record<SettingsTab, string> = {
   general: 'General',
+  data: 'Data',
   responsive: 'Responsive',
 };
+
+function visibleTabs(hasData: boolean, hasResponsive: boolean): SettingsTab[] {
+  const tabs: SettingsTab[] = ['general'];
+  if (hasData) tabs.push('data');
+  if (hasResponsive) tabs.push('responsive');
+  return tabs;
+}
 
 const tabBarStyle: React.CSSProperties = {
   display: 'flex',
@@ -111,21 +119,33 @@ function ScopeSelectorControl(): ReactElement {
   );
 }
 
-function useSettingsTab(componentId: string | undefined, hasResponsive: boolean): SettingsTab {
-  const [tab, setTab] = useState<SettingsTab>(() => getStoredSettingsTab(componentId));
+function useSettingsTab(
+  componentId: string | undefined,
+  hasData: boolean,
+  hasResponsive: boolean,
+): SettingsTab {
+  const hasTabs = hasData || hasResponsive;
+  const tabs = visibleTabs(hasData, hasResponsive);
+  const [tab, setTab] = useState<SettingsTab>(() => {
+    const stored = getStoredSettingsTab(componentId);
+    return tabs.includes(stored) ? stored : 'general';
+  });
 
   useEffect(() => {
     const stored = getStoredSettingsTab(componentId);
-    setTab(hasResponsive ? stored : 'general');
-  }, [componentId, hasResponsive]);
+    const allowed = visibleTabs(hasData, hasResponsive);
+    setTab(hasTabs && allowed.includes(stored) ? stored : 'general');
+  }, [componentId, hasData, hasResponsive, hasTabs]);
 
   useEffect(() => {
     return subscribeSettingsTab(() => {
-      setTab(getStoredSettingsTab(componentId));
+      const stored = getStoredSettingsTab(componentId);
+      const allowed = visibleTabs(hasData, hasResponsive);
+      setTab(hasTabs && allowed.includes(stored) ? stored : 'general');
     });
-  }, [componentId]);
+  }, [componentId, hasData, hasResponsive, hasTabs]);
 
-  return hasResponsive ? tab : 'general';
+  return hasTabs ? tab : 'general';
 }
 
 function childFieldName(child: ReactNode): string | null {
@@ -146,7 +166,10 @@ function FieldsTabPanelInner({
   const config = usePageBuilderPuck((s) => s.config);
   const fields = itemType ? config.components[itemType]?.fields : undefined;
   const hasResponsive = componentHasResponsiveFields(fields);
-  const activeTab = useSettingsTab(componentId, hasResponsive);
+  const hasData = componentHasDataFields(fields);
+  const hasTabs = hasResponsive || hasData;
+  const activeTab = useSettingsTab(componentId, hasData, hasResponsive);
+  const tabs = visibleTabs(hasData, hasResponsive);
 
   const childEntries = useMemo(
     () =>
@@ -159,9 +182,9 @@ function FieldsTabPanelInner({
 
   return (
     <div style={panelStyle}>
-      {hasResponsive ? (
+      {hasTabs ? (
         <div style={{ ...tabBarStyle, paddingInline: '16px' }} role="tablist" aria-label="Component settings">
-          {(['general', 'responsive'] as const).map((tab) => (
+          {tabs.map((tab) => (
             <button
               key={tab}
               type="button"
@@ -181,7 +204,7 @@ function FieldsTabPanelInner({
           if (!fieldName) return <div key="pb-field-unknown">{child}</div>;
           const field = fields?.[fieldName] as Field | undefined;
           const tab = fieldTabForName(fieldName, field);
-          const visible = !hasResponsive || tab === activeTab;
+          const visible = !hasTabs || tab === activeTab;
           return (
             <div key={fieldName} style={{ display: visible ? 'block' : 'none' }}>
               {child}

@@ -23,7 +23,7 @@ export function CmsPageRenderer({ page }: { page: CmsResolvedPage }) {
   return (
     <CmsRenderProvider embeds={embeds}>
       <Hook code="cms.page.top" />
-      <PageBuilderRender data={page.content.data} />
+      <PageBuilderRender data={page.content.data} pageContainer />
       <Hook code="cms.page.bottom" />
     </CmsRenderProvider>
   );

@@ -40,7 +40,7 @@ export function TemplatesListPage(): ReactNode {
   }, [load]);
 
   return (
-    <div className="space-y-4">
+    <div className="b2b-page b2b-page--wide space-y-4">
       <PageHeader
         title={t('templatesList.title')}
         description={t('templatesList.description')}

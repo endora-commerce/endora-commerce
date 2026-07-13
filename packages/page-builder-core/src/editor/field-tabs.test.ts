@@ -1,7 +1,11 @@
 import { createElement } from 'react';
 import { describe, expect, it } from 'vitest';
-import { fieldTabForName, componentHasResponsiveFields } from '../editor/field-tabs.js';
-import { PB_RESPONSIVE_METADATA } from '../types/responsive.js';
+import {
+  componentHasDataFields,
+  componentHasResponsiveFields,
+  fieldTabForName,
+} from '../editor/field-tabs.js';
+import { PB_DATA_METADATA, PB_RESPONSIVE_METADATA } from '../types/responsive.js';
 
 describe('fieldTabForName', () => {
   it('routes editor chrome to general', () => {
@@ -15,11 +19,24 @@ describe('fieldTabForName', () => {
     expect(fieldTabForName('gap', { type: 'number', label: 'Gap', metadata: PB_RESPONSIVE_METADATA })).toBe('responsive');
   });
 
+  it('routes data metadata fields to data tab', () => {
+    expect(fieldTabForName('source', { type: 'select', label: 'Source', metadata: PB_DATA_METADATA })).toBe('data');
+  });
+
   it('detects responsive fields on a component', () => {
     expect(
       componentHasResponsiveFields({
         background: { type: 'text', label: 'Background' },
         gap: { type: 'number', label: 'Gap', metadata: PB_RESPONSIVE_METADATA },
+      }),
+    ).toBe(true);
+  });
+
+  it('detects data fields on a component', () => {
+    expect(
+      componentHasDataFields({
+        source: { type: 'select', label: 'Source', metadata: PB_DATA_METADATA },
+        columns: { type: 'number', label: 'Columns' },
       }),
     ).toBe(true);
   });

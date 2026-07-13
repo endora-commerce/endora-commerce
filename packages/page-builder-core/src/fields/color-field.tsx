@@ -12,6 +12,7 @@ import {
   isValidHexColor,
   parseColorTextInput,
 } from './color-field-utils.js';
+import { NativeColorInput } from './native-color-input.js';
 
 const inputClassName = '_Input-input_bsxfo_26';
 const controlHeightClass = 'h-9';
@@ -98,12 +99,11 @@ function ColorFieldControl({
   return (
     <PuckFieldLabel label={label} {...(readOnly === true ? { readOnly: true } : {})}>
       <div className={`flex items-center gap-2 ${controlHeightClass}`}>
-        <input
-          type="color"
+        <NativeColorInput
           className={`${controlHeightClass} w-12 shrink-0 cursor-pointer rounded border border-border p-0.5`}
-          disabled={readOnly === true}
+          readOnly={readOnly}
           value={colorPickerDisplayHex(draft)}
-          onChange={(e): void => commit(e.target.value)}
+          onCommit={(hex): void => commit(hex)}
         />
         <input
           type="text"

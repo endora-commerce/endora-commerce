@@ -1,4 +1,4 @@
-export type SettingsTab = 'general' | 'responsive';
+export type SettingsTab = 'general' | 'data' | 'responsive';
 
 const tabByComponentId = new Map<string, SettingsTab>();
 const listeners = new Set<() => void>();
