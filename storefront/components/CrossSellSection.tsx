@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { ProductLinkSummary } from './ProductLinksSections';
 import { formatMoney } from '../lib/i18n/money';
+import { toAbsoluteAssetUrl } from '../lib/asset-url';
 
 /**
  * Feature 002 US4 — "You may also need" section on the
@@ -48,7 +49,7 @@ export function CrossSellSection(props: {
             >
               {link.product.primaryAssetUrl ? (
                 <img
-                  src={link.product.primaryAssetUrl}
+                  src={toAbsoluteAssetUrl(link.product.primaryAssetUrl)}
                   alt=""
                   className="aspect-square w-full rounded-sm bg-surface-alt object-contain"
                   loading="lazy"

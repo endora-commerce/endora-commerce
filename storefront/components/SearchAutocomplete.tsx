@@ -15,6 +15,7 @@ import {
   SearchSuggestError,
   type SuggestResponse,
 } from '../lib/api/search';
+import { toAbsoluteAssetUrl } from '../lib/asset-url';
 
 /**
  * SearchAutocomplete — feature 006 / US1 / T015.
@@ -279,7 +280,7 @@ export function SearchAutocomplete(props: SearchAutocompleteProps): ReactNode {
                       {p.primaryAssetUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={p.primaryAssetUrl}
+                          src={toAbsoluteAssetUrl(p.primaryAssetUrl)}
                           alt=""
                           loading="lazy"
                           className="max-h-full max-w-full object-contain"

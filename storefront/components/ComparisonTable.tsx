@@ -15,6 +15,7 @@ import {
   setComparisonDisplayMode,
 } from '../lib/api/comparisons';
 import { CompareAddToCartButton } from './CompareAddToCartButton';
+import { toAbsoluteAssetUrl } from '../lib/asset-url';
 
 /**
  * Comparison table — feature 007 / T032, restyled to match the Industria
@@ -138,7 +139,7 @@ export function ComparisonTable(): ReactNode {
                   <div className="industria-cmp-card">
                     <div className="industria-cmp-card__media">
                       {p.primaryAssetUrl ? (
-                        <img src={p.primaryAssetUrl} alt={localised(p.name)} loading="lazy" />
+                        <img src={toAbsoluteAssetUrl(p.primaryAssetUrl)} alt={localised(p.name)} loading="lazy" />
                       ) : (
                         <PlaceholderGlyph />
                       )}
