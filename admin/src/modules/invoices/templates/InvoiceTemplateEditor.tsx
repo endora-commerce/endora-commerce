@@ -31,6 +31,7 @@ export function InvoiceTemplateEditor(): ReactNode {
   const navigate = useNavigate();
   const [tpl, setTpl] = useState<TemplateDetail | null>(null);
   const [draft, setDraft] = useState<Data>(emptyData);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -53,6 +54,7 @@ export function InvoiceTemplateEditor(): ReactNode {
       setTpl(res.data);
       const tree = res.data.content.languages?.[LANGUAGE] ?? emptyData;
       setDraft(tree);
+      setLoaded(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load template.');
     }
@@ -140,6 +142,12 @@ export function InvoiceTemplateEditor(): ReactNode {
                 fullscreen ? 'min-h-0 flex-1' : 'min-h-[560px]',
               )}
             >
+              {/* Puck seeds its internal state from `data` only on mount; it
+                  ignores later `data` prop changes. Mounting it before the
+                  template has loaded would seed it with `emptyData` and leave
+                  the canvas blank even though the saved tree arrived later.
+                  Gate the mount on `loaded` so Puck seeds from the real tree. */}
+              {loaded ? (
               <Puck
                 key={`${id}:${LANGUAGE}`}
                 config={invoicePuckConfig}
@@ -169,6 +177,11 @@ export function InvoiceTemplateEditor(): ReactNode {
                   ),
                 }}
               />
+              ) : (
+                <div className="flex min-h-[560px] items-center justify-center text-sm text-muted-foreground">
+                  {t('invoiceTemplates.loading')}
+                </div>
+              )}
             </div>
           </div>
         </CardContent>

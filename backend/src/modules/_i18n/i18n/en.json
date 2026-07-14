@@ -1678,6 +1678,7 @@
   "invoiceTemplates.description": "Customize the invoice PDF layout (WYSIWYG), globally or per sales channel.",
   "invoiceTemplates.create": "Create template",
   "invoiceTemplates.saved": "Template saved.",
+  "invoiceTemplates.loading": "Loading template…",
   "invoiceTemplates.fullscreen.enter": "Fullscreen",
   "invoiceTemplates.fullscreen.exit": "Exit fullscreen",
   "invoiceTemplates.editTitle": "Invoice template",
