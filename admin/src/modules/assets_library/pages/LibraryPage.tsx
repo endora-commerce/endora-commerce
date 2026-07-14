@@ -2,7 +2,7 @@
 // Three-pane Magento-2-Media-Gallery–style layout: folder tree + asset grid
 // + per-asset detail drawer. Inline upload affordance per current folder.
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -25,10 +25,16 @@ export function LibraryPage(): ReactNode {
   const [folderId, setFolderId] = useState<string | null>(null); // null = Unsorted (root)
   const [items, setItems] = useState<AssetSummary[]>([]);
   const [q, setQ] = useState('');
+  const [debouncedQ, setDebouncedQ] = useState('');
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+
+  const PAGE_SIZE = 60;
 
   const loadFolders = useCallback(async (): Promise<void> => {
     try {
@@ -38,29 +44,78 @@ export function LibraryPage(): ReactNode {
     }
   }, []);
 
-  const loadItems = useCallback(async (): Promise<void> => {
+  // Debounce the search box so each keystroke does not fire a request; the
+  // actual filtering is done server-side (see loadFirstPage), so the search
+  // covers every asset in the folder, not only the ones already loaded.
+  useEffect(() => {
+    const h = setTimeout(() => setDebouncedQ(q), 300);
+    return () => clearTimeout(h);
+  }, [q]);
+
+  // First page — replaces the list. Runs on folder change or a new search.
+  const loadFirstPage = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
     try {
       const out = await assetsLibraryClient.listAssets({
         folderId,
-        ...(q ? { q } : {}),
-        limit: 60,
+        ...(debouncedQ ? { q: debouncedQ } : {}),
+        limit: PAGE_SIZE,
       });
       setItems(out.data);
+      setCursor(out.nextCursor);
+      setHasMore(out.nextCursor !== null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [folderId, q]);
+  }, [folderId, debouncedQ]);
+
+  // Next page — appends, keyed off the server cursor.
+  const loadMore = useCallback(async (): Promise<void> => {
+    if (!cursor || loadingMore) return;
+    setLoadingMore(true);
+    setError(null);
+    try {
+      const out = await assetsLibraryClient.listAssets({
+        folderId,
+        ...(debouncedQ ? { q: debouncedQ } : {}),
+        cursor,
+        limit: PAGE_SIZE,
+      });
+      setItems((prev) => [...prev, ...out.data]);
+      setCursor(out.nextCursor);
+      setHasMore(out.nextCursor !== null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [folderId, debouncedQ, cursor, loadingMore]);
 
   useEffect(() => {
     void loadFolders();
   }, [loadFolders]);
   useEffect(() => {
-    void loadItems();
-  }, [loadItems]);
+    void loadFirstPage();
+  }, [loadFirstPage]);
+
+  // Infinite scroll — auto-load the next page when the sentinel scrolls into
+  // view. The "Load more" button remains as an explicit fallback.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || !hasMore) return undefined;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) void loadMore();
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore, loadMore]);
+
+  // Backwards-compatible alias — child callbacks call loadItems() to refresh.
+  const loadItems = loadFirstPage;
 
   const onCreateFolder = async (parentId: string | null, name: string): Promise<void> => {
     try {
@@ -143,12 +198,12 @@ export function LibraryPage(): ReactNode {
                 value={q}
                 onChange={(e): void => setQ(e.target.value)}
                 onKeyDown={(e): void => {
-                  if (e.key === 'Enter') void loadItems();
+                  if (e.key === 'Enter') setDebouncedQ(q);
                 }}
                 placeholder={t('assets.searchPlaceholder')}
                 className="w-64"
               />
-              <Button type="button" variant="outline" size="sm" onClick={(): void => void loadItems()}>
+              <Button type="button" variant="outline" size="sm" onClick={(): void => setDebouncedQ(q)}>
                 {t('common.search')}
               </Button>
             </div>
@@ -199,6 +254,20 @@ export function LibraryPage(): ReactNode {
                 ))}
               </div>
             )}
+
+            {!loading && hasMore ? (
+              <div ref={sentinelRef} className="flex justify-center pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={loadingMore}
+                  onClick={(): void => void loadMore()}
+                >
+                  {loadingMore ? t('common.loading') : t('assets.loadMore')}
+                </Button>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 

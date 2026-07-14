@@ -83,39 +83,41 @@ export class AssetsLibraryService {
   async listAssets(query: ListAssetsQuery): Promise<{ data: AssetSummary[]; nextCursor: string | null }> {
     const em = this.deps.emFactory();
     const limit = Math.min(Math.max(query.limit ?? 50, 1), 100);
-    const where: Record<string, unknown> = {};
-    if (query.folderId !== undefined) where['folderId'] = query.folderId;
-    if (query.visibility) where['visibility'] = query.visibility;
-    if (query.mime) where['mimeType'] = { $like: `${query.mime}%` };
+    // Build the predicate as an $and of independent clauses so the search OR
+    // (filename/label) does not collide with any other clause on a single
+    // top-level `$or` key.
+    const clauses: Record<string, unknown>[] = [];
+    if (query.folderId !== undefined) clauses.push({ folderId: query.folderId });
+    if (query.visibility) clauses.push({ visibility: query.visibility });
+    if (query.mime) clauses.push({ mimeType: { $like: `${query.mime}%` } });
     if (query.q) {
-      where['$or'] = [
-        { filename: { $ilike: `%${query.q}%` } },
-        { label: { $ilike: `%${query.q}%` } },
-      ];
+      clauses.push({
+        $or: [
+          { filename: { $ilike: `%${query.q}%` } },
+          { label: { $ilike: `%${query.q}%` } },
+        ],
+      });
     }
-    if (!query.includeDeleted) where['deletedAt'] = null;
+    if (!query.includeDeleted) clauses.push({ deletedAt: null });
 
-    // Cursor encodes (createdAt, id) for stable pagination.
-    if (query.cursor) {
-      const decoded = decodeCursor(query.cursor);
-      if (decoded) {
-        where['$or'] = [
-          ...(Array.isArray(where['$or']) ? (where['$or'] as unknown[]) : []),
-        ];
-        where['createdAt'] = { $lte: decoded.createdAt };
-        // Use id as a secondary key with `$lt` when createdAt ties.
-      }
-    }
+    const where: Record<string, unknown> = clauses.length > 0 ? { $and: clauses } : {};
+
+    // Offset-based pagination. The opaque cursor carries the next offset.
+    // Keyset pagination is not usable here: `createdAt` is stored with
+    // microsecond precision but a JS Date (and the ISO cursor) only carries
+    // milliseconds, so a keyset boundary on (createdAt, id) silently drops the
+    // rows that share a truncated instant. Offset over a total order
+    // (createdAt DESC, id DESC) is precision-independent and correct.
+    const offset = query.cursor ? (decodeCursor(query.cursor) ?? 0) : 0;
 
     const rows = await em.find(Asset, where, {
       orderBy: { createdAt: 'desc', id: 'desc' },
+      offset,
       limit: limit + 1,
     });
     const overflow = rows.length > limit;
     const page = overflow ? rows.slice(0, limit) : rows;
-    const nextCursor = overflow && page.length > 0
-      ? encodeCursor({ createdAt: page[page.length - 1]!.createdAt, id: page[page.length - 1]!.id })
-      : null;
+    const nextCursor = overflow ? encodeCursor(offset + limit) : null;
     const summaries = await Promise.all(page.map((a) => this.summary(a)));
     return { data: summaries, nextCursor };
   }
@@ -269,16 +271,19 @@ export class AssetsLibraryService {
   }
 }
 
-function encodeCursor(c: { createdAt: Date; id: string }): string {
-  return Buffer.from(`${c.createdAt.toISOString()}|${c.id}`, 'utf8').toString('base64url');
+/** Encode a pagination offset as an opaque base64url cursor. */
+function encodeCursor(offset: number): string {
+  return Buffer.from(`o:${offset}`, 'utf8').toString('base64url');
 }
 
-function decodeCursor(c: string): { createdAt: Date; id: string } | null {
+/** Decode an opaque cursor back into a non-negative offset, or null if invalid. */
+function decodeCursor(c: string): number | null {
   try {
     const raw = Buffer.from(c, 'base64url').toString('utf8');
-    const [ts, id] = raw.split('|', 2);
-    if (!ts || !id) return null;
-    return { createdAt: new Date(ts), id };
+    const m = raw.match(/^o:(\d+)$/);
+    if (!m) return null;
+    const n = Number(m[1]);
+    return Number.isSafeInteger(n) && n >= 0 ? n : null;
   } catch {
     return null;
   }

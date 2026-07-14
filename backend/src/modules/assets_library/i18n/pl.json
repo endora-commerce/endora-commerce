@@ -27,6 +27,7 @@
   "assets.title": "Zasoby",
   "assets.searchPlaceholder": "Szukaj po nazwie pliku lub etykiecie…",
   "assets.emptyFolder": "W tym folderze nie ma jeszcze zasobów.",
+  "assets.loadMore": "Wczytaj więcej",
   "picker.searchPlaceholder": "Szukaj po nazwie pliku lub etykiecie…",
   "picker.empty": "Żadne zasoby nie pasują jeszcze do tego zapytania.",
   "picker.uploadNew": "Lub prześlij nowy zasób",

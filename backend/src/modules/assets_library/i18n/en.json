@@ -27,6 +27,7 @@
   "assets.title": "Assets",
   "assets.searchPlaceholder": "Search filename or label…",
   "assets.emptyFolder": "No assets in this folder yet.",
+  "assets.loadMore": "Load more",
   "picker.searchPlaceholder": "Search by filename or label…",
   "picker.empty": "No assets match this query yet.",
   "picker.uploadNew": "Or upload a new asset",
