@@ -16,6 +16,23 @@ import {
   type AssetDetail,
 } from '../api/assets-library-client';
 
+const apiBaseUrl =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
+
+/**
+ * The backend serves files at /assets/file/:assetId and returns a host-relative
+ * URL when publicUrlBase is blank (the default). The admin runs on a different
+ * origin than the backend, so opening such a URL hits the admin SPA (which
+ * renders "page not found") instead of the file. Prefix host-relative URLs
+ * with the API base; absolute/data/blob URLs pass through unchanged.
+ */
+function toAbsoluteAssetUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  if (/^(https?:|data:|blob:)/i.test(url)) return url;
+  if (url.startsWith('/')) return `${apiBaseUrl.replace(/\/+$/, '')}${url}`;
+  return url;
+}
+
 // Curated set of MIME types the Assets Library handles (image / video / pdf).
 // The MIME type is a technical identifier, so it is offered as a fixed dropdown
 // rather than a free-text field to prevent typos and unsupported values.
@@ -116,7 +133,7 @@ export function AssetDetailDrawer({
         {detail.mimeType.startsWith('image/') ? (
           // eslint-disable-next-line jsx-a11y/alt-text
           <img
-            src={detail.url}
+            src={toAbsoluteAssetUrl(detail.url)}
             className="w-full rounded border bg-muted/30 object-contain"
           />
         ) : (
@@ -126,7 +143,7 @@ export function AssetDetailDrawer({
         )}
 
         <a
-          href={detail.url}
+          href={toAbsoluteAssetUrl(detail.url)}
           target="_blank"
           rel="noopener"
           className="inline-flex items-center gap-1 text-xs underline"
