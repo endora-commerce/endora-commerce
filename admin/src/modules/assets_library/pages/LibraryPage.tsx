@@ -12,6 +12,7 @@ import { useTranslation } from '@/i18n/useTranslation';
 import { FolderTree } from '../components/FolderTree';
 import { AssetUploader } from '../components/AssetUploader';
 import { AssetDetailDrawer } from '../components/AssetDetailDrawer';
+import { toAbsoluteAssetUrl } from '../lib/asset-url';
 import {
   assetsLibraryClient,
   type AssetFolder,
@@ -181,7 +182,7 @@ export function LibraryPage(): ReactNode {
                     {a.mimeType.startsWith('image/') ? (
                       // eslint-disable-next-line jsx-a11y/alt-text
                       <img
-                        src={a.url}
+                        src={toAbsoluteAssetUrl(a.url)}
                         loading="lazy"
                         className="aspect-square w-full rounded object-cover"
                       />
