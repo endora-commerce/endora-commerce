@@ -33,6 +33,21 @@ function toAbsoluteAssetUrl(url: string | null | undefined): string {
   return url;
 }
 
+// Curated set of MIME types the Assets Library handles (image / video / pdf).
+// The MIME type is a technical identifier, so it is offered as a fixed dropdown
+// rather than a free-text field to prevent typos and unsupported values.
+const MIME_TYPE_OPTIONS = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/svg+xml',
+  'image/avif',
+  'video/mp4',
+  'video/webm',
+  'application/pdf',
+] as const;
+
 export interface AssetDetailDrawerProps {
   assetId: string;
   onChanged: () => void;
@@ -145,13 +160,28 @@ export function AssetDetailDrawer({
           disabled={busy}
           saveLabel={t('common.save')}
         />
-        <Field
-          label={t('detail.mimeType')}
-          value={detail.mimeType}
-          onSave={(v): Promise<void> => save({ mimeType: v })}
-          disabled={busy}
-          saveLabel={t('common.save')}
-        />
+        <div className="space-y-1">
+          <Label>{t('detail.mimeType')}</Label>
+          <Select
+            value={detail.mimeType}
+            onChange={(e): void => {
+              const v = e.target.value;
+              if (v !== detail.mimeType) void save({ mimeType: v });
+            }}
+            disabled={busy}
+          >
+            {/* Preserve an existing value that falls outside the curated list
+                so the current MIME type is shown and not silently lost. */}
+            {MIME_TYPE_OPTIONS.includes(detail.mimeType as (typeof MIME_TYPE_OPTIONS)[number]) ? null : (
+              <option value={detail.mimeType}>{detail.mimeType}</option>
+            )}
+            {MIME_TYPE_OPTIONS.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </Select>
+        </div>
 
         <div className="space-y-1">
           <Label>{t('detail.visibility')}</Label>
