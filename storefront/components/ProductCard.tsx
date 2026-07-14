@@ -7,6 +7,7 @@ import { BaseSalePriceBlock } from './pricing/BaseSalePriceBlock';
 import { QuoteRequestCta } from './pricing/QuoteRequestCta';
 import { ProductCardActions } from './ProductCardActions';
 import type { ResolvedPrice } from '../lib/api/pricing';
+import { toAbsoluteAssetUrl } from '../lib/asset-url';
 
 // Handed to the client `<ProductCardActions>` (shopping-list heart + add to
 // cart), which fetches from the browser — so it must be the public,
@@ -61,7 +62,7 @@ export function ProductCard(props: {
       >
         {product.primaryAssetUrl ? (
           <img
-            src={product.primaryAssetUrl}
+            src={toAbsoluteAssetUrl(product.primaryAssetUrl)}
             alt={product.name}
             loading="lazy"
             className="max-h-[70%] max-w-[70%] object-contain transition-transform duration-[400ms] group-hover:scale-105"
