@@ -396,6 +396,8 @@
   "productEditor.variants.field.priceOverride": "Nadpisanie ceny",
   "productEditor.variants.field.stock": "Stan",
   "productEditor.gallery.title": "Galeria",
+  "productEditor.gallery.productImages.title": "Zdjęcia produktu",
+  "productEditor.gallery.productImages.hint": "Zdjęcia przypisane do tego produktu, które są widoczne na sklepie. Dodaj poniżej elementy galerii z etykietami, aby nadpisać sposób ich wyświetlania.",
   "productEditor.gallery.empty": "Brak elementów galerii. Wybierz zasób z Biblioteki lub wgraj nowy poniżej.",
   "productEditor.gallery.error.load": "Wczytywanie nie powiodło się.",
   "productEditor.gallery.error.add": "Dodanie nie powiodło się.",
