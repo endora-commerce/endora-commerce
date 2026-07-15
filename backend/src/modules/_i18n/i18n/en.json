@@ -236,6 +236,8 @@
   "appShell.palette.sub.dictionary": "Countries, currencies, languages",
   "appShell.palette.sub.dictionaryAudit": "Unresolved registry references",
   "appShell.palette.sub.platformConfiguration": "Platform configuration",
+  "appShell.palette.sub.paymentMethods": "Checkout payment methods",
+  "appShell.palette.sub.deliveryMethods": "Delivery & shipping methods",
   "appShell.palette.sub.apiKeys": "Machine-to-machine bearer tokens",
   "appShell.palette.sub.webhooks": "Event subscriptions & deliveries",
   "appShell.palette.sub.promotions": "Discounts, coupons & promotion rules",
