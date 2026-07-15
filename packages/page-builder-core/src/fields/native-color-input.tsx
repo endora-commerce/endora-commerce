@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { colorPickerDisplayHex } from './color-field-utils.js';
+import { createDebouncedColorCommit } from './color-input-debounce.js';
+
+const DEBOUNCE_MS = 200;
 
 /**
- * Native `<input type="color">` that updates local preview on `input` but only
- * commits to Puck on `change` (when the OS picker closes). React's synthetic
- * `onChange` fires on every drag frame and re-renders the whole canvas.
+ * Native `<input type="color">` with debounced live preview on `input` and an
+ * immediate commit on `change` (when the OS picker closes).
  */
 export function NativeColorInput({
   value,
@@ -21,31 +23,46 @@ export function NativeColorInput({
 }): ReactElement {
   const inputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState(value);
+  const debounceRef = useRef<ReturnType<typeof createDebouncedColorCommit> | null>(null);
+  const onCommitRef = useRef(onCommit);
+  onCommitRef.current = onCommit;
 
   useEffect(() => {
     setDraft(value);
   }, [value]);
 
   useEffect(() => {
+    debounceRef.current = createDebouncedColorCommit((hex) => onCommitRef.current(hex), DEBOUNCE_MS);
+    return (): void => {
+      debounceRef.current?.dispose();
+      debounceRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     const el = inputRef.current;
     if (!el || readOnly === true) return undefined;
 
     const onInput = (ev: Event): void => {
-      setDraft((ev.target as HTMLInputElement).value);
+      const hex = (ev.target as HTMLInputElement).value;
+      setDraft(hex);
+      debounceRef.current?.schedule(hex);
     };
+
     const onChange = (ev: Event): void => {
       const hex = (ev.target as HTMLInputElement).value;
       setDraft(hex);
-      onCommit(hex);
+      debounceRef.current?.commitNow(hex);
     };
 
     el.addEventListener('input', onInput);
     el.addEventListener('change', onChange);
     return (): void => {
+      debounceRef.current?.dispose();
       el.removeEventListener('input', onInput);
       el.removeEventListener('change', onChange);
     };
-  }, [onCommit, readOnly]);
+  }, [readOnly]);
 
   return (
     <input

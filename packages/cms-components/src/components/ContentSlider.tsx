@@ -28,6 +28,7 @@ const ContentSliderEditingRender: PuckComponent<ContentSliderProps> = (props) =>
     intervalMs = 5000,
     showArrows = true,
     showDots = true,
+    equalHeight = false,
     ...box
   } = props;
   const perView = resolveResponsiveNumber(slidesPerView, tier, 1);
@@ -43,6 +44,7 @@ const ContentSliderEditingRender: PuckComponent<ContentSliderProps> = (props) =>
         intervalMs={intervalMs}
         showArrows={showArrows}
         showDots={showDots}
+        equalHeight={equalHeight}
         slotMode
       >
         <Slot />
@@ -61,6 +63,7 @@ const ContentSliderPublishedRender: PuckComponent<ContentSliderProps> = (props) 
     intervalMs = 5000,
     showArrows = true,
     showDots = true,
+    equalHeight = false,
     ...box
   } = props;
   const perView = resolveResponsiveNumber(slidesPerView, tier, 1);
@@ -76,6 +79,7 @@ const ContentSliderPublishedRender: PuckComponent<ContentSliderProps> = (props) 
         intervalMs={intervalMs}
         showArrows={showArrows}
         showDots={showDots}
+        equalHeight={equalHeight}
         slotMode
       >
         <Slot />
@@ -90,7 +94,7 @@ const contentSliderConfig: ComponentConfig<ContentSliderProps> = {
     slides: {
       type: 'slot',
       label: 'Slides',
-      disallow: ['Row'],
+      disallow: ['Row', 'Column'],
     },
     slidesPerView: {
       type: 'number',
@@ -111,6 +115,11 @@ const contentSliderConfig: ComponentConfig<ContentSliderProps> = {
     intervalMs: { type: 'number', label: 'Autoplay interval (ms)', min: 2000, max: 15000 },
     showArrows: { type: 'radio', label: 'Arrows', options: [{ label: 'Show', value: true }, { label: 'Hide', value: false }] },
     showDots: { type: 'radio', label: 'Dots', options: [{ label: 'Show', value: true }, { label: 'Hide', value: false }] },
+    equalHeight: {
+      type: 'radio',
+      label: 'Equal slide height',
+      options: [{ label: 'Yes', value: true }, { label: 'No', value: false }],
+    },
     margin: BOX_MARGIN_FIELD,
     padding: BOX_PADDING_FIELD,
     border: BOX_BORDER_FIELD,
@@ -123,6 +132,7 @@ const contentSliderConfig: ComponentConfig<ContentSliderProps> = {
     intervalMs: 5000,
     showArrows: true,
     showDots: true,
+    equalHeight: false,
     ...DEFAULT_BOX_PROPS,
   },
   render: (props) =>

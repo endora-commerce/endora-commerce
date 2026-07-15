@@ -16,7 +16,7 @@ export const ROW_SLOT_EDIT_PROPS: LayoutSlotEditProps = {
 
 /** Column content slot — vertical stack of blocks. */
 export const COLUMN_SLOT_EDIT_PROPS: LayoutSlotEditProps = {
-  minEmptyHeight: 120,
+  minEmptyHeight: 0,
   collisionAxis: 'y',
   className: 'cmsc-pb-slot cmsc-pb-column-slot',
 };

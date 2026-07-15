@@ -27,6 +27,8 @@ export interface BoxStyledProps {
   className?: string;
   style?: CSSProperties;
   previewTier?: BreakpointTier;
+  /** Row section layout — used for nested layout CSS (`data-row-section`). */
+  rowSection?: string;
 }
 
 function appearanceStyle(props: {
@@ -81,6 +83,7 @@ export function BoxStyled({
   background,
   cornerRadius,
   shadow,
+  rowSection,
 }: BoxStyledProps): React.ReactElement {
   const boxClasses = [
     className,
@@ -105,7 +108,11 @@ export function BoxStyled({
       : publishedBoxStyle(boxProps);
 
   return (
-    <div className={boxClasses || undefined} style={computedStyle}>
+    <div
+      className={boxClasses || undefined}
+      style={computedStyle}
+      {...(rowSection ? { 'data-row-section': rowSection } : {})}
+    >
       {children}
     </div>
   );

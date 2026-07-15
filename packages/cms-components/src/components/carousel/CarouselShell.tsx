@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
 export interface CarouselShellProps {
   children: ReactNode;
@@ -10,6 +10,7 @@ export interface CarouselShellProps {
   intervalMs?: number;
   showArrows?: boolean;
   showDots?: boolean;
+  equalHeight?: boolean;
   className?: string;
   /** When true, children is a Puck slot — slides are dropzone direct children. */
   slotMode?: boolean;
@@ -23,11 +24,13 @@ export function CarouselShell({
   intervalMs = 5000,
   showArrows = true,
   showDots = true,
+  equalHeight = false,
   className = '',
   slotMode = false,
 }: CarouselShellProps): React.ReactElement {
   const trackRef = useRef<HTMLDivElement>(null);
   const [activePage, setActivePage] = useState(0);
+  const [slideCount, setSlideCount] = useState(1);
 
   const getScrollEl = useCallback((): HTMLElement | null => {
     const track = trackRef.current;
@@ -36,16 +39,42 @@ export function CarouselShell({
     return track;
   }, [slotMode]);
 
-  const getSlideCount = useCallback((): number => {
+  const measureSlideCount = useCallback((): void => {
     const el = getScrollEl();
-    if (!el) return 1;
-    if (slotMode) return el.children.length || 1;
-    return Array.isArray(children) ? children.length : 1;
+    if (!el) return;
+    if (slotMode) {
+      setSlideCount(Math.max(1, el.children.length));
+      return;
+    }
+    setSlideCount(Array.isArray(children) ? Math.max(1, children.length) : 1);
   }, [getScrollEl, slotMode, children]);
 
-  const childCount = getSlideCount();
+  useLayoutEffect(() => {
+    measureSlideCount();
+  }, [measureSlideCount]);
+
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return undefined;
+
+    const ro = new ResizeObserver(() => measureSlideCount());
+    ro.observe(track);
+
+    const scrollEl = getScrollEl();
+    if (slotMode && scrollEl) {
+      const mo = new MutationObserver(() => measureSlideCount());
+      mo.observe(scrollEl, { childList: true, subtree: false });
+      return (): void => {
+        ro.disconnect();
+        mo.disconnect();
+      };
+    }
+
+    return (): void => ro.disconnect();
+  }, [measureSlideCount, getScrollEl, slotMode]);
+
   const perView = Math.max(1, slidesPerView);
-  const pageCount = Math.max(1, Math.ceil(childCount / perView));
+  const pageCount = Math.max(1, Math.ceil(slideCount / perView));
 
   const scrollToPage = useCallback(
     (pageIndex: number): void => {
@@ -72,7 +101,7 @@ export function CarouselShell({
 
   useEffect(() => {
     setActivePage((page) => Math.min(page, pageCount - 1));
-  }, [pageCount, perView, childCount]);
+  }, [pageCount, perView, slideCount]);
 
   useEffect(() => {
     if (!autoplay || pageCount <= 1) return;
@@ -81,9 +110,16 @@ export function CarouselShell({
   }, [autoplay, intervalMs, pageCount, scrollByDir]);
 
   const basis = `${100 / perView}%`;
+  const carouselClass = [
+    'cmsc-pb-carousel',
+    equalHeight ? 'cmsc-pb-carousel--equal-height' : '',
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
-    <div className={`cmsc-pb-carousel ${className}`.trim()}>
+    <div className={carouselClass}>
       <div className="cmsc-pb-carousel__viewport cmsc:relative">
         {showArrows && pageCount > 1 ? (
           <>

@@ -34,8 +34,30 @@ export const SHADOW_FIELD = {
   ],
 };
 
-export const DEFAULT_BOX_PROPS = {
+export const DEFAULT_CONTENT_MARGIN = {
+  mode: 'sides' as const,
+  top: 0,
+  right: 0,
+  bottom: 24,
+  left: 0,
+};
+
+export const DEFAULT_LAYOUT_PADDING = {
+  mode: 'uniform' as const,
+  value: 16,
+};
+
+export const DEFAULT_LAYOUT_BOX_PROPS = {
   margin: DEFAULT_SPACING,
+  padding: DEFAULT_LAYOUT_PADDING,
+  border: DEFAULT_BORDER,
+  background: 'transparent',
+  cornerRadius: 'none' as const,
+  shadow: 'none' as const,
+};
+
+export const DEFAULT_BOX_PROPS = {
+  margin: DEFAULT_CONTENT_MARGIN,
   padding: DEFAULT_SPACING,
   border: DEFAULT_BORDER,
   background: 'transparent',

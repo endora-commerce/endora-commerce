@@ -5,6 +5,7 @@ import { usePageBuilderPuck } from './use-page-builder-puck.js';
 
 /** Subscribes to Puck preview viewport width — re-renders when Mobile / Tablet / Desktop changes. */
 export function usePreviewBreakpointTier(): BreakpointTier {
-  const width = usePageBuilderPuck((s) => s.appState?.ui?.viewports?.current?.width ?? 360);
-  return tierFromViewportWidth(typeof width === 'number' ? width : 360);
+  const width = usePageBuilderPuck((s) => s.appState?.ui?.viewports?.current?.width);
+  if (typeof width !== 'number') return 'desktop';
+  return tierFromViewportWidth(width);
 }

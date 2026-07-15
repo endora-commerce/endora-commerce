@@ -12,6 +12,9 @@ import {
   DEFAULT_BOX_PROPS,
 } from '../fields/shared-fields.js';
 import { fetchCategoryTree, filterCategories } from '../utils/catalog-fetch.js';
+import { waitForCatalogSkeletonMin } from '../utils/catalog-load.js';
+import { estimateCategoryListSkeletonCount } from '../utils/catalog-skeleton-estimate.js';
+import { CategoryListSkeleton } from './catalog/CatalogSkeletons.js';
 import { resolveCategorySelectionFields } from '../fields/catalog-resolve-fields.js';
 import { CATALOG_DATA_FIELD_META } from '../fields/catalog-data-fields.js';
 
@@ -28,9 +31,12 @@ const CategoryListRender: PuckComponent<CategoryListProps> = (props) => {
   } = props;
   const editing = puck?.isEditing === true;
   const [items, setItems] = useState<{ slug: string; name: string; productCount: number; depth: number }[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
+    setIsLoading(true);
+    const startedAt = Date.now();
     void (async () => {
       try {
         const tree = await fetchCategoryTree();
@@ -40,9 +46,13 @@ const CategoryListRender: PuckComponent<CategoryListProps> = (props) => {
           parentSlug,
           ...(maxDepth !== undefined ? { maxDepth } : {}),
         });
+        await waitForCatalogSkeletonMin(startedAt);
         if (!cancelled) setItems(filtered);
       } catch {
+        await waitForCatalogSkeletonMin(startedAt);
         if (!cancelled) setItems([]);
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
     })();
     return () => {
@@ -54,7 +64,9 @@ const CategoryListRender: PuckComponent<CategoryListProps> = (props) => {
 
   return (
     <BoxStyled {...box} {...(editing ? { previewTier: 'desktop' } : {})}>
-      {items.length === 0 ? (
+      {isLoading ? (
+        <CategoryListSkeleton count={estimateCategoryListSkeletonCount(selectionMode, categorySlugs)} />
+      ) : items.length === 0 ? (
         <p className="cmsc-pb-product-grid__empty">
           {editing ? 'No categories to preview — configure the selection in the sidebar.' : 'No categories found'}
         </p>

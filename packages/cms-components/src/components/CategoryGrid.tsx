@@ -19,6 +19,9 @@ import {
   DEFAULT_BOX_PROPS,
 } from '../fields/shared-fields.js';
 import { fetchCategoryTree, filterCategories } from '../utils/catalog-fetch.js';
+import { waitForCatalogSkeletonMin } from '../utils/catalog-load.js';
+import { estimateCategoryGridSkeletonCount } from '../utils/catalog-skeleton-estimate.js';
+import { CategoryGridSkeleton } from './catalog/CatalogSkeletons.js';
 import { resolveCategorySelectionFields } from '../fields/catalog-resolve-fields.js';
 import { CATALOG_DATA_FIELD_META } from '../fields/catalog-data-fields.js';
 
@@ -45,11 +48,14 @@ function CategoryGridBody({
     ...box
   } = props;
   const [items, setItems] = useState<{ slug: string; name: string; productCount: number; depth: number }[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const colCount = resolveResponsiveNumber(columns, tier, 4);
   const gapPx = resolveResponsiveNumber(gap, tier, 16);
 
   useEffect(() => {
     let cancelled = false;
+    setIsLoading(true);
+    const startedAt = Date.now();
     void (async () => {
       try {
         const tree = await fetchCategoryTree();
@@ -59,9 +65,13 @@ function CategoryGridBody({
           parentSlug,
           ...(maxDepth !== undefined ? { maxDepth } : {}),
         });
+        await waitForCatalogSkeletonMin(startedAt);
         if (!cancelled) setItems(filtered);
       } catch {
+        await waitForCatalogSkeletonMin(startedAt);
         if (!cancelled) setItems([]);
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
     })();
     return () => {
@@ -71,7 +81,13 @@ function CategoryGridBody({
 
   return (
     <BoxStyled {...box} {...(editing ? { previewTier: tier } : {})}>
-      {items.length === 0 ? (
+      {isLoading ? (
+        <CategoryGridSkeleton
+          count={estimateCategoryGridSkeletonCount(selectionMode, categorySlugs, colCount)}
+          columns={colCount}
+          gap={gapPx}
+        />
+      ) : items.length === 0 ? (
         <p className="cmsc-pb-product-grid__empty">
           {editing ? 'No categories to preview — configure the selection in the sidebar.' : 'No categories found'}
         </p>

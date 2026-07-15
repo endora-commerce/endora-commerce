@@ -9,7 +9,7 @@ import {
   RESPONSIVE_HIDE_ON_CLASS,
   resolveColumnSpan,
 } from '@b2b/page-builder-core';
-import { createHideOnField } from '@b2b/page-builder-core/editor';
+import { createHideOnField, getZoneParentComponentType } from '@b2b/page-builder-core/editor';
 import { usePreviewBreakpointTier } from '@b2b/page-builder-core/client';
 import type { ColumnProps } from '../schema/component-types.js';
 import { BoxStyled } from './box-styles.js';
@@ -20,7 +20,7 @@ import {
   BOX_PADDING_FIELD,
   COLUMN_SPAN_OPTIONS,
   CORNER_RADIUS_FIELD,
-  DEFAULT_BOX_PROPS,
+  DEFAULT_LAYOUT_BOX_PROPS,
   SHADOW_FIELD,
 } from '../fields/shared-fields.js';
 import { COLUMN_SLOT_EDIT_PROPS } from '../editor/slot-edit-props.js';
@@ -91,6 +91,53 @@ const columnConfig: ComponentConfig<{ props: ColumnProps }> = {
   label: 'Column',
   /** Grid cell is .cmsc-pb-row-col — Puck must not wrap it in an extra block. */
   inline: true,
+  resolvePermissions: (data, { appState, permissions }) => {
+    const itemId = data.props.id;
+    if (typeof itemId !== 'string') return permissions;
+
+    let parentType: string | null = null;
+    const zones = appState.data.zones ?? {};
+
+    for (const [zone, items] of Object.entries(zones)) {
+      if (!Array.isArray(items)) continue;
+      const containsColumn = items.some((entry) => {
+        if (!entry || typeof entry !== 'object') return false;
+        return (entry as { props?: { id?: string } }).props?.id === itemId;
+      });
+      if (containsColumn) {
+        parentType = getZoneParentComponentType(zone, appState.data);
+        break;
+      }
+    }
+
+    if (parentType === null) {
+      const visit = (items: unknown[], parent: string | null): boolean => {
+        for (const entry of items) {
+          if (!entry || typeof entry !== 'object') continue;
+          const record = entry as { type?: string; props?: { id?: string } };
+          if (record.props?.id === itemId) {
+            parentType = parent;
+            return true;
+          }
+          if (record.props && typeof record.props === 'object') {
+            for (const value of Object.values(record.props)) {
+              if (Array.isArray(value) && visit(value, record.type ?? null)) return true;
+            }
+          }
+        }
+        return false;
+      };
+      visit(appState.data.content ?? [], 'root');
+    }
+
+    const inRow = parentType === 'Row';
+    return {
+      ...permissions,
+      insert: inRow,
+      drag: inRow,
+      duplicate: inRow,
+    };
+  },
   fields: {
     hideOn: HIDE_ON_FIELD,
     span: {
@@ -101,7 +148,7 @@ const columnConfig: ComponentConfig<{ props: ColumnProps }> = {
     },
     content: {
       type: 'slot',
-      disallow: ['Row', 'Column'],
+      disallow: ['Column'],
     },
     margin: BOX_MARGIN_FIELD,
     padding: BOX_PADDING_FIELD,
@@ -113,7 +160,7 @@ const columnConfig: ComponentConfig<{ props: ColumnProps }> = {
   defaultProps: {
     span: 12,
     content: [],
-    ...DEFAULT_BOX_PROPS,
+    ...DEFAULT_LAYOUT_BOX_PROPS,
   },
   render: (props) =>
     props.puck?.isEditing ? <ColumnEditingRender {...props} /> : <ColumnPublishedRender {...props} />,
@@ -129,7 +176,7 @@ export function createDefaultColumnItem(id: string): { type: 'Column'; props: Co
       id,
       span: 12,
       content: [],
-      ...DEFAULT_BOX_PROPS,
+      ...DEFAULT_LAYOUT_BOX_PROPS,
     },
   };
 }

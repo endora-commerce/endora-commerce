@@ -4,6 +4,7 @@ import { Render } from '@measured/puck';
 import type { CSSProperties, ReactNode } from 'react';
 import { breakpointCssVars, type PageBuilderBreakpoints } from '@b2b/page-builder-core';
 import { defaultPageBuilderConfig, withCmsPageRoot } from '@b2b/cms-components';
+import '@b2b/cms-components/styles.css';
 
 export function PageBuilderBreakpointProvider({
   breakpoints,

@@ -61,7 +61,7 @@ export interface RowProps extends HideOnProps, BoxStyleProps, AppearanceProps {
   overflow: boolean;
 }
 
-export type RowSectionLayout = 'in_flow' | 'full_width' | 'full_bleed';
+export type RowSectionLayout = 'in_flow' | 'full_width' | 'full_viewport' | 'full_bleed';
 export type RowContentMaxWidth = 'none' | 'narrow' | 'wide' | 'custom';
 
 export type TextFontFamily = 'sans' | 'serif' | 'mono';
@@ -167,6 +167,7 @@ export interface ContentSliderProps extends HideOnProps, BoxStyleProps {
   intervalMs?: number;
   showArrows?: boolean;
   showDots?: boolean;
+  equalHeight?: boolean;
 }
 
 export interface TabItem {
@@ -229,6 +230,7 @@ export interface ProductSliderProps extends HideOnProps, BoxStyleProps {
   intervalMs?: number;
   showArrows?: boolean;
   showDots?: boolean;
+  equalHeight?: boolean;
 }
 
 export type CategorySelectionMode = 'all' | 'manual' | 'childrenOf';

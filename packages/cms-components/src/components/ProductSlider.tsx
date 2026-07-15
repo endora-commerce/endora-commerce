@@ -21,7 +21,10 @@ import {
 } from '../fields/shared-fields.js';
 import { CmsProductCardView } from './CmsProductCard.js';
 import { CarouselShell } from './carousel/CarouselShell.js';
+import { ProductSliderSkeleton } from './catalog/CatalogSkeletons.js';
 import { fetchProductsBySlugs, fetchProductsList } from '../utils/catalog-fetch.js';
+import { waitForCatalogSkeletonMin } from '../utils/catalog-load.js';
+import { estimateProductSliderSkeletonCount } from '../utils/catalog-skeleton-estimate.js';
 import { resolveProductSourceFields } from '../fields/catalog-resolve-fields.js';
 import { CATALOG_DATA_FIELD_META } from '../fields/catalog-data-fields.js';
 
@@ -46,15 +49,19 @@ function ProductSliderBody({
     intervalMs = 5000,
     showArrows = true,
     showDots = true,
+    equalHeight = false,
     puck: _puck,
     ...box
   } = props;
   const [products, setProducts] = useState<CmsProductSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const perView = resolveResponsiveNumber(slidesPerView, tier, 1);
   const gapPx = resolveResponsiveNumber(gap, tier, 16);
 
   useEffect(() => {
     let cancelled = false;
+    setIsLoading(true);
+    const startedAt = Date.now();
     void (async () => {
       try {
         let list: CmsProductSummary[] = [];
@@ -65,15 +72,31 @@ function ProductSliderBody({
             ...(source === 'query' && searchQuery ? { q: searchQuery } : {}),
             limit,
           });
+        await waitForCatalogSkeletonMin(startedAt);
         if (!cancelled) setProducts(list);
       } catch {
+        await waitForCatalogSkeletonMin(startedAt);
         if (!cancelled) setProducts([]);
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [source, productSlugs, categorySlug, searchQuery, limit]);
+
+  if (isLoading) {
+    return (
+      <BoxStyled {...box} {...(editing ? { previewTier: tier } : {})}>
+        <ProductSliderSkeleton
+          count={estimateProductSliderSkeletonCount(source, productSlugs, limit, perView)}
+          slidesPerView={slidesPerView}
+          gap={gap}
+        />
+      </BoxStyled>
+    );
+  }
 
   if (products.length === 0) {
     return (
@@ -94,6 +117,7 @@ function ProductSliderBody({
         intervalMs={intervalMs}
         showArrows={showArrows}
         showDots={showDots}
+        equalHeight={equalHeight}
       >
         {products.map((p) => (
           <CmsProductCardView key={p.id} product={p} />
@@ -134,6 +158,11 @@ const productSliderConfig: ComponentConfig<ProductSliderProps> = {
     intervalMs: { type: 'number', label: 'Interval (ms)', min: 2000, max: 15000 },
     showArrows: { type: 'radio', label: 'Arrows', options: [{ label: 'Show', value: true }, { label: 'Hide', value: false }] },
     showDots: { type: 'radio', label: 'Dots', options: [{ label: 'Show', value: true }, { label: 'Hide', value: false }] },
+    equalHeight: {
+      type: 'radio',
+      label: 'Equal slide height',
+      options: [{ label: 'Yes', value: true }, { label: 'No', value: false }],
+    },
     margin: BOX_MARGIN_FIELD,
     padding: BOX_PADDING_FIELD,
     border: BOX_BORDER_FIELD,
@@ -150,6 +179,7 @@ const productSliderConfig: ComponentConfig<ProductSliderProps> = {
     intervalMs: 5000,
     showArrows: true,
     showDots: true,
+    equalHeight: false,
     ...DEFAULT_BOX_PROPS,
   },
   render: (props) =>

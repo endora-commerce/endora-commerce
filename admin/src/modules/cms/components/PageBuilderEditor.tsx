@@ -1,5 +1,5 @@
-import { Component, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { Puck, Render, type Config, type ComponentConfig, type Data } from '@measured/puck';
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { Puck, Render, type Config, type ComponentConfig, type Data, type PuckAction } from '@measured/puck';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import '@measured/puck/puck.css';
 // Self-contained, prefix-isolated (`cmsc:`) stylesheet for the shared CMS components
@@ -30,8 +30,27 @@ import {
   createProductSlugField,
   createProductSlugsField,
 } from './CatalogPickers';
+import {
+  applyRowLayoutPreset,
+  findRowById,
+  replaceRowInData,
+  type RowLayoutPresetId,
+} from '@b2b/cms-components/editor/row-layout-presets';
+import { toPuckItemArray } from '@b2b/page-builder-core/editor';
+import { createPuckActionHandler, PuckDispatchBridgeSlot } from './PuckActionGuard';
+import { RowLayoutPicker } from './RowLayoutPicker';
+import { PageBuilderActionBar } from './PageBuilderActionBar';
+import { PageBuilderOverlayBridge } from './PageBuilderOverlayBridge';
+import { hasInvalidColumnPlacement } from '@b2b/page-builder-core/editor';
 
 const emptyData: Data = { root: { props: {} }, content: [] };
+
+function insertedItem(action: Extract<PuckAction, { type: 'insert' }>, data: Data) {
+  const items = action.destinationZone.startsWith('root:')
+    ? toPuckItemArray(data.content)
+    : toPuckItemArray(data.zones?.[action.destinationZone]);
+  return items[action.destinationIndex] ?? null;
+}
 
 /**
  * Guards a best-effort on-canvas embed preview: if rendering a referenced
@@ -226,6 +245,8 @@ export function PageBuilderEditor({
   const [embeds, setEmbeds] = useState<CmsRenderEmbeds>({ blocks: {}, templates: {} });
   const [error, setError] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [rowLayoutPickerForId, setRowLayoutPickerForId] = useState<string | null>(null);
+  const dispatchRef = useRef<((action: PuckAction) => void) | null>(null);
 
   // Allow exiting fullscreen with Escape.
   useEffect(() => {
@@ -308,12 +329,73 @@ export function PageBuilderEditor({
   const viewports = useMemo(() => buildViewports(descriptor), [descriptor]);
   const plugins = useMemo(() => [createPageBuilderEditorPlugin()], []);
   const editorData = data ?? emptyData;
+  const lastValidDataRef = useRef(editorData);
+
+  useEffect(() => {
+    lastValidDataRef.current = editorData;
+  }, [contentKey, editorData]);
+
+  const handleEditorChange = useCallback(
+    (next: Data) => {
+      if (hasInvalidColumnPlacement(next)) {
+        dispatchRef.current?.({
+          type: 'setData',
+          data: lastValidDataRef.current,
+          recordHistory: false,
+        });
+        return;
+      }
+      lastValidDataRef.current = next;
+      onChange(next);
+    },
+    [onChange],
+  );
 
   const headerActionsStateRef = useRef({ fullscreen, setFullscreen, t });
   headerActionsStateRef.current = { fullscreen, setFullscreen, t };
 
+  const applyRowPreset = useCallback((rowId: string, presetId: RowLayoutPresetId) => {
+    dispatchRef.current?.({
+      type: 'setData',
+      data: (previous) => {
+        const row = findRowById(previous, rowId);
+        if (!row) return previous;
+        const nextProps = applyRowLayoutPreset(row.props as never, presetId);
+        return replaceRowInData(previous, rowId, { type: 'Row', props: { ...nextProps, id: rowId } });
+      },
+    });
+  }, []);
+
+  const handlePuckAction = useMemo(
+    () =>
+      createPuckActionHandler(dispatchRef, (action, appState) => {
+        if (action.type !== 'insert' || action.componentType !== 'Row') return;
+        const inserted = insertedItem(action, appState.data);
+        const rowId = inserted?.props.id;
+        if (typeof rowId === 'string') {
+          setRowLayoutPickerForId(rowId);
+        }
+      }),
+    [],
+  );
+
   const puckOverrides = useMemo(
     () => ({
+      puck: ({ children }: { children: ReactNode }): ReactElement => (
+        <PuckDispatchBridgeSlot dispatchRef={dispatchRef}>{children}</PuckDispatchBridgeSlot>
+      ),
+      actionBar: (props: {
+        label?: string;
+        children: ReactNode;
+        parentAction: ReactNode;
+      }): ReactElement => <PageBuilderActionBar {...props} />,
+      componentOverlay: (props: {
+        children: ReactNode;
+        hover: boolean;
+        isSelected: boolean;
+        componentId: string;
+        componentType: string;
+      }): ReactElement => <PageBuilderOverlayBridge {...props} />,
       headerActions: (): ReactElement => {
         const { fullscreen: isFullscreen, setFullscreen: setFs, t: translate } = headerActionsStateRef.current;
         return (
@@ -359,7 +441,7 @@ export function PageBuilderEditor({
       ) : null}
       <div
         className={cn(
-          'cms-page-builder__canvas overflow-hidden border',
+          'cms-page-builder__canvas overflow-x-hidden overflow-y-auto border',
           fullscreen ? 'min-h-0 flex-1 rounded-md' : 'min-h-[640px] rounded-md',
         )}
       >
@@ -377,7 +459,8 @@ export function PageBuilderEditor({
                 key={contentKey}
                 config={config}
                 data={editorData}
-                onChange={onChange}
+                onChange={handleEditorChange}
+                onAction={handlePuckAction}
                 viewports={viewports}
                 plugins={plugins}
                 overrides={puckOverrides}
@@ -386,6 +469,16 @@ export function PageBuilderEditor({
           </AdminCatalogPreviewProvider>
         </CmsRenderProvider>
       </div>
+      <RowLayoutPicker
+        open={rowLayoutPickerForId !== null}
+        onOpenChange={(open): void => {
+          if (!open) setRowLayoutPickerForId(null);
+        }}
+        onSelect={(presetId): void => {
+          if (rowLayoutPickerForId) applyRowPreset(rowLayoutPickerForId, presetId);
+          setRowLayoutPickerForId(null);
+        }}
+      />
     </div>
   );
 }

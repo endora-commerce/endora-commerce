@@ -22,6 +22,9 @@ import {
 } from '../fields/shared-fields.js';
 import { CmsProductCardView } from './CmsProductCard.js';
 import { fetchProductsBySlugs, fetchProductsList } from '../utils/catalog-fetch.js';
+import { waitForCatalogSkeletonMin } from '../utils/catalog-load.js';
+import { estimateProductGridSkeletonCount } from '../utils/catalog-skeleton-estimate.js';
+import { ProductGridSkeleton } from './catalog/CatalogSkeletons.js';
 import { resolveProductSourceFields } from '../fields/catalog-resolve-fields.js';
 import { CATALOG_DATA_FIELD_META } from '../fields/catalog-data-fields.js';
 
@@ -47,12 +50,15 @@ function ProductGridBody({
     ...box
   } = props;
   const [products, setProducts] = useState<CmsProductSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const colCount = resolveResponsiveNumber(columns, tier, 4);
   const gapPx = resolveResponsiveNumber(gap, tier, 16);
   const gridView = resolveResponsive(view, tier, 'grid');
 
   useEffect(() => {
     let cancelled = false;
+    setIsLoading(true);
+    const startedAt = Date.now();
     void (async () => {
       try {
         let list: CmsProductSummary[] = [];
@@ -63,15 +69,31 @@ function ProductGridBody({
             ...(source === 'query' && searchQuery ? { q: searchQuery } : {}),
             limit,
           });
+        await waitForCatalogSkeletonMin(startedAt);
         if (!cancelled) setProducts(list);
       } catch {
+        await waitForCatalogSkeletonMin(startedAt);
         if (!cancelled) setProducts([]);
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [source, productSlugs, categorySlug, searchQuery, limit]);
+
+  if (isLoading) {
+    return (
+      <BoxStyled {...box} {...(editing ? { previewTier: tier } : {})}>
+        <ProductGridSkeleton
+          count={estimateProductGridSkeletonCount(source, productSlugs, limit, colCount)}
+          columns={colCount}
+          gap={gapPx}
+        />
+      </BoxStyled>
+    );
+  }
 
   if (products.length === 0) {
     return (

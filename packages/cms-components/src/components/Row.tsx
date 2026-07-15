@@ -26,7 +26,7 @@ import {
   BOX_MARGIN_FIELD,
   BOX_PADDING_FIELD,
   CORNER_RADIUS_FIELD,
-  DEFAULT_BOX_PROPS,
+  DEFAULT_LAYOUT_BOX_PROPS,
   RESPONSIVE_GAP_FIELD,
   RESPONSIVE_MIN_HEIGHT_FIELD,
   SHADOW_FIELD,
@@ -66,7 +66,20 @@ function resolveContentMaxWidth(
 
 function sectionLayoutClass(layout: RowSectionLayout): string {
   if (layout === 'full_bleed') return 'cmsc-pb-full-bleed';
+  if (layout === 'full_viewport') return 'cmsc-pb-row-full-viewport';
   if (layout === 'full_width') return 'cmsc-pb-row-full-width';
+  return '';
+}
+
+function publishedSectionLayoutClass(sectionLayout: {
+  base: RowSectionLayout;
+  tablet?: RowSectionLayout;
+  desktop?: RowSectionLayout;
+}): string {
+  const tiers = [sectionLayout.base, sectionLayout.tablet, sectionLayout.desktop];
+  if (tiers.some((t) => t === 'full_bleed')) return 'cmsc-pb-full-bleed';
+  if (tiers.some((t) => t === 'full_viewport')) return 'cmsc-pb-row-full-viewport';
+  if (tiers.some((t) => t === 'full_width')) return 'cmsc-pb-row-full-width';
   return '';
 }
 
@@ -91,6 +104,23 @@ function isPuckItem(value: unknown): value is { type: string; props: Record<stri
 function slotContentItems(value: unknown): Array<{ type: string; props: Record<string, unknown> }> {
   if (!Array.isArray(value)) return [];
   return value.filter(isPuckItem);
+}
+
+function rowHasNestedContent(content: unknown): boolean {
+  const columns = slotContentItems(content).filter((item) => item.type === 'Column');
+  if (columns.length === 0) return false;
+  return columns.some((column) => slotContentItems(column.props.content).length > 0);
+}
+
+function editingRowMinHeight(
+  minHeight: RowProps['minHeight'],
+  tier: ReturnType<typeof usePreviewBreakpointTier>,
+  content: unknown,
+): string | undefined {
+  const configured = resolveResponsiveNumber(minHeight, tier, 0);
+  const floor = rowHasNestedContent(content) ? 0 : 120;
+  const px = Math.max(configured, floor);
+  return px > 0 ? `${px}px` : undefined;
 }
 
 function RowColumnsSlot({
@@ -167,18 +197,24 @@ const RowEditingRender: PuckComponent<RowProps> = (props) => {
   const position = resolveContentPosition(contentPosition, tier);
   const sectionLayout = resolveSectionLayout(props, tier);
   const maxWidth = resolveContentMaxWidth(props, tier);
+  const rowMinHeight = editingRowMinHeight(minHeight, tier, props.content);
 
   return (
-    <BoxStyled previewTier={tier} {...box}>
+    <BoxStyled
+      previewTier={tier}
+      className={sectionLayoutClass(sectionLayout)}
+      rowSection={sectionLayout}
+      {...box}
+    >
       <section
-        className={`cmsc:flex cmsc:flex-col cmsc:w-full ${sectionLayoutClass(sectionLayout)} ${overflow ? 'cmsc:overflow-hidden' : ''}`}
+        className={`cmsc:flex cmsc:flex-col cmsc:w-full cmsc-pb-row-editing ${overflow ? 'cmsc:overflow-hidden' : ''} ${rowHasNestedContent(props.content) ? 'cmsc-pb-row-editing--filled' : 'cmsc-pb-row-editing--empty'}`}
         style={{
           justifyContent: contentPositionToJustify(position),
-          minHeight: `${Math.max(resolveResponsiveNumber(minHeight, tier, 0), 120)}px`,
+          ...(rowMinHeight ? { minHeight: rowMinHeight } : {}),
         }}
       >
         <div
-          className="cmsc:flex cmsc:flex-col cmsc:w-full cmsc:mx-auto"
+          className="cmsc:flex cmsc:flex-col cmsc:w-full cmsc:mx-auto cmsc-pb-row-inner"
           style={{
             width: '100%',
             marginLeft: 'auto',
@@ -236,9 +272,15 @@ const RowPublishedRender: PuckComponent<RowProps> = (props) => {
   const needsFlexGrow = minHeightMobile > 0 || minHeightTablet > 0 || minHeightDesktop > 0;
 
   return (
-    <BoxStyled {...box}>
+    <BoxStyled
+      className={publishedSectionLayoutClass(
+        sectionLayout as { base: RowSectionLayout; tablet?: RowSectionLayout; desktop?: RowSectionLayout },
+      )}
+      rowSection={sectionLayout.base}
+      {...box}
+    >
       <section
-        className={`cmsc:flex cmsc:flex-col cmsc:w-full cmsc-pb-min-height cmsc-pb-row-position ${sectionLayout.base === 'full_bleed' ? 'cmsc-pb-full-bleed' : ''} ${sectionLayout.base === 'full_width' || sectionLayout.tablet === 'full_width' || sectionLayout.desktop === 'full_width' ? 'cmsc-pb-row-full-width' : ''} ${overflow ? 'cmsc:overflow-hidden' : ''}`}
+        className={`cmsc:flex cmsc:flex-col cmsc:w-full cmsc-pb-min-height cmsc-pb-row-position ${overflow ? 'cmsc:overflow-hidden' : ''}`}
         style={buildResponsiveNumberVars('min-height', minHeight, 0)}
         data-position={position.base}
         data-position-md={position.tablet ?? position.base}
@@ -283,7 +325,8 @@ const ROW_FIELDS = {
     label: 'Row width',
     options: [
       { label: 'In page container', value: 'in_flow' },
-      { label: 'Full width', value: 'full_width' },
+      { label: 'Full page shell', value: 'full_width' },
+      { label: 'Full viewport background', value: 'full_viewport' },
       { label: 'Full bleed (edge to edge)', value: 'full_bleed' },
     ],
   },
@@ -376,7 +419,7 @@ function migrateRowContent(props: RowProps): RowProps['content'] {
           id: `col-legacy-${crypto.randomUUID()}`,
           span: 12,
           content: existing,
-          ...DEFAULT_BOX_PROPS,
+          ...DEFAULT_LAYOUT_BOX_PROPS,
         },
       },
     ] as RowProps['content'];
@@ -390,7 +433,7 @@ function migrateRowContent(props: RowProps): RowProps['content'] {
         id: `col-migrated-${index}`,
         span: item.span ?? 12,
         content: item.content ?? [],
-        ...DEFAULT_BOX_PROPS,
+        ...DEFAULT_LAYOUT_BOX_PROPS,
       },
     })) as RowProps['content'];
   }
@@ -414,7 +457,7 @@ const rowConfig: ComponentConfig<{ props: RowProps }> = {
     columnDivider: false,
     reverseOnMobile: false,
     overflow: false,
-    ...DEFAULT_BOX_PROPS,
+    ...DEFAULT_LAYOUT_BOX_PROPS,
   },
   resolveFields: (data) => {
     const maxWidth = data.props.contentMaxWidth;
