@@ -1,7 +1,10 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useActionState, useState, type ReactNode } from 'react';
 import { addRfqDraftItem } from '../lib/rfqDraft';
+import { ADD_TO_CART_IDLE, type AddToCartResult } from '../lib/cartAddState';
+import { CartAddedPopup } from './CartAddedPopup';
+import { CartSubmitButton } from './CartSubmitButton';
 
 /**
  * PDP purchase row: a single styled quantity input shared by both the
@@ -37,7 +40,10 @@ export interface ProductBuyActionsProps {
   singlePieceLabel?: string | undefined;
   /** Localized pieces unit word (e.g. "szt."). */
   piecesLabel?: string | undefined;
-  addToCartAction: (formData: FormData) => void | Promise<void>;
+  addToCartAction: (
+    prevState: AddToCartResult,
+    formData: FormData,
+  ) => AddToCartResult | Promise<AddToCartResult>;
   addToCartLabel: string;
   /**
    * Optional action rendered in the top row next to the quantity cluster
@@ -74,6 +80,9 @@ export function ProductBuyActions({
   const [unitId, setUnitId] = useState<string>(defaultUnit?.id ?? '');
   const [qty, setQty] = useState(1);
   const [quoteAdded, setQuoteAdded] = useState(false);
+  // `CartSubmitButton` renders its own pending spinner via `useFormStatus`, so
+  // the action's `isPending` flag isn't needed here.
+  const [cartState, cartFormAction] = useActionState(addToCartAction, ADD_TO_CART_IDLE);
   if (!showCart && !showQuote) return null;
 
   const selectedUnit = units.find((u) => u.id === unitId) ?? null;
@@ -144,19 +153,18 @@ export function ProductBuyActions({
       {/* Primary CTA — Add to cart. Prominent, full-width, dark (Industria
           `.btn--dark.btn--lg.btn--block` in the reference pricepanel). */}
       {showCart ? (
-        <form action={addToCartAction} className="w-full">
+        <form action={cartFormAction} className="w-full">
           <input type="hidden" name="productId" value={productId} />
           {variantId ? <input type="hidden" name="variantId" value={variantId} /> : null}
           {selectedUnit ? (
             <input type="hidden" name="packagingUnitId" value={selectedUnit.id} />
           ) : null}
           <input type="hidden" name="quantity" value={qty} />
-          <button
-            type="submit"
+          <CartSubmitButton
             className="b2b-cta h-[48px] w-full justify-center text-[14px] font-semibold"
-          >
-            <CartIcon /> {addToCartLabel}
-          </button>
+            label={addToCartLabel}
+            icon={<CartIcon />}
+          />
         </form>
       ) : null}
 
@@ -177,6 +185,8 @@ export function ProductBuyActions({
           ) : null}
         </div>
       ) : null}
+
+      {showCart ? <CartAddedPopup state={cartState} /> : null}
     </div>
   );
 }

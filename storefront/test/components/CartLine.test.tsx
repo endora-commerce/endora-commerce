@@ -19,6 +19,8 @@ const STRINGS = {
   lineTotalLabel: 'Line total',
   removeLabel: 'Remove',
   saveToListLabel: 'Save to list',
+  netSuffix: 'net',
+  grossSuffix: 'gross',
   unavailable: {
     out_of_stock: 'Out of stock.',
     not_purchasable: 'No longer available.',
@@ -52,6 +54,24 @@ describe('CartLine — SSR rendering', () => {
     expect(html).toContain('value="3"');
     expect(html).toMatch(/12,50\s*zł/);
     expect(html).toMatch(/37,50\s*zł/);
+  });
+
+  it('renders gross unit and line prices (net × 1.23) in gross_only mode', () => {
+    const html = renderToString(
+      <CartLine
+        line={LINE}
+        updateAction={noopAction}
+        removeAction={noopAction}
+        saveToListAction={noopAction}
+        locale="pl-PL"
+        displayMode="gross_only"
+        strings={STRINGS}
+      />,
+    );
+    // 12,50 net → 15,38 zł gross; 37,50 net → 46,13 zł gross (rounded).
+    expect(html).toMatch(/15,38\s*zł/);
+    expect(html).toMatch(/46,13\s*zł/);
+    expect(html).toContain('gross');
   });
 
   it('renders three forms (qty / remove / save-to-list) so SSR/no-JS still works', () => {

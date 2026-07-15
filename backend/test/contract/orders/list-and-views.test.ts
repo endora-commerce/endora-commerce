@@ -64,6 +64,7 @@ describe('Admin orders list, bulk, export, saved views', () => {
         salesChannelId: string;
         salesChannelName: string | null;
         deliveryMethodName: string | null;
+        paymentMethodName: string | null;
         shipToName: string | null;
         billToName: string | null;
       }>;
@@ -79,6 +80,7 @@ describe('Admin orders list, bulk, export, saved views', () => {
     // Feature: widened list row.
     expect(a?.createdAt).toBeTruthy();
     expect(a?.deliveryMethodName).toBe('DM');
+    expect(a?.paymentMethodName).toBe('PM');
     expect(a?.shipToName).toBe('A');
     expect(a?.billToName).toBe('A');
     expect(a).toHaveProperty('salesChannelName'); // null here (random channel id)

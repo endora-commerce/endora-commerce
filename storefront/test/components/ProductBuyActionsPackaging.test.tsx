@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { ProductBuyActions } from '../../components/ProductBuyActions';
+import type { AddToCartResult } from '../../lib/cartAddState';
 
 /**
  * Feature 043 — the PDP buy panel exposes a packaging-unit selector and, when
  * a unit is the default, posts its `packagingUnitId` on the cart form.
  */
-const noop = (): void => undefined;
+const noop = (): AddToCartResult => ({ status: 'idle' });
 
 const UNITS = [
   { id: '00000000-0000-4000-8000-000000000001', name: 'Karton', baseQuantity: 24, isDefault: false },

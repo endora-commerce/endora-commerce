@@ -621,6 +621,18 @@ async function main(): Promise<void> {
   const imageAssetParams: unknown[] = [];
   const productImageRows: string[] = [];
   const productImageParams: unknown[] = [];
+  // Mirror every seeded image into the new Gallery model (`gallery_items` +
+  // `gallery_item_labels`) so seeded products look identical to products whose
+  // photos were added by a user through the Assets Library. Without this, the
+  // Admin Product card Gallery table reads `gallery_items` (empty for seeded
+  // products) and renders "no photos", even though the Storefront falls back to
+  // the legacy `product_assets` rows. Labels demonstrate the label feature:
+  // position 0 → base_image, 1 → small_image, 2 → thumbnail (when present).
+  const galleryItemRows: string[] = [];
+  const galleryItemParams: unknown[] = [];
+  const galleryLabelRows: string[] = [];
+  const galleryLabelParams: unknown[] = [];
+  const positionLabels = ['base_image', 'small_image', 'thumbnail'];
   for (const [idx, p] of products.entries()) {
     const leaf = productLeaves[idx]!;
     const bg = leafImageColor(leaf.slug);
@@ -632,6 +644,15 @@ async function main(): Promise<void> {
       imageAssetParams.push(assetId, `${p.slug}-${n + 1}.svg`, Buffer.byteLength(url), url);
       productImageRows.push('(?, ?, ?)');
       productImageParams.push(p.id, assetId, n);
+
+      const galleryItemId = crypto.randomUUID();
+      galleryItemRows.push('(?, ?, ?, ?, now(), now())');
+      galleryItemParams.push(galleryItemId, p.id, assetId, n);
+      const label = positionLabels[n];
+      if (label) {
+        galleryLabelRows.push('(?, ?, ?)');
+        galleryLabelParams.push(galleryItemId, p.id, label);
+      }
     }
   }
   await conn.execute(
@@ -642,6 +663,15 @@ async function main(): Promise<void> {
   await conn.execute(
     `insert into product_assets (product_id, asset_id, position) values ${productImageRows.join(', ')}`,
     productImageParams,
+  );
+  await conn.execute(
+    `insert into gallery_items (id, product_id, asset_id, position, created_at, updated_at)
+     values ${galleryItemRows.join(', ')}`,
+    galleryItemParams,
+  );
+  await conn.execute(
+    `insert into gallery_item_labels (gallery_item_id, product_id, label) values ${galleryLabelRows.join(', ')}`,
+    galleryLabelParams,
   );
 
   // --- Composite product wiring (T133, US5) ---------------------------

@@ -16,6 +16,8 @@ const STRINGS = {
   grandTotalLabel: 'Total',
   deliveryLabel: 'Delivery',
   deliveryValue: 'calculated at checkout',
+  netSuffix: 'net',
+  grossSuffix: 'gross',
 };
 
 describe('CartTotals — SSR rendering', () => {
@@ -54,6 +56,42 @@ describe('CartTotals — SSR rendering', () => {
     // The "−" sign + amount may be split by a comment marker; match either form.
     expect(html).toMatch(/−[^<]*<!--.*?-->[^>]*10,00\s*zł|−10,00\s*zł/);
     expect(html).toMatch(/90,00\s*zł/);
+  });
+
+  it('renders gross amounts (net × 1.23) with the gross suffix in gross_only mode', () => {
+    const html = renderToString(
+      <CartTotals
+        subtotal={{ amount: 100, currency: 'PLN' }}
+        discount={null}
+        grandTotal={{ amount: 100, currency: 'PLN' }}
+        itemCount={1}
+        locale="pl-PL"
+        displayMode="gross_only"
+        strings={STRINGS}
+      />,
+    );
+    // 100 net → 123,00 zł gross, tagged "gross"; the net value must not appear.
+    expect(html).toMatch(/123,00\s*zł/);
+    expect(html).toContain('gross');
+    expect(html).not.toContain('net<');
+  });
+
+  it('renders both net and gross columns in both mode', () => {
+    const html = renderToString(
+      <CartTotals
+        subtotal={{ amount: 100, currency: 'PLN' }}
+        discount={null}
+        grandTotal={{ amount: 100, currency: 'PLN' }}
+        itemCount={1}
+        locale="pl-PL"
+        displayMode="both"
+        strings={STRINGS}
+      />,
+    );
+    expect(html).toMatch(/100,00\s*zł/);
+    expect(html).toMatch(/123,00\s*zł/);
+    expect(html).toContain('net');
+    expect(html).toContain('gross');
   });
 
   it('formats fractional currency with pl-PL locale', () => {

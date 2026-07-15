@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { formatMoney } from '../lib/i18n/money';
+import { toAbsoluteAssetUrl } from '../lib/asset-url';
 
 /**
  * Feature 002 US4 — Related + Up-sell sections rendered after the
@@ -43,7 +44,7 @@ function LinkCard({ link, locale }: { link: ProductLinkSummary; locale?: string 
       >
         {link.product.primaryAssetUrl ? (
           <img
-            src={link.product.primaryAssetUrl}
+            src={toAbsoluteAssetUrl(link.product.primaryAssetUrl)}
             alt=""
             className="aspect-square w-full rounded-sm bg-surface-alt object-contain"
             loading="lazy"

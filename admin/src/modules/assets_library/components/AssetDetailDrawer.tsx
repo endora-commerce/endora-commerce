@@ -16,6 +16,38 @@ import {
   type AssetDetail,
 } from '../api/assets-library-client';
 
+const apiBaseUrl =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
+
+/**
+ * The backend serves files at /assets/file/:assetId and returns a host-relative
+ * URL when publicUrlBase is blank (the default). The admin runs on a different
+ * origin than the backend, so opening such a URL hits the admin SPA (which
+ * renders "page not found") instead of the file. Prefix host-relative URLs
+ * with the API base; absolute/data/blob URLs pass through unchanged.
+ */
+function toAbsoluteAssetUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  if (/^(https?:|data:|blob:)/i.test(url)) return url;
+  if (url.startsWith('/')) return `${apiBaseUrl.replace(/\/+$/, '')}${url}`;
+  return url;
+}
+
+// Curated set of MIME types the Assets Library handles (image / video / pdf).
+// The MIME type is a technical identifier, so it is offered as a fixed dropdown
+// rather than a free-text field to prevent typos and unsupported values.
+const MIME_TYPE_OPTIONS = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/svg+xml',
+  'image/avif',
+  'video/mp4',
+  'video/webm',
+  'application/pdf',
+] as const;
+
 export interface AssetDetailDrawerProps {
   assetId: string;
   onChanged: () => void;
@@ -101,7 +133,7 @@ export function AssetDetailDrawer({
         {detail.mimeType.startsWith('image/') ? (
           // eslint-disable-next-line jsx-a11y/alt-text
           <img
-            src={detail.url}
+            src={toAbsoluteAssetUrl(detail.url)}
             className="w-full rounded border bg-muted/30 object-contain"
           />
         ) : (
@@ -111,7 +143,7 @@ export function AssetDetailDrawer({
         )}
 
         <a
-          href={detail.url}
+          href={toAbsoluteAssetUrl(detail.url)}
           target="_blank"
           rel="noopener"
           className="inline-flex items-center gap-1 text-xs underline"
@@ -128,13 +160,28 @@ export function AssetDetailDrawer({
           disabled={busy}
           saveLabel={t('common.save')}
         />
-        <Field
-          label={t('detail.mimeType')}
-          value={detail.mimeType}
-          onSave={(v): Promise<void> => save({ mimeType: v })}
-          disabled={busy}
-          saveLabel={t('common.save')}
-        />
+        <div className="space-y-1">
+          <Label>{t('detail.mimeType')}</Label>
+          <Select
+            value={detail.mimeType}
+            onChange={(e): void => {
+              const v = e.target.value;
+              if (v !== detail.mimeType) void save({ mimeType: v });
+            }}
+            disabled={busy}
+          >
+            {/* Preserve an existing value that falls outside the curated list
+                so the current MIME type is shown and not silently lost. */}
+            {MIME_TYPE_OPTIONS.includes(detail.mimeType as (typeof MIME_TYPE_OPTIONS)[number]) ? null : (
+              <option value={detail.mimeType}>{detail.mimeType}</option>
+            )}
+            {MIME_TYPE_OPTIONS.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </Select>
+        </div>
 
         <div className="space-y-1">
           <Label>{t('detail.visibility')}</Label>

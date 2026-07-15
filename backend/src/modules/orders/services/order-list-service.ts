@@ -51,6 +51,7 @@ export interface AdminOrderRow {
   salesChannelId: string;
   salesChannelName: string | null;
   deliveryMethodName: string | null;
+  paymentMethodName: string | null;
   shipToName: string | null;
   billToName: string | null;
 }
@@ -204,6 +205,7 @@ export class OrderListService {
       salesChannelId: o.salesChannelId,
       salesChannelName: channelName.get(o.salesChannelId) ?? null,
       deliveryMethodName: o.deliveryMethodSnapshot?.name ?? null,
+      paymentMethodName: o.paymentMethodSnapshot?.name ?? null,
       shipToName: o.deliveryAddress?.recipientName ?? null,
       billToName: o.billingAddress?.recipientName ?? null,
     }));

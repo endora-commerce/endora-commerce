@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useTranslation } from '@/i18n/useTranslation';
 import { AssetUploader } from './AssetUploader';
+import { toAbsoluteAssetUrl } from '../lib/asset-url';
 import {
   assetsLibraryClient,
   type AssetDetail,
@@ -99,7 +100,7 @@ export function AssetPicker(props: AssetPickerProps): ReactNode {
                 {a.mimeType.startsWith('image/') ? (
                   // eslint-disable-next-line jsx-a11y/alt-text
                   <img
-                    src={a.url}
+                    src={toAbsoluteAssetUrl(a.url)}
                     className="aspect-square w-full rounded object-cover"
                     loading="lazy"
                   />
