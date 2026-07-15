@@ -12,7 +12,8 @@ export class Payment {
     | 'externalReference'
     | 'providerDetails'
     | 'failureReason'
-    | 'attemptNo';
+    | 'attemptNo'
+    | 'refundedAmount';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -26,10 +27,23 @@ export class Payment {
 
   @Property({ type: 'string', length: 32 })
   @Index()
-  status: 'awaiting_payment' | 'paid' | 'failed' | 'deferred' | 'refunded' = 'awaiting_payment';
+  status:
+    | 'awaiting_payment'
+    | 'paid'
+    | 'failed'
+    | 'deferred'
+    | 'refunded'
+    | 'partially_refunded' = 'awaiting_payment';
 
   @Property({ type: 'decimal', precision: 14, scale: 2 })
   amount!: string;
+
+  /**
+   * Cumulative amount refunded against this payment (feature 049). Kept in sync
+   * with the gateway's authoritative total via the `charge.refunded` webhook.
+   */
+  @Property({ type: 'decimal', precision: 14, scale: 2 })
+  refundedAmount: string = '0';
 
   @Property({ type: 'string', length: 3 })
   currency!: string;

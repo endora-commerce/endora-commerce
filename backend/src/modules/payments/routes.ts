@@ -63,6 +63,7 @@ function serializePayment(p: {
   paymentMethodId: string;
   status: string;
   amount: string;
+  refundedAmount?: string;
   currency: string;
   paidAt?: Date | null;
   externalReference?: string | null;
@@ -76,6 +77,7 @@ function serializePayment(p: {
     paymentMethodId: p.paymentMethodId,
     status: p.status,
     amount: Number(p.amount),
+    refundedAmount: Number(p.refundedAmount ?? '0'),
     currency: p.currency,
     paidAt: p.paidAt ? p.paidAt.toISOString() : null,
     externalReference: p.externalReference ?? null,

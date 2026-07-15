@@ -24,6 +24,14 @@ export interface PaymentEvents extends Record<string, EventBase> {
     failureReason: string | null;
     attemptNo: number;
   };
+  'payment.refunded.v1': EventBase & {
+    orderId: string;
+    paymentId: string;
+    refundedAmount: number;
+    currency: string;
+    fullyRefunded: boolean;
+    externalRefundId: string | null;
+  };
 }
 export type PaymentEventBus = EventBus<PaymentEvents>;
 
@@ -156,6 +164,90 @@ export class ReceivePaymentHandler {
       orderStatus: result.orderStatus,
       idempotent: result.idempotent,
     };
+  }
+
+  /**
+   * Reflect a gateway refund onto the Payment + Order (feature 049). Driven by
+   * the `charge.refunded` webhook for BOTH Dashboard- and platform-initiated
+   * refunds. `refundedAmount` is the gateway's cumulative total, so this is
+   * idempotent by construction (re-applying the same total is a no-op) and never
+   * calls the gateway back (no refund loop). A fully-refunded payment is never
+   * downgraded to partial.
+   */
+  async reflectRefund(input: {
+    paymentId?: string;
+    orderId?: string;
+    /** PaymentIntent id (`pi_…`) — resolves the payment when no paymentId. */
+    externalReference?: string;
+    /** Cumulative refunded amount in major units. */
+    refundedAmount: number;
+    currency: string;
+    fullyRefunded: boolean;
+    externalRefundId?: string | null;
+    providerDetails?: Record<string, unknown>;
+  }): Promise<{ paymentId: string; changed: boolean } | null> {
+    const em = this.emFactory();
+    const result = await em.transactional(async (tx) => {
+      const payment = await this.resolvePaymentForRefund(tx, input);
+      if (!payment) return null;
+
+      const newRefunded = input.refundedAmount.toFixed(2);
+      const nextStatus: Payment['status'] = input.fullyRefunded
+        ? 'refunded'
+        : input.refundedAmount > 0 && payment.status !== 'refunded'
+          ? 'partially_refunded'
+          : payment.status;
+      const changed = payment.refundedAmount !== newRefunded || payment.status !== nextStatus;
+
+      payment.refundedAmount = newRefunded;
+      payment.status = nextStatus;
+      if (input.providerDetails) {
+        payment.providerDetails = { ...(payment.providerDetails ?? {}), ...input.providerDetails };
+      }
+
+      const order = await tx.findOne(Order, { id: payment.orderId });
+      // Only a full refund flips the order's payment status; a partial refund is
+      // tracked on the payment while the order stays 'paid'.
+      if (order && input.fullyRefunded) order.paymentStatus = 'refunded';
+
+      await tx.flush();
+      return { payment, changed };
+    });
+
+    if (!result) return null;
+    if (result.changed && this.events) {
+      this.events.emit('payment.refunded.v1', {
+        eventId: randomUUID(),
+        occurredAt: new Date().toISOString(),
+        orderId: result.payment.orderId,
+        paymentId: result.payment.id,
+        refundedAmount: Number(result.payment.refundedAmount),
+        currency: input.currency,
+        fullyRefunded: input.fullyRefunded,
+        externalRefundId: input.externalRefundId ?? null,
+      });
+    }
+    return { paymentId: result.payment.id, changed: result.changed };
+  }
+
+  private async resolvePaymentForRefund(
+    tx: EntityManager,
+    input: { paymentId?: string; orderId?: string; externalReference?: string },
+  ): Promise<Payment | null> {
+    if (input.paymentId) return tx.findOne(Payment, { id: input.paymentId });
+    if (input.externalReference) {
+      const byRef = await tx.findOne(Payment, { externalReference: input.externalReference });
+      if (byRef) return byRef;
+    }
+    if (input.orderId) {
+      // The settled payment for the order (most recent attempt).
+      return tx.findOne(
+        Payment,
+        { orderId: input.orderId, status: { $in: ['paid', 'partially_refunded', 'refunded'] } },
+        { orderBy: { attemptNo: 'desc' } },
+      );
+    }
+    return null;
   }
 
   private async resolvePayment(
