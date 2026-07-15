@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { formatMoneyObject } from '../lib/i18n/money';
+import type { DisplayMode } from '@b2b/contracts';
+import { moneyByMode } from '../lib/i18n/money';
 
 /**
  * CartLine — Industria-themed cart row (feature 027 US1).
@@ -38,6 +39,9 @@ interface CartLineProps {
   saveToListAction: (formData: FormData) => Promise<void>;
   /** Active Sales Channel display locale (e.g. `pl-PL`). */
   locale?: string;
+  /** Settings-resolved price display mode — drives net/gross rendering so the
+   *  cart matches the PDP and product cards. Defaults to `net_only`. */
+  displayMode?: DisplayMode;
   strings: {
     qtyLabel: string;
     unitPriceLabel: string;
@@ -45,6 +49,8 @@ interface CartLineProps {
     removeLabel: string;
     saveToListLabel: string;
     updateLabel?: string;
+    netSuffix: string;
+    grossSuffix: string;
     unavailable: {
       out_of_stock: string;
       not_purchasable: string;
@@ -59,10 +65,30 @@ export function CartLine({
   removeAction,
   saveToListAction,
   locale,
+  displayMode = 'net_only',
   strings,
 }: CartLineProps): ReactNode {
-  const formatMoney = (m: { amount: number; currency: string }): string =>
-    formatMoneyObject(m, locale);
+  const suffixFor = (kind: 'net' | 'gross' | null): string =>
+    kind === 'net' ? strings.netSuffix : kind === 'gross' ? strings.grossSuffix : '';
+  const renderPrice = (m: { amount: number; currency: string }): ReactNode => {
+    const priced = moneyByMode(m, displayMode, locale);
+    return (
+      <>
+        <span>
+          {priced.primary}
+          {priced.primaryKind ? (
+            <span className="ml-[3px] text-[10px] font-normal text-muted">{suffixFor(priced.primaryKind)}</span>
+          ) : null}
+        </span>
+        {priced.secondary ? (
+          <span className="block text-[11px] font-normal text-muted">
+            {priced.secondary}
+            <span className="ml-[3px] text-[10px]">{suffixFor(priced.secondaryKind)}</span>
+          </span>
+        ) : null}
+      </>
+    );
+  };
   const unavailableLabel =
     line.unavailable && line.unavailableReason
       ? strings.unavailable[line.unavailableReason]
@@ -149,14 +175,14 @@ export function CartLine({
         className="text-right font-mono text-[13px] text-fg-soft max-[720px]:[grid-area:unit]"
         aria-label={strings.unitPriceLabel}
       >
-        {formatMoney(line.unitPrice)}
+        {renderPrice(line.unitPrice)}
       </span>
 
       <span
         className="text-right font-mono text-[14px] font-semibold text-fg max-[720px]:[grid-area:total]"
         aria-label={strings.lineTotalLabel}
       >
-        {formatMoney(line.lineTotal)}
+        {renderPrice(line.lineTotal)}
       </span>
 
       <form action={removeAction} className="max-[720px]:justify-self-start max-[720px]:[grid-area:actions]">

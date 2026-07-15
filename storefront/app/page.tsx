@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { listProducts, getCategoryTree } from '../lib/api/catalog';
 import { getCmsPageBySlug } from '../lib/api/cms';
 import { getHomepageConfig } from '../lib/api/homepage';
+import { getResolvedPricesBulk, type ResolvedPrice } from '../lib/api/pricing';
 import { getServerContext } from '../lib/server-context';
 import { ProductCard } from '../components/ProductCard';
 import { CmsPageRenderer } from '../components/CmsPageRenderer';
@@ -45,6 +46,16 @@ export default async function HomePage(): Promise<ReactNode> {
       pagination: { limit: 4, nextCursor: null, hasMore: false },
     })),
   ]);
+
+  // Resolve settings-driven prices for the bestseller cards so their net/gross
+  // presentation matches the PDP and cart. Without a `resolved` payload the
+  // card falls back to a hardcoded "net + gross" pair that ignores the display
+  // setting (the inconsistency this section otherwise showed).
+  const bestsellerPrices: Map<string, ResolvedPrice> = products.data.length > 0
+    ? await getResolvedPricesBulk(products.data.map((p) => p.id), {}, ctx).catch(
+        () => new Map<string, ResolvedPrice>(),
+      )
+    : new Map<string, ResolvedPrice>();
 
   const categoryTiles: CatTile[] = tree.length > 0
     ? tree.slice(0, 6).map((c) => ({
@@ -258,7 +269,7 @@ export default async function HomePage(): Promise<ReactNode> {
           <ul className="m-0 grid list-none grid-cols-4 gap-[16px] p-0 max-[1100px]:grid-cols-2">
             {products.data.map((p) => (
               <li key={p.id}>
-                <ProductCard product={p} locale={locale} />
+                <ProductCard product={p} locale={locale} resolved={bestsellerPrices.get(p.id) ?? null} />
               </li>
             ))}
           </ul>
