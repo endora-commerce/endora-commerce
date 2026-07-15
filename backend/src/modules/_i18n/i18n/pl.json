@@ -1831,6 +1831,7 @@
   "orders.column.org": "Organizacja",
   "orders.column.status": "Status",
   "orders.column.payment": "Płatność",
+  "orders.column.paymentMethod": "Metoda płatności",
   "orders.column.deliveryMethod": "Metoda dostawy",
   "orders.column.shipTo": "Odbiorca dostawy",
   "orders.column.billTo": "Nabywca",

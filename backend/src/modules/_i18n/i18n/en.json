@@ -1831,6 +1831,7 @@
   "orders.column.org": "Organization",
   "orders.column.status": "Status",
   "orders.column.payment": "Payment",
+  "orders.column.paymentMethod": "Payment method",
   "orders.column.deliveryMethod": "Delivery method",
   "orders.column.shipTo": "Ship-to",
   "orders.column.billTo": "Bill-to",
