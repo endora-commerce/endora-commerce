@@ -60,16 +60,34 @@ channel or all channels, and multiple events may bind to the same action.
 > ships as a client hook (`trackContactFormSubmit`) that becomes active once a
 > contact form is added.
 
-## Server-side tagging (Principle X)
+## Server-side tagging (pure Measurement Protocol, Principle X)
 
-When `server_side_enabled` is on for a channel, the browser posts events to
-`POST /api/v1/storefront/google-analytics/collect` instead of sending them to
-Google directly (no client/server double count). The route is a pure producer —
-it validates and enqueues one job per event onto the durable BullMQ queue
-`google_analytics.ss.deliver`. A separable worker (co-located in the API process
-unless `BACKEND_ROLE=api`, then only in the `worker` process) forwards each event
-to the channel's GA4 destination via the Measurement Protocol, retrying on
-failure. Each event carries a stable `eventId` idempotency key.
+When `server_side_enabled` is on for a channel the module runs **pure
+server-side tagging through the platform's own server** — no external container
+and no browser-side Google library:
+
+- **gtag.js is not loaded.** Every event (page_view, Enhanced Ecommerce, custom)
+  is posted to `POST /api/v1/storefront/google-analytics/collect`, so **no hit
+  reaches Google directly from the browser** (best ad-blocker resilience, no
+  client/server double count).
+- The route is a **pure producer** — it validates and enqueues one job per event
+  onto the durable BullMQ queue `google_analytics.ss.deliver`. A separable worker
+  (co-located in the API process unless `BACKEND_ROLE=api`, then only in the
+  `worker` process) forwards each event to GA4 via the **Measurement Protocol**,
+  retrying on failure. Each event carries a stable `eventId` idempotency key.
+- **GA4 default metrics come for free.** The browser owns a first-party
+  `client_id` and a rolling 30-minute `session_id` (cookies only once consent is
+  granted; ephemeral in-memory before that) and sends `engagement_time_msec` with
+  every event, so GA4 auto-derives `first_visit`, `session_start`, sessions, and
+  active users from the MP stream.
+- **Optional destination override.** By default the worker sends to GA4's
+  Measurement Protocol endpoint. Set `server_side_endpoint` to route events to a
+  different collection URL instead (e.g. a self-hosted proxy or a server-side GTM
+  container). The `server_side_api_secret` (a GA4 Measurement Protocol API
+  secret, created under GA4 Admin → Data Streams → Measurement Protocol API
+  secrets) authenticates delivery.
+- **Consent** is carried in the MP payload (`analyticsStorage`) reflecting the
+  visitor's actual banner decision.
 
 ## Permissions
 

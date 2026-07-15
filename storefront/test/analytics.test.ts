@@ -79,6 +79,19 @@ describe('gtag dispatch', () => {
     delete (globalThis as Record<string, unknown>)['localStorage'];
   });
 
+  it('server mode enriches events with session_id + engagement_time_msec (pure MP)', async () => {
+    const fetchSpy = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => new Response(null, { status: 202 }));
+    (globalThis as Record<string, unknown>)['fetch'] = fetchSpy;
+    configureGa({ ...baseConfig, serverSide: true, requireConsent: false });
+    trackGaEvent('add_to_cart', { value: 5 });
+    await Promise.resolve();
+    const body = JSON.parse((fetchSpy.mock.calls[0]![1] as RequestInit).body as string);
+    expect(body.clientId).toBeTruthy();
+    expect(body.events[0].params.session_id).toBeTruthy();
+    expect(body.events[0].params.engagement_time_msec).toBe(100);
+    expect(body.events[0].params.value).toBe(5);
+  });
+
   it('emits nothing when the module is disabled', () => {
     configureGa({ ...baseConfig, enabled: false, measurementId: null });
     sendPageView('/p/1');

@@ -10,9 +10,17 @@ import type { GaStorefrontConfig } from '@b2b/contracts';
  *   - `send_page_view: false` so page views are emitted manually per
  *     App-Router navigation (<PageViewTracker/>), giving exactly one view per
  *     destination.
+ *
+ * In **server-side** mode gtag.js is deliberately NOT loaded: every event
+ * (page_view, Enhanced Ecommerce, custom) is sent through the platform's own
+ * server via `/collect` → Measurement Protocol, so no hit reaches Google
+ * directly from the browser (pure server-side tagging). Client/session identity
+ * and session/first-visit derivation are handled by `lib/analytics/gtag.ts`.
  */
 export function GoogleAnalytics({ config }: { config: GaStorefrontConfig }): ReactNode {
   if (!config.enabled || !config.measurementId) return null;
+  // Pure server-side: no browser-side GA library at all.
+  if (config.serverSide) return null;
   const id = config.measurementId;
   const consent = config.requireConsent ? 'denied' : 'granted';
 
