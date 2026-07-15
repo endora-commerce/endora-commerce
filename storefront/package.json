@@ -19,6 +19,8 @@
     "@b2b/cms-components": "workspace:^",
     "@b2b/contracts": "workspace:*",
     "@measured/puck": "^0.20.2",
+    "@stripe/react-stripe-js": "^6.7.0",
+    "@stripe/stripe-js": "^9.9.0",
     "@tailwindcss/postcss": "^4.2.4",
     "next": "^15.5.15",
     "react": "^19.2.5",

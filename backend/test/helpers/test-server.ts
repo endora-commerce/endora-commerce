@@ -715,6 +715,25 @@ export async function setupBackendServer(
       requireAdmin: requireTestAdmin(permissionService),
       resolveCustomerContext: customerResolver,
       salesChannelMembership: salesChannels.handle.membershipService,
+      // Real per-product VAT — mirrors composition.ts so placeOrder resolves the
+      // rate from the tax rules instead of a flat 23%.
+      resolveTaxRate: async ({ country, productType, vatStatus }) => {
+        try {
+          const resolved = await taxes.handle.taxService.taxRateFor({
+            country: country ?? 'PL',
+            productType: productType as
+              | 'simple'
+              | 'configurable'
+              | 'grouped'
+              | 'bundle'
+              | 'virtual',
+            vatStatus: vatStatus as 'vat_payer' | 'vat_exempt' | 'reverse_charge',
+          });
+          return resolved.rate;
+        } catch {
+          return 0.23;
+        }
+      },
       pricingService: priceLists.handle.pricingService,
       promotionService: promotions.handle.promotionService,
       redis,

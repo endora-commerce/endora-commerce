@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, Pencil, Trash2 } from 'lucide-react';
 import { ApiError } from '@/lib/api-client';
+import { useAuth } from '@/lib/auth';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,22 +31,31 @@ const KINDS = ['bank_transfer', 'pickup', 'credit_limit', 'gateway'] as const;
 
 export function PaymentMethodsPage(): ReactNode {
   const t = useTranslation('core');
+  const { hasPermission } = useAuth();
   const [rows, setRows] = useState<AdminPaymentMethod[]>([]);
   const [orderStatuses, setOrderStatuses] = useState<OrderStatusOption[]>([]);
+  const [adapters, setAdapters] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  // The upsert form is a controlled sub-tree keyed on this target: `null` = a
+  // blank "add" form; a row = an "edit" form seeded from that row. Bumping the
+  // key remounts the form so it picks up fresh initial values.
+  const [editing, setEditing] = useState<AdminPaymentMethod | null>(null);
+  const [formNonce, setFormNonce] = useState(0);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
     try {
-      const [methods, statuses] = await Promise.all([
+      const [methods, statuses, adapterKeys] = await Promise.all([
         paymentMethodsClient.list(),
         paymentMethodsClient.orderStatuses(),
+        paymentMethodsClient.adapters().catch(() => [] as string[]),
       ]);
       setRows(methods);
       setOrderStatuses(statuses);
+      setAdapters(adapterKeys);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
     } finally {
@@ -56,6 +67,11 @@ export function PaymentMethodsPage(): ReactNode {
     void refresh();
   }, [refresh]);
 
+  const resetForm = useCallback((): void => {
+    setEditing(null);
+    setFormNonce((n) => n + 1);
+  }, []);
+
   const handleUpsert = useCallback(
     async (input: UpsertFormValue): Promise<void> => {
       const name: Record<string, string> = {};
@@ -66,6 +82,7 @@ export function PaymentMethodsPage(): ReactNode {
           code: input.code,
           name,
           kind: input.kind,
+          ...(input.adapter ? { adapter: input.adapter } : {}),
           additionalPrice: Number.isFinite(input.additionalPrice) ? input.additionalPrice : 0,
           status: input.status,
           ...(input.statusOnPending ? { statusOnPending: input.statusOnPending } : {}),
@@ -73,12 +90,13 @@ export function PaymentMethodsPage(): ReactNode {
           ...(input.statusOnFailure ? { statusOnFailure: input.statusOnFailure } : {}),
         });
         setInfo(t('legacyMethods.messages.saved', { code: input.code }));
+        resetForm();
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('legacyMethods.errors.save'));
       }
     },
-    [refresh, t],
+    [refresh, resetForm, t],
   );
 
   const handleDelete = useCallback(
@@ -86,13 +104,24 @@ export function PaymentMethodsPage(): ReactNode {
       if (!confirm(t('legacyMethods.payment.deleteConfirm'))) return;
       try {
         await paymentMethodsClient.remove(id);
+        if (editing?.id === id) resetForm();
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('legacyMethods.errors.delete'));
       }
     },
-    [refresh, t],
+    [editing, refresh, resetForm, t],
   );
+
+  const startEdit = useCallback((row: AdminPaymentMethod): void => {
+    setError(null);
+    setInfo(null);
+    setEditing(row);
+    // Bring the form (top of page) into view for a clear edit affordance.
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const showStripe = hasPermission('stripe:read');
 
   return (
     <>
@@ -112,12 +141,50 @@ export function PaymentMethodsPage(): ReactNode {
         </Alert>
       ) : null}
 
+      {showStripe ? (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>{t('legacyMethods.integrations.title')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-4 text-sm text-muted-foreground">
+              {t('legacyMethods.integrations.description')}
+            </p>
+            <div className="flex items-center justify-between gap-4 rounded-md border p-4">
+              <div>
+                <div className="font-medium">{t('legacyMethods.integrations.stripe.name')}</div>
+                <div className="text-sm text-muted-foreground">
+                  {t('legacyMethods.integrations.stripe.description')}
+                </div>
+              </div>
+              <Button asChild variant="outline" size="sm">
+                <Link to="/settings/stripe">
+                  {t('legacyMethods.integrations.configure')}
+                  <ArrowRight />
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>{t('legacyMethods.formTitle')}</CardTitle>
+          <CardTitle>
+            {editing
+              ? t('legacyMethods.editTitle', { code: editing.code })
+              : t('legacyMethods.formTitle')}
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <UpsertForm onSubmit={handleUpsert} orderStatuses={orderStatuses} />
+          <UpsertForm
+            key={editing ? `edit-${editing.id}` : `new-${formNonce}`}
+            initial={editing}
+            adapters={adapters}
+            orderStatuses={orderStatuses}
+            onSubmit={handleUpsert}
+            {...(editing ? { onCancel: resetForm } : {})}
+          />
         </CardContent>
       </Card>
 
@@ -157,15 +224,26 @@ export function PaymentMethodsPage(): ReactNode {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        type="button"
-                        onClick={(): void => void handleDelete(r.id)}
-                      >
-                        <Trash2 />
-                        {t('common.action.delete')}
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          onClick={(): void => startEdit(r)}
+                        >
+                          <Pencil />
+                          {t('common.action.edit')}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          type="button"
+                          onClick={(): void => void handleDelete(r.id)}
+                        >
+                          <Trash2 />
+                          {t('common.action.delete')}
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -183,6 +261,7 @@ interface UpsertFormValue {
   nameEn: string;
   namePl: string;
   kind: AdminPaymentMethod['kind'];
+  adapter: string;
   additionalPrice: number;
   status: 'active' | 'inactive';
   statusOnPending: string;
@@ -191,22 +270,36 @@ interface UpsertFormValue {
 }
 
 function UpsertForm({
+  initial,
+  adapters,
   onSubmit,
+  onCancel,
   orderStatuses,
 }: {
+  initial?: AdminPaymentMethod | null;
+  adapters: string[];
   onSubmit: (input: UpsertFormValue) => Promise<void>;
+  onCancel?: () => void;
   orderStatuses: OrderStatusOption[];
 }): ReactNode {
   const t = useTranslation('core');
-  const [code, setCode] = useState('');
-  const [nameEn, setNameEn] = useState('');
-  const [namePl, setNamePl] = useState('');
-  const [kind, setKind] = useState<AdminPaymentMethod['kind']>('bank_transfer');
-  const [additionalPrice, setAdditionalPrice] = useState('0');
-  const [status, setStatus] = useState<'active' | 'inactive'>('active');
-  const [statusOnPending, setStatusOnPending] = useState('');
-  const [statusOnSuccess, setStatusOnSuccess] = useState('');
-  const [statusOnFailure, setStatusOnFailure] = useState('');
+  const isEdit = Boolean(initial);
+  const [code, setCode] = useState(initial?.code ?? '');
+  const [nameEn, setNameEn] = useState(initial?.name['en-US'] ?? '');
+  const [namePl, setNamePl] = useState(initial?.name['pl-PL'] ?? '');
+  const [kind, setKind] = useState<AdminPaymentMethod['kind']>(initial?.kind ?? 'bank_transfer');
+  const [adapter, setAdapter] = useState(initial?.adapter ?? '');
+  const [additionalPrice, setAdditionalPrice] = useState(String(initial?.additionalPrice ?? '0'));
+  const [status, setStatus] = useState<'active' | 'inactive'>(initial?.status ?? 'active');
+  const [statusOnPending, setStatusOnPending] = useState(initial?.statusOnPending ?? '');
+  const [statusOnSuccess, setStatusOnSuccess] = useState(initial?.statusOnSuccess ?? '');
+  const [statusOnFailure, setStatusOnFailure] = useState(initial?.statusOnFailure ?? '');
+
+  // Offer the known adapter keys, but never drop the row's current adapter even
+  // if the registry list failed to load — so an edit never silently rebinds it.
+  const adapterOptions = Array.from(
+    new Set([...(adapter ? [adapter] : []), ...adapters]),
+  );
 
   const statusSelect = (
     id: string,
@@ -237,6 +330,7 @@ function UpsertForm({
           nameEn,
           namePl,
           kind,
+          adapter,
           additionalPrice: Number(additionalPrice),
           status,
           statusOnPending,
@@ -248,7 +342,13 @@ function UpsertForm({
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="pmcode">{t('legacyMethods.fields.code')}</Label>
-          <Input id="pmcode" value={code} onChange={(e): void => setCode(e.target.value)} required />
+          <Input
+            id="pmcode"
+            value={code}
+            onChange={(e): void => setCode(e.target.value)}
+            required
+            disabled={isEdit}
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="pmkind">{t('legacyMethods.fields.kind')}</Label>
@@ -260,6 +360,22 @@ function UpsertForm({
             {KINDS.map((k) => (
               <option key={k} value={k}>
                 {t(`legacyMethods.payment.kind.${k}`)}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="pmadapter">{t('legacyMethods.fields.adapter')}</Label>
+          <Select
+            id="pmadapter"
+            value={adapter}
+            onChange={(e): void => setAdapter(e.target.value)}
+          >
+            {/* Empty = let the backend default the adapter to the selected kind. */}
+            <option value="">{`— (${kind})`}</option>
+            {adapterOptions.map((a) => (
+              <option key={a} value={a}>
+                {a}
               </option>
             ))}
           </Select>
@@ -298,7 +414,14 @@ function UpsertForm({
         {statusSelect('pmsos', t('legacyMethods.fields.statusOnSuccess'), statusOnSuccess, setStatusOnSuccess)}
         {statusSelect('pmsof', t('legacyMethods.fields.statusOnFailure'), statusOnFailure, setStatusOnFailure)}
       </div>
-      <Button type="submit">{t('common.action.save')}</Button>
+      <div className="flex gap-2">
+        <Button type="submit">{t('common.action.save')}</Button>
+        {onCancel ? (
+          <Button type="button" variant="outline" onClick={onCancel}>
+            {t('common.action.cancel')}
+          </Button>
+        ) : null}
+      </div>
     </form>
   );
 }

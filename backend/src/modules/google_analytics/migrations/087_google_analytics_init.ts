@@ -8,7 +8,7 @@ import { Migration } from '@mikro-orm/migrations';
  * as JSONB (research §R9 / data-model simplification). Per-channel config lives
  * in the Settings module (no table). `sales_channel_id` null ⇒ all channels.
  */
-export class Migration085GoogleAnalyticsInit extends Migration {
+export class Migration087GoogleAnalyticsInit extends Migration {
   override async up(): Promise<void> {
     this.addSql(`
       create table "ga_custom_events" (

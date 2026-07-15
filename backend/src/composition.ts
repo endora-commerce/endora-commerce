@@ -49,6 +49,7 @@ import { SmtpMailer } from './modules/email/services/smtp-mailer.js';
 import { commerceModule } from './modules/orders/plugin.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import { returnsModule } from './modules/returns/plugin.js';
+import { stripeModule } from './modules/stripe/plugin.js';
 import { OrderReturnContextProvider } from './modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from './modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from './modules/invoices/services/corrective-invoice.js';
@@ -122,6 +123,7 @@ import { newsletterSettingsManifest } from './modules/newsletter/manifest.js';
 import { googleAnalyticsModule } from './modules/google_analytics/plugin.js';
 import { googleAnalyticsSettingsManifest } from './modules/google_analytics/manifest.js';
 import { invoicesSettingsManifest } from './modules/invoices/manifest.js';
+import { stripeSettingsManifest } from './modules/stripe/manifest.js';
 import type { TransactionalEmailSender } from '@b2b/contracts';
 import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
 import { ORDER_CONFIRMATION_DEFAULT } from './modules/orders/email-templates/order-confirmation.default.js';
@@ -1002,6 +1004,27 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           return 0;
         }
       },
+      // Real per-product VAT — resolve the rate from the product's tax class
+      // (its `type`), the billing country, and the org VAT status, against the
+      // `taxes` rules (mirrors Quote Requests). order-service already returns 0
+      // for VAT-exempt / reverse-charge orgs; failures degrade to a flat 23%.
+      resolveTaxRate: async ({ country, productType, vatStatus }) => {
+        try {
+          const resolved = await taxes.handle.taxService.taxRateFor({
+            country: country ?? 'PL',
+            productType: productType as
+              | 'simple'
+              | 'configurable'
+              | 'grouped'
+              | 'bundle'
+              | 'virtual',
+            vatStatus: vatStatus as 'vat_payer' | 'vat_exempt' | 'reverse_charge',
+          });
+          return resolved.rate;
+        } catch {
+          return 0.23;
+        }
+      },
       // Sales-channel layer of the fulfilment-strategy precedence chain — the
       // SettingsService collapses per-channel value → global value → manifest
       // default ('default_first'). Failures degrade to that same default.
@@ -1876,6 +1899,30 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     getTransactionalEmailSender: () => transactionalEmailSender,
   }).attach(eventBus);
+  // Feature 049 — Stripe payment gateway. Registers the Stripe PaymentAdapter
+  // + gateway refund handler into the shared singletons, seeds one
+  // payment_methods row per Stripe method, and mounts the webhook / storefront /
+  // admin routes. Coupling (settings, sales channels, default channel) is
+  // injected so the module stays isolated (Principle I).
+  modules.push(
+    stripeModule({
+      emFactory: em,
+      eventBus,
+      settingsService: settings.handle.settingsService,
+      settingsAdmin: settings.handle.adminService,
+      requireAdmin,
+      requireCustomer,
+      resolveCustomerAccountId,
+      resolveAdminAuditContext: (request) => ({
+        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+      }),
+      resolveDefaultChannelId: async () =>
+        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      salesChannelMembership: salesChannels.handle.membershipService,
+      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
+    }),
+  );
+
   modules.push(
     transactionalEmailsModule({
       emFactory: em,
@@ -2156,6 +2203,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     newsletterSettingsManifest,
     googleAnalyticsSettingsManifest,
     invoicesSettingsManifest,
+    stripeSettingsManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
   const reconcilerEm = em();

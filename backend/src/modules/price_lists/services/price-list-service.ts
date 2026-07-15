@@ -779,8 +779,12 @@ export class PriceListService {
 
   /**
    * Read the value of a `pricing.*` display-mode setting for a sales
-   * channel. Falls back to the Setting's `defaultValue` (manifest
-   * default, typically `'gross_only'`).
+   * channel. Resolves along the settings tier chain
+   *   per-channel override → global value → manifest `defaultValue`
+   * (mirroring `SettingsService.get`). The global tier lives on
+   * `settings.global_value` and is what the admin "All channels" editor
+   * writes; without it a globally-set mode (e.g. `both`) was ignored and
+   * the resolver silently fell back to the manifest default `gross_only`.
    */
   async readSettingsDisplayMode(
     key: 'default_display_mode' | 'unauthenticated_display_mode',
@@ -794,7 +798,7 @@ export class PriceListService {
       setting: setting.id,
       salesChannel: salesChannelId,
     });
-    const raw = (value?.value ?? setting.defaultValue) as string;
+    const raw = (value?.value ?? setting.globalValue ?? setting.defaultValue) as string;
     if (raw === 'gross_only' || raw === 'net_only' || raw === 'both' || raw === 'none') {
       return raw;
     }

@@ -12,6 +12,7 @@ import {
   createOrderStatusRequestSchema,
   customerAddOrderCommentRequestSchema,
   ERROR_CODES,
+  orderPreviewTotalRequestSchema,
   placeOrderRequestSchema,
   setOrderTransitionsRequestSchema,
   updateOrderSavedViewRequestSchema,
@@ -126,6 +127,21 @@ export async function registerOrderRoutes(
       const order = await orderService.placeOrder(ctx, body);
       reply.status(201);
       return { data: await serializeOrder(emFactory(), order) };
+    },
+  );
+
+  // Read-only total preview for the active cart + chosen methods (feature 049).
+  // The exact amount (incl. per-product VAT) is computed server-side so the
+  // storefront can display it — e.g. for the inline Stripe Payment Element —
+  // without re-deriving any pricing on the client.
+  app.post(
+    '/api/v1/orders/preview-total',
+    { preHandler: requireCustomer, schema: { body: orderPreviewTotalRequestSchema } },
+    async (request) => {
+      const body = orderPreviewTotalRequestSchema.parse(request.body);
+      const ctx = resolveCustomerContext(request);
+      const totals = await orderService.previewTotal(ctx, body);
+      return { data: totals };
     },
   );
 

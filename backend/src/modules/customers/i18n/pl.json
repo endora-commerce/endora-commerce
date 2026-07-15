@@ -54,6 +54,10 @@
   "online.loading": "Wczytywanie…",
   "online.empty": "Żaden klient nie jest teraz online.",
   "online.column.lastSeen": "Ostatnio widziany",
+  "online.refresh": "Odśwież",
+  "online.autoRefresh": "Automatyczne odświeżanie",
+  "online.intervalLabel": "Interwał (sekundy)",
+  "online.refreshedAt": "Zaktualizowano {time}",
 
   "detail.panel.loading": "Wczytywanie…",
   "detail.panel.error": "Nie udało się wczytać tej sekcji.",

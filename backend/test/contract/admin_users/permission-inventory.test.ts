@@ -28,6 +28,7 @@ describe('permission inventory (SC-001)', () => {
     // +2 for feature 047 invoices (invoices:read, invoices:write).
     // +2 for feature 048 newsletter (newsletter:read, newsletter:write).
     // +2 for feature 049 google_analytics (google_analytics:read, google_analytics:write).
-    expect(assignable.size).toBe(48);
+    // +2 for feature 049 Stripe (stripe:read, stripe:write).
+    expect(assignable.size).toBe(50);
   });
 });
