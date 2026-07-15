@@ -1,0 +1,39 @@
+{
+  "actions": {
+    "openGoogleAnalytics": {
+      "label": "Google Analytics",
+      "description": "Configure Google Analytics custom events"
+    },
+    "newCustomEvent": {
+      "label": "New Google Analytics event",
+      "description": "Create a custom Google Analytics event"
+    }
+  },
+  "customEvents": {
+    "title": "Custom events",
+    "subtitle": "Map storefront actions to Google Analytics events",
+    "empty": "No custom events yet",
+    "new": "New event",
+    "edit": "Edit event",
+    "eventName": "Event name",
+    "triggerAction": "Trigger action",
+    "buttonId": "Button ID",
+    "salesChannel": "Sales channel",
+    "allChannels": "All channels",
+    "enabled": "Enabled",
+    "fields": "Payload fields",
+    "addField": "Add field",
+    "fieldKey": "Field",
+    "payloadKey": "Sent as",
+    "save": "Save",
+    "delete": "Delete",
+    "actions": {
+      "contact_form_submitted": "Contact form submitted",
+      "place_order_clicked": "Place Order clicked",
+      "add_to_cart": "Add to cart",
+      "add_to_quote_request": "Add to quote request",
+      "add_to_shopping_list": "Add to shopping list",
+      "button_click_by_id": "Button click (by ID)"
+    }
+  }
+}

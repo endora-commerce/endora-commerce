@@ -31,6 +31,8 @@ import { manifest as pwaManifest } from '../pwa/manifest.js';
 import { manifest as transactionalEmailsManifest } from '../transactional_emails/manifest.js';
 // Feature 048 — Newsletter (own-infrastructure bulk email + automations).
 import { manifest as newsletterManifest } from '../newsletter/manifest.js';
+// Feature 049 — Google Analytics (GA4 integration + custom events + server-side tagging).
+import { manifest as googleAnalyticsManifest } from '../google_analytics/manifest.js';
 // Pass C retrofit — manifest backfills for every remaining legacy module.
 // These predate the lifecycle system; the manifest is the static record
 // required for the module to be considered active. A module on disk that
@@ -138,6 +140,8 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   { manifest: transactionalEmailsManifest, filePath: pathFor('transactional_emails') },
   // Feature 048 — Newsletter module.
   { manifest: newsletterManifest, filePath: pathFor('newsletter') },
+  // Feature 049 — Google Analytics module.
+  { manifest: googleAnalyticsManifest, filePath: pathFor('google_analytics') },
   // Pass C retrofit — every remaining legacy module gets a manifest so
   // none of them are treated as inactive. Sort: alphabetical by id.
   { manifest: addressesManifest, filePath: pathFor('addresses') },

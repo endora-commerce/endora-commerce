@@ -118,6 +118,9 @@ import { transactionalEmailsSettingsManifest } from './modules/transactional_ema
 // Feature 048 — Newsletter.
 import { newsletterModule } from './modules/newsletter/plugin.js';
 import { newsletterSettingsManifest } from './modules/newsletter/manifest.js';
+// Feature 049 — Google Analytics.
+import { googleAnalyticsModule } from './modules/google_analytics/plugin.js';
+import { googleAnalyticsSettingsManifest } from './modules/google_analytics/manifest.js';
 import { invoicesSettingsManifest } from './modules/invoices/manifest.js';
 import type { TransactionalEmailSender } from '@b2b/contracts';
 import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
@@ -1941,6 +1944,19 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     }),
   );
 
+  // Feature 049 — Google Analytics. GA4 integration: per-channel activation +
+  // Measurement ID, Enhanced Ecommerce, custom events, and server-side tagging.
+  // Config lives in the Settings module; server-side delivery is queue-backed.
+  modules.push(
+    googleAnalyticsModule({
+      emFactory: em,
+      settings: settings.handle.settingsService,
+      requireAdmin,
+      redis,
+      runWorkers,
+    }),
+  );
+
   // Shopping lists / quick order — depends on the RFQ service built above
   // so the "convert to RFQ" flow goes through the new createForCustomer API.
   modules.push(
@@ -2114,6 +2130,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     pwaSettingsManifest,
     transactionalEmailsSettingsManifest,
     newsletterSettingsManifest,
+    googleAnalyticsSettingsManifest,
     invoicesSettingsManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
