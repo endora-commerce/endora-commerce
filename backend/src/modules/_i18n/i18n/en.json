@@ -1737,6 +1737,7 @@
   "orderDetail.payments.columns.amount": "Amount",
   "orderDetail.payments.columns.status": "Status",
   "orderDetail.payments.columns.paidAt": "Paid at",
+  "orderDetail.payments.columns.actionDate": "Action date",
   "orderDetail.payments.columns.reference": "Reference",
   "orderDetail.payments.columns.failure": "Failure reason",
   "orderDetail.invoices.title": "Invoices",

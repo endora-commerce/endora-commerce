@@ -1737,6 +1737,7 @@
   "orderDetail.payments.columns.amount": "Kwota",
   "orderDetail.payments.columns.status": "Status",
   "orderDetail.payments.columns.paidAt": "Opłacono",
+  "orderDetail.payments.columns.actionDate": "Data akcji",
   "orderDetail.payments.columns.reference": "Referencja",
   "orderDetail.payments.columns.failure": "Powód niepowodzenia",
   "orderDetail.invoices.title": "Faktury",

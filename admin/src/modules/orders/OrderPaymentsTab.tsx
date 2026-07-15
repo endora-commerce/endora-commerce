@@ -179,7 +179,7 @@ export function OrderPaymentsTab(props: { orderId: string }): ReactNode {
                 <TableHead>{t('orderDetail.payments.columns.attempt')}</TableHead>
                 <TableHead>{t('orderDetail.payments.columns.amount')}</TableHead>
                 <TableHead>{t('orderDetail.payments.columns.status')}</TableHead>
-                <TableHead>{t('orderDetail.payments.columns.paidAt')}</TableHead>
+                <TableHead>{t('orderDetail.payments.columns.actionDate')}</TableHead>
                 <TableHead>{t('orderDetail.payments.columns.reference')}</TableHead>
                 <TableHead>{t('orderDetail.payments.columns.failure')}</TableHead>
               </TableRow>
