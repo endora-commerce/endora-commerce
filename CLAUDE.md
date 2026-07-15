@@ -1,6 +1,6 @@
 # b2b-platform Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-06-29
+Auto-generated from all feature plans. Last updated: 2026-07-15
 
 ## Active Technologies
 - TypeScript 5.x (strict mode) na Node.js LTS (≥ 22.17, jak w README po update foundation 001). + bez nowych runtime — wszystkie wymagane już są: (002-catalog-module)
@@ -86,6 +86,8 @@ Auto-generated from all feature plans. Last updated: 2026-06-29
 - TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend); React 19 + Vite + react-router-dom 7 (admin); Next.js 15 App Router + React 19 (storefront); shared packages compiled to ESM. + Fastify, MikroORM (PostgreSQL driver), Zod (`@b2b/contracts`), ioredis (Settings cache + lifecycle pub/sub), **BullMQ** (durable dispatch + scheduling queues), **nodemailer** (bulk SMTP provider adapter — already a dependency), in-process `EventBus` (`backend/src/events/bus.ts`), the shared **`@b2b/email-components`** renderer + directive engine + email-safe Puck config (feature 047), the existing Settings module **`secret`** value type (feature 043, AES-256-GCM) for provider credentials, `@b2b/api-client` + `lucide-react` + the `<EChart>` wrapper (admin). **No new runtime dependency.** (048-newsletter-module)
 - PostgreSQL via MikroORM. One module-scoped migration `084_newsletter_init.ts` (next sequential after the repo-wide highest `083_*`). New tables: `newsletter_subscribers`, `newsletter_tags`, `newsletter_subscriber_tags`, `newsletter_custom_fields`, `newsletter_suppressions`, `newsletter_email_blocks`, `newsletter_email_block_sales_channels`, `newsletter_campaigns`, `newsletter_campaign_subscribers`, `newsletter_send_records`, `newsletter_engagement_events`, `newsletter_automations`, `newsletter_automation_runs`. Per-channel opt-in mode, provider selection, and provider credentials are modeled via the **Settings module** (provider secrets via the `secret` value type) — no bespoke credential table. Audit via the existing `audit_log_entries` table through `AuditLogService.record(...)`. (048-newsletter-module)
 - TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 + Fastify, MikroORM (PostgreSQL), Zod (`@b2b/contracts`), (047-invoices-module)
+- TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend); + Fastify, MikroORM (PostgreSQL driver), Zod (049-google-analytics)
+- PostgreSQL — one module-scoped migration (049-google-analytics)
 
 - TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x) + MikroORM (PostgreSQL driver) for persistence; Zod for boundary validation; Next.js for the storefront; React for the admin panel; Meilisearch client; Redis client (cache + BullMQ-class queue). Backend HTTP layer intentionally minimal (a small, well-known Node/TypeScript HTTP router; choice deferred to Phase 0 research with a bias toward the smallest dependency footprint compatible with TDD, Zod, and modular routing). (001-b2b-platform-foundation)
 
@@ -105,10 +107,9 @@ npm test && npm run lint
 TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x): Follow standard conventions
 
 ## Recent Changes
+- 049-google-analytics: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend); + Fastify, MikroORM (PostgreSQL driver), Zod
 - 048-newsletter-module: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend); React 19 + Vite + react-router-dom 7 (admin); Next.js 15 App Router + React 19 (storefront); shared packages compiled to ESM. + Fastify, MikroORM (PostgreSQL driver), Zod (`@b2b/contracts`), ioredis (Settings cache + lifecycle pub/sub), **BullMQ** (durable dispatch + scheduling queues), **nodemailer** (bulk SMTP provider adapter — already a dependency), in-process `EventBus` (`backend/src/events/bus.ts`), the shared **`@b2b/email-components`** renderer + directive engine + email-safe Puck config (feature 047), the existing Settings module **`secret`** value type (feature 043, AES-256-GCM) for provider credentials, `@b2b/api-client` + `lucide-react` + the `<EChart>` wrapper (admin). **No new runtime dependency.**
 - 047-invoices-module: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 + Fastify, MikroORM (PostgreSQL), Zod (`@b2b/contracts`),
-- 047-transactional-emails: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend); React 19 + Vite + react-router-dom 7 (admin); shared packages compiled to ESM. + Fastify, MikroORM (PostgreSQL driver), Zod (`@b2b/contracts`), ioredis (Settings cache + lifecycle pub/sub), in-process `EventBus` (`backend/src/events/bus.ts`), `@measured/puck` + `@b2b/cms-components` patterns (admin editor), `@b2b/api-client` + `lucide-react` (admin), existing `email` module `Mailer`. **No new runtime dependency.** The email-HTML renderer, the Magento-style directive engine, and HTML escaping are hand-rolled first-party code in a new `packages/email-components` package.
-- 046-refunds-rma: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend); React 19 + Vite + react-router-dom 7 (admin); Next.js 15.5 App Router + React 19 (storefront) + Fastify, MikroORM (PostgreSQL driver), Zod (`@b2b/contracts`), ioredis (Settings cache + lifecycle pub/sub), in-process `EventBus` (`backend/src/events/bus.ts`), `@b2b/api-client` + `lucide-react` (admin). **No new runtime dependency.**
 
 
 <!-- MANUAL ADDITIONS START -->
