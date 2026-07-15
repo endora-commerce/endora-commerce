@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto';
 import { describe, expect, it } from 'vitest';
 import {
   SecretKeyMissing,
+  SecretKeyInvalid,
   decryptSecretValue,
   encryptSecretValue,
   isSecretEnvelope,
@@ -67,8 +68,15 @@ describe('secret-value codec (T004)', () => {
     expect(() => decryptSecretValue(envelope, undefined)).toThrow(SecretKeyMissing);
   });
 
-  it('rejects keys that do not decode to 32 bytes', () => {
-    expect(() => encryptSecretValue('value', Buffer.from('short').toString('base64'))).toThrow();
+  it('rejects keys that do not decode to 32 bytes with a clear SecretKeyInvalid', () => {
+    const shortKey = Buffer.from('short').toString('base64');
+    expect(() => encryptSecretValue('value', shortKey)).toThrow(SecretKeyInvalid);
+    try {
+      encryptSecretValue('value', shortKey);
+    } catch (err) {
+      expect((err as Error).message).toMatch(/must decode to 32 bytes/);
+      expect((err as SecretKeyInvalid).code).toBe('SETTING_SECRET_KEY_MISSING');
+    }
   });
 
   it('isSecretEnvelope discriminates envelopes from arbitrary values', () => {

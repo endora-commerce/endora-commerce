@@ -40,8 +40,9 @@ describe('Admin roles CRUD', () => {
     // +2 for feature 047 transactional emails (transactional_emails:read, :write).
     // +2 for feature 047 invoices (invoices:read, invoices:write).
     // +2 for feature 048 newsletter (newsletter:read, newsletter:write).
+    // +2 for feature 049 google_analytics (google_analytics:read, :write).
     // +2 for feature 049 stripe (stripe:read, stripe:write).
-    expect(body.data.length).toBe(48);
+    expect(body.data.length).toBe(50);
     expect(body.data.some((p) => p.code === 'promotions:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'stripe:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'mfa:reset')).toBe(true);

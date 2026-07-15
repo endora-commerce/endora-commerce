@@ -91,6 +91,7 @@ import { Migration083InvoicesModule } from '../modules/invoices/migrations/083_i
 import { Migration084NewsletterInit } from '../modules/newsletter/migrations/084_newsletter_init.js';
 import { Migration085StripeInit } from '../modules/stripe/migrations/085_stripe_init.js';
 import { Migration086PaymentRefundedAmount } from '../modules/stripe/migrations/086_payment_refunded_amount.js';
+import { Migration087GoogleAnalyticsInit } from '../modules/google_analytics/migrations/087_google_analytics_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -434,6 +435,10 @@ export default defineConfig({
       {
         name: 'Migration086PaymentRefundedAmount',
         class: Migration086PaymentRefundedAmount,
+      },
+      {
+        name: 'Migration087GoogleAnalyticsInit',
+        class: Migration087GoogleAnalyticsInit,
       },
     ],
     transactional: true,

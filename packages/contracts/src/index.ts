@@ -111,3 +111,4 @@ export * from './prompt-actions.js';
 export * from './pwa.js';
 export * from './transactional-emails.js';
 export * from './newsletter.js';
+export * from './google-analytics.js';

@@ -119,6 +119,9 @@ import { transactionalEmailsSettingsManifest } from './modules/transactional_ema
 // Feature 048 — Newsletter.
 import { newsletterModule } from './modules/newsletter/plugin.js';
 import { newsletterSettingsManifest } from './modules/newsletter/manifest.js';
+// Feature 049 — Google Analytics.
+import { googleAnalyticsModule } from './modules/google_analytics/plugin.js';
+import { googleAnalyticsSettingsManifest } from './modules/google_analytics/manifest.js';
 import { invoicesSettingsManifest } from './modules/invoices/manifest.js';
 import { stripeSettingsManifest } from './modules/stripe/manifest.js';
 import type { TransactionalEmailSender } from '@b2b/contracts';
@@ -1988,6 +1991,43 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     }),
   );
 
+  // Feature 049 — Google Analytics. GA4 integration: per-channel activation +
+  // Measurement ID, Enhanced Ecommerce, custom events, and server-side tagging.
+  // Config lives in the Settings module; server-side delivery is queue-backed.
+  modules.push(
+    googleAnalyticsModule({
+      emFactory: em,
+      settings: settings.handle.settingsService,
+      requireAdmin,
+      channels: {
+        idByCode: async (code) =>
+          (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+        codeById: async (id) => {
+          const { items } = await salesChannels.handle.salesChannelsService.list({});
+          return items.find((c) => c.id === id)?.code ?? null;
+        },
+      },
+      resolveAuditContext: (request) => ({
+        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+      }),
+      auditLog: auditLogService,
+      redis,
+      runWorkers,
+      // On-demand storefront cache invalidation: any google_analytics.* setting
+      // change (and custom-event CRUD) revalidates the storefront `ga:config`.
+      onSettingChanged: (handler) =>
+        eventBus.on('settings.value_changed', (payload) =>
+          handler((payload as unknown as { settingCode: string }).settingCode),
+        ),
+      ...(process.env['STOREFRONT_BASE_URL']
+        ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
+        : {}),
+      ...(process.env['REVALIDATE_SECRET']
+        ? { revalidateSecret: process.env['REVALIDATE_SECRET'] }
+        : {}),
+    }),
+  );
+
   // Shopping lists / quick order — depends on the RFQ service built above
   // so the "convert to RFQ" flow goes through the new createForCustomer API.
   modules.push(
@@ -2161,6 +2201,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     pwaSettingsManifest,
     transactionalEmailsSettingsManifest,
     newsletterSettingsManifest,
+    googleAnalyticsSettingsManifest,
     invoicesSettingsManifest,
     stripeSettingsManifest,
     // Other modules' manifests are appended here as they start using settings.

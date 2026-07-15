@@ -40,12 +40,26 @@ export class SecretKeyMissing extends Error {
   }
 }
 
+/**
+ * The encryption key is present but not a valid AES-256 key (must decode to
+ * exactly 32 bytes). Carries the same error code as {@link SecretKeyMissing} so
+ * callers surface a clear 5xx instead of a bare "Internal server error".
+ */
+export class SecretKeyInvalid extends Error {
+  override readonly name = 'SecretKeyInvalid';
+  readonly code = 'SETTING_SECRET_KEY_MISSING' as const;
+  constructor(actualBytes: number) {
+    super(
+      `SETTINGS_SECRET_ENCRYPTION_KEY is misconfigured — it must decode to ${KEY_LENGTH} bytes ` +
+        `(got ${actualBytes}). Set it to 32 random bytes, base64-encoded (e.g. \`openssl rand -base64 32\`).`,
+    );
+  }
+}
+
 function keyBuffer(keyBase64: string): Buffer {
   const key = Buffer.from(keyBase64, 'base64');
   if (key.length !== KEY_LENGTH) {
-    throw new Error(
-      `SETTINGS_SECRET_ENCRYPTION_KEY must decode to ${KEY_LENGTH} bytes (got ${key.length}).`,
-    );
+    throw new SecretKeyInvalid(key.length);
   }
   return key;
 }

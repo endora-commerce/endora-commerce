@@ -1,0 +1,42 @@
+{
+  "actions": {
+    "openGoogleAnalytics": {
+      "label": "Google Analytics",
+      "description": "Konfiguruj własne zdarzenia Google Analytics"
+    },
+    "newCustomEvent": {
+      "label": "Nowe zdarzenie Google Analytics",
+      "description": "Utwórz własne zdarzenie Google Analytics"
+    }
+  },
+  "customEvents": {
+    "title": "Zdarzenia własne",
+    "subtitle": "Przypisz akcje w Storefront do zdarzeń Google Analytics",
+    "empty": "Brak zdarzeń własnych",
+    "new": "Nowe zdarzenie",
+    "edit": "Edytuj zdarzenie",
+    "eventName": "Nazwa zdarzenia",
+    "triggerAction": "Akcja wyzwalająca",
+    "buttonId": "ID przycisku",
+    "salesChannel": "Kanał sprzedaży",
+    "allChannels": "Wszystkie kanały",
+    "enabled": "Aktywne",
+    "fields": "Pola payloadu",
+    "fieldsHint": "Wybierz, które pola wysłać — wartości uzupełniają się automatycznie w miejscu zdarzenia.",
+    "addField": "Dodaj pole",
+    "fieldKey": "Pole",
+    "payloadKey": "Wysyłane jako",
+    "sentAs": "wysyłane jako",
+    "payloadKeyHint": "(jak nazwa pola)",
+    "save": "Zapisz",
+    "delete": "Usuń",
+    "actions": {
+      "contact_form_submitted": "Zapis formularza kontaktowego",
+      "place_order_clicked": "Kliknięcie „Złóż zamówienie”",
+      "add_to_cart": "Dodaj do koszyka",
+      "add_to_quote_request": "Dodaj do zapytania ofertowego",
+      "add_to_shopping_list": "Dodaj do listy zakupowej",
+      "button_click_by_id": "Kliknięcie przycisku (wg ID)"
+    }
+  }
+}

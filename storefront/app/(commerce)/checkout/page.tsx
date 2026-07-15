@@ -31,6 +31,7 @@ import { formatMoney } from '../../../lib/i18n/money';
 import { OrganizationModerationBanner } from '../../../components/OrganizationModerationBanner';
 import { StorefrontApiError } from '../../../lib/api/client';
 import { getMe } from '../../../lib/api/account';
+import { BeginCheckoutTracker } from '../../../components/analytics/EcommerceTrackers';
 
 /**
  * Checkout (T157 / FR-046, FR-049). One page, four sections — pick a
@@ -200,6 +201,17 @@ export default async function CheckoutPage({
 
   return (
     <div className="b2b-auth max-w-[720px]">
+      {/* Feature 049 — GA4 begin_checkout (no-op unless Enhanced Ecommerce is on). */}
+      <BeginCheckoutTracker
+        currency={cart.subtotal.currency}
+        items={cart.items.map((it) => ({
+          sku: it.productSku ?? it.productId,
+          name: it.productName ?? it.productId,
+          price: it.unitPrice.amount,
+          quantity: it.quantity,
+          currency: it.unitPrice.currency,
+        }))}
+      />
       <h1>Checkout</h1>
       <OrganizationModerationBanner
         status={me?.organization?.status}

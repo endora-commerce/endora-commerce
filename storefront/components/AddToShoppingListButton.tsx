@@ -5,6 +5,7 @@ import {
   invalidateShoppingListMembership,
   loadShoppingListMembership,
 } from '../lib/shoppingListMembership';
+import { emitActionEvents } from '../lib/analytics/collector';
 import {
   addToDefaultListAction,
   addToListAction,
@@ -140,6 +141,7 @@ export function AddToShoppingListButton(props: {
         invalidateShoppingListMembership();
         const fresh = await loadShoppingListMembership(true);
         setInList(fresh.byProduct.has(props.productId));
+        emitActionEvents('add_to_shopping_list', { sku: props.productId, quantity: props.quantity ?? 1 });
       }
       window.dispatchEvent(new CustomEvent('b2b:shopping-list:changed'));
       setState('idle');
@@ -168,6 +170,7 @@ export function AddToShoppingListButton(props: {
       invalidateShoppingListMembership();
       const fresh = await loadShoppingListMembership(true);
       setInList(fresh.byProduct.has(props.productId));
+      emitActionEvents('add_to_shopping_list', { sku: props.productId, quantity: props.quantity ?? 1 });
       window.dispatchEvent(new CustomEvent('b2b:shopping-list:changed'));
       setAddedTo(option.name);
       window.setTimeout(() => setAddedTo(null), 2200);

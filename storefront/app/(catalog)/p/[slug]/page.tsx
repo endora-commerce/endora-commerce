@@ -33,6 +33,7 @@ const PDP_API_BASE =
   process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'http://localhost:3001';
 import { ParametryTab } from '../../../../components/attributes/ParametryTab';
 import { Hook } from '../../../../components/Hook';
+import { ViewItemTracker } from '../../../../components/analytics/EcommerceTrackers';
 import { getStorefrontQuoteRequestSettings } from '../../../../lib/api/rfq';
 import { getProductBySlug } from '../../../../lib/api/catalog';
 import { getStorefrontProductStock } from '../../../../lib/api/inventory';
@@ -225,6 +226,16 @@ export default async function ProductPage({
 
   return (
     <div className="mx-auto max-w-[1360px] px-[24px] pt-[18px] pb-[64px] max-md:pb-[96px]">
+      {/* Feature 049 — GA4 view_item (no-op unless Enhanced Ecommerce is on). */}
+      <ViewItemTracker
+        item={{
+          sku: product.sku,
+          name: product.name,
+          price: product.price?.amount ?? 0,
+          quantity: 1,
+          ...(product.price?.currency ? { currency: product.price.currency } : {}),
+        }}
+      />
       <Breadcrumbs
         crumbs={[
           { href: '/', label: t('nav.home') },

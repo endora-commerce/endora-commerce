@@ -7,7 +7,7 @@ import { SettingGroup } from '../entities/setting-group.entity.js';
 import { Setting } from '../entities/setting.entity.js';
 import { SettingValue } from '../entities/setting-value.entity.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
-import { SecretKeyMissing, encryptSecretValue } from './secret-value-codec.js';
+import { SecretKeyMissing, SecretKeyInvalid, encryptSecretValue } from './secret-value-codec.js';
 
 /**
  * SettingsAdminService — feature 004 / US2 (T034).
@@ -211,7 +211,7 @@ export class SettingsAdminService {
       try {
         storedValue = plaintext === '' ? '' : encryptSecretValue(plaintext, this.secretEncryptionKey);
       } catch (err) {
-        if (err instanceof SecretKeyMissing) {
+        if (err instanceof SecretKeyMissing || err instanceof SecretKeyInvalid) {
           throw new HttpError(500, ERROR_CODES.SETTING_SECRET_KEY_MISSING, err.message);
         }
         throw err;

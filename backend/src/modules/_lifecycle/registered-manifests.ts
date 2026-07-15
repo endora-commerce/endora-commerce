@@ -31,6 +31,8 @@ import { manifest as pwaManifest } from '../pwa/manifest.js';
 import { manifest as transactionalEmailsManifest } from '../transactional_emails/manifest.js';
 // Feature 048 — Newsletter (own-infrastructure bulk email + automations).
 import { manifest as newsletterManifest } from '../newsletter/manifest.js';
+// Feature 049 — Google Analytics (GA4 integration + custom events + server-side tagging).
+import { manifest as googleAnalyticsManifest } from '../google_analytics/manifest.js';
 // Feature 049 — Stripe payment gateway.
 import { manifest as stripeManifest } from '../stripe/manifest.js';
 // Pass C retrofit — manifest backfills for every remaining legacy module.
@@ -140,6 +142,8 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   { manifest: transactionalEmailsManifest, filePath: pathFor('transactional_emails') },
   // Feature 048 — Newsletter module.
   { manifest: newsletterManifest, filePath: pathFor('newsletter') },
+  // Feature 049 — Google Analytics module.
+  { manifest: googleAnalyticsManifest, filePath: pathFor('google_analytics') },
   // Feature 049 — Stripe payment gateway module.
   { manifest: stripeManifest, filePath: pathFor('stripe') },
   // Pass C retrofit — every remaining legacy module gets a manifest so
