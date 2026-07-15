@@ -17,6 +17,7 @@ import { CreditLimitWidget } from '../../../components/CreditLimitWidget';
 import { PaymentMethods } from '../../../components/checkout/PaymentMethods';
 import { ShippingMethods } from '../../../components/checkout/ShippingMethods';
 import { AddressSection } from '../../../components/checkout/AddressSection';
+import { PlaceOrderButton } from '../../../components/checkout/PlaceOrderButton';
 import { CouponField } from '../../../components/checkout/CouponField';
 import { getServerContext } from '../../../lib/server-context';
 import { formatMoney } from '../../../lib/i18n/money';
@@ -232,15 +233,12 @@ export default async function CheckoutPage({
           >
             ← Back to cart
           </Link>
-          <button
-            type="submit"
-            disabled={!canTransact}
-            aria-disabled={!canTransact}
-            title={!canTransact ? (me?.organization?.moderationMessage ?? 'Ordering is currently unavailable.') : undefined}
-            style={!canTransact ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
-          >
-            Place order
-          </button>
+          <PlaceOrderButton
+            canTransact={canTransact}
+            label="Place order"
+            pendingLabel="Placing order…"
+            title={me?.organization?.moderationMessage ?? 'Ordering is currently unavailable.'}
+          />
         </div>
       </form>
     </div>
