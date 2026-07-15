@@ -22,6 +22,7 @@ const settings = defineModuleSettingsManifest({
       groupCode: 'pricing',
       valueType: 'string',
       defaultValue: 'gross_only',
+      enumOptions: ['gross_only', 'net_only', 'both', 'none'],
     },
     {
       code: PRICING_SETTING_CODES.UNAUTHENTICATED_DISPLAY_MODE,
@@ -31,6 +32,7 @@ const settings = defineModuleSettingsManifest({
       groupCode: 'pricing',
       valueType: 'string',
       defaultValue: 'gross_only',
+      enumOptions: ['gross_only', 'net_only', 'both', 'none'],
     },
   ],
 });
