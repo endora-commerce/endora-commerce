@@ -3,6 +3,7 @@
 import { useActionState, useState, type ReactNode } from 'react';
 import { ADD_TO_CART_IDLE, type AddToCartResult } from '../../lib/cartAddState';
 import { CartAddedPopup } from '../CartAddedPopup';
+import { CartSubmitButton } from '../CartSubmitButton';
 
 /**
  * Feature 044 / US3 — sticky bottom add-to-cart bar for the PDP (Industria
@@ -27,10 +28,9 @@ export function PdpStickyBuyBar(props: {
 }): ReactNode {
   const [qty, setQty] = useState(1);
   const clamp = (n: number): number => (Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1);
-  const [cartState, cartFormAction, cartPending] = useActionState(
-    props.addToCartAction,
-    ADD_TO_CART_IDLE,
-  );
+  // `CartSubmitButton` renders its own pending spinner via `useFormStatus`, so
+  // the action's `isPending` flag isn't needed here.
+  const [cartState, cartFormAction] = useActionState(props.addToCartAction, ADD_TO_CART_IDLE);
 
   return (
     <form action={cartFormAction} className="m-actionbar">
@@ -57,15 +57,12 @@ export function PdpStickyBuyBar(props: {
           +
         </button>
       </div>
-      <button
-        type="submit"
-        disabled={cartPending}
-        aria-busy={cartPending || undefined}
+      <CartSubmitButton
         className="btn btn--dark justify-center"
         style={{ flex: 1, height: 44 }}
-      >
-        <CartIcon /> {props.addToCartLabel}
-      </button>
+        label={props.addToCartLabel}
+        icon={<CartIcon />}
+      />
       <CartAddedPopup state={cartState} />
       {props.datasheetHref ? (
         <a

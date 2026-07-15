@@ -308,6 +308,7 @@ export const adminOrderRowSchema = z.object({
   salesChannelId: uuidSchema,
   salesChannelName: z.string().nullable(),
   deliveryMethodName: z.string().nullable(),
+  paymentMethodName: z.string().nullable(),
   shipToName: z.string().nullable(),
   billToName: z.string().nullable(),
 });

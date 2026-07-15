@@ -45,6 +45,7 @@ interface AdminOrderRow {
   salesChannelId: string;
   salesChannelName: string | null;
   deliveryMethodName: string | null;
+  paymentMethodName: string | null;
   shipToName: string | null;
   billToName: string | null;
 }
@@ -76,6 +77,7 @@ const COLUMN_IDS = [
   'org',
   'status',
   'payment',
+  'paymentMethod',
   'deliveryMethod',
   'shipTo',
   'billTo',
@@ -447,6 +449,12 @@ export function OrdersList(): ReactNode {
       header: t('orders.column.payment'),
       hideOnMobile: true,
       render: (o) => o.paymentStatus,
+    },
+    paymentMethod: {
+      id: 'paymentMethod',
+      header: t('orders.column.paymentMethod'),
+      hideOnMobile: true,
+      render: (o) => o.paymentMethodName ?? '—',
     },
     deliveryMethod: {
       id: 'deliveryMethod',

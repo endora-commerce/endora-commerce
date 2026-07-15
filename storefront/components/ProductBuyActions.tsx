@@ -4,6 +4,7 @@ import { useActionState, useState, type ReactNode } from 'react';
 import { addRfqDraftItem } from '../lib/rfqDraft';
 import { ADD_TO_CART_IDLE, type AddToCartResult } from '../lib/cartAddState';
 import { CartAddedPopup } from './CartAddedPopup';
+import { CartSubmitButton } from './CartSubmitButton';
 
 /**
  * PDP purchase row: a single styled quantity input shared by both the
@@ -79,10 +80,9 @@ export function ProductBuyActions({
   const [unitId, setUnitId] = useState<string>(defaultUnit?.id ?? '');
   const [qty, setQty] = useState(1);
   const [quoteAdded, setQuoteAdded] = useState(false);
-  const [cartState, cartFormAction, cartPending] = useActionState(
-    addToCartAction,
-    ADD_TO_CART_IDLE,
-  );
+  // `CartSubmitButton` renders its own pending spinner via `useFormStatus`, so
+  // the action's `isPending` flag isn't needed here.
+  const [cartState, cartFormAction] = useActionState(addToCartAction, ADD_TO_CART_IDLE);
   if (!showCart && !showQuote) return null;
 
   const selectedUnit = units.find((u) => u.id === unitId) ?? null;
@@ -160,14 +160,11 @@ export function ProductBuyActions({
             <input type="hidden" name="packagingUnitId" value={selectedUnit.id} />
           ) : null}
           <input type="hidden" name="quantity" value={qty} />
-          <button
-            type="submit"
-            disabled={cartPending}
-            aria-busy={cartPending || undefined}
+          <CartSubmitButton
             className="b2b-cta h-[48px] w-full justify-center text-[14px] font-semibold"
-          >
-            <CartIcon /> {addToCartLabel}
-          </button>
+            label={addToCartLabel}
+            icon={<CartIcon />}
+          />
         </form>
       ) : null}
 
