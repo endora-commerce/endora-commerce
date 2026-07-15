@@ -185,6 +185,17 @@ export class OrderService {
       resolveChannelFulfilmentWarehouseOrder?: (salesChannelId: string) => Promise<string[]>;
       resolveChannelAllowNegativeStock?: (salesChannelId: string) => Promise<boolean>;
       getTransactionalEmailSender?: () => TransactionalEmailSender | undefined;
+      /**
+       * Resolve the VAT rate (as a fraction, e.g. `0.23`) for a single product
+       * line, given the billing country, the product's tax class (its `type`),
+       * and the organization's VAT status. When unwired, placeOrder falls back
+       * to a flat 23% (legacy behavior / tests).
+       */
+      resolveTaxRate?: (input: {
+        country: string | null;
+        productType: string;
+        vatStatus: string;
+      }) => Promise<number>;
     },
   ) {
     this.accessService = accessService ?? new OrderAccessService(emFactory);
@@ -201,7 +212,21 @@ export class OrderService {
     this.resolveChannelFulfilmentWarehouseOrder =
       paymentDeps?.resolveChannelFulfilmentWarehouseOrder;
     this.resolveChannelAllowNegativeStock = paymentDeps?.resolveChannelAllowNegativeStock;
+    this.resolveTaxRate = paymentDeps?.resolveTaxRate;
   }
+
+  /**
+   * Feature — real per-product VAT. Resolves the applicable rate for a product
+   * line (billing country + product tax class + org VAT status). Unwired ⇒ the
+   * caller falls back to a flat 23%.
+   */
+  private readonly resolveTaxRate:
+    | ((input: {
+        country: string | null;
+        productType: string;
+        vatStatus: string;
+      }) => Promise<number>)
+    | undefined;
 
   /**
    * Sales-channel layer of the fulfilment-strategy precedence chain. Resolves
@@ -827,8 +852,34 @@ export class OrderService {
       const productById = new Map(products.map((p) => [p.id, p]));
 
       const subtotal = items.reduce((acc, it) => acc + Number(it.unitPrice) * it.quantity, 0);
-      const taxRate = 0.23; // Polish VAT default — the real tax service picks per country+type in T131.
-      const taxTotal = Math.round(subtotal * taxRate * 100) / 100;
+      // Real VAT: resolve the rate per product line from the product's tax class
+      // (its `type`), the billing country, and the organization's VAT status.
+      // VAT-exempt / reverse-charge organizations resolve to 0. Falls back to a
+      // flat 23% only when no tax resolver is wired (legacy compositions/tests).
+      const vatStatus = org?.vatStatus ?? 'vat_payer';
+      const taxCountry = billing?.country ?? delivery?.country ?? null;
+      const rateByType = new Map<string, number>();
+      for (const productType of new Set(
+        items.map((it) => productById.get(it.productId)?.type ?? 'simple'),
+      )) {
+        let rate = 0.23;
+        if (this.resolveTaxRate) {
+          rate =
+            vatStatus === 'vat_payer'
+              ? await this.resolveTaxRate({ country: taxCountry, productType, vatStatus })
+              : 0;
+        }
+        rateByType.set(productType, rate);
+      }
+      const taxRateForItem = (it: (typeof items)[number]): number =>
+        rateByType.get(productById.get(it.productId)?.type ?? 'simple') ?? 0.23;
+      const taxTotal =
+        Math.round(
+          items.reduce(
+            (acc, it) => acc + Number(it.unitPrice) * it.quantity * taxRateForItem(it),
+            0,
+          ) * 100,
+        ) / 100;
       const deliveryTotal = Number(deliveryMethod.cost);
       // Feature 034 — flat payment surcharge in the order currency (FR-005 / US2 AC2).
       const paymentSurcharge = Number(paymentMethod.additionalPrice ?? '0');
@@ -1012,8 +1063,12 @@ export class OrderService {
           ...(item.variantId ? { variantId: item.variantId } : {}),
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          taxRate: taxRate.toFixed(4),
-          lineTotal: (Number(item.unitPrice) * item.quantity * (1 + taxRate)).toFixed(2),
+          taxRate: taxRateForItem(item).toFixed(4),
+          lineTotal: (
+            Number(item.unitPrice) *
+            item.quantity *
+            (1 + taxRateForItem(item))
+          ).toFixed(2),
         });
       });
       await tx.persistAndFlush(orderItems);

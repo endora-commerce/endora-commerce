@@ -1001,6 +1001,27 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           return 0;
         }
       },
+      // Real per-product VAT — resolve the rate from the product's tax class
+      // (its `type`), the billing country, and the org VAT status, against the
+      // `taxes` rules (mirrors Quote Requests). order-service already returns 0
+      // for VAT-exempt / reverse-charge orgs; failures degrade to a flat 23%.
+      resolveTaxRate: async ({ country, productType, vatStatus }) => {
+        try {
+          const resolved = await taxes.handle.taxService.taxRateFor({
+            country: country ?? 'PL',
+            productType: productType as
+              | 'simple'
+              | 'configurable'
+              | 'grouped'
+              | 'bundle'
+              | 'virtual',
+            vatStatus: vatStatus as 'vat_payer' | 'vat_exempt' | 'reverse_charge',
+          });
+          return resolved.rate;
+        } catch {
+          return 0.23;
+        }
+      },
       // Sales-channel layer of the fulfilment-strategy precedence chain — the
       // SettingsService collapses per-channel value → global value → manifest
       // default ('default_first'). Failures degrade to that same default.
