@@ -63,6 +63,7 @@ import { NewsletterCampaign } from '../modules/newsletter/entities/newsletter-ca
 import { NewsletterCampaignSubscriber } from '../modules/newsletter/entities/newsletter-campaign-subscriber.entity.js';
 import { NewsletterSendRecord } from '../modules/newsletter/entities/newsletter-send-record.entity.js';
 import { NewsletterEngagementEvent } from '../modules/newsletter/entities/newsletter-engagement-event.entity.js';
+import { GaCustomEvent } from '../modules/google_analytics/entities/ga-custom-event.entity.js';
 import { NewsletterAutomation } from '../modules/newsletter/entities/newsletter-automation.entity.js';
 import { NewsletterAutomationRun } from '../modules/newsletter/entities/newsletter-automation-run.entity.js';
 import { Cart } from '../modules/carts/entities/cart.entity.js';
@@ -395,4 +396,5 @@ export const ALL_ENTITIES = [
   NewsletterEngagementEvent,
   NewsletterAutomation,
   NewsletterAutomationRun,
+  GaCustomEvent,
 ] as const;

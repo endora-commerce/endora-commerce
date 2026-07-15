@@ -1952,6 +1952,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       emFactory: em,
       settings: settings.handle.settingsService,
       requireAdmin,
+      channels: {
+        idByCode: async (code) =>
+          (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+        codeById: async (id) => {
+          const { items } = await salesChannels.handle.salesChannelsService.list({});
+          return items.find((c) => c.id === id)?.code ?? null;
+        },
+      },
+      resolveAuditContext: (request) => ({
+        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+      }),
+      auditLog: auditLogService,
       redis,
       runWorkers,
     }),
