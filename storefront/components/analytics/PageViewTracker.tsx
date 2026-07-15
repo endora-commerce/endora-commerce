@@ -2,7 +2,8 @@
 
 import { useEffect, useRef } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { sendPageView } from '../../lib/analytics/gtag';
+import { getGaConfig, sendPageView } from '../../lib/analytics/gtag';
+import { trackSiteSearch } from '../../lib/analytics/enhancedMeasurement';
 
 /**
  * Emits a GA4 `page_view` on every App-Router navigation (feature 049, US1).
@@ -24,6 +25,9 @@ export function PageViewTracker(): null {
     if (url === lastUrl.current) return;
     lastUrl.current = url;
     sendPageView(url);
+    // Enhanced Measurement site search is only replicated in server-side mode
+    // (gtag emits view_search_results itself in client mode).
+    if (query && getGaConfig()?.serverSide) trackSiteSearch(query);
   }, [pathname, searchParams]);
 
   return null;

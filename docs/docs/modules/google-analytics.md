@@ -88,6 +88,11 @@ and no browser-side Google library:
   secrets) authenticates delivery.
 - **Consent** is carried in the MP payload (`analyticsStorage`) reflecting the
   visitor's actual banner decision.
+- **Enhanced Measurement** is replicated in the browser (since gtag.js is not
+  loaded) and routed through the server: `scroll` (90%), outbound `click`,
+  `file_download`, `form_start` / `form_submit`, and `view_search_results` (site
+  search). Video engagement is not covered — it would require a client-side
+  YouTube-player integration. In client mode gtag.js emits all of these itself.
 
 ## Permissions
 

@@ -3,6 +3,7 @@ import type { GaStorefrontConfig } from '@b2b/contracts';
 import { configureGa, trackGaEvent, sendPageView } from '../lib/analytics/gtag';
 import { emitActionEvents } from '../lib/analytics/collector';
 import { trackAddToCart } from '../lib/analytics/ecommerce';
+import { installEnhancedMeasurement, trackSiteSearch } from '../lib/analytics/enhancedMeasurement';
 
 /**
  * Feature 049 — storefront analytics logic tests (node env). Exercises the
@@ -129,6 +130,85 @@ describe('custom-event collector', () => {
     });
     emitActionEvents('add_to_cart', { sku: 'X1' });
     expect(gtagSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('Enhanced Measurement (server-side replication)', () => {
+  type Handlers = Record<string, (e: unknown) => void>;
+
+  function installWithDom(): Handlers {
+    const handlers: Handlers = {};
+    const add = (type: string, fn: (e: unknown) => void): void => {
+      handlers[type] = fn;
+    };
+    (globalThis as Record<string, unknown>)['window'] = {
+      addEventListener: add,
+      removeEventListener: () => {},
+      location: { href: 'https://shop.test/', pathname: '/' },
+      scrollY: 0,
+      gtag: gtagSpy,
+      dataLayer: [],
+    };
+    (globalThis as Record<string, unknown>)['document'] = {
+      addEventListener: add,
+      removeEventListener: () => {},
+      documentElement: { scrollHeight: 1000, clientHeight: 500 },
+      cookie: '',
+      title: 'T',
+    };
+    configureGa({ ...baseConfig, serverSide: false }); // route to gtag spy for assertions
+    installEnhancedMeasurement();
+    return handlers;
+  }
+
+  const anchorEvent = (href: string, text = 'link') => ({
+    target: {
+      closest: (sel: string) =>
+        sel === 'a' ? { getAttribute: (n: string) => (n === 'href' ? href : null), textContent: text } : null,
+    },
+  });
+
+  it('emits an outbound click for an external link', () => {
+    const h = installWithDom();
+    h['click']!(anchorEvent('https://external.test/page', 'Ext'));
+    expect(gtagSpy).toHaveBeenCalledWith(
+      'event',
+      'click',
+      expect.objectContaining({ link_domain: 'external.test', outbound: true }),
+    );
+  });
+
+  it('emits file_download for a file link', () => {
+    const h = installWithDom();
+    h['click']!(anchorEvent('https://shop.test/files/manual.pdf'));
+    expect(gtagSpy).toHaveBeenCalledWith(
+      'event',
+      'file_download',
+      expect.objectContaining({ file_name: 'manual.pdf', file_extension: 'pdf' }),
+    );
+  });
+
+  it('emits form_submit with form params', () => {
+    const h = installWithDom();
+    h['submit']!({
+      target: {
+        tagName: 'FORM',
+        id: 'contact',
+        getAttribute: (n: string) => (n === 'name' ? 'contactForm' : null),
+        action: 'https://shop.test/kontakt',
+      },
+    });
+    expect(gtagSpy).toHaveBeenCalledWith(
+      'event',
+      'form_submit',
+      expect.objectContaining({ form_id: 'contact', form_name: 'contactForm' }),
+    );
+  });
+
+  it('emits view_search_results from a search query', () => {
+    configureGa({ ...baseConfig, serverSide: false });
+    trackSiteSearch('q=drill&page=2');
+    expect(gtagSpy).toHaveBeenCalledWith('event', 'view_search_results', { search_term: 'drill' });
   });
 });
 

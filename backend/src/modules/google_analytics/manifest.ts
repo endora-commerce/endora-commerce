@@ -59,11 +59,11 @@ export const googleAnalyticsSettingsManifest = defineModuleSettingsManifest({
     {
       code: GOOGLE_ANALYTICS_SETTING_CODES.SERVER_SIDE_API_SECRET,
       name: 'Measurement Protocol API secret',
-      description: 'GA4 Measurement Protocol API secret. Stored encrypted (write-only).',
+      description:
+        'GA4 Measurement Protocol API secret (GA4 Admin → Data Streams → Measurement Protocol API secrets). Stored encrypted at rest; write-only.',
       groupCode: 'google_analytics',
       valueType: 'secret',
       defaultValue: '',
-      hidden: true,
     },
     {
       code: GOOGLE_ANALYTICS_SETTING_CODES.REQUIRE_CONSENT,
