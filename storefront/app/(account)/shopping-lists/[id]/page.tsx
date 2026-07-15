@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 import {
   clearShoppingListItems,
   convertShoppingListToCart,
@@ -340,6 +341,9 @@ async function convertAllToCartAction(formData: FormData): Promise<void> {
     const message = err instanceof StorefrontApiError ? err.message : 'Convert failed.';
     redirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
   }
+  // Flush the cart route's Router Cache so the newly added lines show on the
+  // next visit instead of a stale (empty) cached page.
+  revalidatePath('/cart');
   redirect(
     `/shopping-lists/${listId}?cartAdded=${result.added}&cartSkipped=${result.skipped.length}`,
   );
@@ -361,6 +365,7 @@ async function convertSelectedToCartAction(formData: FormData): Promise<void> {
     const message = err instanceof StorefrontApiError ? err.message : 'Convert failed.';
     redirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
   }
+  revalidatePath('/cart');
   redirect(
     `/shopping-lists/${listId}?cartAdded=${result.added}&cartSkipped=${result.skipped.length}`,
   );
@@ -378,6 +383,10 @@ async function convertAllToRfqAction(formData: FormData): Promise<void> {
     const message = err instanceof StorefrontApiError ? err.message : 'Convert failed.';
     redirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
   }
+  // Without this, Next's Router Cache keeps serving the previously cached
+  // (often empty) quote-requests list, so the freshly created RFQ looks like
+  // it was never created even though the API persisted it.
+  revalidatePath('/quote-requests');
   redirect(
     `/shopping-lists/${listId}?rfqId=${result.rfqId}&rfqAdded=${result.added}&rfqSkipped=${result.skipped.length}`,
   );
@@ -399,6 +408,7 @@ async function convertSelectedToRfqAction(formData: FormData): Promise<void> {
     const message = err instanceof StorefrontApiError ? err.message : 'Convert failed.';
     redirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
   }
+  revalidatePath('/quote-requests');
   redirect(
     `/shopping-lists/${listId}?rfqId=${result.rfqId}&rfqAdded=${result.added}&rfqSkipped=${result.skipped.length}`,
   );
