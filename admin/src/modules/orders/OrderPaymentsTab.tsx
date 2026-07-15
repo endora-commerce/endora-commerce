@@ -32,6 +32,7 @@ interface PaymentRow {
   currency: string;
   paidAt: string | null;
   refundedAt: string | null;
+  updatedAt: string | null;
   externalReference: string | null;
   refundReference: string | null;
   failureReason: string | null;
@@ -76,7 +77,9 @@ function toLedger(payments: PaymentRow[]): LedgerEntry[] {
         amount: -p.refundedAmount,
         currency: p.currency,
         status: p.refundedAmount >= p.amount ? 'refunded' : 'partially_refunded',
-        at: p.refundedAt,
+        // Exact refund time when recorded; else the payment's last-updated time
+        // (when the refund was reflected) so pre-existing refunds still show a date.
+        at: p.refundedAt ?? p.updatedAt,
         reference: p.refundReference ?? p.externalReference,
         failure: null,
       });
