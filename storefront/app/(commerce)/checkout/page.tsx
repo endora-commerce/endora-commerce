@@ -17,7 +17,7 @@ import {
   type StripeInlinePrepareResult,
 } from '../../../components/checkout/StripeInlinePaymentMethods';
 import { listCountries } from '../../../lib/api/dictionary';
-import { placeOrder } from '../../../lib/api/orders';
+import { placeOrder, previewOrderTotal } from '../../../lib/api/orders';
 import { getMyCreditLimit } from '../../../lib/api/credit-limit';
 import { getResolvedQuickOrderDefaults } from '../../../lib/api/quick-order';
 import { CreditLimitWidget } from '../../../components/CreditLimitWidget';
@@ -158,6 +158,40 @@ export default async function CheckoutPage({
     );
   }
 
+  // Feature 049 — inline Stripe: the exact Payment Element amount (incl.
+  // per-product VAT) is computed server-side. Resolve an initial amount for the
+  // default delivery + payment selection; the client refreshes it via a server
+  // action as the buyer changes the selection. No pricing math on the client.
+  const inlineStripe =
+    !!stripeConfig?.active &&
+    stripeConfig.displayMode === 'inline' &&
+    paymentMethods.some((m) => m.adapter === 'stripe');
+  let initialStripeAmountMinor = Math.max(
+    1,
+    Math.round((cart.grandTotal?.amount ?? cart.subtotal.amount) * 100),
+  );
+  if (inlineStripe) {
+    const initDeliveryId =
+      (defaults?.deliveryMethodId && deliveryMethods.some((m) => m.id === defaults.deliveryMethodId)
+        ? defaults.deliveryMethodId
+        : deliveryMethods[0]?.id) ?? '';
+    const initPaymentId =
+      (defaults?.paymentMethodId && paymentMethods.some((m) => m.id === defaults.paymentMethodId)
+        ? defaults.paymentMethodId
+        : paymentMethods[0]?.id) ?? '';
+    if (initDeliveryId && initPaymentId) {
+      try {
+        const t = await previewOrderTotal(session, {
+          deliveryMethodId: initDeliveryId,
+          paymentMethodId: initPaymentId,
+        });
+        initialStripeAmountMinor = Math.max(1, Math.round(t.total * 100));
+      } catch {
+        // Keep the fallback estimate; the client refreshes to the exact amount.
+      }
+    }
+  }
+
   // Feature 036 (US2) — the buyer may pick a saved address or enter a new one,
   // so an empty saved-address book no longer blocks checkout.
   const deliveryAddrs = addresses.filter((a) => a.kind === 'delivery');
@@ -186,18 +220,15 @@ export default async function CheckoutPage({
 
         <ShippingMethods methods={deliveryMethods} preferredId={defaults?.deliveryMethodId ?? null} />
 
-        {stripeConfig?.active &&
-        stripeConfig.displayMode === 'inline' &&
-        paymentMethods.some((m) => m.adapter === 'stripe') ? (
+        {inlineStripe && stripeConfig ? (
           <StripeInlinePaymentMethods
             methods={paymentMethods}
-            deliveryMethods={deliveryMethods}
             currency={cart.subtotal.currency}
             preferredId={defaults?.paymentMethodId ?? null}
             publishableKey={stripeConfig.publishableKey}
-            subtotal={cart.subtotal.amount}
-            discount={cart.discount?.amount ?? 0}
+            initialAmountMinor={initialStripeAmountMinor}
             prepareAction={submitStripeInlineAction}
+            previewAction={previewTotalAction}
           />
         ) : (
           <PaymentMethods
@@ -430,6 +461,27 @@ async function submitStripeInlineAction(formData: FormData): Promise<StripeInlin
     // Order exists but the client secret couldn't be fetched → the client falls
     // back to the dedicated pay step.
     return { ok: false, error: 'Could not start the payment.', orderId: order.id };
+  }
+}
+
+/**
+ * Feature 049 — server-computed order-total preview for the inline Stripe
+ * Payment Element. Keeps all pricing (per-product VAT, delivery, surcharge,
+ * discount) on the server; the client only displays the returned amount.
+ */
+async function previewTotalAction(input: {
+  deliveryMethodId: string;
+  paymentMethodId: string;
+  billingAddressId?: string;
+}): Promise<{ ok: true; amountMinor: number; currency: string } | { ok: false }> {
+  'use server';
+  const session = await getSessionCookie();
+  if (!session) return { ok: false };
+  try {
+    const t = await previewOrderTotal(session, input);
+    return { ok: true, amountMinor: Math.max(1, Math.round(t.total * 100)), currency: t.currency };
+  } catch {
+    return { ok: false };
   }
 }
 

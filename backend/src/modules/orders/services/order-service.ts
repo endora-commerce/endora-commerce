@@ -557,6 +557,209 @@ export class OrderService {
     }
   }
 
+  /**
+   * Single source of truth for order money math (feature 049). Computes the
+   * subtotal, per-product VAT (via the injected tax resolver), delivery cost,
+   * payment surcharge, and promotion discount for a set of cart lines. Used by
+   * both `placeOrder` and the read-only `previewTotal` so the storefront never
+   * re-derives pricing on the client and the two can never drift.
+   */
+  private async computeMonetaryTotals(input: {
+    items: Array<{
+      productId: string;
+      variantId?: string | null;
+      quantity: number;
+      unitPrice: string | number;
+      currency: string;
+    }>;
+    productById: Map<string, { type: string }>;
+    vatStatus: string;
+    taxCountry: string | null;
+    deliveryCost: number;
+    paymentSurcharge: number;
+    currency: string;
+    appliedPromotionCode: string | null;
+    salesChannelId: string | null;
+    organizationId: string;
+  }): Promise<{
+    subtotal: number;
+    taxTotal: number;
+    deliveryTotal: number;
+    paymentSurcharge: number;
+    discountTotal: number;
+    total: number;
+    currency: string;
+    appliedPromotionCode: string | null;
+    appliedPromotions: PromotionApplication['appliedPromotions'];
+    rateForProductId: (productId: string) => number;
+  }> {
+    const { items, productById, currency } = input;
+    const subtotal = items.reduce((acc, it) => acc + Number(it.unitPrice) * it.quantity, 0);
+
+    // Real VAT: resolve the rate per product tax class (its `type`) against the
+    // billing country + org VAT status. VAT-exempt / reverse-charge orgs resolve
+    // to 0. Falls back to a flat 23% only when no tax resolver is wired.
+    const rateByType = new Map<string, number>();
+    for (const productType of new Set(
+      items.map((it) => productById.get(it.productId)?.type ?? 'simple'),
+    )) {
+      let rate = 0.23;
+      if (this.resolveTaxRate) {
+        rate =
+          input.vatStatus === 'vat_payer'
+            ? await this.resolveTaxRate({
+                country: input.taxCountry,
+                productType,
+                vatStatus: input.vatStatus,
+              })
+            : 0;
+      }
+      rateByType.set(productType, rate);
+    }
+    const rateForProductId = (productId: string): number =>
+      rateByType.get(productById.get(productId)?.type ?? 'simple') ?? 0.23;
+    const taxTotal =
+      Math.round(
+        items.reduce(
+          (acc, it) => acc + Number(it.unitPrice) * it.quantity * rateForProductId(it.productId),
+          0,
+        ) * 100,
+      ) / 100;
+
+    const deliveryTotal = input.deliveryCost;
+    const paymentSurcharge = input.paymentSurcharge;
+
+    // Promotion engine — includes automatic (couponless) promotions plus the
+    // cart's applied coupon. No-op when no promotion port is wired.
+    let discountTotal = 0;
+    let appliedPromotionCode: string | null = null;
+    let appliedPromotions: PromotionApplication['appliedPromotions'] = [];
+    if (this.promotion) {
+      const snapshot: CartSnapshot = {
+        organizationId: input.organizationId,
+        customerGroupId: null,
+        currency,
+        lines: items.map((it) => ({
+          productId: it.productId,
+          variantId: it.variantId ?? null,
+          categoryIds: [],
+          quantity: it.quantity,
+          unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
+        })),
+        deliveryTotal,
+        promotionCode: input.appliedPromotionCode ?? null,
+        salesChannelId: input.salesChannelId ?? null,
+      };
+      const application = await this.promotion.applyToCart(snapshot);
+      if (application.discountTotal > 0) {
+        discountTotal = application.discountTotal;
+        appliedPromotionCode = input.appliedPromotionCode ?? null;
+        appliedPromotions = application.appliedPromotions;
+      }
+    }
+
+    const total =
+      Math.round((subtotal + taxTotal + deliveryTotal + paymentSurcharge - discountTotal) * 100) /
+      100;
+
+    return {
+      subtotal,
+      taxTotal,
+      deliveryTotal,
+      paymentSurcharge,
+      discountTotal,
+      total,
+      currency,
+      appliedPromotionCode,
+      appliedPromotions,
+      rateForProductId,
+    };
+  }
+
+  /**
+   * Read-only total preview (feature 049) for the caller's active cart with a
+   * chosen delivery + payment method. Uses the same computation as placeOrder,
+   * so the storefront can display the exact amount (e.g. for the inline Stripe
+   * Payment Element) without re-deriving pricing on the client.
+   */
+  async previewTotal(
+    ctx: CustomerContext,
+    req: { deliveryMethodId: string; paymentMethodId: string; billingAddressId?: string | undefined },
+  ): Promise<{
+    subtotal: number;
+    taxTotal: number;
+    deliveryTotal: number;
+    paymentSurcharge: number;
+    discountTotal: number;
+    total: number;
+    currency: string;
+  }> {
+    const em = this.emFactory();
+    const org = await em.findOne(Organization, { id: ctx.organizationId });
+    const cart = await em.findOne(Cart, {
+      customerAccountId: ctx.customerAccountId,
+      status: 'active',
+    });
+    const items = cart ? await em.find(CartItem, { cartId: cart.id }) : [];
+    if (!cart || items.length === 0) {
+      throw new HttpError(409, ERROR_CODES.CART_EMPTY, 'Cart is empty.');
+    }
+    const deliveryMethod = await em.findOne(DeliveryMethod, {
+      id: req.deliveryMethodId,
+      status: 'active',
+    });
+    if (!deliveryMethod) {
+      throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'Delivery method is not active.');
+    }
+    const paymentMethod = await em.findOne(PaymentMethod, {
+      id: req.paymentMethodId,
+      status: 'active',
+    });
+    if (!paymentMethod) {
+      throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'Payment method is not active.');
+    }
+    const products =
+      items.length > 0
+        ? await em.find(Product, { id: { $in: items.map((i) => i.productId) } })
+        : [];
+    const productById = new Map(products.map((p) => [p.id, p]));
+
+    // Tax country: prefer the selected billing address (matches placeOrder),
+    // else the organization's registered country.
+    let taxCountry: string | null = org?.registeredAddress?.country ?? null;
+    if (req.billingAddressId) {
+      const billing = await em.findOne(Address, {
+        id: req.billingAddressId,
+        organizationId: ctx.organizationId,
+        deletedAt: null,
+      });
+      if (billing) taxCountry = billing.country;
+    }
+
+    const totals = await this.computeMonetaryTotals({
+      items,
+      productById,
+      vatStatus: org?.vatStatus ?? 'vat_payer',
+      taxCountry,
+      deliveryCost: Number(deliveryMethod.cost),
+      paymentSurcharge: Number(paymentMethod.additionalPrice ?? '0'),
+      currency: deliveryMethod.currency,
+      appliedPromotionCode: cart.appliedPromotionCode ?? null,
+      salesChannelId: cart.salesChannelId ?? null,
+      organizationId: ctx.organizationId,
+    });
+
+    return {
+      subtotal: totals.subtotal,
+      taxTotal: totals.taxTotal,
+      deliveryTotal: totals.deliveryTotal,
+      paymentSurcharge: totals.paymentSurcharge,
+      discountTotal: totals.discountTotal,
+      total: totals.total,
+      currency: totals.currency,
+    };
+  }
+
   async placeOrder(
     ctx: CustomerContext,
     req: PlaceOrderRequest,
@@ -851,81 +1054,32 @@ export class OrderService {
       const products = productIds.length > 0 ? await tx.find(Product, { id: { $in: productIds } }) : [];
       const productById = new Map(products.map((p) => [p.id, p]));
 
-      const subtotal = items.reduce((acc, it) => acc + Number(it.unitPrice) * it.quantity, 0);
-      // Real VAT: resolve the rate per product line from the product's tax class
-      // (its `type`), the billing country, and the organization's VAT status.
-      // VAT-exempt / reverse-charge organizations resolve to 0. Falls back to a
-      // flat 23% only when no tax resolver is wired (legacy compositions/tests).
-      const vatStatus = org?.vatStatus ?? 'vat_payer';
-      const taxCountry = billing?.country ?? delivery?.country ?? null;
-      const rateByType = new Map<string, number>();
-      for (const productType of new Set(
-        items.map((it) => productById.get(it.productId)?.type ?? 'simple'),
-      )) {
-        let rate = 0.23;
-        if (this.resolveTaxRate) {
-          rate =
-            vatStatus === 'vat_payer'
-              ? await this.resolveTaxRate({ country: taxCountry, productType, vatStatus })
-              : 0;
-        }
-        rateByType.set(productType, rate);
-      }
-      const taxRateForItem = (it: (typeof items)[number]): number =>
-        rateByType.get(productById.get(it.productId)?.type ?? 'simple') ?? 0.23;
-      const taxTotal =
-        Math.round(
-          items.reduce(
-            (acc, it) => acc + Number(it.unitPrice) * it.quantity * taxRateForItem(it),
-            0,
-          ) * 100,
-        ) / 100;
-      const deliveryTotal = Number(deliveryMethod.cost);
-      // Feature 034 — flat payment surcharge in the order currency (FR-005 / US2 AC2).
-      const paymentSurcharge = Number(paymentMethod.additionalPrice ?? '0');
-      const currency = deliveryMethod.currency;
-
-      // Feature 036 (US3) — recompute the cart's coupon discount through the
-      // promotion engine and stamp it on the Order so totals and the
-      // confirmation e-mail reflect it. The cart's applied coupon is the
-      // source of truth (set by the checkout coupon control before placement).
-      // Mirrors CartCouponService's snapshot construction. No-op when no
-      // promotion port is wired or the cart carries no coupon.
-      // Feature 045 (US2) — compute the cart's promotions through the engine,
-      // including automatic (couponless) action-based promotions, and capture
-      // the per-promotion breakdown to stamp onto the order. The cart's applied
-      // coupon (if any) is the source of truth for coupon-gated promotions.
-      let discountTotal = 0;
-      let appliedPromotionCode: string | null = null;
-      let appliedPromotions: PromotionApplication['appliedPromotions'] = [];
-      if (this.promotion) {
-        const snapshot: CartSnapshot = {
-          organizationId: ctx.organizationId,
-          customerGroupId: null,
-          currency,
-          lines: items.map((it) => ({
-            productId: it.productId,
-            variantId: it.variantId ?? null,
-            categoryIds: [],
-            quantity: it.quantity,
-            unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
-          })),
-          deliveryTotal,
-          promotionCode: cart.appliedPromotionCode ?? null,
-          salesChannelId: cart.salesChannelId ?? null,
-        };
-        const application = await this.promotion.applyToCart(snapshot);
-        if (application.discountTotal > 0) {
-          discountTotal = application.discountTotal;
-          appliedPromotionCode = cart.appliedPromotionCode ?? null;
-          appliedPromotions = application.appliedPromotions;
-        }
-      }
-
-      const total =
-        Math.round(
-          (subtotal + taxTotal + deliveryTotal + paymentSurcharge - discountTotal) * 100,
-        ) / 100;
+      // All monetary math (subtotal, per-product VAT, delivery, surcharge,
+      // promotion discount) runs through one shared computation so the storefront
+      // preview endpoint and order placement can never drift.
+      const {
+        subtotal,
+        taxTotal,
+        deliveryTotal,
+        paymentSurcharge,
+        currency,
+        discountTotal,
+        total,
+        appliedPromotionCode,
+        appliedPromotions,
+        rateForProductId,
+      } = await this.computeMonetaryTotals({
+        items,
+        productById,
+        vatStatus: org.vatStatus ?? 'vat_payer',
+        taxCountry: billing.country ?? delivery.country ?? null,
+        deliveryCost: Number(deliveryMethod.cost),
+        paymentSurcharge: Number(paymentMethod.additionalPrice ?? '0'),
+        currency: deliveryMethod.currency,
+        appliedPromotionCode: cart.appliedPromotionCode ?? null,
+        salesChannelId: cart.salesChannelId ?? null,
+        organizationId: ctx.organizationId,
+      });
 
       // Sales channel — resolved once above (request channel preferred, first
       // active as fallback) so the stamped channel matches the one used for
@@ -1063,11 +1217,11 @@ export class OrderService {
           ...(item.variantId ? { variantId: item.variantId } : {}),
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          taxRate: taxRateForItem(item).toFixed(4),
+          taxRate: rateForProductId(item.productId).toFixed(4),
           lineTotal: (
             Number(item.unitPrice) *
             item.quantity *
-            (1 + taxRateForItem(item))
+            (1 + rateForProductId(item.productId))
           ).toFixed(2),
         });
       });
