@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { getSuggestions, SearchSuggestError, type SuggestResponse } from '../../lib/api/search';
+import { toAbsoluteAssetUrl } from '../../lib/asset-url';
 
 const DEBOUNCE_MS = 200;
 
@@ -159,7 +160,7 @@ export function MobileSearchOverlay(props: {
                       {p.primaryAssetUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={p.primaryAssetUrl}
+                          src={toAbsoluteAssetUrl(p.primaryAssetUrl)}
                           alt=""
                           loading="lazy"
                           className="max-h-full max-w-full object-contain"

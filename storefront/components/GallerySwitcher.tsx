@@ -8,6 +8,7 @@ import {
   type TouchEvent as ReactTouchEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { toAbsoluteAssetUrl } from '../lib/asset-url';
 
 const SLIDE_EASING = 'transform 420ms cubic-bezier(0.22, 1, 0.36, 1)';
 
@@ -57,10 +58,21 @@ function Chevron({ dir }: { dir: 'left' | 'right' }): ReactNode {
   );
 }
 
-export function GallerySwitcher(props: {
+export function GallerySwitcher(rawProps: {
   gallery: GallerySwitcherItem[];
   alt: string;
 }): ReactNode {
+  // Host-relative asset URLs (e.g. `/assets/file/<id>`) must be rebased onto the
+  // public API origin, otherwise the browser resolves them against the
+  // storefront origin and every image/video 404s. Normalise once here so every
+  // render site (main view, thumbnails, lightbox, `data-active-src`) is covered.
+  const props = {
+    ...rawProps,
+    gallery: rawProps.gallery.map((g) => ({
+      ...g,
+      asset: { ...g.asset, url: toAbsoluteAssetUrl(g.asset.url) },
+    })),
+  };
   const baseIndex = Math.max(
     0,
     props.gallery.findIndex((g) => g.labels.includes('base_image')),

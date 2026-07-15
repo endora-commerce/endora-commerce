@@ -1045,9 +1045,17 @@ interface AdminGalleryItem {
   asset?: { url: string; kind: string };
 }
 
+interface AdminProductImage {
+  id: string;
+  kind: string;
+  url: string;
+  altText: string | null;
+}
+
 function GallerySection({ productId }: { productId: string }): ReactNode {
   const t = useTranslation('catalog');
   const [items, setItems] = useState<AdminGalleryItem[]>([]);
+  const [images, setImages] = useState<AdminProductImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -1058,7 +1066,11 @@ function GallerySection({ productId }: { productId: string }): ReactNode {
     try {
       // Public PDP carries the resolved gallery (with asset urls) so
       // admins see the same shape customers do; the admin GET returns
-      // bare ids without urls.
+      // bare ids without urls. The PDP also carries the product's flat
+      // `assets` (legacy product_assets) — the storefront renders those
+      // when the label-aware gallery is empty, so we surface them here
+      // too, otherwise a product whose images live on product_assets
+      // looks empty in the admin while showing fine on the storefront.
       const res = await apiClient.get<{
         data: {
           gallery?: Array<{
@@ -1066,6 +1078,12 @@ function GallerySection({ productId }: { productId: string }): ReactNode {
             position: number;
             labels: GalleryLabel[];
             asset: { id: string; kind: string; url: string };
+          }>;
+          assets?: Array<{
+            id: string;
+            kind: string;
+            url: string;
+            altText?: string | null;
           }>;
         };
       }>(`/api/v1/catalog/products/${productId}`);
@@ -1079,6 +1097,17 @@ function GallerySection({ productId }: { productId: string }): ReactNode {
           labels: g.labels,
           asset: { url: g.asset.url, kind: g.asset.kind },
         })),
+      );
+      const assets = res.data.assets ?? [];
+      setImages(
+        assets
+          .filter((a) => a.kind === 'image' || a.kind === 'video')
+          .map((a) => ({
+            id: a.id,
+            kind: a.kind,
+            url: a.url,
+            altText: a.altText ?? null,
+          })),
       );
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.gallery.error.load'));
@@ -1155,6 +1184,34 @@ function GallerySection({ productId }: { productId: string }): ReactNode {
           <Alert>
             <AlertDescription>{info}</AlertDescription>
           </Alert>
+        ) : null}
+
+        {!loading && images.length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">{t('productEditor.gallery.productImages.title')}</p>
+            <p className="text-xs text-muted-foreground">
+              {t('productEditor.gallery.productImages.hint')}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {images.map((img) =>
+                img.kind === 'video' ? (
+                  <video
+                    key={img.id}
+                    src={img.url}
+                    className="h-20 w-20 rounded border object-cover"
+                    muted
+                  />
+                ) : (
+                  <img
+                    key={img.id}
+                    src={img.url}
+                    alt={img.altText ?? ''}
+                    className="h-20 w-20 rounded border object-cover"
+                  />
+                ),
+              )}
+            </div>
+          </div>
         ) : null}
 
         {loading ? (

@@ -396,6 +396,8 @@
   "productEditor.variants.field.priceOverride": "Price override",
   "productEditor.variants.field.stock": "Stock",
   "productEditor.gallery.title": "Gallery",
+  "productEditor.gallery.productImages.title": "Product images",
+  "productEditor.gallery.productImages.hint": "Images assigned to this product that appear on the storefront. Add label-aware gallery items below to override how they are shown.",
   "productEditor.gallery.empty": "No gallery items yet. Pick an asset from the Library or upload a new one below.",
   "productEditor.gallery.error.load": "Load failed.",
   "productEditor.gallery.error.add": "Add failed.",

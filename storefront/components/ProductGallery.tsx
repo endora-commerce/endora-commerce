@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { ProductAsset } from '@b2b/contracts';
 import { GallerySwitcher, type GallerySwitcherItem } from './GallerySwitcher';
+import { toAbsoluteAssetUrl } from '../lib/asset-url';
 
 /**
  * PDP gallery for products that expose flat `assets` (no label-aware
@@ -32,7 +33,7 @@ export function ProductGallery(props: {
         <GallerySwitcher gallery={gallery} alt={props.alt} />
       ) : props.placeholderUrl ? (
         <img
-          src={props.placeholderUrl}
+          src={toAbsoluteAssetUrl(props.placeholderUrl)}
           alt={props.alt}
           loading="lazy"
           className="aspect-square w-full rounded-md border border-line bg-surface object-contain"
@@ -44,7 +45,7 @@ export function ProductGallery(props: {
         <ul className="m-0 mt-3 flex list-none gap-3 p-0">
           {documents.map((doc) => (
             <li key={doc.id}>
-              <a href={doc.url} rel="noopener" target="_blank">
+              <a href={toAbsoluteAssetUrl(doc.url)} rel="noopener" target="_blank">
                 {doc.altText ?? doc.kind.toUpperCase()}
               </a>
             </li>

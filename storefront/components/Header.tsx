@@ -65,7 +65,7 @@ export function Header(props: {
 
   return (
     <>
-      <div className="industria-topbar max-md:hidden">
+      <div className="industria-topbar max-[876px]:hidden">
         <div className="mx-auto max-w-[1360px] px-[24px] industria-topbar__inner">
           <div className="industria-topbar__left">
             <span className="industria-topbar__item">
@@ -97,7 +97,7 @@ export function Header(props: {
       </div>
 
       <header className="industria-header">
-        <div className="mx-auto max-w-[1360px] px-[24px] industria-header__inner max-md:hidden">
+        <div className="mx-auto max-w-[1360px] px-[24px] industria-header__inner max-[876px]:hidden">
           <Link href="/" className="industria-header__brand">
             <span className="industria-header__mark">IN</span>
             <span className="industria-header__brand__name">
@@ -153,10 +153,13 @@ export function Header(props: {
           </div>
         </div>
 
-        {/* Mobile header (feature 044 / US1) — hamburger drawer, compact brand,
-            compare + cart badges, and a tappable search entry on a second row.
-            Shown only on phones; the desktop rows above are `max-md:hidden`. */}
-        <div className="md:hidden">
+        {/* Mobile / compact header (feature 044 / US1) — hamburger drawer,
+            compact brand, compare + cart badges, and a tappable search entry on
+            a second row. Shown up to 876px; the desktop rows above take over at
+            877px. The flip boundary is 876/877 (not the `md` 768px default)
+            because the desktop topbar + header only fit from ~877px upward —
+            between 768 and 876 the desktop rows overflowed the viewport. */}
+        <div className="min-[877px]:hidden">
           <div className="flex h-[56px] items-center gap-[6px] px-[16px]">
             {props.megamenu ? (
               <MegamenuMobileDrawer megamenu={props.megamenu} account={drawerAccount} />
@@ -201,7 +204,7 @@ export function Header(props: {
         </div>
       </header>
 
-      <nav className="industria-nav max-md:hidden" aria-label="Primary">
+      <nav className="industria-nav max-[876px]:hidden" aria-label="Primary">
         <div className="mx-auto max-w-[1360px] px-[24px] industria-nav__inner">
           {/* Data-driven "Wszystkie kategorie" trigger + mega panel
               (seeded "Main navigation"). Replaces the old static link and

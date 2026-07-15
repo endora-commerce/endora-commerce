@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { GallerySwitcher } from '../../components/GallerySwitcher';
+import { toAbsoluteAssetUrl } from '../../lib/asset-url';
 
 /**
  * T091 — SSR contract for GallerySwitcher (feature 002 US3).
@@ -52,8 +53,9 @@ describe('GallerySwitcher — SSR contract', () => {
       />,
     );
     // The active slide is exposed on the stage via data-active-src, and the
-    // track is shifted to it (index 1 → -100%).
-    expect(html).toContain('data-active-src="/asset/base.jpg"');
+    // track is shifted to it (index 1 → -100%). Host-relative URLs are rebased
+    // onto the public API origin, so assert the rebased form.
+    expect(html).toContain(`data-active-src="${toAbsoluteAssetUrl('/asset/base.jpg')}"`);
     expect(html).toContain('translateX(-100%)');
   });
 
@@ -67,7 +69,7 @@ describe('GallerySwitcher — SSR contract', () => {
         alt="Widget"
       />,
     );
-    expect(html).toContain('data-active-src="/asset/thumb.jpg"');
+    expect(html).toContain(`data-active-src="${toAbsoluteAssetUrl('/asset/thumb.jpg')}"`);
     expect(html).toContain('translateX(-0%)');
   });
 
@@ -108,7 +110,7 @@ describe('GallerySwitcher — SSR contract', () => {
       />,
     );
     expect(html).toContain('<video');
-    expect(html).toContain('src="/asset/clip.mp4"');
+    expect(html).toContain(`src="${toAbsoluteAssetUrl('/asset/clip.mp4')}"`);
     // No zoom pill for video main views.
     expect(html).not.toContain('Powiększ');
   });
