@@ -1,4 +1,8 @@
-import type { ReactNode } from 'react';
+'use client';
+
+import { useActionState, type ReactNode } from 'react';
+import { ADD_TO_CART_IDLE, type AddToCartResult } from '../lib/cartAddState';
+import { CartAddedPopup } from './CartAddedPopup';
 
 /**
  * Feature 002 US5 — emphasized "Buy and download" CTA for virtual
@@ -8,9 +12,9 @@ import type { ReactNode } from 'react';
  * exposes the download once payment is confirmed.
  *
  * The CTA adds the virtual product to the cart (quantity 1) via the same
- * server action the simple-product buy row uses, then the action redirects
- * to /cart. Previously it was a bare `<a href="/cart">`, so it navigated to
- * the cart without ever adding the product.
+ * server action the simple-product buy row uses. The action now returns a
+ * result instead of redirecting, so a confirmation popup is shown in place of
+ * an immediate jump to /cart.
  */
 
 export function VirtualCta(props: {
@@ -20,20 +24,34 @@ export function VirtualCta(props: {
     buyAndDownload: string;
     digitalDelivery: string;
   };
-  addToCartAction: (formData: FormData) => void | Promise<void>;
+  addToCartAction: (
+    prevState: AddToCartResult,
+    formData: FormData,
+  ) => AddToCartResult | Promise<AddToCartResult>;
 }): ReactNode {
+  const [cartState, cartFormAction, cartPending] = useActionState(
+    props.addToCartAction,
+    ADD_TO_CART_IDLE,
+  );
+
   if (!props.virtual.downloadAssetId && !props.virtual.downloadUrl) return null;
 
   return (
     <div>
-      <form action={props.addToCartAction}>
+      <form action={cartFormAction}>
         <input type="hidden" name="productId" value={props.productId} />
         <input type="hidden" name="quantity" value="1" />
-        <button type="submit" className="b2b-cta">
+        <button
+          type="submit"
+          disabled={cartPending}
+          aria-busy={cartPending || undefined}
+          className="b2b-cta"
+        >
           {props.labels.buyAndDownload}
         </button>
       </form>
       <p className="mt-2 text-[12px] text-muted">{props.labels.digitalDelivery}</p>
+      <CartAddedPopup state={cartState} />
     </div>
   );
 }

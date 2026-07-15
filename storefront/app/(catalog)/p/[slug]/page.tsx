@@ -1,6 +1,10 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { notFound, redirect } from 'next/navigation';
+import {
+  type AddToCartResult,
+  nextAddToCartToken,
+} from '../../../../lib/cartAddState';
 import { Breadcrumbs } from '../../../../components/Breadcrumbs';
 import { ProductGallery } from '../../../../components/ProductGallery';
 import { GallerySwitcher } from '../../../../components/GallerySwitcher';
@@ -596,13 +600,19 @@ async function addBundleToCartAction(formData: FormData): Promise<void> {
   redirect('/cart');
 }
 
-async function addToCartAction(formData: FormData): Promise<void> {
+// PDP add-to-cart. Returns a result state (consumed by `useActionState` in the
+// buy-actions client components) instead of redirecting to `/cart`, so the buyer
+// stays on the product page and sees a "product added" confirmation popup.
+async function addToCartAction(
+  prevState: AddToCartResult,
+  formData: FormData,
+): Promise<AddToCartResult> {
   'use server';
   const productId = ((formData.get('productId') as string) ?? '').trim();
   const variantId = ((formData.get('variantId') as string) ?? '').trim();
   const packagingUnitId = ((formData.get('packagingUnitId') as string) ?? '').trim();
   const quantity = Number(formData.get('quantity') ?? '1');
-  if (!productId) redirect('/cart?error=missing-product');
+  if (!productId) return { status: 'error', message: 'Nie udało się dodać produktu do koszyka.' };
   const qty = Number.isFinite(quantity) && quantity >= 1 ? Math.floor(quantity) : 1;
   try {
     const result = await addCartItem(await readCartJar(), {
@@ -614,8 +624,8 @@ async function addToCartAction(formData: FormData): Promise<void> {
     if (result.newAnonCookie) await setAnonCartCookie(result.newAnonCookie);
   } catch (err) {
     const message =
-      err instanceof StorefrontApiError ? err.message : 'Could not add to cart.';
-    redirect(`/cart?error=${encodeURIComponent(message)}`);
+      err instanceof StorefrontApiError ? err.message : 'Nie udało się dodać produktu do koszyka.';
+    return { status: 'error', message };
   }
-  redirect('/cart');
+  return { status: 'success', token: nextAddToCartToken(prevState) };
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { VirtualCta } from '../../components/VirtualCta';
+import type { AddToCartResult } from '../../lib/cartAddState';
 
 /**
  * Storefront SSR contract for VirtualCta (feature 002 US5, T145).
@@ -11,7 +12,7 @@ import { VirtualCta } from '../../components/VirtualCta';
  *   - Renders nothing when neither downloadAssetId nor downloadUrl is set
  */
 
-const noop = (): void => undefined;
+const noop = (): AddToCartResult => ({ status: 'idle' });
 
 describe('VirtualCta — SSR contract', () => {
   it('renders nothing when virtual is null/empty', () => {
