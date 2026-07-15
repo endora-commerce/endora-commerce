@@ -10,6 +10,12 @@ import {
 } from '../../../lib/api/cart';
 import { listAddresses, createAddress } from '../../../lib/api/organization';
 import { listDeliveryMethods, listPaymentMethods } from '../../../lib/api/methods';
+import { getStripeStorefrontConfig, getStripeClientSecret } from '../../../lib/api/stripe';
+import { STRIPE_REDIRECT_RENDERER_KEY } from '../../../lib/payment-renderers/registry';
+import {
+  StripeInlinePaymentMethods,
+  type StripeInlinePrepareResult,
+} from '../../../components/checkout/StripeInlinePaymentMethods';
 import { listCountries } from '../../../lib/api/dictionary';
 import { placeOrder } from '../../../lib/api/orders';
 import { getMyCreditLimit } from '../../../lib/api/credit-limit';
@@ -59,6 +65,7 @@ export default async function CheckoutPage({
     Awaited<ReturnType<typeof getMe>> | null,
     Awaited<ReturnType<typeof getResolvedQuickOrderDefaults>> | null,
     Awaited<ReturnType<typeof listCountries>>,
+    Awaited<ReturnType<typeof getStripeStorefrontConfig>> | null,
   ];
   try {
     loaded = await Promise.all([
@@ -75,6 +82,9 @@ export default async function CheckoutPage({
       getResolvedQuickOrderDefaults(session).catch(() => null),
       // Feature 049 — active countries for the address country picker.
       listCountries({ locale }).catch(() => []),
+      // Feature 049 — Stripe display mode drives whether checkout shows one
+      // collapsed "Stripe" option (redirect) or the inline sub-methods.
+      getStripeStorefrontConfig().catch(() => null),
     ]);
   } catch (err) {
     // A stale/expired `b2b_session` cookie is still truthy, so it slips past
@@ -95,6 +105,7 @@ export default async function CheckoutPage({
     me,
     defaults,
     countries,
+    stripeConfig,
   ] = loaded;
   if (cartResult.newAnonCookie) await setAnonCartCookie(cartResult.newAnonCookie);
   const cart = cartResult.cart;
@@ -105,11 +116,35 @@ export default async function CheckoutPage({
   // anyway, but a friendlier UX is to drop the option early.
   const creditAvailable = creditLimit?.availableAmount ?? 0;
   const cartTotal = cart.subtotal.amount;
-  const paymentMethods = paymentMethodsRaw.filter((m) => {
+  let paymentMethods = paymentMethodsRaw.filter((m) => {
+    // Defensive: the backend already only returns active methods, but never
+    // offer an inactive method at checkout even if one slips through (feature
+    // 049 — an inactive method must not be selectable).
+    if (m.status !== 'active') return false;
     if (m.kind !== 'credit_limit') return true;
     if (!creditLimit) return false;
     return creditAvailable >= cartTotal;
   });
+
+  // Feature 049 — in Stripe "redirect" display mode the whole payment happens on
+  // Stripe's hosted page, so collapse the seeded per-method Stripe rows (card,
+  // BLIK, P24, wallets) into a single "Stripe" option with an informational
+  // note. In "inline" mode the sub-methods stay as-is.
+  if (stripeConfig?.active && stripeConfig.displayMode === 'redirect') {
+    const stripeMethods = paymentMethods.filter((m) => m.adapter === 'stripe');
+    if (stripeMethods.length > 0) {
+      const nonStripe = paymentMethods.filter((m) => m.adapter !== 'stripe');
+      // Prefer the card row as the backing method; the concrete method is chosen
+      // on Stripe's page anyway (the Checkout Session offers all enabled types).
+      const primary = stripeMethods.find((m) => m.code === 'stripe_card') ?? stripeMethods[0]!;
+      const collapsed = {
+        ...primary,
+        name: { default: 'Stripe', 'en-US': 'Stripe', 'pl-PL': 'Stripe' },
+        rendererKey: STRIPE_REDIRECT_RENDERER_KEY,
+      };
+      paymentMethods = [...nonStripe, collapsed];
+    }
+  }
 
   if (cart.items.length === 0) {
     return (
@@ -151,11 +186,26 @@ export default async function CheckoutPage({
 
         <ShippingMethods methods={deliveryMethods} preferredId={defaults?.deliveryMethodId ?? null} />
 
-        <PaymentMethods
-          methods={paymentMethods}
-          currency={cart.subtotal.currency}
-          preferredId={defaults?.paymentMethodId ?? null}
-        />
+        {stripeConfig?.active &&
+        stripeConfig.displayMode === 'inline' &&
+        paymentMethods.some((m) => m.adapter === 'stripe') ? (
+          <StripeInlinePaymentMethods
+            methods={paymentMethods}
+            deliveryMethods={deliveryMethods}
+            currency={cart.subtotal.currency}
+            preferredId={defaults?.paymentMethodId ?? null}
+            publishableKey={stripeConfig.publishableKey}
+            subtotal={cart.subtotal.amount}
+            discount={cart.discount?.amount ?? 0}
+            prepareAction={submitStripeInlineAction}
+          />
+        ) : (
+          <PaymentMethods
+            methods={paymentMethods}
+            currency={cart.subtotal.currency}
+            preferredId={defaults?.paymentMethodId ?? null}
+          />
+        )}
 
         <CouponField
           applied={cart.discount ?? null}
@@ -269,22 +319,21 @@ async function readJar(): Promise<CartCookieJar> {
   };
 }
 
-async function submitAction(formData: FormData): Promise<void> {
-  'use server';
-  const session = await getSessionCookie();
-  if (!session) redirect('/login?next=/checkout');
-
-  const promo = (formData.get('promotionCode') as string | null) || undefined;
-  const note = (formData.get('customerNote') as string | null) || undefined;
-
-  // Feature 036 (US2) — resolve a shipping/billing address: a saved id is used
-  // as-is; a newly entered address is created in the org address book first and
-  // referenced by its returned id.
+/**
+ * Feature 036 (US2) — resolve the order payload from the checkout form: saved
+ * address ids are used as-is; newly entered addresses are created in the org
+ * address book first and referenced by their returned id. Shared by the plain
+ * submit and the Stripe-inline submit (feature 049, item 6).
+ */
+async function buildPlaceOrderPayload(
+  session: string,
+  formData: FormData,
+): Promise<Parameters<typeof placeOrder>[1]> {
   const field = (name: string): string => ((formData.get(name) as string | null) ?? '').trim();
   async function resolveAddress(kind: 'delivery' | 'billing', prefix: string): Promise<string> {
     const savedId = field(`${prefix}AddressId`);
     if (savedId) return savedId;
-    const created = await createAddress(session!, {
+    const created = await createAddress(session, {
       kind,
       recipientName: field(`${prefix}_recipientName`),
       street: field(`${prefix}_street`),
@@ -295,27 +344,35 @@ async function submitAction(formData: FormData): Promise<void> {
     });
     return created.id;
   }
+  const promo = (formData.get('promotionCode') as string | null) || undefined;
+  const note = (formData.get('customerNote') as string | null) || undefined;
+  const deliveryAddressId = await resolveAddress('delivery', 'delivery');
+  const billingAddressId =
+    formData.get('billingSameAsShipping') != null
+      ? deliveryAddressId
+      : await resolveAddress('billing', 'billing');
+  const billingCompanyName = field('billingCompanyName');
+  const billingTaxId = field('billingTaxId');
+  return {
+    deliveryAddressId,
+    billingAddressId,
+    deliveryMethodId: (formData.get('deliveryMethodId') as string) ?? '',
+    paymentMethodId: (formData.get('paymentMethodId') as string) ?? '',
+    ...(promo ? { promotionCode: promo } : {}),
+    ...(note ? { customerNote: note } : {}),
+    ...(billingCompanyName ? { billingCompanyName } : {}),
+    ...(billingTaxId ? { billingTaxId } : {}),
+  };
+}
+
+async function submitAction(formData: FormData): Promise<void> {
+  'use server';
+  const session = await getSessionCookie();
+  if (!session) redirect('/login?next=/checkout');
 
   let order;
   try {
-    const deliveryAddressId = await resolveAddress('delivery', 'delivery');
-    const billingAddressId =
-      formData.get('billingSameAsShipping') != null
-        ? deliveryAddressId
-        : await resolveAddress('billing', 'billing');
-
-    const billingCompanyName = field('billingCompanyName');
-    const billingTaxId = field('billingTaxId');
-    order = await placeOrder(session, {
-      deliveryAddressId,
-      billingAddressId,
-      deliveryMethodId: (formData.get('deliveryMethodId') as string) ?? '',
-      paymentMethodId: (formData.get('paymentMethodId') as string) ?? '',
-      ...(promo ? { promotionCode: promo } : {}),
-      ...(note ? { customerNote: note } : {}),
-      ...(billingCompanyName ? { billingCompanyName } : {}),
-      ...(billingTaxId ? { billingTaxId } : {}),
-    });
+    order = await placeOrder(session, await buildPlaceOrderPayload(session, formData));
   } catch (err) {
     // Feature 036 (US4) — placement failed: the transaction rolled back, so the
     // cart is intact. Send the buyer to the Failure Page with a reason-specific
@@ -337,6 +394,43 @@ async function submitAction(formData: FormData): Promise<void> {
     redirect(`/checkout/pay?id=${order.id}`);
   }
   redirect(`/checkout/success?id=${order.id}`);
+}
+
+/**
+ * Feature 049 (item 6) — Stripe inline submit. Places the order (creating the
+ * PaymentIntent) and returns its client secret so the on-page Payment Element
+ * can confirm the payment, all on the checkout page. Errors are returned (not
+ * redirected) so the client can surface them or fall back to `/checkout/pay`.
+ */
+async function submitStripeInlineAction(formData: FormData): Promise<StripeInlinePrepareResult> {
+  'use server';
+  const session = await getSessionCookie();
+  if (!session) return { ok: false, error: 'Your session has expired. Please sign in again.' };
+
+  let order;
+  try {
+    order = await placeOrder(session, await buildPlaceOrderPayload(session, formData));
+  } catch (err) {
+    const message = err instanceof StorefrontApiError ? err.message : 'Could not place the order.';
+    return { ok: false, error: message };
+  }
+  if (order.nextAction?.kind === 'redirect_to_gateway') {
+    // Not expected in inline mode; hand the order to the pay step as a fallback.
+    return { ok: false, error: 'This payment must be completed on the gateway.', orderId: order.id };
+  }
+  try {
+    const secret = await getStripeClientSecret(session, order.id);
+    return {
+      ok: true,
+      orderId: order.id,
+      clientSecret: secret.clientSecret,
+      publishableKey: secret.publishableKey,
+    };
+  } catch {
+    // Order exists but the client secret couldn't be fetched → the client falls
+    // back to the dedicated pay step.
+    return { ok: false, error: 'Could not start the payment.', orderId: order.id };
+  }
 }
 
 /**

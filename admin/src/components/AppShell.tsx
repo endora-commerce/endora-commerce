@@ -153,12 +153,8 @@ const NAV: NavSection[] = [
       { to: '/taxes', labelKey: 'appShell.nav.taxes', icon: Receipt },
       { to: '/delivery-methods', labelKey: 'appShell.nav.deliveryMethods', icon: Truck },
       { to: '/payment-methods', labelKey: 'appShell.nav.paymentMethods', icon: CreditCard },
-      {
-        to: '/settings/stripe',
-        labelKey: 'appShell.nav.stripe',
-        icon: CreditCard,
-        requiredPermission: 'stripe:read',
-      },
+      // Stripe settings are no longer a top-level sidebar entry — they are
+      // reached as an "integration" from the Payment methods page (below).
     ],
   },
   {
