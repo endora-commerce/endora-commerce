@@ -270,6 +270,16 @@ export interface OrdersModuleOptions {
    * sales channel. When unwired the gate defaults to off.
    */
   resolveChannelAllowNegativeStock?: (salesChannelId: string) => Promise<boolean>;
+  /**
+   * Real per-product VAT — resolves the rate (fraction, e.g. `0.23`) for a
+   * product line from its tax class, billing country, and org VAT status. Omit
+   * ⇒ placeOrder falls back to a flat 23%.
+   */
+  resolveTaxRate?: (input: {
+    country: string | null;
+    productType: string;
+    vatStatus: string;
+  }) => Promise<number>;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -377,6 +387,7 @@ export function commerceModule(options: OrdersModuleOptions) {
         // structurally; threaded so placeOrder stamps the cart's coupon
         // discount onto the Order.
         ...(options.promotionService ? { promotion: options.promotionService } : {}),
+        ...(options.resolveTaxRate ? { resolveTaxRate: options.resolveTaxRate } : {}),
         ...(options.mailer ? { mailer: options.mailer } : {}),
         ...(options.getTransactionalEmailSender
           ? { getTransactionalEmailSender: options.getTransactionalEmailSender }

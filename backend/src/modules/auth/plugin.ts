@@ -184,6 +184,19 @@ async function authPluginImpl(app: FastifyInstance, opts: AuthPluginOptions): Pr
         }
         // An admin-kind session in the customer cookie (legacy) is ignored;
         // admins now authenticate via the dedicated admin cookie.
+
+        // Feature 040 — keep presence fresh: stamp `lastSeenAt` on every active
+        // customer request (throttled to once/minute inside the service via a
+        // Redis marker). Without this, the admin "online customers" view only
+        // reflects login time, so an actively-browsing buyer ages out of the
+        // freshness window and disappears. Fire-and-forget: never block or fail
+        // the request on a presence write.
+        if (
+          (resolved.kind === 'customer' || resolved.kind === 'impersonation') &&
+          session.customerAccountId
+        ) {
+          void opts.sessionService.touchLastSeen(session.id).catch(() => undefined);
+        }
       }
     }
 

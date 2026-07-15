@@ -89,6 +89,8 @@ import { Migration081SettingsHiddenFlag } from '../modules/settings/migrations/0
 import { Migration082TransactionalEmailsInit } from '../modules/transactional_emails/migrations/082_transactional_emails_init.js';
 import { Migration083InvoicesModule } from '../modules/invoices/migrations/083_invoices_module.js';
 import { Migration084NewsletterInit } from '../modules/newsletter/migrations/084_newsletter_init.js';
+import { Migration085StripeInit } from '../modules/stripe/migrations/085_stripe_init.js';
+import { Migration086PaymentRefundedAmount } from '../modules/stripe/migrations/086_payment_refunded_amount.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -424,6 +426,14 @@ export default defineConfig({
       {
         name: 'Migration084NewsletterInit',
         class: Migration084NewsletterInit,
+      },
+      {
+        name: 'Migration085StripeInit',
+        class: Migration085StripeInit,
+      },
+      {
+        name: 'Migration086PaymentRefundedAmount',
+        class: Migration086PaymentRefundedAmount,
       },
     ],
     transactional: true,

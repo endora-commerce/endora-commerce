@@ -47,6 +47,11 @@ export const paymentMethodsClient = {
       .get<{ data: OrderStatusOption[] }>('/api/v1/admin/order-statuses')
       .then((r) => r.data);
   },
+  adapters(): Promise<string[]> {
+    return apiClient
+      .get<{ data: string[] }>('/api/v1/admin/payment-methods/adapters')
+      .then((r) => r.data);
+  },
   upsert(code: string, body: PaymentMethodUpsertBody): Promise<AdminPaymentMethod> {
     return apiClient
       .put<{ data: AdminPaymentMethod }>(

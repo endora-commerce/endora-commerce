@@ -5,6 +5,8 @@ import type {
   PaymentRefundPort,
   PaymentRefundResult,
 } from '../../returns/ports/payment-refund.port.js';
+import { PaymentMethod } from '../../payment_methods/entities/payment-method.entity.js';
+import { gatewayRefundRegistry } from './gateway-refund-registry.js';
 
 /**
  * Payments-side implementation of the returns module's `PaymentRefundPort`
@@ -25,6 +27,17 @@ export class PaymentRefundProvider implements PaymentRefundPort {
     const order = await em.findOne(Order, { id: input.orderId });
     const kind = order?.paymentMethodSnapshot?.kind;
     if (kind === 'gateway') {
+      // Feature 049 — delegate to the registered gateway refund handler (e.g.
+      // Stripe). The handler is resolved by the order's payment-method adapter
+      // when known; otherwise the sole registered gateway handler is used.
+      const adapterKey =
+        input.paymentMethodId != null
+          ? (await em.findOne(PaymentMethod, { id: input.paymentMethodId }))?.adapter ?? null
+          : null;
+      const handler = gatewayRefundRegistry.resolve(adapterKey);
+      if (handler) {
+        return handler.refund(input);
+      }
       return {
         state: 'pending_manual',
         failureReason: 'Gateway refunds require a PSP refund integration.',

@@ -16,15 +16,76 @@ import {
 import { useTranslation } from '@/i18n/useTranslation';
 import { Section } from './Section';
 
+type PaymentStatus =
+  | 'awaiting_payment'
+  | 'paid'
+  | 'failed'
+  | 'deferred'
+  | 'refunded'
+  | 'partially_refunded';
+
 interface PaymentRow {
   id: string;
-  status: 'awaiting_payment' | 'paid' | 'failed' | 'deferred' | 'refunded';
+  status: PaymentStatus;
   amount: number;
+  refundedAmount: number;
   currency: string;
   paidAt: string | null;
+  refundedAt: string | null;
+  updatedAt: string | null;
   externalReference: string | null;
+  refundReference: string | null;
   failureReason: string | null;
   attemptNo: number;
+}
+
+/**
+ * One money-movement entry in the payment ledger: a charge (the payment) or a
+ * refund. A refunded payment expands into two entries — the original "paid"
+ * charge and the "refunded" line — so the order keeps its full payment history.
+ */
+interface LedgerEntry {
+  key: string;
+  attemptNo: number;
+  amount: number;
+  currency: string;
+  status: PaymentStatus;
+  at: string | null;
+  reference: string | null;
+  failure: string | null;
+}
+
+function toLedger(payments: PaymentRow[]): LedgerEntry[] {
+  const entries: LedgerEntry[] = [];
+  for (const p of payments) {
+    const wasPaid = p.paidAt != null || p.status === 'refunded' || p.status === 'partially_refunded';
+    entries.push({
+      key: `${p.id}-charge`,
+      attemptNo: p.attemptNo,
+      amount: p.amount,
+      currency: p.currency,
+      // Keep the charge shown as "paid" even after a later refund.
+      status: wasPaid ? 'paid' : p.status,
+      at: p.paidAt,
+      reference: p.externalReference,
+      failure: p.failureReason,
+    });
+    if (p.refundedAmount > 0) {
+      entries.push({
+        key: `${p.id}-refund`,
+        attemptNo: p.attemptNo,
+        amount: -p.refundedAmount,
+        currency: p.currency,
+        status: p.refundedAmount >= p.amount ? 'refunded' : 'partially_refunded',
+        // Exact refund time when recorded; else the payment's last-updated time
+        // (when the refund was reflected) so pre-existing refunds still show a date.
+        at: p.refundedAt ?? p.updatedAt,
+        reference: p.refundReference ?? p.externalReference,
+        failure: null,
+      });
+    }
+  }
+  return entries;
 }
 
 interface InvoiceRow {
@@ -38,12 +99,13 @@ interface InvoiceRow {
   pdfReady: boolean;
 }
 
-const PAYMENT_STATUS_VARIANT: Record<PaymentRow['status'], BadgeProps['variant']> = {
+const PAYMENT_STATUS_VARIANT: Record<PaymentStatus, BadgeProps['variant']> = {
   awaiting_payment: 'warning',
   paid: 'success',
   failed: 'destructive',
   deferred: 'secondary',
   refunded: 'outline',
+  partially_refunded: 'outline',
 };
 
 const INVOICE_STATUS_VARIANT: Record<InvoiceRow['status'], BadgeProps['variant']> = {
@@ -120,24 +182,24 @@ export function OrderPaymentsTab(props: { orderId: string }): ReactNode {
                 <TableHead>{t('orderDetail.payments.columns.attempt')}</TableHead>
                 <TableHead>{t('orderDetail.payments.columns.amount')}</TableHead>
                 <TableHead>{t('orderDetail.payments.columns.status')}</TableHead>
-                <TableHead>{t('orderDetail.payments.columns.paidAt')}</TableHead>
+                <TableHead>{t('orderDetail.payments.columns.actionDate')}</TableHead>
                 <TableHead>{t('orderDetail.payments.columns.reference')}</TableHead>
                 <TableHead>{t('orderDetail.payments.columns.failure')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {payments.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell>#{p.attemptNo}</TableCell>
-                  <TableCell className="tabular-nums">{money(p.amount, p.currency)}</TableCell>
+              {toLedger(payments).map((e) => (
+                <TableRow key={e.key}>
+                  <TableCell>#{e.attemptNo}</TableCell>
+                  <TableCell className="tabular-nums">{money(e.amount, e.currency)}</TableCell>
                   <TableCell>
-                    <Badge variant={PAYMENT_STATUS_VARIANT[p.status]}>
-                      {t(`orderDetail.paymentStatus.${p.status}`)}
+                    <Badge variant={PAYMENT_STATUS_VARIANT[e.status]}>
+                      {t(`orderDetail.paymentStatus.${e.status}`)}
                     </Badge>
                   </TableCell>
-                  <TableCell>{p.paidAt ? formatDateTime(p.paidAt) : '—'}</TableCell>
-                  <TableCell className="font-mono text-xs">{p.externalReference ?? '—'}</TableCell>
-                  <TableCell className="text-destructive">{p.failureReason ?? ''}</TableCell>
+                  <TableCell>{e.at ? formatDateTime(e.at) : '—'}</TableCell>
+                  <TableCell className="font-mono text-xs">{e.reference ?? '—'}</TableCell>
+                  <TableCell className="text-destructive">{e.failure ?? ''}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

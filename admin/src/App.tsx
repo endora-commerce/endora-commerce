@@ -94,6 +94,7 @@ import { DisplayModeOverridesPage } from './modules/price_lists/DisplayModeOverr
 import { HomePage } from './modules/home/HomePage.js';
 import { DeliveryMethodsPage } from './modules/delivery_methods/DeliveryMethodsPage.js';
 import { PaymentMethodsPage } from './modules/payment_methods/PaymentMethodsPage.js';
+import { StripeSettingsPage } from './modules/stripe/StripeSettingsPage.js';
 import { InventoryPage } from './modules/inventory/InventoryPage.js';
 import { LowStockPage } from './modules/inventory/LowStockPage.js';
 import { AvailabilityNotificationsPage } from './modules/inventory/AvailabilityNotificationsPage.js';
@@ -221,6 +222,7 @@ export function App(): ReactNode {
         <Route path="/price-lists/:id" element={<PriceListDetailPage />} />
         <Route path="/delivery-methods" element={<DeliveryMethodsPage />} />
         <Route path="/payment-methods" element={<PaymentMethodsPage />} />
+        <Route path="/settings/stripe" element={<StripeSettingsPage />} />
         <Route path="/inventory" element={<InventoryPage />} />
         <Route path="/inventory/low-stock" element={<LowStockPage />} />
         <Route path="/inventory/notifications" element={<AvailabilityNotificationsPage />} />
