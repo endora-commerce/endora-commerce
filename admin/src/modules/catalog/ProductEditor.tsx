@@ -29,6 +29,7 @@ import { ApiError, apiClient } from '@/lib/api-client';
 import { useUnsavedChangesPrompt } from '@/lib/use-unsaved-changes-prompt';
 import { useTranslation } from '@/i18n/useTranslation';
 import { AssetPicker } from '@/modules/assets_library/components/AssetPicker';
+import { toAbsoluteAssetUrl } from '@/modules/assets_library/lib/asset-url';
 import type { AssetSummary, AssetDetail } from '@/modules/assets_library/api/assets-library-client';
 import { StickyFormActions } from '@/components/StickyFormActions';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -1197,14 +1198,14 @@ function GallerySection({ productId }: { productId: string }): ReactNode {
                 img.kind === 'video' ? (
                   <video
                     key={img.id}
-                    src={img.url}
+                    src={toAbsoluteAssetUrl(img.url)}
                     className="h-20 w-20 rounded border object-cover"
                     muted
                   />
                 ) : (
                   <img
                     key={img.id}
-                    src={img.url}
+                    src={toAbsoluteAssetUrl(img.url)}
                     alt={img.altText ?? ''}
                     className="h-20 w-20 rounded border object-cover"
                   />
@@ -1272,7 +1273,7 @@ function GalleryRow({
       <TableCell>
         {item.asset?.url ? (
           <img
-            src={item.asset.url}
+            src={toAbsoluteAssetUrl(item.asset.url)}
             alt=""
             className="h-12 w-12 rounded border object-cover"
           />
