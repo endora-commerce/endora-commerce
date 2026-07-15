@@ -8,9 +8,17 @@ import { fileURLToPath } from 'node:url';
  * The desktop topbar + header only fit from ~877px upward; between 768 and
  * 876px the desktop rows overflowed the viewport. The compact (mobile) header
  * is therefore shown up to 876px and the desktop rows take over at 877px — the
- * flip boundary is 876/877, NOT Tailwind's `md` (768px) default. This test
- * pins those exact variant classes in the header source so a refactor can't
- * silently revert the boundary back to `md` and re-introduce the overflow.
+ * flip boundary is 876/877, NOT Tailwind's `md` (768px) default.
+ *
+ * The three desktop rows are hidden by default (`hidden`) and revealed only at
+ * `min-[877px]` (`:block` for the topbar/nav, `:grid` for the header inner,
+ * whose base component class is `display: grid`). A bare `max-[876px]:hidden`
+ * is NOT used: `.industria-header__inner` carries `display: grid` from its
+ * component class, so relying on the component-vs-utility layer order to hide
+ * it duplicated the header around the boundary. Starting from `hidden` and
+ * opting back in at `min-[877px]` makes the flip robust regardless of layer
+ * ordering. This test pins those exact variant classes so a refactor can't
+ * silently revert the boundary back to `md` or re-introduce the overflow.
  *
  * It asserts on the component source (rather than a full SSR render) because
  * the header pulls in the dictionary-provider stack; the responsive boundary
@@ -24,8 +32,10 @@ const headerSource = readFileSync(
 
 describe('Header responsive flip boundary', () => {
   it('hides the desktop topbar/header/nav rows at or below 876px', () => {
-    // Three desktop rows (topbar, header inner, nav) each carry the guard.
-    const matches = headerSource.match(/max-\[876px\]:hidden/g) ?? [];
+    // Three desktop rows (topbar, header inner, nav) each start hidden and are
+    // revealed only from 877px up — `hidden min-[877px]:block` (topbar/nav) and
+    // `hidden min-[877px]:grid` (header inner, whose base display is grid).
+    const matches = headerSource.match(/hidden min-\[877px\]:(?:block|grid)/g) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(3);
   });
 
