@@ -33,6 +33,8 @@ import { CartConvertButtons } from '../../../components/CartConvertButtons';
 import { CartDroppedLinesBanner } from '../../../components/CartDroppedLinesBanner';
 import { CartApprovalBanner } from '../../../components/CartApprovalBanner';
 import { getMe } from '../../../lib/api/account';
+import { getProductDisplayMode } from '../../../lib/api/pricing';
+import type { DisplayMode } from '@b2b/contracts';
 
 /**
  * Cart page — Industria-themed (feature 027 T045 / T046 / T059 / T074 / T096).
@@ -82,7 +84,19 @@ export default async function CartPage({
   const requiresApproval =
     cart.approvalStatus !== undefined && cart.approvalStatus !== 'not_required';
 
-  const { locale } = await getServerContext();
+  const { locale, ctx } = await getServerContext();
+
+  // Resolve ONE settings-driven price display mode for the whole cart so the
+  // net/gross presentation matches the PDP and product cards. The storefront
+  // pricing endpoint resolves the mode from the Settings module (the request
+  // wrapper does not forward customer auth), so the whole cart shares one mode
+  // — exactly the "single version everywhere" the display setting expresses.
+  // Resolved from the first line's product; falls back to net when unreachable.
+  const displayMode: DisplayMode =
+    cart.items.length > 0 && cart.items[0]
+      ? (await getProductDisplayMode(cart.items[0].productId, ctx))?.displayMode ?? 'net_only'
+      : 'net_only';
+
   const upsells = cart.items.length > 0 ? await getCartUpsells(jar).catch(() => []) : [];
 
   const strings = STRINGS(locale);
@@ -177,6 +191,7 @@ export default async function CartPage({
                 removeAction={removeAction}
                 saveToListAction={saveToListAction}
                 locale={locale}
+                displayMode={displayMode}
                 strings={strings.line}
               />
             ))}
@@ -206,6 +221,7 @@ export default async function CartPage({
             grandTotal={cart.grandTotal ?? cart.subtotal}
             itemCount={cart.items.length}
             locale={locale}
+            displayMode={displayMode}
             strings={strings.totals}
           />
 
@@ -566,6 +582,8 @@ function STRINGS(locale: string): {
         removeLabel: 'Usuń',
         saveToListLabel: 'Zapisz na listę',
         updateLabel: 'Zaktualizuj',
+        netSuffix: 'netto',
+        grossSuffix: 'brutto',
         unavailable: {
           out_of_stock: 'Brak na stanie.',
           not_purchasable: 'Niedostępny.',
@@ -574,11 +592,13 @@ function STRINGS(locale: string): {
       },
       totals: {
         subtotalLabel: (n: number) =>
-          n === 1 ? 'Suma netto (1 pozycja)' : `Suma netto (${n} pozycji)`,
+          n === 1 ? 'Suma (1 pozycja)' : `Suma (${n} pozycji)`,
         discountLabel: (code: string | null) => (code ? `Rabat (${code})` : 'Rabat'),
-        grandTotalLabel: 'Razem netto',
+        grandTotalLabel: 'Razem',
         deliveryLabel: 'Dostawa',
         deliveryValue: 'naliczana w kasie',
+        netSuffix: 'netto',
+        grossSuffix: 'brutto',
       },
       coupon: {
         label: 'Kupon rabatowy',
@@ -661,6 +681,8 @@ function STRINGS(locale: string): {
       removeLabel: 'Remove',
       saveToListLabel: 'Save to list',
       updateLabel: 'Update',
+      netSuffix: 'net',
+      grossSuffix: 'gross',
       unavailable: {
         out_of_stock: 'Out of stock.',
         not_purchasable: 'No longer available.',
@@ -674,6 +696,8 @@ function STRINGS(locale: string): {
       grandTotalLabel: 'Total',
       deliveryLabel: 'Delivery',
       deliveryValue: 'calculated at checkout',
+      netSuffix: 'net',
+      grossSuffix: 'gross',
     },
     coupon: {
       label: 'Coupon code',
