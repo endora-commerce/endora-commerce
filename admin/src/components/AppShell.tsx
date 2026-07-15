@@ -281,6 +281,12 @@ const NAV: NavSection[] = [
         icon: LineChart,
         requiredPermission: 'analytics:read',
       },
+      {
+        to: '/google-analytics',
+        labelKey: 'appShell.nav.googleAnalytics',
+        icon: Sparkles,
+        requiredPermission: 'google_analytics:read',
+      },
       { to: '/import-export', labelKey: 'appShell.nav.importExport', icon: Upload },
       {
         to: '/settings',
@@ -612,6 +618,9 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   { test: /^\/integrations\/?$/, build: () => [
     { labelKey: 'appShell.section.system', href: '/admin-users' },
     { labelKey: 'appShell.nav.integrations', href: null },
+  ] },
+  { test: /^\/google-analytics(\/.*)?$/, build: () => [
+    { labelKey: 'appShell.nav.googleAnalytics', href: '/google-analytics' },
   ] },
   { test: /^\/analytics\/?$/, build: () => [
     { labelKey: 'appShell.section.system', href: '/admin-users' },

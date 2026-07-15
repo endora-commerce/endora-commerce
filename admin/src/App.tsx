@@ -15,6 +15,8 @@ import { ApiKeysPage } from './modules/api_keys/ApiKeysPage.js';
 import { WebhooksPage } from './modules/webhooks/WebhooksPage.js';
 import { IntegrationsPage } from './modules/integrations/IntegrationsPage.js';
 import { AnalyticsPage } from './modules/analytics/AnalyticsPage.js';
+import { CustomEventsListPage } from './modules/google_analytics/pages/CustomEventsListPage.js';
+import { CustomEventEditPage } from './modules/google_analytics/pages/CustomEventEditPage.js';
 import { ImportExportPage } from './modules/import_export/ImportExportPage.js';
 import { SeoPage } from './modules/seo/SeoPage.js';
 import { DictionaryPage } from './modules/dictionaries/DictionaryPage.js';
@@ -241,6 +243,9 @@ export function App(): ReactNode {
         <Route path="/webhooks" element={<WebhooksPage />} />
         <Route path="/integrations" element={<IntegrationsPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/google-analytics" element={<CustomEventsListPage />} />
+        <Route path="/google-analytics/new" element={<CustomEventEditPage />} />
+        <Route path="/google-analytics/:id" element={<CustomEventEditPage />} />
         <Route path="/import-export" element={<ImportExportPage />} />
         <Route path="/seo" element={<SeoPage />} />
         <Route path="/dictionary" element={<DictionaryPage />} />
