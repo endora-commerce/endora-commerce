@@ -69,13 +69,17 @@ describe('Feature 011 / US7 — display-mode chain (T079)', () => {
     await em.persistAndFlush(org);
     organization = org;
 
-    // Reset pricing.* settings so each test starts from a known state.
+    // Reset pricing.* settings so each test starts from a known state —
+    // clear both the per-channel SettingValue rows and the global tier
+    // (settings.global_value) so a global override set by one test can't
+    // leak into the next.
     const pricingSettings = await em.find(Setting, { code: { $like: 'pricing.%' } });
     if (pricingSettings.length > 0) {
       const sv = await em.find(SettingValue, {
         setting: { $in: pricingSettings.map((s) => s.id) },
       });
       for (const v of sv) em.remove(v);
+      for (const s of pricingSettings) s.globalValue = null;
       await em.flush();
     }
 
@@ -107,6 +111,24 @@ describe('Feature 011 / US7 — display-mode chain (T079)', () => {
       context: { quantity: 1, organization: null, salesChannel },
     });
     expect(out.displayMode).toBe('none');
+  });
+
+  it('FR-039: honours the global settings tier (admin "All channels") when there is no per-channel value', async () => {
+    // Simulate the admin setting default_display_mode = 'both' at the global
+    // tier (settings.global_value) via the "All channels" editor — no
+    // per-channel SettingValue row is written. The resolver must surface it
+    // instead of silently falling back to the manifest default 'gross_only'.
+    const em = h.em();
+    const setting = await em.findOneOrFail(Setting, { code: 'pricing.default_display_mode' });
+    setting.globalValue = 'both';
+    await em.flush();
+
+    const pricing = new PricingService(h.em);
+    const out = await pricing.resolveEngine({
+      product,
+      context: { quantity: 1, organization, salesChannel },
+    });
+    expect(out.displayMode).toBe('both');
   });
 
   it('FR-038/039: Organization override beats Settings for signed-in customers', async () => {
