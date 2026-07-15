@@ -22,9 +22,12 @@
     "allChannels": "All channels",
     "enabled": "Enabled",
     "fields": "Payload fields",
+    "fieldsHint": "Pick which fields to send — values are filled automatically at the trigger.",
     "addField": "Add field",
     "fieldKey": "Field",
     "payloadKey": "Sent as",
+    "sentAs": "sent as",
+    "payloadKeyHint": "(same as field)",
     "save": "Save",
     "delete": "Delete",
     "actions": {

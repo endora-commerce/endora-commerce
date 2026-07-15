@@ -22,9 +22,12 @@
     "allChannels": "Wszystkie kanały",
     "enabled": "Aktywne",
     "fields": "Pola payloadu",
+    "fieldsHint": "Wybierz, które pola wysłać — wartości uzupełniają się automatycznie w miejscu zdarzenia.",
     "addField": "Dodaj pole",
     "fieldKey": "Pole",
     "payloadKey": "Wysyłane jako",
+    "sentAs": "wysyłane jako",
+    "payloadKeyHint": "(jak nazwa pola)",
     "save": "Zapisz",
     "delete": "Usuń",
     "actions": {

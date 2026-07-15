@@ -259,6 +259,7 @@ export function CustomEventEditPage(): ReactNode {
               </div>
             ) : (
               <div className="flex flex-col gap-2">
+                <p className="text-xs text-muted-foreground">{t('customEvents.fieldsHint')}</p>
                 {dynamicRows.map((row, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <Input
@@ -270,8 +271,11 @@ export function CustomEventEditPage(): ReactNode {
                         setDynamicRows(next);
                       }}
                     />
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {t('customEvents.sentAs')}
+                    </span>
                     <Input
-                      placeholder={t('customEvents.payloadKey')}
+                      placeholder={t('customEvents.payloadKeyHint')}
                       value={row.payloadKey}
                       onChange={(e) => {
                         const next = [...dynamicRows];
