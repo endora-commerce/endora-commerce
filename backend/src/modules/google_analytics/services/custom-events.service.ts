@@ -47,6 +47,8 @@ export class GaCustomEventsService {
     private readonly emFactory: () => EntityManager,
     private readonly channels: GaChannelPort,
     private readonly audit?: GaAuditSink,
+    /** Fired after a create/update/delete so callers can invalidate caches. */
+    private readonly onChange?: () => void,
   ) {}
 
   async list(query: GaCustomEventListQuery): Promise<GaCustomEventResponse[]> {
@@ -89,6 +91,7 @@ export class GaCustomEventsService {
       actorAdminUserId: ctx.actorAdminUserId,
       stateAfter: { eventName: row.eventName, triggerAction: row.triggerAction },
     });
+    this.onChange?.();
     return this.toDto(row);
   }
 
@@ -125,6 +128,7 @@ export class GaCustomEventsService {
       stateBefore: before,
       stateAfter: { eventName: row.eventName, triggerAction: row.triggerAction, enabled: row.enabled },
     });
+    this.onChange?.();
     return this.toDto(row);
   }
 
@@ -140,6 +144,7 @@ export class GaCustomEventsService {
       actorAdminUserId: ctx.actorAdminUserId,
       stateBefore: { eventName: row.eventName, triggerAction: row.triggerAction },
     });
+    this.onChange?.();
   }
 
   /**

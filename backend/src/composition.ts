@@ -1966,6 +1966,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       auditLog: auditLogService,
       redis,
       runWorkers,
+      // On-demand storefront cache invalidation: any google_analytics.* setting
+      // change (and custom-event CRUD) revalidates the storefront `ga:config`.
+      onSettingChanged: (handler) =>
+        eventBus.on('settings.value_changed', (payload) =>
+          handler((payload as unknown as { settingCode: string }).settingCode),
+        ),
+      ...(process.env['STOREFRONT_BASE_URL']
+        ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
+        : {}),
+      ...(process.env['REVALIDATE_SECRET']
+        ? { revalidateSecret: process.env['REVALIDATE_SECRET'] }
+        : {}),
     }),
   );
 

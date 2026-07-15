@@ -18,6 +18,7 @@ import {
 import { makeEnqueuer, makeProcessor } from './services/ss-delivery.service.js';
 import { Ga4MpClient } from './services/ga4-mp-client.js';
 import { ensureCookieConsentBlock } from './services/cookie-consent-block-seeder.js';
+import { StorefrontRevalidator } from './services/storefront-revalidator.js';
 import { registerGoogleAnalyticsStorefrontRoutes } from './routes.storefront.js';
 import { registerGoogleAnalyticsAdminRoutes } from './routes.admin.js';
 
@@ -35,6 +36,11 @@ export interface GoogleAnalyticsModuleOptions {
   redis?: Redis;
   /** Whether this process runs queue consumers (BACKEND_ROLE != api). */
   runWorkers?: boolean;
+  /** Subscribe to `settings.value_changed` to invalidate the storefront config cache. */
+  onSettingChanged?: (handler: (settingCode: string) => void) => void;
+  /** Storefront base URL + shared secret for on-demand cache revalidation. */
+  storefrontBaseUrl?: string;
+  revalidateSecret?: string;
 }
 
 /**
@@ -44,10 +50,19 @@ export interface GoogleAnalyticsModuleOptions {
  * state via `defineModuleRoutes`.
  */
 export function googleAnalyticsModule(options: GoogleAnalyticsModuleOptions): ModulePlugin {
+  const revalidator = new StorefrontRevalidator({
+    baseUrl: options.storefrontBaseUrl,
+    secret: options.revalidateSecret,
+  });
+  const invalidateConfig = (): void => {
+    void revalidator.revalidate(['ga:config']);
+  };
+
   const customEvents = new GaCustomEventsService(
     options.emFactory,
     options.channels,
     options.auditLog,
+    invalidateConfig,
   );
   const configService = new GaConfigService(options.settings, (channelId) =>
     customEvents.loadForChannel(channelId),
@@ -57,7 +72,15 @@ export function googleAnalyticsModule(options: GoogleAnalyticsModuleOptions): Mo
   const deliveryQueue = options.redis ? createGaDeliveryQueue(options.redis) : undefined;
   const enqueueCollect = deliveryQueue ? makeEnqueuer(deliveryQueue) : undefined;
 
+  // Invalidate the storefront config cache when any google_analytics.* setting
+  // changes, so admin config edits propagate immediately (not after the TTL).
+  options.onSettingChanged?.((settingCode) => {
+    if (settingCode.startsWith('google_analytics.')) invalidateConfig();
+  });
+
   return async (app) => {
+    revalidator.setLogger(app.log);
+
     // Seed the predefined cookie-consent CMS block (idempotent; runs after
     // channels exist). Guarded so a platform without the CMS module skips it.
     try {
