@@ -11,6 +11,11 @@ const STORAGE_KEY = 'ga-consent';
  * when GA is enabled for the channel and `requireConsent` is on and the visitor
  * has not yet decided. A prior decision is re-applied on load so analytics
  * storage matches the saved choice without re-prompting.
+ *
+ * The banner markup is always rendered (starting hidden) so the server-rendered
+ * `message` prop — the `cookieconsent.message` CMS block — is present in the SSR
+ * payload and available to the client; the effect only toggles visibility, so
+ * there is no content flash (it starts hidden).
  */
 export function ConsentBanner({
   config,
@@ -20,7 +25,7 @@ export function ConsentBanner({
   /** Banner text — supplied from the `cookieconsent.message` CMS block. */
   message?: ReactNode;
 }): ReactNode {
-  const [visible, setVisible] = useState(false);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     if (!config.enabled || !config.requireConsent) return;
@@ -29,10 +34,8 @@ export function ConsentBanner({
       updateAnalyticsConsent(saved === 'granted');
       return;
     }
-    setVisible(true);
+    setOpen(true);
   }, [config]);
-
-  if (!visible) return null;
 
   function decide(granted: boolean): void {
     try {
@@ -41,11 +44,12 @@ export function ConsentBanner({
       // Private mode / storage disabled — apply the choice for this session only.
     }
     updateAnalyticsConsent(granted);
-    setVisible(false);
+    setOpen(false);
   }
 
   return (
     <div
+      hidden={!open}
       role="dialog"
       aria-label="Zgoda na pliki cookie"
       className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-surface p-4 shadow-lg"
