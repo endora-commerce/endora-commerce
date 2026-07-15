@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { PdpStickyBuyBar } from '../components/mobile/PdpStickyBuyBar';
 import { PdpPriceToggle } from '../components/pricing/PdpPriceToggle';
+import type { AddToCartResult } from '../lib/cartAddState';
 
 /**
  * Feature 044 / US3 — sticky PDP buy bar + net/gross price toggle.
@@ -12,7 +13,7 @@ import { PdpPriceToggle } from '../components/pricing/PdpPriceToggle';
  * increment and the toggle's switch are effects exercised on a real device.
  */
 
-const noop = async (): Promise<void> => {};
+const noop = async (): Promise<AddToCartResult> => ({ status: 'idle' });
 
 describe('PdpStickyBuyBar', () => {
   it('renders the quantity stepper, add-to-cart label and product id', () => {

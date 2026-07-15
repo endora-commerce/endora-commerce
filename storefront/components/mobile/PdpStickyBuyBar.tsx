@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useActionState, useState, type ReactNode } from 'react';
+import { ADD_TO_CART_IDLE, type AddToCartResult } from '../../lib/cartAddState';
+import { CartAddedPopup } from '../CartAddedPopup';
 import { CartSubmitButton } from '../CartSubmitButton';
 
 /**
@@ -16,16 +18,22 @@ import { CartSubmitButton } from '../CartSubmitButton';
 export function PdpStickyBuyBar(props: {
   productId: string;
   variantId?: string;
-  addToCartAction: (formData: FormData) => void | Promise<void>;
+  addToCartAction: (
+    prevState: AddToCartResult,
+    formData: FormData,
+  ) => AddToCartResult | Promise<AddToCartResult>;
   addToCartLabel: string;
   datasheetHref?: string;
   datasheetLabel?: string;
 }): ReactNode {
   const [qty, setQty] = useState(1);
   const clamp = (n: number): number => (Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1);
+  // `CartSubmitButton` renders its own pending spinner via `useFormStatus`, so
+  // the action's `isPending` flag isn't needed here.
+  const [cartState, cartFormAction] = useActionState(props.addToCartAction, ADD_TO_CART_IDLE);
 
   return (
-    <form action={props.addToCartAction} className="m-actionbar">
+    <form action={cartFormAction} className="m-actionbar">
       <input type="hidden" name="productId" value={props.productId} />
       {props.variantId ? <input type="hidden" name="variantId" value={props.variantId} /> : null}
       <div className="qty__stepper shrink-0">
@@ -55,6 +63,7 @@ export function PdpStickyBuyBar(props: {
         label={props.addToCartLabel}
         icon={<CartIcon />}
       />
+      <CartAddedPopup state={cartState} />
       {props.datasheetHref ? (
         <a
           href={props.datasheetHref}
