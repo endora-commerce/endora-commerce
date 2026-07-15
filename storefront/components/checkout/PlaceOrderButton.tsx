@@ -1,7 +1,23 @@
 'use client';
 
-import { type CSSProperties, type ReactNode } from 'react';
+import { type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { useFormStatus } from 'react-dom';
+import { trackPlaceOrderClicked } from '../../lib/analytics/ecommerce';
+
+/**
+ * Feature 049 — capture the checkout submission fields (the same data posted to
+ * the server) for the `place_order_clicked` custom-event trigger. File inputs
+ * are skipped (FR-018); only string form values are forwarded.
+ */
+function capturePlaceOrder(ev: MouseEvent<HTMLButtonElement>): void {
+  const form = ev.currentTarget.form;
+  if (!form) return;
+  const payload: Record<string, string> = {};
+  for (const [key, value] of new FormData(form).entries()) {
+    if (typeof value === 'string') payload[key] = value;
+  }
+  trackPlaceOrderClicked(payload);
+}
 
 /**
  * Submit button for the checkout `<form action={submitAction}>`. Reads the
@@ -42,6 +58,7 @@ export function PlaceOrderButton({
       aria-live="polite"
       title={!canTransact ? title : undefined}
       style={style}
+      onClick={capturePlaceOrder}
     >
       {pending ? <Spinner /> : null}
       {pending ? pendingLabel : label}
