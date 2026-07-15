@@ -65,7 +65,7 @@ export function Header(props: {
 
   return (
     <>
-      <div className="industria-topbar max-[876px]:hidden">
+      <div className="industria-topbar hidden min-[877px]:block">
         <div className="mx-auto max-w-[1360px] px-[24px] industria-topbar__inner">
           <div className="industria-topbar__left">
             <span className="industria-topbar__item">
@@ -97,7 +97,7 @@ export function Header(props: {
       </div>
 
       <header className="industria-header">
-        <div className="mx-auto max-w-[1360px] px-[24px] industria-header__inner max-[876px]:hidden">
+        <div className="mx-auto max-w-[1360px] px-[24px] industria-header__inner hidden min-[877px]:grid">
           <Link href="/" className="industria-header__brand">
             <span className="industria-header__mark">IN</span>
             <span className="industria-header__brand__name">
@@ -204,7 +204,7 @@ export function Header(props: {
         </div>
       </header>
 
-      <nav className="industria-nav max-[876px]:hidden" aria-label="Primary">
+      <nav className="industria-nav hidden min-[877px]:block" aria-label="Primary">
         <div className="mx-auto max-w-[1360px] px-[24px] industria-nav__inner">
           {/* Data-driven "Wszystkie kategorie" trigger + mega panel
               (seeded "Main navigation"). Replaces the old static link and
