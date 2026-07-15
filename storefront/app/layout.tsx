@@ -20,6 +20,9 @@ import { DictionaryProvider } from '../lib/dictionary/DictionaryProvider';
 import { getCartItemCount } from '../lib/api/cart';
 import { getMe } from '../lib/api/account';
 import { getSpeculationRulesConfig } from '../lib/api/speculation-rules';
+import { getGoogleAnalyticsConfig } from '../lib/api/analytics-config';
+import { GoogleAnalytics } from '../components/analytics/GoogleAnalytics';
+import { AnalyticsProvider } from '../components/analytics/AnalyticsProvider';
 import { getAnonCartCookie, getSessionCookie } from '../lib/session';
 import './globals.css';
 
@@ -81,7 +84,7 @@ export default async function RootLayout({
     ...(session ? { session } : {}),
     ...(anon ? { anon } : {}),
   };
-  const [megamenu, dictionary, cartItemCount, me, speculation] = await Promise.all([
+  const [megamenu, dictionary, cartItemCount, me, speculation, gaConfig] = await Promise.all([
     getActiveMegamenu(ctx),
     fetchDictionary({ ctx }),
     // Header cart-icon badge. Never blocks the render — getCartItemCount
@@ -93,6 +96,9 @@ export default async function RootLayout({
     // Speculation Rules toggle (Settings module). Best-effort — defaults to
     // enabled + 'moderate' on any read error.
     getSpeculationRulesConfig(),
+    // Feature 049 — per-channel Google Analytics config. Best-effort; returns a
+    // disabled config on any read error so analytics never breaks the render.
+    getGoogleAnalyticsConfig(ctx),
   ]);
   return (
     <html lang={locale}>
@@ -169,6 +175,10 @@ export default async function RootLayout({
         </DictionaryProvider>
         <PwaRegister />
         <SpeculationRules enabled={speculation.enabled} eagerness={speculation.eagerness} />
+        {/* Feature 049 — Google Analytics 4. Renders nothing for untracked
+            channels; page views are emitted per navigation by the provider. */}
+        <GoogleAnalytics config={gaConfig} />
+        <AnalyticsProvider config={gaConfig} />
       </body>
     </html>
   );
