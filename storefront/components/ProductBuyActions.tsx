@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { addRfqDraftItem } from '../lib/rfqDraft';
+import { CartSubmitButton } from './CartSubmitButton';
 
 /**
  * PDP purchase row: a single styled quantity input shared by both the
@@ -151,12 +152,11 @@ export function ProductBuyActions({
             <input type="hidden" name="packagingUnitId" value={selectedUnit.id} />
           ) : null}
           <input type="hidden" name="quantity" value={qty} />
-          <button
-            type="submit"
+          <CartSubmitButton
             className="b2b-cta h-[48px] w-full justify-center text-[14px] font-semibold"
-          >
-            <CartIcon /> {addToCartLabel}
-          </button>
+            label={addToCartLabel}
+            icon={<CartIcon />}
+          />
         </form>
       ) : null}
 

@@ -688,6 +688,15 @@
   animation: b2b-route-enter 260ms ease-out both;
 }
 
+/* --- Inline spinner (add-to-cart pending state, etc.) ------------- */
+@keyframes b2b-spin {
+  to { transform: rotate(360deg); }
+}
+.b2b-spin {
+  animation: b2b-spin 700ms linear infinite;
+  transform-origin: center;
+}
+
 /* --- Top progress bar (used inside loading.tsx) ------------------- */
 @keyframes b2b-progress-indeterminate {
   0%   { transform: translateX(-60%); }
