@@ -78,6 +78,8 @@ function serializePayment(p: {
     status: p.status,
     amount: Number(p.amount),
     refundedAmount: Number(p.refundedAmount ?? '0'),
+    refundedAt: (p.providerDetails?.['refundedAt'] as string | undefined) ?? null,
+    refundReference: (p.providerDetails?.['refundReference'] as string | undefined) ?? null,
     currency: p.currency,
     paidAt: p.paidAt ? p.paidAt.toISOString() : null,
     externalReference: p.externalReference ?? null,

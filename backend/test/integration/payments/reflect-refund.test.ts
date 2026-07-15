@@ -84,6 +84,8 @@ describe('ReceivePaymentHandler.reflectRefund', () => {
     expect(Number(p!.refundedAmount)).toBeCloseTo(paymentAmount, 2);
     o = await h.em().findOne(Order, { id: orderId }, { refresh: true });
     expect(o!.paymentStatus).toBe('refunded');
+    // A full refund also puts the order on hold for operator review.
+    expect(o!.status).toBe('on_hold');
 
     // Re-applying the same full refund is a no-op (idempotent).
     const again = await handler.reflectRefund({

@@ -1785,6 +1785,7 @@
   "orderDetail.paymentStatus.failed": "nieudana",
   "orderDetail.paymentStatus.paid": "opłacona",
   "orderDetail.paymentStatus.refunded": "zwrócona",
+  "orderDetail.paymentStatus.partially_refunded": "częściowo zwrócona",
   "orderDetail.placedAt": "złożono {date}",
   "orderDetail.copyHint": "Kliknij, aby skopiować numer zamówienia",
   "orderDetail.copied": "Skopiowano numer zamówienia #{id}",

@@ -6,6 +6,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { Payment } from '../entities/payment.entity.js';
 import { Order } from '../../orders/entities/order.entity.js';
 import { emitOrderStatusAfter } from '../../orders/events/order-status-events.js';
+import { ORDER_STATUS_ON_HOLD } from '../../orders/domain/order-status-graph.js';
 import { PaymentMethod } from '../../payment_methods/entities/payment-method.entity.js';
 import type { OrderStatusRegistry } from '../../payment_methods/services/order-status-registry.port.js';
 
@@ -201,17 +202,43 @@ export class ReceivePaymentHandler {
 
       payment.refundedAmount = newRefunded;
       payment.status = nextStatus;
-      if (input.providerDetails) {
-        payment.providerDetails = { ...(payment.providerDetails ?? {}), ...input.providerDetails };
-      }
+      payment.providerDetails = {
+        ...(payment.providerDetails ?? {}),
+        ...(input.providerDetails ?? {}),
+        // Stamp the refund time only when the total actually moved, so a
+        // re-delivered webhook does not bump the recorded refund timestamp.
+        ...(changed ? { refundedAt: new Date().toISOString() } : {}),
+        ...(input.externalRefundId ? { refundReference: input.externalRefundId } : {}),
+      };
 
       const order = await tx.findOne(Order, { id: payment.orderId });
+      let orderStatusBefore: string | null = null;
+      let orderStatusAfter: string | null = null;
       // Only a full refund flips the order's payment status; a partial refund is
       // tracked on the payment while the order stays 'paid'.
-      if (order && input.fullyRefunded) order.paymentStatus = 'refunded';
+      if (order && input.fullyRefunded) {
+        order.paymentStatus = 'refunded';
+        // Put the order on hold so an operator reviews the fully-refunded order.
+        // (Guarded so it degrades gracefully if the status was removed.)
+        if (
+          order.status !== ORDER_STATUS_ON_HOLD &&
+          (!this.orderStatusRegistry || this.orderStatusRegistry.has(ORDER_STATUS_ON_HOLD))
+        ) {
+          orderStatusBefore = order.status;
+          order.status = ORDER_STATUS_ON_HOLD as Order['status'];
+          orderStatusAfter = order.status;
+        }
+      }
 
       await tx.flush();
-      return { payment, changed };
+      return {
+        payment,
+        changed,
+        orderStatusBefore,
+        orderStatusAfter,
+        organizationId: order?.organizationId ?? null,
+        salesChannelId: order?.salesChannelId ?? null,
+      };
     });
 
     if (!result) return null;
@@ -226,6 +253,23 @@ export class ReceivePaymentHandler {
         fullyRefunded: input.fullyRefunded,
         externalRefundId: input.externalRefundId ?? null,
       });
+      // Emit the templated order-status `.after` event for the refund → on_hold
+      // transition so cross-module subscribers react (mirrors receive()).
+      if (
+        result.orderStatusBefore &&
+        result.orderStatusAfter &&
+        result.organizationId &&
+        result.salesChannelId
+      ) {
+        emitOrderStatusAfter(this.events as unknown as EventBus, {
+          orderId: result.payment.orderId,
+          organizationId: result.organizationId,
+          salesChannelId: result.salesChannelId,
+          from: result.orderStatusBefore,
+          to: result.orderStatusAfter,
+          actor: { kind: 'system', source: 'payment' },
+        });
+      }
     }
     return { paymentId: result.payment.id, changed: result.changed };
   }

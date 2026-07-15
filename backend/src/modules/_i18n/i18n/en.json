@@ -1785,6 +1785,7 @@
   "orderDetail.paymentStatus.failed": "failed",
   "orderDetail.paymentStatus.paid": "paid",
   "orderDetail.paymentStatus.refunded": "refunded",
+  "orderDetail.paymentStatus.partially_refunded": "partially refunded",
   "orderDetail.placedAt": "placed {date}",
   "orderDetail.copyHint": "Click to copy the order number",
   "orderDetail.copied": "Copied order number #{id}",
