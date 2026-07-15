@@ -126,11 +126,20 @@ export function GallerySwitcher(rawProps: {
     }
   };
 
-  // While the lightbox is open, lock body scroll and let Escape close it.
+  // While the lightbox is open, lock body scroll, close on Escape, and let the
+  // left/right arrow keys page through the gallery images.
   useEffect(() => {
     if (!zoomed) return;
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setZoomed(false);
+      if (e.key === 'Escape') {
+        setZoomed(false);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setIndex((i) => Math.max(0, Math.min(i, count - 1) - 1));
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setIndex((i) => Math.min(count - 1, Math.min(i, count - 1) + 1));
+      }
     };
     document.addEventListener('keydown', onKey);
     const prevOverflow = document.body.style.overflow;
@@ -139,7 +148,7 @@ export function GallerySwitcher(rawProps: {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [zoomed]);
+  }, [zoomed, count]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -305,11 +314,15 @@ export function GallerySwitcher(rawProps: {
               {props.gallery.map((item) => (
                 <div key={item.id} className="grid h-full w-full shrink-0 basis-full place-items-center">
                   {item.asset.kind === 'video' ? null : (
+                    // Cap by viewport units (not the `h-full` percentage chain,
+                    // which collapses through the grid's auto-height track and
+                    // lets tall images render at natural size). This guarantees
+                    // the whole image is visible and centred on screen.
                     <img
                       src={item.asset.url}
                       alt={props.alt}
                       onClick={(e) => e.stopPropagation()}
-                      className="max-h-full max-w-full rounded-md object-contain"
+                      className="max-h-[88vh] max-w-[92vw] rounded-md object-contain"
                     />
                   )}
                 </div>
