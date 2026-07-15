@@ -17,6 +17,7 @@ import {
 } from './services/ss-delivery-queue.js';
 import { makeEnqueuer, makeProcessor } from './services/ss-delivery.service.js';
 import { Ga4MpClient } from './services/ga4-mp-client.js';
+import { ensureCookieConsentBlock } from './services/cookie-consent-block-seeder.js';
 import { registerGoogleAnalyticsStorefrontRoutes } from './routes.storefront.js';
 import { registerGoogleAnalyticsAdminRoutes } from './routes.admin.js';
 
@@ -57,6 +58,14 @@ export function googleAnalyticsModule(options: GoogleAnalyticsModuleOptions): Mo
   const enqueueCollect = deliveryQueue ? makeEnqueuer(deliveryQueue) : undefined;
 
   return async (app) => {
+    // Seed the predefined cookie-consent CMS block (idempotent; runs after
+    // channels exist). Guarded so a platform without the CMS module skips it.
+    try {
+      await ensureCookieConsentBlock(options.emFactory);
+    } catch (err) {
+      app.log.warn({ err }, '[google_analytics] cookie-consent CMS block seed skipped');
+    }
+
     // Queue consumer (Principle X): separable worker entrypoint, gated on role.
     if (options.runWorkers && options.redis && deliveryQueue) {
       const processor = makeProcessor({

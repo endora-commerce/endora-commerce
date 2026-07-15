@@ -12,7 +12,14 @@ const STORAGE_KEY = 'ga-consent';
  * has not yet decided. A prior decision is re-applied on load so analytics
  * storage matches the saved choice without re-prompting.
  */
-export function ConsentBanner({ config }: { config: GaStorefrontConfig }): ReactNode {
+export function ConsentBanner({
+  config,
+  message,
+}: {
+  config: GaStorefrontConfig;
+  /** Banner text — supplied from the `cookieconsent.message` CMS block. */
+  message?: ReactNode;
+}): ReactNode {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -44,10 +51,7 @@ export function ConsentBanner({ config }: { config: GaStorefrontConfig }): React
       className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-surface p-4 shadow-lg"
     >
       <div className="mx-auto flex max-w-[1100px] flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-[13px] text-muted">
-          Używamy plików cookie do analityki (Google Analytics). Możesz zaakceptować lub odrzucić
-          statystyki.
-        </p>
+        <div className="text-[13px] text-muted [&_a]:underline">{message}</div>
         <div className="flex shrink-0 gap-2">
           <button type="button" className="btn btn--outline btn--sm" onClick={() => decide(false)}>
             Odrzuć

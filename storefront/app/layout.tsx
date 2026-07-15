@@ -24,6 +24,7 @@ import { getGoogleAnalyticsConfig } from '../lib/api/analytics-config';
 import { GoogleAnalytics } from '../components/analytics/GoogleAnalytics';
 import { AnalyticsProvider } from '../components/analytics/AnalyticsProvider';
 import { ConsentBanner } from '../components/analytics/ConsentBanner';
+import { CookieConsentMessage } from '../components/analytics/CookieConsentMessage';
 import { getAnonCartCookie, getSessionCookie } from '../lib/session';
 import './globals.css';
 
@@ -180,7 +181,7 @@ export default async function RootLayout({
             channels; page views are emitted per navigation by the provider. */}
         <GoogleAnalytics config={gaConfig} />
         <AnalyticsProvider config={gaConfig} />
-        <ConsentBanner config={gaConfig} />
+        <ConsentBanner config={gaConfig} message={<CookieConsentMessage ctx={ctx} />} />
       </body>
     </html>
   );
