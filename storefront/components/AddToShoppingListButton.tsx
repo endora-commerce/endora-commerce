@@ -1,13 +1,16 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   invalidateShoppingListMembership,
   loadShoppingListMembership,
 } from '../lib/shoppingListMembership';
 import {
   addToDefaultListAction,
+  addToListAction,
+  listShoppingListsAction,
   removeFromDefaultListAction,
+  type ShoppingListOption,
 } from '../lib/actions/shoppingList';
 
 /**
@@ -41,6 +44,12 @@ export function AddToShoppingListButton(props: {
   const [state, setState] = useState<'idle' | 'busy' | 'error'>('idle');
   /** Whether this product is currently in the customer's default list. */
   const [inList, setInList] = useState(false);
+  /** The customer's shopping lists — drives the split-button list picker; the
+   *  arrow only renders when there is more than one list. */
+  const [lists, setLists] = useState<ShoppingListOption[]>([]);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [addedTo, setAddedTo] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   // Reflect default-list membership on the heart, and keep it in sync when any
   // card (or the header) changes the list via `b2b:shopping-list:changed`.
@@ -58,6 +67,42 @@ export function AddToShoppingListButton(props: {
       window.removeEventListener('b2b:shopping-list:changed', sync);
     };
   }, [props.apiBase, props.productId]);
+
+  // Load the customer's lists so the split button knows whether to offer the
+  // arrow-side picker (only when > 1 list). Only needed for the labelled PDP
+  // variant. Refreshes when any surface mutates a list.
+  useEffect(() => {
+    if (!props.showLabel) return undefined;
+    let cancelled = false;
+    const load = (): void => {
+      void listShoppingListsAction().then((r) => {
+        if (!cancelled) setLists(r.lists);
+      });
+    };
+    load();
+    window.addEventListener('b2b:shopping-list:changed', load);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('b2b:shopping-list:changed', load);
+    };
+  }, [props.showLabel]);
+
+  // Close the picker on an outside click or Escape.
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onPointer = (e: MouseEvent): void => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
 
   // First click adds, second click removes. Membership (and the filled heart)
   // is the authoritative server state shared across the page via the cache.
@@ -104,22 +149,94 @@ export function AddToShoppingListButton(props: {
     }
   };
 
+  // Add the product to a specific (chosen) list from the picker.
+  const addToSpecific = async (option: ShoppingListOption): Promise<void> => {
+    setMenuOpen(false);
+    setState('busy');
+    try {
+      const res = await addToListAction({
+        listId: option.id,
+        productId: props.productId,
+        ...(props.variantId ? { variantId: props.variantId } : {}),
+        quantity: props.quantity && props.quantity > 0 ? Math.floor(props.quantity) : 1,
+      });
+      if (!res.ok && res.reason === 'auth') {
+        window.location.href = '/login?next=/shopping-lists';
+        return;
+      }
+      if (!res.ok) throw new Error('list');
+      invalidateShoppingListMembership();
+      const fresh = await loadShoppingListMembership(true);
+      setInList(fresh.byProduct.has(props.productId));
+      window.dispatchEvent(new CustomEvent('b2b:shopping-list:changed'));
+      setAddedTo(option.name);
+      window.setTimeout(() => setAddedTo(null), 2200);
+      setState('idle');
+    } catch {
+      setState('error');
+      window.setTimeout(() => setState('idle'), 2200);
+    }
+  };
+
   const activeLabel = inList ? (props.removeLabel ?? 'Usuń z listy zakupowej') : props.label;
   const tooltip = state === 'error' ? 'Nie udało się zmienić listy' : activeLabel;
 
   if (props.showLabel) {
+    const hasPicker = lists.length > 1;
+    const mainLabel = addedTo ? `Dodano do „${addedTo}”` : activeLabel;
+    const baseClass = props.className ?? 'btn btn--outline';
     return (
-      <button
-        type="button"
-        onClick={(): void => void toggle()}
-        disabled={state === 'busy'}
-        aria-pressed={inList}
-        className={props.className ?? 'btn btn--outline'}
-        aria-label={activeLabel}
-      >
-        <HeartIcon filled={inList} />
-        {activeLabel}
-      </button>
+      <div ref={rootRef} className="relative inline-flex">
+        <div className="inline-flex">
+          <button
+            type="button"
+            onClick={(): void => void toggle()}
+            disabled={state === 'busy'}
+            aria-pressed={inList}
+            className={`${baseClass}${hasPicker ? ' rounded-r-none' : ''}`}
+            aria-label={activeLabel}
+          >
+            <HeartIcon filled={inList} />
+            {mainLabel}
+          </button>
+          {hasPicker ? (
+            <button
+              type="button"
+              onClick={(): void => setMenuOpen((v) => !v)}
+              disabled={state === 'busy'}
+              className={`${baseClass} rounded-l-none border-l-0 px-2`}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-label="Wybierz listę zakupową"
+            >
+              <ChevronIcon open={menuOpen} />
+            </button>
+          ) : null}
+        </div>
+        {hasPicker && menuOpen ? (
+          <ul
+            role="menu"
+            className="absolute right-0 top-full z-20 mt-1 min-w-[220px] overflow-hidden rounded-md border border-line bg-surface py-1 shadow-md"
+          >
+            {lists.map((l) => (
+              <li key={l.id} role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={(): void => void addToSpecific(l)}
+                  disabled={state === 'busy'}
+                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-[13px] text-fg hover:bg-surface-alt"
+                >
+                  <span className="truncate">{l.name}</span>
+                  {l.isDefault ? (
+                    <span className="shrink-0 text-[11px] text-muted">domyślna</span>
+                  ) : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
     );
   }
 
@@ -142,6 +259,27 @@ export function AddToShoppingListButton(props: {
         {tooltip}
       </span>
     </span>
+  );
+}
+
+function ChevronIcon({ open }: { open: boolean }): ReactNode {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={16}
+      height={16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+      className={open ? 'rotate-180 transition-transform' : 'transition-transform'}
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
   );
 }
 

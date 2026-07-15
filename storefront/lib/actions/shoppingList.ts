@@ -5,6 +5,7 @@ import {
   addItemToShoppingList,
   getDefaultShoppingList,
   getShoppingList,
+  listShoppingLists,
   removeShoppingListItem,
 } from '../api/shopping-lists';
 import { StorefrontApiError } from '../api/client';
@@ -69,6 +70,58 @@ export async function getDefaultListSummaryAction(): Promise<DefaultListSummary>
     return { listId: def.id, itemCount: def.itemCount };
   } catch {
     return { listId: null, itemCount: 0 };
+  }
+}
+
+export interface ShoppingListOption {
+  id: string;
+  name: string;
+  isDefault: boolean;
+}
+
+/**
+ * All of the signed-in customer's shopping lists (id + name + default flag).
+ * Backs the product-card "Add to shopping list" split button: the arrow-side
+ * list picker only renders when the customer owns more than one list.
+ */
+export async function listShoppingListsAction(): Promise<{
+  ok: boolean;
+  lists: ShoppingListOption[];
+}> {
+  const session = await getSessionCookie();
+  if (!session) return { ok: false, lists: [] };
+  try {
+    const lists = await listShoppingLists(session);
+    return {
+      ok: true,
+      lists: lists.map((l) => ({ id: l.id, name: l.name, isDefault: l.isDefault })),
+    };
+  } catch {
+    return { ok: false, lists: [] };
+  }
+}
+
+/** Add a product to a specific (chosen) shopping list. */
+export async function addToListAction(input: {
+  listId: string;
+  productId: string;
+  variantId?: string;
+  quantity?: number;
+}): Promise<ShoppingListMutationResult> {
+  const session = await getSessionCookie();
+  if (!session) return { ok: false, reason: 'auth' };
+  try {
+    const list = await addItemToShoppingList(session, input.listId, {
+      productId: input.productId,
+      ...(input.variantId ? { variantId: input.variantId } : {}),
+      quantity: input.quantity && input.quantity > 0 ? Math.floor(input.quantity) : 1,
+    });
+    return { ok: true, listId: list.id };
+  } catch (err) {
+    if (err instanceof StorefrontApiError && err.status === 401) {
+      return { ok: false, reason: 'auth' };
+    }
+    return { ok: false, reason: 'error' };
   }
 }
 
