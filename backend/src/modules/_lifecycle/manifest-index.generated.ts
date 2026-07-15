@@ -55,9 +55,10 @@ import { manifest as manifest_47 } from '../seo/manifest.js';
 import { manifest as manifest_48 } from '../settings/manifest.js';
 import { manifest as manifest_49 } from '../shipments/manifest.js';
 import { manifest as manifest_50 } from '../shopping_lists/manifest.js';
-import { manifest as manifest_51 } from '../taxes/manifest.js';
-import { manifest as manifest_52 } from '../transactional_emails/manifest.js';
-import { manifest as manifest_53 } from '../webhooks/manifest.js';
+import { manifest as manifest_51 } from '../stripe/manifest.js';
+import { manifest as manifest_52 } from '../taxes/manifest.js';
+import { manifest as manifest_53 } from '../transactional_emails/manifest.js';
+import { manifest as manifest_54 } from '../webhooks/manifest.js';
 
 export interface DiscoveredManifestEntry {
   id: string;
@@ -116,7 +117,8 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'settings', manifest: manifest_48 },
   { id: 'shipments', manifest: manifest_49 },
   { id: 'shopping_lists', manifest: manifest_50 },
-  { id: 'taxes', manifest: manifest_51 },
-  { id: 'transactional_emails', manifest: manifest_52 },
-  { id: 'webhooks', manifest: manifest_53 },
+  { id: 'stripe', manifest: manifest_51 },
+  { id: 'taxes', manifest: manifest_52 },
+  { id: 'transactional_emails', manifest: manifest_53 },
+  { id: 'webhooks', manifest: manifest_54 },
 ];
