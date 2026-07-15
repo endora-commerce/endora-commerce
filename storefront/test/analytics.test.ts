@@ -55,6 +55,30 @@ describe('gtag dispatch', () => {
     expect(String(fetchSpy.mock.calls[0]![0])).toContain('/api/v1/storefront/google-analytics/collect');
   });
 
+  it('server mode forwards the visitor\'s real consent decision to /collect', async () => {
+    const fetchSpy = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => new Response(null, { status: 202 }));
+    (globalThis as Record<string, unknown>)['fetch'] = fetchSpy;
+    let stored: string | null = 'granted';
+    (globalThis as Record<string, unknown>)['localStorage'] = {
+      getItem: () => stored,
+    };
+    configureGa({ ...baseConfig, serverSide: true, requireConsent: true });
+
+    trackGaEvent('add_to_cart', {});
+    await Promise.resolve();
+    expect(JSON.parse((fetchSpy.mock.calls[0]![1] as RequestInit).body as string).consent).toEqual({
+      analyticsStorage: 'granted',
+    });
+
+    stored = null; // no decision yet ⇒ denied
+    trackGaEvent('add_to_cart', {});
+    await Promise.resolve();
+    expect(JSON.parse((fetchSpy.mock.calls[1]![1] as RequestInit).body as string).consent).toEqual({
+      analyticsStorage: 'denied',
+    });
+    delete (globalThis as Record<string, unknown>)['localStorage'];
+  });
+
   it('emits nothing when the module is disabled', () => {
     configureGa({ ...baseConfig, enabled: false, measurementId: null });
     sendPageView('/p/1');

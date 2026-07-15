@@ -44,6 +44,25 @@ function gtag(...args: unknown[]): void {
   else window.dataLayer.push(args);
 }
 
+/** localStorage key shared with the consent banner (ConsentBanner.tsx). */
+const CONSENT_KEY = 'ga-consent';
+
+/**
+ * The visitor's effective analytics-consent state. When the channel does not
+ * require consent, it is always granted; otherwise it reflects the banner's
+ * saved decision and defaults to denied until the visitor decides. Used by the
+ * server-side path so `/collect` forwards the real decision (not just the
+ * require-consent flag).
+ */
+function consentState(): 'granted' | 'denied' {
+  if (!config?.requireConsent) return 'granted';
+  try {
+    return localStorage.getItem(CONSENT_KEY) === 'granted' ? 'granted' : 'denied';
+  } catch {
+    return 'denied';
+  }
+}
+
 /** Consent Mode v2 update — call from a cookie banner on grant/deny. */
 export function updateAnalyticsConsent(granted: boolean): void {
   const value = granted ? 'granted' : 'denied';
@@ -101,7 +120,7 @@ async function postToCollect(name: string, params: GaParams): Promise<void> {
       },
       body: JSON.stringify({
         clientId: resolveClientId(),
-        consent: { analyticsStorage: config?.requireConsent ? 'denied' : 'granted' },
+        consent: { analyticsStorage: consentState() },
         events: [{ name, params }],
       }),
       keepalive: true,
