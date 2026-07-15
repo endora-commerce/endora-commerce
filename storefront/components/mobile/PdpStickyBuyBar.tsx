@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import { CartSubmitButton } from '../CartSubmitButton';
 
 /**
  * Feature 044 / US3 — sticky bottom add-to-cart bar for the PDP (Industria
@@ -48,13 +49,12 @@ export function PdpStickyBuyBar(props: {
           +
         </button>
       </div>
-      <button
-        type="submit"
+      <CartSubmitButton
         className="btn btn--dark justify-center"
         style={{ flex: 1, height: 44 }}
-      >
-        <CartIcon /> {props.addToCartLabel}
-      </button>
+        label={props.addToCartLabel}
+        icon={<CartIcon />}
+      />
       {props.datasheetHref ? (
         <a
           href={props.datasheetHref}
