@@ -329,15 +329,20 @@ async function convertAllToCartAction(formData: FormData): Promise<void> {
   const session = await getSessionCookie();
   if (!session) redirect('/login');
   const listId = (formData.get('listId') as string) ?? '';
+  // The success redirect must live OUTSIDE the try: Next's `redirect()` signals
+  // by throwing `NEXT_REDIRECT`, which a surrounding catch would swallow and
+  // mis-report as "Convert failed." (the bug this fixes). Only the API call is
+  // guarded; the redirect runs after, matching removeAction/clearListAction.
+  let result: Awaited<ReturnType<typeof convertShoppingListToCart>>;
   try {
-    const result = await convertShoppingListToCart(session, listId);
-    redirect(
-      `/shopping-lists/${listId}?cartAdded=${result.added}&cartSkipped=${result.skipped.length}`,
-    );
+    result = await convertShoppingListToCart(session, listId);
   } catch (err) {
     const message = err instanceof StorefrontApiError ? err.message : 'Convert failed.';
     redirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
   }
+  redirect(
+    `/shopping-lists/${listId}?cartAdded=${result.added}&cartSkipped=${result.skipped.length}`,
+  );
 }
 
 async function convertSelectedToCartAction(formData: FormData): Promise<void> {
@@ -349,15 +354,16 @@ async function convertSelectedToCartAction(formData: FormData): Promise<void> {
   if (itemIds.length === 0) {
     redirect(`/shopping-lists/${listId}?error=Select+at+least+one+item.`);
   }
+  let result: Awaited<ReturnType<typeof convertShoppingListToCart>>;
   try {
-    const result = await convertShoppingListToCart(session, listId, itemIds);
-    redirect(
-      `/shopping-lists/${listId}?cartAdded=${result.added}&cartSkipped=${result.skipped.length}`,
-    );
+    result = await convertShoppingListToCart(session, listId, itemIds);
   } catch (err) {
     const message = err instanceof StorefrontApiError ? err.message : 'Convert failed.';
     redirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
   }
+  redirect(
+    `/shopping-lists/${listId}?cartAdded=${result.added}&cartSkipped=${result.skipped.length}`,
+  );
 }
 
 async function convertAllToRfqAction(formData: FormData): Promise<void> {
@@ -365,15 +371,16 @@ async function convertAllToRfqAction(formData: FormData): Promise<void> {
   const session = await getSessionCookie();
   if (!session) redirect('/login');
   const listId = (formData.get('listId') as string) ?? '';
+  let result: Awaited<ReturnType<typeof convertShoppingListToRfq>>;
   try {
-    const result = await convertShoppingListToRfq(session, listId);
-    redirect(
-      `/shopping-lists/${listId}?rfqId=${result.rfqId}&rfqAdded=${result.added}&rfqSkipped=${result.skipped.length}`,
-    );
+    result = await convertShoppingListToRfq(session, listId);
   } catch (err) {
     const message = err instanceof StorefrontApiError ? err.message : 'Convert failed.';
     redirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
   }
+  redirect(
+    `/shopping-lists/${listId}?rfqId=${result.rfqId}&rfqAdded=${result.added}&rfqSkipped=${result.skipped.length}`,
+  );
 }
 
 async function convertSelectedToRfqAction(formData: FormData): Promise<void> {
@@ -385,13 +392,14 @@ async function convertSelectedToRfqAction(formData: FormData): Promise<void> {
   if (itemIds.length === 0) {
     redirect(`/shopping-lists/${listId}?error=Select+at+least+one+item.`);
   }
+  let result: Awaited<ReturnType<typeof convertShoppingListToRfq>>;
   try {
-    const result = await convertShoppingListToRfq(session, listId, itemIds);
-    redirect(
-      `/shopping-lists/${listId}?rfqId=${result.rfqId}&rfqAdded=${result.added}&rfqSkipped=${result.skipped.length}`,
-    );
+    result = await convertShoppingListToRfq(session, listId, itemIds);
   } catch (err) {
     const message = err instanceof StorefrontApiError ? err.message : 'Convert failed.';
     redirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
   }
+  redirect(
+    `/shopping-lists/${listId}?rfqId=${result.rfqId}&rfqAdded=${result.added}&rfqSkipped=${result.skipped.length}`,
+  );
 }
