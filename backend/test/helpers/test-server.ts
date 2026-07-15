@@ -49,6 +49,8 @@ import { transactionalEmailsModule } from '../../src/modules/transactional_email
 import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/services/email-defaults-registry.js';
 import { newsletterModule } from '../../src/modules/newsletter/plugin.js';
 import { newsletterSettingsManifest } from '../../src/modules/newsletter/manifest.js';
+import { googleAnalyticsModule } from '../../src/modules/google_analytics/plugin.js';
+import { googleAnalyticsSettingsManifest } from '../../src/modules/google_analytics/manifest.js';
 import { ORDER_CONFIRMATION_DEFAULT } from '../../src/modules/orders/email-templates/order-confirmation.default.js';
 import {
   ORDER_COMMENT_DEFAULT,
@@ -1658,6 +1660,28 @@ export async function setupBackendServer(
     }),
   );
 
+  // Feature 049 — Google Analytics. No redis wired here, so /collect degrades
+  // to 503 (queue producer absent); config + admin CRUD are fully exercised.
+  modules.push(
+    googleAnalyticsModule({
+      emFactory: em,
+      settings: settings.handle.settingsService,
+      requireAdmin: requireTestAdmin(permissionService),
+      channels: {
+        idByCode: async (code) =>
+          (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+        codeById: async (id) => {
+          const { items } = await salesChannels.handle.salesChannelsService.list({});
+          return items.find((c) => c.id === id)?.code ?? null;
+        },
+      },
+      resolveAuditContext: (req) => ({
+        actorAdminUserId: req.testActor?.kind === 'admin' ? req.testActor.adminUserId : null,
+      }),
+      auditLog: auditLogService,
+    }),
+  );
+
   modules.push(
     shoppingListsModule({
       emFactory: em,
@@ -1715,6 +1739,7 @@ export async function setupBackendServer(
     pwaSettingsManifest,
     transactionalEmailsSettingsManifest,
     newsletterSettingsManifest,
+    googleAnalyticsSettingsManifest,
     invoicesSettingsManifest,
   ]);
 
