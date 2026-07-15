@@ -249,6 +249,14 @@
   .btn--lg { @apply px-[18px] py-[12px] text-[14px]; }
   .btn--sm { @apply px-[10px] py-[6px] text-[12px]; }
   .btn--block { @apply w-full justify-center; }
+
+  /* Split-button halves sit flush against each other. The shared `.btn` hover
+     lift (`-translate-y-px`) would raise each half independently, so the two
+     halves misalign and appear to "jump" on hover. Keep split halves flat and
+     signal hover with a background tint instead. Defined after `.btn:hover` so
+     it wins on equal specificity via source order. */
+  .btn--split:hover { @apply translate-y-0 bg-surface-alt shadow-none; }
+  .btn--split:active { @apply translate-y-0; }
 }
 
 /* .icon-btn* — shared icon-button atom (header, compare, cart badge) → @apply (feature 041) */
