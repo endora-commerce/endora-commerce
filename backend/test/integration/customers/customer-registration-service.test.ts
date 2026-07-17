@@ -5,6 +5,8 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { SessionService } from '../../../src/modules/auth/services/session-service.js';
 import { CustomerRegistrationService } from '../../../src/modules/customers/services/customer-registration-service.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
+import { PersonalOrganizationService } from '../../../src/modules/organizations/services/personal-organization-service.js';
 import type { HttpError } from '../../../src/http/error-envelope.js';
 
 /**
@@ -43,9 +45,10 @@ describe('CustomerRegistrationService.registerStandalone', () => {
       emFactory: () => em,
       sessionService: sessions,
       resolveAllowRegistrationWithoutOrganization: async () => allow,
+      personalOrganizationService: new PersonalOrganizationService(() => em),
     });
 
-  it('creates an org-less account and an auto-login session when allowed', async () => {
+  it('provisions a personal organization + an auto-login session when allowed (feature 051)', async () => {
     const svc = makeService(true);
     const email = `standalone-${Date.now()}@example.test`;
 
@@ -56,7 +59,11 @@ describe('CustomerRegistrationService.registerStandalone', () => {
       lastName: 'Alone',
     });
 
-    expect(result.customerAccount.organizationId ?? null).toBeNull();
+    // Feature 051 — the account is backed by a single-member personal org, not org-less.
+    expect(result.customerAccount.organizationId).toBeTruthy();
+    const org = await em.findOne(Organization, { id: result.customerAccount.organizationId! });
+    expect(org?.isPersonal).toBe(true);
+    expect(org?.status).toBe('active');
     expect(result.sessionCookieValue).toContain('.');
 
     const stored = await em.findOne(CustomerAccount, { email });

@@ -10,6 +10,7 @@ import { DefaultPreferenceService } from '../quick_order/services/default-prefer
 import { SalesRepAssignmentService } from '../organizations/services/sales-rep-assignment-service.js';
 import { ImpersonationService } from '../admin_users/services/impersonation-service.js';
 import { CustomerRegistrationService } from './services/customer-registration-service.js';
+import { PersonalOrganizationService } from '../organizations/services/personal-organization-service.js';
 import { CustomerAddressService } from './services/customer-address-service.js';
 import { CustomerDefaultsService } from './services/customer-defaults-service.js';
 import { CustomerAuthorityService } from './services/customer-authority-service.js';
@@ -81,11 +82,13 @@ export function customersModule(options: CustomersModuleOptions): {
     options.emFactory,
     options.sessionService,
   );
+  const personalOrganizationService = new PersonalOrganizationService(options.emFactory);
   const registrationService = new CustomerRegistrationService({
     emFactory: options.emFactory,
     sessionService: options.sessionService,
     resolveAllowRegistrationWithoutOrganization:
       options.resolveAllowRegistrationWithoutOrganization,
+    personalOrganizationService,
   });
   const customerAddressService = new CustomerAddressService(options.emFactory);
   const defaultPreferenceService = new DefaultPreferenceService(
