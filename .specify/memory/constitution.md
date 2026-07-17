@@ -1,25 +1,23 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 3.3.0 → 3.4.0
-Rationale: MINOR bump. Principle XI (Systemic Multi-Tenant Isolation)
-is materially expanded with a new binding clause — "One tenant concept
-— the Organization" — establishing that every transacting customer is
-backed by a non-null Organization (a company org for B2B, a
-single-member personal org for an individual/B2C customer) and that
-there is no "no-organization" scoping path. No principle is removed or
-redefined and the guard mechanism is unchanged (it is reinforced), so
-the versioning policy mandates a MINOR (not MAJOR) bump.
+Version change: 3.4.0 → 3.5.0
+Rationale: MINOR bump. A new principle — XII (Sales-Channel Content
+Scoping) — is added, establishing sales-channel visibility as a distinct
+isolation axis from org tenancy (Principle XI). It codifies the
+architectural decision from the 052-scoping-hotfixes audit: channel-scoped
+reads and commercial evaluations MUST always resolve a concrete channel and
+fail closed (never fall back to the full cross-channel set), and channel
+membership MUST be read only through the sanctioned accessor
+(`no-unscoped-channel-query`). A new principle is added (not a redefinition
+or removal), so the versioning policy mandates a MINOR bump.
 
 Modified principles:
-  - XI. Systemic Multi-Tenant Isolation — EXPANDED (not renamed/
-    redefined): added the "One tenant concept — the Organization"
-    clause + a Rationale paragraph. Individuals (B2C) are modeled as
-    single-member personal organizations so the guard always has a
-    concrete tenant and never resolves a null org for a valid customer.
+  - (none renamed/redefined)
 
 Added sections:
-  - (none — an existing principle was expanded, no new principle)
+  - XII. Sales-Channel Content Scoping (NON-NEGOTIABLE) — new principle.
+  - Quality gate #11 (Sales-channel scoping) in Development Workflow.
 
 Removed sections:
   - (none)
@@ -29,20 +27,22 @@ Templates / artifacts requiring alignment:
        generic; no edits required.
   - ✅ .specify/templates/spec-template.md      — no edits required.
   - ✅ .specify/templates/tasks-template.md     — no edits required.
-  - ✅ README.md — Principle XI quick-reference note extended with the
-       single-tenant-concept clause.
-  - ✅ .github/pull_request_template.md — gate #10 wording extended to
-       mention the "transacting customer always has an Organization" rule.
+  - ✅ README.md — added Principle XII quick-reference note (point 12) and
+       extended the PR-gates paragraph.
+  - ✅ .github/pull_request_template.md — added gate #11 (sales-channel
+       scoping).
 
 Deferred items / TODOs:
-  - The B2C single-tenant-concept clause is realized by feature
-    051-personal-organizations (personal-org provisioning + backfill).
-    Until its backfill lands, some legacy accounts may still be
-    org-less; those are pre-existing and non-transacting, tracked by
-    that feature — not a blocker for this amendment.
+  - Principle XII's interim clause anticipates a unified sales-channel
+    resolver (planned "spec 03 / resolver unification"). Until it lands,
+    channel scoping is enforced by explicit fail-closed predicates through
+    the sanctioned accessor; the principle already binds the future
+    resolver to absorb them without reintroducing ad-hoc guards.
 
+  (History) 3.3.0 → 3.4.0 expanded Principle XI with the "One tenant
+    concept — the Organization" clause (feature 051-personal-organizations).
   (History) 3.2.0 → 3.3.0 added Principle XI + quality gate #10
-  (framework tenant guard, feature 050-org-tenant-scoping).
+    (framework tenant guard, feature 050-org-tenant-scoping).
 -->
 
 # B2B Platform Constitution
@@ -398,6 +398,47 @@ Modeling every customer — including individuals — as an Organization (featur
 who shared a null organization. With a single tenant concept, there is no null-tenant edge to
 special-case, and individuals are isolated as first-class tenants.
 
+### XII. Sales-Channel Content Scoping (NON-NEGOTIABLE)
+
+Sales-channel scoping is a **distinct isolation axis** from org tenancy (Principle XI). A single
+deployment serves multiple **sales channels**; catalog visibility, related / cross-sell / up-sell
+links, promotions and coupons, and pricing are bound to channels through the `sales_channel_*`
+membership bridges. Every storefront-facing read and every commercial evaluation MUST be confined
+to the request's **resolved sales channel**. The following are binding for every feature that
+surfaces channel-scoped content or evaluates channel-bound commercial rules:
+
+- **Always resolve a channel; fail closed.** A channel-scoped read or evaluation MUST resolve a
+  concrete channel (explicit header / host map, else the system-default channel) and constrain to
+  it. A path MUST NOT skip the filter and return the full cross-channel set when no explicit
+  channel is present. A **null / unresolved** channel MUST NOT match a channel-bound record — it
+  fails closed, never falls open to "all channels."
+- **Sanctioned accessor only.** The `sales_channel_*` membership bridges MUST be read and written
+  **only** through the channel-membership service; owning modules MUST NOT query the bridge tables
+  directly (enforced by the `no-unscoped-channel-query` lint rule). Channel membership stays one
+  authoritative, auditable path — mirroring how Principle I routes all cross-module access through
+  explicit interfaces.
+- **Evaluation snapshots carry the channel.** Cart / pricing / promotion evaluation MUST include
+  the cart's resolved channel in its snapshot and reject records whose channel binding excludes it.
+  Channel eligibility is part of the decision, not an afterthought applied later.
+- **Cross-channel tests.** Every channel-scoped read or evaluation MUST ship tests proving
+  out-of-channel content does not surface, and that a null / unresolved channel fails closed.
+- **Interim manual scoping is bounded.** Until a unified sales-channel resolver exists, channel
+  scoping MAY be enforced by explicit per-service predicates — but they MUST fail closed and MUST
+  go through the sanctioned accessor. Once the unified resolver lands, features MUST build on it
+  rather than reintroducing ad-hoc `if (channelCode)` guards (the same relationship Principle XI
+  has with the feature `050` tenant guard).
+
+**Rationale**: The `052-scoping-hotfixes` audit found channel isolation depending on optional,
+fail-open predicates. A promotion bound to one channel applied to carts in another — a live
+pricing / money bug — because `applyToCart` never checked the channel binding. PDP related /
+cross-sell / up-sell products leaked across channels whenever the `x-sales-channel` header was
+absent, because the visibility filter ran only `if (channelCode)` and otherwise returned the full
+target set. Org tenancy already has a data-layer guard (Principle XI); channel scoping does not
+yet, so the discipline MUST be explicit and structural in spirit: **always resolve a channel, fail
+closed, and read membership only through the one sanctioned accessor.** Encoding this stops the
+next feature from re-opening the same leaks and fixes the contract the future unified resolver
+will absorb — the point fixes become calls into that resolver, not rework.
+
 ## Technology Stack
 
 The following stack is mandated. Substitutions require amending this
@@ -548,6 +589,13 @@ Every change MUST pass the following gates before merge:
     cross-tenant access that does not go through the audited `withSystemScope` /
     `withOrgScope` escape hatch. The tenant context MUST be server-derived, never taken
     from request body/query/headers.
+11. **Sales-channel scoping** — reviewers MUST reject any change that violates Principle XII:
+    a channel-scoped read or commercial evaluation that returns the full cross-channel set when
+    no explicit channel is present (fail-open), a null / unresolved channel that matches a
+    channel-bound record, a module that queries a `sales_channel_*` bridge directly instead of the
+    channel-membership service (`no-unscoped-channel-query` must pass), or a channel-scoped path
+    that ships without cross-channel tests (out-of-channel content hidden + null-channel fails
+    closed).
 
 Code review MUST explicitly verify each of the above. "LGTM" without
 evidence of checking the gates is not an approval.
@@ -586,4 +634,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 3.4.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-07-17
+**Version**: 3.5.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-07-17
