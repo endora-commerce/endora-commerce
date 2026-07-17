@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { CustomerScoped } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 export type ComparisonDisplayMode = 'all' | 'common' | 'differences';
@@ -21,6 +22,7 @@ export type ComparisonDisplayMode = 'all' | 'common' | 'differences';
  * to resolve to a clear "no longer exists" state, which a missing row
  * already satisfies.
  */
+@CustomerScoped()
 @Entity({ tableName: 'comparisons' })
 export class Comparison {
   [OptionalProps]?:

@@ -6,9 +6,9 @@ import {
 import {
   getTenantContext,
   runWithTenantContext,
+  runWithoutTenantContext,
   MissingTenantContextError,
 } from '../../../src/tenancy/tenant-context.js';
-import { orgFilterArgsFor, customerFilterArgsFor } from '../../../src/tenancy/scoped-em.js';
 import { orgFilterCond, customerFilterCond } from '../../../src/tenancy/filters.js';
 import { withSystemScope, withOrgScope, setEscapeHatchAuditSink } from '../../../src/tenancy/escape-hatch.js';
 import { orgConstraintFor, ruleVisibleForScope } from '../../../src/tenancy/derived-scope.js';
@@ -59,8 +59,10 @@ describe('resolveTenantContext', () => {
 });
 
 describe('ambient context store', () => {
-  it('getTenantContext returns undefined outside any run scope', () => {
-    expect(getTenantContext()).toBeUndefined();
+  it('getTenantContext returns undefined when explicitly outside any scope', () => {
+    runWithoutTenantContext(() => {
+      expect(getTenantContext()).toBeUndefined();
+    });
   });
 
   it('runWithTenantContext makes the context ambient for its subtree', async () => {
@@ -70,33 +72,43 @@ describe('ambient context store', () => {
       await Promise.resolve();
       expect(getTenantContext()).toBe(ctx);
     });
-    expect(getTenantContext()).toBeUndefined();
   });
 });
 
-describe('filter arg mapping', () => {
-  it('no context → no-context args → cond throws (fail-closed)', () => {
-    expect(orgFilterArgsFor(undefined)).toEqual({ mode: 'no-context' });
-    expect(() => orgFilterCond(orgFilterArgsFor(undefined))).toThrow(MissingTenantContextError);
-    expect(() => customerFilterCond(customerFilterArgsFor(undefined))).toThrow(MissingTenantContextError);
+describe('filter cond (reads ambient context)', () => {
+  it('no context → cond throws (fail-closed)', () => {
+    runWithoutTenantContext(() => {
+      expect(() => orgFilterCond()).toThrow(MissingTenantContextError);
+      expect(() => customerFilterCond()).toThrow(MissingTenantContextError);
+    });
   });
 
-  it('single-org → organizationId equality predicate', () => {
-    const args = orgFilterArgsFor(resolveTenantContext({ kind: 'customer', customerAccountId: 'c', organizationId: 'org-A' }));
-    expect(orgFilterCond(args)).toEqual({ organizationId: 'org-A' });
+  it('single-org → equality predicates', async () => {
+    const ctx = resolveTenantContext({ kind: 'customer', customerAccountId: 'c', organizationId: 'org-A' });
+    await runWithTenantContext(ctx, async () => {
+      expect(orgFilterCond()).toEqual({ organizationId: 'org-A' });
+      expect(customerFilterCond()).toEqual({ customerAccountId: 'c' });
+    });
   });
 
-  it('allowed-set → $in predicate', () => {
-    const args = orgFilterArgsFor(
-      resolveTenantContext({ kind: 'admin', adminUserId: 'a' }, { allowAll: false, allowedOrganizationIds: ['org-A'] }),
+  it('allowed-set → $in predicate; customer filter unconstrained for admin', async () => {
+    const ctx = resolveTenantContext(
+      { kind: 'admin', adminUserId: 'a' },
+      { allowAll: false, allowedOrganizationIds: ['org-A'] },
     );
-    expect(orgFilterCond(args)).toEqual({ organizationId: { $in: ['org-A'] } });
+    await runWithTenantContext(ctx, async () => {
+      expect(orgFilterCond()).toEqual({ organizationId: { $in: ['org-A'] } });
+      expect(customerFilterCond()).toEqual({});
+    });
   });
 
-  it('all / system → no restriction', () => {
-    const all = orgFilterArgsFor(resolveTenantContext({ kind: 'admin', adminUserId: 'a' }, { allowAll: true }));
-    expect(orgFilterCond(all)).toEqual({});
-    expect(orgFilterCond(orgFilterArgsFor(systemTenantContext('r')))).toEqual({});
+  it('all / system → no restriction', async () => {
+    await runWithTenantContext(resolveTenantContext({ kind: 'admin', adminUserId: 'a' }, { allowAll: true }), async () => {
+      expect(orgFilterCond()).toEqual({});
+    });
+    await runWithTenantContext(systemTenantContext('r'), async () => {
+      expect(orgFilterCond()).toEqual({});
+    });
   });
 });
 

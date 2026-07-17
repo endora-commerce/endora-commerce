@@ -6,6 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { ShoppingList } from '../../../src/modules/shopping_lists/entities/shopping-list.entity.js';
+import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 
 /**
  * Eager default-list provisioning — creating an org-attached customer (here via
@@ -44,12 +45,12 @@ describe('Default shopping list — eager provisioning on customer create', () =
     // request), so poll briefly for the provisioned list.
     let list: ShoppingList | null = null;
     for (let attempt = 0; attempt < 40 && !list; attempt += 1) {
-      list = await h
-        .em()
-        .findOne(ShoppingList, {
+      list = await withSystemScope('test poll', () =>
+        h.em().findOne(ShoppingList, {
           customerAccountId: customerId,
           organizationId: TEST_ORGANIZATION_ID,
-        });
+        }),
+      );
       if (!list) await new Promise((resolve) => setTimeout(resolve, 25));
     }
 

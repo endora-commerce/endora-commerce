@@ -94,3 +94,8 @@ export function enterTenantContext(ctx: TenantContext): void {
 export function runInTenantContext(ctx: TenantContext, callback: () => void): void {
   storage.run(ctx, callback);
 }
+
+/** Run `fn` with NO ambient context (fail-closed testing / explicit clears). */
+export function runWithoutTenantContext<T>(fn: () => T): T {
+  return storage.exit(fn);
+}

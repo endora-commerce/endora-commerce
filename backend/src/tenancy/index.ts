@@ -11,6 +11,7 @@ export {
   getTenantContext,
   runWithTenantContext,
   runInTenantContext,
+  runWithoutTenantContext,
   enterTenantContext,
 } from './tenant-context.js';
 export {
@@ -22,7 +23,7 @@ export {
   type AdminActorInput,
   type AdminScopeInput,
 } from './resolve-tenant-context.js';
-export { forkScopedEm, orgFilterArgsFor, customerFilterArgsFor } from './scoped-em.js';
+export { forkScopedEm } from './scoped-em.js';
 export {
   OrgScoped,
   CustomerScoped,

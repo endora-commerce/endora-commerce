@@ -1,12 +1,5 @@
 import { Filter } from '@mikro-orm/core';
-import {
-  ORG_FILTER,
-  CUSTOMER_FILTER,
-  orgFilterCond,
-  customerFilterCond,
-  type OrgFilterArgs,
-  type CustomerFilterArgs,
-} from './filters.js';
+import { ORG_FILTER, CUSTOMER_FILTER, orgFilterCond, customerFilterCond } from './filters.js';
 
 /**
  * Per-entity tenant-scope classification (feature 050, FR-006).
@@ -47,19 +40,19 @@ export function tenantClassifications(): readonly ClassificationMeta[] {
 function applyMikroFilter(
   target: EntityClass,
   name: string,
-  cond: (args: OrgFilterArgs & CustomerFilterArgs) => Record<string, unknown>,
+  cond: () => Record<string, unknown>,
 ): void {
   // MikroORM's `Filter` is a class decorator; apply it programmatically.
-  (Filter({ name, cond: (args) => cond(args as OrgFilterArgs & CustomerFilterArgs), default: true }) as (
-    t: EntityClass,
-  ) => void)(target);
+  // `args: false` — the cond reads the ambient context from AsyncLocalStorage at
+  // query time, so no per-fork `setFilterParams` is needed (fork-independent).
+  (Filter({ name, cond: () => cond(), default: true, args: false }) as (t: EntityClass) => void)(target);
 }
 
 /** Direct `organizationId` column. Filtered by the `org` global filter. */
 export function OrgScoped(): (target: EntityClass) => void {
   return (target) => {
     registry.push({ target, className: target.name, scope: 'org', key: 'organizationId' });
-    applyMikroFilter(target, ORG_FILTER, (args) => orgFilterCond(args));
+    applyMikroFilter(target, ORG_FILTER, orgFilterCond);
   };
 }
 
@@ -67,7 +60,7 @@ export function OrgScoped(): (target: EntityClass) => void {
 export function CustomerScoped(): (target: EntityClass) => void {
   return (target) => {
     registry.push({ target, className: target.name, scope: 'customer', key: 'customerAccountId' });
-    applyMikroFilter(target, CUSTOMER_FILTER, (args) => customerFilterCond(args));
+    applyMikroFilter(target, CUSTOMER_FILTER, customerFilterCond);
   };
 }
 
