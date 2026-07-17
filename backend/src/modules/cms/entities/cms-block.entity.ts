@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,6 +7,7 @@ import { randomUUID } from 'crypto';
  * Per-channel-unique `code`. Embeddable in Pages and Templates via the
  * `InsertBlock` component, attachable to Hooks for storefront rendering.
  */
+@GlobalEntity()
 @Entity({ tableName: 'cms_blocks' })
 export class CmsBlock {
   [OptionalProps]?:

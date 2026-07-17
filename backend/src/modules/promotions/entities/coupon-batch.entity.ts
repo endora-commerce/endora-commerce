@@ -1,9 +1,11 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
  * Feature 045 — generator config for a batch of coupon codes (US4).
  */
+@GlobalEntity()
 @Entity({ tableName: 'coupon_batches' })
 export class CouponBatch {
   [OptionalProps]?: 'id' | 'createdAt' | 'prefix' | 'suffix' | 'dashEvery';

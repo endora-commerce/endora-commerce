@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 import type {
   PromptActionClarification,
@@ -19,6 +20,7 @@ import type {
  * No FK on `admin_user_id` (module_actions precedent — lifecycle owns
  * cleanup, admin users are platform-owned).
  */
+@GlobalEntity()
 @Entity({ tableName: 'prompt_action_requests' })
 @Index({ properties: ['adminUserId', 'createdAt'] })
 export class PromptActionRequest {

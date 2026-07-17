@@ -9,6 +9,7 @@ import {
   Unique,
   type EventArgs,
 } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 import { normalizeOrganizationName } from '../services/normalize-name.js';
 
@@ -38,6 +39,7 @@ import { normalizeOrganizationName } from '../services/normalize-name.js';
  * backs the admin OrganizationPicker's diacritic-insensitive typeahead
  * without needing pg_trgm/unaccent extensions.
  */
+@GlobalEntity()
 @Entity({ tableName: 'organizations' })
 export class Organization {
   [OptionalProps]?:

@@ -2,6 +2,12 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import Redis from 'ioredis';
 import { buildServer, type ModulePlugin } from '../../src/http/server.js';
+import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
+import { runInTenantContext, type TenantContext } from '../../src/tenancy/tenant-context.js';
+import {
+  resolveTenantContext,
+  systemTenantContext,
+} from '../../src/tenancy/resolve-tenant-context.js';
 import { initOrm, closeOrm } from '../../src/db/index.js';
 import { EventBus } from '../../src/events/bus.js';
 import { SessionService } from '../../src/modules/auth/services/session-service.js';
@@ -356,7 +362,9 @@ export async function setupBackendServer(
   options: BackendServerOptions = {},
 ): Promise<BackendServerHandle> {
   const orm = await initOrm();
-  const em = (): EntityManager => orm.em.fork() as EntityManager;
+  // Feature 050 — mirror the production seam: forks stamp tenant filter params
+  // from the ambient TenantContext (established per request by the hook below).
+  const em = (): EntityManager => forkScopedEm(orm);
 
   const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
   const redis = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
@@ -693,7 +701,37 @@ export async function setupBackendServer(
   let transactionalEmailSender: import('@b2b/contracts').TransactionalEmailSender | undefined;
 
   const modules: ModulePlugin[] = [
-    async (app) => registerTestAuth(app, { sessionService, emFactory: em }),
+    async (app) => {
+      registerTestAuth(app, { sessionService, emFactory: em });
+      // Feature 050 — establish the ambient TenantContext from the resolved test
+      // actor, after registerTestAuth sets it. Mirrors composition.ts wiring
+      // (callback-style so the AsyncLocalStorage store reaches the handler).
+      const buildContext = async (request: FastifyRequest): Promise<TenantContext> => {
+        const actor = request.testActor;
+        if (actor?.kind === 'customer') {
+          const orgId =
+            actor.organizationId && actor.organizationId.length > 0 ? actor.organizationId : null;
+          return resolveTenantContext({
+            kind: 'customer',
+            customerAccountId: actor.customerAccountId,
+            organizationId: orgId,
+            impersonatorAdminUserId:
+              (actor as { impersonatorAdminUserId?: string | null }).impersonatorAdminUserId ?? null,
+          });
+        }
+        if (actor?.kind === 'admin') {
+          const scope = await resolveTestAdminOrdersScope(request);
+          return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
+        }
+        return systemTenantContext(`test-actor:${actor?.kind ?? 'anonymous'}`);
+      };
+      app.addHook('onRequest', (request: FastifyRequest, _reply, done) => {
+        buildContext(request).then(
+          (ctx) => runInTenantContext(ctx, () => done()),
+          (err: unknown) => done(err as Error),
+        );
+      });
+    },
     admin.plugin,
     creditLimits.plugin,
     integrations.plugin,

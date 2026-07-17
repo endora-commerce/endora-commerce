@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * Single-row sitemap cache (T235 / FR-102). The generator overwrites
@@ -6,6 +7,7 @@ import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
  * `staleAfterMs` configuration in the service triggers an inline
  * regeneration when the row is older than the threshold.
  */
+@GlobalEntity()
 @Entity({ tableName: 'sitemap_cache' })
 export class SitemapCache {
   [OptionalProps]?: 'generatedAt' | 'urlCount' | 'byteSize';

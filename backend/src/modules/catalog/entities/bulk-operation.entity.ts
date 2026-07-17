@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -36,6 +37,7 @@ export interface BulkOperationLogEntry {
   message: string;
 }
 
+@GlobalEntity()
 @Entity({ tableName: 'catalog_bulk_operations' })
 export class BulkOperation {
   [OptionalProps]?:

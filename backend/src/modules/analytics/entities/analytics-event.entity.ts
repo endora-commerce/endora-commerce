@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { OrgScoped } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -14,6 +15,7 @@ import { randomUUID } from 'crypto';
  *   - `(type, occurred_at)`   — per-type time series
  *   - `(sales_channel_id)`    — per-channel breakdowns
  */
+@OrgScoped()
 @Entity({ tableName: 'analytics_events' })
 @Index({ name: 'idx_analytics_events_type_occurred_at', properties: ['type', 'occurredAt'] })
 export class AnalyticsEvent {

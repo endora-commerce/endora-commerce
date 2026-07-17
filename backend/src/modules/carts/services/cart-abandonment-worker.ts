@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import type { CartAuditService } from './cart-audit-service.js';
+import { withSystemScope } from '../../../tenancy/escape-hatch.js';
 
 /**
  * CartAbandonmentWorker — feature 027 US5.
@@ -51,6 +52,9 @@ export class CartAbandonmentWorker {
   constructor(private readonly deps: CartAbandonmentWorkerDeps) {}
 
   async sweep(now: Date = new Date()): Promise<CartAbandonmentSweepResult> {
+    // Feature 050 — system-wide sweep across all customers; run under a system
+    // scope so the Cart reads/writes carry a tenant context (fail-closed guard).
+    return withSystemScope('cart-abandonment sweep', async () => {
     const inactivityMinutes = await this.deps.resolveInactivityMinutes();
     if (!Number.isFinite(inactivityMinutes) || inactivityMinutes <= 0) {
       return { abandonedCount: 0, notifiedCount: 0 };
@@ -115,5 +119,6 @@ export class CartAbandonmentWorker {
     }
 
     return { abandonedCount: eligible.length, notifiedCount };
+    });
   }
 }

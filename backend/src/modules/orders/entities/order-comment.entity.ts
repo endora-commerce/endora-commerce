@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -10,6 +11,7 @@ import { randomUUID } from 'crypto';
  * (enforced in the service, not here). Comments are allowed only while the
  * order is non-terminal.
  */
+@GlobalEntity()
 @Entity({ tableName: 'order_comments' })
 export class OrderComment {
   [OptionalProps]?:

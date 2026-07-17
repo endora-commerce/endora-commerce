@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -9,6 +10,7 @@ import { randomUUID } from 'crypto';
  *   - (provider, provider_subject): one platform account per IdP identity;
  *   - (subject_type, subject_id, provider): one link per provider per account.
  */
+@GlobalEntity()
 @Entity({ tableName: 'mfa_social_identities' })
 export class MfaSocialIdentity {
   [OptionalProps]?: 'id' | 'lastUsedAt' | 'linkedAt';

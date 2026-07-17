@@ -7,6 +7,7 @@ import {
 import { seedCreditLimitWithActiveReservation } from '../../helpers/seed-credit-limit.js';
 import { CreditLimitService } from '../../../src/modules/credit_limits/services/credit-limit-service.js';
 import { EventBus } from '../../../src/events/bus.js';
+import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 
 /**
  * T209 — Idempotency: calling releaseByOrder twice for the same order id
@@ -32,10 +33,16 @@ describe('CreditLimitService.releaseByOrder idempotency', () => {
     const service = new CreditLimitService(h.em, new EventBus());
     const orderId = '00000000-0000-4000-8000-000000000c01';
 
-    const first = await service.releaseByOrder({ orderId, reason: 'invoice_paid' });
+    // Direct service call (no HTTP request) → establish a scope explicitly, as
+    // the production callers run within a request/worker context (feature 050).
+    const first = await withSystemScope('test: releaseByOrder', () =>
+      service.releaseByOrder({ orderId, reason: 'invoice_paid' }),
+    );
     expect(first.ok).toBe(true);
 
-    const second = await service.releaseByOrder({ orderId, reason: 'invoice_paid' });
+    const second = await withSystemScope('test: releaseByOrder', () =>
+      service.releaseByOrder({ orderId, reason: 'invoice_paid' }),
+    );
     expect(second.ok).toBe(false);
     if (!second.ok) expect(second.code).toBe('ALREADY_RELEASED');
   });

@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -8,6 +9,7 @@ import { randomUUID } from 'crypto';
  * email_block_sales_channels). System blocks (default header/footer) cannot be
  * deleted.
  */
+@GlobalEntity()
 @Entity({ tableName: 'email_blocks' })
 export class EmailBlock {
   [OptionalProps]?: 'active' | 'isSystem' | 'description' | 'version' | 'createdAt' | 'updatedAt';

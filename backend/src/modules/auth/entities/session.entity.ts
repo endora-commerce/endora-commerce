@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -8,6 +9,7 @@ import { randomUUID } from 'crypto';
  * `auth` is the permitted singular-exception module folder per Principle VI; this
  * entity's table name remains `sessions` because class-to-table is still pluralised.
  */
+@GlobalEntity()
 @Entity({ tableName: 'sessions' })
 export class Session {
   [OptionalProps]?: 'id' | 'createdAt' | 'updatedAt';

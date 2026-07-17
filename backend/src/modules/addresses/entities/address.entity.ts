@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { OrgScoped } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,6 +7,7 @@ import { randomUUID } from 'crypto';
  * The partial unique index "one default per (organization, kind)" is enforced
  * in the migration, not at the ORM layer.
  */
+@OrgScoped()
 @Entity({ tableName: 'addresses' })
 export class Address {
   [OptionalProps]?:

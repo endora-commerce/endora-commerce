@@ -7,6 +7,7 @@ import type {
   BulkTransitionResult,
 } from '@b2b/contracts';
 import { ReturnCase } from '../entities/return-case.entity.js';
+import { orgConstraintFor } from '../../../tenancy/derived-scope.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
 import type { ReturnTransitionService } from './return-transition-service.js';
 
@@ -110,12 +111,22 @@ export class ReturnListService {
 
   private async statusCounts(): Promise<Record<string, number>> {
     const em = this.deps.emFactory();
-    const rows = await em
+    // The main list uses em.findAndCount (auto-filtered), but this aggregate is
+    // raw knex, so apply the tenant org constraint explicitly (feature 050).
+    const qb = em
       .getKnex()
       .from('return_cases')
       .select('status_code')
       .count<{ status_code: string; count: string }[]>('* as count')
       .groupBy('status_code');
+    const constraint = orgConstraintFor();
+    if (constraint.kind === 'single') {
+      if (constraint.organizationId === null) void qb.whereNull('organization_id');
+      else void qb.where('organization_id', constraint.organizationId);
+    } else if (constraint.kind === 'set') {
+      void qb.whereIn('organization_id', [...constraint.organizationIds]);
+    }
+    const rows = await qb;
     const out: Record<string, number> = {};
     for (const r of rows) out[r.status_code] = Number(r.count);
     return out;

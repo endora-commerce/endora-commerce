@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { OrgScoped } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 import type {
   VatValidationOutcome,
@@ -11,6 +12,7 @@ import type {
  * non-EU jurisdictions. Persisted regardless of outcome so the admin
  * can audit history and trigger re-validation.
  */
+@OrgScoped()
 @Entity({ tableName: 'organization_tax_id_validations' })
 export class OrganizationTaxIdValidation {
   [OptionalProps]?:

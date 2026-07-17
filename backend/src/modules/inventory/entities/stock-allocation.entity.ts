@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -11,6 +12,7 @@ import { randomUUID } from 'crypto';
  * product with `backorder_enabled = true` and the chosen warehouse
  * could not satisfy the full quantity at order time.
  */
+@GlobalEntity()
 @Entity({ tableName: 'stock_allocations' })
 @Unique({ properties: ['orderItemId', 'warehouseId'] })
 export class StockAllocation {

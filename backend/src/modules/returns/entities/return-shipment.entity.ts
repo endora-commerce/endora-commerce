@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -8,6 +9,7 @@ import { randomUUID } from 'crypto';
  * shipment (shop → customer) against a case. Inbound shipments are not order
  * shipments, so they live in this module-owned table rather than `shipments`.
  */
+@GlobalEntity()
 @Entity({ tableName: 'return_shipments' })
 export class ReturnShipment {
   [OptionalProps]?:

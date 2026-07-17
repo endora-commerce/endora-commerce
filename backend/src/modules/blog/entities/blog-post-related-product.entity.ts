@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * BlogPostRelatedProduct — composite-key M2M between blog_posts and
@@ -6,6 +7,7 @@ import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
  * NO ACTION; soft-deleted products are filtered out of the storefront
  * resolver per R6 (no generic ProductReferenceRegistry exists yet at v1).
  */
+@GlobalEntity()
 @Entity({ tableName: 'blog_post_related_products' })
 export class BlogPostRelatedProduct {
   [OptionalProps]?: 'position';

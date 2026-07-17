@@ -4,6 +4,7 @@ import { Product } from '../../catalog/entities/product.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import type { Mailer } from '../../email/services/mailer.js';
 import type { EventBus } from '../../../events/bus.js';
+import { withSystemScope } from '../../../tenancy/escape-hatch.js';
 
 interface AdjustedPayload {
   productId: string;
@@ -41,6 +42,9 @@ export class AvailabilityWorker {
     productId: string;
     variantId?: string | null;
   }): Promise<{ notified: number }> {
+    // Feature 050 — triggered off a stock-increase event; may run detached, so
+    // scope the AvailabilityNotification reads under a system context.
+    return withSystemScope('availability stock-increase', async () => {
     const em = this.emFactory();
     const product = await em.findOne(Product, { id: input.productId });
     if (!product) return { notified: 0 };
@@ -98,6 +102,7 @@ export class AvailabilityWorker {
     }
     await em.flush();
     return { notified: subscriptions.length };
+    });
   }
 
   /**

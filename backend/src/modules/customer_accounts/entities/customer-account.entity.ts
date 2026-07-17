@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { OrgScoped } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -9,6 +10,7 @@ import { randomUUID } from 'crypto';
  * in the auth module). `twoFactorSecret` holds the base32 TOTP secret only
  * once 2FA is confirmed.
  */
+@OrgScoped()
 @Entity({ tableName: 'customer_accounts' })
 export class CustomerAccount {
   [OptionalProps]?:

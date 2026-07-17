@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,6 +7,7 @@ import { randomUUID } from 'crypto';
  * SHA-256 hash; the plaintext is shown once at activation/regeneration.
  * Cascade-deleted with its parent enrolment (FK declared in migration 067).
  */
+@GlobalEntity()
 @Entity({ tableName: 'mfa_recovery_codes' })
 export class MfaRecoveryCode {
   [OptionalProps]?: 'id' | 'usedAt' | 'createdAt';

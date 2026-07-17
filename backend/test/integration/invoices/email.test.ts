@@ -15,6 +15,7 @@ import {
 import { SellerSettingsResolver } from '../../../src/modules/invoices/services/seller-settings.js';
 import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';
 import { ADMIN_COOKIE, seedInvoiceableOrder, setSellerSettings } from './helpers.js';
+import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 
 const CH = 'eeeeeeee-0000-4000-8000-000000000001';
 
@@ -70,7 +71,7 @@ describe('invoices — invoice email dispatch (US5)', () => {
 
   it('attachment mode sends one email with a PDF attachment', async () => {
     const id = await issue();
-    const ok = await dispatcher.dispatch(id, { mode: 'attachment' });
+    const ok = await withSystemScope('test', () => dispatcher.dispatch(id, { mode: 'attachment' }));
     expect(ok).toBe(true);
     const last = sender.sent.at(-1)!;
     expect(last.code).toBe('invoice_issued');
@@ -81,7 +82,7 @@ describe('invoices — invoice email dispatch (US5)', () => {
 
   it('link mode sends no attachment but supplies a download URL variable', async () => {
     const id = await issue();
-    const ok = await dispatcher.dispatch(id, { mode: 'link' });
+    const ok = await withSystemScope('test', () => dispatcher.dispatch(id, { mode: 'link' }));
     expect(ok).toBe(true);
     const last = sender.sent.at(-1)!;
     expect(last.attachments).toBeUndefined();
@@ -91,7 +92,7 @@ describe('invoices — invoice email dispatch (US5)', () => {
 
   it('uses an idempotent messageId per invoice by default', async () => {
     const id = await issue();
-    await dispatcher.dispatch(id);
+    await withSystemScope('test', () => dispatcher.dispatch(id));
     const last = sender.sent.at(-1)!;
     expect(last.messageId).toBe(`invoice_issued:${id}`);
   });
@@ -115,7 +116,7 @@ describe('invoices — invoice email dispatch (US5)', () => {
       resolveRecipientEmail: async () => 'buyer@example.com',
       resolveLanguage: async () => 'en-US',
     });
-    const ok = await throwingDispatcher.dispatch(id);
+    const ok = await withSystemScope('test', () => throwingDispatcher.dispatch(id));
     expect(ok).toBe(false); // swallowed
     const inv = await h.em().findOneOrFail(Invoice, { id });
     expect(inv.status).toBe('ready'); // still valid

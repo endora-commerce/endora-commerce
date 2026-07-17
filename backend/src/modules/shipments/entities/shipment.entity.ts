@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -11,6 +12,7 @@ import { randomUUID } from 'crypto';
  * distinct from the Order status the method maps to on a `receive_shipment`
  * outcome.
  */
+@GlobalEntity()
 @Entity({ tableName: 'shipments' })
 export class Shipment {
   [OptionalProps]?:

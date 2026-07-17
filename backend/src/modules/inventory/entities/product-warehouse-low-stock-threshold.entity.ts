@@ -1,4 +1,5 @@
 import { Entity, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * Per-(product, warehouse) low-stock threshold. Consulted only when the
@@ -7,6 +8,7 @@ import { Entity, PrimaryKey, Property } from '@mikro-orm/core';
  * Composite primary key `(product_id, warehouse_id)` ensures one row per
  * pair. Both FKs cascade-delete with their parent.
  */
+@GlobalEntity()
 @Entity({ tableName: 'product_warehouse_low_stock_thresholds' })
 export class ProductWarehouseLowStockThreshold {
   @PrimaryKey({ type: 'uuid' })

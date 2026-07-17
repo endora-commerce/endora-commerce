@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 import type { PromotionAction, PromotionCriterion, PromotionRule } from '@b2b/contracts';
 
@@ -18,6 +19,7 @@ import type { PromotionAction, PromotionCriterion, PromotionRule } from '@b2b/co
  * Inactive (`isActive=false`) promotions are skipped without being deleted —
  * useful for re-enabling seasonally.
  */
+@GlobalEntity()
 @Entity({ tableName: 'promotions' })
 export class Promotion {
   [OptionalProps]?:

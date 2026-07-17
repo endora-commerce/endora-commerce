@@ -1,35 +1,36 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 3.1.0 → 3.2.0
-Rationale: MINOR bump. A new principle (X. Scalable Queue Consumers)
-is added, and a corresponding ninth quality gate is introduced in
-the Development Workflow section. No existing principle is removed,
-narrowed, or redefined; the new rule applies to new and ongoing
-work going forward, so the versioning policy mandates a MINOR (not
-MAJOR) bump. Pre-existing in-process queue drains predate the rule
-and are tracked as compliance-review follow-ups rather than treated
-as retroactively invalidated.
+Version change: 3.2.0 → 3.3.0
+Rationale: MINOR bump. A new principle (XI. Systemic Multi-Tenant
+Isolation) is added, and a corresponding tenth quality gate is
+introduced in the Development Workflow section. No existing principle
+is removed, narrowed, or redefined; the new rule applies to new and
+ongoing work going forward, so the versioning policy mandates a MINOR
+(not MAJOR) bump. Pre-existing per-service org `where`-clauses predate
+the framework guard and are tracked as a migration (feature
+050-org-tenant-scoping's phased rollout) rather than treated as
+retroactively invalidated.
 
 Modified principles:
   - (none renamed or redefined)
 
 Added sections:
-  - X. Scalable Queue Consumers — new principle. Splits a binding
-    architectural invariant from a volume-tuned deployment posture.
-    Invariant (MUST): durable distributed queue (Redis/BullMQ-class),
-    atomic job claim + idempotent handlers (safe at N≥2 instances),
-    producer only enqueues (never inline-executes), and the consumer
-    is a separable worker entrypoint — an in-process `setInterval`
-    sweeper draining the queue inside the API process is prohibited.
-    Posture (SHOULD/MAY): run the consumer as a separate, independently
-    scalable process by default; low-volume work MAY be co-located in
-    the API deployable if it stays a separable entrypoint and the
-    co-location is justified in one sentence (mirrors the Principle IX
-    escape hatch; keeps single-VPS deploys simple per Infrastructure
-    Constraints and aligned with YAGNI / Principle IV).
-  - Development Workflow & Quality Gates — new gate #9 ("Async queue
-    consumers") enforcing Principle X at review time.
+  - XI. Systemic Multi-Tenant Isolation (NON-NEGOTIABLE) — new
+    principle. Tenant isolation MUST be enforced by a framework-level
+    guard, not per-service query conditions: an ambient TenantContext
+    derived server-side from the authenticated actor (never from
+    request inputs); a data-access-layer filter that confines every
+    read/write on tenant-owned entities even when a service omits the
+    condition; fail-closed on missing context (raise, never return
+    unscoped); mandatory per-entity scope classification enforced by a
+    CI check; a single, greppable, audited escape hatch
+    (withSystemScope / withOrgScope) as the ONLY way to cross tenants;
+    and cross-tenant tests for every new tenant-owned entity. The guard
+    is defense-in-depth — it complements, never replaces, route-level
+    requireAdmin / requireCustomer authorization.
+  - Development Workflow & Quality Gates — new gate #10
+    ("Multi-tenant isolation") enforcing Principle XI at review time.
 
 Removed sections:
   - (none)
@@ -40,20 +41,19 @@ Templates / artifacts requiring alignment:
   - ✅ .specify/templates/spec-template.md      — no edits required.
   - ✅ .specify/templates/tasks-template.md     — no edits required.
   - ✅ README.md — principle quick-reference list extended with
-       item 10 (scalable queue consumers); quality-gate sentence updated.
-  - ✅ .github/pull_request_template.md — new gate #9 checkbox added;
-       header comment updated from "eight" to "nine" gates.
+       item 11 (systemic multi-tenant isolation); quality-gate sentence
+       updated.
+  - ✅ .github/pull_request_template.md — new gate #10 checkbox added;
+       header comment updated from "nine" to "ten" gates.
 
 Deferred items / TODOs:
-  - Existing in-process queue drains predate Principle X and are now
-    non-compliant: the catalog bulk-operation sweeper
-    (catalog/plugin.ts `setInterval` + `onEnqueued` kick draining the
-    `bulk_operations` table), and the analogous price-lists status
-    sweeper, RFQ-expiry worker, and cart-abandonment sweep. These MUST
-    be migrated to separate, independently scalable consumer processes
-    (or have a documented single-instance exemption recorded) and are
-    tracked via the quarterly compliance review — not a blocker for
-    this amendment.
+  - Existing per-service organization `where`-clauses (~128 sites) and
+    the four unguarded admin surfaces (credit_limits, invoices,
+    returns, price_lists) predate Principle XI. They are migrated to
+    the framework guard by feature 050-org-tenant-scoping's phased,
+    per-module rollout (guard is additive; each module flips with its
+    cross-tenant matrix green). Tracked via that feature and the
+    quarterly compliance review — not a blocker for this amendment.
 -->
 
 # B2B Platform Constitution
@@ -353,6 +353,50 @@ contends with request latency, and it dies with the web server. Mandating the
 default (soft) keeps the rule honest on a single VPS and aligned with YAGNI,
 without ever permitting the in-process-sweeper anti-pattern.
 
+### XI. Systemic Multi-Tenant Isolation (NON-NEGOTIABLE)
+
+Tenant isolation MUST be enforced by a **framework-level guard**, not by per-service
+query conditions. Because the platform is multi-tenant (and multi-deployment), an
+isolation rule that a single forgotten `where`-clause can defeat is not isolation.
+The following are binding for every backend feature that touches tenant-owned data:
+
+- **Ambient context, server-derived.** Every request and every background job MUST run
+  under an ambient **TenantContext** carrying the effective scope (a single organization,
+  an allowed-organization set for scoped admins, or an explicit all-organizations / system
+  marker). The context MUST be derived server-side from the authenticated actor (session
+  for customers; role + assignment for admins) and MUST NOT be settable from request body,
+  query string, or headers.
+- **Data-layer enforcement.** Reads and writes on tenant-owned entities MUST be constrained
+  at the data-access layer (an ORM/EM-level filter), so isolation holds **even when a
+  service omits an explicit tenant condition**. Route-level `requireAdmin` / `requireCustomer`
+  authorization stays in place — the guard is **defense-in-depth**, complementing it, never
+  replacing it.
+- **Fail-closed.** A query against a tenant-owned entity with **no** ambient context MUST
+  raise, never return unscoped rows. Widening scope (system / all-org) MUST be an explicit
+  mode, never the absence of a filter.
+- **Total classification.** Every persisted entity MUST be classified as
+  organization-scoped, customer-account-scoped, transitively-scoped (through a parent
+  aggregate), rule-scoped, or platform-global. A CI check MUST fail the build on any
+  unclassified entity, so a new entity cannot silently escape the guard.
+- **Single audited escape hatch.** Crossing tenants (platform-admin reporting, background
+  reconciliation, migrations) MUST go through one greppable, audited escape hatch
+  (`withSystemScope` / `withOrgScope`, required non-empty reason). No other means of
+  widening scope is permitted; every use MUST be attributable in logs/audit.
+- **Cross-tenant tests.** Every new tenant-owned entity or query MUST ship with tests
+  proving out-of-scope records are inaccessible, and that an out-of-scope response is
+  **indistinguishable from "record does not exist"** (no existence leak via status or
+  message).
+
+**Rationale**: Roughly 128 hand-written organization `where`-clauses made isolation depend
+on developer discipline and left four admin surfaces (credit_limits, invoices, returns,
+price_lists) leaking cross-tenant the moment a lower-trust role gained a permission. Moving
+enforcement into the data layer converts "remember to scope" into "remember to *un*scope,"
+which fails safe — a forgotten context surfaces as a loud error in tests and logs, not a
+silent cross-tenant read. It is also a prerequisite for the multi-deployment posture, where
+each installation carries a different organization topology and isolation must be structural,
+not per-service. The framework guard is introduced by feature `050-org-tenant-scoping`; from
+this amendment forward, new features build on it rather than reintroducing manual scoping.
+
 ## Technology Stack
 
 The following stack is mandated. Substitutions require amending this
@@ -496,6 +540,13 @@ Every change MUST pass the following gates before merge:
    the queue inside the API process. Running the worker as a separate process is
    the production default; co-locating low-volume work is allowed only with a
    one-sentence justification (Principle X).
+10. **Multi-tenant isolation** — reviewers MUST reject any change that violates
+    Principle XI: a new tenant-owned entity that is not classified and covered by the
+    framework guard + cross-tenant tests; a query path that reaches tenant-owned data
+    outside the ambient TenantContext filter; a fail-open on missing context; or any
+    cross-tenant access that does not go through the audited `withSystemScope` /
+    `withOrgScope` escape hatch. The tenant context MUST be server-derived, never taken
+    from request body/query/headers.
 
 Code review MUST explicitly verify each of the above. "LGTM" without
 evidence of checking the gates is not an approval.
@@ -534,4 +585,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 3.2.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-06-03
+**Version**: 3.3.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-07-17

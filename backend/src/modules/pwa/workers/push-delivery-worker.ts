@@ -5,6 +5,7 @@ import { PushMessage } from '../entities/push-message.entity.js';
 import { PushMessageDelivery } from '../entities/push-message-delivery.entity.js';
 import { PushSubscription } from '../entities/push-subscription.entity.js';
 import type { PushDeliveryJobData } from '../services/push-delivery-queue.js';
+import { withSystemScope } from '../../../tenancy/escape-hatch.js';
 
 export interface PushDeliveryProcessorDeps {
   emFactory: () => EntityManager;
@@ -19,7 +20,10 @@ export interface PushDeliveryProcessorDeps {
  * back off and retry.
  */
 export function makePushDeliveryProcessor(deps: PushDeliveryProcessorDeps) {
-  return async (job: Job<PushDeliveryJobData>): Promise<void> => {
+  return async (job: Job<PushDeliveryJobData>): Promise<void> =>
+    // Feature 050 — BullMQ job runs detached; scope the PushSubscription reads
+    // under a system context (fail-closed guard).
+    withSystemScope('push-delivery', async () => {
     const em = deps.emFactory();
     const delivery = await em.findOne(PushMessageDelivery, { id: job.data.deliveryId });
     if (!delivery) return; // delivery (or its message) was removed — nothing to do
@@ -91,7 +95,7 @@ export function makePushDeliveryProcessor(deps: PushDeliveryProcessorDeps) {
     message.failedCount += 1;
     await em.flush();
     await maybeFinalize(em, message);
-  };
+    });
 }
 
 /**

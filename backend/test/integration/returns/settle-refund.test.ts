@@ -8,6 +8,7 @@ import {
 import { CreditLimit } from '../../../src/modules/credit_limits/entities/credit-limit.entity.js';
 import { ADMIN_COOKIE, CUSTOMER_COOKIE, anyReasonId, resetReturnGraph, seedReturnableOrder } from './helpers.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 
 /**
  * Feature 046 (US5) — settlement: refund amounts (capped at paid), money
@@ -117,7 +118,9 @@ describe('returns — settlement (US5)', () => {
     expect(data.creditLimitTopupApplied).toBe(true);
     expect(data.refund.settlementState).toBe('issued');
 
-    const limit = await h.em().findOneOrFail(CreditLimit, { organizationId: TEST_ORGANIZATION_ID });
+    const limit = await withSystemScope('test: assert credit topup', () =>
+      h.em().findOneOrFail(CreditLimit, { organizationId: TEST_ORGANIZATION_ID }),
+    );
     expect(Number(limit.grantedAmount)).toBe(600);
   });
 

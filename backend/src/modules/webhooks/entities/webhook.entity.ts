@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -10,6 +11,7 @@ import { randomUUID } from 'crypto';
  *   - `status='paused'` stops new deliveries without deleting historical
  *     WebhookDelivery rows.
  */
+@GlobalEntity()
 @Entity({ tableName: 'webhooks' })
 export class Webhook {
   [OptionalProps]?:

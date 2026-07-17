@@ -1,11 +1,17 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
 import { randomUUID } from 'crypto';
+import { OrgScoped } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * Per-Organization credit limit grant. One row per organization (enforced by
  * the migration's unique index). `grantedAmount = 0` is the soft-revoke shape;
  * the row is preserved for audit history.
+ *
+ * `@OrgScoped` (feature 050): reads are auto-confined to the ambient tenant. The
+ * grant/adjust routes additionally gate on org membership because inserts are not
+ * reachable by the column filter.
  */
+@OrgScoped()
 @Entity({ tableName: 'credit_limits' })
 export class CreditLimit {
   [OptionalProps]?: 'id' | 'createdAt' | 'updatedAt' | 'grantedByAdminUserId';

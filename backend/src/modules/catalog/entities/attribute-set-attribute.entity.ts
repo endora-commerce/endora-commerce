@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * AttributeSetAttribute — composite-PK bridge between AttributeSet and
@@ -13,6 +14,7 @@ import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/c
  * Modeled as a standalone entity (not auto-pivot) so services can query
  * `position` directly and so seeds can reuse the standard EM-flush path.
  */
+@GlobalEntity()
 @Entity({ tableName: 'attribute_set_attributes' })
 export class AttributeSetAttribute {
   [OptionalProps]?: 'position';

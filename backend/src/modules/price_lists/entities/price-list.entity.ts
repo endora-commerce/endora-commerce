@@ -1,6 +1,7 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { randomUUID } from 'crypto';
 import type { ApplicationRule } from '@b2b/contracts';
+import { RuleScoped } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * PriceList — feature-011 engine shape.
@@ -15,6 +16,7 @@ import type { ApplicationRule } from '@b2b/contracts';
  * rollout. They will be dropped by a follow-up migration once US5 wires every
  * reader through the new resolver.
  */
+@RuleScoped()
 @Entity({ tableName: 'price_lists' })
 export class PriceList {
   [OptionalProps]?:

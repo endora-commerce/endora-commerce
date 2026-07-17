@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -7,6 +8,7 @@ import { randomUUID } from 'crypto';
  * (releasedReason='order_cancelled') — both transitions flip status to
  * 'released' and the available amount on the parent CreditLimit grows back.
  */
+@GlobalEntity()
 @Entity({ tableName: 'credit_limit_reservations' })
 export class CreditLimitReservation {
   [OptionalProps]?: 'id' | 'createdAt' | 'updatedAt' | 'releasedAt' | 'releasedReason' | 'status';

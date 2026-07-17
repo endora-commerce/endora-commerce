@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -7,6 +8,7 @@ import { randomUUID } from 'crypto';
  * `active` flag (FR-006); its visibility is governed entirely by its
  * channel/language scope and by who references it.
  */
+@GlobalEntity()
 @Entity({ tableName: 'cms_templates' })
 export class CmsTemplate {
   [OptionalProps]?:

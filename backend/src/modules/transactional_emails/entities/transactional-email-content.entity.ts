@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -11,6 +12,7 @@ import { randomUUID } from 'crypto';
  * provides optimistic concurrency. Uniqueness is enforced by two partial
  * indexes in the migration (NULLs are distinct in Postgres unique indexes).
  */
+@GlobalEntity()
 @Entity({ tableName: 'transactional_email_contents' })
 export class TransactionalEmailContent {
   [OptionalProps]?: 'version' | 'salesChannelId' | 'createdAt' | 'updatedAt';

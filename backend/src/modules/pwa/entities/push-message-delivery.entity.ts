@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,6 +7,7 @@ import { randomUUID } from 'crypto';
  * the unit the BullMQ worker processes. `(messageId, subscriptionId)` is unique,
  * providing delivery idempotency across retries (Principle X).
  */
+@GlobalEntity()
 @Entity({ tableName: 'push_message_deliveries' })
 @Unique({ properties: ['messageId', 'subscriptionId'] })
 export class PushMessageDelivery {

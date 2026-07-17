@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 import type { GaCustomEventField, GaTriggerAction } from '@b2b/contracts';
 
@@ -12,6 +13,7 @@ import type { GaCustomEventField, GaTriggerAction } from '@b2b/contracts';
  * already enforces the static-field-set and uniqueness rules). `sales_channel_id`
  * null means the event applies to all channels.
  */
+@GlobalEntity()
 @Entity({ tableName: 'ga_custom_events' })
 @Index({ name: 'ga_custom_events_channel_action_idx', properties: ['salesChannelId', 'triggerAction'] })
 export class GaCustomEvent {

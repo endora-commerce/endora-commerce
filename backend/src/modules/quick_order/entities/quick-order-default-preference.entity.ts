@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -9,6 +10,7 @@ import { randomUUID } from 'crypto';
  * the service. References are plain ids with `ON DELETE SET NULL` FKs (the
  * unique + check + FK constraints are declared in migration 057).
  */
+@GlobalEntity()
 @Entity({ tableName: 'quick_order_default_preferences' })
 @Unique({ properties: ['scope', 'scopeId'] })
 export class QuickOrderDefaultPreference {

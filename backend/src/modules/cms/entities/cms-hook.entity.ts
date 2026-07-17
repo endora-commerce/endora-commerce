@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -7,6 +8,7 @@ import { randomUUID } from 'crypto';
  * Hooks are fully editable + deletable. Code is globally unique (the
  * storefront contract is keyed by code) and immutable after creation.
  */
+@GlobalEntity()
 @Entity({ tableName: 'cms_hooks' })
 export class CmsHook {
   [OptionalProps]?:

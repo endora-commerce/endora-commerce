@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -8,6 +9,7 @@ import { randomUUID } from 'crypto';
  * their own; they exist as an addressable target for the feature 011
  * Application Rule's `customerGroup` criterion.
  */
+@GlobalEntity()
 @Entity({ tableName: 'customer_groups' })
 export class CustomerGroup {
   [OptionalProps]?: 'id' | 'createdAt' | 'updatedAt' | 'description';

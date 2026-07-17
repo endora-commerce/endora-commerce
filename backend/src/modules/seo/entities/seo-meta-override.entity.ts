@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,6 +7,7 @@ import { randomUUID } from 'crypto';
  * resolver returns this row's fields verbatim and falls back to the rule
  * for any nullable column that's left empty.
  */
+@GlobalEntity()
 @Entity({ tableName: 'seo_meta_overrides' })
 @Unique({ name: 'uniq_seo_meta_overrides_entity_locale', properties: ['entityType', 'entityId', 'locale'] })
 export class SeoMetaOverride {

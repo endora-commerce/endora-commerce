@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -10,6 +11,7 @@ import { randomUUID } from 'crypto';
  * Multilingual fields (`name`, `description`) are stored as JSONB per
  * data-model.md; `attributeValues` is a JSONB keyed by ProductAttribute.key.
  */
+@GlobalEntity()
 @Entity({ tableName: 'products' })
 export class Product {
   [OptionalProps]?:

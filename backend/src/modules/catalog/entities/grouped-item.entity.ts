@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -12,6 +13,7 @@ import { randomUUID } from 'crypto';
  *     at the service layer — the child's `type` must be in {simple,
  *     configurable, virtual}).
  */
+@GlobalEntity()
 @Entity({ tableName: 'grouped_items' })
 export class GroupedItem {
   [OptionalProps]?: 'id' | 'position' | 'createdAt' | 'updatedAt';

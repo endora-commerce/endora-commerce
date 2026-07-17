@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,6 +7,7 @@ import { randomUUID } from 'crypto';
  * across the whole platform (R14) — no per-channel scope. Block-on-delete
  * contract is enforced at the service layer (see `BlogTagService.remove`).
  */
+@GlobalEntity()
 @Entity({ tableName: 'blog_tags' })
 export class BlogTag {
   [OptionalProps]?:

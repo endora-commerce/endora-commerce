@@ -7,6 +7,7 @@ import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqNotificationService, NotificationRecipient } from './rfq-notification-service.js';
 import type { SalesRepAssignmentService } from '../../organizations/services/sales-rep-assignment-service.js';
 import { AdminUser } from '../../admin_users/entities/admin-user.entity.js';
+import { withSystemScope } from '../../../tenancy/escape-hatch.js';
 
 /**
  * RfqExpiryWorker — feature 008 sweep that flips Pending and
@@ -44,6 +45,9 @@ export class RfqExpiryWorker {
   constructor(private readonly deps: RfqExpiryWorkerDeps) {}
 
   async sweep(now: Date = new Date()): Promise<{ expiredCount: number }> {
+    // Feature 050 — system-wide sweep across all orgs; run under a system scope
+    // so the QuoteRequest reads/writes carry a tenant context (fail-closed guard).
+    return withSystemScope('rfq-expiry sweep', async () => {
     const expiryDays = await this.deps.resolveExpiryDays();
     if (!Number.isFinite(expiryDays) || expiryDays <= 0) {
       return { expiredCount: 0 };
@@ -99,5 +103,6 @@ export class RfqExpiryWorker {
 
     void CustomerAccount; // avoid tree-shaking the import — used elsewhere
     return { expiredCount: expirable.length };
+    });
   }
 }

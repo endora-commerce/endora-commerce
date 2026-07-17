@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * PriceListProduct — assignment join between a price list and a product.
@@ -7,6 +8,7 @@ import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/c
  * `price_list_price_brackets` cascade off this assignment: removing a product
  * from a list deletes its bracket rows.
  */
+@GlobalEntity()
 @Entity({ tableName: 'price_list_products' })
 export class PriceListProduct {
   [OptionalProps]?: 'createdAt';

@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { CustomerScoped } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -7,6 +8,7 @@ import { randomUUID } from 'crypto';
  * `endpoint` (upsert on re-subscribe). `customerAccountId` is null for anonymous
  * devices (FR-023). Constraints/indexes are declared in migration 080.
  */
+@CustomerScoped()
 @Entity({ tableName: 'push_subscriptions' })
 @Unique({ properties: ['endpoint'] })
 export class PushSubscription {

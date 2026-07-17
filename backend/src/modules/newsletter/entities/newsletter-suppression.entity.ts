@@ -1,10 +1,12 @@
 import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
  * NewsletterSuppression — feature 048. Email-keyed exclusion list that
  * survives subscriber deletion and overrides all targeting.
  */
+@GlobalEntity()
 @Entity({ tableName: 'newsletter_suppressions' })
 export class NewsletterSuppression {
   [OptionalProps]?: 'detail' | 'createdAt';

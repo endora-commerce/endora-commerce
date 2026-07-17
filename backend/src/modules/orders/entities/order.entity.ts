@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { OrgScoped } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 import type { NextAction } from '@b2b/contracts';
 
@@ -13,6 +14,7 @@ import type { NextAction } from '@b2b/contracts';
  *   salesChannelId, deliveryAddressId, billingAddressId,
  *   deliveryMethodId, paymentMethodId, sourceQuoteRequestId.
  */
+@OrgScoped()
 @Entity({ tableName: 'orders' })
 export class Order {
   [OptionalProps]?:

@@ -3,6 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { issueInvoiceRequestSchema, sendInvoiceEmailRequestSchema } from '@b2b/contracts';
 import { Invoice } from './entities/invoice.entity.js';
 import { Order } from '../orders/entities/order.entity.js';
+import { isOrgInScope } from '../../tenancy/derived-scope.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import { z } from 'zod';
 import type { InvoiceService } from './services/invoice-service.js';
@@ -86,12 +87,16 @@ export async function registerInvoicesAdminRoutes(
       const rows = await em.find(Invoice, where, { orderBy: { issuedAt: 'desc' }, limit });
       const orderIds = [...new Set(rows.map((r) => r.orderId))];
       const orders = orderIds.length
-        ? await em.find(Order, { id: { $in: orderIds } }, { fields: ['id', 'businessId'] })
+        ? await em.find(Order, { id: { $in: orderIds } }, { fields: ['id', 'businessId', 'organizationId'] })
         : [];
       const byOrder = new Map(orders.map((o) => [o.id, o.businessId]));
+      const orgByOrder = new Map(orders.map((o) => [o.id, o.organizationId]));
+      // Feature 050 — Invoice is transitively scoped via its Order's org; hide
+      // invoices whose order is out of the ambient tenant scope.
+      const scoped = rows.filter((i) => isOrgInScope(orgByOrder.get(i.orderId) ?? ''));
       return {
-        data: rows.map((i) => serialize(i, byOrder.get(i.orderId) ?? null)),
-        pagination: { cursor: null, hasMore: false, limit: rows.length },
+        data: scoped.map((i) => serialize(i, byOrder.get(i.orderId) ?? null)),
+        pagination: { cursor: null, hasMore: false, limit: scoped.length },
       };
     },
   );

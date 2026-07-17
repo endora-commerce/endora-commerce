@@ -8,7 +8,7 @@ export default mergeConfig(
       name: 'backend',
       environment: 'node',
       include: ['test/**/*.test.ts', 'test/**/*.bench.ts', 'src/**/*.test.ts'],
-      setupFiles: [],
+      setupFiles: ['./test/tenancy-setup.ts'],
       // Forces DATABASE_URL → b2b_test, auto-creates the DB on first run, and
       // applies migrations. Runs once in the parent process before any worker
       // fork; workers inherit the env. See test/global-setup.ts.

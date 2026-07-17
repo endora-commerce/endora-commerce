@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -10,6 +11,7 @@ import { randomUUID } from 'crypto';
  * localized labels. Exactly one row carries `isInitial = true` (`new`, which is
  * non-deletable); `isTerminal` rows have no outgoing transitions.
  */
+@GlobalEntity()
 @Entity({ tableName: 'order_statuses' })
 export class OrderStatus {
   [OptionalProps]?:

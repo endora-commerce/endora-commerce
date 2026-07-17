@@ -24,6 +24,8 @@ export async function seedInvoiceableOrder(
     paymentStatus?: 'paid' | 'awaiting_payment';
     deliveryTotal?: number;
     discountTotal?: number;
+    organizationId?: string;
+    placedByCustomerAccountId?: string;
   } = {},
 ): Promise<SeededInvoiceOrder> {
   const salesChannelId = opts.salesChannelId ?? randomUUID();
@@ -33,8 +35,8 @@ export async function seedInvoiceableOrder(
   // subtracts discount on the gross without extra VAT.
   const total = 6648.15 + deliveryTotal - discountTotal;
   const order = em.create(Order, {
-    organizationId: TEST_ORGANIZATION_ID,
-    placedByCustomerAccountId: TEST_CUSTOMER_ID,
+    organizationId: opts.organizationId ?? TEST_ORGANIZATION_ID,
+    placedByCustomerAccountId: opts.placedByCustomerAccountId ?? TEST_CUSTOMER_ID,
     salesChannelId,
     status: 'paid',
     paymentStatus: opts.paymentStatus ?? 'paid',
