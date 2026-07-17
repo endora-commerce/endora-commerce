@@ -47,7 +47,7 @@ describe('POST /api/v1/customers/register (US1)', () => {
     acceptedTermsVersion: 'v1',
   });
 
-  it('creates an org-less account and sets a session cookie when enabled', async () => {
+  it('creates a personal-org-backed account and sets a session cookie when enabled', async () => {
     const email = `ok-${Date.now()}@example.test`;
     const res = await h.app.inject({
       method: 'POST',
@@ -59,7 +59,9 @@ describe('POST /api/v1/customers/register (US1)', () => {
       data: { customerAccount: { email: string; organizationId: string | null } };
     };
     expect(body.data.customerAccount.email).toBe(email);
-    expect(body.data.customerAccount.organizationId).toBeNull();
+    // Feature 051 — standalone registration provisions a personal organization,
+    // so the account is always linked to a (non-null) org.
+    expect(body.data.customerAccount.organizationId).toEqual(expect.any(String));
     // Auto-login: a b2b_session cookie is set.
     const setCookie = res.headers['set-cookie'];
     const cookieStr = Array.isArray(setCookie) ? setCookie.join(';') : String(setCookie ?? '');

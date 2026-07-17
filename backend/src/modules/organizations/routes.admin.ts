@@ -714,6 +714,7 @@ function serializeOrg(o: Organization): Record<string, unknown> {
     taxId: o.taxId,
     status: o.status,
     vatStatus: o.vatStatus,
+    isPersonal: o.isPersonal,
     registeredAddress: o.registeredAddress,
     orderConfirmationEmails: o.orderConfirmationEmails ?? [],
     fulfilmentStrategy: o.fulfilmentStrategy ?? null,

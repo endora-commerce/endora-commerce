@@ -53,7 +53,7 @@ describe('Customer self-service routes (US1)', () => {
     await h.orm.close(true);
   });
 
-  it('GET /api/v1/me/customer returns the org-less profile', async () => {
+  it('GET /api/v1/me/customer returns the profile backed by a personal org (feature 051)', async () => {
     const res = await h.app.inject({
       method: 'GET',
       url: '/api/v1/me/customer',
@@ -64,7 +64,9 @@ describe('Customer self-service routes (US1)', () => {
       data: { email: string; organizationId: string | null; twoFactorEnabled: boolean };
     };
     expect(body.data.email).toBe(email);
-    expect(body.data.organizationId).toBeNull();
+    // Feature 051 — a standalone (B2C) registration is now backed by a personal
+    // organization, so organizationId is always non-null.
+    expect(body.data.organizationId).toEqual(expect.any(String));
     expect(body.data.twoFactorEnabled).toBe(false);
   });
 
@@ -73,7 +75,7 @@ describe('Customer self-service routes (US1)', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('GET /api/v1/me returns organization: null for a standalone customer (org-optional)', async () => {
+  it('GET /api/v1/me returns the personal organization for a standalone customer (feature 051)', async () => {
     const res = await h.app.inject({
       method: 'GET',
       url: '/api/v1/me',
@@ -81,10 +83,16 @@ describe('Customer self-service routes (US1)', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
-      data: { customerAccount: { organizationId: string | null }; organization: unknown | null };
+      data: {
+        customerAccount: { organizationId: string | null };
+        organization: { id: string; isPersonal?: boolean } | null;
+      };
     };
-    expect(body.data.organization).toBeNull();
-    expect(body.data.customerAccount.organizationId ?? null).toBeNull();
+    // Feature 051 — the standalone customer is backed by a single-member personal
+    // organization (isPersonal), not the legacy null-org path.
+    expect(body.data.organization).not.toBeNull();
+    expect(body.data.organization?.isPersonal).toBe(true);
+    expect(body.data.customerAccount.organizationId).toBe(body.data.organization?.id);
   });
 
   it('GET /api/v1/me/customer/orders returns an (empty) paginated list', async () => {

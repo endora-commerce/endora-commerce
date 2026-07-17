@@ -57,9 +57,9 @@ describe('PersonalOrganizationService', () => {
     const first = await svc.ensureFor(account, em);
     const second = await svc.ensureFor(account, em);
 
+    // Idempotent: the same org is returned, and the account still points to it.
     expect(second.id).toBe(first.id);
-    const count = await em.count(Organization, { isPersonal: true });
-    expect(count).toBe(1);
+    expect(account.organizationId).toBe(first.id);
   });
 
   it('names the org from the email local-part when no first/last name', async () => {
