@@ -14,6 +14,10 @@ import { registerHealthRoutes } from './modules/health_checks/routes.js';
 import type { ErrorEnvelopeOptions } from './http/error-envelope.js';
 import { initOrm, closeOrm } from './db/index.js';
 import { EventBus } from './events/bus.js';
+import fastifyPlugin from 'fastify-plugin';
+import { forkScopedEm } from './tenancy/scoped-em.js';
+import { runInTenantContext, type TenantContext } from './tenancy/tenant-context.js';
+import { resolveTenantContext, systemTenantContext } from './tenancy/resolve-tenant-context.js';
 import { authPlugin, promoteAdminActor } from './modules/auth/plugin.js';
 import { SessionService } from './modules/auth/services/session-service.js';
 import { AuditLogService } from './modules/audit_logs/services/audit-log-service.js';
@@ -212,7 +216,11 @@ function anyLabel(name: unknown): string {
 
 export async function composeApp(): Promise<ComposeAppHandle> {
   const orm = await initOrm();
-  const em = (): EntityManager => orm.em.fork() as EntityManager;
+  // Feature 050 — the single EM-injection seam. `forkScopedEm` stamps tenant
+  // filter params from the ambient TenantContext on every fork. It is inert until
+  // an entity is classified (@OrgScoped/@CustomerScoped attach the filters), so
+  // this change is behaviorally neutral for unclassified entities.
+  const em = (): EntityManager => forkScopedEm(orm);
 
   const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
   const redis = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
@@ -883,9 +891,49 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // sets it through exposeSender once built.
   let transactionalEmailSender: TransactionalEmailSender | undefined;
 
+  // Feature 050 — establish the ambient TenantContext for every request from the
+  // already-authenticated actor (never from request inputs). fp-wrapped and
+  // registered right after auth so its onRequest runs after `request.actor` is set
+  // and applies globally (mirrors the auth plugin). See specs/050-org-tenant-scoping/.
+  const tenantContextModulePlugin: ModulePlugin = async (app) => {
+    await app.register(
+      fastifyPlugin(async (inner) => {
+        const buildContext = async (request: FastifyRequest): Promise<TenantContext> => {
+          const actor = request.actor;
+          if (actor.kind === 'customer') {
+            const orgId =
+              actor.organizationId && actor.organizationId.length > 0 ? actor.organizationId : null;
+            return resolveTenantContext({
+              kind: 'customer',
+              customerAccountId: actor.customerAccountId,
+              organizationId: orgId,
+              impersonatorAdminUserId: actor.impersonatorAdminUserId,
+            });
+          }
+          if (actor.kind === 'admin') {
+            const scope = await resolveAdminOrdersScope(request);
+            return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
+          }
+          // anonymous / api_key: trusted platform read scope. Guest-owned rows are
+          // scoped by their own token mechanism, not by the tenant filter.
+          return systemTenantContext(`actor:${actor.kind}`);
+        };
+        // Callback-style hook so the AsyncLocalStorage store propagates to the
+        // route handler (async `enterWith` would not). See runInTenantContext.
+        inner.addHook('onRequest', (request: FastifyRequest, _reply, done) => {
+          buildContext(request).then(
+            (ctx) => runInTenantContext(ctx, () => done()),
+            (err: unknown) => done(err as Error),
+          );
+        });
+      }),
+    );
+  };
+
   const modules: ModulePlugin[] = [
     healthPlugin,
     authModulePlugin,
+    tenantContextModulePlugin,
     admin.plugin,
     creditLimits.plugin,
     integrations.plugin,

@@ -74,10 +74,23 @@ export function runWithTenantContext<T>(ctx: TenantContext, fn: () => Promise<T>
 }
 
 /**
- * Set the ambient context for the current async execution without wrapping a
- * callback. Used by the Fastify `onRequest` hook, which cannot wrap the whole
- * request lifecycle in a single `run(...)`.
+ * Set the ambient context for the current async execution. NOTE: when called
+ * inside an *async* Fastify hook this does not propagate to the route handler
+ * (the handler resumes in the hook's parent async context). Prefer
+ * `runInTenantContext` in the request pipeline; keep this only for synchronous
+ * top-level entrypoints (e.g. a worker process bootstrap).
  */
 export function enterTenantContext(ctx: TenantContext): void {
   storage.enterWith(ctx);
+}
+
+/**
+ * Establish `ctx` for the remainder of a Fastify request via the callback-style
+ * hook pattern: `addHook('onRequest', (req, reply, done) => runInTenantContext(ctx, done))`.
+ * Fastify invokes the next hook/handler synchronously inside `callback`, so the
+ * store propagates across the handler's awaited continuations. This is the
+ * reliable AsyncLocalStorage-with-Fastify pattern (cf. @fastify/request-context).
+ */
+export function runInTenantContext(ctx: TenantContext, callback: () => void): void {
+  storage.run(ctx, callback);
 }

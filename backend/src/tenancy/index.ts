@@ -10,6 +10,7 @@ export {
   MissingTenantContextError,
   getTenantContext,
   runWithTenantContext,
+  runInTenantContext,
   enterTenantContext,
 } from './tenant-context.js';
 export {
@@ -42,6 +43,7 @@ export {
 export {
   orgConstraintFor,
   orgScopeWhere,
+  isOrgInScope,
   ruleVisibleForScope,
   type OrgConstraint,
 } from './derived-scope.js';

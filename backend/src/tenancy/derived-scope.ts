@@ -48,6 +48,24 @@ export function orgScopeWhere(field: string, ctx?: TenantContext): Record<string
 }
 
 /**
+ * Whether the ambient scope may act on `organizationId`. Platform-admin/system
+ * see all; a single-org actor only their org; a scoped admin only assigned orgs.
+ * Use to gate writes (inserts) that the column filter cannot reach — respond
+ * indistinguishably from "not found" (FR-008) when this returns false.
+ */
+export function isOrgInScope(organizationId: string, ctx?: TenantContext): boolean {
+  const constraint = orgConstraintFor(ctx);
+  switch (constraint.kind) {
+    case 'all':
+      return true;
+    case 'single':
+      return constraint.organizationId === organizationId;
+    case 'set':
+      return constraint.organizationIds.includes(organizationId);
+  }
+}
+
+/**
  * For rule-scoped entities (price_lists): given the set of organizations a rule
  * targets, decide whether the ambient scope may see it. Platform-admin/system
  * see everything; a scoped admin sees a rule only if it targets at least one of
