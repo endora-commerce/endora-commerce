@@ -1,5 +1,6 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { randomUUID } from 'crypto';
+import { OrgScoped } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * ReturnCase — feature 046 (RMA case).
@@ -10,6 +11,7 @@ import { randomUUID } from 'crypto';
  * authorization (`${prefix}${seq}${suffix}`) and unique; `statusCode` references
  * `return_statuses.code` and is governed by the configurable workflow.
  */
+@OrgScoped()
 @Entity({ tableName: 'return_cases' })
 export class ReturnCase {
   [OptionalProps]?:
