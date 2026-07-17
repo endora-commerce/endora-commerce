@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { CustomerScoped } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,6 +7,7 @@ import { randomUUID } from 'crypto';
  * `status` drives mailability (only `active` + not suppressed is mailable).
  * `customFields` holds operator-defined values keyed by NewsletterCustomField.key.
  */
+@CustomerScoped()
 @Entity({ tableName: 'newsletter_subscribers' })
 export class NewsletterSubscriber {
   [OptionalProps]?:
