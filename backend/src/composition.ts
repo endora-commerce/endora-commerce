@@ -1326,6 +1326,21 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   registerCmsAssetReferences(assetsLibrary.handle.referenceRegistry, em);
   registerMegamenuAssetReferences(assetsLibrary.handle.referenceRegistry, em);
 
+  cms.handle.setAssetResolver(async (assetId) => {
+    try {
+      const detail = await assetsLibrary.handle.service.getAsset(assetId);
+      return {
+        url: detail.url,
+        mimeType: detail.mimeType,
+        filename: detail.filename,
+        label: detail.label ?? null,
+        visibility: detail.visibility,
+      };
+    } catch {
+      return null;
+    }
+  });
+
   // Feature 046 — PWA module. Owns the installable-app control plane (over the
   // Settings module), the push-subscription registry, the provider-agnostic
   // push fan-out (BullMQ; co-located unless BACKEND_ROLE=api), and the icon

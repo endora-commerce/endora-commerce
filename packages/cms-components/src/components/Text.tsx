@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { type ComponentConfig, type PuckComponent } from '@measured/puck';
 import {
   resolveTextAlignForTier,
@@ -17,15 +18,28 @@ import {
   DEFAULT_BOX_PROPS,
   TEXT_TYPOGRAPHY_FIELDS,
 } from '../fields/shared-fields.js';
-import { resolveTextContent } from './text-content.js';
+import { resolveTextContent, type LegacyTextSource } from './text-content.js';
 import { editingTypographyStyle, responsiveTypographyVars, typographyStyle } from './typography.js';
 
 const TEXT_DEFAULTS = { fontSize: 16, fontWeight: 400, lineHeight: 1.65 };
 
+/**
+ * In the editor, Puck's contentEditable transform replaces string `text` with an
+ * InlineTextField React node. That must be rendered as-is — resolveTextContent()
+ * would coerce it to '' and leave the canvas stuck on legacy/html fallback.
+ */
+function resolveEditingTextContent(props: LegacyTextSource) {
+  const { text, html, tiptapContent } = props;
+  if (typeof text !== 'string' && text != null) {
+    return text as ReactNode;
+  }
+  return resolveTextContent({ text, html, tiptapContent }) || 'Body copy';
+}
+
 const TextEditingRender: PuckComponent<TextProps> = (props) => {
   const tier = usePreviewBreakpointTier();
   const { text, html, tiptapContent, textAlign, ...box } = props;
-  const resolvedText = resolveTextContent({ text, html, tiptapContent });
+  const resolvedText = resolveEditingTextContent({ text, html, tiptapContent });
   const alignAttrs = textAlignDataAttrs(textAlign, 'left');
 
   return (
@@ -43,7 +57,7 @@ const TextEditingRender: PuckComponent<TextProps> = (props) => {
         }}
         {...alignAttrs}
       >
-        {resolvedText || 'Body copy'}
+        {resolvedText}
       </p>
     </BoxStyled>
   );

@@ -1,5 +1,6 @@
 import {
   createBorderField,
+  createBackgroundField,
   createColorField,
   createSpacingField,
   DEFAULT_BORDER,
@@ -10,7 +11,7 @@ import {
 export const BOX_MARGIN_FIELD = createSpacingField({ label: 'Outer spacing' });
 export const BOX_PADDING_FIELD = createSpacingField({ label: 'Inner spacing' });
 export const BOX_BORDER_FIELD = createBorderField();
-export const BACKGROUND_FIELD = createColorField({ label: 'Background' });
+export const BACKGROUND_FIELD = createBackgroundField({ label: 'Background' });
 export const TEXT_COLOR_FIELD = createColorField({ label: 'Color' });
 
 export const CORNER_RADIUS_FIELD = {
@@ -51,7 +52,7 @@ export const DEFAULT_LAYOUT_BOX_PROPS = {
   margin: DEFAULT_SPACING,
   padding: DEFAULT_LAYOUT_PADDING,
   border: DEFAULT_BORDER,
-  background: 'transparent',
+  background: { kind: 'none' as const },
   cornerRadius: 'none' as const,
   shadow: 'none' as const,
 };
@@ -60,7 +61,7 @@ export const DEFAULT_BOX_PROPS = {
   margin: DEFAULT_CONTENT_MARGIN,
   padding: DEFAULT_SPACING,
   border: DEFAULT_BORDER,
-  background: 'transparent',
+  background: { kind: 'none' as const },
   cornerRadius: 'none' as const,
   shadow: 'none' as const,
 };

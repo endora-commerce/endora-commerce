@@ -17,6 +17,10 @@ import { estimateCategoryListSkeletonCount } from '../utils/catalog-skeleton-est
 import { CategoryListSkeleton } from './catalog/CatalogSkeletons.js';
 import { resolveCategorySelectionFields } from '../fields/catalog-resolve-fields.js';
 import { CATALOG_DATA_FIELD_META } from '../fields/catalog-data-fields.js';
+import {
+  createCatalogSlugFallbackField,
+  createCatalogSlugsFallbackField,
+} from '../fields/catalog-fallback-fields.js';
 
 const CategoryListRender: PuckComponent<CategoryListProps> = (props) => {
   const {
@@ -99,8 +103,8 @@ const categoryListConfig: ComponentConfig<CategoryListProps> = {
         { label: 'Children of parent', value: 'childrenOf' },
       ],
     },
-    categorySlugs: { type: 'text', label: 'Category slugs (comma-separated)', metadata: CATALOG_DATA_FIELD_META },
-    parentSlug: { type: 'text', label: 'Parent category slug', metadata: CATALOG_DATA_FIELD_META },
+    categorySlugs: createCatalogSlugsFallbackField('Categories'),
+    parentSlug: createCatalogSlugFallbackField('Parent category'),
     layout: {
       type: 'select',
       label: 'Layout',

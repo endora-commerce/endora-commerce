@@ -24,6 +24,10 @@ import { estimateCategoryGridSkeletonCount } from '../utils/catalog-skeleton-est
 import { CategoryGridSkeleton } from './catalog/CatalogSkeletons.js';
 import { resolveCategorySelectionFields } from '../fields/catalog-resolve-fields.js';
 import { CATALOG_DATA_FIELD_META } from '../fields/catalog-data-fields.js';
+import {
+  createCatalogSlugFallbackField,
+  createCatalogSlugsFallbackField,
+} from '../fields/catalog-fallback-fields.js';
 
 function CategoryGridBody({
   props,
@@ -44,6 +48,7 @@ function CategoryGridBody({
     cardStyle = 'stacked',
     showCounts = true,
     maxDepth,
+    equalItemHeight = true,
     puck: _puck,
     ...box
   } = props;
@@ -93,7 +98,12 @@ function CategoryGridBody({
         </p>
       ) : (
         <ul
-          className={`cmsc-pb-category-grid cmsc-pb-category-grid--${cardStyle}`}
+          className={[
+            `cmsc-pb-category-grid cmsc-pb-category-grid--${cardStyle}`,
+            equalItemHeight ? 'cmsc-pb-category-grid--equal-height' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
           style={{ gap: `${gapPx}px`, gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}
         >
           {items.map((cat) => (
@@ -132,9 +142,14 @@ const categoryGridConfig: ComponentConfig<CategoryGridProps> = {
         { label: 'Children of parent', value: 'childrenOf' },
       ],
     },
-    categorySlugs: { type: 'text', label: 'Category slugs (comma-separated)', metadata: CATALOG_DATA_FIELD_META },
-    parentSlug: { type: 'text', label: 'Parent category slug', metadata: CATALOG_DATA_FIELD_META },
+    categorySlugs: createCatalogSlugsFallbackField('Categories'),
+    parentSlug: createCatalogSlugFallbackField('Parent category'),
     columns: { type: 'number', label: 'Columns', min: 2, max: 6, metadata: PB_RESPONSIVE_METADATA },
+    equalItemHeight: {
+      type: 'radio',
+      label: 'Equal items height',
+      options: [{ label: 'Yes', value: true }, { label: 'No', value: false }],
+    },
     gap: { type: 'number', label: 'Gap (px)', min: 0, max: 48, metadata: PB_RESPONSIVE_METADATA },
     showImage: { type: 'radio', label: 'Show image placeholder', options: [{ label: 'Yes', value: true }, { label: 'No', value: false }] },
     cardStyle: {
@@ -161,6 +176,7 @@ const categoryGridConfig: ComponentConfig<CategoryGridProps> = {
     showImage: true,
     cardStyle: 'stacked',
     showCounts: true,
+    equalItemHeight: true,
     ...DEFAULT_BOX_PROPS,
   },
   render: (props) =>

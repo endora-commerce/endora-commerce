@@ -6,6 +6,9 @@ import {
   resolveResponsiveNumber,
   withHideOn,
 } from '@b2b/page-builder-core';
+import { getSlotZoneItemCount } from '@b2b/page-builder-core/editor/puck-guards';
+import { useEditorCarouselPage } from '@b2b/page-builder-core/editor/carousel-preview';
+import { usePageBuilderPuck } from '@b2b/page-builder-core/editor/use-page-builder-puck';
 import { usePreviewBreakpointTier } from '@b2b/page-builder-core/client';
 import type { ContentSliderProps } from '../schema/component-types.js';
 import { useViewportBreakpointTier } from '../hooks/use-viewport-breakpoint-tier.js';
@@ -15,8 +18,14 @@ import {
   BOX_MARGIN_FIELD,
   BOX_PADDING_FIELD,
   DEFAULT_BOX_PROPS,
+  DEFAULT_LAYOUT_PADDING,
 } from '../fields/shared-fields.js';
 import { CarouselShell } from './carousel/CarouselShell.js';
+import { CONTENT_SLIDER_SLOT_EDIT_PROPS } from '../editor/slot-edit-props.js';
+
+function slidesPerViewForTier(_tier: 'mobile' | 'tablet' | 'desktop'): number {
+  return 1;
+}
 
 const ContentSliderEditingRender: PuckComponent<ContentSliderProps> = (props) => {
   const tier = usePreviewBreakpointTier();
@@ -28,12 +37,17 @@ const ContentSliderEditingRender: PuckComponent<ContentSliderProps> = (props) =>
     intervalMs = 5000,
     showArrows = true,
     showDots = true,
-    equalHeight = false,
+    equalHeight = true,
     ...box
   } = props;
-  const perView = resolveResponsiveNumber(slidesPerView, tier, 1);
+  const perView = Math.max(1, Math.round(resolveResponsiveNumber(slidesPerView, tier, slidesPerViewForTier(tier))));
   const gapPx = resolveResponsiveNumber(gap, tier, 16);
-  const Slot = Slides as React.ComponentType;
+  const Slot = Slides as React.ComponentType<typeof CONTENT_SLIDER_SLOT_EDIT_PROPS>;
+  const sliderId = props.id;
+  const previewPage = useEditorCarouselPage(sliderId);
+  const editorSlideCount = usePageBuilderPuck((state) =>
+    getSlotZoneItemCount(state.appState.data, `${sliderId}:slides`),
+  );
 
   return (
     <BoxStyled {...box} previewTier={tier}>
@@ -46,8 +60,12 @@ const ContentSliderEditingRender: PuckComponent<ContentSliderProps> = (props) =>
         showDots={showDots}
         equalHeight={equalHeight}
         slotMode
+        editorPreview
+        previewPage={previewPage}
+        editorCarouselId={sliderId}
+        editorSlideCount={editorSlideCount}
       >
-        <Slot />
+        <Slot {...CONTENT_SLIDER_SLOT_EDIT_PROPS} />
       </CarouselShell>
     </BoxStyled>
   );
@@ -63,12 +81,12 @@ const ContentSliderPublishedRender: PuckComponent<ContentSliderProps> = (props) 
     intervalMs = 5000,
     showArrows = true,
     showDots = true,
-    equalHeight = false,
+    equalHeight = true,
     ...box
   } = props;
-  const perView = resolveResponsiveNumber(slidesPerView, tier, 1);
+  const perView = Math.max(1, Math.round(resolveResponsiveNumber(slidesPerView, tier, slidesPerViewForTier(tier))));
   const gapPx = resolveResponsiveNumber(gap, tier, 16);
-  const Slot = Slides as React.ComponentType;
+  const Slot = Slides as React.ComponentType<{ className?: string }>;
 
   return (
     <BoxStyled {...box}>
@@ -82,7 +100,7 @@ const ContentSliderPublishedRender: PuckComponent<ContentSliderProps> = (props) 
         equalHeight={equalHeight}
         slotMode
       >
-        <Slot />
+        <Slot className="cmsc-pb-content-slider-slot" />
       </CarouselShell>
     </BoxStyled>
   );
@@ -94,15 +112,24 @@ const contentSliderConfig: ComponentConfig<ContentSliderProps> = {
     slides: {
       type: 'slot',
       label: 'Slides',
-      disallow: ['Row', 'Column'],
+      // Row is accepted then wrapped into a Slide by the page-builder onAction handler.
+      allow: ['Slide', 'Row'],
+      disallow: ['Column', 'ContentSlider'],
     },
     slidesPerView: {
-      type: 'number',
+      type: 'select',
       label: 'Slides per view',
-      min: 1,
-      max: 4,
-      step: 0.1,
       metadata: PB_RESPONSIVE_METADATA,
+      options: [
+        { label: '1', value: 1 },
+        { label: '2', value: 2 },
+        { label: '3', value: 3 },
+        { label: '4', value: 4 },
+        { label: '5', value: 5 },
+        { label: '6', value: 6 },
+        { label: '7', value: 7 },
+        { label: '8', value: 8 },
+      ],
     },
     gap: {
       type: 'number',
@@ -132,8 +159,9 @@ const contentSliderConfig: ComponentConfig<ContentSliderProps> = {
     intervalMs: 5000,
     showArrows: true,
     showDots: true,
-    equalHeight: false,
+    equalHeight: true,
     ...DEFAULT_BOX_PROPS,
+    padding: DEFAULT_LAYOUT_PADDING,
   },
   render: (props) =>
     props.puck?.isEditing ? (

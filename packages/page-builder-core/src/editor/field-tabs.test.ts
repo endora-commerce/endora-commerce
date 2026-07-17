@@ -2,10 +2,11 @@ import { createElement } from 'react';
 import { describe, expect, it } from 'vitest';
 import {
   componentHasDataFields,
+  componentHasItemsFields,
   componentHasResponsiveFields,
   fieldTabForName,
 } from '../editor/field-tabs.js';
-import { PB_DATA_METADATA, PB_RESPONSIVE_METADATA } from '../types/responsive.js';
+import { PB_DATA_METADATA, PB_ITEMS_METADATA, PB_RESPONSIVE_METADATA } from '../types/responsive.js';
 
 describe('fieldTabForName', () => {
   it('routes editor chrome to general', () => {
@@ -35,6 +36,30 @@ describe('fieldTabForName', () => {
       componentHasResponsiveFields({
         background: { type: 'text', label: 'Background' },
         gap: { type: 'number', label: 'Gap', metadata: PB_RESPONSIVE_METADATA },
+      }),
+    ).toBe(true);
+  });
+
+  it('routes items metadata fields to items tab', () => {
+    expect(
+      fieldTabForName('items', {
+        type: 'array',
+        label: 'Slides',
+        arrayFields: {},
+        metadata: PB_ITEMS_METADATA,
+      }),
+    ).toBe('items');
+  });
+
+  it('detects items fields on a component', () => {
+    expect(
+      componentHasItemsFields({
+        items: {
+          type: 'array',
+          label: 'Slides',
+          arrayFields: {},
+          metadata: PB_ITEMS_METADATA,
+        },
       }),
     ).toBe(true);
   });

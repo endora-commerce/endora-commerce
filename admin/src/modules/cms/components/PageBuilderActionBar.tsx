@@ -21,9 +21,12 @@ import {
   type RowLayoutPresetId,
 } from '@b2b/cms-components/editor/row-layout-presets';
 import type { RowProps } from '@b2b/cms-components/schema/component-types';
-import { usePageBuilderPuck } from '@b2b/page-builder-core/editor';
+import { usePageBuilderPuck, resolveContentSliderIdForItem } from '@b2b/page-builder-core/editor';
 import { useActionBarTarget } from './action-bar-target';
 import { QuickTooltip, wrapQuickTooltip } from './QuickTooltip';
+import { ContentSliderActionBarExtras } from './ContentSliderActionBarExtras';
+import { SliderPreviewActionBarExtras } from './SliderPreviewActionBarExtras';
+import { isPuckItemType, safeGetPuckItem } from './puck-safe';
 
 function RowLayoutFlyout({
   anchorRef,
@@ -170,6 +173,39 @@ export function PageBuilderActionBar({
     label === 'Row' ? (target?.type === 'Row' ? target.id : selectedRowId) : null;
   const showRowExtras = Boolean(rowId);
 
+  const getSelectorForId = usePageBuilderPuck((s) => s.getSelectorForId);
+  const getItemById = usePageBuilderPuck((s) => s.getItemById);
+
+  const resolveCarouselId = (type: string, id: string | null | undefined): string | null => {
+    const item = safeGetPuckItem(getItemById, id);
+    return isPuckItemType(item, type) ? id! : null;
+  };
+
+  const contentSliderId = ((): string | null => {
+    if (target?.type === 'ContentSlider') return resolveCarouselId('ContentSlider', target.id);
+    if (selectedItem?.type === 'ContentSlider' && typeof selectedItem.props.id === 'string') {
+      return resolveCarouselId('ContentSlider', selectedItem.props.id);
+    }
+    const selectedId = selectedItem?.props.id;
+    if (typeof selectedId !== 'string') return null;
+    const nestedSliderId = resolveContentSliderIdForItem(selectedId, getSelectorForId, getItemById);
+    return nestedSliderId ? resolveCarouselId('ContentSlider', nestedSliderId) : null;
+  })();
+
+  const imageSliderId =
+    target?.type === 'ImageSlider'
+      ? resolveCarouselId('ImageSlider', target.id)
+      : selectedItem?.type === 'ImageSlider' && typeof selectedItem.props.id === 'string'
+        ? resolveCarouselId('ImageSlider', selectedItem.props.id)
+        : null;
+
+  const productSliderId =
+    target?.type === 'ProductSlider'
+      ? resolveCarouselId('ProductSlider', target.id)
+      : selectedItem?.type === 'ProductSlider' && typeof selectedItem.props.id === 'string'
+        ? resolveCarouselId('ProductSlider', selectedItem.props.id)
+        : null;
+
   return (
     <ActionBar>
       <ActionBar.Group>
@@ -177,6 +213,17 @@ export function PageBuilderActionBar({
         {label ? <ActionBar.Label label={label} /> : null}
         {showRowExtras ? <RowActionBarExtras rowId={rowId!} /> : null}
       </ActionBar.Group>
+      {contentSliderId || imageSliderId || productSliderId ? (
+        <ActionBar.Group>
+          {contentSliderId ? <ContentSliderActionBarExtras sliderId={contentSliderId} /> : null}
+          {imageSliderId ? (
+            <SliderPreviewActionBarExtras carouselId={imageSliderId} type="ImageSlider" />
+          ) : null}
+          {productSliderId ? (
+            <SliderPreviewActionBarExtras carouselId={productSliderId} type="ProductSlider" />
+          ) : null}
+        </ActionBar.Group>
+      ) : null}
       <ActionBar.Group>
         {Children.map(children, (child, index) => wrapQuickTooltip(child, `action-${index}`))}
       </ActionBar.Group>

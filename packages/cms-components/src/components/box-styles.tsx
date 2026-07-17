@@ -4,10 +4,12 @@ import type { CSSProperties, ReactNode } from 'react';
 import {
   CORNER_RADIUS_PX,
   SHADOW_CSS,
+  backgroundToStyle,
   borderStyleForTier,
   buildResponsiveBorderVars,
   buildResponsiveSpacingVars,
   spacingStyleForTier,
+  type BackgroundProp,
   type BorderValue,
   type BreakpointTier,
   type CornerRadius,
@@ -15,12 +17,14 @@ import {
   type Shadow,
   type SpacingValue,
 } from '@b2b/page-builder-core';
+import { useCmsRenderAssets, useCmsRenderMediaBaseUrl } from './render-context.js';
+import { absolutizeMediaUrl } from '../utils/resolve-image-url.js';
 
 export interface BoxStyledProps {
   margin?: SpacingValue | ResponsiveProp<SpacingValue>;
   padding?: SpacingValue | ResponsiveProp<SpacingValue>;
   border?: BorderValue | ResponsiveProp<BorderValue>;
-  background?: string;
+  background?: BackgroundProp;
   cornerRadius?: CornerRadius;
   shadow?: Shadow;
   children: ReactNode;
@@ -31,44 +35,60 @@ export interface BoxStyledProps {
   rowSection?: string;
 }
 
-function appearanceStyle(props: {
-  background?: string;
-  cornerRadius?: CornerRadius;
-  shadow?: Shadow;
-}): CSSProperties {
-  const style: CSSProperties = {};
-  if (props.background && props.background !== 'transparent') {
-    style.background = props.background;
-  }
+function appearanceStyle(
+  props: {
+    background?: BackgroundProp;
+    cornerRadius?: CornerRadius;
+    shadow?: Shadow;
+  },
+  assets: Record<string, { url: string }>,
+  mediaBaseUrl?: string,
+): { style: CSSProperties; videoUrl?: string } {
+  const { style, videoUrl } = backgroundToStyle(props.background, assets, mediaBaseUrl);
+  const next: CSSProperties = { ...style };
   if (props.cornerRadius) {
-    style.borderRadius = `${CORNER_RADIUS_PX[props.cornerRadius]}px`;
+    next.borderRadius = `${CORNER_RADIUS_PX[props.cornerRadius]}px`;
   }
   if (props.shadow) {
-    style.boxShadow = SHADOW_CSS[props.shadow];
+    next.boxShadow = SHADOW_CSS[props.shadow];
   }
-  return style;
+  return { style: next, ...(videoUrl ? { videoUrl } : {}) };
 }
 
-function publishedBoxStyle(props: Omit<BoxStyledProps, 'children' | 'className' | 'previewTier'>): CSSProperties {
+function publishedBoxStyle(
+  props: Omit<BoxStyledProps, 'children' | 'className' | 'previewTier'>,
+  assets: Record<string, { url: string }>,
+  mediaBaseUrl?: string,
+): { style: CSSProperties; videoUrl?: string } {
+  const { style, videoUrl } = appearanceStyle(props, assets, mediaBaseUrl);
   return {
-    ...appearanceStyle(props),
-    ...buildResponsiveSpacingVars('margin', props.margin),
-    ...buildResponsiveSpacingVars('padding', props.padding),
-    ...buildResponsiveBorderVars(props.border),
-    ...props.style,
+    style: {
+      ...style,
+      ...buildResponsiveSpacingVars('margin', props.margin),
+      ...buildResponsiveSpacingVars('padding', props.padding),
+      ...buildResponsiveBorderVars(props.border),
+      ...props.style,
+    },
+    ...(videoUrl ? { videoUrl } : {}),
   };
 }
 
 function editingBoxStyle(
   props: Omit<BoxStyledProps, 'children' | 'className' | 'previewTier'>,
   tier: BreakpointTier,
-): CSSProperties {
+  assets: Record<string, { url: string }>,
+  mediaBaseUrl?: string,
+): { style: CSSProperties; videoUrl?: string } {
+  const { style, videoUrl } = appearanceStyle(props, assets, mediaBaseUrl);
   return {
-    ...appearanceStyle(props),
-    ...spacingStyleForTier(props.margin, tier, 'margin'),
-    ...spacingStyleForTier(props.padding, tier, 'padding'),
-    ...borderStyleForTier(props.border, tier),
-    ...props.style,
+    style: {
+      ...style,
+      ...spacingStyleForTier(props.margin, tier, 'margin'),
+      ...spacingStyleForTier(props.padding, tier, 'padding'),
+      ...borderStyleForTier(props.border, tier),
+      ...props.style,
+    },
+    ...(videoUrl ? { videoUrl } : {}),
   };
 }
 
@@ -85,6 +105,8 @@ export function BoxStyled({
   shadow,
   rowSection,
 }: BoxStyledProps): React.ReactElement {
+  const assets = useCmsRenderAssets();
+  const mediaBaseUrl = useCmsRenderMediaBaseUrl();
   const boxClasses = [
     className,
     previewTier === undefined ? 'cmsc-pb-margin cmsc-pb-padding cmsc-pb-border' : '',
@@ -102,18 +124,29 @@ export function BoxStyled({
     ...(style !== undefined ? { style } : {}),
   };
 
-  const computedStyle =
+  const computed =
     previewTier !== undefined
-      ? editingBoxStyle(boxProps, previewTier)
-      : publishedBoxStyle(boxProps);
+      ? editingBoxStyle(boxProps, previewTier, assets, mediaBaseUrl)
+      : publishedBoxStyle(boxProps, assets, mediaBaseUrl);
 
   return (
     <div
       className={boxClasses || undefined}
-      style={computedStyle}
+      style={computed.style}
       {...(rowSection ? { 'data-row-section': rowSection } : {})}
     >
-      {children}
+      {computed.videoUrl ? (
+        <video
+          className="cmsc-pb-bg-video"
+          src={absolutizeMediaUrl(computed.videoUrl, mediaBaseUrl)}
+          autoPlay
+          muted
+          loop
+          playsInline
+          aria-hidden
+        />
+      ) : null}
+      <div className="cmsc-pb-bg-content">{children}</div>
     </div>
   );
 }

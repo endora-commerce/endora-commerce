@@ -11,6 +11,7 @@ import { Column } from './components/Column.js';
 import { ContentSlider } from './components/ContentSlider.js';
 import { Heading } from './components/Heading.js';
 import { Image } from './components/Image.js';
+import { ImageSlider } from './components/ImageSlider.js';
 import { InsertBlock } from './components/InsertBlock.js';
 import { InsertTemplate } from './components/InsertTemplate.js';
 import { Map } from './components/Map.js';
@@ -22,6 +23,7 @@ import { RawHtml } from './components/RawHtml.js';
 import { RawJs } from './components/RawJs.js';
 import { RichContent } from './components/RichContent.js';
 import { Row } from './components/Row.js';
+import { Slide } from './components/Slide.js';
 import { Tabs } from './components/Tabs.js';
 import { Text } from './components/Text.js';
 import { Video } from './components/Video.js';
@@ -34,6 +36,7 @@ export * from './components/Column.js';
 export * from './components/ContentSlider.js';
 export * from './components/Heading.js';
 export * from './components/Image.js';
+export * from './components/ImageSlider.js';
 export * from './components/InsertBlock.js';
 export * from './components/InsertTemplate.js';
 export * from './components/Map.js';
@@ -45,6 +48,7 @@ export * from './components/RawHtml.js';
 export * from './components/RawJs.js';
 export * from './components/RichContent.js';
 export * from './components/Row.js';
+export * from './components/Slide.js';
 export * from './components/Tabs.js';
 export * from './components/Text.js';
 export * from './components/Video.js';
@@ -54,7 +58,7 @@ export * from './components/catalog-preview-context.js';
 export * from './components/box-styles.js';
 export * from './schema/component-types.js';
 export * from './schema/catalog-types.js';
-export * from './schema/envelope.js';
+export * from './utils/walk-asset-ids.js';
 
 export const defaultPageBuilderConfig: Config = {
   categories: {
@@ -78,7 +82,13 @@ export const defaultPageBuilderConfig: Config = {
     },
     interactive: {
       title: 'Interactive',
-      components: ['ContentSlider', 'Tabs', 'Accordion'],
+      components: ['ContentSlider', 'ImageSlider', 'Tabs', 'Accordion'],
+    },
+    /** Hidden drawer category — keeps internal slot-only components out of "Other". */
+    _internal: {
+      title: 'Internal',
+      components: ['Column', 'Slide'],
+      visible: false,
     },
     advanced: {
       title: 'Advanced',
@@ -173,6 +183,16 @@ export const defaultPageBuilderConfig: Config = {
     }),
     ContentSlider: definePageBuilderComponent({
       ...(ContentSlider as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['slidesPerView', 'gap', 'margin', 'padding', 'border'],
+    }),
+    Slide: definePageBuilderComponent({
+      ...(Slide as unknown as ComponentConfig),
+      contexts: ['cms'],
+      responsiveFields: ['margin', 'padding', 'border'],
+    }),
+    ImageSlider: definePageBuilderComponent({
+      ...(ImageSlider as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['slidesPerView', 'gap', 'margin', 'padding', 'border'],
     }),

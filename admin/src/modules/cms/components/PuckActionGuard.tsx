@@ -2,7 +2,7 @@
 
 import { useEffect, type MutableRefObject, type ReactElement } from 'react';
 import type { AppState, Data, OnAction, PuckAction } from '@measured/puck';
-import { shouldRevertPuckAction } from '@b2b/page-builder-core/editor';
+import { shouldRevertPuckAction, EditorCarouselPreviewBridge } from '@b2b/page-builder-core/editor';
 import { usePageBuilderPuck } from '@b2b/page-builder-core/editor';
 
 /** Captures Puck `dispatch` for the parent editor shell. */
@@ -31,6 +31,7 @@ export function createPuckActionHandler(
       });
       return;
     }
+
     handler?.(action, appState, prevAppState);
   };
 }
@@ -45,6 +46,7 @@ export function PuckDispatchBridgeSlot({
   return (
     <>
       <PuckDispatchBridge dispatchRef={dispatchRef} />
+      <EditorCarouselPreviewBridge />
       {children}
     </>
   );

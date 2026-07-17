@@ -109,6 +109,9 @@ export const PB_RESPONSIVE_METADATA = { pageBuilder: { responsive: true as const
 /** Puck field metadata flag — marks a field for the Data settings tab (source, filters, etc.). */
 export const PB_DATA_METADATA = { pageBuilder: { data: true as const } };
 
+/** Puck field metadata flag — marks a field for the Items settings tab (slide/item lists). */
+export const PB_ITEMS_METADATA = { pageBuilder: { items: true as const } };
+
 export function isResponsiveField(field: { metadata?: unknown }): boolean {
   const meta = field.metadata as { pageBuilder?: { responsive?: boolean } } | undefined;
   return meta?.pageBuilder?.responsive === true;
@@ -117,4 +120,9 @@ export function isResponsiveField(field: { metadata?: unknown }): boolean {
 export function isDataField(field: { metadata?: unknown }): boolean {
   const meta = field.metadata as { pageBuilder?: { data?: boolean } } | undefined;
   return meta?.pageBuilder?.data === true;
+}
+
+export function isItemsField(field: { metadata?: unknown }): boolean {
+  const meta = field.metadata as { pageBuilder?: { items?: boolean } } | undefined;
+  return meta?.pageBuilder?.items === true;
 }

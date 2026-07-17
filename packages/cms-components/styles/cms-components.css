@@ -700,14 +700,39 @@
 .cmsc-pb-carousel__track--slot {
   overflow-x: auto;
 }
-.cmsc-pb-carousel__track--slot [data-puck-dropzone] {
+/*
+ * Slot / published Content Slider: Puck wraps slides in one root under the track.
+ * Make that root a horizontal flex row; only direct children are slides (not nested
+ * Slide content dropzones — those are deeper than `> * > *`).
+ */
+.cmsc-pb-carousel__track--slot > * {
   display: flex;
-  gap: 16px;
-  min-width: min-content;
+  gap: var(--slide-gap, 16px);
+  min-width: 100%;
+  width: max-content;
+  box-sizing: border-box;
 }
-.cmsc-pb-carousel__track--slot [data-puck-dropzone] > * {
-  flex: 0 0 var(--slide-basis, 100%);
+.cmsc-pb-carousel__track--slot > * > * {
+  flex: 0 0 var(--slide-stride, var(--slide-basis, 100%));
   scroll-snap-align: start;
+  min-width: 0;
+  box-sizing: border-box;
+}
+/* Editor dropzone for slides zone (same layout; more specific attr still OK). */
+.cmsc-pb-carousel__track--slot [data-puck-dropzone$=":slides"],
+.cmsc-pb-carousel__track--slot .cmsc-pb-content-slider-slot {
+  display: flex;
+  gap: var(--slide-gap, 16px);
+  min-width: 100%;
+  width: max-content;
+  box-sizing: border-box;
+}
+.cmsc-pb-carousel__track--slot [data-puck-dropzone$=":slides"] > *,
+.cmsc-pb-carousel__track--slot .cmsc-pb-content-slider-slot > * {
+  flex: 0 0 var(--slide-stride, var(--slide-basis, 100%));
+  scroll-snap-align: start;
+  min-width: 0;
+  box-sizing: border-box;
 }
 .cmsc-pb-carousel__slide {
   scroll-snap-align: start;
@@ -716,7 +741,7 @@
 .cmsc-pb-carousel__arrow {
   position: absolute;
   top: 50%;
-  z-index: 2;
+  z-index: 12;
   transform: translateY(-50%);
   width: 36px;
   height: 36px;
@@ -734,6 +759,8 @@
   justify-content: center;
   gap: 8px;
   margin-top: 12px;
+  position: relative;
+  z-index: 12;
 }
 .cmsc-pb-carousel__dot {
   width: 8px;
@@ -749,11 +776,15 @@
 }
 
 .cmsc-pb-carousel--equal-height .cmsc-pb-carousel__track,
-.cmsc-pb-carousel--equal-height .cmsc-pb-carousel__track--slot [data-puck-dropzone] {
+.cmsc-pb-carousel--equal-height .cmsc-pb-carousel__track--slot > *,
+.cmsc-pb-carousel--equal-height .cmsc-pb-carousel__track--slot [data-puck-dropzone$=":slides"],
+.cmsc-pb-carousel--equal-height .cmsc-pb-carousel__track--slot .cmsc-pb-content-slider-slot {
   align-items: stretch;
 }
 .cmsc-pb-carousel--equal-height .cmsc-pb-carousel__slide,
-.cmsc-pb-carousel--equal-height .cmsc-pb-carousel__track--slot [data-puck-dropzone] > * {
+.cmsc-pb-carousel--equal-height .cmsc-pb-carousel__track--slot > * > *,
+.cmsc-pb-carousel--equal-height .cmsc-pb-carousel__track--slot [data-puck-dropzone$=":slides"] > *,
+.cmsc-pb-carousel--equal-height .cmsc-pb-carousel__track--slot .cmsc-pb-content-slider-slot > * {
   display: flex;
   flex-direction: column;
   align-self: stretch;
@@ -764,6 +795,140 @@
 }
 .cmsc-pb-carousel--equal-height .cmsc-pb-product-card__body {
   flex: 1 1 auto;
+}
+
+.cmsc-pb-carousel--editor-preview .cmsc-pb-carousel__viewport {
+  overflow: hidden;
+}
+.cmsc-pb-carousel--editor-preview .cmsc-pb-carousel__track {
+  overflow-x: hidden;
+  scroll-snap-type: none;
+}
+/* Editor: keep a single full-width *Slide* visible (not nested content). */
+.cmsc-pb-carousel--editor-preview .cmsc-pb-carousel__track--slot > *,
+.cmsc-pb-carousel--editor-preview .cmsc-pb-carousel__track--slot [data-puck-dropzone$=":slides"],
+.cmsc-pb-carousel--editor-preview .cmsc-pb-carousel__track--slot .cmsc-pb-content-slider-slot {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  transform: none !important;
+}
+.cmsc-pb-carousel--editor-preview .cmsc-pb-carousel__track--slot > * > *,
+.cmsc-pb-carousel--editor-preview .cmsc-pb-carousel__track--slot [data-puck-dropzone$=":slides"] > *,
+.cmsc-pb-carousel--editor-preview .cmsc-pb-carousel__track--slot .cmsc-pb-content-slider-slot > * {
+  flex: 0 0 100%;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.cmsc-pb-carousel--editor-preview .cmsc-pb-carousel__slide {
+  flex: 0 0 100%;
+  width: 100%;
+  max-width: 100%;
+}
+
+.cmsc-pb-carousel--editor-preview .cmsc-pb-carousel__dots {
+  position: relative;
+  z-index: 4;
+  pointer-events: auto;
+}
+.cmsc-pb-carousel--editor-preview .cmsc-pb-carousel__dot {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* ── Image slider ─────────────────────────────────────────────────── */
+.cmsc-pb-image-slider__slide {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #f1f5f9;
+}
+.cmsc-pb-image-slider__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 180px;
+  object-fit: cover;
+}
+.cmsc-pb-image-slider__placeholder {
+  display: flex;
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+.cmsc-pb-image-slider__title {
+  position: absolute;
+  z-index: 1;
+  max-width: calc(100% - 24px);
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgb(15 23 42 / 72%);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.cmsc-pb-image-slider__title--top-left { top: 12px; left: 12px; }
+.cmsc-pb-image-slider__title--top-center { top: 12px; left: 50%; transform: translateX(-50%); text-align: center; }
+.cmsc-pb-image-slider__title--top-right { top: 12px; right: 12px; text-align: right; }
+.cmsc-pb-image-slider__title--center { top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+.cmsc-pb-image-slider__title--bottom-left { bottom: 12px; left: 12px; }
+.cmsc-pb-image-slider__title--bottom-center { bottom: 12px; left: 50%; transform: translateX(-50%); text-align: center; }
+.cmsc-pb-image-slider__title--bottom-right { bottom: 12px; right: 12px; text-align: right; }
+
+.cmsc-pb-slide {
+  min-height: 0;
+}
+
+/* Content slider — editor canvas: no forced min-height on the slides zone. */
+.cmsc-pb-carousel--editor-preview .cmsc-pb-content-slider-slot,
+.cmsc-pb-carousel--editor-preview [data-puck-dropzone$=":slides"] {
+  min-height: 0;
+}
+.cmsc-pb-carousel--editor-preview .cmsc-pb-slide--editing {
+  padding: 12px;
+  border: 1px dashed #94a3b8;
+  border-radius: 8px;
+  background: #f8fafc;
+  box-sizing: border-box;
+  min-height: 0;
+}
+/* Only the Slide's own content slot — never nested Row/Column :content zones. */
+.cmsc-pb-carousel--editor-preview .cmsc-pb-slide--editing .cmsc-pb-slide-slot {
+  min-height: 120px;
+  border-radius: 6px;
+}
+.cmsc-pb-carousel--editor-preview .cmsc-pb-slide--editing:has(.cmsc-pb-slide-slot [data-puck-component]) {
+  border-color: #cbd5e1;
+  background: #fff;
+  min-height: 0;
+}
+.cmsc-pb-carousel--editor-preview
+  .cmsc-pb-slide--editing:has(.cmsc-pb-slide-slot [data-puck-component])
+  .cmsc-pb-slide-slot {
+  min-height: 0;
+}
+
+/* ── Background video (Row / Column) ───────────────────────────────── */
+.cmsc-pb-bg-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  pointer-events: none;
+}
+.cmsc-pb-bg-content {
+  position: relative;
+  z-index: 1;
 }
 
 /* ── Catalog skeleton loaders ─────────────────────────────────────── */
@@ -999,6 +1164,20 @@
   display: flex;
   flex-direction: column;
 }
+.cmsc-pb-product-grid--equal-height {
+  align-items: stretch;
+}
+.cmsc-pb-product-grid--equal-height > li {
+  display: flex;
+  min-height: 100%;
+}
+.cmsc-pb-product-grid--equal-height .cmsc-pb-product-card {
+  flex: 1 1 auto;
+  min-height: 100%;
+}
+.cmsc-pb-product-grid--equal-height .cmsc-pb-product-card__body {
+  flex: 1 1 auto;
+}
 
 /* ── Category list / grid ─────────────────────────────────────────── */
 .cmsc-pb-category-list {
@@ -1030,6 +1209,17 @@
   list-style: none;
   margin: 0;
   padding: 0;
+}
+.cmsc-pb-category-grid--equal-height {
+  align-items: stretch;
+}
+.cmsc-pb-category-grid--equal-height > li {
+  display: flex;
+  min-height: 100%;
+}
+.cmsc-pb-category-grid--equal-height .cmsc-pb-category-grid__card {
+  flex: 1 1 auto;
+  min-height: 100%;
 }
 .cmsc-pb-category-grid__card {
   display: flex;

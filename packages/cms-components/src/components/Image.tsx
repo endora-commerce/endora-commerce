@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import {
   buildResponsiveNumberVars,
   CORNER_RADIUS_PX,
+  PB_DATA_METADATA,
   PB_RESPONSIVE_METADATA,
   resolveResponsive,
   resolveResponsiveNumber,
@@ -22,6 +23,8 @@ import {
   CORNER_RADIUS_FIELD,
   DEFAULT_BOX_PROPS,
 } from '../fields/shared-fields.js';
+import { useCmsRenderAssets, useCmsRenderMediaBaseUrl } from './render-context.js';
+import { resolveImageUrl, type CmsAssetMap } from '../utils/resolve-image-url.js';
 
 function imageDimensions(
   widthMode: ImageProps['widthMode'],
@@ -38,13 +41,13 @@ function imageDimensions(
 }
 
 function imageStyle(
-  props: Pick<ImageProps, 'objectFit' | 'opacity' | 'widthMode' | 'widthPx'> & {
+  props: Partial<Pick<ImageProps, 'objectFit' | 'opacity' | 'widthMode' | 'widthPx'>> & {
     cornerRadius?: ImageProps['cornerRadius'];
   },
   tier: 'mobile' | 'tablet' | 'desktop' | null,
 ): CSSProperties {
   return {
-    ...imageDimensions(props.widthMode, props.widthPx, tier ?? 'mobile'),
+    ...imageDimensions(props.widthMode ?? 'auto', props.widthPx ?? 320, tier ?? 'mobile'),
     objectFit: props.objectFit ?? 'cover',
     opacity: (props.opacity ?? 100) / 100,
     ...(props.cornerRadius ? { borderRadius: `${CORNER_RADIUS_PX[props.cornerRadius]}px` } : {}),
@@ -53,29 +56,67 @@ function imageStyle(
   };
 }
 
+type ImageContentProps = Partial<
+  Pick<
+    ImageProps,
+    'imageSource' | 'src' | 'assetId' | 'alt' | 'href' | 'linkTarget' | 'objectFit' | 'opacity' | 'widthMode' | 'widthPx' | 'cornerRadius'
+  >
+>;
+
+function imageContentProps(
+  imageSource: ImageProps['imageSource'] | undefined,
+  src: ImageProps['src'] | undefined,
+  assetId: ImageProps['assetId'] | undefined,
+  alt: ImageProps['alt'] | undefined,
+  href: ImageProps['href'] | undefined,
+  linkTarget: ImageProps['linkTarget'] | undefined,
+  objectFit: ImageProps['objectFit'] | undefined,
+  opacity: ImageProps['opacity'] | undefined,
+  cornerRadius: ImageProps['cornerRadius'] | undefined,
+  widthMode: ImageProps['widthMode'] | undefined,
+  widthPx: ImageProps['widthPx'] | undefined,
+): ImageContentProps {
+  return {
+    ...(imageSource !== undefined ? { imageSource } : {}),
+    ...(src !== undefined ? { src } : {}),
+    ...(assetId !== undefined ? { assetId } : {}),
+    ...(alt !== undefined ? { alt } : {}),
+    ...(href !== undefined ? { href } : {}),
+    ...(linkTarget !== undefined ? { linkTarget } : {}),
+    ...(objectFit !== undefined ? { objectFit } : {}),
+    ...(opacity !== undefined ? { opacity } : {}),
+    ...(cornerRadius !== undefined ? { cornerRadius } : {}),
+    ...(widthMode !== undefined ? { widthMode } : {}),
+    ...(widthPx !== undefined ? { widthPx } : {}),
+  };
+}
+
 function ImageContent({
   props,
   tier,
   editing,
+  assets,
+  mediaBaseUrl,
 }: {
-  props: Pick<
-    ImageProps,
-    'src' | 'alt' | 'href' | 'linkTarget' | 'objectFit' | 'opacity' | 'widthMode' | 'widthPx'
-  > & { cornerRadius?: ImageProps['cornerRadius'] };
+  props: ImageContentProps;
   tier: 'mobile' | 'tablet' | 'desktop' | null;
   editing: boolean;
+  assets: CmsAssetMap;
+  mediaBaseUrl?: string;
 }): ReactNode {
-  if (!props.src) {
+  const resolvedSrc = resolveImageUrl(props, tier, assets, mediaBaseUrl);
+
+  if (!resolvedSrc) {
     return editing ? (
       <div className="cmsc:flex cmsc:min-h-[120px] cmsc:items-center cmsc:justify-center cmsc:rounded-[8px] cmsc:border cmsc:border-dashed cmsc:border-[#d9e0e7] cmsc:text-[#64748b] cmsc:text-sm">
-        Add an image URL
+        Add an image
       </div>
     ) : null;
   }
 
   const img = (
     <img
-      src={props.src}
+      src={resolvedSrc}
       alt={props.alt ?? ''}
       className={tier ? undefined : 'cmsc-pb-image-width'}
       style={imageStyle(props, tier)}
@@ -100,9 +141,13 @@ function ImageContent({
 
 const ImageEditingRender: PuckComponent<ImageProps> = (props) => {
   const tier = usePreviewBreakpointTier();
+  const assets = useCmsRenderAssets();
+  const mediaBaseUrl = useCmsRenderMediaBaseUrl();
   const {
     align,
+    imageSource,
     src,
+    assetId,
     alt,
     href,
     linkTarget,
@@ -118,9 +163,11 @@ const ImageEditingRender: PuckComponent<ImageProps> = (props) => {
     <BoxStyled previewTier={tier} {...box}>
       <div className={resolveTextAlignClassForTier(align, tier, 'left')}>
         <ImageContent
-          props={{ src, alt, href, linkTarget, objectFit, opacity, cornerRadius, widthMode, widthPx }}
+          props={imageContentProps(imageSource, src, assetId, alt, href, linkTarget, objectFit, opacity, cornerRadius, widthMode, widthPx)}
           tier={tier}
           editing
+          assets={assets}
+          {...(mediaBaseUrl !== undefined ? { mediaBaseUrl } : {})}
         />
       </div>
     </BoxStyled>
@@ -128,9 +175,13 @@ const ImageEditingRender: PuckComponent<ImageProps> = (props) => {
 };
 
 const ImagePublishedRender: PuckComponent<ImageProps> = (props) => {
+  const assets = useCmsRenderAssets();
+  const mediaBaseUrl = useCmsRenderMediaBaseUrl();
   const {
     align,
+    imageSource,
     src,
+    assetId,
     alt,
     href,
     linkTarget,
@@ -153,9 +204,11 @@ const ImagePublishedRender: PuckComponent<ImageProps> = (props) => {
     >
       <div className={responsiveTextAlignClass(align, 'left')}>
         <ImageContent
-          props={{ src, alt, href, linkTarget, objectFit, opacity, cornerRadius, widthMode, widthPx }}
+          props={imageContentProps(imageSource, src, assetId, alt, href, linkTarget, objectFit, opacity, cornerRadius, widthMode, widthPx)}
           tier={null}
           editing={false}
+          assets={assets}
+          {...(mediaBaseUrl !== undefined ? { mediaBaseUrl } : {})}
         />
       </div>
     </BoxStyled>
@@ -168,10 +221,20 @@ const WIDTH_MODE_OPTIONS = [
   { label: 'Custom (px)', value: 'custom' },
 ];
 
-const imageConfig: ComponentConfig<{ props: ImageProps }> = {
+const imageConfig: ComponentConfig<ImageProps> = {
   label: 'Image',
   fields: {
-    src: { type: 'text', label: 'Image URL' },
+    imageSource: {
+      type: 'select',
+      label: 'Image source',
+      metadata: PB_DATA_METADATA,
+      options: [
+        { label: 'URL', value: 'url' },
+        { label: 'Asset library', value: 'library' },
+      ],
+    },
+    src: { type: 'text', label: 'Image URL', metadata: PB_DATA_METADATA },
+    assetId: { type: 'text', label: 'Image', metadata: PB_DATA_METADATA },
     alt: { type: 'text', label: 'Alt text' },
     href: { type: 'text', label: 'Link URL' },
     linkTarget: {
@@ -230,7 +293,9 @@ const imageConfig: ComponentConfig<{ props: ImageProps }> = {
   },
   defaultProps: {
     ...DEFAULT_BOX_PROPS,
+    imageSource: 'url',
     src: '',
+    assetId: '',
     alt: '',
     href: '',
     linkTarget: '_self',
@@ -239,6 +304,16 @@ const imageConfig: ComponentConfig<{ props: ImageProps }> = {
     widthMode: 'auto',
     widthPx: 320,
     align: 'left',
+  },
+  resolveFields: (data, { fields }) => {
+    const source = data.props.imageSource ?? 'url';
+    const next: Partial<typeof fields> = { ...fields };
+    if (source === 'library') {
+      delete next.src;
+    } else {
+      delete next.assetId;
+    }
+    return next as typeof fields;
   },
   render: (props) =>
     props.puck?.isEditing ? <ImageEditingRender {...props} /> : <ImagePublishedRender {...props} />,

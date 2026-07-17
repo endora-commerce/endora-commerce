@@ -1366,9 +1366,18 @@ textarea.b2b-field {
   color: var(--fg);
 }
 
-/* ============================================================
-   Page builder — drag & drop affordances (Puck preview)
-   ============================================================ */
+.pb-action-bar-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+}
+
+.pb-action-bar-handle:active {
+  cursor: grabbing;
+}
+
 [data-puck-preview] [class*='DropZone-hitbox'] {
   height: 36px;
   bottom: -18px;

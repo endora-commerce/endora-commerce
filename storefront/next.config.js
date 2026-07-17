@@ -30,6 +30,12 @@ const nextConfig = {
       '.js': ['.tsx', '.ts', '.js'],
       '.jsx': ['.tsx', '.jsx'],
     };
+    // CMS Page Builder client chunk is large (Puck + shared components). Dev HMR
+    // otherwise times out with ChunkLoadError when navigating to /cms/*.
+    config.output = {
+      ...config.output,
+      chunkLoadTimeout: 120_000,
+    };
     return config;
   },
   async headers() {

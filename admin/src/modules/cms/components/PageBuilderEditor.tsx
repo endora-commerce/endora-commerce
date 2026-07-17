@@ -9,12 +9,12 @@ import '@b2b/cms-components/styles.css';
 import {
   defaultPageBuilderConfig,
   makeMissingComponentConfig,
-  CmsRenderProvider,
   withCmsPageRoot,
   type CmsRenderEmbeds,
 } from '@b2b/cms-components';
 import { DEFAULT_BREAKPOINTS, filterConfigByContext } from '@b2b/page-builder-core';
 import { createPageBuilderEditorPlugin } from '@b2b/page-builder-core/editor';
+import { AdminCmsAssetProvider } from './AdminCmsAssetProvider';
 import type { CmsPageBuilderDescriptor } from '@b2b/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -31,12 +31,19 @@ import {
   createProductSlugsField,
 } from './CatalogPickers';
 import {
+  createImageAssetField,
+  createImageSourceField,
+  createImageUrlField,
+} from './AssetPickers';
+import { createAdminBackgroundField } from './BackgroundFields';
+import {
   applyRowLayoutPreset,
   findRowById,
   replaceRowInData,
+  wrapRowInContentSliderSlide,
   type RowLayoutPresetId,
 } from '@b2b/cms-components/editor/row-layout-presets';
-import { toPuckItemArray } from '@b2b/page-builder-core/editor';
+import { isContentSliderSlidesZone, toPuckItemArray } from '@b2b/page-builder-core/editor';
 import { createPuckActionHandler, PuckDispatchBridgeSlot } from './PuckActionGuard';
 import { RowLayoutPicker } from './RowLayoutPicker';
 import { PageBuilderActionBar } from './PageBuilderActionBar';
@@ -50,6 +57,35 @@ function insertedItem(action: Extract<PuckAction, { type: 'insert' }>, data: Dat
     ? toPuckItemArray(data.content)
     : toPuckItemArray(data.zones?.[action.destinationZone]);
   return items[action.destinationIndex] ?? null;
+}
+
+function resolveInsertedRowId(
+  action: Extract<PuckAction, { type: 'insert' }>,
+  data: Data,
+): string | null {
+  if (typeof action.id === 'string' && action.id.length > 0) return action.id;
+  const inserted = insertedItem(action, data);
+  return typeof inserted?.props.id === 'string' ? inserted.props.id : null;
+}
+
+function collectRowIds(data: Data): Set<string> {
+  const ids = new Set<string>();
+  const visit = (items: ReturnType<typeof toPuckItemArray>): void => {
+    for (const item of items) {
+      if (item.type === 'Row' && typeof item.props.id === 'string') {
+        ids.add(item.props.id);
+      }
+      for (const value of Object.values(item.props)) {
+        const nested = toPuckItemArray(value);
+        if (nested.length > 0) visit(nested);
+      }
+    }
+  };
+  visit(toPuckItemArray(data.content));
+  for (const zoneItems of Object.values(data.zones ?? {})) {
+    visit(toPuckItemArray(zoneItems));
+  }
+  return ids;
 }
 
 /**
@@ -174,6 +210,69 @@ function mergeConfig(
           ...cfg.fields,
           categorySlugs: createCategorySlugsField(),
           parentSlug: createCategorySlugField(),
+        },
+      } as ComponentConfig;
+    }
+  }
+
+  const image = components['Image'];
+  if (image) {
+    components['Image'] = {
+      ...image,
+      fields: {
+        ...image.fields,
+        imageSource: createImageSourceField(),
+        src: createImageUrlField('Image URL'),
+        assetId: createImageAssetField('Image'),
+      },
+    } as ComponentConfig;
+  }
+
+  const imageSlider = components['ImageSlider'];
+  if (imageSlider) {
+    const itemsField = imageSlider.fields?.items;
+    components['ImageSlider'] = {
+      ...imageSlider,
+      fields: {
+        ...imageSlider.fields,
+        items:
+          itemsField && itemsField.type === 'array'
+            ? {
+                ...itemsField,
+                arrayFields: {
+                  imageSource: createImageSourceField(),
+                  src: createImageUrlField('Image URL'),
+                  assetId: createImageAssetField('Image'),
+                  title: { type: 'text', label: 'Title' },
+                  titlePlacement: itemsField.arrayFields?.titlePlacement ?? {
+                    type: 'select',
+                    label: 'Title placement',
+                    options: [
+                      { label: 'Hidden', value: 'none' },
+                      { label: 'Top left', value: 'top-left' },
+                      { label: 'Top center', value: 'top-center' },
+                      { label: 'Top right', value: 'top-right' },
+                      { label: 'Center', value: 'center' },
+                      { label: 'Bottom left', value: 'bottom-left' },
+                      { label: 'Bottom center', value: 'bottom-center' },
+                      { label: 'Bottom right', value: 'bottom-right' },
+                    ],
+                  },
+                },
+              }
+            : itemsField,
+      },
+    } as ComponentConfig;
+  }
+
+  for (const name of ['Row', 'Column'] as const) {
+    const cfg = components[name];
+    if (cfg) {
+      components[name] = {
+        ...cfg,
+        fields: {
+          ...cfg.fields,
+          background: createAdminBackgroundField(),
         },
       } as ComponentConfig;
     }
@@ -330,10 +429,19 @@ export function PageBuilderEditor({
   const plugins = useMemo(() => [createPageBuilderEditorPlugin()], []);
   const editorData = data ?? emptyData;
   const lastValidDataRef = useRef(editorData);
+  const knownRowIdsRef = useRef<Set<string>>(collectRowIds(editorData));
 
   useEffect(() => {
     lastValidDataRef.current = editorData;
-  }, [contentKey, editorData]);
+    knownRowIdsRef.current = collectRowIds(editorData);
+    setRowLayoutPickerForId(null);
+    // Only reseed when switching page/language — not on every draft edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- editorData intentionally omitted
+  }, [contentKey]);
+
+  useEffect(() => {
+    lastValidDataRef.current = editorData;
+  }, [editorData]);
 
   const handleEditorChange = useCallback(
     (next: Data) => {
@@ -345,8 +453,23 @@ export function PageBuilderEditor({
         });
         return;
       }
+
+      const nextRowIds = collectRowIds(next);
+      let newRowId: string | null = null;
+      for (const id of nextRowIds) {
+        if (!knownRowIdsRef.current.has(id)) {
+          newRowId = id;
+          break;
+        }
+      }
+      knownRowIdsRef.current = nextRowIds;
       lastValidDataRef.current = next;
       onChange(next);
+
+      if (newRowId) {
+        const rowId = newRowId;
+        window.setTimeout(() => setRowLayoutPickerForId(rowId), 0);
+      }
     },
     [onChange],
   );
@@ -370,11 +493,29 @@ export function PageBuilderEditor({
     () =>
       createPuckActionHandler(dispatchRef, (action, appState) => {
         if (action.type !== 'insert' || action.componentType !== 'Row') return;
-        const inserted = insertedItem(action, appState.data);
-        const rowId = inserted?.props.id;
-        if (typeof rowId === 'string') {
-          setRowLayoutPickerForId(rowId);
-        }
+
+        const rowId = resolveInsertedRowId(action, appState.data);
+        if (!rowId) return;
+
+        if (!isContentSliderSlidesZone(action.destinationZone, appState.data)) return;
+
+        const inserted =
+          insertedItem(action, appState.data) ??
+          findRowById(appState.data, rowId) ?? {
+            type: 'Row',
+            props: { id: rowId, content: [] },
+          };
+        dispatchRef.current?.({
+          type: 'setData',
+          data: (previous) =>
+            wrapRowInContentSliderSlide(
+              previous,
+              action.destinationZone,
+              action.destinationIndex,
+              inserted,
+            ),
+          recordHistory: false,
+        });
       }),
     [],
   );
@@ -396,6 +537,13 @@ export function PageBuilderEditor({
         componentId: string;
         componentType: string;
       }): ReactElement => <PageBuilderOverlayBridge {...props} />,
+      drawerItem: ({
+        name,
+        children,
+      }: {
+        name: string;
+        children: ReactNode;
+      }): ReactElement => (name === 'Column' || name === 'Slide' ? <></> : <>{children}</>),
       headerActions: (): ReactElement => {
         const { fullscreen: isFullscreen, setFullscreen: setFs, t: translate } = headerActionsStateRef.current;
         return (
@@ -452,7 +600,7 @@ export function PageBuilderEditor({
             CmsRenderProvider feeds resolved block/template previews to the
             InsertBlock / InsertTemplate embeds so they render their content on
             the canvas. */}
-        <CmsRenderProvider embeds={embeds}>
+        <AdminCmsAssetProvider embeds={embeds} data={editorData}>
           <AdminCatalogPreviewProvider>
             <PageBuilderColorPaletteProvider initialEntries={descriptor?.colorPalette ?? []}>
               <Puck
@@ -467,7 +615,7 @@ export function PageBuilderEditor({
               />
             </PageBuilderColorPaletteProvider>
           </AdminCatalogPreviewProvider>
-        </CmsRenderProvider>
+        </AdminCmsAssetProvider>
       </div>
       <RowLayoutPicker
         open={rowLayoutPickerForId !== null}

@@ -8,6 +8,9 @@ import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 
 const inputClassName = '_Input-input_bsxfo_26';
+/** Match shadcn Button `h-9` — Puck's input padding is taller by default. */
+const pickerInputClassName = `${inputClassName} !box-border !h-9 !min-h-9 !py-0 !px-3 !text-sm leading-9`;
+const pickerButtonClass = 'h-9 shrink-0 px-3';
 
 function FieldShell({
   label,
@@ -22,6 +25,11 @@ function FieldShell({
       {children}
     </div>
   );
+}
+
+/** Stable key so modal draft sync does not reset on new array identities each render. */
+function slugsKey(slugs: string[]): string {
+  return slugs.join('\0');
 }
 
 interface AdminProduct {
@@ -171,11 +179,13 @@ function ProductSearchModal({
     }
   }, [page, query, status]);
 
+  const selectedKey = slugsKey(selectedSlugs);
+
   useEffect(() => {
     if (!open) return;
-    setDraft(selectedSlugs);
+    setDraft(selectedKey ? selectedKey.split('\0') : []);
     setPage(0);
-  }, [open, selectedSlugs]);
+  }, [open, selectedKey]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -188,7 +198,9 @@ function ProductSearchModal({
       setDraft((prev) => (prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]));
       return;
     }
-    setDraft([slug]);
+    // Single-select: apply immediately (same UX as asset picker).
+    onApply([slug]);
+    onClose();
   };
 
   if (!open) return null;
@@ -285,15 +297,17 @@ function ProductSearchModal({
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            type="button"
-            onClick={(): void => {
-              onApply(draft);
-              onClose();
-            }}
-          >
-            Apply selection
-          </Button>
+          {multiple ? (
+            <Button
+              type="button"
+              onClick={(): void => {
+                onApply(draft);
+                onClose();
+              }}
+            >
+              Apply selection
+            </Button>
+          ) : null}
         </div>
       </div>
     </ModalShell>
@@ -317,11 +331,13 @@ function CategorySearchModal({
   const [query, setQuery] = useState('');
   const [draft, setDraft] = useState<string[]>(selectedSlugs);
 
+  const selectedKey = slugsKey(selectedSlugs);
+
   useEffect(() => {
     if (!open) return;
-    setDraft(selectedSlugs);
+    setDraft(selectedKey ? selectedKey.split('\0') : []);
     setQuery('');
-  }, [open, selectedSlugs]);
+  }, [open, selectedKey]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -336,7 +352,8 @@ function CategorySearchModal({
       setDraft((prev) => (prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]));
       return;
     }
-    setDraft([slug]);
+    onApply([slug]);
+    onClose();
   };
 
   return (
@@ -378,15 +395,17 @@ function CategorySearchModal({
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            type="button"
-            onClick={(): void => {
-              onApply(draft);
-              onClose();
-            }}
-          >
-            Apply
-          </Button>
+          {multiple ? (
+            <Button
+              type="button"
+              onClick={(): void => {
+                onApply(draft);
+                onClose();
+              }}
+            >
+              Apply
+            </Button>
+          ) : null}
         </div>
       </div>
     </ModalShell>
@@ -498,7 +517,13 @@ function ProductSlugsFieldControl({
   return (
     <FieldShell label={label}>
       <div className="space-y-2">
-        <Button type="button" variant="outline" size="sm" disabled={readOnly === true} onClick={(): void => setModalOpen(true)}>
+        <Button
+          type="button"
+          variant="outline"
+          className={pickerButtonClass}
+          disabled={readOnly === true}
+          onClick={(): void => setModalOpen(true)}
+        >
           Select products
         </Button>
         <SelectedItemsList
@@ -537,7 +562,13 @@ function CategorySlugsFieldControl({
   return (
     <FieldShell label={label}>
       <div className="space-y-2">
-        <Button type="button" variant="outline" size="sm" disabled={readOnly === true} onClick={(): void => setModalOpen(true)}>
+        <Button
+          type="button"
+          variant="outline"
+          className={pickerButtonClass}
+          disabled={readOnly === true}
+          onClick={(): void => setModalOpen(true)}
+        >
           Select categories
         </Button>
         <SelectedItemsList
@@ -573,15 +604,21 @@ function SingleCategoryFieldControl({
   const selected = typeof value === 'string' ? value : '';
   const selectedLabel = categories.find((c) => c.slug === selected)?.label ?? selected;
 
+  const selectedSlugs = useMemo(() => (selected ? [selected] : []), [selected]);
+
   return (
     <FieldShell label={label}>
       <div className="space-y-2">
-        <div className="flex gap-2">
-          <input className={inputClassName} readOnly value={selectedLabel || '— Not selected —'} />
+        <div className="flex items-center gap-2">
+          <input
+            className={`${pickerInputClassName} min-w-0 flex-1`}
+            readOnly
+            value={selectedLabel || '— Not selected —'}
+          />
           <Button
             type="button"
             variant="outline"
-            size="sm"
+            className={pickerButtonClass}
             disabled={readOnly === true || loading}
             onClick={(): void => setModalOpen(true)}
           >
@@ -591,7 +628,7 @@ function SingleCategoryFieldControl({
       </div>
       <CategorySearchModal
         open={modalOpen}
-        selectedSlugs={selected ? [selected] : []}
+        selectedSlugs={selectedSlugs}
         multiple={false}
         onClose={(): void => setModalOpen(false)}
         onApply={(slugs): void => onChange(slugs[0] ?? '')}
@@ -644,17 +681,29 @@ function SingleProductFieldControl({
     };
   }, [selected]);
 
+  const selectedSlugs = useMemo(() => (selected ? [selected] : []), [selected]);
+
   return (
     <FieldShell label={label}>
-      <div className="flex gap-2">
-        <input className={inputClassName} readOnly value={selectedLabel || '— Not selected —'} />
-        <Button type="button" variant="outline" size="sm" disabled={readOnly === true} onClick={(): void => setModalOpen(true)}>
+      <div className="flex items-center gap-2">
+        <input
+          className={`${pickerInputClassName} min-w-0 flex-1`}
+          readOnly
+          value={selectedLabel || '— Not selected —'}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          className={pickerButtonClass}
+          disabled={readOnly === true}
+          onClick={(): void => setModalOpen(true)}
+        >
           Select
         </Button>
       </div>
       <ProductSearchModal
         open={modalOpen}
-        selectedSlugs={selected ? [selected] : []}
+        selectedSlugs={selectedSlugs}
         multiple={false}
         onClose={(): void => setModalOpen(false)}
         onApply={(slugs): void => onChange(slugs[0] ?? '')}

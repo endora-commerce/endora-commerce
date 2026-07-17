@@ -1,6 +1,7 @@
 import type { Slot } from '@measured/puck';
 import type {
   BorderValue,
+  BackgroundProp,
   CornerRadius,
   HideOn,
   ResponsiveProp,
@@ -25,7 +26,7 @@ export interface BoxStyleProps {
 }
 
 export interface AppearanceProps {
-  background?: string;
+  background?: BackgroundProp;
   cornerRadius?: CornerRadius;
   shadow?: Shadow;
 }
@@ -95,9 +96,12 @@ export interface TextProps extends HideOnProps, BoxStyleProps, TypographyProps {
 export type ImageObjectFit = 'cover' | 'contain' | 'fill' | 'none';
 export type ImageWidthMode = 'auto' | 'full' | 'custom';
 export type ImageAlign = 'left' | 'center' | 'right';
+export type ImageSourceKind = 'url' | 'library';
 
 export interface ImageProps extends HideOnProps, BoxStyleProps {
+  imageSource?: ImageSourceKind;
   src: string;
+  assetId?: string;
   alt: string;
   href: string;
   linkTarget: '_self' | '_blank';
@@ -170,6 +174,39 @@ export interface ContentSliderProps extends HideOnProps, BoxStyleProps {
   equalHeight?: boolean;
 }
 
+export interface SlideProps extends HideOnProps, BoxStyleProps {
+  content: Slot;
+}
+
+export type ImageSliderTitlePlacement =
+  | 'none'
+  | 'top-left'
+  | 'top-center'
+  | 'top-right'
+  | 'center'
+  | 'bottom-left'
+  | 'bottom-center'
+  | 'bottom-right';
+
+export interface ImageSliderItem {
+  imageSource?: ImageSourceKind;
+  src: string;
+  assetId?: string;
+  title?: string;
+  titlePlacement?: ImageSliderTitlePlacement;
+}
+
+export interface ImageSliderProps extends HideOnProps, BoxStyleProps {
+  items: ImageSliderItem[];
+  slidesPerView?: number | ResponsiveProp<number>;
+  gap?: number | ResponsiveProp<number>;
+  autoplay?: boolean;
+  intervalMs?: number;
+  showArrows?: boolean;
+  showDots?: boolean;
+  equalHeight?: boolean;
+}
+
 export interface TabItem {
   label: string;
   content: string;
@@ -216,6 +253,7 @@ export interface ProductGridProps extends HideOnProps, BoxStyleProps {
   columns?: number | ResponsiveProp<number>;
   gap?: number | ResponsiveProp<number>;
   view?: 'grid' | 'list' | ResponsiveProp<'grid' | 'list'>;
+  equalItemHeight?: boolean;
 }
 
 export interface ProductSliderProps extends HideOnProps, BoxStyleProps {
@@ -254,6 +292,7 @@ export interface CategoryGridProps extends HideOnProps, BoxStyleProps {
   cardStyle?: 'overlay' | 'stacked' | 'minimal';
   showCounts?: boolean;
   maxDepth?: number;
+  equalItemHeight?: boolean;
 }
 
 export interface MapMarker {

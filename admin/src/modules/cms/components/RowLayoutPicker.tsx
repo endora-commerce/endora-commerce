@@ -1,5 +1,6 @@
 'use client';
 
+import { createPortal } from 'react-dom';
 import type { ReactElement } from 'react';
 import {
   ROW_LAYOUT_PRESETS,
@@ -16,15 +17,23 @@ export function RowLayoutPicker({
   onOpenChange: (open: boolean) => void;
   onSelect: (presetId: RowLayoutPresetId) => void;
 }): ReactElement | null {
-  if (!open) return null;
+  if (!open || typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4">
+  return createPortal(
+    <div
+      className="fixed inset-0 flex items-center justify-center bg-black/40 p-4"
+      style={{ zIndex: 10000 }}
+      role="presentation"
+      onPointerDown={(e): void => {
+        if (e.target === e.currentTarget) onOpenChange(false);
+      }}
+    >
       <div
         className="w-full max-w-md rounded-lg border bg-background p-5 shadow-lg"
         role="dialog"
         aria-modal="true"
         aria-labelledby="row-layout-picker-title"
+        onPointerDown={(e): void => e.stopPropagation()}
       >
         <div className="mb-4 space-y-1">
           <h2 id="row-layout-picker-title" className="text-lg font-semibold">
@@ -56,6 +65,7 @@ export function RowLayoutPicker({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

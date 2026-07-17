@@ -13,7 +13,7 @@ import {
 import { FieldLabel } from '@measured/puck';
 import type { Field } from '@measured/puck';
 import { SETTINGS_SCOPE_LABELS, type SettingsScope } from '../types/responsive.js';
-import { fieldTabForName, componentHasDataFields, componentHasResponsiveFields } from './field-tabs.js';
+import { fieldTabForName, componentHasDataFields, componentHasItemsFields, componentHasResponsiveFields } from './field-tabs.js';
 import { setStoredScope } from './settings-scope-store.js';
 import {
   getStoredSettingsTab,
@@ -29,12 +29,14 @@ const SCOPE_OPTIONS: SettingsScope[] = ['base', 'tablet', 'desktop'];
 const TAB_LABELS: Record<SettingsTab, string> = {
   general: 'General',
   data: 'Data',
+  items: 'Items',
   responsive: 'Responsive',
 };
 
-function visibleTabs(hasData: boolean, hasResponsive: boolean): SettingsTab[] {
+function visibleTabs(hasData: boolean, hasItems: boolean, hasResponsive: boolean): SettingsTab[] {
   const tabs: SettingsTab[] = ['general'];
   if (hasData) tabs.push('data');
+  if (hasItems) tabs.push('items');
   if (hasResponsive) tabs.push('responsive');
   return tabs;
 }
@@ -122,10 +124,11 @@ function ScopeSelectorControl(): ReactElement {
 function useSettingsTab(
   componentId: string | undefined,
   hasData: boolean,
+  hasItems: boolean,
   hasResponsive: boolean,
 ): SettingsTab {
-  const hasTabs = hasData || hasResponsive;
-  const tabs = visibleTabs(hasData, hasResponsive);
+  const hasTabs = hasData || hasItems || hasResponsive;
+  const tabs = visibleTabs(hasData, hasItems, hasResponsive);
   const [tab, setTab] = useState<SettingsTab>(() => {
     const stored = getStoredSettingsTab(componentId);
     return tabs.includes(stored) ? stored : 'general';
@@ -133,17 +136,17 @@ function useSettingsTab(
 
   useEffect(() => {
     const stored = getStoredSettingsTab(componentId);
-    const allowed = visibleTabs(hasData, hasResponsive);
+    const allowed = visibleTabs(hasData, hasItems, hasResponsive);
     setTab(hasTabs && allowed.includes(stored) ? stored : 'general');
-  }, [componentId, hasData, hasResponsive, hasTabs]);
+  }, [componentId, hasData, hasItems, hasResponsive, hasTabs]);
 
   useEffect(() => {
     return subscribeSettingsTab(() => {
       const stored = getStoredSettingsTab(componentId);
-      const allowed = visibleTabs(hasData, hasResponsive);
+      const allowed = visibleTabs(hasData, hasItems, hasResponsive);
       setTab(hasTabs && allowed.includes(stored) ? stored : 'general');
     });
-  }, [componentId, hasData, hasResponsive, hasTabs]);
+  }, [componentId, hasData, hasItems, hasResponsive, hasTabs]);
 
   return hasTabs ? tab : 'general';
 }
@@ -167,9 +170,10 @@ function FieldsTabPanelInner({
   const fields = itemType ? config.components[itemType]?.fields : undefined;
   const hasResponsive = componentHasResponsiveFields(fields);
   const hasData = componentHasDataFields(fields);
-  const hasTabs = hasResponsive || hasData;
-  const activeTab = useSettingsTab(componentId, hasData, hasResponsive);
-  const tabs = visibleTabs(hasData, hasResponsive);
+  const hasItems = componentHasItemsFields(fields);
+  const hasTabs = hasResponsive || hasData || hasItems;
+  const activeTab = useSettingsTab(componentId, hasData, hasItems, hasResponsive);
+  const tabs = visibleTabs(hasData, hasItems, hasResponsive);
 
   const childEntries = useMemo(
     () =>

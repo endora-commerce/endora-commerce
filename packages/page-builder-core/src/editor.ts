@@ -16,14 +16,37 @@ export { createHideOnField } from './fields/hide-on-field.js';
 export { createEditorNameField } from './fields/editor-name-field.js';
 export {
   getZoneItems,
+  getSlotZoneItemCount,
+  readPuckZoneIndexes,
   getZoneParentComponentType,
   isColumnContentZone,
+  isContentSliderSlidesZone,
   isRowContentZone,
   shouldRevertPuckAction,
   hasInvalidColumnPlacement,
   zoneParentId,
   zoneSlotName,
+  resolveContentSliderIdForItem,
+  resolveContentSliderSlideIndex,
 } from './editor/puck-action-guards.js';
+export { resolvePuckDndElement } from './editor/puck-dnd-element.js';
+export {
+  carouselEditorPageCount,
+  clampEditorCarouselPage,
+  clearEditorCarouselPreviewLock,
+  EditorCarouselPreviewBridge,
+  getEditorCarouselLastSeenSelectedId,
+  getEditorCarouselPage,
+  getEditorCarouselPreviewFrozenSelectedId,
+  getEditorCarouselSlideCount,
+  isEditorCarouselPreviewLocked,
+  registerEditorCarouselPageWriter,
+  rememberEditorCarouselSelectedId,
+  setEditorCarouselPage,
+  setEditorCarouselSlideCount,
+  subscribeEditorCarouselPreview,
+  useEditorCarouselPage,
+} from './editor/editor-carousel-preview.js';
 export {
   canOutlineDrop,
   outlineDropBeforeTarget,

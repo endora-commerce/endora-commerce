@@ -6,9 +6,9 @@ type TiptapNode = {
 };
 
 export interface LegacyTextSource {
-  text?: unknown;
-  html?: unknown;
-  tiptapContent?: unknown;
+  text?: unknown | undefined;
+  html?: unknown | undefined;
+  tiptapContent?: unknown | undefined;
 }
 
 function coercePlainText(value: unknown): string {

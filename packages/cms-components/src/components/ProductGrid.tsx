@@ -27,6 +27,10 @@ import { estimateProductGridSkeletonCount } from '../utils/catalog-skeleton-esti
 import { ProductGridSkeleton } from './catalog/CatalogSkeletons.js';
 import { resolveProductSourceFields } from '../fields/catalog-resolve-fields.js';
 import { CATALOG_DATA_FIELD_META } from '../fields/catalog-data-fields.js';
+import {
+  createCatalogSlugFallbackField,
+  createCatalogSlugsFallbackField,
+} from '../fields/catalog-fallback-fields.js';
 
 function ProductGridBody({
   props,
@@ -46,6 +50,7 @@ function ProductGridBody({
     columns = 4,
     gap = 16,
     view = 'grid',
+    equalItemHeight = true,
     puck: _puck,
     ...box
   } = props;
@@ -105,10 +110,12 @@ function ProductGridBody({
     );
   }
 
-  const listClass =
-    gridView === 'list'
-      ? 'cmsc-pb-product-grid cmsc-pb-product-grid--list'
-      : 'cmsc-pb-product-grid';
+  const listClass = [
+    gridView === 'list' ? 'cmsc-pb-product-grid cmsc-pb-product-grid--list' : 'cmsc-pb-product-grid',
+    equalItemHeight ? 'cmsc-pb-product-grid--equal-height' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <BoxStyled {...box} {...(editing ? { previewTier: tier } : {})}>
@@ -150,10 +157,15 @@ const productGridConfig: ComponentConfig<ProductGridProps> = {
         { label: 'Search query', value: 'query' },
       ],
     },
-    productSlugs: { type: 'text', label: 'Product slugs (comma-separated)', metadata: CATALOG_DATA_FIELD_META },
-    categorySlug: { type: 'text', label: 'Category slug', metadata: CATALOG_DATA_FIELD_META },
+    productSlugs: createCatalogSlugsFallbackField('Products'),
+    categorySlug: createCatalogSlugFallbackField('Category'),
     searchQuery: { type: 'text', label: 'Search query', metadata: CATALOG_DATA_FIELD_META },
     limit: { type: 'number', label: 'Limit', min: 1, max: 24, metadata: CATALOG_DATA_FIELD_META },
+    equalItemHeight: {
+      type: 'radio',
+      label: 'Equal items height',
+      options: [{ label: 'Yes', value: true }, { label: 'No', value: false }],
+    },
     columns: { type: 'number', label: 'Columns', min: 1, max: 4, metadata: PB_RESPONSIVE_METADATA },
     gap: { type: 'number', label: 'Gap (px)', min: 0, max: 48, metadata: PB_RESPONSIVE_METADATA },
     view: {
@@ -178,6 +190,7 @@ const productGridConfig: ComponentConfig<ProductGridProps> = {
     columns: 4,
     gap: 16,
     view: 'grid',
+    equalItemHeight: true,
     ...DEFAULT_BOX_PROPS,
   },
   render: (props) =>

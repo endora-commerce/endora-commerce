@@ -8,6 +8,7 @@ import {
   resolveResponsiveNumber,
   withHideOn,
 } from '@b2b/page-builder-core';
+import { useEditorCarouselPage } from '@b2b/page-builder-core/editor/carousel-preview';
 import type { BreakpointTier } from '@b2b/page-builder-core';
 import { usePreviewBreakpointTier } from '@b2b/page-builder-core/client';
 import type { ProductSliderProps } from '../schema/component-types.js';
@@ -27,15 +28,21 @@ import { waitForCatalogSkeletonMin } from '../utils/catalog-load.js';
 import { estimateProductSliderSkeletonCount } from '../utils/catalog-skeleton-estimate.js';
 import { resolveProductSourceFields } from '../fields/catalog-resolve-fields.js';
 import { CATALOG_DATA_FIELD_META } from '../fields/catalog-data-fields.js';
+import {
+  createCatalogSlugFallbackField,
+  createCatalogSlugsFallbackField,
+} from '../fields/catalog-fallback-fields.js';
 
 function ProductSliderBody({
   props,
   tier,
   editing,
+  previewPage = 0,
 }: {
-  props: ProductSliderProps & { puck?: { isEditing?: boolean } };
+  props: ProductSliderProps & { id?: string; puck?: { isEditing?: boolean } };
   tier: BreakpointTier;
   editing: boolean;
+  previewPage?: number;
 }): React.ReactElement {
   const {
     source = 'manual',
@@ -43,20 +50,22 @@ function ProductSliderBody({
     categorySlug = '',
     searchQuery = '',
     limit = 12,
-    slidesPerView = 1,
+    slidesPerView = { base: 1, tablet: 4, desktop: 8 },
     gap = 16,
     autoplay = false,
     intervalMs = 5000,
     showArrows = true,
     showDots = true,
-    equalHeight = false,
+    equalHeight = true,
     puck: _puck,
     ...box
   } = props;
   const [products, setProducts] = useState<CmsProductSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const perView = resolveResponsiveNumber(slidesPerView, tier, 1);
+  const perViewFallback = tier === 'desktop' ? 8 : tier === 'tablet' ? 4 : 1;
+  const perView = resolveResponsiveNumber(slidesPerView, tier, perViewFallback);
   const gapPx = resolveResponsiveNumber(gap, tier, 16);
+  const carouselId = typeof props.id === 'string' ? props.id : undefined;
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +127,9 @@ function ProductSliderBody({
         showArrows={showArrows}
         showDots={showDots}
         equalHeight={equalHeight}
+        editorPreview={editing}
+        previewPage={editing ? previewPage : 0}
+        {...(editing && carouselId !== undefined ? { editorCarouselId: carouselId } : {})}
       >
         {products.map((p) => (
           <CmsProductCardView key={p.id} product={p} />
@@ -127,9 +139,11 @@ function ProductSliderBody({
   );
 }
 
-const ProductSliderEditingRender: PuckComponent<ProductSliderProps> = (props) => (
-  <ProductSliderBody props={props} tier={usePreviewBreakpointTier()} editing />
-);
+const ProductSliderEditingRender: PuckComponent<ProductSliderProps> = (props) => {
+  const carouselId = (props as ProductSliderProps & { id?: string }).id;
+  const previewPage = useEditorCarouselPage(carouselId);
+  return <ProductSliderBody props={props} tier={usePreviewBreakpointTier()} editing previewPage={previewPage} />;
+};
 
 const ProductSliderPublishedRender: PuckComponent<ProductSliderProps> = (props) => (
   <ProductSliderBody props={props} tier={useViewportBreakpointTier()} editing={false} />
@@ -148,11 +162,11 @@ const productSliderConfig: ComponentConfig<ProductSliderProps> = {
         { label: 'Search query', value: 'query' },
       ],
     },
-    productSlugs: { type: 'text', label: 'Product slugs (comma-separated)', metadata: CATALOG_DATA_FIELD_META },
-    categorySlug: { type: 'text', label: 'Category slug', metadata: CATALOG_DATA_FIELD_META },
+    productSlugs: createCatalogSlugsFallbackField('Products'),
+    categorySlug: createCatalogSlugFallbackField('Category'),
     searchQuery: { type: 'text', label: 'Search query', metadata: CATALOG_DATA_FIELD_META },
     limit: { type: 'number', label: 'Limit', min: 1, max: 24, metadata: CATALOG_DATA_FIELD_META },
-    slidesPerView: { type: 'number', label: 'Slides per view', min: 1, max: 4, metadata: PB_RESPONSIVE_METADATA },
+    slidesPerView: { type: 'number', label: 'Slides per view', min: 1, max: 8, metadata: PB_RESPONSIVE_METADATA },
     gap: { type: 'number', label: 'Gap (px)', min: 0, max: 48, metadata: PB_RESPONSIVE_METADATA },
     autoplay: { type: 'radio', label: 'Autoplay', options: [{ label: 'Yes', value: true }, { label: 'No', value: false }] },
     intervalMs: { type: 'number', label: 'Interval (ms)', min: 2000, max: 15000 },
@@ -173,13 +187,13 @@ const productSliderConfig: ComponentConfig<ProductSliderProps> = {
     categorySlug: '',
     searchQuery: '',
     limit: 12,
-    slidesPerView: 1,
+    slidesPerView: { base: 1, tablet: 4, desktop: 8 },
     gap: 16,
     autoplay: false,
     intervalMs: 5000,
     showArrows: true,
     showDots: true,
-    equalHeight: false,
+    equalHeight: true,
     ...DEFAULT_BOX_PROPS,
   },
   render: (props) =>

@@ -9,7 +9,8 @@ import {
   RESPONSIVE_HIDE_ON_CLASS,
   resolveColumnSpan,
 } from '@b2b/page-builder-core';
-import { createHideOnField, getZoneParentComponentType } from '@b2b/page-builder-core/editor';
+import { createHideOnField } from '@b2b/page-builder-core/fields/hide-on-field';
+import { getZoneParentComponentType } from '@b2b/page-builder-core/editor/puck-guards';
 import { usePreviewBreakpointTier } from '@b2b/page-builder-core/client';
 import type { ColumnProps } from '../schema/component-types.js';
 import { BoxStyled } from './box-styles.js';

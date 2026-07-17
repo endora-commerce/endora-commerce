@@ -1,10 +1,10 @@
 'use client';
 
-import { type ComponentConfig, type PuckComponent } from '@measured/puck';
+import { type ComponentConfig, type Field, type PuckComponent } from '@measured/puck';
 import { withHideOn } from '@b2b/page-builder-core';
 import type { CmsProductCardProps } from '../schema/component-types.js';
 import { BoxStyled } from './box-styles.js';
-import { CATALOG_DATA_FIELD_META } from '../fields/catalog-data-fields.js';
+import { createCatalogSlugFallbackField } from '../fields/catalog-fallback-fields.js';
 import {
   BOX_BORDER_FIELD,
   BOX_MARGIN_FIELD,
@@ -32,7 +32,7 @@ const ProductCardRender: PuckComponent<CmsProductCardProps> = (props) => {
 const productCardConfig: ComponentConfig<CmsProductCardProps> = {
   label: 'Product card',
   fields: {
-    productSlug: { type: 'text', label: 'Product slug', metadata: CATALOG_DATA_FIELD_META },
+    productSlug: createCatalogSlugFallbackField('Product') as Field<string>,
     showPrice: { type: 'radio', label: 'Show price', options: [{ label: 'Yes', value: true }, { label: 'No', value: false }] },
     showSku: { type: 'radio', label: 'Show SKU', options: [{ label: 'Yes', value: true }, { label: 'No', value: false }] },
     showStock: { type: 'radio', label: 'Show stock', options: [{ label: 'Yes', value: true }, { label: 'No', value: false }] },

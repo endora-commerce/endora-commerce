@@ -20,3 +20,17 @@ export const COLUMN_SLOT_EDIT_PROPS: LayoutSlotEditProps = {
   collisionAxis: 'y',
   className: 'cmsc-pb-slot cmsc-pb-column-slot',
 };
+
+/** Content slider slide slot — horizontal slide insertion. */
+export const CONTENT_SLIDER_SLOT_EDIT_PROPS: LayoutSlotEditProps = {
+  minEmptyHeight: 0,
+  collisionAxis: 'x',
+  className: 'cmsc-pb-slot cmsc-pb-content-slider-slot',
+};
+
+/** Slide inner content slot — vertical stack of blocks. */
+export const SLIDE_CONTENT_SLOT_EDIT_PROPS: LayoutSlotEditProps = {
+  minEmptyHeight: 120,
+  collisionAxis: 'y',
+  className: 'cmsc-pb-slot cmsc-pb-slide-slot',
+};

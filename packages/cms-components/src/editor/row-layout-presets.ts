@@ -111,7 +111,10 @@ export function addColumnFullWidth(rowProps: RowProps): RowProps {
   };
 }
 
-export function findRowById(data: { content?: unknown }, rowId: string): PuckItem | null {
+export function findRowById(
+  data: { content?: unknown; zones?: Record<string, unknown> },
+  rowId: string,
+): PuckItem | null {
   const visit = (items: PuckItem[]): PuckItem | null => {
     for (const item of items) {
       if (item.type === 'Row' && item.props.id === rowId) return item;
@@ -125,10 +128,23 @@ export function findRowById(data: { content?: unknown }, rowId: string): PuckIte
     }
     return null;
   };
-  return visit(toPuckItemArray(data.content));
+
+  const fromContent = visit(toPuckItemArray(data.content));
+  if (fromContent) return fromContent;
+
+  for (const zoneItems of Object.values(data.zones ?? {})) {
+    const found = visit(toPuckItemArray(zoneItems));
+    if (found) return found;
+  }
+
+  return null;
 }
 
-export function replaceRowInData<T extends { content?: unknown }>(data: T, rowId: string, nextRow: PuckItem): T {
+export function replaceRowInData<T extends { content?: unknown; zones?: Record<string, unknown> }>(
+  data: T,
+  rowId: string,
+  nextRow: PuckItem,
+): T {
   const mapItems = (items: PuckItem[]): PuckItem[] =>
     items.map((item) => {
       if (item.type === 'Row' && item.props.id === rowId) {
@@ -144,8 +160,57 @@ export function replaceRowInData<T extends { content?: unknown }>(data: T, rowId
       return { ...item, props: nextProps };
     });
 
+  const nextZones: Record<string, unknown> = { ...(data.zones ?? {}) };
+  for (const [zone, items] of Object.entries(nextZones)) {
+    nextZones[zone] = mapItems(toPuckItemArray(items));
+  }
+
+  const columns = toPuckItemArray(nextRow.props.content);
+  nextZones[`${rowId}:content`] = columns;
+  for (const col of columns) {
+    if (col.type !== 'Column' || typeof col.props.id !== 'string') continue;
+    nextZones[`${col.props.id}:content`] = toPuckItemArray(col.props.content);
+  }
+
   return {
     ...data,
     content: mapItems(toPuckItemArray(data.content)),
+    zones: nextZones,
+  };
+}
+
+/** Turn a Row that landed in a Content slider `:slides` zone into Slide → Row. */
+export function wrapRowInContentSliderSlide<T extends { content?: unknown; zones?: Record<string, unknown> }>(
+  data: T,
+  slidesZone: string,
+  index: number,
+  row: PuckItem,
+): T {
+  const slides = [...toPuckItemArray(data.zones?.[slidesZone])];
+  if (slides[index]?.type !== 'Row') return data;
+
+  const slideId = `slide-${crypto.randomUUID()}`;
+  const slide: PuckItem = {
+    type: 'Slide',
+    props: {
+      id: slideId,
+      content: [],
+      margin: { mode: 'uniform', value: 0 },
+      padding: { mode: 'uniform', value: 0 },
+      border: { mode: 'none' },
+      background: { kind: 'none' },
+      cornerRadius: 'none',
+      shadow: 'none',
+    },
+  };
+  slides[index] = slide;
+
+  return {
+    ...data,
+    zones: {
+      ...(data.zones ?? {}),
+      [slidesZone]: slides,
+      [`${slideId}:content`]: [row],
+    },
   };
 }

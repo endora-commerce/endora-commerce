@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
-import type { Field } from '@measured/puck';
+import type { CustomField } from '@measured/puck';
 import { useColorPalette } from '../color-palette/context.js';
 import { PuckFieldLabel } from './puck-field-label.js';
 import {
@@ -130,7 +130,7 @@ function ColorFieldControl({
   );
 }
 
-export function createColorField(options: { label: string }): Field<string | undefined, Record<string, unknown>> {
+export function createColorField(options: { label: string }): CustomField<string | undefined> {
   return {
     type: 'custom',
     label: options.label,

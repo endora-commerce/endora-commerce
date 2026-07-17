@@ -19,7 +19,7 @@ import { CmsPageService } from './services/cms-page-service.js';
 import { CmsBlockService } from './services/cms-block-service.js';
 import { CmsTemplateService } from './services/cms-template-service.js';
 import { CmsReferenceRegistry } from './services/cms-reference-registry.js';
-import { StorefrontResolver } from './services/storefront-resolver.js';
+import { StorefrontResolver, type CmsAssetResolver } from './services/storefront-resolver.js';
 import { CmsHookService } from './services/cms-hook-service.js';
 import { CmsCache, type CmsCacheOptions } from './services/cms-cache.js';
 import { registerCmsAdminRoutes } from './routes.admin.js';
@@ -71,6 +71,7 @@ export interface CmsModuleHandle {
   /** Late-bound writer for the global Page Builder color palette. */
   setColorPaletteWriter: (writer: ColorPaletteWriter) => void;
   getColorPaletteWriter: () => ColorPaletteWriter | null;
+  setAssetResolver: (resolver: CmsAssetResolver | null) => void;
 }
 
 export function cmsModule(options: CmsModuleOptions): {
@@ -156,6 +157,8 @@ export function cmsModule(options: CmsModuleOptions): {
         contexts: ['cms'],
       },
       ContentSlider: { fields: {}, contexts: ['cms'] },
+      Slide: { fields: {}, contexts: ['cms'] },
+      ImageSlider: { fields: {}, contexts: ['cms'] },
       Tabs: { fields: {}, contexts: ['cms'] },
       Accordion: { fields: {}, contexts: ['cms'] },
       ProductCard: {
@@ -228,6 +231,9 @@ export function cmsModule(options: CmsModuleOptions): {
       colorPaletteWriter = writer;
     },
     getColorPaletteWriter: () => colorPaletteWriter,
+    setAssetResolver: (resolver) => {
+      storefrontResolver.setAssetResolver(resolver);
+    },
   };
 
   const plugin = async (app: FastifyInstance) => {

@@ -4,6 +4,8 @@ import {
   addColumnFitRow,
   addColumnFullWidth,
   applyRowLayoutPreset,
+  findRowById,
+  wrapRowInContentSliderSlide,
 } from './row-layout-presets.js';
 import type { RowProps } from '../schema/component-types.js';
 
@@ -72,5 +74,30 @@ describe('row-layout-presets', () => {
     );
     expect(columns).toHaveLength(3);
     expect(columnTabletSpan(columns[2]?.props.span ?? 0)).toBe(12);
+  });
+});
+
+describe('findRowById / wrapRowInContentSliderSlide', () => {
+  it('finds a Row stored in a Puck zone (e.g. inside a Slide)', () => {
+    const row = { type: 'Row', props: { id: 'r1', content: [] } };
+    const data = {
+      content: [{ type: 'ContentSlider', props: { id: 'cs1' } }],
+      zones: {
+        'cs1:slides': [{ type: 'Slide', props: { id: 's1' } }],
+        's1:content': [row],
+      },
+    };
+    expect(findRowById(data, 'r1')?.props.id).toBe('r1');
+
+    const withRowOnSlides: { content: unknown; zones: Record<string, unknown> } = {
+      content: data.content,
+      zones: { 'cs1:slides': [row] },
+    };
+    const wrapped = wrapRowInContentSliderSlide(withRowOnSlides, 'cs1:slides', 0, row);
+    const slides = wrapped.zones?.['cs1:slides'] as Array<{ type: string; props: { id: string } }>;
+    expect(slides[0]?.type).toBe('Slide');
+    const slideId = slides[0]?.props.id;
+    expect(slideId).toBeTruthy();
+    expect(wrapped.zones?.[`${slideId}:content`]).toEqual([row]);
   });
 });
