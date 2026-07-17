@@ -17,7 +17,7 @@
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { readdirSync, statSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 
 const CLASSIFICATION_DECORATORS = new Set([
@@ -49,16 +49,17 @@ function decoratorName(decorator: ts.Decorator): string | undefined {
   return ts.isIdentifier(callee) ? callee.text : undefined;
 }
 
-interface EntityFinding {
+export interface EntityFinding {
   file: string;
   className: string;
   classifications: string[];
 }
 
-function analyzeFile(file: string): EntityFinding[] {
-  const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
+/** Analyze a single TypeScript source string for MikroORM entities + their classification. Exported for tests. */
+export function analyzeSource(source: string, file: string): EntityFinding[] {
+  const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
   const findings: EntityFinding[] = [];
-  source.forEachChild((node) => {
+  sf.forEachChild((node) => {
     if (!ts.isClassDeclaration(node)) return;
     const decorators = ts.getDecorators(node) ?? [];
     const names = decorators.map(decoratorName).filter((n): n is string => Boolean(n));
@@ -67,6 +68,10 @@ function analyzeFile(file: string): EntityFinding[] {
     findings.push({ file, className: node.name?.text ?? '<anonymous>', classifications });
   });
   return findings;
+}
+
+function analyzeFile(file: string): EntityFinding[] {
+  return analyzeSource(readFileSync(file, 'utf8'), file);
 }
 
 function main(): void {
@@ -82,7 +87,12 @@ function main(): void {
 
   if (listMode) {
     for (const f of findings) {
-      const tag = f.classifications.length === 1 ? f.classifications[0] : f.classifications.length === 0 ? 'UNCLASSIFIED' : `MULTIPLE(${f.classifications.join(',')})`;
+      const tag =
+        f.classifications.length === 1
+          ? (f.classifications[0] ?? 'UNCLASSIFIED')
+          : f.classifications.length === 0
+            ? 'UNCLASSIFIED'
+            : `MULTIPLE(${f.classifications.join(',')})`;
       console.log(`${tag.padEnd(18)} ${f.className}  (${rel(f.file)})`);
     }
     console.log('');
@@ -105,4 +115,8 @@ function main(): void {
   process.exit(unclassified.length === 0 && multi.length === 0 ? 0 : 1);
 }
 
-main();
+// Run as CLI only — importing this module (e.g. from a unit test) must not
+// trigger the full scan + process.exit.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}
