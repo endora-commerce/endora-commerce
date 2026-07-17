@@ -1,6 +1,6 @@
 # b2b-platform Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-07-15
+Auto-generated from all feature plans. Last updated: 2026-07-16
 
 ## Active Technologies
 - TypeScript 5.x (strict mode) na Node.js LTS (≥ 22.17, jak w README po update foundation 001). + bez nowych runtime — wszystkie wymagane już są: (002-catalog-module)
@@ -90,6 +90,8 @@ Auto-generated from all feature plans. Last updated: 2026-07-15
 - PostgreSQL — one module-scoped migration (049-google-analytics)
 - TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend); Next.js 15.5 App Router + React 19 (storefront); React 19 + Vite + react-router-dom 7 (admin). + Fastify, MikroORM (PostgreSQL driver), Zod (`@b2b/contracts`), ioredis (Settings cache + lifecycle pub/sub), in-process `EventBus` (`backend/src/events/bus.ts`), `@b2b/api-client` + `lucide-react` (admin). **New runtime dependencies** (justified in Complexity Tracking / research §R1): `stripe` (official Node SDK, backend-only), `@stripe/stripe-js` + `@stripe/react-stripe-js` (storefront-only, for the PCI-safe inline Payment Element and wallet buttons). (049-stripe-payment-gateway)
 - PostgreSQL via MikroORM. One new module-scoped migration `085_stripe_init.ts` in `backend/src/modules/stripe/migrations/` (next sequential after the repo-wide highest `084_newsletter_init.ts`). New tables: `stripe_customers`, `stripe_saved_cards`, `stripe_payment_intents`, `stripe_webhook_events`, `stripe_payment_method_rules`, `stripe_payment_method_org_disables`. Configuration + credentials live in the existing `settings` tables via the module settings manifest (credentials use the `secret` value type from feature 043). No change to the `payments`/`orders` schema — `payment.externalReference`, `payment.providerDetails`, and `orders.nextAction` already carry everything Stripe needs. (049-stripe-payment-gateway)
+- TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend). No frontend change (admin/storefront behavior is unchanged for correctly-scoped callers). + Fastify, MikroORM (PostgreSQL driver) — specifically its **global filter** feature (`@Filter` + `em.setFilterParams`), Node built-in `async_hooks` `AsyncLocalStorage` (already used by `events/bus.ts`), Zod (`@b2b/contracts`). **No new runtime dependency** (Principle IV). (050-org-tenant-scoping)
+- PostgreSQL via MikroORM. **No schema migration for the guard itself** — it is a query-time filter + entity metadata (decorators). The org/customer keys it filters on (`organization_id`, `customer_account_id`) already exist on the affected tables. One optional data-integrity migration MAY add missing index coverage on tenant-key columns where a hot filter path needs it (decided in research §R5). (050-org-tenant-scoping)
 
 - TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x) + MikroORM (PostgreSQL driver) for persistence; Zod for boundary validation; Next.js for the storefront; React for the admin panel; Meilisearch client; Redis client (cache + BullMQ-class queue). Backend HTTP layer intentionally minimal (a small, well-known Node/TypeScript HTTP router; choice deferred to Phase 0 research with a bias toward the smallest dependency footprint compatible with TDD, Zod, and modular routing). (001-b2b-platform-foundation)
 
@@ -109,10 +111,9 @@ npm test && npm run lint
 TypeScript 5.x (strict mode) on Node.js LTS (≥ 20.x): Follow standard conventions
 
 ## Recent Changes
+- 050-org-tenant-scoping: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend). No frontend change (admin/storefront behavior is unchanged for correctly-scoped callers). + Fastify, MikroORM (PostgreSQL driver) — specifically its **global filter** feature (`@Filter` + `em.setFilterParams`), Node built-in `async_hooks` `AsyncLocalStorage` (already used by `events/bus.ts`), Zod (`@b2b/contracts`). **No new runtime dependency** (Principle IV).
 - 049-google-analytics: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend); + Fastify, MikroORM (PostgreSQL driver), Zod
 - 049-stripe-payment-gateway: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend); Next.js 15.5 App Router + React 19 (storefront); React 19 + Vite + react-router-dom 7 (admin). + Fastify, MikroORM (PostgreSQL driver), Zod (`@b2b/contracts`), ioredis (Settings cache + lifecycle pub/sub), in-process `EventBus` (`backend/src/events/bus.ts`), `@b2b/api-client` + `lucide-react` (admin). **New runtime dependencies** (justified in Complexity Tracking / research §R1): `stripe` (official Node SDK, backend-only), `@stripe/stripe-js` + `@stripe/react-stripe-js` (storefront-only, for the PCI-safe inline Payment Element and wallet buttons).
-- 048-newsletter-module: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 (backend); React 19 + Vite + react-router-dom 7 (admin); Next.js 15 App Router + React 19 (storefront); shared packages compiled to ESM. + Fastify, MikroORM (PostgreSQL driver), Zod (`@b2b/contracts`), ioredis (Settings cache + lifecycle pub/sub), **BullMQ** (durable dispatch + scheduling queues), **nodemailer** (bulk SMTP provider adapter — already a dependency), in-process `EventBus` (`backend/src/events/bus.ts`), the shared **`@b2b/email-components`** renderer + directive engine + email-safe Puck config (feature 047), the existing Settings module **`secret`** value type (feature 043, AES-256-GCM) for provider credentials, `@b2b/api-client` + `lucide-react` + the `<EChart>` wrapper (admin). **No new runtime dependency.**
-- 047-invoices-module: Added TypeScript 5.x (strict) on Node.js LTS ≥ 22.17 + Fastify, MikroORM (PostgreSQL), Zod (`@b2b/contracts`),
 
 
 <!-- MANUAL ADDITIONS START -->
