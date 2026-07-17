@@ -4,6 +4,7 @@ import { ERROR_CODES, type InvoiceDetail, type InvoiceKind, type VatSummaryRow }
 import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine } from '../entities/invoice-line.entity.js';
 import { Order } from '../../orders/entities/order.entity.js';
+import { isOrgInScope } from '../../../tenancy/derived-scope.js';
 import { OrderItem } from '../../orders/entities/order-item.entity.js';
 import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
 import type { SellerSettingsResolver } from './seller-settings.js';
@@ -54,7 +55,10 @@ export class InvoiceService {
   ): Promise<InvoiceDetail> {
     const em = this.emFactory();
     const order = await em.findOne(Order, { id: orderId });
-    if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
+    // Feature 050 — Invoice is transitively scoped through its Order's org.
+    if (!order || !isOrgInScope(order.organizationId ?? '')) {
+      throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
+    }
 
     const existing = await em.findOne(Invoice, { orderId, kind });
     if (existing) {
@@ -183,7 +187,11 @@ export class InvoiceService {
     const em = this.emFactory();
     const inv = await em.findOne(Invoice, { id: invoiceId });
     if (!inv) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
-    const order = await em.findOne(Order, { id: inv.orderId }, { fields: ['id', 'businessId'] });
+    const order = await em.findOne(Order, { id: inv.orderId }, { fields: ['id', 'businessId', 'organizationId'] });
+    // Feature 050 — transitive scope: hide invoices whose order is out of scope.
+    if (!order || !isOrgInScope(order.organizationId ?? '')) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
+    }
     const lineRows = await em.find(InvoiceLine, { invoiceId }, { orderBy: { ordinal: 'asc' } });
 
     const lines = lineRows.map((l) => ({
