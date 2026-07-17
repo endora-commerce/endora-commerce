@@ -75,16 +75,20 @@ describe('CustomerRegistrationService.registerStandalone', () => {
     expect(resolved?.session.customerAccountId).toBe(result.customerAccount.id);
   });
 
-  it('refuses registration with REGISTRATION_REQUIRES_ORGANIZATION when the setting is off', async () => {
+  it('refuses registration with REGISTRATION_REQUIRES_ORGANIZATION when the setting is off — and provisions nothing', async () => {
     const svc = makeService(false);
+    const email = `blocked-${Date.now()}@example.test`;
     await expect(
       svc.registerStandalone({
-        email: `blocked-${Date.now()}@example.test`,
+        email,
         password: 'super-secret-pass',
         firstName: 'No',
         lastName: 'Go',
       }),
     ).rejects.toMatchObject({ code: 'REGISTRATION_REQUIRES_ORGANIZATION' } satisfies Partial<HttpError>);
+    // Feature 051 US5 — a B2B-only channel provisions no account and no personal org.
+    const account = await em.findOne(CustomerAccount, { email });
+    expect(account).toBeNull();
   });
 
   it('refuses a duplicate email with EMAIL_ALREADY_REGISTERED', async () => {

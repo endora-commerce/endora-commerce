@@ -79,4 +79,32 @@ describe('Personal orgs excluded from B2B admin surfaces (feature 051 US3)', () 
     await expect(svc.assign({ organizationId: companyId, adminUserId: rep.id })).resolves.toBeTruthy();
     void OrganizationSalesRepAssignment;
   });
+
+  it('admin direct-member add is refused for a personal org (single-member invariant, T024)', async () => {
+    const res = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/organizations/${personalId}/members`,
+      cookies: { b2b_session: 'stub-admin-session' },
+      payload: {
+        email: `member-${Date.now()}@x.test`,
+        firstName: 'M',
+        lastName: 'M',
+        password: 'a-very-strong-pass',
+      },
+    });
+    expect(res.statusCode).toBe(422);
+    // company org accepts a direct member
+    const ok = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/organizations/${companyId}/members`,
+      cookies: { b2b_session: 'stub-admin-session' },
+      payload: {
+        email: `member-ok-${Date.now()}@x.test`,
+        firstName: 'M',
+        lastName: 'M',
+        password: 'a-very-strong-pass',
+      },
+    });
+    expect(ok.statusCode).toBe(201);
+  });
 });

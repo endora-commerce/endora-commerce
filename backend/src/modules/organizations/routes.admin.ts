@@ -526,6 +526,14 @@ export async function registerOrganizationsAdminRoutes(
       if (!org) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       }
+      // Feature 051 — a personal (B2C) org is single-member; no direct add.
+      if (org.isPersonal) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.VALIDATION_FAILED,
+          'A personal (individual) organization cannot have additional members.',
+        );
+      }
       const email = body.email.toLowerCase();
       const dup = await em.findOne(CustomerAccount, { email });
       if (dup) {
