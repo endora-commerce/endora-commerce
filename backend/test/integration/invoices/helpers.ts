@@ -25,6 +25,7 @@ export async function seedInvoiceableOrder(
     deliveryTotal?: number;
     discountTotal?: number;
     organizationId?: string;
+    placedByCustomerAccountId?: string;
   } = {},
 ): Promise<SeededInvoiceOrder> {
   const salesChannelId = opts.salesChannelId ?? randomUUID();
@@ -35,7 +36,7 @@ export async function seedInvoiceableOrder(
   const total = 6648.15 + deliveryTotal - discountTotal;
   const order = em.create(Order, {
     organizationId: opts.organizationId ?? TEST_ORGANIZATION_ID,
-    placedByCustomerAccountId: TEST_CUSTOMER_ID,
+    placedByCustomerAccountId: opts.placedByCustomerAccountId ?? TEST_CUSTOMER_ID,
     salesChannelId,
     status: 'paid',
     paymentStatus: opts.paymentStatus ?? 'paid',
