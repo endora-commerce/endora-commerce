@@ -218,23 +218,31 @@ export class ProductLinkService {
     });
     const byId = new Map(targets.map((p) => [p.id, p]));
 
-    // Sales-channel visibility — when ctx specifies a channel, only
-    // products mapped to it are surfaced.
-    let visibleIds: Set<string> = new Set(byId.keys());
-    if (ctx.salesChannelCode) {
-      const channel = await em.findOne(SalesChannel, { code: ctx.salesChannelCode });
-      if (channel) {
-        const visibleRows = await em
-          .getConnection()
-          .execute<{ product_id: string }[]>(
-            `select product_id from sales_channel_products
-             where sales_channel_id = ? and product_id in (${targets
-               .map(() => '?')
-               .join(',')})`,
-            [channel.id, ...targets.map((t) => t.id)],
-          );
-        visibleIds = new Set(visibleRows.map((r) => r.product_id));
-      }
+    // Feature 052 (US4) — sales-channel visibility (FR-006). A channel is ALWAYS
+    // resolved and the membership filter is ALWAYS applied, so no path returns the
+    // full unfiltered target set: an explicit `salesChannelCode` resolves that
+    // channel (unchanged behavior); otherwise we fall back to the system-default
+    // channel. If neither resolves (misconfigured store), fail closed to an empty
+    // visible set rather than leaking every target. Interim guard subsumed by the
+    // future unified channel resolver (spec 03).
+    const channel = ctx.salesChannelCode
+      ? await em.findOne(SalesChannel, { code: ctx.salesChannelCode })
+      : await em.findOne(SalesChannel, { systemDefault: true });
+    let visibleIds: Set<string>;
+    if (channel && targets.length > 0) {
+      const visibleRows = await em
+        .getConnection()
+        .execute<{ product_id: string }[]>(
+          `select product_id from sales_channel_products
+           where sales_channel_id = ? and product_id in (${targets
+             .map(() => '?')
+             .join(',')})`,
+          [channel.id, ...targets.map((t) => t.id)],
+        );
+      visibleIds = new Set(visibleRows.map((r) => r.product_id));
+    } else {
+      // No channel resolved (or no targets) → nothing is visible (fail closed).
+      visibleIds = new Set<string>();
     }
 
     // Primary asset urls (gallery thumb chain reused via product_assets fallback)
