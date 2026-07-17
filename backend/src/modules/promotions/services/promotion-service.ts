@@ -261,7 +261,45 @@ export class PromotionService {
       }
     }
 
+    // Feature 052 (US3) — sales-channel gate (FR-004 / FR-005). Resolve the set
+    // of promotion ids bound to the cart's resolved channel and reject any
+    // promotion whose `sales_channel_promotions` binding excludes it. The cart's
+    // channel is `snapshot.salesChannelId`, which the cart→snapshot mappers always
+    // populate explicitly (a uuid, or `null` when the cart resolved to no channel):
+    //   - a uuid  → keep only promotions bound to that channel;
+    //   - `null`  → the cart resolved to no channel → nothing matches (fail closed);
+    //   - absent  → a legacy caller that does not participate in channel scoping →
+    //               the gate is skipped (neutrality; every real caller sends the field).
+    // The bridge is read only through SalesChannelMembershipService (the
+    // `no-unscoped-channel-query` rule); when it is not wired (legacy test
+    // composition) the gate degrades to no channel filtering. This is an interim
+    // predicate subsumed by the future unified channel resolver (spec 03).
+    let channelPromotionIds: Set<string> | null = null;
+    if (this.salesChannelMembership && all.length > 0 && snapshot.salesChannelId !== undefined) {
+      if (snapshot.salesChannelId) {
+        const ids = new Set<string>();
+        const pageSize = 500;
+        let page = 0;
+        for (;;) {
+          const { entityIds, total } = await this.salesChannelMembership.listEntityIdsForChannel(
+            snapshot.salesChannelId,
+            'promotion',
+            page,
+            pageSize,
+          );
+          for (const id of entityIds) ids.add(id);
+          if (entityIds.length === 0 || ids.size >= total) break;
+          page += 1;
+        }
+        channelPromotionIds = ids;
+      } else {
+        // Null / unresolved channel → nothing matches (fail closed, FR-005).
+        channelPromotionIds = new Set<string>();
+      }
+    }
+
     let eligible = all.filter((p) => {
+      if (channelPromotionIds && !channelPromotionIds.has(p.id)) return false;
       if (p.validFrom && now < p.validFrom) return false;
       if (p.validUntil && now > p.validUntil) return false;
       if (
