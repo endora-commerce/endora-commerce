@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -10,6 +11,7 @@ import { randomUUID } from 'crypto';
  * Sharing the same Asset across multiple Products is supported — just
  * insert multiple ProductAttachment rows pointing at the same asset_id.
  */
+@GlobalEntity()
 @Entity({ tableName: 'product_attachments' })
 export class ProductAttachment {
   [OptionalProps]?: 'id' | 'description' | 'position' | 'createdAt' | 'updatedAt';

@@ -1,7 +1,9 @@
 import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /** NewsletterTag — feature 048. Operator-defined label for segmentation. */
+@GlobalEntity()
 @Entity({ tableName: 'newsletter_tags' })
 export class NewsletterTag {
   [OptionalProps]?: 'description' | 'createdAt' | 'updatedAt';

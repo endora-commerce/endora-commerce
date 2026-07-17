@@ -1,7 +1,9 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /** NewsletterCampaign — feature 048. A one-off bulk send to a target audience. */
+@GlobalEntity()
 @Entity({ tableName: 'newsletter_campaigns' })
 export class NewsletterCampaign {
   [OptionalProps]?:

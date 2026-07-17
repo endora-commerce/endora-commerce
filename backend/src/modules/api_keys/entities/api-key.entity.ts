@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -10,6 +11,7 @@ import { randomUUID } from 'crypto';
  * `scopes` is a JSONB array of permission strings (e.g. `catalog:read`,
  * `orders:write`). The api-key auth gate checks `scopes.includes(scope)`.
  */
+@GlobalEntity()
 @Entity({ tableName: 'api_keys' })
 export class ApiKey {
   [OptionalProps]?:

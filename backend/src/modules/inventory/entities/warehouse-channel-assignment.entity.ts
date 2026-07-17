@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -7,6 +8,7 @@ import { randomUUID } from 'crypto';
  * partial unique index on `(sales_channel_id) WHERE is_default = true`
  * in migration 030).
  */
+@GlobalEntity()
 @Entity({ tableName: 'warehouse_channel_assignments' })
 @Unique({ properties: ['warehouseId', 'salesChannelId'] })
 export class WarehouseChannelAssignment {

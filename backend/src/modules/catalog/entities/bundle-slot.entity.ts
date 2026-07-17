@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -13,6 +14,7 @@ import { randomUUID } from 'crypto';
  *   - CHECK min_quantity <= max_quantity
  *   - CHECK min_quantity >= 0, max_quantity > 0
  */
+@GlobalEntity()
 @Entity({ tableName: 'bundle_slots' })
 export class BundleSlot {
   [OptionalProps]?: 'id' | 'minQuantity' | 'position' | 'createdAt' | 'updatedAt';

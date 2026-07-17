@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * CmsHookBlockAttachment — orderable many-to-many between Hooks and
@@ -6,6 +7,7 @@ import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
  * from being attached twice to the same Hook; `position` drives the
  * storefront's render order (ASC).
  */
+@GlobalEntity()
 @Entity({ tableName: 'cms_hook_block_attachments' })
 export class CmsHookBlockAttachment {
   [OptionalProps]?: 'createdAt' | 'position';

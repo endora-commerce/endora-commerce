@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -8,6 +9,7 @@ import { randomUUID } from 'crypto';
  * graph. Endpoints reference `return_statuses.code` by value (validated
  * in-service, not a hard FK, so a status rename does not cascade).
  */
+@GlobalEntity()
 @Entity({ tableName: 'return_status_transitions' })
 @Unique({ properties: ['fromStatusCode', 'toStatusCode'] })
 export class ReturnStatusTransition {

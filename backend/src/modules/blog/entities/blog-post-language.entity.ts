@@ -1,9 +1,11 @@
 import { Entity, PrimaryKey } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * BlogPostLanguage — per-Post language scope. Mirrors the shape of
  * `blog_category_languages`.
  */
+@GlobalEntity()
 @Entity({ tableName: 'blog_post_languages' })
 export class BlogPostLanguage {
   @PrimaryKey({ type: 'uuid', fieldName: 'blog_post_id' })

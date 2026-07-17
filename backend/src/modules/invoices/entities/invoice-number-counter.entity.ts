@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -7,6 +8,7 @@ import { randomUUID } from 'crypto';
  * IS the yearly reset. Drawn under a pessimistic row lock so concurrent
  * issuance in the same scope never duplicates a number.
  */
+@GlobalEntity()
 @Entity({ tableName: 'invoice_number_counters' })
 @Unique({ properties: ['salesChannelId', 'kind', 'periodYear'] })
 export class InvoiceNumberCounter {

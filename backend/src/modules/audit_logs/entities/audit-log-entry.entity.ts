@@ -1,10 +1,12 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
  * Row in the audit log of sensitive operations (FR-084, R-12).
  * Never soft-deleted — accounting + audit retention ≥ 5 years per spec assumptions.
  */
+@GlobalEntity()
 @Entity({ tableName: 'audit_log_entries' })
 export class AuditLogEntry {
   [OptionalProps]?: 'id' | 'actedAt';

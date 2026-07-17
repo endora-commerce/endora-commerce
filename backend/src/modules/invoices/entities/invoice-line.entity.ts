@@ -1,10 +1,12 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
  * Immutable snapshot of one invoice line at issuance (feature 047). Independent
  * of later order edits. For corrections, holds the corrected delta lines.
  */
+@GlobalEntity()
 @Entity({ tableName: 'invoice_lines' })
 @Index({ properties: ['invoiceId', 'ordinal'] })
 export class InvoiceLine {

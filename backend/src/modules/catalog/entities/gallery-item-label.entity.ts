@@ -1,4 +1,5 @@
 import { Entity, Index, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 export type GalleryLabel = 'base_image' | 'small_image' | 'thumbnail';
 
@@ -17,6 +18,7 @@ export type GalleryLabel = 'base_image' | 'small_image' | 'thumbnail';
  * UNIQUE constraint without a sub-query — the canonical owner of the
  * (item, product) link is `gallery_items.product_id`.
  */
+@GlobalEntity()
 @Entity({ tableName: 'gallery_item_labels' })
 export class GalleryItemLabel {
   @PrimaryKey({ type: 'uuid' })

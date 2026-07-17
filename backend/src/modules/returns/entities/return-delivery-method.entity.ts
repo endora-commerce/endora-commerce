@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -7,6 +8,7 @@ import { randomUUID } from 'crypto';
  * An allowed return delivery method with its return shipping cost (0 = free /
  * shop-paid). References an existing `delivery_methods.id` by value.
  */
+@GlobalEntity()
 @Entity({ tableName: 'return_delivery_methods' })
 export class ReturnDeliveryMethod {
   [OptionalProps]?: 'id' | 'isActive' | 'createdAt' | 'updatedAt';

@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import type { KnownIconName } from '@b2b/contracts';
 
 /**
@@ -13,6 +14,7 @@ import type { KnownIconName } from '@b2b/contracts';
  * (feature 019): modules are filesystem-driven and lifecycle ordering
  * already owns cleanup on hard-uninstall.
  */
+@GlobalEntity()
 @Entity({ tableName: 'module_actions' })
 @Index({
   properties: ['weight', 'labelKey'],

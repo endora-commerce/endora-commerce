@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * BlogCategorySalesChannel — composite-key M2M between blog_categories and
@@ -8,6 +9,7 @@ import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
  * slug) uniqueness directly at the DB level (R3). The service layer keeps
  * the mirror in sync on every parent write.
  */
+@GlobalEntity()
 @Entity({ tableName: 'blog_category_sales_channels' })
 export class BlogCategorySalesChannel {
   [OptionalProps]?: 'deletedAt';

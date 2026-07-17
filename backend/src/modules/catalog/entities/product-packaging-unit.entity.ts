@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -12,6 +13,7 @@ import { randomUUID } from 'crypto';
  * at creation, so deleting or editing a unit never alters historical
  * documents — a plain hard delete is therefore safe (no soft-delete column).
  */
+@GlobalEntity()
 @Entity({ tableName: 'product_packaging_units' })
 @Unique({ properties: ['productId', 'name'] })
 export class ProductPackagingUnit {

@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import type { RegistryState } from '@b2b/contracts';
 
 /**
@@ -11,6 +12,7 @@ import type { RegistryState } from '@b2b/contracts';
  * re-install can detect the prior version and skip already-applied
  * migrations.
  */
+@GlobalEntity()
 @Entity({ tableName: 'module_registrations' })
 export class ModuleRegistration {
   [OptionalProps]?:

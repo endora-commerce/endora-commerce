@@ -1,10 +1,12 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * Language — installation-wide pool of supported BCP-47 language tags
  * (T238 / FR-105). Exactly zero or one row has `isDefault=true`, enforced
  * by a partial unique index in the migration.
  */
+@GlobalEntity()
 @Entity({ tableName: 'languages' })
 export class Language {
   [OptionalProps]?:

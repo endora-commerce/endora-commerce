@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * BlogPostTag — composite-key M2M between blog_posts and blog_tags,
@@ -6,6 +7,7 @@ import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
  * on-delete is enforced at the service layer in BlogTagService.remove
  * (FR-018, R14).
  */
+@GlobalEntity()
 @Entity({ tableName: 'blog_post_tags' })
 export class BlogPostTag {
   [OptionalProps]?: 'position';

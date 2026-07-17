@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -10,6 +11,7 @@ import { randomUUID } from 'crypto';
  * movement succeeded, is pending manual handling (adapter can't auto-refund), or
  * failed. `attemptNo` supports retries (1 = first).
  */
+@GlobalEntity()
 @Entity({ tableName: 'refunds' })
 export class Refund {
   [OptionalProps]?:

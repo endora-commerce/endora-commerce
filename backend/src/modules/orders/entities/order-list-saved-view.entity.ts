@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -9,6 +10,7 @@ import { randomUUID } from 'crypto';
  * the orders list; edit/delete of a shared view is restricted to its owner (and
  * platform admins) in the service.
  */
+@GlobalEntity()
 @Entity({ tableName: 'order_list_saved_views' })
 export class OrderListSavedView {
   [OptionalProps]?: 'id' | 'shared' | 'createdAt' | 'updatedAt' | 'visibleColumns';

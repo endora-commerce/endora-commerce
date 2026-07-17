@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -8,6 +9,7 @@ import { randomUUID } from 'crypto';
  * product archive doesn't wipe historical list rows — instead we surface
  * the archived row at conversion time and let the caller skip it.
  */
+@GlobalEntity()
 @Entity({ tableName: 'shopping_list_items' })
 export class ShoppingListItem {
   [OptionalProps]?: 'id' | 'createdAt' | 'updatedAt' | 'variantId' | 'note';

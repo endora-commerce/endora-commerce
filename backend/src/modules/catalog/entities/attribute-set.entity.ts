@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -11,6 +12,7 @@ import { randomUUID } from 'crypto';
  * `isSystem=true`; it cannot be deleted, and its `code` cannot be
  * renamed (the localized `name` and `description` may be edited).
  */
+@GlobalEntity()
 @Entity({ tableName: 'attribute_sets' })
 export class AttributeSet {
   [OptionalProps]?: 'id' | 'description' | 'isSystem' | 'createdAt' | 'updatedAt';

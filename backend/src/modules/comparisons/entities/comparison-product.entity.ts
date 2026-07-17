@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * ComparisonProduct — feature 007 / T012 / data-model.md §1.2.
@@ -13,6 +14,7 @@ import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/c
  * that referenced it (no dangling rows, no orphaned columns); removing a
  * Comparison removes its bridge rows.
  */
+@GlobalEntity()
 @Entity({ tableName: 'comparison_products' })
 export class ComparisonProduct {
   [OptionalProps]?: 'addedAt';

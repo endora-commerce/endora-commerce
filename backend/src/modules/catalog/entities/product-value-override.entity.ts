@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -28,6 +29,7 @@ import { randomUUID } from 'crypto';
  * UNIQUE indexes (see migration 043) enforce uniqueness across both
  * shapes.
  */
+@GlobalEntity()
 @Entity({ tableName: 'product_value_overrides' })
 export class ProductValueOverride {
   [OptionalProps]?: 'id' | 'createdAt' | 'updatedAt' | 'languageCode';

@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * BlogPostRelatedPost — self-join on blog_posts (parent_post_id →
@@ -7,6 +8,7 @@ import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
  * BlogPostService.softDelete: the soft-delete transaction atomically
  * removes every join row where `related_post_id = id`.
  */
+@GlobalEntity()
 @Entity({ tableName: 'blog_post_related_posts' })
 export class BlogPostRelatedPost {
   [OptionalProps]?: 'position';

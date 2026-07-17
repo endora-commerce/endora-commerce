@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 export type MegamenuItemKind =
@@ -20,6 +21,7 @@ export type MegamenuItemKind =
  * powers the cross-module reference scans documented in
  * `contracts/megamenu-reference-scan.contract.md`.
  */
+@GlobalEntity()
 @Entity({ tableName: 'megamenu_items' })
 @Index({ name: 'idx_megamenu_items_tree', properties: ['megamenuId', 'parentId', 'position'] })
 export class MegamenuItem {

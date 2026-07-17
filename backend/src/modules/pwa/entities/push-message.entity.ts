@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 import type { PushAudience, PushTrigger, PushMessageStatus } from '@b2b/contracts';
 
@@ -7,6 +8,7 @@ import type { PushAudience, PushTrigger, PushMessageStatus } from '@b2b/contract
  * or event-triggered. `(trigger, sourceEventId)` is unique when sourceEventId is
  * present, so a business event cannot produce duplicate messages (FR-024).
  */
+@GlobalEntity()
 @Entity({ tableName: 'push_messages' })
 export class PushMessage {
   [OptionalProps]?:

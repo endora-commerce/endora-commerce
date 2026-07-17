@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,6 +7,7 @@ import { randomUUID } from 'crypto';
  * the API URL, auth credentials, sync schedule. `encryptedConfig` is opaque
  * to callers; the IntegrationService encrypts at rest with a key from env.
  */
+@GlobalEntity()
 @Entity({ tableName: 'external_integrations' })
 export class ExternalIntegration {
   [OptionalProps]?:

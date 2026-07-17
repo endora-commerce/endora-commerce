@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -9,6 +10,7 @@ import { randomUUID } from 'crypto';
  * in-service, not a hard FK, so a status rename does not cascade). `isSystem`
  * marks the universal on_hold/cancelled edges materialized at seed time.
  */
+@GlobalEntity()
 @Entity({ tableName: 'order_status_transitions' })
 @Unique({ properties: ['fromStatusCode', 'toStatusCode'] })
 export class OrderStatusTransition {

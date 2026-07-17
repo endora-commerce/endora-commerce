@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -23,6 +24,7 @@ export type QuoteRequestEventType =
   | 're-submitted'
   | 'note-added';
 
+@GlobalEntity()
 @Entity({ tableName: 'quote_request_events' })
 export class QuoteRequestEvent {
   [OptionalProps]?:

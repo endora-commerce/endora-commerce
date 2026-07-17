@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * AdminNotification — one row per in-app notification entry.
@@ -14,6 +15,7 @@ import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/c
  * unread entries do not pile up forever. The schema does not cap the row
  * count — the pruner does.
  */
+@GlobalEntity()
 @Entity({ tableName: 'admin_notifications' })
 export class AdminNotification {
   [OptionalProps]?:

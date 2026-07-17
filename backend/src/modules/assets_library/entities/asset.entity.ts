@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -11,6 +12,7 @@ import { randomUUID } from 'crypto';
  * `storageUrl` is retained for one release as a read-only legacy escape hatch
  * and is no longer written by new code (research R11 / FR-034).
  */
+@GlobalEntity()
 @Entity({ tableName: 'assets' })
 export class Asset {
   [OptionalProps]?:

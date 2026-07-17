@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -35,6 +36,7 @@ import { randomUUID } from 'crypto';
  * isPromoRule, and isVisibleOnProductPage are also mutable but do not
  * trigger any reindex.
  */
+@GlobalEntity()
 @Entity({ tableName: 'product_attributes' })
 export class ProductAttribute {
   [OptionalProps]?:

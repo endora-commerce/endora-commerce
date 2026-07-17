@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * MegamenuBinding — composite-key entity (megamenuId, salesChannelId,
@@ -6,6 +7,7 @@ import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
  * `idx_megamenu_bindings_active_uniq` enforces — exactly one active
  * binding per (sales_channel_id, language) pair (FR-008 / R3).
  */
+@GlobalEntity()
 @Entity({ tableName: 'megamenu_bindings' })
 export class MegamenuBinding {
   [OptionalProps]?: 'createdAt' | 'updatedAt' | 'active' | 'version';
