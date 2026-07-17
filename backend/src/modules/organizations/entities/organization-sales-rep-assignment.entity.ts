@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -8,6 +9,7 @@ import { randomUUID } from 'crypto';
  * "unassigned-org fallback" mode (research §R2). An organization with
  * zero rows in this table is visible to every sales rep.
  */
+@GlobalEntity()
 @Entity({ tableName: 'organization_sales_rep_assignments' })
 @Unique({ properties: ['organizationId', 'adminUserId'] })
 export class OrganizationSalesRepAssignment {
