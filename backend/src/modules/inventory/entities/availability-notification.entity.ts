@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { CustomerScoped } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -13,6 +14,7 @@ import { randomUUID } from 'crypto';
  */
 export type AvailabilityNotificationStatus = 'queued' | 'notified' | 'cancelled';
 
+@CustomerScoped()
 @Entity({ tableName: 'availability_notifications' })
 export class AvailabilityNotification {
   [OptionalProps]?:
