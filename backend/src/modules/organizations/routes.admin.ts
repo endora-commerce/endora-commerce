@@ -58,6 +58,10 @@ const listQuerySchema = z.object({
   'filter[vatStatus]': z.enum(['vat_payer', 'vat_exempt', 'reverse_charge']).optional(),
   q: z.string().optional(),
   limit: z.coerce.number().int().positive().max(200).default(50),
+  // Feature 051 — personal (B2C) orgs are excluded by default; pass
+  // `includePersonal=true` to see them (string compare — z.coerce.boolean would
+  // treat the string "false" as true).
+  includePersonal: z.string().optional(),
 });
 
 export interface AdminOrgsDeps {
@@ -144,6 +148,8 @@ export async function registerOrganizationsAdminRoutes(
       const query = listQuerySchema.parse(request.query);
       const em = emFactory();
       const where: Record<string, unknown> = { deletedAt: null };
+      // Feature 051 — exclude personal (B2C) orgs from the B2B admin list by default.
+      if (query.includePersonal !== 'true') where['isPersonal'] = false;
       if (query['filter[status]']) where['status'] = query['filter[status]'];
       if (query['filter[vatStatus]']) where['vatStatus'] = query['filter[vatStatus]'];
       if (query.q) {
