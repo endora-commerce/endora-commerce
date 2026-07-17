@@ -18,6 +18,7 @@ import fastifyPlugin from 'fastify-plugin';
 import { forkScopedEm } from './tenancy/scoped-em.js';
 import { runInTenantContext, type TenantContext } from './tenancy/tenant-context.js';
 import { resolveTenantContext, systemTenantContext } from './tenancy/resolve-tenant-context.js';
+import { withSystemScope } from './tenancy/escape-hatch.js';
 import { authPlugin, promoteAdminActor } from './modules/auth/plugin.js';
 import { SessionService } from './modules/auth/services/session-service.js';
 import { AuditLogService } from './modules/audit_logs/services/audit-log-service.js';
@@ -346,10 +347,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     await app.register(authPlugin, {
       sessionService,
       apiKeyResolver: async (token) => integrations.handle.apiKeyService.authenticate(token),
-      customerOrgResolver: async (customerAccountId) => {
-        const customer = await em().findOne(CustomerAccount, { id: customerAccountId });
-        return customer?.organizationId ?? null;
-      },
+      customerOrgResolver: async (customerAccountId) =>
+        // Feature 050 — runs in the auth hook, before the tenant context exists;
+        // identity resolution is a system-scoped read.
+        withSystemScope('auth: resolve customer org', async () => {
+          const customer = await em().findOne(CustomerAccount, { id: customerAccountId });
+          return customer?.organizationId ?? null;
+        }),
     });
   };
 
@@ -561,10 +565,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       ? new OpenIdOAuthProvider(oauthConfig)
       : undefined;
   const mfaSocialResolvers = {
-    resolveCustomerByEmail: async (email: string) => {
-      const c = await em().findOne(CustomerAccount, { email, deletedAt: null });
-      return c ? { id: c.id } : null;
-    },
+    resolveCustomerByEmail: async (email: string) =>
+      // Feature 050 — social-login identity resolution, before tenant context.
+      withSystemScope('mfa: resolve customer by email', async () => {
+        const c = await em().findOne(CustomerAccount, { email, deletedAt: null });
+        return c ? { id: c.id } : null;
+      }),
     autoCreateCustomer: async (email: string) => {
       let allowed = false;
       try {
