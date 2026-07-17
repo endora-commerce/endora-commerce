@@ -27,7 +27,14 @@ describe('ProductLinkService.listForStorefront — channel filter (feature 052 U
   let channelACode: string;
   let channelAId: string;
   let defaultChannelId: string;
+  let defaultChannelCode: string;
+  let defaultChannelIsPublic: boolean;
   let counter = 0;
+
+  // Feature 053: the route hands the service the request's resolved channel.
+  const rc = (id: string, code: string, isPublic: boolean) => ({
+    resolvedChannel: { id, code, isPublic },
+  });
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -36,6 +43,8 @@ describe('ProductLinkService.listForStorefront — channel filter (feature 052 U
     const def = await h.salesChannels.resolver.getSystemDefault();
     if (!def) throw new Error('system-default sales channel missing in test setup');
     defaultChannelId = def.id;
+    defaultChannelCode = def.code;
+    defaultChannelIsPublic = def.isPublic;
 
     const em = h.em();
     const channelA = em.create(SalesChannel, {
@@ -91,7 +100,7 @@ describe('ProductLinkService.listForStorefront — channel filter (feature 052 U
     // T is a member of channel A only — NOT of the system default.
     await h.salesChannels.membershipService.addToChannel(channelAId, 'product', targetId);
 
-    const result = await svc.listForStorefront(sourceId, {});
+    const result = await svc.listForStorefront(sourceId, rc(defaultChannelId, defaultChannelCode, defaultChannelIsPublic));
     const ids = result.map((r) => r.product.id);
     expect(ids).not.toContain(targetId);
   });
@@ -100,7 +109,7 @@ describe('ProductLinkService.listForStorefront — channel filter (feature 052 U
     const { sourceId, targetId } = await linked();
     await h.salesChannels.membershipService.addToChannel(channelAId, 'product', targetId);
 
-    const result = await svc.listForStorefront(sourceId, { salesChannelCode: channelACode });
+    const result = await svc.listForStorefront(sourceId, rc(channelAId, channelACode, false));
     const ids = result.map((r) => r.product.id);
     expect(ids).toContain(targetId);
   });
@@ -109,7 +118,7 @@ describe('ProductLinkService.listForStorefront — channel filter (feature 052 U
     const { sourceId, targetId } = await linked();
     await h.salesChannels.membershipService.addToChannel(defaultChannelId, 'product', targetId);
 
-    const result = await svc.listForStorefront(sourceId, {});
+    const result = await svc.listForStorefront(sourceId, rc(defaultChannelId, defaultChannelCode, defaultChannelIsPublic));
     const ids = result.map((r) => r.product.id);
     expect(ids).toContain(targetId);
   });

@@ -53,9 +53,8 @@ quality:
     # classification decorator (fails the build on any unclassified entity).
     - pnpm --filter backend exec tsx scripts/check-entity-tenant-classification.ts
     # Feature 053 (FR-011) — no storefront module may re-resolve the sales
-    # channel outside the canonical resolver. Report-only during rollout (a
-    # shrinking allow-list); flip to `--enforce` once the allow-list is empty.
-    - pnpm --filter backend exec tsx scripts/check-channel-resolution.ts
+    # channel outside the canonical resolver. Allow-list is empty; enforced.
+    - pnpm --filter backend exec tsx scripts/check-channel-resolution.ts --enforce
   cache:
     key:
       files:

@@ -1,6 +1,7 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
+import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
 import type { StorefrontResolver } from './services/storefront-resolver.js';
 
 export async function registerMegamenuStorefrontRoutes(
@@ -10,10 +11,9 @@ export async function registerMegamenuStorefrontRoutes(
   app.get('/api/v1/megamenu/by-channel', async (request) => {
     const query = (request.query ?? {}) as Record<string, string | undefined>;
     const language = query['language'] ?? readHeader(request.headers['accept-language'])?.split(',')[0];
-    const salesChannelCode = readHeader(request.headers['x-sales-channel']);
 
     const resolved = await deps.storefrontResolver.resolveByChannelAndLanguage({
-      ...(salesChannelCode !== undefined ? { salesChannelCode } : {}),
+      resolvedChannel: resolvedChannel(request),
       ...(language !== undefined ? { language } : {}),
     });
     if (!resolved) {
@@ -21,6 +21,12 @@ export async function registerMegamenuStorefrontRoutes(
     }
     return { data: resolved };
   });
+}
+
+/** Reads the request's already-resolved sales channel (set by the resolver middleware). */
+function resolvedChannel(request: FastifyRequest): { id: string; code: string; defaultLanguage: string } {
+  const ch = getResolvedChannel(request);
+  return { id: ch.id, code: ch.code, defaultLanguage: ch.defaultLanguage };
 }
 
 function readHeader(value: string | string[] | undefined): string | undefined {

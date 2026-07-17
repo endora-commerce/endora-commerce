@@ -28,6 +28,21 @@ type ChannelRow = {
   default_language: string;
 };
 
+/**
+ * The request's resolved sales channel, handed in by the route from the
+ * canonical resolver (`request.salesChannel`) — feature 053 / FR-002. The
+ * service no longer re-resolves the channel from the raw header.
+ */
+export type ResolvedChannel = {
+  id: string;
+  code: string;
+  defaultLanguage: string;
+};
+
+function toChannelRow(channel: ResolvedChannel): ChannelRow {
+  return { id: channel.id, code: channel.code, default_language: channel.defaultLanguage };
+}
+
 type BlockRow = {
   id: string;
   code: string;
@@ -55,13 +70,12 @@ export class StorefrontResolver {
   ) {}
 
   async resolvePageBySlug(input: {
-    salesChannelCode?: string | undefined;
+    resolvedChannel: ResolvedChannel;
     language?: string | undefined;
     slug: string;
   }): Promise<CmsResolvedPage | null> {
     const em = this.emFactory();
-    const channel = await this.resolveChannel(em, input.salesChannelCode);
-    if (!channel) return null;
+    const channel = toChannelRow(input.resolvedChannel);
 
     const cacheLanguage = input.language ?? channel.default_language;
     if (this.cache) {
@@ -113,13 +127,12 @@ export class StorefrontResolver {
   }
 
   async resolveBlockByCode(input: {
-    salesChannelCode?: string | undefined;
+    resolvedChannel: ResolvedChannel;
     language?: string | undefined;
     code: string;
   }): Promise<CmsResolvedBlock | null> {
     const em = this.emFactory();
-    const channel = await this.resolveChannel(em, input.salesChannelCode);
-    if (!channel) return null;
+    const channel = toChannelRow(input.resolvedChannel);
 
     const cacheLanguage = input.language ?? channel.default_language;
     if (this.cache) {
@@ -159,13 +172,12 @@ export class StorefrontResolver {
   }
 
   async resolveHookByCode(input: {
-    salesChannelCode?: string | undefined;
+    resolvedChannel: ResolvedChannel;
     language?: string | undefined;
     code: string;
   }): Promise<CmsResolvedHook | null> {
     const em = this.emFactory();
-    const channel = await this.resolveChannel(em, input.salesChannelCode);
-    if (!channel) return null;
+    const channel = toChannelRow(input.resolvedChannel);
 
     const cacheLanguage = input.language ?? channel.default_language;
     if (this.cache) {
@@ -349,19 +361,6 @@ export class StorefrontResolver {
          and ctsc.code in (${placeholders})`,
       [channel.id, ...codes],
     )) as TemplateRow[];
-  }
-
-  private async resolveChannel(
-    em: EntityManager,
-    code: string | undefined,
-  ): Promise<ChannelRow | null> {
-    const rows = (await em.getConnection().execute(
-      code
-        ? `select id::text, code, default_language from sales_channels where code = ? and active = true limit 1`
-        : `select id::text, code, default_language from sales_channels where system_default = true limit 1`,
-      code ? [code] : [],
-    )) as ChannelRow[];
-    return rows[0] ?? null;
   }
 
   private resolveLanguage(

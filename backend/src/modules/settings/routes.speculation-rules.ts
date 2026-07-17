@@ -1,4 +1,5 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
+import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
 import type { SpeculationRulesResolver } from './services/speculation-rules-resolver.js';
 
 /**
@@ -16,14 +17,8 @@ export async function registerSettingsSpeculationRulesRoutes(
   deps: { speculationRulesResolver: SpeculationRulesResolver },
 ): Promise<void> {
   app.get('/api/v1/storefront/speculation-rules', async (request) => {
-    const salesChannelCode = readHeader(request, 'x-sales-channel');
+    const salesChannelCode = getResolvedChannel(request).code;
     const data = await deps.speculationRulesResolver.resolve(salesChannelCode);
     return { data };
   });
-}
-
-function readHeader(request: FastifyRequest, name: string): string | undefined {
-  const value = request.headers[name];
-  if (Array.isArray(value)) return value[0];
-  return value;
 }

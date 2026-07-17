@@ -129,11 +129,20 @@ describe.skipIf(!shouldRun)('catalog visibleAttributes — p95 latency', () => {
   });
 
   it(`p95 of visibleAttributes projection stays under ${p95Budget} ms`, async () => {
+    const def = await h.salesChannels.resolver.getSystemDefault();
+    if (!def) throw new Error('system-default sales channel missing in test setup');
+    const resolvedChannel = {
+      id: def.id,
+      code: def.code,
+      isPublic: def.isPublic,
+      defaultCurrency: def.defaultCurrency,
+      defaultLanguage: def.defaultLanguage,
+    };
     const samples: number[] = [];
     for (let i = 0; i < iterations; i++) {
       const slug = productSlugs[i % productSlugs.length]!;
       const t0 = performance.now();
-      await svc.getProductByIdOrSlug(slug, { salesChannelCode: undefined });
+      await svc.getProductByIdOrSlug(slug, { resolvedChannel });
       samples.push(performance.now() - t0);
     }
     samples.sort((a, b) => a - b);

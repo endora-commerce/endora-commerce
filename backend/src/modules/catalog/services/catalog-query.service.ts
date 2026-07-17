@@ -8,7 +8,6 @@ import { GalleryItem } from '../entities/gallery-item.entity.js';
 import { GalleryItemLabel } from '../entities/gallery-item-label.entity.js';
 import { ProductAttachment } from '../entities/product-attachment.entity.js';
 import { AttachmentType } from '../entities/attachment-type.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import { Asset } from '../../assets_library/entities/asset.entity.js';
 import type { ProductLinkService } from './product-link.service.js';
 import { GroupedItem } from '../entities/grouped-item.entity.js';
@@ -54,9 +53,23 @@ function decodeObjectCursor<T>(cursor: string): T | null {
  * (tasks T067/T068); this service falls back to it transparently when available.
  */
 
+/**
+ * The request's sales channel, resolved once by the canonical resolver
+ * middleware (feature 053 / FR-002). The catalog reads it from the request
+ * context instead of re-resolving from the raw header. `isPublic` is the
+ * price-visibility flag (display concern, distinct from resolution).
+ */
+export interface CatalogResolvedChannel {
+  id: string;
+  code: string;
+  isPublic: boolean;
+  defaultCurrency: string;
+  defaultLanguage: string;
+}
+
 export interface CatalogQueryContext {
-  /** Sales Channel code from `X-Sales-Channel` header or storefront host mapping. */
-  salesChannelCode?: string | undefined;
+  /** The request's resolved sales channel (from `request.salesChannel`). */
+  resolvedChannel: CatalogResolvedChannel;
   /**
    * Language preference — BCP-47. Used to pick the right string out of the
    * multilingual JSONB blobs. Falls back to the Sales Channel's default language,
@@ -101,7 +114,7 @@ export class CatalogQueryService {
     ctx: CatalogQueryContext,
   ): Promise<ListResult<ProductSummary>> {
     const em = this.emFactory();
-    const channel = await this.resolveChannel(em, ctx);
+    const channel = ctx.resolvedChannel;
 
     // --- Filter validation: any filter[attr.<key>] where the attribute is
     // not filterable must return 400 FILTER_NOT_ALLOWED (FR-005, T043).
@@ -224,7 +237,7 @@ export class CatalogQueryService {
 
   async getProductByIdOrSlug(idOrSlug: string, ctx: CatalogQueryContext): Promise<ProductDetail> {
     const em = this.emFactory();
-    const channel = await this.resolveChannel(em, ctx);
+    const channel = ctx.resolvedChannel;
 
     const isUuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
@@ -454,7 +467,7 @@ export class CatalogQueryService {
       const linkRows = await this.productLinkService.listForStorefront(
         product.id,
         {
-          salesChannelCode: ctx.salesChannelCode ?? null,
+          resolvedChannel: ctx.resolvedChannel,
           ...(ctx.preferredLanguage ? { preferredLanguage: ctx.preferredLanguage } : {}),
         },
       );
@@ -575,7 +588,7 @@ export class CatalogQueryService {
     em: EntityManager,
     ids: string[],
     ctx: CatalogQueryContext,
-    channel: SalesChannel | null,
+    channel: CatalogResolvedChannel,
   ): Promise<
     Map<
       string,
@@ -682,7 +695,7 @@ export class CatalogQueryService {
 
   async getCategoryTree(ctx: CatalogQueryContext): Promise<CategoryNode[]> {
     const em = this.emFactory();
-    const channel = await this.resolveChannel(em, ctx);
+    const channel = ctx.resolvedChannel;
     const rows = await em.find(Category, { deletedAt: null }, { orderBy: { sortOrder: 'asc' } });
 
     // Directly-assigned, channel-visible products per category.
@@ -732,7 +745,7 @@ export class CatalogQueryService {
 
   async getFilterDefinitions(ctx: CatalogQueryContext): Promise<FilterDefinition[]> {
     const em = this.emFactory();
-    const channel = await this.resolveChannel(em, ctx);
+    const channel = ctx.resolvedChannel;
     const attrs = await em.find(ProductAttribute, { isFilterable: true });
 
     // Build option / range facets by scanning Products in the channel.
@@ -834,7 +847,7 @@ export class CatalogQueryService {
     em: EntityManager,
     product: Product,
     preferredLanguage: string | undefined,
-    channel: SalesChannel | null,
+    channel: CatalogResolvedChannel,
   ): Promise<Array<{ key: string; label: string; valueType: ProductAttribute['valueType']; valueRendered: string }>> {
     const values = product.attributeValues ?? {};
     const valueKeys = Object.keys(values).filter((k) => {
@@ -1042,18 +1055,6 @@ export class CatalogQueryService {
     return { [key]: { $ilike: `%${query}%` } };
   }
 
-  private async resolveChannel(
-    em: EntityManager,
-    ctx: CatalogQueryContext,
-  ): Promise<SalesChannel | null> {
-    if (ctx.salesChannelCode) {
-      const byCode = await em.findOne(SalesChannel, { code: ctx.salesChannelCode });
-      return byCode;
-    }
-    // Fallback — any public channel.
-    return em.findOne(SalesChannel, { isPublic: true });
-  }
-
   private orderForSort(sort: ListProductsParams['sort']): Record<string, 'asc' | 'desc'> {
     switch (sort) {
       case 'name':
@@ -1070,14 +1071,12 @@ export class CatalogQueryService {
   private async filterByChannel(
     em: EntityManager,
     productIds: string[],
-    channel: SalesChannel | null,
+    channel: CatalogResolvedChannel,
   ): Promise<Set<string>> {
     if (productIds.length === 0) return new Set();
-    if (!channel) {
-      // No channel context — only return products with visibility='public'.
-      const visible = await em.find(Product, { id: { $in: productIds }, visibility: 'public' });
-      return new Set(visible.map((p) => p.id));
-    }
+    // Feature 053 / Principle XII: a channel is ALWAYS resolved, so the catalog
+    // constrains to the resolved channel's `sales_channel_products` membership
+    // and fails closed to an empty set — never the full cross-channel set.
     const rows = await em.getConnection().execute<{ product_id: string }[]>(
       `select product_id from sales_channel_products where sales_channel_id = ? and product_id in (${productIds.map(() => '?').join(',')})`,
       [channel.id, ...productIds],
@@ -1116,7 +1115,7 @@ export class CatalogQueryService {
    */
   private async directProductSetsByCategory(
     em: EntityManager,
-    channel: SalesChannel | null,
+    channel: CatalogResolvedChannel,
   ): Promise<Map<string, Set<string>>> {
     const base = await em.getConnection().execute<{ category_id: string; product_id: string }[]>(
       `select category_id, product_id from product_categories`,
@@ -1145,7 +1144,7 @@ export class CatalogQueryService {
   private async toSummary(
     em: EntityManager,
     product: Product,
-    channel: SalesChannel | null,
+    channel: CatalogResolvedChannel,
     preferredLanguage?: string,
   ): Promise<ProductSummary> {
     // Primary asset — for listings prefer the gallery's Thumbnail (US3),
@@ -1215,7 +1214,7 @@ export class CatalogQueryService {
   private pickLang(
     blob: Record<string, string>,
     preferred?: string,
-    channel?: SalesChannel | null,
+    channel?: CatalogResolvedChannel,
   ): string {
     const preferredLangs = [preferred, channel?.defaultLanguage, 'en-US', 'en'].filter(
       (v): v is string => typeof v === 'string',

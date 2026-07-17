@@ -4,7 +4,6 @@ import { ERROR_CODES, type ProductSummary } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { ProductAttribute } from '../../catalog/entities/product-attribute.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import { encodeCursor, decodeCursor } from '../../../http/cursor.js';
 import { indexUidFor, type IndexedDocument } from './search-indexer.js';
 
@@ -27,8 +26,21 @@ import { indexUidFor, type IndexedDocument } from './search-indexer.js';
  * snapshot.
  */
 
+/**
+ * The request's resolved sales channel (feature 053 / FR-002), handed in by the
+ * route from `request.salesChannel`. The search service no longer re-resolves
+ * the channel from the raw header.
+ */
+export interface ResolvedSearchChannel {
+  id: string;
+  code: string;
+  isPublic: boolean;
+  defaultCurrency: string;
+  defaultLanguage: string;
+}
+
 export interface SearchQueryContext {
-  salesChannelCode?: string | undefined;
+  resolvedChannel: ResolvedSearchChannel;
   preferredLanguage?: string | undefined;
 }
 
@@ -82,7 +94,7 @@ export class SearchQueryService {
     ctx: SearchQueryContext,
   ): Promise<SearchListResult> {
     const em = this.emFactory();
-    const channel = await this.resolveChannel(em, ctx);
+    const channel = ctx.resolvedChannel;
 
     // Validate filter keys against the live ProductAttribute rows so that an
     // unfilterable attribute returns the same 400 the Postgres path returns
@@ -106,9 +118,7 @@ export class SearchQueryService {
       }
     }
 
-    const indexUid = channel
-      ? indexUidFor(channel)
-      : indexUidFor({ code: 'pl_retail' });
+    const indexUid = indexUidFor(channel);
     const index = this.client.index<DocumentHit & { updatedAt: number }>(indexUid);
 
     const offset = decodeOffsetCursor(params.cursor) ?? 0;
@@ -175,18 +185,6 @@ export class SearchQueryService {
     };
   }
 
-  private async resolveChannel(
-    em: EntityManager,
-    ctx: SearchQueryContext,
-  ): Promise<SalesChannel | null> {
-    if (ctx.salesChannelCode) {
-      const byCode = await em.findOne(SalesChannel, {
-        code: ctx.salesChannelCode,
-      });
-      if (byCode) return byCode;
-    }
-    return em.findOne(SalesChannel, { isPublic: true });
-  }
 }
 
 export class SearchBackendUnavailable extends Error {
@@ -251,7 +249,7 @@ function decodeOffsetCursor(cursor: string | undefined): number | null {
 function toSummary(
   product: Product,
   hit: DocumentHit,
-  channel: SalesChannel | null,
+  channel: ResolvedSearchChannel,
   preferredLanguage: string | undefined,
 ): ProductSummary {
   const rawPrice = Number(
@@ -281,7 +279,7 @@ function toSummary(
 function pickLang(
   blob: Record<string, string>,
   preferred: string | undefined,
-  channel: SalesChannel | null,
+  channel: ResolvedSearchChannel,
 ): string {
   const candidates = [
     preferred,

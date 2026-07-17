@@ -1,4 +1,5 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
+import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
 import type { ShopInfoResolver } from './services/shop-info-resolver.js';
 
 /**
@@ -15,14 +16,8 @@ export async function registerSettingsStorefrontRoutes(
   deps: { shopInfoResolver: ShopInfoResolver },
 ): Promise<void> {
   app.get('/api/v1/storefront/shop-info', async (request) => {
-    const salesChannelCode = readHeader(request, 'x-sales-channel');
+    const salesChannelCode = getResolvedChannel(request).code;
     const data = await deps.shopInfoResolver.resolve(salesChannelCode);
     return { data };
   });
-}
-
-function readHeader(request: FastifyRequest, name: string): string | undefined {
-  const value = request.headers[name];
-  if (Array.isArray(value)) return value[0];
-  return value;
 }

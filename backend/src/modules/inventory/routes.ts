@@ -11,6 +11,7 @@ import type { AvailabilityNotificationService } from './services/availability-no
 import type { WarehouseChannelService } from './services/warehouse-channel-service.js';
 import type { StockLevelService } from './services/stock-level-service.js';
 import type { SalesChannelResolverService } from '../sales_channels/services/sales-channel-resolver.service.js';
+import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
 import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
 import { Product } from '../catalog/entities/product.entity.js';
 import { StockLevel } from './entities/stock-level.entity.js';
@@ -269,23 +270,12 @@ export async function registerInventoryRoutes(
 
 async function resolveChannelId(
   request: FastifyRequest,
-  resolver?: SalesChannelResolverService,
+  _resolver?: SalesChannelResolverService,
 ): Promise<string> {
-  if (resolver) {
-    const headerHandle =
-      typeof (request.headers as Record<string, unknown>)['x-sales-channel'] === 'string'
-        ? ((request.headers as Record<string, string>)['x-sales-channel'] ?? null)
-        : null;
-    if (headerHandle) {
-      const resolved = await resolver.resolveActive(headerHandle);
-      if (resolved.ok) return resolved.channel.id;
-    }
-    const fallback = await resolver.getSystemDefault();
-    if (fallback) return fallback.id;
-  }
-  // Without a resolver the storefront caller must supply ?channelId=…
-  const q = (request.query ?? {}) as Record<string, string | undefined>;
-  return q['channelId'] ?? '';
+  // The canonical sales-channel resolver middleware already performed
+  // header/host/system-default resolution and active-channel validation on
+  // this request path, so simply read the resolved channel's id.
+  return getResolvedChannel(request).id;
 }
 
 async function readDisplayMode(

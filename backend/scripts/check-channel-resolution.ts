@@ -50,29 +50,11 @@ const CHANNEL_HEADERS = new Set(['x-sales-channel', 'x-sales-channel-id']);
  * in the same change that redirects the file to `request.salesChannel`. Paths
  * are relative to `src/` with POSIX separators.
  */
-const ALLOW_LIST = new Set<string>([
-  // Content read-surfaces (route + service pairs).
-  'modules/catalog/routes.public.ts',
-  'modules/catalog/services/catalog-query.service.ts',
-  'modules/catalog/services/product-link.service.ts',
-  'modules/search/routes.public.ts',
-  'modules/search/services/search-query.service.ts',
-  'modules/price_lists/routes.storefront.ts',
-  'modules/cms/routes.storefront.ts',
-  'modules/cms/services/storefront-resolver.ts',
-  'modules/megamenu/routes.storefront.ts',
-  'modules/megamenu/services/storefront-resolver.ts',
-  'modules/blog/routes.storefront.ts',
-  'modules/blog/services/blog-storefront-resolver.ts',
-  // Other storefront surfaces reading the raw header (discovered by this check —
-  // the 053 plan undercounted; these migrate to request.salesChannel too).
-  'modules/inventory/routes.ts',
-  'modules/pwa/routes.storefront.ts',
-  'modules/settings/routes.homepage.ts',
-  'modules/settings/routes.product-card-buttons.ts',
-  'modules/settings/routes.speculation-rules.ts',
-  'modules/settings/routes.storefront.ts',
-]);
+// Feature 053 complete: every storefront surface now reads request.salesChannel,
+// so the allow-list is empty and the check runs in --enforce mode in CI. Any new
+// entry here would be a regression to per-module resolution — don't add one;
+// redirect the offending module to request.salesChannel instead.
+const ALLOW_LIST = new Set<string>([]);
 
 /** The `sales_channels` module owns resolution — never scanned. */
 function isResolverOwned(relPath: string): boolean {

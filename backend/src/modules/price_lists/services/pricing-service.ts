@@ -2,7 +2,6 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DisplayMode } from '@b2b/contracts';
 import type { Product } from '../../catalog/entities/product.entity.js';
 import type { Organization } from '../../organizations/entities/organization.entity.js';
-import type { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import { PriceList } from '../entities/price-list.entity.js';
 import { PriceListPriceBracket } from '../entities/price-list-price-bracket.entity.js';
 import {
@@ -79,7 +78,13 @@ export class PricingService {
        * the Organization's group is used (unchanged behavior).
        */
       customerGroupId?: string | null;
-      salesChannel: SalesChannel;
+      /**
+       * The request's resolved sales channel. Only `id` (rule dimension +
+       * cache key) and `defaultCurrency` (currency fallback) are read, so any
+       * resolved-channel shape satisfies this — a full `SalesChannel` entity,
+       * or the request-scoped `CachedChannel` (feature 053 / FR-002).
+       */
+      salesChannel: { id: string; defaultCurrency: string };
       currencyCode?: string;
     };
   }): Promise<{
@@ -220,7 +225,13 @@ export class PricingService {
       organization?: Organization | null;
       /** Feature 040 — customer's direct group overrides the org's (R6). */
       customerGroupId?: string | null;
-      salesChannel: SalesChannel;
+      /**
+       * The request's resolved sales channel. Only `id` (rule dimension +
+       * cache key) and `defaultCurrency` (currency fallback) are read, so any
+       * resolved-channel shape satisfies this — a full `SalesChannel` entity,
+       * or the request-scoped `CachedChannel` (feature 053 / FR-002).
+       */
+      salesChannel: { id: string; defaultCurrency: string };
       currencyCode?: string;
     };
   }): Promise<{

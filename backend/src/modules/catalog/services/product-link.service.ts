@@ -5,10 +5,14 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { Asset } from '../../assets_library/entities/asset.entity.js';
 import { Product } from '../entities/product.entity.js';
 import { ProductLink, type ProductLinkKind } from '../entities/product-link.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
-
 interface StorefrontContext {
-  salesChannelCode?: string | null | undefined;
+  /**
+   * The request's resolved sales channel (feature 053 / FR-002). Always
+   * present — the canonical resolver guarantees a concrete channel — so
+   * cross/up-sell filtering is unconditional and fails closed (Principle XII).
+   * `isPublic` is the price-visibility flag.
+   */
+  resolvedChannel: { id: string; code: string; isPublic: boolean };
   preferredLanguage?: string | undefined;
 }
 
@@ -218,18 +222,13 @@ export class ProductLinkService {
     });
     const byId = new Map(targets.map((p) => [p.id, p]));
 
-    // Feature 052 (US4) — sales-channel visibility (FR-006). A channel is ALWAYS
-    // resolved and the membership filter is ALWAYS applied, so no path returns the
-    // full unfiltered target set: an explicit `salesChannelCode` resolves that
-    // channel (unchanged behavior); otherwise we fall back to the system-default
-    // channel. If neither resolves (misconfigured store), fail closed to an empty
-    // visible set rather than leaking every target. Interim guard subsumed by the
-    // future unified channel resolver (spec 03).
-    const channel = ctx.salesChannelCode
-      ? await em.findOne(SalesChannel, { code: ctx.salesChannelCode })
-      : await em.findOne(SalesChannel, { systemDefault: true });
+    // Feature 053 (FR-006 / Principle XII) — sales-channel visibility. The
+    // channel is resolved once upstream (`request.salesChannel`) and handed in;
+    // the membership filter is ALWAYS applied, failing closed to an empty
+    // visible set rather than leaking the full cross-channel target set.
+    const channel = ctx.resolvedChannel;
     let visibleIds: Set<string>;
-    if (channel && targets.length > 0) {
+    if (targets.length > 0) {
       const visibleRows = await em
         .getConnection()
         .execute<{ product_id: string }[]>(
@@ -314,14 +313,9 @@ export class ProductLinkService {
           target.attributeValues['price'] ??
           Number.NaN,
       );
-      // Sales-channel public flag controls price visibility (R-18); reuse
-      // the already-fetched channel by reading it again would be wasteful,
-      // so default to public when no channel is set.
-      let isPublic = true;
-      if (ctx.salesChannelCode) {
-        const channel = await em.findOne(SalesChannel, { code: ctx.salesChannelCode });
-        isPublic = channel?.isPublic ?? true;
-      }
+      // Sales-channel public flag controls price visibility (R-18), read off
+      // the resolved channel handed in by the route.
+      const isPublic = ctx.resolvedChannel.isPublic;
       const currency = 'PLN';
       const price =
         isPublic && Number.isFinite(rawPrice)

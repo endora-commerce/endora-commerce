@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PriceListService } from './services/price-list-service.js';
 import type { PricingService } from './services/pricing-service.js';
 import { Product } from '../catalog/entities/product.entity.js';
-import { SalesChannel } from '../sales_channels/entities/sales-channel.entity.js';
+import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
 
 export interface StorefrontPricingRoutesDeps {
   priceListService: PriceListService;
@@ -37,11 +37,9 @@ export async function registerStorefrontPricingRoutes(
         reply.status(404);
         return { error: { code: 'NOT_FOUND', message: 'Product not found.' } };
       }
-      const channel = await resolveChannelFromRequest(em, request.headers);
-      if (!channel) {
-        reply.status(400);
-        return { error: { code: 'VALIDATION_FAILED', message: 'Invalid sales channel.' } };
-      }
+      // Feature 053 / FR-002: read the channel resolved once by the canonical
+      // middleware (`request.salesChannel`) — no header re-parse, no re-query.
+      const channel = getResolvedChannel(request);
       const mode = await priceListService.resolveDisplayMode({
         productId: product.id,
         organizationId: null,
@@ -65,11 +63,7 @@ export async function registerStorefrontPricingRoutes(
         return { error: { code: 'NOT_FOUND', message: 'Product not found.' } };
       }
 
-      const channel = await resolveChannelFromRequest(em, request.headers);
-      if (!channel) {
-        reply.status(400);
-        return { error: { code: 'VALIDATION_FAILED', message: 'Invalid sales channel.' } };
-      }
+      const channel = getResolvedChannel(request);
 
       const quantity = Math.max(1, Number(request.query.quantity ?? '1') || 1);
       const currency = request.query.currency?.toUpperCase();
@@ -113,41 +107,4 @@ export async function registerStorefrontPricingRoutes(
       };
     },
   );
-}
-
-/**
- * Resolve the sales channel for a storefront request from one of:
- *   - `X-Sales-Channel-Id` (UUID; admin/test convention)
- *   - `X-Sales-Channel` (code; storefront convention)
- *   - falling back to the system-default channel.
- *
- * If a header is set but doesn't resolve to a channel, returns `null` so
- * the caller surfaces a 400 — silently falling through to the default
- * would mask invalid client input.
- */
-export async function resolveChannelFromRequest(
-  em: EntityManager,
-  headers: Record<string, string | string[] | undefined>,
-): Promise<SalesChannel | null> {
-  const idHeader = headers['x-sales-channel-id'];
-  const idValue =
-    typeof idHeader === 'string'
-      ? idHeader
-      : Array.isArray(idHeader)
-        ? idHeader[0]
-        : undefined;
-  if (idValue) {
-    return em.findOne(SalesChannel, { id: idValue });
-  }
-  const codeHeader = headers['x-sales-channel'];
-  const codeValue =
-    typeof codeHeader === 'string'
-      ? codeHeader
-      : Array.isArray(codeHeader)
-        ? codeHeader[0]
-        : undefined;
-  if (codeValue) {
-    return em.findOne(SalesChannel, { code: codeValue });
-  }
-  return em.findOne(SalesChannel, { systemDefault: true });
 }
