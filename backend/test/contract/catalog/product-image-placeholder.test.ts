@@ -43,7 +43,7 @@ describe('Storefront product image placeholder setting', () => {
   });
 
   async function listProducts(): Promise<Summary[]> {
-    const res = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/products' });
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/products', headers: { 'x-sales-channel': 'pl_retail' } });
     expect(res.statusCode).toBe(200);
     return (res.json() as { data: Summary[] }).data;
   }
@@ -79,6 +79,7 @@ describe('Storefront product image placeholder setting', () => {
     const detail = await h.app.inject({
       method: 'GET',
       url: `/api/v1/catalog/products/${target!.slug}`,
+      headers: { 'x-sales-channel': 'pl_retail' },
     });
     expect(detail.statusCode).toBe(200);
     const product = (detail.json() as { data: { primaryAssetUrl: string | null; assets: unknown[] } }).data;

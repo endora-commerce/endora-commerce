@@ -40,17 +40,6 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
   });
   await em.persistAndFlush([retail, b2bVip]);
 
-  // Feature 053: the single empty-channel fallback is the system-default channel
-  // (the `isPublic` fallback is retired). Make `pl_retail` — the public,
-  // product-bearing channel — the system default so a no-header storefront
-  // request resolves to the channel that actually carries the seeded catalog,
-  // mirroring a real deployment where the default channel serves content. The
-  // boot reconciler created an empty `Default` earlier; demote it first so the
-  // partial-unique index on `system_default = true` stays satisfied.
-  const conn0 = em.getConnection();
-  await conn0.execute(`update sales_channels set system_default = false where system_default = true`);
-  await conn0.execute(`update sales_channels set system_default = true where id = ?`, [retail.id]);
-
   // --- Categories --------------------------------------------------------
   const root = em.create(Category, {
     name: { 'en-US': 'Widgets', 'pl-PL': 'Widżety' },

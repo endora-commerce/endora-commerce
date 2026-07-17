@@ -30,7 +30,7 @@ describe('GET /api/v1/catalog/filters — feature 012 filterPosition (T039)', ()
   const adminCookie = { b2b_session: 'stub-admin-session' };
 
   it('returns filterPosition on every filter definition', async () => {
-    const res = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/filters' });
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/filters', headers: { 'x-sales-channel': 'pl_retail' } });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: Array<{ filterPosition: number }> };
     for (const f of body.data) {
@@ -56,7 +56,7 @@ describe('GET /api/v1/catalog/filters — feature 012 filterPosition (T039)', ()
       cookies: adminCookie,
     });
 
-    const res = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/filters' });
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/filters', headers: { 'x-sales-channel': 'pl_retail' } });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
       data: Array<{ attributeKey: string; filterPosition: number }>;
@@ -85,7 +85,7 @@ describe('GET /api/v1/catalog/filters — feature 012 filterPosition (T039)', ()
       cookies: adminCookie,
     });
 
-    const res = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/filters' });
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/filters', headers: { 'x-sales-channel': 'pl_retail' } });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: Array<{ attributeKey: string; label: string }> };
     const filtered = body.data.filter((f) => ['color', 'material'].includes(f.attributeKey));

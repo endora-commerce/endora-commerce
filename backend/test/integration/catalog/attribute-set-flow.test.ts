@@ -117,6 +117,7 @@ describe('AttributeSet US1 end-to-end (T012)', () => {
     const productsRes = await h.app.inject({
       method: 'GET',
       url: '/api/v1/catalog/products',
+      headers: { 'x-sales-channel': 'pl_retail' },
     });
     expect(productsRes.statusCode).toBe(200);
     const products = (
@@ -128,6 +129,7 @@ describe('AttributeSet US1 end-to-end (T012)', () => {
     const pdpRes = await h.app.inject({
       method: 'GET',
       url: `/api/v1/catalog/products/${someSlug}`,
+      headers: { 'x-sales-channel': 'pl_retail' },
     });
     expect(pdpRes.statusCode).toBe(200);
     const pdp = (pdpRes.json() as { data: ProductDetail }).data;

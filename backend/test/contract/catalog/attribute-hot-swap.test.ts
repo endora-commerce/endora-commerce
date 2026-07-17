@@ -31,7 +31,7 @@ describe('PATCH /admin/catalog/attributes/:key — hot swap of isFilterable', ()
 
   it('attribute appears in GET /catalog/filters after flipping isFilterable=true', async () => {
     // Precondition: seed data has `internal_sku_notes` with isFilterable=false.
-    const before = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/filters' });
+    const before = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/filters', headers: { 'x-sales-channel': 'pl_retail' } });
     expect(before.statusCode).toBe(200);
     const beforeBody = before.json() as { data: FilterDef[] };
     expect(beforeBody.data.map((f) => f.attributeKey)).not.toContain('internal_sku_notes');
@@ -66,7 +66,7 @@ describe('PATCH /admin/catalog/attributes/:key — hot swap of isFilterable', ()
     expect(patch.statusCode).toBe(200);
 
     // Must appear in the next filters call — no separate reindex command run by hand.
-    const after = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/filters' });
+    const after = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/filters', headers: { 'x-sales-channel': 'pl_retail' } });
     expect(after.statusCode).toBe(200);
     const afterBody = after.json() as { data: FilterDef[] };
     expect(afterBody.data.map((f) => f.attributeKey)).toContain('internal_sku_notes');
