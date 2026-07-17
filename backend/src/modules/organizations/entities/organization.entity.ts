@@ -48,6 +48,7 @@ export class Organization {
     | 'updatedAt'
     | 'status'
     | 'vatStatus'
+    | 'isPersonal'
     | 'deletedAt'
     | 'customerGroupId'
     | 'legalName'
@@ -87,6 +88,15 @@ export class Organization {
 
   @Property({ type: 'string', length: 16 })
   vatStatus: 'vat_payer' | 'vat_exempt' | 'reverse_charge' = 'vat_payer';
+
+  /**
+   * Feature 051 — `true` for a single-member Personal Organization backing a B2C
+   * (individual) customer; `false` for a company organization. Personal orgs are
+   * auto-provisioned, created `active`, and excluded from B2B admin surfaces.
+   */
+  @Property({ type: 'boolean' })
+  @Index()
+  isPersonal: boolean = false;
 
   /**
    * Optional pricing bucket. Feeds the feature 011 Application Rule

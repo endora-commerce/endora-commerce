@@ -235,6 +235,7 @@ function serializeOrganization(o: Organization) {
     taxId: o.taxId,
     status: o.status,
     vatStatus: o.vatStatus,
+    isPersonal: o.isPersonal,
     registeredAddress: o.registeredAddress,
     version: o.version,
     canTransact: o.status === 'active',

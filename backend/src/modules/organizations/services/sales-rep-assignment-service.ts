@@ -1,5 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { OrganizationSalesRepAssignment } from '../entities/organization-sales-rep-assignment.entity.js';
+import { Organization } from '../entities/organization.entity.js';
+import { HttpError } from '../../../http/error-envelope.js';
+import { ERROR_CODES } from '@b2b/contracts';
 
 /**
  * Centralised visibility predicate for the sales-rep ↔ organization
@@ -52,6 +55,16 @@ export class SalesRepAssignmentService {
     assignedByAdminUserId?: string | null;
   }): Promise<OrganizationSalesRepAssignment> {
     const em = this.emFactory();
+    // Feature 051 — sales reps manage company organizations, not individuals'
+    // personal (B2C) orgs.
+    const org = await em.findOne(Organization, { id: input.organizationId });
+    if (org?.isPersonal) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.VALIDATION_FAILED,
+        'A sales representative cannot be assigned to a personal (individual) organization.',
+      );
+    }
     const existing = await em.findOne(OrganizationSalesRepAssignment, {
       organizationId: input.organizationId,
       adminUserId: input.adminUserId,

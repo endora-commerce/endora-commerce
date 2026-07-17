@@ -1,59 +1,48 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 3.2.0 → 3.3.0
-Rationale: MINOR bump. A new principle (XI. Systemic Multi-Tenant
-Isolation) is added, and a corresponding tenth quality gate is
-introduced in the Development Workflow section. No existing principle
-is removed, narrowed, or redefined; the new rule applies to new and
-ongoing work going forward, so the versioning policy mandates a MINOR
-(not MAJOR) bump. Pre-existing per-service org `where`-clauses predate
-the framework guard and are tracked as a migration (feature
-050-org-tenant-scoping's phased rollout) rather than treated as
-retroactively invalidated.
+Version change: 3.3.0 → 3.4.0
+Rationale: MINOR bump. Principle XI (Systemic Multi-Tenant Isolation)
+is materially expanded with a new binding clause — "One tenant concept
+— the Organization" — establishing that every transacting customer is
+backed by a non-null Organization (a company org for B2B, a
+single-member personal org for an individual/B2C customer) and that
+there is no "no-organization" scoping path. No principle is removed or
+redefined and the guard mechanism is unchanged (it is reinforced), so
+the versioning policy mandates a MINOR (not MAJOR) bump.
 
 Modified principles:
-  - (none renamed or redefined)
+  - XI. Systemic Multi-Tenant Isolation — EXPANDED (not renamed/
+    redefined): added the "One tenant concept — the Organization"
+    clause + a Rationale paragraph. Individuals (B2C) are modeled as
+    single-member personal organizations so the guard always has a
+    concrete tenant and never resolves a null org for a valid customer.
 
 Added sections:
-  - XI. Systemic Multi-Tenant Isolation (NON-NEGOTIABLE) — new
-    principle. Tenant isolation MUST be enforced by a framework-level
-    guard, not per-service query conditions: an ambient TenantContext
-    derived server-side from the authenticated actor (never from
-    request inputs); a data-access-layer filter that confines every
-    read/write on tenant-owned entities even when a service omits the
-    condition; fail-closed on missing context (raise, never return
-    unscoped); mandatory per-entity scope classification enforced by a
-    CI check; a single, greppable, audited escape hatch
-    (withSystemScope / withOrgScope) as the ONLY way to cross tenants;
-    and cross-tenant tests for every new tenant-owned entity. The guard
-    is defense-in-depth — it complements, never replaces, route-level
-    requireAdmin / requireCustomer authorization.
-  - Development Workflow & Quality Gates — new gate #10
-    ("Multi-tenant isolation") enforcing Principle XI at review time.
+  - (none — an existing principle was expanded, no new principle)
 
 Removed sections:
   - (none)
 
 Templates / artifacts requiring alignment:
-  - ✅ .specify/templates/plan-template.md      — references Constitution
-       Check generically; no edits required.
+  - ✅ .specify/templates/plan-template.md      — Constitution Check is
+       generic; no edits required.
   - ✅ .specify/templates/spec-template.md      — no edits required.
   - ✅ .specify/templates/tasks-template.md     — no edits required.
-  - ✅ README.md — principle quick-reference list extended with
-       item 11 (systemic multi-tenant isolation); quality-gate sentence
-       updated.
-  - ✅ .github/pull_request_template.md — new gate #10 checkbox added;
-       header comment updated from "nine" to "ten" gates.
+  - ✅ README.md — Principle XI quick-reference note extended with the
+       single-tenant-concept clause.
+  - ✅ .github/pull_request_template.md — gate #10 wording extended to
+       mention the "transacting customer always has an Organization" rule.
 
 Deferred items / TODOs:
-  - Existing per-service organization `where`-clauses (~128 sites) and
-    the four unguarded admin surfaces (credit_limits, invoices,
-    returns, price_lists) predate Principle XI. They are migrated to
-    the framework guard by feature 050-org-tenant-scoping's phased,
-    per-module rollout (guard is additive; each module flips with its
-    cross-tenant matrix green). Tracked via that feature and the
-    quarterly compliance review — not a blocker for this amendment.
+  - The B2C single-tenant-concept clause is realized by feature
+    051-personal-organizations (personal-org provisioning + backfill).
+    Until its backfill lands, some legacy accounts may still be
+    org-less; those are pre-existing and non-transacting, tracked by
+    that feature — not a blocker for this amendment.
+
+  (History) 3.2.0 → 3.3.0 added Principle XI + quality gate #10
+  (framework tenant guard, feature 050-org-tenant-scoping).
 -->
 
 # B2B Platform Constitution
@@ -386,6 +375,14 @@ The following are binding for every backend feature that touches tenant-owned da
   proving out-of-scope records are inaccessible, and that an out-of-scope response is
   **indistinguishable from "record does not exist"** (no existence leak via status or
   message).
+- **One tenant concept — the Organization.** The Organization is the platform's single
+  unit of tenancy. Every **transacting** customer MUST be backed by a non-null Organization:
+  a company organization for B2B, or a single-member **personal organization** for an
+  individual (B2C) customer. There MUST be **no "no-organization" scoping path** — an
+  individual is isolated as their own tenant exactly like a company, so the guard always has
+  a concrete organization to scope by and never resolves a null tenant for a valid customer.
+  Personal organizations are auto-provisioned, single-member, and excluded from B2B admin
+  surfaces; the guard mechanism is unchanged by their existence.
 
 **Rationale**: Roughly 128 hand-written organization `where`-clauses made isolation depend
 on developer discipline and left four admin surfaces (credit_limits, invoices, returns,
@@ -396,6 +393,10 @@ silent cross-tenant read. It is also a prerequisite for the multi-deployment pos
 each installation carries a different organization topology and isolation must be structural,
 not per-service. The framework guard is introduced by feature `050-org-tenant-scoping`; from
 this amendment forward, new features build on it rather than reintroducing manual scoping.
+Modeling every customer — including individuals — as an Organization (feature
+`051-personal-organizations`) removes the one case the guard could not isolate: B2C customers
+who shared a null organization. With a single tenant concept, there is no null-tenant edge to
+special-case, and individuals are isolated as first-class tenants.
 
 ## Technology Stack
 
@@ -585,4 +586,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 3.3.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-07-17
+**Version**: 3.4.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-07-17

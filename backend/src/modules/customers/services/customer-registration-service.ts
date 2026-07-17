@@ -4,6 +4,7 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { hashPassword } from '../../auth/services/password-hasher.js';
 import type { SessionService } from '../../auth/services/session-service.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
+import type { PersonalOrganizationService } from '../../organizations/services/personal-organization-service.js';
 
 /**
  * CustomerRegistrationService — standalone (org-less) sign-up (feature 040,
@@ -20,8 +21,10 @@ import { CustomerAccount } from '../../customer_accounts/entities/customer-accou
 export interface CustomerRegistrationDeps {
   emFactory: () => EntityManager;
   sessionService: SessionService;
-  /** Reads `customers.allow_registration_without_organization`. */
+  /** Reads `customers.allow_registration_without_organization` (the per-channel B2C gate). */
   resolveAllowRegistrationWithoutOrganization: () => Promise<boolean>;
+  /** Feature 051 — provisions a single-member personal organization for a B2C customer. */
+  personalOrganizationService: PersonalOrganizationService;
 }
 
 export interface RegisterStandaloneInput {
@@ -74,6 +77,11 @@ export class CustomerRegistrationService {
       organizationId: null,
     });
     await em.persistAndFlush(customer);
+
+    // Feature 051 — a B2C customer is backed by a single-member personal
+    // organization, so ordering/RFQ/credit/invoices work and the tenant guard
+    // isolates each individual as their own tenant (no null-org path).
+    await this.deps.personalOrganizationService.ensureFor(customer, em);
 
     const session = await this.deps.sessionService.createSession({
       kind: 'customer',

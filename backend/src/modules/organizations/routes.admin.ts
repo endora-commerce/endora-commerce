@@ -58,6 +58,10 @@ const listQuerySchema = z.object({
   'filter[vatStatus]': z.enum(['vat_payer', 'vat_exempt', 'reverse_charge']).optional(),
   q: z.string().optional(),
   limit: z.coerce.number().int().positive().max(200).default(50),
+  // Feature 051 — personal (B2C) orgs are excluded by default; pass
+  // `includePersonal=true` to see them (string compare — z.coerce.boolean would
+  // treat the string "false" as true).
+  includePersonal: z.string().optional(),
 });
 
 export interface AdminOrgsDeps {
@@ -144,6 +148,8 @@ export async function registerOrganizationsAdminRoutes(
       const query = listQuerySchema.parse(request.query);
       const em = emFactory();
       const where: Record<string, unknown> = { deletedAt: null };
+      // Feature 051 — exclude personal (B2C) orgs from the B2B admin list by default.
+      if (query.includePersonal !== 'true') where['isPersonal'] = false;
       if (query['filter[status]']) where['status'] = query['filter[status]'];
       if (query['filter[vatStatus]']) where['vatStatus'] = query['filter[vatStatus]'];
       if (query.q) {
@@ -520,6 +526,14 @@ export async function registerOrganizationsAdminRoutes(
       if (!org) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       }
+      // Feature 051 — a personal (B2C) org is single-member; no direct add.
+      if (org.isPersonal) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.VALIDATION_FAILED,
+          'A personal (individual) organization cannot have additional members.',
+        );
+      }
       const email = body.email.toLowerCase();
       const dup = await em.findOne(CustomerAccount, { email });
       if (dup) {
@@ -708,6 +722,7 @@ function serializeOrg(o: Organization): Record<string, unknown> {
     taxId: o.taxId,
     status: o.status,
     vatStatus: o.vatStatus,
+    isPersonal: o.isPersonal,
     registeredAddress: o.registeredAddress,
     orderConfirmationEmails: o.orderConfirmationEmails ?? [],
     fulfilmentStrategy: o.fulfilmentStrategy ?? null,

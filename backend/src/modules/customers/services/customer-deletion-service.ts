@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
+import { Organization } from '../../organizations/entities/organization.entity.js';
 import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import type { CustomerAuthorityService } from './customer-authority-service.js';
 import type {
@@ -125,13 +126,13 @@ export class CustomerDeletionService {
       anonymizedAt: null,
     });
     for (const customer of due) {
-      await this.anonymize(customer);
+      await this.anonymize(em, customer);
     }
     if (due.length > 0) await em.flush();
     return due.length;
   }
 
-  private async anonymize(customer: CustomerAccount): Promise<void> {
+  private async anonymize(em: EntityManager, customer: CustomerAccount): Promise<void> {
     const before = { email: customer.email };
     customer.email = `deleted+${customer.id}@anonymized.invalid`;
     customer.firstName = ANONYMIZED_NAME;
@@ -147,6 +148,42 @@ export class CustomerDeletionService {
       objectId: customer.id,
       stateBefore: before,
       stateAfter: { anonymizedAt: customer.anonymizedAt.toISOString() },
+    });
+
+    // Feature 051 — a personal (B2C) organization backs exactly one customer.
+    // When that customer is anonymized the org is left member-less, so cascade
+    // the scrub: anonymize the org's PII (its name is derived from the customer's
+    // name) and soft-delete it. Company (multi-member) orgs are never touched.
+    await this.anonymizePersonalOrgIfOrphaned(em, customer);
+  }
+
+  private async anonymizePersonalOrgIfOrphaned(
+    em: EntityManager,
+    customer: CustomerAccount,
+  ): Promise<void> {
+    if (!customer.organizationId) return;
+    const org = await em.findOne(Organization, { id: customer.organizationId });
+    if (!org || !org.isPersonal || org.deletedAt) return;
+
+    // Any surviving (non-deleted) member keeps the org alive. For a personal
+    // org this is 0 once its single member has been soft-deleted.
+    const activeMembers = await em.count(CustomerAccount, {
+      organizationId: org.id,
+      deletedAt: null,
+    });
+    if (activeMembers > 0) return;
+
+    const before = { name: org.name };
+    org.name = ANONYMIZED_NAME;
+    org.registeredAddress = { street: '-', city: '-', postalCode: '-', country: org.registeredAddress.country };
+    org.deletedAt = new Date();
+    await this.auditLog.record({
+      actorAdminUserId: null,
+      action: 'organization.anonymized',
+      objectType: 'organization',
+      objectId: org.id,
+      stateBefore: before,
+      stateAfter: { anonymizedAt: org.deletedAt.toISOString(), isPersonal: true },
     });
   }
 

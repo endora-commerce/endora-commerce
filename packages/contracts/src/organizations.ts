@@ -47,6 +47,8 @@ export const organizationSchema = z.object({
   taxId: z.string(),
   status: organizationStatusSchema,
   vatStatus: vatStatusSchema,
+  /** Feature 051 — true for a single-member personal (B2C) organization. */
+  isPersonal: z.boolean().optional(),
   registeredAddress: addressSnapshotSchema.omit({ recipientName: true, phone: true }).extend({
     recipientName: z.string().optional(),
     phone: z.string().optional(),

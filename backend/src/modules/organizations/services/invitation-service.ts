@@ -68,6 +68,17 @@ export class InvitationService {
     const role = input.role ?? 'regular_user';
     const lowercaseEmail = input.email.toLowerCase();
 
+    // Feature 051 — a personal (B2C) organization is single-member by
+    // definition; it cannot invite additional members.
+    const actorOrg = await em.findOne(Organization, { id: actor.organizationId });
+    if (actorOrg?.isPersonal) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.VALIDATION_FAILED,
+        'A personal (individual) account cannot invite members.',
+      );
+    }
+
     // Pre-check existing membership.
     const existingByEmail = await em.findOne(CustomerAccount, { email: lowercaseEmail });
     if (existingByEmail) {

@@ -5,6 +5,8 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { SessionService } from '../../../src/modules/auth/services/session-service.js';
 import { CustomerRegistrationService } from '../../../src/modules/customers/services/customer-registration-service.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
+import { PersonalOrganizationService } from '../../../src/modules/organizations/services/personal-organization-service.js';
 import type { HttpError } from '../../../src/http/error-envelope.js';
 
 /**
@@ -43,9 +45,10 @@ describe('CustomerRegistrationService.registerStandalone', () => {
       emFactory: () => em,
       sessionService: sessions,
       resolveAllowRegistrationWithoutOrganization: async () => allow,
+      personalOrganizationService: new PersonalOrganizationService(() => em),
     });
 
-  it('creates an org-less account and an auto-login session when allowed', async () => {
+  it('provisions a personal organization + an auto-login session when allowed (feature 051)', async () => {
     const svc = makeService(true);
     const email = `standalone-${Date.now()}@example.test`;
 
@@ -56,7 +59,11 @@ describe('CustomerRegistrationService.registerStandalone', () => {
       lastName: 'Alone',
     });
 
-    expect(result.customerAccount.organizationId ?? null).toBeNull();
+    // Feature 051 — the account is backed by a single-member personal org, not org-less.
+    expect(result.customerAccount.organizationId).toBeTruthy();
+    const org = await em.findOne(Organization, { id: result.customerAccount.organizationId! });
+    expect(org?.isPersonal).toBe(true);
+    expect(org?.status).toBe('active');
     expect(result.sessionCookieValue).toContain('.');
 
     const stored = await em.findOne(CustomerAccount, { email });
@@ -68,16 +75,20 @@ describe('CustomerRegistrationService.registerStandalone', () => {
     expect(resolved?.session.customerAccountId).toBe(result.customerAccount.id);
   });
 
-  it('refuses registration with REGISTRATION_REQUIRES_ORGANIZATION when the setting is off', async () => {
+  it('refuses registration with REGISTRATION_REQUIRES_ORGANIZATION when the setting is off — and provisions nothing', async () => {
     const svc = makeService(false);
+    const email = `blocked-${Date.now()}@example.test`;
     await expect(
       svc.registerStandalone({
-        email: `blocked-${Date.now()}@example.test`,
+        email,
         password: 'super-secret-pass',
         firstName: 'No',
         lastName: 'Go',
       }),
     ).rejects.toMatchObject({ code: 'REGISTRATION_REQUIRES_ORGANIZATION' } satisfies Partial<HttpError>);
+    // Feature 051 US5 — a B2B-only channel provisions no account and no personal org.
+    const account = await em.findOne(CustomerAccount, { email });
+    expect(account).toBeNull();
   });
 
   it('refuses a duplicate email with EMAIL_ALREADY_REGISTERED', async () => {
