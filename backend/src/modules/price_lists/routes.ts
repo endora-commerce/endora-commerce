@@ -5,8 +5,12 @@ import {
   replaceBracketsRequestSchema,
   replaceProductsRequestSchema,
   upsertCustomerGroupRequestSchema,
+  ERROR_CODES,
 } from '@b2b/contracts';
 import { z } from 'zod';
+import { HttpError } from '../../http/error-envelope.js';
+import type { ApplicationRule } from '@b2b/contracts';
+import { ruleVisibleForScope } from '../../tenancy/derived-scope.js';
 import type { CustomerGroupService } from './services/customer-group-service.js';
 import type { PriceListService } from './services/price-list-service.js';
 import type { PricingService } from './services/pricing-service.js';
@@ -51,6 +55,23 @@ function buildAuditCtx(
         : null,
     requestId: request.id,
   };
+}
+
+/**
+ * Feature 050 — price_lists is rule-scoped: its org targeting lives in the
+ * applicationRule AST, not a column. Collect the org ids a rule targets so a
+ * scoped admin only sees lists targeting one of their orgs (or global lists).
+ */
+function extractRuleOrgTargets(rule: ApplicationRule | null | undefined): string[] {
+  if (!rule) return [];
+  switch (rule.kind) {
+    case 'all':
+      return [];
+    case 'criterion':
+      return rule.type === 'organization' ? [...rule.values] : [];
+    case 'group':
+      return rule.children.flatMap(extractRuleOrgTargets);
+  }
 }
 
 export async function registerPricingRoutes(
@@ -124,7 +145,9 @@ export async function registerPricingRoutes(
         filter.search = request.query.search.trim();
       }
       const rows = await priceListService.listEngine(filter);
-      return { data: { items: rows.map(serializePriceListEngine) } };
+      // Feature 050 — hide price lists that target only orgs outside the scope.
+      const scoped = rows.filter((r) => ruleVisibleForScope(extractRuleOrgTargets(r.applicationRule)));
+      return { data: { items: scoped.map(serializePriceListEngine) } };
     },
   );
 
@@ -179,6 +202,9 @@ export async function registerPricingRoutes(
     { preHandler: requireAdmin('catalog:write') },
     async (request) => {
       const row = await priceListService.getById(request.params.id);
+      if (!ruleVisibleForScope(extractRuleOrgTargets(row.applicationRule))) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Price list ${request.params.id} not found.`);
+      }
       return { data: serializePriceListEngine(row) };
     },
   );
