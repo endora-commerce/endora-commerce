@@ -50,6 +50,7 @@ export const MIGRATED_MODULES: readonly string[] = [
   'currencies',
   'languages',
   'mfa',
+  'stripe',
 ];
 
 const MUTATION_METHODS = new Set([
