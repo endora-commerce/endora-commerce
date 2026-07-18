@@ -109,6 +109,17 @@ export const COMMAND_REGISTRY = {
   'return_case.select_delivery_method': { reversible: false, description: 'Select a return delivery method on a case' },
   'return_shipment.create': { reversible: false, description: 'Record a return shipment' },
   'return_shipment.receive': { reversible: false, description: 'Receive a return shipment' },
+  // Quote Requests / RFQ module (US1).
+  'quote_request.create': { reversible: false, description: 'Create a quote request' },
+  'quote_request.patch_draft': { reversible: false, description: 'Patch a pending quote request' },
+  'quote_request.resubmit': { reversible: false, description: 'Resubmit a quote request' },
+  'quote_request.respond_to_revision': { reversible: false, description: 'Respond to an RFQ revision' },
+  'quote_request.convert_to_order': { reversible: false, description: 'Convert an RFQ to an order/cart' },
+  'quote_request.approve': { reversible: false, description: 'Approve a quote request' },
+  'quote_request.cancel': { reversible: false, description: 'Cancel a quote request' },
+  'quote_request.assign': { reversible: false, description: 'Assign a quote request to an admin' },
+  'quote_request.modify': { reversible: false, description: 'Modify a quote request (admin revision)' },
+  'quote_request.create_on_behalf': { reversible: false, description: 'Admin creates a quote request on behalf' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

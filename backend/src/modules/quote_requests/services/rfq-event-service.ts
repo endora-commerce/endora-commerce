@@ -30,6 +30,8 @@ export class RfqEventService {
   constructor(private readonly emFactory: () => EntityManager) {}
 
   async append(input: AppendEventInput): Promise<QuoteRequestEvent> {
+    // command-coverage-ignore: this IS the RFQ's own append-only event timeline
+    // (the domain's audit trail); the parent RFQ action carries the audit entry.
     const em = this.emFactory();
     const event = em.create(QuoteRequestEvent, {
       quoteRequestId: input.quoteRequestId,

@@ -45,6 +45,8 @@ export class RfqExpiryWorker {
   constructor(private readonly deps: RfqExpiryWorkerDeps) {}
 
   async sweep(now: Date = new Date()): Promise<{ expiredCount: number }> {
+    // command-coverage-ignore: background expiry sweep — flips overdue RFQs to
+    // Expired on a timer, a system lifecycle job, not an operator-initiated write.
     // Feature 050 — system-wide sweep across all orgs; run under a system scope
     // so the QuoteRequest reads/writes carry a tenant context (fail-closed guard).
     return withSystemScope('rfq-expiry sweep', async () => {

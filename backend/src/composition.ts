@@ -1740,6 +1740,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return 0;
       }
     },
+    auditLog: auditLogService,
   });
   modules.push(quoteRequests.register);
 

@@ -38,6 +38,8 @@ export class RfqNotificationService {
    * rows actually inserted (after dedupe).
    */
   async enqueue(input: EnqueueNotificationInput): Promise<number> {
+    // command-coverage-ignore: notification delivery queue — writes per-recipient
+    // dispatch rows, delivery bookkeeping, not an audited domain-state mutation.
     const em = this.emFactory();
     let inserted = 0;
     for (const recipient of input.recipients) {

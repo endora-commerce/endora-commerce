@@ -1482,6 +1482,7 @@ export async function setupBackendServer(
         return 0;
       }
     },
+    auditLog: auditLogService,
   });
   modules.push(quoteRequests.register);
 

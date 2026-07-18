@@ -11,6 +11,8 @@ import {
 } from '@b2b/contracts';
 import type { EventBase, EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { QuoteRequest, type QuoteRequestStatus } from '../entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 import {
@@ -81,10 +83,31 @@ export interface RfqServiceDeps {
    * when omitted (legacy/test compositions), prices stay net (rate `0`).
    */
   resolveTaxRate?: (organizationId: string) => Promise<number>;
+  /** Feature 054 — audits RFQ writes co-transactionally when provided. */
+  auditLog?: AuditLogService;
 }
 
 export class RfqService {
   constructor(private readonly deps: RfqServiceDeps) {}
+
+  /** Feature 054 — co-transactional RFQ audit on `em` (actor from context). */
+  #audit(
+    em: EntityManager,
+    action: string,
+    objectId: string,
+    stateBefore: Record<string, unknown> | null,
+    stateAfter: Record<string, unknown> | null,
+  ): void {
+    if (this.deps.auditLog) {
+      recordAuditFromContext(this.deps.auditLog, em, {
+        action,
+        objectType: 'quote_request',
+        objectId,
+        stateBefore,
+        stateAfter,
+      });
+    }
+  }
 
   /**
    * Draws the next business Quote Request ID, or `undefined` when no generator
@@ -140,6 +163,8 @@ export class RfqService {
   }
 
   async getForCustomer(rfqId: string, ctx: CustomerContext): Promise<RfqDto> {
+    // command-coverage-ignore: read-tracking side effect — advances
+    // last_customer_seen_revision_number on view, not an audited domain mutation.
     const em = this.deps.emFactory();
     const rfq = await this.findVisibleForCustomer(em, rfqId, ctx);
 
@@ -216,6 +241,10 @@ export class RfqService {
       });
       items.push(item);
     }
+    this.#audit(em, 'quote_request.create', rfq.id, null, {
+      status: rfq.status,
+      itemCount: items.length,
+    });
     await em.persistAndFlush(items);
 
     const revision = await this.deps.revisionService.record({
@@ -326,6 +355,9 @@ export class RfqService {
     rfq.currentRevisionNumber += 1;
     rfq.lastCustomerSeenRevisionNumber = rfq.currentRevisionNumber;
     rfq.version += 1;
+    this.#audit(em, 'quote_request.patch_draft', rfq.id, null, {
+      currentRevisionNumber: rfq.currentRevisionNumber,
+    });
     await em.flush();
 
     const items = await em.find(QuoteRequestItem, { quoteRequestId: rfq.id });
@@ -402,6 +434,10 @@ export class RfqService {
         lineCurrency: src.lineCurrency,
       }),
     );
+    this.#audit(em, 'quote_request.resubmit', newRfq.id, null, {
+      status: newRfq.status,
+      itemCount: newItems.length,
+    });
     await em.persistAndFlush(newItems);
 
     const revision = await this.deps.revisionService.record({
@@ -484,6 +520,11 @@ export class RfqService {
     rfq.awaitingCustomerRevisionAcceptance = false;
     rfq.lastCustomerSeenRevisionNumber = rfq.currentRevisionNumber;
     rfq.version += 1;
+    this.#audit(em, 'quote_request.respond_to_revision', rfq.id, null, {
+      decision,
+      status: rfq.status,
+      revisionNumber: rfq.currentRevisionNumber,
+    });
     await em.flush();
 
     const eventType: QuoteRequestEventType =
@@ -596,6 +637,10 @@ export class RfqService {
         currency: it.lineCurrency,
       }),
     );
+    this.#audit(em, 'quote_request.convert_to_order', rfq.id, null, {
+      cartId: cart.id,
+      itemCount: newCartItems.length,
+    });
     await em.persistAndFlush(newCartItems);
 
     return {

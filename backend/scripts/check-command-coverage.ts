@@ -39,6 +39,7 @@ export const MIGRATED_MODULES: readonly string[] = [
   'orders',
   'inventory',
   'returns',
+  'quote_requests',
 ];
 
 const MUTATION_METHODS = new Set([

@@ -485,7 +485,11 @@ export function commerceModule(options: OrdersModuleOptions) {
           get: (_target, prop) => {
             const svc = options.getRfqService?.();
             if (!svc) throw new Error('RfqService not yet available');
-            return Reflect.get(svc, prop, svc);
+            const value = Reflect.get(svc, prop, svc);
+            // Bind methods to the real service so `this` inside them is the
+            // instance, not this proxy — otherwise private-field/method access
+            // (`this.#audit`) throws "Receiver must be an instance of class".
+            return typeof value === 'function' ? value.bind(svc) : value;
           },
         }) as RfqService)
       : null;
