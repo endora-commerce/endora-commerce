@@ -10,6 +10,7 @@ import {
 } from '../../src/tenancy/resolve-tenant-context.js';
 import { initOrm, closeOrm } from '../../src/db/index.js';
 import { EventBus } from '../../src/events/bus.js';
+import { CommandBus } from '../../src/commands/index.js';
 import { SessionService } from '../../src/modules/auth/services/session-service.js';
 import { AuditLogService } from '../../src/modules/audit_logs/services/audit-log-service.js';
 import { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
@@ -441,6 +442,9 @@ export async function setupBackendServer(
 
   const eventBus = new EventBus();
 
+  // Feature 054 — mirror production: the Command Bus is the audited write path.
+  const commandBus = new CommandBus(orm, auditLogService, eventBus);
+
   // CartService is exposed by the commerce module so the login handler in
   // organizations can merge anonymous baskets after sign-in.
   let cartService: CartService | null = null;
@@ -544,6 +548,7 @@ export async function setupBackendServer(
   const creditLimits = creditLimitsModule({
     emFactory: em,
     eventBus,
+    commandBus,
     requireCustomer: requireTestCustomer(),
     requireAdmin: requireTestAdmin(permissionService),
     resolveCustomerContext: customerResolver,

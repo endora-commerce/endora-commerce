@@ -386,6 +386,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const creditLimits = creditLimitsModule({
     emFactory: em,
     eventBus,
+    commandBus,
     requireCustomer,
     requireAdmin,
     resolveCustomerContext: customerResolver,

@@ -51,21 +51,23 @@ export class CommandBus {
     return this.events.run(async () => {
       const scoped: EntityManager = forkScopedEm(this.orm);
       return scoped.transactional(async (em) => {
-        const before = command.capture ? await command.capture({ em, actor }) : null;
-        const { result, after } = await command.run({ em, actor });
+        const captured = command.capture ? await command.capture({ em, actor }) : null;
+        const { result, before, after, skipAudit } = await command.run({ em, actor });
 
-        this.audit.recordWithin(em, {
-          action: command.action,
-          objectType: command.objectType,
-          objectId: command.objectId,
-          actorAdminUserId: actor.actorAdminUserId,
-          impersonatedCustomerAccountId: actor.impersonatedCustomerAccountId,
-          stateBefore: before ?? null,
-          stateAfter: after ?? null,
-          ipAddress: meta.ipAddress ?? null,
-          userAgent: meta.userAgent ?? null,
-          requestId: meta.requestId ?? null,
-        });
+        if (!skipAudit) {
+          this.audit.recordWithin(em, {
+            action: command.action,
+            objectType: command.objectType,
+            objectId: command.objectId,
+            actorAdminUserId: actor.actorAdminUserId,
+            impersonatedCustomerAccountId: actor.impersonatedCustomerAccountId,
+            stateBefore: before ?? captured ?? null,
+            stateAfter: after ?? null,
+            ipAddress: meta.ipAddress ?? null,
+            userAgent: meta.userAgent ?? null,
+            requestId: meta.requestId ?? null,
+          });
+        }
 
         const evt = command.event?.(result);
         if (evt) this.events.emit(evt.eventName, evt.payload);

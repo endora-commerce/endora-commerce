@@ -42,12 +42,23 @@ export interface CommandContext {
   readonly actor: CommandActor;
 }
 
-/** What a Command's `run` returns: the caller-facing result plus the audit after-state. */
+/** What a Command's `run` returns: the caller-facing result plus the audit state. */
 export interface CommandOutcome<TResult> {
   /** Value returned to the caller of `CommandBus.run`. */
   readonly result: TResult;
+  /**
+   * Snapshot recorded as the audit `stateBefore`. Overrides `capture()` when both
+   * are present — lets a command that computes before+after in one pass supply both.
+   */
+  readonly before?: AuditState;
   /** Snapshot recorded as the audit `stateAfter`. Omit/`null` when there is nothing to record. */
   readonly after?: AuditState;
+  /**
+   * When true, the bus commits the transaction and returns the result but writes
+   * NO audit entry — for a command whose `run` decided not to mutate (a no-op
+   * business outcome). Keeps "no write ⇒ no audit row" honest.
+   */
+  readonly skipAudit?: boolean;
 }
 
 /**
