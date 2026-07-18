@@ -21,6 +21,10 @@ import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqRevisionService } from './rfq-revision-service.js';
 import type { RfqNotificationService } from './rfq-notification-service.js';
 import type { SalesRepAssignmentService } from '../../organizations/services/sales-rep-assignment-service.js';
+import {
+  CustomFieldValidationError,
+  type CustomFieldValueService,
+} from '../../custom_fields/services/custom-field-value.service.js';
 
 /**
  * Admin-facing Quote Requests service — feature 008 workflow.
@@ -63,6 +67,8 @@ export interface RfqAdminServiceDeps {
   salesRepAssignment: SalesRepAssignmentService;
   /** Feature 054 — audits RFQ admin writes co-transactionally when provided. */
   auditLog?: AuditLogService;
+  /** Feature 055 — validates + merges custom-field values on RFQ edit. */
+  customFieldValues?: CustomFieldValueService;
 }
 
 export class RfqAdminService {
@@ -360,6 +366,27 @@ export class RfqAdminService {
     this.assertVersion(rfq, expectedVersion);
 
     if (body.headerNote !== undefined) rfq.headerNote = body.headerNote ?? null;
+
+    // Feature 055 — validate + merge custom-field values (host owns the write).
+    if (body.customFieldValues !== undefined && this.deps.customFieldValues) {
+      try {
+        rfq.customFieldValues = await this.deps.customFieldValues.validateAndMerge(
+          'quote_request',
+          rfq.customFieldValues ?? {},
+          body.customFieldValues,
+        );
+      } catch (err) {
+        if (err instanceof CustomFieldValidationError) {
+          throw new HttpError(
+            422,
+            ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
+            'One or more custom fields are invalid.',
+            err.errors.map((e) => ({ path: e.field, issue: e.message })),
+          );
+        }
+        throw err;
+      }
+    }
 
     if (body.items) {
       const products = await em.find(Product, { id: { $in: body.items.map((it) => it.productId) } });

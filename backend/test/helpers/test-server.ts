@@ -776,6 +776,7 @@ export async function setupBackendServer(
       emFactory: em,
       eventBus,
       auditLogService,
+      customFieldValues: customFields.handle.valueService,
       getTransactionalEmailSender: () => transactionalEmailSender,
       creditLimit: creditLimits.handle.creditLimitService,
       requireCustomer: requireTestCustomer(),
@@ -1008,6 +1009,7 @@ export async function setupBackendServer(
       commandBus,
       requireAdmin: requireTestAdmin(permissionService),
       auditLogService,
+      customFieldValues: customFields.handle.valueService,
       requireApiKey: integrations.handle.requireApiKey,
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,
@@ -1465,6 +1467,7 @@ export async function setupBackendServer(
     eventBus,
     requireCustomer: requireTestCustomer(),
     requireAdmin: requireTestAdmin(permissionService),
+    customFieldValues: customFields.handle.valueService,
     resolveCustomerContext: async (request) => {
       const ctx = customerResolver(request);
       const account = await em().findOne(CustomerAccount, { id: ctx.customerAccountId });
@@ -1515,6 +1518,8 @@ export async function setupBackendServer(
     emFactory: em,
     sessionService,
     requireCustomer: requireTestCustomer(),
+    commandBus,
+    customFieldValues: customFields.handle.valueService,
     resolveCustomerActor: (request) => {
       if (request.testActor?.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');

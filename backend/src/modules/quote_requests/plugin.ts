@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
 import { RfqService, type RfqEventBus } from './services/rfq-service.js';
 import { createQuoteRequestBusinessIdGenerator } from './services/quote-request-business-id-generator.js';
 import { RfqAdminService } from './services/rfq-admin-service.js';
@@ -56,6 +57,8 @@ export interface QuoteRequestsModuleOptions {
   resolveTaxRate?: (organizationId: string) => Promise<number>;
   /** Feature 054 — audits RFQ lifecycle writes co-transactionally when provided. */
   auditLog?: AuditLogService;
+  /** Feature 055 — validates + reads RFQ custom-field values on the admin edit path. */
+  customFieldValues?: CustomFieldValueService;
 }
 
 export interface QuoteRequestsModuleHandle {
@@ -107,6 +110,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     notificationService,
     salesRepAssignment,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
+    ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
   });
 
   const expiryWorker = new RfqExpiryWorker({

@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type { CommandBus } from '../../commands/index.js';
+import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
 import { BULK_OPERATION_TYPES } from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
 import { defineModuleWorker } from '../_lifecycle/plugin-helpers.js';
@@ -126,6 +127,8 @@ export interface CatalogModuleOptions {
   resolveProductImagePlaceholderUrl?: (
     salesChannelCode: string | undefined,
   ) => Promise<string | null>;
+  /** Feature 055 — validates + reads Category custom-field values on the admin edit path. */
+  customFieldValues?: CustomFieldValueService;
 }
 
 export function catalogModule(options: CatalogModuleOptions) {
@@ -212,6 +215,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.emFactory,
       options.salesChannelMembership,
       options.commandBus,
+      options.customFieldValues,
     );
     const attributeSetService = new AttributeSetService(options.emFactory, options.commandBus);
     const galleryService = new GalleryService(options.emFactory, options.commandBus);

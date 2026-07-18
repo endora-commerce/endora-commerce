@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
 import type { CommandBus } from '../../commands/index.js';
+import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import { CartService } from '../carts/services/cart-service.js';
@@ -89,6 +90,8 @@ export interface OrdersModuleOptions {
   };
   /** Audit-log writer; OrderService stamps order.place_on_behalf rows on impersonated checkouts. */
   auditLogService?: AuditLogService;
+  /** Feature 055 — validates + persists Order custom-field values on the admin edit path. */
+  customFieldValues?: CustomFieldValueService;
   /** Feature 034 — mailer for the order-confirmation e-mail (best-effort, post-commit). */
   mailer?: Mailer;
   /**
@@ -539,6 +542,8 @@ export function commerceModule(options: OrdersModuleOptions) {
       ...(options.resolveAdminOrdersScope
         ? { resolveAdminOrdersScope: options.resolveAdminOrdersScope }
         : {}),
+      ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
+      ...(options.commandBus ? { commandBus: options.commandBus } : {}),
     });
     await registerDeliveryMethodsPublicRoutes(app, {
       emFactory: options.emFactory,

@@ -175,6 +175,8 @@ export const adminCustomerDetailSchema = adminCustomerListItemSchema.extend({
   twoFactorEnabled: z.boolean(),
   salesChannelIds: z.array(uuidSchema),
   defaults: customerDefaultsSchema,
+  /** Feature 055 — custom-field values captured on this customer. */
+  customFieldValues: z.record(z.string(), z.unknown()).default({}),
 });
 export type AdminCustomerDetail = z.infer<typeof adminCustomerDetailSchema>;
 

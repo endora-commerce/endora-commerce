@@ -986,6 +986,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       emFactory: em,
       eventBus,
       auditLogService,
+      customFieldValues: customFields.handle.valueService,
       mailer: organizationsMailer,
       // Feature 047 — late-bound; set once the transactional_emails module builds.
       getTransactionalEmailSender: () => transactionalEmailSender,
@@ -1288,6 +1289,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       commandBus,
       requireAdmin,
       auditLogService,
+      customFieldValues: customFields.handle.valueService,
       requireApiKey: integrations.handle.requireApiKey,
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,
@@ -1649,6 +1651,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     eventBus,
     requireCustomer,
     requireAdmin,
+    customFieldValues: customFields.handle.valueService,
     resolveCustomerContext: async (request) => {
       if (request.actor.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
@@ -1771,6 +1774,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     sessionService,
     requireCustomer,
+    commandBus,
+    customFieldValues: customFields.handle.valueService,
     resolveCustomerActor: (request) => {
       if (request.actor.kind !== 'customer') {
         throw new HttpError(
