@@ -214,7 +214,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.commandBus,
     );
     const attributeSetService = new AttributeSetService(options.emFactory, options.commandBus);
-    const galleryService = new GalleryService(options.emFactory);
+    const galleryService = new GalleryService(options.emFactory, options.commandBus);
     const attachmentService = new AttachmentService(options.emFactory);
     const packagingUnitService = new PackagingUnitService(options.emFactory, options.commandBus);
     const productLinkService = new ProductLinkService(options.emFactory);

@@ -52,6 +52,9 @@ export const COMMAND_REGISTRY = {
   'packaging_unit.update': { reversible: false, description: 'Update a packaging unit' },
   'packaging_unit.delete': { reversible: false, description: 'Delete a packaging unit' },
   'packaging_unit.reorder': { reversible: false, description: 'Reorder packaging units' },
+  'gallery_item.create': { reversible: false, description: 'Create a gallery item' },
+  'gallery_item.update': { reversible: false, description: 'Update a gallery item' },
+  'gallery_item.delete': { reversible: false, description: 'Delete a gallery item' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog
