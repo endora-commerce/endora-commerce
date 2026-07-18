@@ -130,7 +130,7 @@ export interface CatalogModuleOptions {
 
 export function catalogModule(options: CatalogModuleOptions) {
   return async (app: FastifyInstance): Promise<void> => {
-    const productLinkServiceForRead = new ProductLinkService(options.emFactory);
+    const productLinkServiceForRead = new ProductLinkService(options.emFactory, options.commandBus);
     const queryService = new CatalogQueryService(
       options.emFactory,
       productLinkServiceForRead,
@@ -217,7 +217,7 @@ export function catalogModule(options: CatalogModuleOptions) {
     const galleryService = new GalleryService(options.emFactory, options.commandBus);
     const attachmentService = new AttachmentService(options.emFactory);
     const packagingUnitService = new PackagingUnitService(options.emFactory, options.commandBus);
-    const productLinkService = new ProductLinkService(options.emFactory);
+    const productLinkService = new ProductLinkService(options.emFactory, options.commandBus);
     const groupedService = new GroupedService(options.emFactory, options.commandBus);
     const bundleService = new BundleService(options.emFactory);
     await registerCatalogApiKeyRoutes(app, {

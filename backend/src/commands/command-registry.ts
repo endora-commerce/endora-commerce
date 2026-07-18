@@ -58,6 +58,9 @@ export const COMMAND_REGISTRY = {
   'grouped_item.add': { reversible: false, description: 'Add a grouped-product child' },
   'grouped_item.update': { reversible: false, description: 'Update a grouped-product child' },
   'grouped_item.delete': { reversible: false, description: 'Remove a grouped-product child' },
+  'product_link.bulk_create': { reversible: false, description: 'Create product links' },
+  'product_link.delete': { reversible: false, description: 'Remove a product link' },
+  'product_link.reorder': { reversible: false, description: 'Reorder product links' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog
