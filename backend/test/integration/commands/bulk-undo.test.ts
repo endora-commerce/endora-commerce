@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
+import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import { CommandBus } from '../../../src/commands/command-bus.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { AuditLogService } from '../../../src/modules/audit_logs/services/audit-log-service.js';
