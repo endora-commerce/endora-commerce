@@ -416,6 +416,7 @@ export function commerceModule(options: OrdersModuleOptions) {
           await orderService.releaseAllocations(order.id);
         }
       },
+      options.auditLogService,
     );
     // Feature 043 — hand the configured transition engine to composition so the
     // orders prompt-action tools reuse it (guards + cancel side-effects).

@@ -87,6 +87,8 @@ export const COMMAND_REGISTRY = {
   'order_status.update': { reversible: false, description: 'Update an order status' },
   'order_status.delete': { reversible: false, description: 'Delete an order status' },
   'order_status.set_transitions': { reversible: false, description: 'Edit order status transitions' },
+  'order.status_transition': { reversible: false, description: 'Apply an order status transition' },
+  'order.payment_status_transition': { reversible: false, description: 'Change an order payment status' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

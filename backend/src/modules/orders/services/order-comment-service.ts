@@ -32,6 +32,8 @@ export class OrderCommentService {
     adminUserId: string | null,
     input: { body: string; isCustomerVisible: boolean; notifyCustomer: boolean },
   ): Promise<OrderComment> {
+    // command-coverage-ignore: order comments are an append-only communication
+    // thread, not audited domain-state — no before-state, no undo value.
     const em = this.emFactory();
     const order = await this.loadNonTerminalOrder(em, orderId);
     const comment = em.create(OrderComment, {
@@ -55,6 +57,8 @@ export class OrderCommentService {
     customerAccountId: string,
     input: { body: string },
   ): Promise<OrderComment> {
+    // command-coverage-ignore: order comments are an append-only communication
+    // thread, not audited domain-state — no before-state, no undo value.
     const em = this.emFactory();
     await this.loadNonTerminalOrder(em, orderId);
     // Customers cannot set internal-visibility or notify flags (FR-033).
