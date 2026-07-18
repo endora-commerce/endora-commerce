@@ -1,5 +1,5 @@
 <!--
-This template encodes the ten quality gates from
+This template encodes the twelve quality gates from
 .specify/memory/constitution.md → "Development Workflow & Quality Gates".
 A reviewer who marks "LGTM" without checking these gates is not approving
 this PR (constitution §Governance).
@@ -26,6 +26,7 @@ this PR (constitution §Governance).
 - [ ] **9. Async queue consumers** (Principle X) — queue-backed async work uses a durable queue with atomic claim + idempotent handlers (safe at N ≥ 2 instances), the producer only enqueues, and the consumer is a separable worker entrypoint (never an in-process `setInterval` sweeper). Separate process is the production default; co-locating low-volume work carries a one-sentence justification.
 - [ ] **10. Multi-tenant isolation** (Principle XI) — tenant-owned data is confined by the framework guard: an ambient TenantContext derived server-side (never from request body/query/headers), a data-layer filter that holds even when a service omits the condition, fail-closed on missing context, every new entity classified (CI check passes) and covered by cross-tenant tests, and any cross-tenant access routed through the audited `withSystemScope` / `withOrgScope` escape hatch. The guard complements, never replaces, `requireAdmin` / `requireCustomer`. Every transacting customer is backed by a non-null Organization (company org for B2B, single-member personal org for B2C) — no new "no-organization" scoping path.
 - [ ] **11. Sales-channel scoping** (Principle XII) — channel-scoped reads and channel-bound commercial evaluations (catalog visibility, related/cross/up-sell, promotions, pricing) are confined to the request's resolved sales channel: a channel is always resolved (explicit header/host map, else system-default) and the filter always applied — no path returns the full cross-channel set — and a null/unresolved channel fails closed (never matches a channel-bound record). The `sales_channel_*` bridges are read only through the channel-membership service (`no-unscoped-channel-query` passes), and channel-scoped paths ship with cross-channel tests.
+- [ ] **12. Uniform write auditing** (Principle XIII) — sensitive writes (create/update/delete of a domain record) in migrated modules run as named Commands through the Command Bus (the single audit writer) instead of hand-written audit calls; the write + exactly one audit entry + any domain event are co-transactional (commit ⇒ one entry + event once, rollback ⇒ neither); the actor is server-derived from the ambient TenantContext (never request inputs); no double-auditing; and any reversible operation's undo restores captured pre-state all-or-nothing per record with a conflict report, idempotent-safe, itself audited. The command coverage check passes for migrated modules.
 
 ### New runtime dependencies (gate 7)
 

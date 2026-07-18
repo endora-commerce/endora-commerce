@@ -1,23 +1,29 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 3.4.0 → 3.5.0
-Rationale: MINOR bump. A new principle — XII (Sales-Channel Content
-Scoping) — is added, establishing sales-channel visibility as a distinct
-isolation axis from org tenancy (Principle XI). It codifies the
-architectural decision from the 052-scoping-hotfixes audit: channel-scoped
-reads and commercial evaluations MUST always resolve a concrete channel and
-fail closed (never fall back to the full cross-channel set), and channel
-membership MUST be read only through the sanctioned accessor
-(`no-unscoped-channel-query`). A new principle is added (not a redefinition
-or removal), so the versioning policy mandates a MINOR bump.
+Version change: 3.5.0 → 3.6.0
+Rationale: MINOR bump. A new principle — XIII (Uniform Write Auditing via
+Command Bus) — is added, establishing a framework-level command path as the
+single, guaranteed writer of the audit trail for sensitive mutations, and
+opt-in reversibility (undo) built on the same captured before/after state. It
+codifies the architectural decision from the 054-command-bus-audit-undo audit:
+the audit substrate (`audit_log_entries`, with actor + before/after) already
+modeled everything auditing and undo need, but the audit writer was invoked by
+hand at ~70 scattered call sites, so coverage was inconsistent, before/after
+was captured ad-hoc, and no revert path existed. The principle mandates that
+sensitive writes run as Commands whose audit + domain-event + write are
+co-transactional, whose actor is server-derived (composing with Principle XI),
+with no hand-placed audit calls in migrated modules (a CI coverage check
+enforces it) and safe, conflict-aware undo where declared. A new principle is
+added (not a redefinition or removal), so the versioning policy mandates a
+MINOR bump.
 
 Modified principles:
   - (none renamed/redefined)
 
 Added sections:
-  - XII. Sales-Channel Content Scoping (NON-NEGOTIABLE) — new principle.
-  - Quality gate #11 (Sales-channel scoping) in Development Workflow.
+  - XIII. Uniform Write Auditing via Command Bus (NON-NEGOTIABLE) — new principle.
+  - Quality gate #12 (Uniform write auditing) in Development Workflow.
 
 Removed sections:
   - (none)
@@ -27,18 +33,22 @@ Templates / artifacts requiring alignment:
        generic; no edits required.
   - ✅ .specify/templates/spec-template.md      — no edits required.
   - ✅ .specify/templates/tasks-template.md     — no edits required.
-  - ✅ README.md — added Principle XII quick-reference note (point 12) and
+  - ✅ README.md — added Principle XIII quick-reference note (point 13) and
        extended the PR-gates paragraph.
-  - ✅ .github/pull_request_template.md — added gate #11 (sales-channel
-       scoping).
+  - ✅ .github/pull_request_template.md — added gate #12 (uniform write
+       auditing) and refreshed the gate-count comment.
 
 Deferred items / TODOs:
-  - Principle XII's interim clause anticipates a unified sales-channel
-    resolver (planned "spec 03 / resolver unification"). Until it lands,
-    channel scoping is enforced by explicit fail-closed predicates through
-    the sanctioned accessor; the principle already binds the future
-    resolver to absorb them without reintroducing ad-hoc guards.
+  - Principle XIII's interim clause tracks an incremental migration: the
+    Command Bus is introduced by feature 054-command-bus-audit-undo and the
+    ~70 legacy hand-written audit call sites are converted module by module.
+    Until a module is migrated it MAY retain hand-written audit calls (but
+    MUST still audit); the coverage check runs report-only until then, then
+    build-breaking per migrated module. From this amendment forward, NEW
+    sensitive writes MUST be expressed as Commands.
 
+  (History) 3.4.0 → 3.5.0 added Principle XII + quality gate #11
+    (sales-channel content scoping, feature 052-scoping-hotfixes).
   (History) 3.3.0 → 3.4.0 expanded Principle XI with the "One tenant
     concept — the Organization" clause (feature 051-personal-organizations).
   (History) 3.2.0 → 3.3.0 added Principle XI + quality gate #10
@@ -439,6 +449,70 @@ closed, and read membership only through the one sanctioned accessor.** Encoding
 next feature from re-opening the same leaks and fixes the contract the future unified resolver
 will absorb — the point fixes become calls into that resolver, not rework.
 
+### XIII. Uniform Write Auditing via Command Bus (NON-NEGOTIABLE)
+
+Sensitive writes MUST be audited by a **framework-level command path**, not by hand-placed
+audit calls. The platform's audit substrate (`audit_log_entries`, carrying actor, action,
+object identity, and before/after state) already models everything auditing and undo need; the
+failure mode is discipline, not data — the audit writer was invoked by hand at ~70 scattered
+call sites, so coverage was inconsistent, before/after was captured ad-hoc, and no revert path
+existed anywhere. The following are binding for every backend feature that performs a
+**sensitive mutation** (a create / update / delete of a domain record):
+
+- **Single audited write path.** A sensitive mutation MUST run as a named **Command** through
+  the Command Bus, which is the **single, guaranteed writer** of its audit entry. Services in
+  migrated modules MUST NOT call the audit writer directly — the bus records audit for them. A
+  Command carries a stable dot-namespaced action, the target object type + id, the actor, and
+  before/after state.
+- **Co-transactional audit + event + write.** The domain write, exactly one audit entry, and
+  any domain-event emission MUST commit or roll back as **one unit**: a committed Command
+  records exactly one audit entry and dispatches its event exactly once; a rolled-back Command
+  records no audit entry and emits no event. Audit MUST be written **inside** the command's
+  transaction, never as a separate flush that can orphan.
+- **Server-derived actor (composes with XI).** A Command's actor MUST be drawn from the ambient
+  TenantContext (admin id, impersonation pair, or system) — **never** from a request body,
+  query, or header. The bus MUST run on the scoped EM so the Principle XI tenant guard applies
+  to command reads/writes and the audit insert, and MUST fail closed with no ambient context.
+  Background / worker Commands cross scope only through the sanctioned `withSystemScope` /
+  `withOrgScope` escape hatch.
+- **No double-audit; no silent regression.** Converting a write to a Command MUST remove its
+  prior hand-written audit call **in the same change**. A CI coverage check MUST flag a
+  sensitive mutation that neither runs through a registered Command nor records an audit entry,
+  and MUST flag a write that both runs a Command and still audits by hand.
+- **Opt-in reversibility, safe undo.** A Command MAY declare itself reversible by capturing
+  per-record pre-state; **only** reversible Commands expose an operator-facing undo. Undo MUST
+  restore the captured pre-state, be **all-or-nothing per record with a conflict report** (never
+  a silent clobber of a record changed since the operation), be idempotent-safe on
+  re-invocation, and be **itself an audited action linked** to the operation it reverses.
+  Irreversible side effects (emails sent, payment captured, cascade deletes) MUST NOT be offered
+  undo.
+- **Thin layer.** The Command Bus MUST wrap existing services and the existing audit + event
+  infrastructure — **no CQRS, no separate read model, no bespoke command queue, no speculative
+  redo** (Principle IV). Reversible bulk operations reuse the durable queue path (Principle X);
+  large undos run through the separable worker entrypoint, never inline.
+- **Incremental migration is bounded.** Rollout is module by module, starting with the
+  highest-regret writes (bulk operations, catalog, pricing, credit limits). An un-migrated
+  module MAY retain hand-written audit calls, but each such write MUST still audit; the coverage
+  check runs report-only until a module is migrated, then build-breaking for that module. From
+  this amendment forward, **new** sensitive writes MUST be expressed as Commands rather than
+  reintroducing hand-placed audit calls (the same relationship Principle XI has with the feature
+  `050` tenant guard and Principle XII with the channel accessor).
+
+**Rationale**: About 70 hand-written audit calls made auditability depend on developer memory —
+some mutations audited, some did not; before/after was captured inconsistently; and nothing
+could be undone, so a wrong bulk edit across hundreds of products (the platform's highest-regret
+write) had no recovery path. Routing sensitive writes through a Command converts "remember to
+audit" into "audited by construction," exactly as Principle XI converted "remember to scope"
+into a structural guard. Because the Command owns the write, the audit entry, and the domain
+event within one transaction, the three can no longer disagree — a rolled-back write cannot leak
+an orphan audit row or a phantom event, and a committed one cannot silently skip either. The
+same before/after capture that makes auditing uniform is precisely what undo needs, so
+reversibility falls out of the audit discipline rather than being a separate mechanism. The bus
+is deliberately thin (Principle IV): it reuses the existing audit writer, the transactional
+event bus, and the tenant-scoped EM, adding no new dependency. It is introduced by feature
+`054-command-bus-audit-undo`; from this amendment forward, new features build on it rather than
+reintroducing scattered audit calls.
+
 ## Technology Stack
 
 The following stack is mandated. Substitutions require amending this
@@ -596,6 +670,15 @@ Every change MUST pass the following gates before merge:
     channel-membership service (`no-unscoped-channel-query` must pass), or a channel-scoped path
     that ships without cross-channel tests (out-of-channel content hidden + null-channel fails
     closed).
+12. **Uniform write auditing** — reviewers MUST reject any change that violates Principle XIII:
+    a sensitive mutation in a migrated module that hand-writes an audit call instead of running
+    through the Command Bus; a converted write that double-audits (Command **and** a manual audit
+    call for the same action); a Command whose actor is taken from the request rather than the
+    ambient TenantContext; an audit / event / write that is not co-transactional (an orphan audit
+    row or event on rollback, or a missing/duplicate entry on commit); or a reversible operation
+    whose undo can partially clobber a record changed since (undo MUST be all-or-nothing per
+    record with a conflict report, idempotent-safe, and itself audited). The command coverage
+    check MUST pass for migrated modules.
 
 Code review MUST explicitly verify each of the above. "LGTM" without
 evidence of checking the gates is not an approval.
@@ -634,4 +717,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 3.5.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-07-17
+**Version**: 3.6.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-07-18
