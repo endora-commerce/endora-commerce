@@ -28,6 +28,9 @@ export class ProductEditorPreferencesService {
       lastLanguageCode: string | null;
     },
   ): Promise<ProductEditorPreference> {
+    // command-coverage-ignore: per-admin UI editor state (last-selected channel +
+    // language on the product edit page) — a personal preference, not a catalog
+    // domain mutation, so it is not an admin-audit target.
     const em = this.emFactory();
     const existing = await em.findOne(ProductEditorPreference, {
       adminUserId,

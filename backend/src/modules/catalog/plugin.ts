@@ -247,7 +247,11 @@ export function catalogModule(options: CatalogModuleOptions) {
           )
         : undefined;
     const overridesService = options.salesChannelMembership
-      ? new ProductOverridesService(options.emFactory, options.salesChannelMembership)
+      ? new ProductOverridesService(
+          options.emFactory,
+          options.salesChannelMembership,
+          options.commandBus,
+        )
       : undefined;
 
     await registerCatalogAdminRoutes(app, {

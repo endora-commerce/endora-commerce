@@ -47,6 +47,7 @@ export const COMMAND_REGISTRY = {
   'attribute_set.create': { reversible: false, description: 'Create an attribute set' },
   'attribute_set.update': { reversible: false, description: 'Update an attribute set' },
   'attribute_set.delete': { reversible: false, description: 'Delete an attribute set' },
+  'product.overrides_apply': { reversible: false, description: 'Apply product value overrides' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog
