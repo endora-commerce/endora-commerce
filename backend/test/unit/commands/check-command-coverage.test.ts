@@ -107,6 +107,27 @@ describe('command coverage check (feature 054, FR-009 / FR-010) — method-level
     expect(analyzeSource(PATH, src)).toEqual([]);
   });
 
+  it('treats a method that delegates to an audit-recorder helper as covered', () => {
+    // `create` mutates but records via a private `writeAudit` helper (the mutation
+    // and the `.record()` call live in different methods) — a very common shape.
+    const src = `
+      export class Svc {
+        constructor(private em: () => any, private auditLog: any) {}
+        async create(input: any) {
+          const em = this.em();
+          const row = em.create('X', input);
+          await em.persistAndFlush(row);
+          await this.writeAudit('x.create', row.id);
+          return row;
+        }
+        private async writeAudit(action: string, id: string) {
+          if (!this.auditLog) return;
+          await this.auditLog.record({ action, objectType: 'x', objectId: id });
+        }
+      }`;
+    expect(analyzeSource(PATH, src)).toEqual([]);
+  });
+
   it('treats a command-factory method (defines a Command literal) as covered', () => {
     const src = `
       export class Svc {

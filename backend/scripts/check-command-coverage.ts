@@ -198,6 +198,13 @@ export function analyzeSource(filePath: string, source: string): CoverageFinding
   const runnerNames = new Set(
     units.filter((u) => u.scan.runsCommand || u.scan.definesCommand).map((u) => u.name),
   );
+  // …and a "recorder" method writes audit by hand (`auditLog.record(...)` /
+  // `.recordWithin(...)`). A very common shape is a public write that mutates and
+  // then calls a private `this.writeAudit()` helper which records — the mutation
+  // and the audit call live in different methods. Recognizing delegation to a
+  // recorder (symmetric with runner delegation) clears that legitimate pattern
+  // instead of flagging an already-audited write as unaudited.
+  const recorderNames = new Set(units.filter((u) => u.scan.hasAuditWrite).map((u) => u.name));
 
   const findings: CoverageFinding[] = [];
   for (const u of units) {
@@ -207,7 +214,7 @@ export function analyzeSource(filePath: string, source: string): CoverageFinding
       s.runsCommand ||
       s.definesCommand ||
       s.hasAuditWrite ||
-      [...s.callsThis].some((n) => runnerNames.has(n));
+      [...s.callsThis].some((n) => runnerNames.has(n) || recorderNames.has(n));
     if (s.hasMutation && !covered) {
       findings.push({
         filePath,
