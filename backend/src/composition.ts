@@ -963,6 +963,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     taxes.plugin,
     promotions.plugin,
     commerceModule({
+      commandBus,
       emFactory: em,
       eventBus,
       auditLogService,

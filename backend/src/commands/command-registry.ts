@@ -82,6 +82,11 @@ export const COMMAND_REGISTRY = {
   'product_variant.create': { reversible: false, description: 'Create a product variant' },
   'product_variant.update': { reversible: false, description: 'Update a product variant' },
   'product_variant.delete': { reversible: false, description: 'Delete a product variant' },
+  // Orders module (US1).
+  'order_status.create': { reversible: false, description: 'Create an order status' },
+  'order_status.update': { reversible: false, description: 'Update an order status' },
+  'order_status.delete': { reversible: false, description: 'Delete an order status' },
+  'order_status.set_transitions': { reversible: false, description: 'Edit order status transitions' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

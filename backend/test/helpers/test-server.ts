@@ -751,6 +751,7 @@ export async function setupBackendServer(
     taxes.plugin,
     promotions.plugin,
     commerceModule({
+      commandBus,
       emFactory: em,
       eventBus,
       auditLogService,
