@@ -55,6 +55,10 @@ export const MIGRATED_MODULES: readonly string[] = [
   'invoices',
   'newsletter',
   'admin_users',
+  'payments',
+  'shipments',
+  'payment_methods',
+  'delivery_methods',
 ];
 
 const MUTATION_METHODS = new Set([

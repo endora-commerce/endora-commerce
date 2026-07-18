@@ -32,6 +32,8 @@ export class DeliveryMethodReconciler {
     adapterKey: string,
     defaults: EnsureMethodDefaults,
   ): Promise<DeliveryMethod> {
+    // command-coverage-ignore: idempotent reconciliation of adapter-backed delivery
+    // methods — a system-invariant repair, not an operator-initiated write.
     const em = this.emFactory();
     const existing = await em.findOne(DeliveryMethod, { code: defaults.code });
     if (existing) {

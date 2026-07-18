@@ -61,6 +61,8 @@ export class ReceivePaymentHandler {
   ) {}
 
   async receive(input: ReceivePayment): Promise<ReceivePaymentResult> {
+    // command-coverage-ignore: provider payment-event ingestion — stamps the
+    // attempt result and drives the order transition (audited in the orders flow).
     const em = this.emFactory();
     const result = await em.transactional(async (tx) => {
       const payment = await this.resolvePayment(tx, input);
@@ -176,6 +178,8 @@ export class ReceivePaymentHandler {
    * downgraded to partial.
    */
   async reflectRefund(input: {
+    // command-coverage-ignore: reflects a provider refund on the payment attempt;
+    // the refund/return domain event is audited in the returns/orders flow.
     paymentId?: string;
     orderId?: string;
     /** PaymentIntent id (`pi_…`) — resolves the payment when no paymentId. */
