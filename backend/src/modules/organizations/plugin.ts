@@ -130,10 +130,12 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       options.emFactory,
       options.eventBus as OrganizationEventBus,
       options.dictionaryValidator,
+      options.auditLogService,
     );
     const verificationService = new EmailVerificationService(
       options.emFactory,
       options.eventBus as OrganizationEventBus,
+      options.auditLogService,
     );
     const customerAuthService = new CustomerAuthService(
       options.emFactory,
@@ -147,6 +149,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       { acceptBaseUrl: storefrontBaseUrl },
       options.eventBus as OrganizationEventBus,
       orgTemplateEmail,
+      options.auditLogService,
     );
     const roleService = new RoleService(options.emFactory);
     const passwordResetService = new PasswordResetService(options.emFactory);

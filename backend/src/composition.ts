@@ -786,7 +786,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
 
   const organizationContextService = new OrganizationContextService(em);
-  const organizationRestrictionService = new OrganizationRestrictionService(em);
+  const organizationRestrictionService = new OrganizationRestrictionService(em, auditLogService);
 
   /**
    * Feature 026 US6 — admin orders/RFQ visibility scope. Sales-rep admins
@@ -866,6 +866,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     vies: new ViesClient(),
     mfPl: new MinisterstwoFinansowClient(),
+    auditLog: auditLogService,
   });
   const assertOrganizationCanTransact = async (organizationId: string): Promise<void> => {
     await organizationContextService.assertCanTransact(organizationId);

@@ -102,7 +102,7 @@ export function customersModule(options: CustomersModuleOptions): {
     customerAddressService,
   );
   const authorityService = new CustomerAuthorityService(
-    new SalesRepAssignmentService(options.emFactory),
+    new SalesRepAssignmentService(options.emFactory, options.auditLogService),
   );
   const moderationService = new CustomerModerationService(
     options.emFactory,

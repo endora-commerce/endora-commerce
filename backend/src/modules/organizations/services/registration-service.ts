@@ -13,6 +13,8 @@ import { hashPassword } from '../../auth/services/password-hasher.js';
 import { Organization } from '../entities/organization.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { EmailVerificationToken } from '../entities/email-verification-token.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /**
  * Registration flow (T117, FR-040).
@@ -77,6 +79,7 @@ export class RegistrationService {
     private readonly emFactory: () => EntityManager,
     private readonly events: OrganizationEventBus,
     private readonly dictionaryValidator?: DictionaryValidator,
+    private readonly auditLog?: AuditLogService,
   ) {}
 
   async registerOrganization(req: RegisterOrganizationRequest): Promise<RegistrationResult> {
@@ -156,6 +159,17 @@ export class RegistrationService {
       tokenHash: sha256Hex(rawToken),
       expiresAt: new Date(Date.now() + TOKEN_TTL_HOURS * 60 * 60 * 1_000),
     });
+    if (this.auditLog) {
+      // Self-registration is pre-auth (no ambient actor) — the entry records the
+      // organization creation with a null actor.
+      recordAuditFromContext(this.auditLog, em, {
+        action: 'organization.register',
+        objectType: 'organization',
+        objectId: organization.id,
+        stateBefore: null,
+        stateAfter: { name: organization.name, taxId: organization.taxId, status: organization.status },
+      });
+    }
     await em.persistAndFlush(token);
 
     this.events.emit('organization.registered.v1', {

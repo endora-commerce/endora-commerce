@@ -24,6 +24,9 @@ export class PersonalOrganizationService {
    * is returned as-is (never a second personal org).
    */
   async ensureFor(account: CustomerAccount, em = this.emFactory()): Promise<Organization> {
+    // command-coverage-ignore: idempotent auto-provisioning of a customer's
+    // personal (B2C) organization on first transact — a system invariant repair
+    // (returns the existing org if any), not an operator-initiated write.
     if (account.organizationId) {
       const existing = await em.findOne(Organization, { id: account.organizationId });
       if (existing) return existing;

@@ -464,8 +464,8 @@ export async function setupBackendServer(
   // Feature 026 US4 — restriction service + per-request allow-list resolvers.
   // Mirrors the composition.ts pattern: production wiring reads
   // `request.actor`; the test harness uses `request.testActor`.
-  const sharedRestrictionService = new OrganizationRestrictionService(em);
-  const sharedSalesRepAssignment = new SalesRepAssignmentService(em);
+  const sharedRestrictionService = new OrganizationRestrictionService(em, auditLogService);
+  const sharedSalesRepAssignment = new SalesRepAssignmentService(em, auditLogService);
   const buildOrgAllowListResolver = (
     kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
   ) => async (request: FastifyRequest): Promise<string[] | null> => {
@@ -925,6 +925,7 @@ export async function setupBackendServer(
         emFactory: em,
         vies: new FakeVatValidator('vies'),
         mfPl: new FakeVatValidator('mf_pl'),
+        auditLog: auditLogService,
       });
       // Expose handles on the harness for tests that want to call the
       // services directly.

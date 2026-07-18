@@ -120,6 +120,17 @@ export const COMMAND_REGISTRY = {
   'quote_request.assign': { reversible: false, description: 'Assign a quote request to an admin' },
   'quote_request.modify': { reversible: false, description: 'Modify a quote request (admin revision)' },
   'quote_request.create_on_behalf': { reversible: false, description: 'Admin creates a quote request on behalf' },
+  // Organizations module (US1).
+  'organization.register': { reversible: false, description: 'Register an organization (self-service)' },
+  'organization.email_verified': { reversible: false, description: 'Verify an organization email / activate' },
+  'organization.invite': { reversible: false, description: 'Invite a member to an organization' },
+  'organization.invite_revoke': { reversible: false, description: 'Revoke an organization invitation' },
+  'organization.invite_accept': { reversible: false, description: 'Accept an organization invitation' },
+  'organization.allow_lists_replace': { reversible: false, description: 'Replace organization allow-lists' },
+  'organization.allow_list_patch': { reversible: false, description: 'Patch an organization allow-list' },
+  'organization.tax_id_validation': { reversible: false, description: 'Validate an organization tax ID' },
+  'organization.sales_rep_assign': { reversible: false, description: 'Assign a sales rep to an organization' },
+  'organization.sales_rep_unassign': { reversible: false, description: 'Unassign a sales rep from an organization' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

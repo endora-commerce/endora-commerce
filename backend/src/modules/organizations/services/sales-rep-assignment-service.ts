@@ -3,6 +3,8 @@ import { OrganizationSalesRepAssignment } from '../entities/organization-sales-r
 import { Organization } from '../entities/organization.entity.js';
 import { HttpError } from '../../../http/error-envelope.js';
 import { ERROR_CODES } from '@b2b/contracts';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /**
  * Centralised visibility predicate for the sales-rep ↔ organization
@@ -18,7 +20,10 @@ import { ERROR_CODES } from '@b2b/contracts';
  *     "unassigned-org fallback" mode and is visible to every sales rep.
  */
 export class SalesRepAssignmentService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
 
   /**
    * Returns true when the admin user is allowed to see the
@@ -75,7 +80,17 @@ export class SalesRepAssignmentService {
       adminUserId: input.adminUserId,
       assignedByAdminUserId: input.assignedByAdminUserId ?? null,
     });
-    await em.persistAndFlush(row);
+    em.persist(row);
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action: 'organization.sales_rep_assign',
+        objectType: 'organization',
+        objectId: input.organizationId,
+        stateBefore: null,
+        stateAfter: { adminUserId: input.adminUserId },
+      });
+    }
+    await em.flush();
     return row;
   }
 
@@ -86,6 +101,15 @@ export class SalesRepAssignmentService {
       adminUserId: input.adminUserId,
     });
     if (!existing) return false;
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action: 'organization.sales_rep_unassign',
+        objectType: 'organization',
+        objectId: input.organizationId,
+        stateBefore: { adminUserId: input.adminUserId },
+        stateAfter: null,
+      });
+    }
     await em.removeAndFlush(existing);
     return true;
   }

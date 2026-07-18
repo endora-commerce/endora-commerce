@@ -72,7 +72,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
   const eventService = new RfqEventService(options.emFactory);
   const revisionService = new RfqRevisionService(options.emFactory);
   const notificationService = new RfqNotificationService(options.emFactory);
-  const salesRepAssignment = new SalesRepAssignmentService(options.emFactory);
+  const salesRepAssignment = new SalesRepAssignmentService(options.emFactory, options.auditLog);
 
   // Business Quote Request ID generator — adapts the composition-wired
   // prefix/suffix resolver closures (SettingsService-backed) to the
