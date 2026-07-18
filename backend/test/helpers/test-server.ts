@@ -581,6 +581,7 @@ export async function setupBackendServer(
   const seo = seoModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
+    auditLog: auditLogService,
     sitemap: { staleAfterMs: 0, baseUrl: 'http://test.local' },
   });
 
@@ -652,6 +653,7 @@ export async function setupBackendServer(
     requireAdmin: requireTestAdmin(permissionService),
     salesChannelMembership: salesChannels.handle.membershipService,
     dictionaryValidator: dictionaries.handle.validator,
+    auditLog: auditLogService,
   });
   const promotions = promotionsModule({
     emFactory: em,

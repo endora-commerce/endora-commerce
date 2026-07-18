@@ -2,6 +2,8 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypt
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { ExternalIntegration } from '../entities/external-integration.entity.js';
 
 /**
@@ -24,7 +26,16 @@ export interface IntegrationTestResult {
 }
 
 export class IntegrationService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, { action, objectType: 'external_integration', objectId, stateBefore, stateAfter });
+    }
+  }
 
   async list(): Promise<ExternalIntegration[]> {
     const em = this.emFactory();
@@ -55,7 +66,9 @@ export class IntegrationService {
         ? { createdByAdminUserId: input.createdByAdminUserId }
         : {}),
     });
-    await em.persistAndFlush(row);
+    em.persist(row);
+    this.#audit(em, 'integration.create', row.id, null, { name: row.name, vendor: row.vendor });
+    await em.flush();
     return row;
   }
 
@@ -73,6 +86,7 @@ export class IntegrationService {
     if (patch.name !== undefined) row.name = patch.name;
     if (patch.config !== undefined) row.encryptedConfig = encryptConfig(patch.config);
     if (patch.status !== undefined) row.status = patch.status;
+    this.#audit(em, 'integration.update', row.id, null, { name: row.name, status: row.status });
     await em.flush();
     return row;
   }
@@ -81,6 +95,7 @@ export class IntegrationService {
     const em = this.emFactory();
     const row = await em.findOne(ExternalIntegration, { id });
     if (!row) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Integration not found.');
+    this.#audit(em, 'integration.delete', row.id, { name: row.name }, null);
     await em.removeAndFlush(row);
   }
 
@@ -95,6 +110,8 @@ export class IntegrationService {
     id: string,
     deps: { fetchFn?: typeof fetch } = {},
   ): Promise<IntegrationTestResult> {
+    // command-coverage-ignore: delivery execution/bookkeeping — the config write
+    // is audited separately; this is provider dispatch state.
     const em = this.emFactory();
     const row = await em.findOne(ExternalIntegration, { id });
     if (!row) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Integration not found.');

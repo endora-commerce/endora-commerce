@@ -66,7 +66,7 @@ export function adminModule(
   const adminUserService = new AdminUserService(options.emFactory, options.auditLogService);
   const adminRoleService =
     options.adminRoleService ??
-    new AdminRoleService(options.emFactory, options.permissionCatalogueService);
+    new AdminRoleService(options.emFactory, options.permissionCatalogueService, options.auditLogService);
   const recentActivityService = new RecentActivityService(options.emFactory);
   return {
     handle,

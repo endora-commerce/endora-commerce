@@ -232,6 +232,21 @@ export const COMMAND_REGISTRY = {
   'customer_address.update': { reversible: false, description: 'Update a customer address' },
   'customer_address.delete': { reversible: false, description: 'Delete a customer address' },
   'customer_account.register_standalone': { reversible: false, description: 'Standalone (B2C) customer registration' },
+  // Small admin-config modules (US1).
+  'tax.upsert': { reversible: false, description: 'Upsert a tax' },
+  'tax.delete': { reversible: false, description: 'Delete a tax' },
+  'api_key.create': { reversible: false, description: 'Create an API key' },
+  'api_key.revoke': { reversible: false, description: 'Revoke an API key' },
+  'admin_role.upsert': { reversible: false, description: 'Upsert an admin role' },
+  'admin_role.delete': { reversible: false, description: 'Delete an admin role' },
+  'integration.create': { reversible: false, description: 'Create an external integration' },
+  'integration.update': { reversible: false, description: 'Update an external integration' },
+  'integration.delete': { reversible: false, description: 'Delete an external integration' },
+  'seo_meta_override.upsert': { reversible: false, description: 'Upsert an SEO meta override' },
+  'seo_meta_override.delete': { reversible: false, description: 'Delete an SEO meta override' },
+  'webhook.create': { reversible: false, description: 'Create a webhook' },
+  'webhook.update': { reversible: false, description: 'Update a webhook' },
+  'webhook.delete': { reversible: false, description: 'Delete a webhook' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

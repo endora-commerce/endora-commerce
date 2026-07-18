@@ -25,6 +25,8 @@ export class AnalyticsIngestService {
     events: IngestAnalyticsEvent[];
     requestId?: string;
   }): Promise<IngestResult> {
+    // command-coverage-ignore: telemetry/analytics ingestion — high-volume event
+    // recording, not an audited domain-state mutation.
     const em = this.emFactory();
     const accepted: AnalyticsEvent[] = [];
     const rejected: IngestResult['rejected'] = [];

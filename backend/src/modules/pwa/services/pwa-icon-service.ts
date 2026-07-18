@@ -52,6 +52,8 @@ export class PwaIconService {
     declaredMime: string;
     buffer: Buffer;
   }): Promise<{ sourceAssetId: string; renditions: PwaIconRenditionDto[] }> {
+    // command-coverage-ignore: push-notification infrastructure — device
+    // subscription / message delivery / icon asset, not audited domain state.
     if (!ALLOWED_MIME.has(input.declaredMime)) {
       throw new PwaIconInvalid('The icon must be a PNG or WebP image.');
     }

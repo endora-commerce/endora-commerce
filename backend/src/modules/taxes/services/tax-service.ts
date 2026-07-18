@@ -7,6 +7,8 @@ import {
   type TaxResolutionInput,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
 import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 import { Tax } from '../entities/tax.entity.js';
@@ -30,7 +32,14 @@ export class TaxService {
     /** Feature 005 / T027b — auto-bind newly-created Taxes to the system default. */
     private readonly salesChannelMembership?: SalesChannelMembershipService,
     private readonly dictionaryValidator?: DictionaryValidator,
+    private readonly auditLog?: AuditLogService,
   ) {}
+
+  #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, { action, objectType: 'tax', objectId, stateBefore, stateAfter });
+    }
+  }
 
   async list(): Promise<Tax[]> {
     return this.emFactory().find(Tax, {}, { orderBy: { priority: 'desc', code: 'asc' } });
@@ -78,6 +87,7 @@ export class TaxService {
       }
       if (input.isDefault !== undefined) existing.isDefault = input.isDefault;
       if (input.priority !== undefined) existing.priority = input.priority;
+      this.#audit(em, 'tax.upsert', existing.id, null, { code: existing.code, rate: existing.rate });
       await em.flush();
       return existing;
     }
@@ -93,7 +103,9 @@ export class TaxService {
       ...(input.isDefault !== undefined ? { isDefault: input.isDefault } : {}),
       ...(input.priority !== undefined ? { priority: input.priority } : {}),
     });
-    await em.persistAndFlush(row);
+    em.persist(row);
+    this.#audit(em, 'tax.upsert', row.id, null, { code: row.code, rate: row.rate });
+    await em.flush();
     if (this.salesChannelMembership) {
       await this.salesChannelMembership.bindToDefaultIfEmpty('tax', row.id);
     }
@@ -104,6 +116,7 @@ export class TaxService {
     const em = this.emFactory();
     const row = await em.findOne(Tax, { id });
     if (!row) return;
+    this.#audit(em, 'tax.delete', row.id, { code: row.code }, null);
     await em.removeAndFlush(row);
   }
 

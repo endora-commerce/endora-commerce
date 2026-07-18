@@ -63,6 +63,8 @@ export interface SeedHooksReconcileResult {
 export async function reconcileSeededHooks(
   emFactory: () => EntityManager,
 ): Promise<SeedHooksReconcileResult> {
+  // command-coverage-ignore: idempotent boot seed/reconcile of module-declared CMS
+  // hooks — a system-invariant repair, not an operator-initiated audited write.
   const em = emFactory();
   const existing = await em.find(CmsHook, { isSystem: true });
   const existingByCode = new Map(existing.map((h) => [h.code, h]));

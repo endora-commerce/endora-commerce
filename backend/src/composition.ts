@@ -250,7 +250,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const permissionCatalogueService = new PermissionCatalogueService({
     registryEntries: REGISTERED_MANIFESTS,
   });
-  const adminRoleService = new AdminRoleService(em, permissionCatalogueService);
+  const adminRoleService = new AdminRoleService(em, permissionCatalogueService, auditLogService);
 
   const eventBus = new EventBus();
 
@@ -473,6 +473,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdmin,
     salesChannelMembership: salesChannels.handle.membershipService,
     dictionaryValidator: dictionaries.handle.validator,
+    auditLog: auditLogService,
   });
   // Feature 012 / US8 — promotions reads catalog through CatalogQueryService
   // (the documented cross-module port — Constitution I) so the rule editor
@@ -688,6 +689,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const seo = seoModule({
     emFactory: em,
     requireAdmin,
+    auditLog: auditLogService,
     settings: {
       get: (code, salesChannelId, schema) =>
         settings.handle.settingsService.get(code, salesChannelId, schema),

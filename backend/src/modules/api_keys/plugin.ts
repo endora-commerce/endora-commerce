@@ -42,9 +42,9 @@ export function integrationsModule(options: IntegrationsModuleOptions): {
   plugin: (app: FastifyInstance) => Promise<void>;
   handle: IntegrationsModuleHandle;
 } {
-  const apiKeyService = new ApiKeyService(options.emFactory);
-  const webhookService = new WebhookService(options.emFactory);
-  const integrationService = new IntegrationService(options.emFactory);
+  const apiKeyService = new ApiKeyService(options.emFactory, options.auditLogService);
+  const webhookService = new WebhookService(options.emFactory, options.auditLogService);
+  const integrationService = new IntegrationService(options.emFactory, options.auditLogService);
 
   const requireApiKey =
     (scope: string) => async (request: FastifyRequest): Promise<void> => {

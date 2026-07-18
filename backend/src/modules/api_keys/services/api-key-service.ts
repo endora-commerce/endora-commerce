@@ -3,6 +3,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { ApiKey } from '../entities/api-key.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /**
  * ApiKeyService (T227).
@@ -23,7 +25,16 @@ export interface CreateApiKeyResult {
 const TOKEN_PREFIX = 'sk_live_';
 
 export class ApiKeyService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, { action, objectType: 'api_key', objectId, stateBefore, stateAfter });
+    }
+  }
 
   async create(input: {
     name: string;
@@ -42,7 +53,9 @@ export class ApiKeyService {
         ? { createdByAdminUserId: input.createdByAdminUserId }
         : {}),
     });
-    await em.persistAndFlush(apiKey);
+    em.persist(apiKey);
+    this.#audit(em, 'api_key.create', apiKey.id, null, { name: apiKey.name, scopes: apiKey.scopes });
+    await em.flush();
     return { apiKey, bearerToken };
   }
 
@@ -59,6 +72,7 @@ export class ApiKeyService {
     }
     apiKey.status = 'revoked';
     apiKey.revokedAt = new Date();
+    this.#audit(em, 'api_key.revoke', apiKey.id, { name: apiKey.name }, null);
     await em.flush();
   }
 
@@ -67,6 +81,8 @@ export class ApiKeyService {
    * revoked. Updates `lastUsedAt` on success.
    */
   async authenticate(rawBearer: string): Promise<{ apiKeyId: string; scopes: string[] } | null> {
+    // command-coverage-ignore: stamps last-used — high-volume auth bookkeeping,
+    // not an audited domain-state mutation.
     if (!rawBearer.startsWith(TOKEN_PREFIX)) return null;
     const em = this.emFactory();
     const apiKey = await em.findOne(ApiKey, { keyHash: sha256Hex(rawBearer) });

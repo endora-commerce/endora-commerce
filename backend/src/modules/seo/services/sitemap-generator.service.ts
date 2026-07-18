@@ -91,6 +91,8 @@ export class SitemapGeneratorService {
   async regenerateForChannel(
     salesChannelCode: string,
   ): Promise<{ payload: string; generatedAt: Date }> {
+    // command-coverage-ignore: idempotent lifecycle reconciler/seed — a system-
+    // invariant repair, not an operator-initiated audited write.
     const em = this.emFactory();
     const channel = await em.findOne(SalesChannel, { code: salesChannelCode });
     if (channel === null) {

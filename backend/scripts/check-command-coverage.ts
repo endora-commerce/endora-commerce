@@ -62,6 +62,22 @@ export const MIGRATED_MODULES: readonly string[] = [
   'addresses',
   'auth',
   'customers',
+  'taxes',
+  'api_keys',
+  'admin_roles',
+  'integrations',
+  'seo',
+  'webhooks',
+  'settings',
+  'comparisons',
+  'pwa',
+  'prompt_actions',
+  'analytics',
+  'search',
+  'cms',
+  'admin_notifications',
+  'admin_actions',
+  '_i18n',
 ];
 
 const MUTATION_METHODS = new Set([

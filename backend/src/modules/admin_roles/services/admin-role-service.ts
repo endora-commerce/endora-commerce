@@ -2,6 +2,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { AdminRole } from '../entities/admin-role.entity.js';
 import { AdminUser } from '../../admin_users/entities/admin-user.entity.js';
 import type { PermissionCatalogueService } from './permission-catalogue.service.js';
@@ -63,7 +65,14 @@ export class AdminRoleService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly permissionCatalogue: PermissionCatalogueService,
+    private readonly auditLog?: AuditLogService,
   ) {}
+
+  #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, { action, objectType: 'admin_role', objectId, stateBefore, stateAfter });
+    }
+  }
 
   /**
    * Register a role code as system-protected. Called by modules at
@@ -99,6 +108,7 @@ export class AdminRoleService {
       role.name = input.name;
       role.permissions = permissions;
       role.requiresTwoFactor = input.requiresTwoFactor ?? role.requiresTwoFactor;
+      this.#audit(em, 'admin_role.upsert', role.id, null, { code: role.code, name: role.name });
       await em.flush();
       return role;
     }
@@ -108,6 +118,7 @@ export class AdminRoleService {
       permissions,
       requiresTwoFactor: input.requiresTwoFactor ?? false,
     });
+    this.#audit(em, 'admin_role.upsert', role.id, null, { code: role.code, name: role.name });
     try {
       await em.persistAndFlush(role);
     } catch (err) {
@@ -142,6 +153,7 @@ export class AdminRoleService {
         `Cannot delete role: ${assignees} admin user(s) still assigned.`,
       );
     }
+    this.#audit(em, 'admin_role.delete', role.id, { code: role.code }, null);
     await em.removeAndFlush(role);
   }
 

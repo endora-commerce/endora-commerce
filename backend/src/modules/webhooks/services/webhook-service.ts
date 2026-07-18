@@ -3,6 +3,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Webhook } from '../entities/webhook.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { WebhookDelivery } from '../entities/webhook-delivery.entity.js';
 
 /**
@@ -13,7 +15,16 @@ import { WebhookDelivery } from '../entities/webhook-delivery.entity.js';
  * uses the same secret to HMAC-sign each outbound POST.
  */
 export class WebhookService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, { action, objectType: 'webhook', objectId, stateBefore, stateAfter });
+    }
+  }
 
   async list(): Promise<Webhook[]> {
     const em = this.emFactory();
@@ -43,7 +54,9 @@ export class WebhookService {
         ? { createdByAdminUserId: input.createdByAdminUserId }
         : {}),
     });
-    await em.persistAndFlush(webhook);
+    em.persist(webhook);
+    this.#audit(em, 'webhook.create', webhook.id, null, { name: webhook.name, url: webhook.url });
+    await em.flush();
     return webhook;
   }
 
@@ -63,6 +76,7 @@ export class WebhookService {
     if (patch.url !== undefined) webhook.url = patch.url;
     if (patch.eventTypes !== undefined) webhook.eventTypes = patch.eventTypes;
     if (patch.status !== undefined) webhook.status = patch.status;
+    this.#audit(em, 'webhook.update', webhook.id, null, { name: webhook.name, status: webhook.status });
     await em.flush();
     return webhook;
   }
@@ -71,6 +85,7 @@ export class WebhookService {
     const em = this.emFactory();
     const webhook = await em.findOne(Webhook, { id });
     if (!webhook) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Webhook not found.');
+    this.#audit(em, 'webhook.delete', webhook.id, { name: webhook.name }, null);
     await em.removeAndFlush(webhook);
   }
 
@@ -84,6 +99,8 @@ export class WebhookService {
    * an already-pending or successful row is a no-op signalled via 409.
    */
   async replay(deliveryId: string): Promise<WebhookDelivery> {
+    // command-coverage-ignore: delivery execution/bookkeeping — the config write
+    // is audited separately; this is provider dispatch state.
     const em = this.emFactory();
     const source = await em.findOne(WebhookDelivery, { id: deliveryId });
     if (!source) {
@@ -152,6 +169,8 @@ export class WebhookService {
     lastResponseStatus?: number;
     lastError?: string;
   }): Promise<WebhookDelivery> {
+    // command-coverage-ignore: delivery execution/bookkeeping — the config write
+    // is audited separately; this is provider dispatch state.
     const em = this.emFactory();
     const row = em.create(WebhookDelivery, {
       webhookId: input.webhookId,

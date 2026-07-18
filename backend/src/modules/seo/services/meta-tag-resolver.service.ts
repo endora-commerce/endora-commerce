@@ -2,6 +2,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import type { ResolvedMeta, SeoEntityType } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { Category } from '../../catalog/entities/category.entity.js';
 import { CmsPage } from '../../cms/entities/cms-page.entity.js';
@@ -31,7 +33,16 @@ export interface RuleBuilderInput {
 }
 
 export class MetaTagResolverService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, { action, objectType: 'seo_meta_override', objectId, stateBefore, stateAfter });
+    }
+  }
 
   async resolve(input: {
     entityType: SeoEntityType;
@@ -94,6 +105,7 @@ export class MetaTagResolverService {
       if (input.ogTitle !== undefined) existing.ogTitle = input.ogTitle;
       if (input.ogDescription !== undefined) existing.ogDescription = input.ogDescription;
       if (input.ogImageUrl !== undefined) existing.ogImageUrl = input.ogImageUrl;
+      this.#audit(em, 'seo_meta_override.upsert', existing.id, null, { entityType: existing.entityType, entityId: existing.entityId, locale: existing.locale });
       await em.flush();
       return existing;
     }
@@ -107,7 +119,9 @@ export class MetaTagResolverService {
       ...(input.ogDescription !== undefined ? { ogDescription: input.ogDescription } : {}),
       ...(input.ogImageUrl !== undefined ? { ogImageUrl: input.ogImageUrl } : {}),
     });
-    await em.persistAndFlush(row);
+    em.persist(row);
+    this.#audit(em, 'seo_meta_override.upsert', row.id, null, { entityType: row.entityType, entityId: row.entityId, locale: row.locale });
+    await em.flush();
     return row;
   }
 
@@ -118,7 +132,10 @@ export class MetaTagResolverService {
   }): Promise<void> {
     const em = this.emFactory();
     const row = await em.findOne(SeoMetaOverride, input);
-    if (row) await em.removeAndFlush(row);
+    if (row) {
+      this.#audit(em, 'seo_meta_override.delete', row.id, { entityType: row.entityType, entityId: row.entityId, locale: row.locale }, null);
+      await em.removeAndFlush(row);
+    }
   }
 
   private async findOverride(
