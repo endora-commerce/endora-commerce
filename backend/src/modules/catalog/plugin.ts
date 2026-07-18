@@ -213,7 +213,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.salesChannelMembership,
       options.commandBus,
     );
-    const attributeSetService = new AttributeSetService(options.emFactory);
+    const attributeSetService = new AttributeSetService(options.emFactory, options.commandBus);
     const galleryService = new GalleryService(options.emFactory);
     const attachmentService = new AttachmentService(options.emFactory);
     const packagingUnitService = new PackagingUnitService(options.emFactory);
