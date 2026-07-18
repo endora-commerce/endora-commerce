@@ -1,4 +1,5 @@
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest, type ModuleUninstallHook } from '@b2b/contracts';
+import type { EntityManager } from '@mikro-orm/postgresql';
 
 /**
  * Custom Fields module — manifest (feature 055).
@@ -32,3 +33,18 @@ export const manifest = defineModuleManifest({
     },
   ],
 });
+
+/**
+ * Hard-uninstall cleanup (feature 055). A soft uninstall keeps definitions so a
+ * re-install restores them; a hard uninstall drops all definitions (options
+ * cascade via FK). Host `custom_field_values` columns are owned by their host
+ * modules and removed with them, so nothing dangles either way.
+ */
+export const uninstallHook: ModuleUninstallHook = async (ctx) => {
+  if (!ctx.hard) return;
+  const em = ctx.em as EntityManager;
+  await em
+    .getConnection()
+    .execute('truncate table "custom_field_options", "custom_field_definitions" cascade');
+  ctx.log.info('custom_fields: removed all custom-field definitions on hard uninstall');
+};

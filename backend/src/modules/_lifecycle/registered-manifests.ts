@@ -36,7 +36,10 @@ import { manifest as googleAnalyticsManifest } from '../google_analytics/manifes
 // Feature 049 — Stripe payment gateway.
 import { manifest as stripeManifest } from '../stripe/manifest.js';
 // Feature 055 — Custom Fields Layer (entity-agnostic runtime fields).
-import { manifest as customFieldsManifest } from '../custom_fields/manifest.js';
+import {
+  manifest as customFieldsManifest,
+  uninstallHook as customFieldsUninstallHook,
+} from '../custom_fields/manifest.js';
 // Pass C retrofit — manifest backfills for every remaining legacy module.
 // These predate the lifecycle system; the manifest is the static record
 // required for the module to be considered active. A module on disk that
@@ -149,7 +152,11 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   // Feature 049 — Stripe payment gateway module.
   { manifest: stripeManifest, filePath: pathFor('stripe') },
   // Feature 055 — Custom Fields Layer module.
-  { manifest: customFieldsManifest, filePath: pathFor('custom_fields') },
+  {
+    manifest: customFieldsManifest,
+    filePath: pathFor('custom_fields'),
+    uninstallHook: customFieldsUninstallHook,
+  },
   // Pass C retrofit — every remaining legacy module gets a manifest so
   // none of them are treated as inactive. Sort: alphabetical by id.
   { manifest: addressesManifest, filePath: pathFor('addresses') },
