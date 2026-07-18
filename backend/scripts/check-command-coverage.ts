@@ -206,15 +206,29 @@ export function analyzeSource(filePath: string, source: string): CoverageFinding
   // instead of flagging an already-audited write as unaudited.
   const recorderNames = new Set(units.filter((u) => u.scan.hasAuditWrite).map((u) => u.name));
 
+  // A unit is directly covered if it runs a Command, defines one, records audit,
+  // or forward-delegates to a runner/recorder.
+  const isDirectlyCovered = (u: (typeof units)[number]): boolean =>
+    u.scan.runsCommand ||
+    u.scan.definesCommand ||
+    u.scan.hasAuditWrite ||
+    [...u.scan.callsThis].some((n) => runnerNames.has(n) || recorderNames.has(n));
+
+  // Reverse delegation — a mutating PRIVATE helper (`applyGlobal`, `applyProduct`)
+  // that is invoked by a covered public method is part of that method's audited
+  // unit of work: its `em.persist` only flushes when the covered caller flushes,
+  // co-transactionally with the caller's audit/Command. Collect every method name
+  // called via `this.<name>()` from a covered unit and treat those as covered too.
+  const coveredCallees = new Set<string>();
+  for (const u of units) {
+    if (isDirectlyCovered(u)) for (const n of u.scan.callsThis) coveredCallees.add(n);
+  }
+
   const findings: CoverageFinding[] = [];
   for (const u of units) {
     if (u.suppressed) continue;
     const s = u.scan;
-    const covered =
-      s.runsCommand ||
-      s.definesCommand ||
-      s.hasAuditWrite ||
-      [...s.callsThis].some((n) => runnerNames.has(n) || recorderNames.has(n));
+    const covered = isDirectlyCovered(u) || coveredCallees.has(u.name);
     if (s.hasMutation && !covered) {
       findings.push({
         filePath,

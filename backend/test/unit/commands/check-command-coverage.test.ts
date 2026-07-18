@@ -128,6 +128,48 @@ describe('command coverage check (feature 054, FR-009 / FR-010) — method-level
     expect(analyzeSource(PATH, src)).toEqual([]);
   });
 
+  it('treats a mutating private helper invoked by a covered method as covered (reverse delegation)', () => {
+    // `patch` records audit and delegates the row writes to `applyGlobal` /
+    // `applyProduct`; those helpers only persist within `patch`'s flush, so they
+    // are part of the audited unit of work, not standalone unaudited writes.
+    const src = `
+      export class Svc {
+        constructor(private em: () => any, private auditLog: any) {}
+        async patch(input: any) {
+          const em = this.em();
+          if (input.global) await this.applyGlobal(em, input.global);
+          if (input.product) await this.applyProduct(em, input.product);
+          await em.flush();
+          await this.auditLog.record({ action: 'threshold.update', objectType: 't', objectId: 'global' });
+        }
+        private async applyGlobal(em: any, patch: any) {
+          const row = em.create('T', { scope: 'global' });
+          em.persist(row);
+        }
+        private async applyProduct(em: any, patch: any) {
+          const row = em.create('T', { scope: 'product' });
+          em.persist(row);
+        }
+      }`;
+    expect(analyzeSource(PATH, src)).toEqual([]);
+  });
+
+  it('still flags a mutating helper that no covered method calls', () => {
+    // `assign` mutates and is called by nobody audited — genuinely unaudited.
+    const src = `
+      export class Svc {
+        constructor(private em: () => any) {}
+        async assign(input: any) {
+          const em = this.em();
+          const row = em.create('B', input);
+          await em.persistAndFlush(row);
+        }
+      }`;
+    const findings = analyzeSource(PATH, src);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.method).toBe('assign');
+  });
+
   it('treats a command-factory method (defines a Command literal) as covered', () => {
     const src = `
       export class Svc {
