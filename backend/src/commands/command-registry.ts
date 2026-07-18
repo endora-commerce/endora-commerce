@@ -66,6 +66,12 @@ export const COMMAND_REGISTRY = {
   'bundle_slot.delete': { reversible: false, description: 'Delete a bundle slot' },
   'bundle_option.add': { reversible: false, description: 'Add a bundle slot option' },
   'bundle_option.remove': { reversible: false, description: 'Remove a bundle slot option' },
+  'attachment_type.create': { reversible: false, description: 'Create an attachment type' },
+  'attachment_type.update': { reversible: false, description: 'Update an attachment type' },
+  'attachment_type.delete': { reversible: false, description: 'Delete an attachment type' },
+  'product_attachment.create': { reversible: false, description: 'Create a product attachment' },
+  'product_attachment.update': { reversible: false, description: 'Update a product attachment' },
+  'product_attachment.delete': { reversible: false, description: 'Delete a product attachment' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog
