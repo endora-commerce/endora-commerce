@@ -81,6 +81,8 @@ export function customersModule(options: CustomersModuleOptions): {
   const customerAuthService = new CustomerAuthService(
     options.emFactory,
     options.sessionService,
+    undefined, // getMfaLoginPort — not wired in the customers composition
+    options.auditLogService,
   );
   const personalOrganizationService = new PersonalOrganizationService(options.emFactory);
   const registrationService = new CustomerRegistrationService({
@@ -145,7 +147,7 @@ export function customersModule(options: CustomersModuleOptions): {
     },
     options.resolvePresenceFreshnessMinutes,
   );
-  const passwordResetService = new PasswordResetService(options.emFactory);
+  const passwordResetService = new PasswordResetService(options.emFactory, options.auditLogService);
   const anonymizationSweepWorker = new AnonymizationSweepWorker(
     deletionService,
     options.resolveDeletionRetentionDays,

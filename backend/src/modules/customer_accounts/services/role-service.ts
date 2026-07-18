@@ -2,6 +2,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /**
  * RoleService (T174).
@@ -13,7 +15,28 @@ import { CustomerAccount } from '../entities/customer-account.entity.js';
  *     `organization_admin` returns 409.
  */
 export class RoleService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  #audit(
+    em: EntityManager,
+    action: string,
+    objectId: string,
+    stateBefore: Record<string, unknown> | null,
+    stateAfter: Record<string, unknown> | null,
+  ): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action,
+        objectType: 'customer_account',
+        objectId,
+        stateBefore,
+        stateAfter,
+      });
+    }
+  }
 
   async listMembers(organizationId: string): Promise<CustomerAccount[]> {
     const em = this.emFactory();
@@ -49,7 +72,9 @@ export class RoleService {
         'Cannot demote the only organization admin.',
       );
     }
+    const previousRole = target.role;
     target.role = newRole;
+    this.#audit(em, 'customer_account.change_role', target.id, { role: previousRole }, { role: newRole });
     await em.flush();
     return target;
   }
@@ -75,6 +100,7 @@ export class RoleService {
       );
     }
     target.deletedAt = new Date();
+    this.#audit(em, 'customer_account.remove_member', target.id, { role: target.role }, null);
     await em.flush();
   }
 

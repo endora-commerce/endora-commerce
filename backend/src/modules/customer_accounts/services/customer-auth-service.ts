@@ -5,6 +5,8 @@ import { hashPassword, verifyPassword } from '../../auth/services/password-hashe
 import type { SessionService } from '../../auth/services/session-service.js';
 import type { MfaLoginPort } from '../../auth/services/mfa-login-port.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /**
  * Customer-side auth flows (T119; two-step login added in feature 042).
@@ -38,6 +40,7 @@ export class CustomerAuthService {
     private readonly sessionService: SessionService,
     /** Lazily resolved so composition can late-bind the MFA module. */
     private readonly getMfaLoginPort?: () => MfaLoginPort | undefined,
+    private readonly auditLog?: AuditLogService,
   ) {}
 
   async login(input: {
@@ -95,6 +98,9 @@ export class CustomerAuthService {
       ...(input.userAgent !== undefined ? { userAgent: input.userAgent } : {}),
     });
 
+    // command-coverage-ignore: stamps lastLoginAt for the session — high-volume
+    // auth bookkeeping (session lifecycle is owned by SessionService), not an
+    // audited domain-state mutation.
     customer.lastLoginAt = new Date();
     await em.flush();
 
@@ -125,6 +131,15 @@ export class CustomerAuthService {
       );
     }
     customer.passwordHash = await hashPassword(newPassword);
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action: 'customer_account.change_password',
+        objectType: 'customer_account',
+        objectId: customer.id,
+        stateBefore: null,
+        stateAfter: { via: 'self_service' },
+      });
+    }
     await em.flush();
   }
 

@@ -141,6 +141,14 @@ export const COMMAND_REGISTRY = {
   'coupon.create_single': { reversible: false, description: 'Create a single coupon' },
   'coupon.generate_batch': { reversible: false, description: 'Generate a coupon batch' },
   'coupon.set_active_bulk': { reversible: false, description: 'Bulk toggle coupon active state' },
+  // Customer accounts module (US1) — security-sensitive account writes.
+  'customer_account.change_password': { reversible: false, description: 'Customer changes their password' },
+  'customer_account.password_reset': { reversible: false, description: 'Customer password reset (token)' },
+  'customer_account.change_role': { reversible: false, description: 'Change an org member role' },
+  'customer_account.remove_member': { reversible: false, description: 'Remove an org member' },
+  'customer_account.mfa_enrol_start': { reversible: false, description: 'Start customer 2FA enrolment' },
+  'customer_account.mfa_enabled': { reversible: false, description: 'Confirm customer 2FA' },
+  'customer_account.mfa_disabled': { reversible: false, description: 'Disable customer 2FA' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog
