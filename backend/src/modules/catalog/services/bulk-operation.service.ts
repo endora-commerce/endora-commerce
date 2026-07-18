@@ -123,6 +123,9 @@ export class BulkOperationService {
   ) {}
 
   async create(input: CreateBulkOperationInput): Promise<SerializedBulkOperation> {
+    // command-coverage-ignore: catalog_bulk_operations row bookkeeping (queue
+    // status / progress counters); the actual product mutations are audited by
+    // updateProduct. The operation record itself is not a domain-audit target.
     const em = this.emFactory();
     const op = new BulkOperation();
     op.type = input.type ?? 'product_bulk_update';
@@ -158,6 +161,9 @@ export class BulkOperationService {
    * N ≥ 2 worker instances.
    */
   async processById(operationId: string): Promise<void> {
+    // command-coverage-ignore: catalog_bulk_operations row bookkeeping (queue
+    // status / progress counters); the actual product mutations are audited by
+    // updateProduct. The operation record itself is not a domain-audit target.
     const em = this.emFactory();
     const affected = await em.nativeUpdate(
       BulkOperation,
@@ -229,6 +235,9 @@ export class BulkOperationService {
    * in-process guard (e.g. across worker restarts) only one wins a row.
    */
   private async claimNextPending(): Promise<string | null> {
+    // command-coverage-ignore: catalog_bulk_operations row bookkeeping (queue
+    // status / progress counters); the actual product mutations are audited by
+    // updateProduct. The operation record itself is not a domain-audit target.
     const em = this.emFactory();
     const candidate = await em.findOne(
       BulkOperation,
@@ -249,6 +258,9 @@ export class BulkOperationService {
   }
 
   private async processOne(id: string): Promise<void> {
+    // command-coverage-ignore: catalog_bulk_operations row bookkeeping (queue
+    // status / progress counters); the actual product mutations are audited by
+    // updateProduct. The operation record itself is not a domain-audit target.
     const em = this.emFactory();
     const op = await em.findOne(BulkOperation, { id });
     if (!op) return;
@@ -365,6 +377,9 @@ export class BulkOperationService {
     op: BulkOperation,
     logs: BulkOperationLogEntry[] = [],
   ): Promise<void> {
+    // command-coverage-ignore: catalog_bulk_operations row bookkeeping (queue
+    // status / progress counters); the actual product mutations are audited by
+    // updateProduct. The operation record itself is not a domain-audit target.
     const em = this.emFactory();
     if (!this.deps.reindexRunner) {
       const message = 'Search reindex handler is not configured.';
