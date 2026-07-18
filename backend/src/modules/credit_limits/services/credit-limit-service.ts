@@ -87,8 +87,59 @@ export class CreditLimitService {
     currency: string;
     grantedByAdminUserId?: string;
   }): Promise<CreditLimit> {
+    // Feature 054 — audited path via the Command Bus (one co-transactional audit
+    // row + the event on commit). Legacy fallback for bus-less constructions.
+    if (this.commandBus) return this.commandBus.run(this.#grantCommand(input));
     const em = this.emFactory();
-    const limit = em.create(CreditLimit, {
+    const limit = this.#applyGrant(em, input);
+    await em.flush();
+    this.#emitGranted(input);
+    return limit;
+  }
+
+  #grantCommand(input: {
+    organizationId: string;
+    grantedAmount: number;
+    currency: string;
+    grantedByAdminUserId?: string;
+  }): Command<CreditLimit> {
+    return {
+      action: 'credit_limit.grant',
+      objectType: 'credit_limit',
+      objectId: input.organizationId,
+      run: async ({ em }) => {
+        const limit = this.#applyGrant(em, input);
+        return {
+          result: limit,
+          after: {
+            organizationId: input.organizationId,
+            grantedAmount: limit.grantedAmount,
+            currency: input.currency,
+          },
+        };
+      },
+      event: () => ({
+        eventName: 'credit_limit.granted.v1',
+        payload: {
+          eventId: randomUUID(),
+          occurredAt: new Date().toISOString(),
+          organizationId: input.organizationId,
+          amount: input.grantedAmount,
+        },
+      }),
+    };
+  }
+
+  /**
+   * Pure grant write on the given em — creates the row (auto-persisted via
+   * MikroORM `persistOnCreate`; no explicit flush), no event. The caller's
+   * transaction (Command Bus) or explicit `flush` commits it.
+   */
+  #applyGrant(
+    em: EntityManager,
+    input: { organizationId: string; grantedAmount: number; currency: string; grantedByAdminUserId?: string },
+  ): CreditLimit {
+    return em.create(CreditLimit, {
       organizationId: input.organizationId,
       grantedAmount: input.grantedAmount.toFixed(2),
       currency: input.currency,
@@ -96,14 +147,15 @@ export class CreditLimitService {
         ? { grantedByAdminUserId: input.grantedByAdminUserId }
         : {}),
     });
-    await em.persistAndFlush(limit);
+  }
+
+  #emitGranted(input: { organizationId: string; grantedAmount: number }): void {
     this.events.emit('credit_limit.granted.v1', {
       eventId: randomUUID(),
       occurredAt: new Date().toISOString(),
       organizationId: input.organizationId,
       amount: input.grantedAmount,
     });
-    return limit;
   }
 
   async adjust(input: {
@@ -209,6 +261,10 @@ export class CreditLimitService {
     /** When called inside the order-placement transaction, the caller passes its tx em. */
     tx?: EntityManager;
   }): Promise<ReserveResult> {
+    // command-coverage-ignore: reserve runs inside the caller's order-placement
+    // transaction (accepts `tx`) and is a system operation, not an admin action.
+    // The credit movement is captured by the credit_limit.reserved.v1 event and
+    // the reservation row — not the admin audit log.
     const run = async (em: EntityManager): Promise<ReserveResult> => {
       const limit = await em.findOne(
         CreditLimit,
@@ -257,6 +313,10 @@ export class CreditLimitService {
     orderId: string;
     reason: 'invoice_paid' | 'order_cancelled' | 'admin_revocation';
   }): Promise<ReleaseResult> {
+    // command-coverage-ignore: releaseByOrder is an automatic system operation
+    // (invoice-paid / order-cancelled / admin-revocation) captured by the
+    // credit_limit.released.v1 event and the reservation row, not the admin audit
+    // log. It also runs in its own pessimistic-lock transaction.
     const em = this.emFactory();
     return em.transactional(async (tx) => {
       const reservation = await tx.findOne(

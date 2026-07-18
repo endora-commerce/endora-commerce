@@ -21,8 +21,9 @@ export interface CommandRegistryEntry {
  * `product.update`, `credit_limit.adjust`, …). Extend as modules migrate.
  */
 export const COMMAND_REGISTRY = {
-  // Credit-limit adjustment (US1). Previously an unaudited write — the Command
-  // adds the missing co-transactional audit entry.
+  // Credit-limit grant + adjustment (US1). Previously unaudited writes — the
+  // Commands add the missing co-transactional audit entry.
+  'credit_limit.grant': { reversible: false, description: 'Grant an organization credit limit' },
   'credit_limit.adjust': { reversible: false, description: 'Adjust an organization credit limit' },
   // Price-list update (US1).
   'price_list.update': { reversible: false, description: 'Update a price list' },
