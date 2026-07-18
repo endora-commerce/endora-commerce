@@ -128,6 +128,22 @@ describe('command coverage check (feature 054, FR-009 / FR-010) — method-level
     expect(analyzeSource(PATH, src)).toEqual([]);
   });
 
+  it('treats the recordAuditFromContext(...) primitive as an audit write', () => {
+    const src = `
+      import { recordAuditFromContext } from '../../../commands/index.js';
+      export class Svc {
+        constructor(private em: () => any, private auditLog: any) {}
+        async create(input: any) {
+          const em = this.em();
+          const row = em.create('X', input);
+          recordAuditFromContext(this.auditLog, em, { action: 'x.create', objectType: 'x', objectId: row.id });
+          await em.persistAndFlush(row);
+          return row;
+        }
+      }`;
+    expect(analyzeSource(PATH, src)).toEqual([]);
+  });
+
   it('treats a mutating private helper invoked by a covered method as covered (reverse delegation)', () => {
     // `patch` records audit and delegates the row writes to `applyGlobal` /
     // `applyProduct`; those helpers only persist within `patch`'s flush, so they

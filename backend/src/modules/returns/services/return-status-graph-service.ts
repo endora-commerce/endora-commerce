@@ -1,6 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { ReturnStatus } from '../entities/return-status.entity.js';
 import { ReturnStatusTransition } from '../entities/return-status-transition.entity.js';
 import { ReturnCase } from '../entities/return-case.entity.js';
@@ -22,7 +24,29 @@ import {
 export class ReturnStatusGraphService {
   private cached: ReturnStatusGraph | null = null;
 
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /** Feature 054 — audits status-graph writes co-transactionally when provided. */
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  #audit(
+    em: EntityManager,
+    action: string,
+    objectId: string,
+    stateBefore: Record<string, unknown> | null,
+    stateAfter: Record<string, unknown> | null,
+  ): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action,
+        objectType: 'return_status',
+        objectId,
+        stateBefore,
+        stateAfter,
+      });
+    }
+  }
 
   invalidate(): void {
     this.cached = null;
@@ -100,6 +124,7 @@ export class ReturnStatusGraphService {
       color: input.color ?? '#64748b',
     });
     em.persist(status);
+    this.#audit(em, 'return_status.create', input.code, null, { code: input.code, defaultName: input.defaultName });
     await em.flush();
     this.invalidate();
   }
@@ -134,6 +159,12 @@ export class ReturnStatusGraphService {
       }
       status.isTerminal = patch.isTerminal;
     }
+    this.#audit(em, 'return_status.update', code, null, {
+      defaultName: status.defaultName,
+      weight: status.weight,
+      color: status.color,
+      isTerminal: status.isTerminal,
+    });
     await em.flush();
     this.invalidate();
   }
@@ -156,6 +187,7 @@ export class ReturnStatusGraphService {
     const edges = await em.find(ReturnStatusTransition, {
       $or: [{ fromStatusCode: code }, { toStatusCode: code }],
     });
+    this.#audit(em, 'return_status.delete', code, { code, defaultName: status.defaultName }, null);
     await em.remove(edges).remove(status).flush();
     this.invalidate();
   }
@@ -201,6 +233,7 @@ export class ReturnStatusGraphService {
         }),
       );
     }
+    this.#audit(em, 'return_status.replace_transitions', 'graph', null, { count: seen.size });
     await em.flush();
     this.invalidate();
   }

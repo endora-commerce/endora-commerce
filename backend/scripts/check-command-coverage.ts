@@ -38,6 +38,7 @@ export const MIGRATED_MODULES: readonly string[] = [
   'catalog',
   'orders',
   'inventory',
+  'returns',
 ];
 
 const MUTATION_METHODS = new Set([
@@ -97,6 +98,15 @@ function scanUnit(node: ts.Node, sf: ts.SourceFile): UnitScan {
   const visit = (n: ts.Node): void => {
     if (ts.isObjectLiteralExpression(n) && isCommandLiteral(n)) {
       scan.definesCommand = true;
+    }
+    // The sanctioned free-function audit primitive (commands/audit-from-context):
+    // `recordAuditFromContext(auditLog, em, …)` writes a co-transactional entry.
+    if (
+      ts.isCallExpression(n) &&
+      ts.isIdentifier(n.expression) &&
+      n.expression.text === 'recordAuditFromContext'
+    ) {
+      scan.hasAuditWrite = true;
     }
     if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression)) {
       const method = n.expression.name.text;

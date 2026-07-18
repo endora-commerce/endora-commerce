@@ -2,6 +2,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import type { ReturnDeliveryMethodDto } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnDeliveryMethod } from '../entities/return-delivery-method.entity.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
@@ -11,6 +13,8 @@ export interface ReturnDeliveryMethodServiceDeps {
   graphService: ReturnStatusGraphService;
   /** `'customer'` | `'shop'` default bearer once the free-return window passes. */
   resolveDefaultCostBearer: (salesChannelId: string) => Promise<'customer' | 'shop'>;
+  /** Feature 054 — audits method writes co-transactionally when provided. */
+  auditLog?: AuditLogService;
 }
 
 /**
@@ -22,6 +26,19 @@ export interface ReturnDeliveryMethodServiceDeps {
  */
 export class ReturnDeliveryMethodService {
   constructor(private readonly deps: ReturnDeliveryMethodServiceDeps) {}
+
+  #audit(
+    em: EntityManager,
+    action: string,
+    objectType: string,
+    objectId: string,
+    stateBefore: Record<string, unknown> | null,
+    stateAfter: Record<string, unknown> | null,
+  ): void {
+    if (this.deps.auditLog) {
+      recordAuditFromContext(this.deps.auditLog, em, { action, objectType, objectId, stateBefore, stateAfter });
+    }
+  }
 
   async list(): Promise<ReturnDeliveryMethodDto[]> {
     const em = this.deps.emFactory();
@@ -42,7 +59,13 @@ export class ReturnDeliveryMethodService {
       currency: input.currency,
       isActive: input.isActive ?? true,
     });
-    await em.persistAndFlush(row);
+    em.persist(row);
+    this.#audit(em, 'return_delivery_method.create', 'return_delivery_method', row.id, null, {
+      deliveryMethodId: row.deliveryMethodId,
+      returnCost: row.returnCost,
+      currency: row.currency,
+    });
+    await em.flush();
     return toDto(row);
   }
 
@@ -60,6 +83,11 @@ export class ReturnDeliveryMethodService {
     if (patch.returnCost !== undefined) row.returnCost = patch.returnCost.toFixed(2);
     if (patch.currency !== undefined) row.currency = patch.currency;
     if (patch.isActive !== undefined) row.isActive = patch.isActive;
+    this.#audit(em, 'return_delivery_method.update', 'return_delivery_method', row.id, null, {
+      returnCost: row.returnCost,
+      currency: row.currency,
+      isActive: row.isActive,
+    });
     await em.flush();
     return toDto(row);
   }
@@ -68,6 +96,9 @@ export class ReturnDeliveryMethodService {
     const em = this.deps.emFactory();
     const row = await em.findOne(ReturnDeliveryMethod, { id });
     if (!row) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return delivery method not found.');
+    this.#audit(em, 'return_delivery_method.delete', 'return_delivery_method', row.id, {
+      deliveryMethodId: row.deliveryMethodId,
+    }, null);
     await em.removeAndFlush(row);
   }
 
@@ -97,6 +128,11 @@ export class ReturnDeliveryMethodService {
     rc.returnDeliveryMethodId = method.id;
     rc.appliedReturnCost = method.returnCost;
     rc.returnCostBearer = bearer;
+    this.#audit(em, 'return_case.select_delivery_method', 'return_case', rc.id, null, {
+      returnDeliveryMethodId: method.id,
+      appliedReturnCost: method.returnCost,
+      returnCostBearer: bearer,
+    });
     await em.flush();
     return { appliedReturnCost: Number(method.returnCost), returnCostBearer: bearer, currency: method.currency };
   }

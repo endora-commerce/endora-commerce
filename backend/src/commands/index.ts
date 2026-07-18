@@ -12,6 +12,10 @@ export {
 } from './command.js';
 export { resolveCommandActor, actorFromContext } from './actor.js';
 export {
+  recordAuditFromContext,
+  type AuditFromContextInput,
+} from './audit-from-context.js';
+export {
   CommandBus,
   type CommandBusOptions,
   type CommandRequestMeta,

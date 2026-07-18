@@ -2,6 +2,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import type { ReturnReasonDto } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { ReturnReason } from '../entities/return-reason.entity.js';
 
 /**
@@ -11,7 +13,28 @@ import { ReturnReason } from '../entities/return-reason.entity.js';
  * reasons (optionally filtered by case kind) in `weight` order.
  */
 export class ReturnReasonService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  #audit(
+    em: EntityManager,
+    action: string,
+    objectId: string,
+    stateBefore: Record<string, unknown> | null,
+    stateAfter: Record<string, unknown> | null,
+  ): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action,
+        objectType: 'return_reason',
+        objectId,
+        stateBefore,
+        stateAfter,
+      });
+    }
+  }
 
   /** All reasons (admin view), ordered by weight. */
   async listAll(): Promise<ReturnReasonDto[]> {
@@ -43,7 +66,9 @@ export class ReturnReasonService {
       isActive: input.isActive ?? true,
       weight: input.weight ?? 100,
     });
-    await em.persistAndFlush(row);
+    em.persist(row);
+    this.#audit(em, 'return_reason.create', row.id, null, { appliesTo: row.appliesTo, isActive: row.isActive });
+    await em.flush();
     return toDto(row);
   }
 
@@ -63,6 +88,11 @@ export class ReturnReasonService {
     if (patch.appliesTo !== undefined) row.appliesTo = patch.appliesTo;
     if (patch.isActive !== undefined) row.isActive = patch.isActive;
     if (patch.weight !== undefined) row.weight = patch.weight;
+    this.#audit(em, 'return_reason.update', row.id, null, {
+      appliesTo: row.appliesTo,
+      isActive: row.isActive,
+      weight: row.weight,
+    });
     await em.flush();
     return toDto(row);
   }
@@ -71,6 +101,7 @@ export class ReturnReasonService {
     const em = this.emFactory();
     const row = await em.findOne(ReturnReason, { id });
     if (!row) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return reason not found.');
+    this.#audit(em, 'return_reason.delete', row.id, { appliesTo: row.appliesTo }, null);
     await em.removeAndFlush(row);
   }
 }

@@ -94,6 +94,21 @@ export const COMMAND_REGISTRY = {
   'warehouse_channel.assign': { reversible: false, description: 'Assign a warehouse to a channel' },
   'warehouse_channel.update': { reversible: false, description: 'Update a warehouse-channel assignment' },
   'warehouse_channel.unassign': { reversible: false, description: 'Unassign a warehouse from a channel' },
+  // Returns / RMA module (US1).
+  'return_status.create': { reversible: false, description: 'Create a return status' },
+  'return_status.update': { reversible: false, description: 'Update a return status' },
+  'return_status.delete': { reversible: false, description: 'Delete a return status' },
+  'return_status.replace_transitions': { reversible: false, description: 'Replace return status transitions' },
+  'return_reason.create': { reversible: false, description: 'Create a return reason' },
+  'return_reason.update': { reversible: false, description: 'Update a return reason' },
+  'return_reason.delete': { reversible: false, description: 'Delete a return reason' },
+  'return_delivery_method.create': { reversible: false, description: 'Create a return delivery method' },
+  'return_delivery_method.update': { reversible: false, description: 'Update a return delivery method' },
+  'return_delivery_method.delete': { reversible: false, description: 'Delete a return delivery method' },
+  'return_case.create': { reversible: false, description: 'Create a return/RMA case' },
+  'return_case.select_delivery_method': { reversible: false, description: 'Select a return delivery method on a case' },
+  'return_shipment.create': { reversible: false, description: 'Record a return shipment' },
+  'return_shipment.receive': { reversible: false, description: 'Receive a return shipment' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog
