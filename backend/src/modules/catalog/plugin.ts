@@ -211,6 +211,7 @@ export function catalogModule(options: CatalogModuleOptions) {
     const categoryAdminService = new CategoryAdminService(
       options.emFactory,
       options.salesChannelMembership,
+      options.commandBus,
     );
     const attributeSetService = new AttributeSetService(options.emFactory);
     const galleryService = new GalleryService(options.emFactory);

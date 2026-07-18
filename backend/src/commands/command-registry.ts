@@ -40,6 +40,10 @@ export const COMMAND_REGISTRY = {
   'price_list.bracket_copy': { reversible: false, description: 'Copy price brackets across currencies' },
   'customer_group.upsert': { reversible: false, description: 'Create or update a customer group' },
   'customer_group.delete': { reversible: false, description: 'Delete a customer group' },
+  // Catalog writes (US1) — converted module by module.
+  'category.create': { reversible: false, description: 'Create a category' },
+  'category.update': { reversible: false, description: 'Update a category' },
+  'category.delete': { reversible: false, description: 'Soft-delete a category' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog
