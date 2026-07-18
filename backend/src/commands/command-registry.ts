@@ -25,8 +25,14 @@ export const COMMAND_REGISTRY = {
   // Commands add the missing co-transactional audit entry.
   'credit_limit.grant': { reversible: false, description: 'Grant an organization credit limit' },
   'credit_limit.adjust': { reversible: false, description: 'Adjust an organization credit limit' },
-  // Price-list update (US1).
+  // Price-list writes (US1).
+  'price_list.create': { reversible: false, description: 'Create a price list' },
   'price_list.update': { reversible: false, description: 'Update a price list' },
+  'price_list.activate': { reversible: false, description: 'Activate a price list' },
+  'price_list.expire': { reversible: false, description: 'Expire a price list' },
+  'price_list.draftify': { reversible: false, description: 'Return a price list to draft' },
+  'price_list.duplicate': { reversible: false, description: 'Duplicate a price list' },
+  'price_list.delete': { reversible: false, description: 'Delete a price list' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

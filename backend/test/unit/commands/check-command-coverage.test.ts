@@ -87,6 +87,41 @@ describe('command coverage check (feature 054, FR-009 / FR-010) — method-level
     expect(findings.map((f) => f.method)).toEqual(['grant']);
   });
 
+  it('treats a method that delegates to an audited runner as covered', () => {
+    // `remove` mutates but delegates to `#runAudited` (a runner: it calls
+    // commandBus.run), so its write is executed through the bus.
+    const src = `
+      export class Svc {
+        constructor(private em: () => any, private commandBus: any) {}
+        async remove(id: string) {
+          await this.#runAudited('x.delete', id, async (em: any) => {
+            const row = await em.findOne('X', { id });
+            em.remove(row);
+            return { result: undefined };
+          });
+        }
+        async #runAudited(action: string, id: string, write: any) {
+          return this.commandBus.run({ action, objectType: 'x', objectId: id, run: write });
+        }
+      }`;
+    expect(analyzeSource(PATH, src)).toEqual([]);
+  });
+
+  it('treats a command-factory method (defines a Command literal) as covered', () => {
+    const src = `
+      export class Svc {
+        constructor(private commandBus: any) {}
+        remove(id: string) { return this.commandBus.run(this.#removeCommand(id)); }
+        #removeCommand(id: string) {
+          return {
+            action: 'x.delete', objectType: 'x', objectId: id,
+            run: async ({ em }: any) => { const r = await em.findOne('X', { id }); em.remove(r); return { result: null }; },
+          };
+        }
+      }`;
+    expect(analyzeSource(PATH, src)).toEqual([]);
+  });
+
   it('respects the command-coverage-ignore escape hatch for bookkeeping writes', () => {
     const src = `
       export class Svc {

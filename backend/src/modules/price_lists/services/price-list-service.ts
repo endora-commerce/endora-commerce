@@ -111,6 +111,49 @@ export class PriceListService {
     });
   }
 
+  /**
+   * Feature 054 — run a price-list write through the Command Bus so the audit is
+   * co-transactional (Principle XIII), or fall back to a self-forked em + the
+   * legacy `this.audit()` helper when no bus is wired (bus-less test
+   * constructions). `write` performs the mutation on the given em (no flush) and
+   * returns the caller result, the audit row identity, and the before/after
+   * snapshot; a `skipAudit` result commits with no audit row and no cache flush.
+   */
+  async #runAudited<T>(
+    action: string,
+    objectId: string,
+    auditCtx: PriceListsAuditContext | undefined,
+    write: (em: EntityManager) => Promise<{
+      result: T;
+      row: { id: string; name: string; code?: string };
+      before: Record<string, unknown> | null;
+      after: Record<string, unknown> | null;
+      skipAudit?: boolean;
+    }>,
+  ): Promise<T> {
+    if (this.commandBus) {
+      return this.commandBus.run({
+        action,
+        objectType: 'price_list',
+        objectId,
+        run: async ({ em }) => {
+          const w = await write(em);
+          if (w.skipAudit) return { result: w.result, skipAudit: true };
+          this.invalidatePricingCache();
+          return { result: w.result, before: w.before, after: w.after };
+        },
+      });
+    }
+    const em = this.emFactory();
+    const w = await write(em);
+    await em.flush();
+    if (!w.skipAudit) {
+      this.invalidatePricingCache();
+      await this.audit(action, w.row, w.before, w.after, auditCtx);
+    }
+    return w.result;
+  }
+
   // ---- PriceList -----------------------------------------------------
 
   async listEngine(filter: {
@@ -137,18 +180,22 @@ export class PriceListService {
   }
 
   async remove(id: string): Promise<void> {
-    const em = this.emFactory();
-    const row = await em.findOne(PriceList, { id });
-    if (!row) return;
-    if (row.isSystem) {
-      throw new HttpError(
-        403,
-        ERROR_CODES.FORBIDDEN,
-        'The Default price list cannot be deleted; it is the system fallback.',
-      );
-    }
-    await em.removeAndFlush(row);
-    this.invalidatePricingCache();
+    await this.#runAudited('price_list.delete', id, undefined, async (em) => {
+      const row = await em.findOne(PriceList, { id });
+      if (!row) {
+        return { result: undefined, row: { id, name: '' }, before: null, after: null, skipAudit: true };
+      }
+      if (row.isSystem) {
+        throw new HttpError(
+          403,
+          ERROR_CODES.FORBIDDEN,
+          'The Default price list cannot be deleted; it is the system fallback.',
+        );
+      }
+      const before = { name: row.name, code: row.code, type: row.type, status: row.status };
+      em.remove(row);
+      return { result: undefined, row, before, after: null };
+    });
   }
 
   /**
@@ -201,42 +248,41 @@ export class PriceListService {
       input.applicationRule !== undefined
         ? await this.normaliseAndValidateRule(input.applicationRule)
         : { kind: 'all' as const };
-    const em = this.emFactory();
-    const row = em.create(PriceList, {
-      // Legacy columns are required by the foundation schema; populate them
-      // with engine-equivalent values so writes don't fail until contract
-      // migration retires them.
-      code: `pl-${randomUUID()}`,
-      name: input.name,
-      currency: 'PLN',
-      isDefault: false,
-      priority: 0,
-      type: input.type,
-      status: 'draft',
-      startsAt: input.startsAt ?? null,
-      endsAt: input.endsAt ?? null,
-      applicationRule: normalisedRule,
-      isSystem: false,
-      modifiedAt: new Date(),
+    const id = randomUUID();
+    return this.#runAudited('price_list.create', id, auditCtx, async (em) => {
+      const row = em.create(PriceList, {
+        id,
+        // Legacy columns are required by the foundation schema; populate them
+        // with engine-equivalent values so writes don't fail until contract
+        // migration retires them.
+        code: `pl-${randomUUID()}`,
+        name: input.name,
+        currency: 'PLN',
+        isDefault: false,
+        priority: 0,
+        type: input.type,
+        status: 'draft',
+        startsAt: input.startsAt ?? null,
+        endsAt: input.endsAt ?? null,
+        applicationRule: normalisedRule,
+        isSystem: false,
+        modifiedAt: new Date(),
+      });
+      return {
+        result: row,
+        row,
+        before: null,
+        after: {
+          name: row.name,
+          code: row.code,
+          type: row.type,
+          status: row.status,
+          startsAt: row.startsAt ?? null,
+          endsAt: row.endsAt ?? null,
+          applicationRuleKind: row.applicationRule.kind,
+        },
+      };
     });
-    await em.persistAndFlush(row);
-    this.invalidatePricingCache();
-    await this.audit(
-      'price_list.create',
-      row,
-      null,
-      {
-        name: row.name,
-        code: row.code,
-        type: row.type,
-        status: row.status,
-        startsAt: row.startsAt ?? null,
-        endsAt: row.endsAt ?? null,
-        applicationRuleKind: row.applicationRule.kind,
-      },
-      auditCtx,
-    );
-    return row;
   }
 
   /**
@@ -363,10 +409,11 @@ export class PriceListService {
    * dictate). FR-009 row 1.
    */
   async activate(id: string, auditCtx?: PriceListsAuditContext): Promise<PriceList> {
-    const em = this.emFactory();
-    const row = await this.getById(id, em);
-    // FR-023: a non-Default list cannot leave `draft` while its rule is empty.
-    if (!row.isSystem && row.applicationRule.kind === 'all') {
+    // Pre-read (no mutation) to resolve the dynamic action token before running
+    // the audited write: `price_list.activate` for a live state, or
+    // `price_list.expire` when the start/end dates push it straight to expired.
+    const preRow = await this.getById(id);
+    if (!preRow.isSystem && preRow.applicationRule.kind === 'all') {
       throw new HttpError(
         400,
         ERROR_CODES.VALIDATION_FAILED,
@@ -375,53 +422,46 @@ export class PriceListService {
     }
     const now = new Date();
     const next: PriceListStatus =
-      row.startsAt && row.startsAt > now
+      preRow.startsAt && preRow.startsAt > now
         ? 'scheduled'
-        : row.endsAt && row.endsAt < now
+        : preRow.endsAt && preRow.endsAt < now
           ? 'expired'
           : 'active';
-    if (row.status === next) return row;
-    await this.assertCanTransitionStatus(id, next);
-    const previousStatus = row.status;
-    row.status = next;
-    row.modifiedAt = new Date();
-    await em.flush();
-    this.invalidatePricingCache();
-    // Pick the right action token for the dashboard: `price_list.activate`
-    // when the row moved into a live state, `price_list.expire` when the
-    // start/end-dates pushed it directly to expired.
     const action = next === 'expired' ? 'price_list.expire' : 'price_list.activate';
-    await this.audit(
-      action,
-      row,
-      { status: previousStatus },
-      { name: row.name, status: row.status, activatedAt: new Date() },
-      auditCtx,
-    );
-    return row;
+    return this.#runAudited(action, id, auditCtx, async (em) => {
+      const row = await this.getById(id, em);
+      if (row.status === next) return { result: row, row, before: null, after: null, skipAudit: true };
+      await this.assertCanTransitionStatus(id, next);
+      const previousStatus = row.status;
+      row.status = next;
+      row.modifiedAt = new Date();
+      return {
+        result: row,
+        row,
+        before: { status: previousStatus },
+        after: { name: row.name, status: row.status, activatedAt: new Date() },
+      };
+    });
   }
 
   /**
    * Manual transition: any state → draft. Freezes the list immediately.
    */
   async draftify(id: string, auditCtx?: PriceListsAuditContext): Promise<PriceList> {
-    const em = this.emFactory();
-    const row = await this.getById(id, em);
-    if (row.status === 'draft') return row;
-    await this.assertCanTransitionStatus(id, 'draft');
-    const previousStatus = row.status;
-    row.status = 'draft';
-    row.modifiedAt = new Date();
-    await em.flush();
-    this.invalidatePricingCache();
-    await this.audit(
-      'price_list.draftify',
-      row,
-      { status: previousStatus },
-      { name: row.name, status: row.status },
-      auditCtx,
-    );
-    return row;
+    return this.#runAudited('price_list.draftify', id, auditCtx, async (em) => {
+      const row = await this.getById(id, em);
+      if (row.status === 'draft') return { result: row, row, before: null, after: null, skipAudit: true };
+      await this.assertCanTransitionStatus(id, 'draft');
+      const previousStatus = row.status;
+      row.status = 'draft';
+      row.modifiedAt = new Date();
+      return {
+        result: row,
+        row,
+        before: { status: previousStatus },
+        after: { name: row.name, status: row.status },
+      };
+    });
   }
 
   /**
@@ -430,80 +470,82 @@ export class PriceListService {
    * a unique name (suffix ` (copy)`, ` (copy 2)`, …) — FR-013.
    */
   async duplicate(id: string, auditCtx?: PriceListsAuditContext): Promise<PriceList> {
-    const em = this.emFactory();
-    const source = await this.getById(id, em);
+    const dupId = randomUUID();
+    return this.#runAudited('price_list.duplicate', dupId, auditCtx, async (em) => {
+      const source = await this.getById(id, em);
 
-    const baseName = source.name;
-    const candidates = await em.find(
-      PriceList,
-      { name: { $like: `${baseName} (copy%` } },
-      { fields: ['id', 'name'] },
-    );
-    let suffix = ' (copy)';
-    if (candidates.length > 0) {
-      // Find the next available numeric suffix.
-      let n = 2;
-      while (candidates.some((c) => c.name === `${baseName} (copy ${n})`)) {
-        n += 1;
+      const baseName = source.name;
+      const candidates = await em.find(
+        PriceList,
+        { name: { $like: `${baseName} (copy%` } },
+        { fields: ['id', 'name'] },
+      );
+      let suffix = ' (copy)';
+      if (candidates.length > 0) {
+        // Find the next available numeric suffix.
+        let n = 2;
+        while (candidates.some((c) => c.name === `${baseName} (copy ${n})`)) {
+          n += 1;
+        }
+        // If the bare " (copy)" doesn't exist yet, use it.
+        if (!candidates.some((c) => c.name === `${baseName} (copy)`)) {
+          suffix = ' (copy)';
+        } else {
+          suffix = ` (copy ${n})`;
+        }
       }
-      // If the bare " (copy)" doesn't exist yet, use it.
-      if (!candidates.some((c) => c.name === `${baseName} (copy)`)) {
-        suffix = ' (copy)';
-      } else {
-        suffix = ` (copy ${n})`;
-      }
-    }
-    const newName = `${baseName}${suffix}`;
+      const newName = `${baseName}${suffix}`;
 
-    const dup = em.create(PriceList, {
-      code: `pl-${randomUUID()}`,
-      name: newName,
-      currency: source.currency,
-      isDefault: false,
-      priority: 0,
-      type: source.type,
-      status: 'draft',
-      startsAt: null,
-      endsAt: null,
-      applicationRule: structuredClone(source.applicationRule),
-      isSystem: false,
-      modifiedAt: new Date(),
-    });
-    await em.persistAndFlush(dup);
-
-    // Copy assignments first (FK target), then brackets.
-    const products = await em.find(PriceListProduct, { priceListId: source.id });
-    for (const p of products) {
-      em.create(PriceListProduct, { priceListId: dup.id, productId: p.productId });
-    }
-    await em.flush();
-
-    const brackets = await em.find(PriceListPriceBracket, { priceListId: source.id });
-    for (const b of brackets) {
-      em.create(PriceListPriceBracket, {
-        priceListId: dup.id,
-        productId: b.productId,
-        currencyCode: b.currencyCode,
-        minQuantity: b.minQuantity,
-        maxQuantity: b.maxQuantity ?? null,
-        amount: b.amount,
+      const dup = em.create(PriceList, {
+        id: dupId,
+        code: `pl-${randomUUID()}`,
+        name: newName,
+        currency: source.currency,
+        isDefault: false,
+        priority: 0,
+        type: source.type,
+        status: 'draft',
+        startsAt: null,
+        endsAt: null,
+        applicationRule: structuredClone(source.applicationRule),
+        isSystem: false,
+        modifiedAt: new Date(),
       });
-    }
-    await em.flush();
-    this.invalidatePricingCache();
+      // `priceListId` is a plain column (not a mapped relation), so the UoW does
+      // not order the parent insert first — flush the new list before its
+      // children, then assignments before brackets (composite-FK ordering).
+      await em.flush();
 
-    await this.audit(
-      'price_list.duplicate',
-      dup,
-      null,
-      {
-        name: dup.name,
-        sourcePriceListId: source.id,
-        sourceName: source.name,
-      },
-      auditCtx,
-    );
-    return dup;
+      // Copy assignments first (FK target), then brackets.
+      const products = await em.find(PriceListProduct, { priceListId: source.id });
+      for (const p of products) {
+        em.create(PriceListProduct, { priceListId: dup.id, productId: p.productId });
+      }
+      await em.flush();
+
+      const brackets = await em.find(PriceListPriceBracket, { priceListId: source.id });
+      for (const b of brackets) {
+        em.create(PriceListPriceBracket, {
+          priceListId: dup.id,
+          productId: b.productId,
+          currencyCode: b.currencyCode,
+          minQuantity: b.minQuantity,
+          maxQuantity: b.maxQuantity ?? null,
+          amount: b.amount,
+        });
+      }
+
+      return {
+        result: dup,
+        row: dup,
+        before: null,
+        after: {
+          name: dup.name,
+          sourcePriceListId: source.id,
+          sourceName: source.name,
+        },
+      };
+    });
   }
 
   /**

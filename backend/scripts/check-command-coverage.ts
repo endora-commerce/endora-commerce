@@ -62,6 +62,20 @@ interface UnitScan {
   mutationLine: number | null;
   hasAuditWrite: boolean;
   runsCommand: boolean;
+  /** Contains a `Command` object literal (has `action` + `run` properties). */
+  definesCommand: boolean;
+  /** Names of `this.<name>(...)` methods this unit calls (for runner delegation). */
+  callsThis: Set<string>;
+}
+
+/** Whether an object literal is a Command definition (`action` + `run` props). */
+function isCommandLiteral(node: ts.ObjectLiteralExpression): boolean {
+  const names = new Set(
+    node.properties
+      .map((p) => (p.name && ts.isIdentifier(p.name) ? p.name.text : null))
+      .filter((n): n is string => n !== null),
+  );
+  return names.has('action') && names.has('run');
 }
 
 /** Scan a single method/function subtree for mutation / audit / command calls. */
@@ -71,11 +85,17 @@ function scanUnit(node: ts.Node, sf: ts.SourceFile): UnitScan {
     mutationLine: null,
     hasAuditWrite: false,
     runsCommand: false,
+    definesCommand: false,
+    callsThis: new Set(),
   };
   const visit = (n: ts.Node): void => {
+    if (ts.isObjectLiteralExpression(n) && isCommandLiteral(n)) {
+      scan.definesCommand = true;
+    }
     if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression)) {
       const method = n.expression.name.text;
-      const receiverText = n.expression.expression.getText(sf);
+      const receiver = n.expression.expression;
+      const receiverText = receiver.getText(sf);
       if (MUTATION_METHODS.has(method)) {
         scan.hasMutation = true;
         if (scan.mutationLine === null) {
@@ -87,6 +107,10 @@ function scanUnit(node: ts.Node, sf: ts.SourceFile): UnitScan {
       }
       if (method === 'run' && /commandBus$/.test(receiverText)) {
         scan.runsCommand = true;
+      }
+      // `this.<name>(...)` — a candidate delegation to an audited runner.
+      if (receiver.kind === ts.SyntaxKind.ThisKeyword) {
+        scan.callsThis.add(method);
       }
     }
     ts.forEachChild(n, visit);
@@ -166,26 +190,40 @@ function nodeSuppressed(node: ts.Node, sf: ts.SourceFile): boolean {
 /** Static, dependency-free per-method analysis of a single source file. */
 export function analyzeSource(filePath: string, source: string): CoverageFinding[] {
   const sf = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true);
+  const units = collectUnits(sf).map((u) => ({ ...u, scan: scanUnit(u.node, sf) }));
+
+  // Pass 1 — a "runner" method executes writes through the Command Bus (calls
+  // commandBus.run, or defines a Command literal the bus will run). A method that
+  // delegates to a runner (`this.<runner>(...)`) is therefore audited too.
+  const runnerNames = new Set(
+    units.filter((u) => u.scan.runsCommand || u.scan.definesCommand).map((u) => u.name),
+  );
+
   const findings: CoverageFinding[] = [];
-  for (const unit of collectUnits(sf)) {
-    if (unit.suppressed) continue;
-    const scan = scanUnit(unit.node, sf);
-    if (scan.hasMutation && !scan.runsCommand && !scan.hasAuditWrite) {
+  for (const u of units) {
+    if (u.suppressed) continue;
+    const s = u.scan;
+    const covered =
+      s.runsCommand ||
+      s.definesCommand ||
+      s.hasAuditWrite ||
+      [...s.callsThis].some((n) => runnerNames.has(n));
+    if (s.hasMutation && !covered) {
       findings.push({
         filePath,
-        line: scan.mutationLine,
-        method: unit.name,
+        line: s.mutationLine,
+        method: u.name,
         kind: 'unaudited-sensitive-write',
-        message: `${unit.name}() mutates without a Command or an audit entry`,
+        message: `${u.name}() mutates without a Command or an audit entry`,
       });
     }
-    if (scan.runsCommand && scan.hasAuditWrite) {
+    if (s.runsCommand && s.hasAuditWrite) {
       findings.push({
         filePath,
-        line: scan.mutationLine,
-        method: unit.name,
+        line: s.mutationLine,
+        method: u.name,
         kind: 'double-audit',
-        message: `${unit.name}() runs a Command AND records audit by hand (remove the manual record() — FR-010)`,
+        message: `${u.name}() runs a Command AND records audit by hand (remove the manual record() — FR-010)`,
       });
     }
   }
