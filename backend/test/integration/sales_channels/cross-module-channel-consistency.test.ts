@@ -55,7 +55,7 @@ describe('cross-module sales-channel resolution consistency (feature 053 / SC-00
     for (const url of SURFACES) {
       const res = await h.app.inject({ method: 'GET', url, ...(headers ? { headers } : {}) });
       const echo = res.headers['x-sales-channel'];
-      echoes.push(Array.isArray(echo) ? (echo[0] ?? '') : (echo ?? ''));
+      echoes.push(String(Array.isArray(echo) ? (echo[0] ?? '') : (echo ?? '')));
     }
     return echoes;
   }
