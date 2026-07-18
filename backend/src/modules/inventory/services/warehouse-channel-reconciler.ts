@@ -20,6 +20,9 @@ export class WarehouseChannelReconciler {
   constructor(private readonly em: EntityManager) {}
 
   async run(): Promise<{ assignmentsCreated: number }> {
+    // command-coverage-ignore: startup reconciler — backfills the default
+    // warehouse↔channel assignment for channels missing one, an idempotent
+    // system-invariant repair, not an operator-initiated audited write.
     const knex = this.em.getKnex();
     const channels = await knex<ChannelRow>('sales_channels').select<ChannelRow[]>('id');
     if (channels.length === 0) return { assignmentsCreated: 0 };

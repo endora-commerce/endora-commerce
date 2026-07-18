@@ -65,6 +65,8 @@ export class AvailabilityNotificationService {
    * tracking; with 409 ALREADY_SUBSCRIBED for an idempotent re-subscribe.
    */
   async subscribe(input: SubscribeInput): Promise<AvailabilityNotification> {
+    // command-coverage-ignore: customer back-in-stock notification opt-in — a
+    // self-service subscription record, not an audited domain-state mutation.
     const em = this.emFactory();
     const product = await em.findOne(Product, { id: input.productId });
     if (!product || product.deletedAt) {
@@ -118,6 +120,8 @@ export class AvailabilityNotificationService {
   }
 
   async cancel(id: string): Promise<void> {
+    // command-coverage-ignore: customer notification opt-out — flips a
+    // self-service subscription to cancelled, not an audited domain mutation.
     const em = this.emFactory();
     const row = await em.findOne(AvailabilityNotification, { id });
     if (!row) {
@@ -199,6 +203,8 @@ export class AvailabilityNotificationService {
     productId: string;
     variantId?: string | null;
   }): Promise<{ notified: number }> {
+    // command-coverage-ignore: background notification delivery — flips queued
+    // subscriptions to 'notified' after send, delivery bookkeeping (not domain).
     if (!this.mailer && !this.templateEmail) return { notified: 0 };
     const em = this.emFactory();
     const where: Record<string, unknown> = {
