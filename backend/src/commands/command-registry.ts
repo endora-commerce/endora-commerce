@@ -200,6 +200,25 @@ export const COMMAND_REGISTRY = {
   // via the InvoiceAuditRecorder; templates audited co-transactionally.
   'invoice_template.create': { reversible: false, description: 'Create an invoice template' },
   'invoice_template.save_content': { reversible: false, description: 'Save invoice template content' },
+  // Newsletter module (US1) — admin config lifecycle (delivery/tracking escape-hatched).
+  'newsletter_tag.create': { reversible: false, description: 'Create a newsletter tag' },
+  'newsletter_tag.update': { reversible: false, description: 'Update a newsletter tag' },
+  'newsletter_tag.delete': { reversible: false, description: 'Delete a newsletter tag' },
+  'newsletter_custom_field.create': { reversible: false, description: 'Create a newsletter custom field' },
+  'newsletter_custom_field.update': { reversible: false, description: 'Update a newsletter custom field' },
+  'newsletter_custom_field.delete': { reversible: false, description: 'Delete a newsletter custom field' },
+  'newsletter_email_block.create': { reversible: false, description: 'Create a newsletter email block' },
+  'newsletter_email_block.update': { reversible: false, description: 'Update a newsletter email block' },
+  'newsletter_email_block.delete': { reversible: false, description: 'Delete a newsletter email block' },
+  'newsletter_campaign.create': { reversible: false, description: 'Create a newsletter campaign' },
+  'newsletter_campaign.update': { reversible: false, description: 'Update a newsletter campaign' },
+  'newsletter_campaign.set_group': { reversible: false, description: 'Set a campaign recipient group' },
+  'newsletter_campaign.send': { reversible: false, description: 'Send/schedule a campaign' },
+  'newsletter_campaign.cancel': { reversible: false, description: 'Cancel a campaign' },
+  'newsletter_automation.create': { reversible: false, description: 'Create a newsletter automation' },
+  'newsletter_automation.update': { reversible: false, description: 'Update a newsletter automation' },
+  'newsletter_automation.activate': { reversible: false, description: 'Activate a newsletter automation' },
+  'newsletter_automation.pause': { reversible: false, description: 'Pause a newsletter automation' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

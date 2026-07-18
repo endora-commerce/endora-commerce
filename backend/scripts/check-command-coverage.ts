@@ -53,6 +53,7 @@ export const MIGRATED_MODULES: readonly string[] = [
   'stripe',
   'transactional_emails',
   'invoices',
+  'newsletter',
 ];
 
 const MUTATION_METHODS = new Set([

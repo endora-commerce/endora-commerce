@@ -9,6 +9,8 @@ import {
 import { HttpError } from '../../../http/error-envelope.js';
 import { NewsletterEmailBlock } from '../entities/newsletter-email-block.entity.js';
 import type { ContentTree, EmailEmbeds } from './content.service.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 interface ContentEnvelope {
   schema_version: number;
@@ -33,7 +35,22 @@ function unwrap(content: Record<string, unknown>, language?: string): ContentTre
  * blocks (seeded header/footer) cannot be deleted.
  */
 export class NewsletterEmailBlockService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  #audit(em: EntityManager, action: string, objectId: string, stateAfter: Record<string, unknown> | null): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action,
+        objectType: 'newsletter_email_block',
+        objectId,
+        stateBefore: null,
+        stateAfter,
+      });
+    }
+  }
 
   async list(): Promise<NewsletterEmailBlockSummary[]> {
     const em = this.emFactory();
@@ -55,7 +72,9 @@ export class NewsletterEmailBlockService {
       description: input.description ?? null,
       content: wrap(input.content) as unknown as Record<string, unknown>,
     });
-    await em.persistAndFlush(block);
+    em.persist(block);
+    this.#audit(em, 'newsletter_email_block.create', block.id, { code: block.code });
+    await em.flush();
     return this.toDetail(block);
   }
 
@@ -70,6 +89,7 @@ export class NewsletterEmailBlockService {
     if (input.active !== undefined) block.active = input.active;
     if (input.content !== undefined) block.content = wrap(input.content) as unknown as Record<string, unknown>;
     block.version += 1;
+    this.#audit(em, 'newsletter_email_block.update', block.id, { name: block.name });
     await em.persistAndFlush(block);
     return this.toDetail(block);
   }
@@ -80,6 +100,7 @@ export class NewsletterEmailBlockService {
     if (block.isSystem) {
       throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'System blocks cannot be deleted.');
     }
+    this.#audit(em, 'newsletter_email_block.delete', block.id, null);
     await em.removeAndFlush(block);
   }
 

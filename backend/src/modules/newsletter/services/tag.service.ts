@@ -2,10 +2,27 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, type CreateNewsletterTagRequest, type NewsletterTag as NewsletterTagDto, type UpdateNewsletterTagRequest } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { NewsletterTag } from '../entities/newsletter-tag.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /** Newsletter tag CRUD (feature 048, US3). */
 export class NewsletterTagService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  #audit(em: EntityManager, action: string, objectId: string, stateAfter: Record<string, unknown> | null): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action,
+        objectType: 'newsletter_tag',
+        objectId,
+        stateBefore: null,
+        stateAfter,
+      });
+    }
+  }
 
   async list(): Promise<NewsletterTagDto[]> {
     const em = this.emFactory();
@@ -22,7 +39,9 @@ export class NewsletterTagService {
       name: input.name,
       description: input.description ?? null,
     });
-    await em.persistAndFlush(tag);
+    em.persist(tag);
+    this.#audit(em, 'newsletter_tag.create', tag.id, { code: tag.code });
+    await em.flush();
     return this.toDto(tag);
   }
 
@@ -32,6 +51,7 @@ export class NewsletterTagService {
     if (!tag) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Tag not found.');
     if (input.name !== undefined) tag.name = input.name;
     if (input.description !== undefined) tag.description = input.description;
+    this.#audit(em, 'newsletter_tag.update', tag.id, { name: tag.name });
     await em.persistAndFlush(tag);
     return this.toDto(tag);
   }
@@ -55,6 +75,7 @@ export class NewsletterTagService {
       });
     }
     // Subscriber-tag bridge rows cascade via FK.
+    this.#audit(em, 'newsletter_tag.delete', tag.id, null);
     await em.removeAndFlush(tag);
   }
 
