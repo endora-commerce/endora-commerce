@@ -1,12 +1,17 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { MfaOrganizationPolicy } from '../entities/mfa-organization-policy.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /**
  * Per-organization 2FA enforcement (feature 042, US3, FR-014). Owned by the
  * `mfa` module; consulted additively by `MfaPolicyResolver`.
  */
 export class MfaOrgPolicyService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
 
   async setEnforcement(
     organizationId: string,
@@ -21,6 +26,15 @@ export class MfaOrgPolicyService {
     } else {
       policy.enforceTotp = enforceTotp;
       policy.updatedByActor = actor;
+    }
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action: 'mfa.set_org_enforcement',
+        objectType: 'mfa_organization_policy',
+        objectId: organizationId,
+        stateBefore: null,
+        stateAfter: { enforceTotp },
+      });
     }
     await em.flush();
     return { enforceTotp };

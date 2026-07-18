@@ -180,6 +180,13 @@ export const COMMAND_REGISTRY = {
   'language.update': { reversible: false, description: 'Update a language' },
   'language.set_default': { reversible: false, description: 'Set the default language' },
   'language.delete': { reversible: false, description: 'Delete a language' },
+  // MFA module (US1) — security-sensitive 2FA writes.
+  'mfa.setup': { reversible: false, description: 'Begin a 2FA enrolment' },
+  'mfa.activate': { reversible: false, description: 'Activate a 2FA enrolment' },
+  'mfa.reset': { reversible: false, description: 'Admin-reset a subject 2FA' },
+  'mfa.disable': { reversible: false, description: 'Disable a subject 2FA' },
+  'mfa.regenerate_recovery_codes': { reversible: false, description: 'Regenerate 2FA recovery codes' },
+  'mfa.set_org_enforcement': { reversible: false, description: 'Set org 2FA enforcement policy' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

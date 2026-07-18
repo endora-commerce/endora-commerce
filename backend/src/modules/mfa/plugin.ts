@@ -106,7 +106,7 @@ export function mfaModule(options: MfaModuleOptions): {
     ? new SecretCipher(options.secretEncryptionKey)
     : null;
   const enrolmentService = cipher
-    ? new MfaEnrolmentService(options.emFactory, cipher)
+    ? new MfaEnrolmentService(options.emFactory, cipher, options.auditLogService)
     : null;
 
   const loginService = new MfaLoginService(
@@ -115,7 +115,7 @@ export function mfaModule(options: MfaModuleOptions): {
     policyResolver,
     enrolmentService ?? undefined,
   );
-  const orgPolicyService = new MfaOrgPolicyService(options.emFactory);
+  const orgPolicyService = new MfaOrgPolicyService(options.emFactory, options.auditLogService);
 
   const plugin: ModulePlugin = async (app) => {
     if (!enrolmentService) return; // enrolment disabled without an encryption key

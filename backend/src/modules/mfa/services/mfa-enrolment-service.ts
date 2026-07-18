@@ -4,6 +4,8 @@ import type { MfaSubjectRef } from '../../auth/services/mfa-login-port.js';
 import { MfaEnrolment } from '../entities/mfa-enrolment.entity.js';
 import { MfaRecoveryCode } from '../entities/mfa-recovery-code.entity.js';
 import type { SecretCipher } from './secret-cipher.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import {
   generateRecoveryCodes,
   hashRecoveryCode,
@@ -20,7 +22,20 @@ export class MfaEnrolmentService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly cipher: SecretCipher,
+    private readonly auditLog?: AuditLogService,
   ) {}
+
+  #audit(em: EntityManager, action: string, subject: MfaSubjectRef): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action,
+        objectType: 'mfa_enrolment',
+        objectId: `${subject.subjectType}:${subject.subjectId}`,
+        stateBefore: null,
+        stateAfter: null,
+      });
+    }
+  }
 
   /** Begin (or restart) enrolment — creates a `pending` enrolment. */
   async setup(
@@ -55,6 +70,7 @@ export class MfaEnrolmentService {
       secretAuthTag: enc.authTag,
     });
     em.persist(enrolment);
+    this.#audit(em, 'mfa.setup', subject);
     await em.flush();
     return { secret, otpauthUri };
   }
@@ -91,6 +107,7 @@ export class MfaEnrolmentService {
         }),
       );
     }
+    this.#audit(em, 'mfa.activate', subject);
     await em.flush();
     return { recoveryCodes: codes };
   }
@@ -106,6 +123,10 @@ export class MfaEnrolmentService {
       subjectType: subject.subjectType,
       subjectId: subject.subjectId,
     });
+    if (affected > 0) {
+      this.#audit(em, 'mfa.reset', subject);
+      await em.flush();
+    }
     return affected > 0;
   }
 
@@ -119,6 +140,7 @@ export class MfaEnrolmentService {
     });
     if (!active) return;
     await em.nativeDelete(MfaRecoveryCode, { enrolmentId: active.id });
+    this.#audit(em, 'mfa.disable', subject);
     await em.removeAndFlush(active);
   }
 
@@ -145,6 +167,7 @@ export class MfaEnrolmentService {
         }),
       );
     }
+    this.#audit(em, 'mfa.regenerate_recovery_codes', subject);
     await em.flush();
     return { recoveryCodes: codes };
   }
@@ -176,6 +199,9 @@ export class MfaEnrolmentService {
     subject: MfaSubjectRef,
     code: string,
   ): Promise<{ ok: boolean; factor?: 'totp' | 'recovery' }> {
+    // command-coverage-ignore: per-login 2FA verification — advances the TOTP
+    // replay-guard step and consumes a one-time recovery code; auth-flow
+    // bookkeeping (the enrolment lifecycle setup/activate/disable is audited).
     const em = this.emFactory();
     const active = await em.findOne(MfaEnrolment, {
       subjectType: subject.subjectType,

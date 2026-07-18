@@ -49,6 +49,7 @@ export const MIGRATED_MODULES: readonly string[] = [
   'dictionaries',
   'currencies',
   'languages',
+  'mfa',
 ];
 
 const MUTATION_METHODS = new Set([
