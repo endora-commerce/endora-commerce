@@ -26,6 +26,8 @@ export const COMMAND_REGISTRY = {
   'credit_limit.adjust': { reversible: false, description: 'Adjust an organization credit limit' },
   // Price-list update (US1).
   'price_list.update': { reversible: false, description: 'Update a price list' },
+  // Product update via the admin single-edit path (US1).
+  'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog
   // conversion so the coverage check and undo affordance recognize them.
   'product.bulk_update': { reversible: true, description: 'Queued bulk edit of products' },

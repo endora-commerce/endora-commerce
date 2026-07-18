@@ -140,6 +140,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.eventBus as CatalogEventBus,
       options.auditLogService,
       options.salesChannelMembership,
+      options.commandBus,
     );
     // SearchQueryService is wired even when the env var picks Postgres so that
     // an operator can flip CATALOG_SEARCH_BACKEND=meilisearch at runtime

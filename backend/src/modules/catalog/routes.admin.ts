@@ -258,23 +258,9 @@ export async function registerCatalogAdminRoutes(
     },
     async (request) => {
       const body = updateProductRequestSchema.parse(request.body);
-      const auditCtx = deps.resolveAdminAuditContext?.(request);
-      const product = await adminService.updateProduct(
-        request.params.id,
-        body,
-        auditCtx
-          ? {
-              actorAdminUserId: auditCtx.actorAdminUserId,
-              impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId ?? null,
-              ipAddress: request.ip ?? null,
-              userAgent:
-                typeof request.headers['user-agent'] === 'string'
-                  ? request.headers['user-agent']
-                  : null,
-              requestId: request.id,
-            }
-          : undefined,
-      );
+      // Feature 054 — audited co-transactionally via the Command Bus; the actor
+      // is derived from the ambient TenantContext (not from the request body).
+      const product = await adminService.updateProductAudited(request.params.id, body);
       return { data: serializeAdminProduct(product) };
     },
   );

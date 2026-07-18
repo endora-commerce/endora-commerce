@@ -38,6 +38,7 @@ import {
 } from './product-type-validations.js';
 import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
+import type { Command, CommandBus } from '../../../commands/index.js';
 
 /** Optional metadata used to attach audit entries to admin mutations. */
 export interface AdminAuditContext {
@@ -80,6 +81,11 @@ export class CatalogAdminService {
      * keep compiling; production composition.ts always provides it.
      */
     private readonly salesChannelMembership?: SalesChannelMembershipService,
+    /**
+     * Feature 054 — when injected, `updateProductAudited` records the admin
+     * single-update through the Command Bus (co-transactional audit + event).
+     */
+    private readonly commandBus?: CommandBus,
   ) {}
 
   /**
@@ -206,6 +212,84 @@ export class CatalogAdminService {
     auditCtx?: AdminAuditContext,
   ): Promise<Product> {
     const em = this.emFactory();
+    const r = await this.#applyProductUpdate(em, id, req);
+    await em.flush();
+    if (this.auditLog && auditCtx) {
+      await this.auditLog.record({
+        actorAdminUserId: auditCtx.actorAdminUserId,
+        ...(auditCtx.impersonatedCustomerAccountId !== undefined
+          ? { impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId }
+          : {}),
+        action: 'product.update',
+        objectType: 'product',
+        objectId: r.product.id,
+        stateBefore: r.stateBefore,
+        stateAfter: { ...r.stateAfter, changedFields: r.changedFields },
+        ...(auditCtx.ipAddress !== undefined ? { ipAddress: auditCtx.ipAddress } : {}),
+        ...(auditCtx.userAgent !== undefined ? { userAgent: auditCtx.userAgent } : {}),
+        ...(auditCtx.requestId !== undefined ? { requestId: auditCtx.requestId } : {}),
+      });
+    }
+    this.events.emit('product.updated.v1', {
+      eventId: randomUUID(),
+      occurredAt: new Date().toISOString(),
+      productId: r.product.id,
+      changedFields: r.changedFields,
+    });
+    return r.product;
+  }
+
+  /**
+   * Feature 054 — admin single-update path, audited co-transactionally via the
+   * Command Bus (one audit row + the event on commit, none on rollback). Falls
+   * back to the legacy `updateProduct` when no bus is injected (bus-less tests).
+   */
+  async updateProductAudited(id: string, req: UpdateProductRequest): Promise<Product> {
+    if (!this.commandBus) return this.updateProduct(id, req);
+    return this.commandBus.run(this.#updateProductCommand(id, req));
+  }
+
+  #updateProductCommand(id: string, req: UpdateProductRequest): Command<Product> {
+    let changedFields: string[] = [];
+    return {
+      action: 'product.update',
+      objectType: 'product',
+      objectId: id,
+      run: async ({ em }) => {
+        const r = await this.#applyProductUpdate(em, id, req);
+        changedFields = r.changedFields;
+        return {
+          result: r.product,
+          before: r.stateBefore,
+          after: { ...r.stateAfter, changedFields },
+        };
+      },
+      event: (product) => ({
+        eventName: 'product.updated.v1',
+        payload: {
+          eventId: randomUUID(),
+          occurredAt: new Date().toISOString(),
+          productId: product.id,
+          changedFields,
+        },
+      }),
+    };
+  }
+
+  /**
+   * Pure product-update write on the given em — no flush, no audit, no event.
+   * Shared by the legacy `updateProduct` and the audited Command path.
+   */
+  async #applyProductUpdate(
+    em: EntityManager,
+    id: string,
+    req: UpdateProductRequest,
+  ): Promise<{
+    product: Product;
+    stateBefore: Record<string, unknown>;
+    stateAfter: Record<string, unknown>;
+    changedFields: string[];
+  }> {
     const product = await em.findOne(Product, { id });
     if (!product) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
@@ -380,42 +464,17 @@ export class CatalogAdminService {
       product.fulfilmentStrategyWarehouseOrder = req.fulfilmentStrategyWarehouseOrder;
       changedFields.push('fulfilmentStrategyWarehouseOrder');
     }
-    await em.flush();
-
-    if (this.auditLog && auditCtx) {
-      await this.auditLog.record({
-        actorAdminUserId: auditCtx.actorAdminUserId,
-        ...(auditCtx.impersonatedCustomerAccountId !== undefined
-          ? { impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId }
-          : {}),
-        action: 'product.update',
-        objectType: 'product',
-        objectId: product.id,
-        stateBefore,
-        stateAfter: {
-          name: { ...product.name },
-          description: { ...product.description },
-          stockMode: product.stockMode,
-          visibility: product.visibility,
-          status: product.status,
-          archivedAt: product.archivedAt ?? null,
-          attributeValues: { ...product.attributeValues },
-          allowedOrganizationIds: [...product.allowedOrganizationIds],
-          changedFields,
-        },
-        ...(auditCtx.ipAddress !== undefined ? { ipAddress: auditCtx.ipAddress } : {}),
-        ...(auditCtx.userAgent !== undefined ? { userAgent: auditCtx.userAgent } : {}),
-        ...(auditCtx.requestId !== undefined ? { requestId: auditCtx.requestId } : {}),
-      });
-    }
-
-    this.events.emit('product.updated.v1', {
-      eventId: randomUUID(),
-      occurredAt: new Date().toISOString(),
-      productId: product.id,
-      changedFields,
-    });
-    return product;
+    const stateAfter: Record<string, unknown> = {
+      name: { ...product.name },
+      description: { ...product.description },
+      stockMode: product.stockMode,
+      visibility: product.visibility,
+      status: product.status,
+      archivedAt: product.archivedAt ?? null,
+      attributeValues: { ...product.attributeValues },
+      allowedOrganizationIds: [...product.allowedOrganizationIds],
+    };
+    return { product, stateBefore, stateAfter, changedFields };
   }
 
   /**
