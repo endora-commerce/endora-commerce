@@ -44,6 +44,7 @@ export const MIGRATED_MODULES: readonly string[] = [
   'promotions',
   'carts',
   'customer_accounts',
+  'assets_library',
 ];
 
 const MUTATION_METHODS = new Set([

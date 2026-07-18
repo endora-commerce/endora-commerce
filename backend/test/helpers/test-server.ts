@@ -1223,6 +1223,7 @@ export async function setupBackendServer(
   const assetsLibrary = assetsLibraryModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
+    auditLog: auditLogService,
   });
   modules.push(assetsLibrary.plugin);
   registerCatalogAssetReferences(assetsLibrary.handle.referenceRegistry, em);

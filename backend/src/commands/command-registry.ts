@@ -149,6 +149,16 @@ export const COMMAND_REGISTRY = {
   'customer_account.mfa_enrol_start': { reversible: false, description: 'Start customer 2FA enrolment' },
   'customer_account.mfa_enabled': { reversible: false, description: 'Confirm customer 2FA' },
   'customer_account.mfa_disabled': { reversible: false, description: 'Disable customer 2FA' },
+  // Assets library module (US1).
+  'asset.upload': { reversible: false, description: 'Upload an asset' },
+  'asset.update': { reversible: false, description: 'Update asset metadata' },
+  'asset.soft_delete': { reversible: false, description: 'Soft-delete an asset' },
+  'asset.restore': { reversible: false, description: 'Restore a soft-deleted asset' },
+  'asset.move': { reversible: false, description: 'Move an asset to a folder' },
+  'asset.move_many': { reversible: false, description: 'Move multiple assets to a folder' },
+  'asset_folder.create': { reversible: false, description: 'Create an asset folder' },
+  'asset_folder.update': { reversible: false, description: 'Update an asset folder' },
+  'asset_folder.delete': { reversible: false, description: 'Delete an asset folder' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

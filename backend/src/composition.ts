@@ -1367,7 +1367,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // are accessible to other modules. Routes (admin upload, public file
   // serving) and consumer wiring (Catalog / CMS reference descriptors) land
   // in subsequent phases (US1 + US2).
-  const assetsLibrary = assetsLibraryModule({ emFactory: em, requireAdmin });
+  const assetsLibrary = assetsLibraryModule({ emFactory: em, requireAdmin, auditLog: auditLogService });
   modules.push(assetsLibrary.plugin);
   // Register Catalog's reference descriptors so the Library's soft-delete
   // path (FR-030) blocks deletion of any asset still pointed at by a
