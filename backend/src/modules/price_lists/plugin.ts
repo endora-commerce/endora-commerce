@@ -56,7 +56,7 @@ export function priceListsModule(options: PriceListsModuleOptions): {
   plugin: (app: FastifyInstance) => Promise<void>;
   handle: PriceListsModuleHandle;
 } {
-  const customerGroupService = new CustomerGroupService(options.emFactory);
+  const customerGroupService = new CustomerGroupService(options.emFactory, options.commandBus);
   const pricingCache = new PricingCache<Awaited<ReturnType<PricingService['resolveEngine']>>>(
     options.pricingCacheTtlMs !== undefined ? { ttlMs: options.pricingCacheTtlMs } : {},
   );

@@ -785,6 +785,9 @@ export class PriceListService {
     targetId: string,
     mode: DisplayMode | 'inherit',
   ): Promise<PriceDisplayModeOverride | null> {
+    // command-coverage-ignore: a pricing-DISPLAY config toggle
+    // (PriceDisplayModeOverride) — a presentation setting for how prices render,
+    // not a price/catalog value mutation, so it is not an admin-audit target.
     const em = this.emFactory();
     await this.assertOverrideTargetExists(em, scope, targetId);
     const existing = await em.findOne(PriceDisplayModeOverride, { scope, targetId });
@@ -842,6 +845,9 @@ export class PriceListService {
     mode: DisplayMode,
     salesChannelId?: string,
   ): Promise<void> {
+    // command-coverage-ignore: writes SettingValue rows owned by the settings
+    // module (a cross-module config write); settings changes are the settings
+    // module's audit concern, not the price-list admin audit log.
     const em = this.emFactory();
     const code = `pricing.${key}`;
     const setting = await em.findOneOrFail(Setting, { code });
@@ -1051,14 +1057,14 @@ export class PriceListService {
    * when the assignment is actually new.
    */
   async addProduct(priceListId: string, productId: string): Promise<void> {
-    const em = this.emFactory();
-    const list = await this.getById(priceListId, em);
-    const existing = await em.findOne(PriceListProduct, { priceListId, productId });
-    if (existing) return;
-    em.create(PriceListProduct, { priceListId, productId });
-    list.modifiedAt = new Date();
-    await em.flush();
-    this.invalidatePricingCache();
+    await this.#runAudited('price_list.product_add', priceListId, undefined, async (em) => {
+      const list = await this.getById(priceListId, em);
+      const existing = await em.findOne(PriceListProduct, { priceListId, productId });
+      if (existing) return { result: undefined, row: list, before: null, after: null, skipAudit: true };
+      em.create(PriceListProduct, { priceListId, productId });
+      list.modifiedAt = new Date();
+      return { result: undefined, row: list, before: null, after: { name: list.name, productId } };
+    });
   }
 
   /**
@@ -1066,14 +1072,14 @@ export class PriceListService {
    * No-op when the assignment does not exist.
    */
   async removeProduct(priceListId: string, productId: string): Promise<void> {
-    const em = this.emFactory();
-    const list = await this.getById(priceListId, em);
-    const existing = await em.findOne(PriceListProduct, { priceListId, productId });
-    if (!existing) return;
-    await em.removeAndFlush(existing);
-    list.modifiedAt = new Date();
-    await em.flush();
-    this.invalidatePricingCache();
+    await this.#runAudited('price_list.product_remove', priceListId, undefined, async (em) => {
+      const list = await this.getById(priceListId, em);
+      const existing = await em.findOne(PriceListProduct, { priceListId, productId });
+      if (!existing) return { result: undefined, row: list, before: null, after: null, skipAudit: true };
+      em.remove(existing);
+      list.modifiedAt = new Date();
+      return { result: undefined, row: list, before: null, after: { name: list.name, productId } };
+    });
   }
 
   /**
@@ -1086,42 +1092,38 @@ export class PriceListService {
     productIds: readonly string[],
     auditCtx?: PriceListsAuditContext,
   ): Promise<ReplaceProductsResult> {
-    const em = this.emFactory();
-    const list = await this.getById(priceListId, em);
+    return this.#runAudited('price_list.products_replace', priceListId, auditCtx, async (em) => {
+      const list = await this.getById(priceListId, em);
 
-    const existing = await em.find(PriceListProduct, { priceListId });
-    const existingSet = new Set(existing.map((e) => e.productId));
-    const wanted = new Set(productIds);
+      const existing = await em.find(PriceListProduct, { priceListId });
+      const existingSet = new Set(existing.map((e) => e.productId));
+      const wanted = new Set(productIds);
 
-    const toAdd = [...wanted].filter((id) => !existingSet.has(id));
-    const toRemove = existing.filter((e) => !wanted.has(e.productId));
-    const unchanged = [...wanted].filter((id) => existingSet.has(id));
+      const toAdd = [...wanted].filter((id) => !existingSet.has(id));
+      const toRemove = existing.filter((e) => !wanted.has(e.productId));
+      const unchanged = [...wanted].filter((id) => existingSet.has(id));
 
-    for (const id of toAdd) em.create(PriceListProduct, { priceListId, productId: id });
-    for (const row of toRemove) em.remove(row);
-    if (toAdd.length > 0 || toRemove.length > 0) {
+      for (const id of toAdd) em.create(PriceListProduct, { priceListId, productId: id });
+      for (const row of toRemove) em.remove(row);
+      const result = { added: toAdd.length, removed: toRemove.length, unchanged: unchanged.length };
+      if (toAdd.length === 0 && toRemove.length === 0) {
+        return { result, row: list, before: null, after: null, skipAudit: true };
+      }
       list.modifiedAt = new Date();
-    }
-    await em.flush();
-    if (toAdd.length > 0 || toRemove.length > 0) {
-      this.invalidatePricingCache();
-      // Feature 024 — emit a single summary audit row carrying only counts
+      // Feature 024 — a single summary audit row carrying only counts
       // (never the full product-id list — FR-013).
-      await this.audit(
-        'price_list.products_replace',
-        list,
-        null,
-        {
+      return {
+        result,
+        row: list,
+        before: null,
+        after: {
           name: list.name,
           added: toAdd.length,
           removed: toRemove.length,
           kept: unchanged.length,
         },
-        auditCtx,
-      );
-    }
-
-    return { added: toAdd.length, removed: toRemove.length, unchanged: unchanged.length };
+      };
+    });
   }
 
   /**
@@ -1141,85 +1143,77 @@ export class PriceListService {
     bracketsByCurrency: Record<string, readonly BracketInput[]>,
     auditCtx?: PriceListsAuditContext,
   ): Promise<Record<string, BracketInput[]>> {
-    const em = this.emFactory();
-    const list = await this.getById(priceListId, em);
-    const assignment = await em.findOne(PriceListProduct, { priceListId, productId });
-    if (!assignment) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.NOT_FOUND,
-        `Product ${productId} is not assigned to price list ${priceListId}.`,
-      );
-    }
-
-    const validated: Record<string, BracketInput[]> = {};
-    for (const [currencyRaw, rows] of Object.entries(bracketsByCurrency)) {
-      const currency = currencyRaw.toUpperCase();
-      if (!/^[A-Z]{3}$/.test(currency)) {
+    return this.#runAudited('price_list.bracket_update', priceListId, auditCtx, async (em) => {
+      const list = await this.getById(priceListId, em);
+      const assignment = await em.findOne(PriceListProduct, { priceListId, productId });
+      if (!assignment) {
         throw new HttpError(
-          400,
-          ERROR_CODES.VALIDATION_FAILED,
-          `Invalid currency code: ${currencyRaw}`,
+          404,
+          ERROR_CODES.NOT_FOUND,
+          `Product ${productId} is not assigned to price list ${priceListId}.`,
         );
       }
-      const sorted = [...rows].sort((a, b) => a.minQuantity - b.minQuantity);
-      this.assertBracketSanity(currency, sorted);
-      this.assertNoOverlap(currency, sorted);
-      validated[currency] = sorted;
-    }
 
-    // Replace: remove every existing bracket for the (list, product) pair
-    // FIRST, flush, then insert the new rows. The two-flush split keeps
-    // MikroORM's UoW from collapsing identical-PK delete+insert pairs.
-    const existing = await em.find(PriceListPriceBracket, { priceListId, productId });
-    for (const row of existing) em.remove(row);
-    if (existing.length > 0) {
-      await em.flush();
-    }
-
-    const out: Record<string, BracketInput[]> = {};
-    for (const [currency, rows] of Object.entries(validated)) {
-      const inserted: BracketInput[] = [];
-      for (const r of rows) {
-        em.create(PriceListPriceBracket, {
-          priceListId,
-          productId,
-          currencyCode: currency,
-          minQuantity: r.minQuantity,
-          maxQuantity: r.maxQuantity ?? null,
-          amount: r.amount,
-        });
-        inserted.push({
-          minQuantity: r.minQuantity,
-          maxQuantity: r.maxQuantity ?? null,
-          amount: r.amount,
-        });
+      const validated: Record<string, BracketInput[]> = {};
+      for (const [currencyRaw, rows] of Object.entries(bracketsByCurrency)) {
+        const currency = currencyRaw.toUpperCase();
+        if (!/^[A-Z]{3}$/.test(currency)) {
+          throw new HttpError(
+            400,
+            ERROR_CODES.VALIDATION_FAILED,
+            `Invalid currency code: ${currencyRaw}`,
+          );
+        }
+        const sorted = [...rows].sort((a, b) => a.minQuantity - b.minQuantity);
+        this.assertBracketSanity(currency, sorted);
+        this.assertNoOverlap(currency, sorted);
+        validated[currency] = sorted;
       }
-      out[currency] = inserted;
-    }
-    list.modifiedAt = new Date();
-    await em.flush();
-    this.invalidatePricingCache();
 
-    // Feature 024 — one audit row per (list, product) bracket save, with
-    // per-currency bracket counts in the summary (never the raw amounts).
-    const summary: Record<string, number> = {};
-    for (const [currency, rows] of Object.entries(out)) {
-      summary[currency] = rows.length;
-    }
-    await this.audit(
-      'price_list.bracket_update',
-      list,
-      null,
-      {
-        name: list.name,
-        productId,
-        bracketCountByCurrency: summary,
-      },
-      auditCtx,
-    );
+      // Replace: remove every existing bracket for the (list, product) pair
+      // FIRST, flush, then insert the new rows. The two-flush split keeps
+      // MikroORM's UoW from collapsing identical-PK delete+insert pairs.
+      const existing = await em.find(PriceListPriceBracket, { priceListId, productId });
+      for (const row of existing) em.remove(row);
+      if (existing.length > 0) {
+        await em.flush();
+      }
 
-    return out;
+      const out: Record<string, BracketInput[]> = {};
+      for (const [currency, rows] of Object.entries(validated)) {
+        const inserted: BracketInput[] = [];
+        for (const r of rows) {
+          em.create(PriceListPriceBracket, {
+            priceListId,
+            productId,
+            currencyCode: currency,
+            minQuantity: r.minQuantity,
+            maxQuantity: r.maxQuantity ?? null,
+            amount: r.amount,
+          });
+          inserted.push({
+            minQuantity: r.minQuantity,
+            maxQuantity: r.maxQuantity ?? null,
+            amount: r.amount,
+          });
+        }
+        out[currency] = inserted;
+      }
+      list.modifiedAt = new Date();
+
+      // Feature 024 — one audit row per (list, product) bracket save, with
+      // per-currency bracket counts in the summary (never the raw amounts).
+      const summary: Record<string, number> = {};
+      for (const [currency, rows] of Object.entries(out)) {
+        summary[currency] = rows.length;
+      }
+      return {
+        result: out,
+        row: list,
+        before: null,
+        after: { name: list.name, productId, bracketCountByCurrency: summary },
+      };
+    });
   }
 
   /**
@@ -1236,65 +1230,64 @@ export class PriceListService {
     fromCurrency: string,
     toCurrencies: readonly string[],
   ): Promise<CopyCurrencyResult> {
-    const em = this.emFactory();
-    const list = await this.getById(priceListId, em);
-    const assignment = await em.findOne(PriceListProduct, { priceListId, productId });
-    if (!assignment) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.NOT_FOUND,
-        `Product ${productId} is not assigned to price list ${priceListId}.`,
-      );
-    }
-    const source = await em.find(PriceListPriceBracket, {
-      priceListId,
-      productId,
-      currencyCode: fromCurrency.toUpperCase(),
-    });
-    if (source.length === 0) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.NOT_FOUND,
-        `Source currency ${fromCurrency} has no brackets for this product.`,
-      );
-    }
-
-    let added = 0;
-    for (const targetRaw of toCurrencies) {
-      const target = targetRaw.toUpperCase();
-      if (target === fromCurrency.toUpperCase()) continue;
-      if (!/^[A-Z]{3}$/.test(target)) {
+    return this.#runAudited('price_list.bracket_copy', priceListId, undefined, async (em) => {
+      const list = await this.getById(priceListId, em);
+      const assignment = await em.findOne(PriceListProduct, { priceListId, productId });
+      if (!assignment) {
         throw new HttpError(
-          400,
-          ERROR_CODES.VALIDATION_FAILED,
-          `Invalid currency code: ${targetRaw}`,
+          404,
+          ERROR_CODES.NOT_FOUND,
+          `Product ${productId} is not assigned to price list ${priceListId}.`,
         );
       }
-      for (const b of source) {
-        const conflict = await em.findOne(PriceListPriceBracket, {
-          priceListId,
-          productId,
-          currencyCode: target,
-          minQuantity: b.minQuantity,
-        });
-        if (conflict) continue;
-        em.create(PriceListPriceBracket, {
-          priceListId,
-          productId,
-          currencyCode: target,
-          minQuantity: b.minQuantity,
-          maxQuantity: b.maxQuantity ?? null,
-          amount: b.amount,
-        });
-        added += 1;
+      const source = await em.find(PriceListPriceBracket, {
+        priceListId,
+        productId,
+        currencyCode: fromCurrency.toUpperCase(),
+      });
+      if (source.length === 0) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.NOT_FOUND,
+          `Source currency ${fromCurrency} has no brackets for this product.`,
+        );
       }
-    }
-    if (added > 0) {
+
+      let added = 0;
+      for (const targetRaw of toCurrencies) {
+        const target = targetRaw.toUpperCase();
+        if (target === fromCurrency.toUpperCase()) continue;
+        if (!/^[A-Z]{3}$/.test(target)) {
+          throw new HttpError(
+            400,
+            ERROR_CODES.VALIDATION_FAILED,
+            `Invalid currency code: ${targetRaw}`,
+          );
+        }
+        for (const b of source) {
+          const conflict = await em.findOne(PriceListPriceBracket, {
+            priceListId,
+            productId,
+            currencyCode: target,
+            minQuantity: b.minQuantity,
+          });
+          if (conflict) continue;
+          em.create(PriceListPriceBracket, {
+            priceListId,
+            productId,
+            currencyCode: target,
+            minQuantity: b.minQuantity,
+            maxQuantity: b.maxQuantity ?? null,
+            amount: b.amount,
+          });
+          added += 1;
+        }
+      }
+      const result = { added };
+      if (added === 0) return { result, row: list, before: null, after: null, skipAudit: true };
       list.modifiedAt = new Date();
-    }
-    await em.flush();
-    if (added > 0) this.invalidatePricingCache();
-    return { added };
+      return { result, row: list, before: null, after: { name: list.name, productId, added } };
+    });
   }
 
   /**

@@ -45,6 +45,8 @@ export class DefaultPriceListMigrator {
    * test fixture that truncates `price_lists` and needs to restore Default.
    */
   async seedDefault(): Promise<void> {
+    // command-coverage-ignore: one-time system bootstrap that seeds the Default
+    // price list at install/migration time — not an admin action.
     const em = this.emFactory();
     const existing = await em.findOne(PriceList, { id: DEFAULT_PRICE_LIST_ID });
     if (existing) {
@@ -85,6 +87,8 @@ export class DefaultPriceListMigrator {
    * test fixture that just truncated `price_lists`.
    */
   async run(): Promise<MigrationReport> {
+    // command-coverage-ignore: one-time data migration (backfills the Default
+    // price list + assignments) run at install/upgrade — not an admin action.
     await this.seedDefault();
     const em = this.emFactory();
 

@@ -33,6 +33,13 @@ export const COMMAND_REGISTRY = {
   'price_list.draftify': { reversible: false, description: 'Return a price list to draft' },
   'price_list.duplicate': { reversible: false, description: 'Duplicate a price list' },
   'price_list.delete': { reversible: false, description: 'Delete a price list' },
+  'price_list.product_add': { reversible: false, description: 'Add a product to a price list' },
+  'price_list.product_remove': { reversible: false, description: 'Remove a product from a price list' },
+  'price_list.products_replace': { reversible: false, description: 'Replace a price list product roster' },
+  'price_list.bracket_update': { reversible: false, description: 'Update price brackets' },
+  'price_list.bracket_copy': { reversible: false, description: 'Copy price brackets across currencies' },
+  'customer_group.upsert': { reversible: false, description: 'Create or update a customer group' },
+  'customer_group.delete': { reversible: false, description: 'Delete a customer group' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

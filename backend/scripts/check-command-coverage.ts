@@ -32,7 +32,7 @@ import ts from 'typescript';
  */
 
 /** Modules whose service writes have been converted to Commands (build-breaking). Grows over time. */
-export const MIGRATED_MODULES: readonly string[] = ['credit_limits'];
+export const MIGRATED_MODULES: readonly string[] = ['credit_limits', 'price_lists'];
 
 const MUTATION_METHODS = new Set([
   'persist',
