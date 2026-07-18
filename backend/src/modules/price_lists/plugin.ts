@@ -9,6 +9,7 @@ import { registerPricingRoutes } from './routes.js';
 import { registerStorefrontPricingRoutes } from './routes.storefront.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { CommandBus } from '../../commands/index.js';
 
 const STATUS_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -35,6 +36,8 @@ export interface PriceListsModuleOptions {
   pricingCacheTtlMs?: number;
   /** Feature 024 — optional cross-module hook so price-list mutations land in the audit log. */
   auditLogService?: AuditLogService;
+  /** Feature 054 — audits `patch` co-transactionally when provided. */
+  commandBus?: CommandBus;
   /** Feature 024 — resolves the admin actor identity for audit entries. */
   resolveAdminAuditContext?: (req: FastifyRequest) => {
     actorAdminUserId: string;
@@ -61,6 +64,7 @@ export function priceListsModule(options: PriceListsModuleOptions): {
     options.emFactory,
     pricingCache,
     options.auditLogService,
+    options.commandBus,
   );
   const pricingService = new PricingService(options.emFactory, pricingCache);
   const statusWorker = new PriceListStatusWorker(options.emFactory);

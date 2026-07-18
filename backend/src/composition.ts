@@ -458,6 +458,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     requireAdmin,
     auditLogService,
+    commandBus,
     resolveAdminAuditContext: (request) => {
       const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
       if (actor?.kind !== 'admin') {

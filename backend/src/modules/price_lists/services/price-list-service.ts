@@ -14,6 +14,7 @@ import { Setting } from '../../settings/entities/setting.entity.js';
 import { SettingValue } from '../../settings/entities/setting-value.entity.js';
 import { randomUUID } from 'crypto';
 import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { Command, CommandBus } from '../../../commands/index.js';
 import type { PriceListsAuditContext } from '../plugin.js';
 
 export type DisplayMode = 'gross_only' | 'net_only' | 'both' | 'none';
@@ -74,6 +75,12 @@ export class PriceListService {
     /** Feature 024 — optional audit log writer. When omitted, no audit
      *  rows are emitted (tests that don't care about audit pass nothing). */
     private readonly auditLog?: AuditLogService,
+    /**
+     * Feature 054 — when injected, `patch` runs through the Command Bus so the
+     * update is audited co-transactionally (Principle XIII). Optional: bus-less
+     * construction keeps the legacy audit path, byte-identical.
+     */
+    private readonly commandBus?: CommandBus,
   ) {}
 
   private invalidatePricingCache(): void {
@@ -241,7 +248,54 @@ export class PriceListService {
     input: PatchPriceListInput,
     auditCtx?: PriceListsAuditContext,
   ): Promise<PriceList> {
+    // Feature 054 — audited path: the Command Bus records the update
+    // co-transactionally. No-op patches (nothing changed) skip the audit row.
+    if (this.commandBus) {
+      return this.commandBus.run(this.#patchCommand(id, input));
+    }
+    // Legacy fallback (bus-less construction): unaudited unless auditCtx given.
     const em = this.emFactory();
+    const r = await this.#applyPatch(em, id, input);
+    await em.flush();
+    if (r.mutated) {
+      this.invalidatePricingCache();
+      await this.audit('price_list.update', r.row, r.stateBefore, r.stateAfter, auditCtx);
+    }
+    return r.row;
+  }
+
+  /** The `patch` write expressed as a Command (audited via the bus). */
+  #patchCommand(id: string, input: PatchPriceListInput): Command<PriceList> {
+    return {
+      action: 'price_list.update',
+      objectType: 'price_list',
+      objectId: id,
+      run: async ({ em }) => {
+        const r = await this.#applyPatch(em, id, input);
+        if (!r.mutated) {
+          // Nothing changed → commit without an audit row.
+          return { result: r.row, skipAudit: true };
+        }
+        this.invalidatePricingCache();
+        return { result: r.row, before: r.stateBefore, after: r.stateAfter };
+      },
+    };
+  }
+
+  /**
+   * Pure patch write on the given em — no flush, no audit, no cache invalidation.
+   * Returns the row, whether it mutated, and the before/after snapshots.
+   */
+  async #applyPatch(
+    em: EntityManager,
+    id: string,
+    input: PatchPriceListInput,
+  ): Promise<{
+    row: PriceList;
+    mutated: boolean;
+    stateBefore: Record<string, unknown>;
+    stateAfter: Record<string, unknown>;
+  }> {
     const row = await this.getById(id, em);
 
     let normalisedRule: ApplicationRule | undefined;
@@ -293,25 +347,15 @@ export class PriceListService {
     if (mutated) {
       row.modifiedAt = new Date();
     }
-    await em.flush();
-    if (mutated) {
-      this.invalidatePricingCache();
-      await this.audit(
-        'price_list.update',
-        row,
-        stateBefore,
-        {
-          name: row.name,
-          type: row.type,
-          status: row.status,
-          startsAt: row.startsAt ?? null,
-          endsAt: row.endsAt ?? null,
-          changedFields,
-        },
-        auditCtx,
-      );
-    }
-    return row;
+    const stateAfter = {
+      name: row.name,
+      type: row.type,
+      status: row.status,
+      startsAt: row.startsAt ?? null,
+      endsAt: row.endsAt ?? null,
+      changedFields,
+    };
+    return { row, mutated, stateBefore, stateAfter };
   }
 
   /**

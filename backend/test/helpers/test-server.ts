@@ -637,6 +637,7 @@ export async function setupBackendServer(
     // composition uses the default 60-s TTL.
     pricingCacheTtlMs: 0,
     auditLogService,
+    commandBus,
     resolveAdminAuditContext: (request) => ({
       actorAdminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,

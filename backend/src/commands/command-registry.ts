@@ -24,6 +24,8 @@ export const COMMAND_REGISTRY = {
   // Credit-limit adjustment (US1). Previously an unaudited write — the Command
   // adds the missing co-transactional audit entry.
   'credit_limit.adjust': { reversible: false, description: 'Adjust an organization credit limit' },
+  // Price-list update (US1).
+  'price_list.update': { reversible: false, description: 'Update a price list' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog
   // conversion so the coverage check and undo affordance recognize them.
   'product.bulk_update': { reversible: true, description: 'Queued bulk edit of products' },
