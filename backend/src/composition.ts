@@ -1264,6 +1264,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     catalogModule({
       emFactory: em,
       eventBus,
+      commandBus,
       requireAdmin,
       auditLogService,
       requireApiKey: integrations.handle.requireApiKey,

@@ -1,12 +1,17 @@
+import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { BULK_OPERATION_TYPES, type BulkUpdateProductsRequest } from '@b2b/contracts';
 import { AdminUser } from '../../admin_users/entities/admin-user.entity.js';
 import type { AdminNotificationService } from '../../admin_notifications/services/admin-notification-service.js';
 import type { Mailer } from '../../email/services/mailer.js';
+import type { Command, CommandBus } from '../../../commands/index.js';
+import { applyUndo, type RevertRecord } from '../../../commands/index.js';
+import { Product } from '../entities/product.entity.js';
 import {
   BulkOperation,
   type BulkOperationLogEntry,
   type BulkOperationPayload,
+  type BulkOperationRevertRecord,
   type BulkOperationStatus,
 } from '../entities/bulk-operation.entity.js';
 import type {
@@ -106,6 +111,12 @@ export class BulkOperationService {
        */
       reindexRunner?: SearchReindexRunner;
     } = {},
+    /**
+     * Feature 054 — when injected, product bulk edits capture per-product revert
+     * state and expose an audited, conflict-aware undo (US2). Optional so bus-less
+     * constructions (some tests) keep the pre-054 behavior.
+     */
+    private readonly commandBus?: CommandBus,
   ) {}
 
   async create(input: CreateBulkOperationInput): Promise<SerializedBulkOperation> {
@@ -252,6 +263,15 @@ export class BulkOperationService {
       fields: op.payload.fields,
     } as BulkUpdateProductsRequest;
 
+    // Feature 054 (US2) — capture per-product before-state for undo, but only
+    // when the edit touches revertible direct columns (never the category
+    // bridge). Read BEFORE the mutation so the snapshot is the true pre-state.
+    const revertKeys = this.commandBus ? revertibleFieldKeys(op.payload.fields) : null;
+    const beforeByProduct =
+      revertKeys && revertKeys.length > 0
+        ? await this.#snapshotProductFields(em, op.payload.productIds, revertKeys)
+        : null;
+
     try {
       const result = await this.bulkUpdateService.bulkUpdate(
         req,
@@ -287,6 +307,22 @@ export class BulkOperationService {
           ),
         );
       }
+      // Build revert state from the products that actually succeeded, reading
+      // their post-state so undo can detect later changes (research §R5).
+      let revertState: BulkOperationRevertRecord[] | null = null;
+      if (revertKeys && revertKeys.length > 0 && beforeByProduct) {
+        const succeededIds = result.results
+          .filter((r) => r.status === 'succeeded')
+          .map((r) => r.productId)
+          .filter((pid) => beforeByProduct.has(pid));
+        const afterByProduct = await this.#snapshotProductFields(em, succeededIds, revertKeys);
+        revertState = succeededIds.map((pid) => ({
+          recordId: pid,
+          before: beforeByProduct.get(pid)!,
+          after: afterByProduct.get(pid) ?? {},
+        }));
+      }
+
       await em.nativeUpdate(
         BulkOperation,
         { id },
@@ -299,6 +335,9 @@ export class BulkOperationService {
           results: result.results.slice(0, MAX_PERSISTED_RESULTS),
           logs,
           finishedAt: new Date(),
+          ...(revertState && revertState.length > 0
+            ? { reversible: true, revertState }
+            : {}),
         },
       );
       await this.notify(op, 'completed', result.summary);
@@ -428,6 +467,115 @@ export class BulkOperationService {
       }
     }
   }
+
+  // ---- Feature 054 (US2) — undo -----------------------------------------
+
+  /**
+   * Undo a reversible bulk edit: restore every affected product whose current
+   * state still matches the operation's captured after-state; refuse (report,
+   * never clobber) any product changed since. Runs as an audited `bulk.undo`
+   * Command and is idempotent-safe on re-invocation (FR-006/FR-007/FR-014).
+   */
+  async undo(operationId: string): Promise<UndoOutcome> {
+    const em = this.emFactory();
+    const op = await em.findOne(BulkOperation, { id: operationId });
+    if (!op) return { ok: false, code: 'NOT_FOUND' };
+    if (op.status !== 'completed' || !op.reversible || !op.revertState || op.revertState.length === 0) {
+      return { ok: false, code: 'NOT_REVERSIBLE' };
+    }
+    if (op.undoStatus === 'reverted') return { ok: false, code: 'ALREADY_REVERTED' };
+    if (!this.commandBus) return { ok: false, code: 'NOT_REVERSIBLE' };
+    const records: RevertRecord[] = op.revertState.map((r) => ({
+      recordId: r.recordId,
+      before: r.before,
+      after: r.after,
+    }));
+    return this.commandBus.run(this.#undoCommand(operationId, records));
+  }
+
+  #undoCommand(operationId: string, records: readonly RevertRecord[]): Command<UndoOutcome> {
+    return {
+      action: 'product.bulk_update.undo',
+      objectType: 'bulk_operation',
+      objectId: operationId,
+      run: async ({ em }) => {
+        const op = await em.findOne(BulkOperation, { id: operationId });
+        if (!op || op.undoStatus === 'reverted') {
+          return {
+            result: { ok: true, reverted: [], conflicts: [], undoStatus: 'reverted' as const },
+            skipAudit: true,
+          };
+        }
+        const res = await applyUndo(em, records, {
+          readCurrent: async (tem, rec) => {
+            const p = await tem.findOne(Product, { id: rec.recordId });
+            return p ? pickProductFields(p, Object.keys(rec.after)) : null;
+          },
+          restore: async (tem, rec) => {
+            const p = await tem.findOne(Product, { id: rec.recordId });
+            if (!p) return;
+            tem.assign(p, rec.before);
+            tem.persist(p);
+          },
+        });
+        op.undoStatus = res.undoStatus === 'reverted' ? 'reverted' : 'partially_reverted';
+        op.undoneAt = new Date();
+        op.undoOperationId = randomUUID();
+        em.persist(op);
+        return {
+          result: { ok: true, ...res },
+          after: { reverted: res.reverted.length, conflicts: res.conflicts.length },
+        };
+      },
+    };
+  }
+
+  /** Read `productIds` and pick each product's values for `keys`. */
+  async #snapshotProductFields(
+    em: EntityManager,
+    productIds: readonly string[],
+    keys: readonly string[],
+  ): Promise<Map<string, Record<string, unknown>>> {
+    const out = new Map<string, Record<string, unknown>>();
+    if (productIds.length === 0) return out;
+    const products = await em.find(Product, { id: { $in: [...productIds] } });
+    for (const p of products) {
+      out.set(p.id, pickProductFields(p, keys));
+    }
+    return out;
+  }
+}
+
+/** Undo result surfaced to the route (mapped to 200/404/409). */
+export type UndoOutcome =
+  | { ok: true; reverted: string[]; conflicts: { recordId: string; reason: string }[]; undoStatus: 'reverted' | 'partially_reverted' | 'none' }
+  | { ok: false; code: 'NOT_FOUND' | 'NOT_REVERSIBLE' | 'ALREADY_REVERTED' };
+
+/**
+ * Field keys of a bulk edit that can be undone by restoring direct product
+ * columns. Returns `[]` (⇒ not reversible) when the edit is empty or touches a
+ * non-revertible field (the category bridge) — all-or-nothing, never partial.
+ */
+const NON_REVERTIBLE_BULK_FIELDS = new Set(['categoryIds']);
+function revertibleFieldKeys(fields: Record<string, unknown>): string[] {
+  const keys = Object.keys(fields);
+  if (keys.length === 0) return [];
+  if (keys.some((k) => NON_REVERTIBLE_BULK_FIELDS.has(k))) return [];
+  const set = new Set(keys);
+  // `status` changes also flip `archivedAt` in updateProduct — restore both.
+  if (set.has('status')) set.add('archivedAt');
+  return [...set];
+}
+
+/** Pick a plain, JSON-cloned snapshot of a product's `keys` for revert state. */
+function pickProductFields(product: Product, keys: readonly string[]): Record<string, unknown> {
+  const src = product as unknown as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const key of keys) {
+    const v = src[key];
+    out[key] = v === undefined ? null : (JSON.parse(JSON.stringify(v ?? null)) as unknown);
+  }
+  return out;
 }
 
 function logEntry(level: BulkOperationLogEntry['level'], message: string): BulkOperationLogEntry {

@@ -24,7 +24,7 @@ export class Migration090BulkOperationRevertState extends Migration {
       'alter table "catalog_bulk_operations" add column "reversible" boolean not null default false;',
     );
     this.addSql(
-      `alter table "catalog_bulk_operations" add column "undo_status" varchar(16) not null default 'none';`,
+      `alter table "catalog_bulk_operations" add column "undo_status" varchar(24) not null default 'none';`,
     );
     this.addSql('alter table "catalog_bulk_operations" add column "undone_at" timestamptz null;');
     this.addSql(

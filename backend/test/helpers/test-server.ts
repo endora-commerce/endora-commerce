@@ -981,6 +981,7 @@ export async function setupBackendServer(
     catalogModule({
       emFactory: em,
       eventBus,
+      commandBus,
       requireAdmin: requireTestAdmin(permissionService),
       auditLogService,
       requireApiKey: integrations.handle.requireApiKey,

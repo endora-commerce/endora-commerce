@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
+import type { CommandBus } from '../../commands/index.js';
 import { BULK_OPERATION_TYPES } from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
 import { defineModuleWorker } from '../_lifecycle/plugin-helpers.js';
@@ -99,6 +100,8 @@ export interface CatalogModuleOptions {
    * is a no-op and queued rows stay `pending` for direct-driven assertions.
    */
   redis?: Redis;
+  /** Feature 054 — enables bulk-edit undo (capture revert state + audited undo). */
+  commandBus?: CommandBus;
   /**
    * When `true` (and `redis` is provided), this process also runs the
    * bulk-operation **consumer** (a BullMQ worker). Co-locating the worker in
@@ -175,7 +178,9 @@ export function catalogModule(options: CatalogModuleOptions) {
             },
           }
         : {}),
-    });
+    },
+      options.commandBus,
+    );
 
     // When a reindex runner is wired, flipping an attribute's `searchable`
     // flag enqueues a `search_reindex` bulk operation (visible on the

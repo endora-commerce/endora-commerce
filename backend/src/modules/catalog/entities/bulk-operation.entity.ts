@@ -136,7 +136,7 @@ export class BulkOperation {
   reversible = false;
 
   /** Undo progress: `none` until undone, then `reverted` / `partially_reverted` (FR-014). */
-  @Property({ type: 'string', length: 16 })
+  @Property({ type: 'string', length: 24 })
   undoStatus: BulkOperationUndoStatus = 'none';
 
   /** When the undo completed. */
