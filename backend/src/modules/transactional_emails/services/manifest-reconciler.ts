@@ -34,6 +34,9 @@ export class TransactionalEmailReconciler {
   ) {}
 
   async reconcile(manifests: ReadonlyArray<ModuleManifest>): Promise<ReconcileResult> {
+    // command-coverage-ignore: idempotent boot reconciler — seeds/updates the
+    // module-declared email blocks/templates from manifests; a system bootstrap,
+    // not an operator-initiated write.
     const em = this.emFactory();
     let created = 0;
     let updated = 0;

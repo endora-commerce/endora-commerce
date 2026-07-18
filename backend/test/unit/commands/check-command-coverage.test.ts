@@ -128,6 +128,23 @@ describe('command coverage check (feature 054, FR-009 / FR-010) — method-level
     expect(analyzeSource(PATH, src)).toEqual([]);
   });
 
+  it('recognizes a `.audit` recorder receiver (e.g. InvoiceAuditRecorder) as an audit write', () => {
+    const src = `
+      export class Svc {
+        constructor(private em: () => any, private audit?: any) {}
+        async issue(orderId: string) {
+          const em = this.em();
+          const inv = em.create('Invoice', { orderId });
+          await em.persistAndFlush(inv);
+          if (this.audit) {
+            await this.audit.record({ action: 'invoice.issued', objectType: 'invoice', objectId: inv.id });
+          }
+          return inv;
+        }
+      }`;
+    expect(analyzeSource(PATH, src)).toEqual([]);
+  });
+
   it('treats the recordAuditFromContext(...) primitive as an audit write', () => {
     const src = `
       import { recordAuditFromContext } from '../../../commands/index.js';

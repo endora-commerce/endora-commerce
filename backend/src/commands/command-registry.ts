@@ -187,6 +187,19 @@ export const COMMAND_REGISTRY = {
   'mfa.disable': { reversible: false, description: 'Disable a subject 2FA' },
   'mfa.regenerate_recovery_codes': { reversible: false, description: 'Regenerate 2FA recovery codes' },
   'mfa.set_org_enforcement': { reversible: false, description: 'Set org 2FA enforcement policy' },
+  // Transactional emails module (US1).
+  'email_block.create': { reversible: false, description: 'Create an email block' },
+  'email_block.update': { reversible: false, description: 'Update an email block' },
+  'email_block.set_content': { reversible: false, description: 'Set email block content' },
+  'email_block.delete': { reversible: false, description: 'Delete an email block' },
+  'email_template.create': { reversible: false, description: 'Create an email template' },
+  'email_template.update': { reversible: false, description: 'Update an email template' },
+  'email_template.set_content': { reversible: false, description: 'Set email template content' },
+  'email_template.delete': { reversible: false, description: 'Delete an email template' },
+  // Invoices module (US1). invoice.issued / invoice.corrected already recorded
+  // via the InvoiceAuditRecorder; templates audited co-transactionally.
+  'invoice_template.create': { reversible: false, description: 'Create an invoice template' },
+  'invoice_template.save_content': { reversible: false, description: 'Save invoice template content' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

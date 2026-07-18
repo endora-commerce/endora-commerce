@@ -1603,6 +1603,7 @@ export async function setupBackendServer(
       requireCustomer: requireTestCustomer(),
       settingsService: settings.handle.settingsService,
       audit: auditLogService,
+      auditLog: auditLogService,
       resolveAdminUserId: (req) =>
         req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
       resolveCustomerContext: (req) => ({

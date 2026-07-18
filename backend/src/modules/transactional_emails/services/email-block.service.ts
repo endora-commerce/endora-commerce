@@ -18,6 +18,8 @@ import type { PuckDataTree } from '@b2b/email-components/schema/envelope';
 import { EMAIL_SAFE_COMPONENT_NAMES } from '@b2b/email-components/schema/component-types';
 import { walkUnknownComponents } from '@b2b/email-components/tree/walk-embeds';
 import { HttpError } from '../../../http/error-envelope.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { EmailBlock } from '../entities/email-block.entity.js';
 import { EmailBlockSalesChannel } from '../entities/email-block-sales-channel.entity.js';
 
@@ -31,7 +33,28 @@ function validateTree(content: unknown): void {
 }
 
 export class EmailBlockService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  #audit(
+    em: EntityManager,
+    action: string,
+    objectId: string,
+    stateBefore: Record<string, unknown> | null,
+    stateAfter: Record<string, unknown> | null,
+  ): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action,
+        objectType: 'email_block',
+        objectId,
+        stateBefore,
+        stateAfter,
+      });
+    }
+  }
 
   private async channelIds(em: EntityManager, blockId: string): Promise<string[]> {
     const rows = await em.find(EmailBlockSalesChannel, { blockId });
@@ -104,6 +127,7 @@ export class EmailBlockService {
     for (const scId of req.salesChannelIds ?? []) {
       em.persist(em.create(EmailBlockSalesChannel, { blockId: block.id, salesChannelId: scId, code: block.code }));
     }
+    this.#audit(em, 'email_block.create', block.id, null, { code: block.code, name: block.name });
     await em.flush();
     return this.get(block.id);
   }
@@ -124,6 +148,7 @@ export class EmailBlockService {
         em.persist(em.create(EmailBlockSalesChannel, { blockId: b.id, salesChannelId: scId, code: b.code }));
       }
     }
+    this.#audit(em, 'email_block.update', b.id, null, { code: b.code, name: b.name });
     await em.flush();
     return this.get(id);
   }
@@ -140,6 +165,7 @@ export class EmailBlockService {
     b.content = { schema_version: env.schema_version ?? 1, languages };
     if (!b.languages.includes(language)) b.languages = [...b.languages, language];
     b.version += 1;
+    this.#audit(em, 'email_block.set_content', b.id, null, { language, version: b.version });
     await em.flush();
     return this.get(id);
   }
@@ -149,6 +175,7 @@ export class EmailBlockService {
     const b = await this.loadOrThrow(em, id);
     if (b.isSystem) throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, 'System blocks cannot be deleted.');
     const bridges = await em.find(EmailBlockSalesChannel, { blockId: b.id });
+    this.#audit(em, 'email_block.delete', b.id, { code: b.code }, null);
     await em.removeAndFlush([...bridges, b]);
   }
 }

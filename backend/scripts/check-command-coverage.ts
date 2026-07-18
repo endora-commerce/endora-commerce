@@ -51,6 +51,8 @@ export const MIGRATED_MODULES: readonly string[] = [
   'languages',
   'mfa',
   'stripe',
+  'transactional_emails',
+  'invoices',
 ];
 
 const MUTATION_METHODS = new Set([
@@ -63,7 +65,8 @@ const MUTATION_METHODS = new Set([
   'flush',
 ]);
 
-const AUDIT_RECEIVER = /(auditLog|auditLogService|auditService|AuditLogService|cartAuditService)$/;
+const AUDIT_RECEIVER =
+  /(auditLog|auditLogService|auditService|AuditLogService|cartAuditService|\.audit)$/;
 const SUPPRESS_TOKEN = 'command-coverage-ignore';
 
 export type FindingKind = 'unaudited-sensitive-write' | 'double-audit';

@@ -59,6 +59,9 @@ export class InvoiceNumberGenerator {
     salesChannelId: string,
     issuedAt: Date,
   ): Promise<string> {
+    // command-coverage-ignore: gap-free sequence-counter increment under a row
+    // lock, invoked within the audited issue()/createCorrection() transaction;
+    // internal numbering bookkeeping, not a standalone audited write.
     const periodYear = issuedAt.getFullYear();
     let counter = await tx.findOne(
       InvoiceNumberCounter,

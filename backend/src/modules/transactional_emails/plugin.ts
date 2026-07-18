@@ -57,8 +57,8 @@ export function transactionalEmailsModule(
       ...(options.auditLog ? { auditLog: options.auditLog } : {}),
     });
 
-    const blocks = new EmailBlockService(options.emFactory);
-    const templates = new EmailTemplateService(options.emFactory);
+    const blocks = new EmailBlockService(options.emFactory, options.auditLog);
+    const templates = new EmailTemplateService(options.emFactory, options.auditLog);
 
     // Boot reconciliation: upsert definitions from manifests + registered defaults.
     const reconciler = new TransactionalEmailReconciler(options.emFactory, emailDefaultsRegistry);

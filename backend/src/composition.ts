@@ -1857,6 +1857,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireCustomer,
     settingsService: settings.handle.settingsService,
     audit: auditLogService,
+    auditLog: auditLogService,
     resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
     resolveCustomerContext: (req: FastifyRequest) => {
       const c = customerResolver(req);
