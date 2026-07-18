@@ -61,6 +61,11 @@ export const COMMAND_REGISTRY = {
   'product_link.bulk_create': { reversible: false, description: 'Create product links' },
   'product_link.delete': { reversible: false, description: 'Remove a product link' },
   'product_link.reorder': { reversible: false, description: 'Reorder product links' },
+  'bundle_slot.create': { reversible: false, description: 'Create a bundle slot' },
+  'bundle_slot.update': { reversible: false, description: 'Update a bundle slot' },
+  'bundle_slot.delete': { reversible: false, description: 'Delete a bundle slot' },
+  'bundle_option.add': { reversible: false, description: 'Add a bundle slot option' },
+  'bundle_option.remove': { reversible: false, description: 'Remove a bundle slot option' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

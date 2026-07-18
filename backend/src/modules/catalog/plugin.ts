@@ -198,7 +198,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       });
     }
 
-    const bundleServicePublic = new BundleService(options.emFactory);
+    const bundleServicePublic = new BundleService(options.emFactory, options.commandBus);
     await registerCatalogPublicRoutes(app, {
       queryService,
       searchQueryService,
@@ -219,7 +219,7 @@ export function catalogModule(options: CatalogModuleOptions) {
     const packagingUnitService = new PackagingUnitService(options.emFactory, options.commandBus);
     const productLinkService = new ProductLinkService(options.emFactory, options.commandBus);
     const groupedService = new GroupedService(options.emFactory, options.commandBus);
-    const bundleService = new BundleService(options.emFactory);
+    const bundleService = new BundleService(options.emFactory, options.commandBus);
     await registerCatalogApiKeyRoutes(app, {
       queryService,
       adminService,
