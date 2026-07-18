@@ -39,6 +39,7 @@
   "appShell.nav.customFields": "Custom Fields",
   "customFields.title": "Custom Fields",
   "customFields.description": "Define runtime typed fields on core entities without a code change or migration.",
+  "customFields.save": "Save custom fields",
   "appShell.nav.transactionalEmails": "Transactional Emails",
   "appShell.nav.emailBlocks": "Email Blocks",
   "appShell.nav.emailTemplates": "Email Templates",

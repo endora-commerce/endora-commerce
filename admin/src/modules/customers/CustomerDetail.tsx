@@ -15,6 +15,7 @@ import {
   AddressesPanel,
 } from './panels/ManagementPanels';
 import { DefaultPreferencesPanel } from '../quick_order/DefaultPreferencesPanel';
+import { CustomFieldValuesPanel } from '../custom_fields/CustomFieldValuesPanel';
 
 interface AdminCustomerDetail {
   id: string;
@@ -31,6 +32,7 @@ interface AdminCustomerDetail {
   lastLoginAt: string | null;
   block: { blockedAt: string; blockReason: string | null } | null;
   deletion: { deletedAt: string; anonymizedAt: string | null } | null;
+  customFieldValues?: Record<string, unknown>;
 }
 
 export function CustomerDetail(): ReactNode {
@@ -209,6 +211,16 @@ export function CustomerDetail(): ReactNode {
       <CustomerGroupPanel customerId={id} customerGroupId={c.customerGroupId} onChanged={(): void => void refresh()} />
       <AddressesPanel customerId={id} onChanged={(): void => void refresh()} />
       <DefaultPreferencesPanel scope="customer" scopeId={id} />
+
+      {/* Feature 055 — operator-defined custom fields for this customer. */}
+      <CustomFieldValuesPanel
+        entityType="customer"
+        values={c.customFieldValues ?? {}}
+        save={async (values): Promise<void> => {
+          await apiClient.patch(`/api/v1/admin/customers/${id}/custom-fields`, values);
+          await refresh();
+        }}
+      />
 
       <OrdersPanel customerId={id} />
       <QuoteRequestsPanel customerId={id} />

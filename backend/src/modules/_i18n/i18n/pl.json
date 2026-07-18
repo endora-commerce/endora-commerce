@@ -39,6 +39,7 @@
   "appShell.nav.customFields": "Pola niestandardowe",
   "customFields.title": "Pola niestandardowe",
   "customFields.description": "Definiuj typowane pola na kluczowych encjach bez zmiany kodu i migracji.",
+  "customFields.save": "Zapisz pola niestandardowe",
   "appShell.nav.transactionalEmails": "Maile transakcyjne",
   "appShell.nav.emailBlocks": "Bloki maili",
   "appShell.nav.emailTemplates": "Szablony maili",
