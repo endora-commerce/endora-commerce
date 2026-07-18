@@ -64,6 +64,9 @@ export interface SerializedBulkOperation {
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
+  reversible: boolean;
+  undoStatus: 'none' | 'reverted' | 'partially_reverted';
+  undoneAt: string | null;
 }
 
 export interface ListBulkOperationsInput {
@@ -611,5 +614,8 @@ function serialize(op: BulkOperation): SerializedBulkOperation {
     createdAt: op.createdAt.toISOString(),
     startedAt: op.startedAt ? op.startedAt.toISOString() : null,
     finishedAt: op.finishedAt ? op.finishedAt.toISOString() : null,
+    reversible: op.reversible,
+    undoStatus: op.undoStatus,
+    undoneAt: op.undoneAt ? op.undoneAt.toISOString() : null,
   };
 }

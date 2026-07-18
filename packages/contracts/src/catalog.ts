@@ -712,8 +712,24 @@ export const bulkOperationSchema = z.object({
   createdAt: z.string(),
   startedAt: z.string().nullable(),
   finishedAt: z.string().nullable(),
+  // Feature 054 — undo affordance.
+  reversible: z.boolean(),
+  undoStatus: z.enum(['none', 'reverted', 'partially_reverted']),
+  undoneAt: z.string().nullable(),
 });
 export type BulkOperation = z.infer<typeof bulkOperationSchema>;
+
+/** Response of POST /admin/catalog/bulk-operations/:id/undo. */
+export const bulkOperationUndoResponseSchema = z.object({
+  data: z.object({
+    undoStatus: z.enum(['none', 'reverted', 'partially_reverted']),
+    reverted: z.number().int().nonnegative(),
+    conflicts: z.array(
+      z.object({ recordId: z.string(), reason: z.string() }),
+    ),
+  }),
+});
+export type BulkOperationUndoResponse = z.infer<typeof bulkOperationUndoResponseSchema>;
 
 export const bulkOperationsListResponseSchema = z.object({
   data: z.array(bulkOperationSchema),
