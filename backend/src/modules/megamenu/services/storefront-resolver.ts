@@ -32,6 +32,13 @@ type ChannelRow = {
   default_language: string;
 };
 
+/** Request-resolved sales channel handed in by the resolver middleware. */
+export type ResolvedChannel = { id: string; code: string; defaultLanguage: string };
+
+function toChannelRow(channel: ResolvedChannel): ChannelRow {
+  return { id: channel.id, code: channel.code, default_language: channel.defaultLanguage };
+}
+
 type ItemRow = {
   id: string;
   parent_id: string | null;
@@ -64,12 +71,11 @@ export class StorefrontResolver {
   ) {}
 
   async resolveByChannelAndLanguage(input: {
-    salesChannelCode?: string | undefined;
+    resolvedChannel: ResolvedChannel;
     language?: string | undefined;
   }): Promise<ResolvedMegamenu | null> {
     const em = this.emFactory();
-    const channel = await this.resolveChannel(em, input.salesChannelCode);
-    if (!channel) return null;
+    const channel = toChannelRow(input.resolvedChannel);
 
     const requestedLanguage = input.language ?? channel.default_language;
 
@@ -202,19 +208,6 @@ export class StorefrontResolver {
         return { ...base, block, embedSide: target.embedSide };
       }
     }
-  }
-
-  private async resolveChannel(
-    em: EntityManager,
-    code: string | undefined,
-  ): Promise<ChannelRow | null> {
-    const rows = (await em.getConnection().execute(
-      code
-        ? `select id::text, code, default_language from sales_channels where code = ? and active = true limit 1`
-        : `select id::text, code, default_language from sales_channels where system_default = true limit 1`,
-      code ? [code] : [],
-    )) as ChannelRow[];
-    return rows[0] ?? null;
   }
 
   private async resolveIcon(

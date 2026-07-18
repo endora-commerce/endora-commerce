@@ -52,6 +52,9 @@ quality:
     # Feature 050 — every persisted entity must carry exactly one tenant-scope
     # classification decorator (fails the build on any unclassified entity).
     - pnpm --filter backend exec tsx scripts/check-entity-tenant-classification.ts
+    # Feature 053 (FR-011) — no storefront module may re-resolve the sales
+    # channel outside the canonical resolver. Allow-list is empty; enforced.
+    - pnpm --filter backend exec tsx scripts/check-channel-resolution.ts --enforce
   cache:
     key:
       files:

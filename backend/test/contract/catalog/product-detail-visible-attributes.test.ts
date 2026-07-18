@@ -38,6 +38,7 @@ describe('GET /catalog/products/:slug — visibleAttributes (T043)', () => {
     const res = await h.app.inject({
       method: 'GET',
       url: `/api/v1/catalog/products/${productSlug}`,
+      headers: { 'x-sales-channel': 'pl_retail' },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
@@ -64,6 +65,7 @@ describe('GET /catalog/products/:slug — visibleAttributes (T043)', () => {
     const res = await h.app.inject({
       method: 'GET',
       url: `/api/v1/catalog/products/${productSlug}`,
+      headers: { 'x-sales-channel': 'pl_retail' },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {

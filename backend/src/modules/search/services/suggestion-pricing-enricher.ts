@@ -2,7 +2,6 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DisplayMode, ProductSummary, SearchSuggestItem } from '@b2b/contracts';
 import { Product } from '../../catalog/entities/product.entity.js';
 import { Organization } from '../../organizations/entities/organization.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import type { SuggestionPricingEnricher } from '../routes.public.js';
 
 /**
@@ -27,7 +26,7 @@ export interface SuggestionPriceResolverPort {
     context: {
       quantity: number;
       organization?: Organization | null;
-      salesChannel: SalesChannel;
+      salesChannel: { id: string; defaultCurrency: string };
       currencyCode?: string;
     };
   }): Promise<{
@@ -48,13 +47,8 @@ export function createSuggestionPricingEnricher(deps: {
     if (items.length === 0) return [];
     const em = emFactory();
 
-    const channel = ctx.salesChannelCode
-      ? await em.findOne(SalesChannel, { code: ctx.salesChannelCode })
-      : ((await em.findOne(SalesChannel, { systemDefault: true })) ??
-        (await em.findOne(SalesChannel, { isPublic: true })));
-
-    // No channel ⇒ nothing to price against; hand back the raw summaries.
-    if (!channel) return items.map((item) => ({ ...item }));
+    // Feature 053 / FR-002: the channel is resolved once upstream and handed in.
+    const channel = ctx.resolvedChannel;
 
     const organization = ctx.organizationId
       ? await em.findOne(Organization, { id: ctx.organizationId })

@@ -77,6 +77,7 @@ describe('GET /api/v1/search/suggest — feature 006 / US1', () => {
     const res = await h.app.inject({
       method: 'GET',
       url: '/api/v1/search/suggest?q=pro',
+      headers: { 'x-sales-channel': 'pl_retail' },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
@@ -94,6 +95,7 @@ describe('GET /api/v1/search/suggest — feature 006 / US1', () => {
     const res = await h.app.inject({
       method: 'GET',
       url: '/api/v1/search/suggest?q=pro',
+      headers: { 'x-sales-channel': 'pl_retail' },
     });
     expect(res.statusCode).toBe(200);
     // The whole envelope must satisfy the enriched contract schema.

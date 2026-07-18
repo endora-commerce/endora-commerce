@@ -73,6 +73,7 @@ describe('catalog list — Meilisearch backend', () => {
     const res = await h.app.inject({
       method: 'GET',
       url: '/api/v1/catalog/products?limit=50',
+      headers: { 'x-sales-channel': 'pl_retail' },
     });
     expect(res.statusCode).toBe(200);
     expect(res.headers['x-search-backend']).toBe('meilisearch');

@@ -50,7 +50,7 @@ describe('Storefront resolver endpoint (feature 011 US5)', () => {
     const res = await h.app.inject({
       method: 'GET',
       url: `/api/v1/storefront/products/${SEED_PRODUCT_101_ID}/resolved-price?quantity=1`,
-      headers: { 'x-sales-channel-id': channel.id },
+      headers: { 'x-sales-channel': channel.code },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
@@ -89,11 +89,13 @@ describe('Storefront resolver endpoint (feature 011 US5)', () => {
     expect(body.data.resolvedPrice.currencyCode).toBeTruthy();
   });
 
-  it('returns 400 for an invalid X-Sales-Channel-Id', async () => {
+  it('returns 400 for an unknown X-Sales-Channel code (canonical resolver refuses)', async () => {
+    // Feature 053: the pricing route reads the resolved channel; an unknown
+    // channel code is refused by the resolver middleware before the handler.
     const res = await h.app.inject({
       method: 'GET',
       url: `/api/v1/storefront/products/${SEED_PRODUCT_101_ID}/resolved-price?quantity=1`,
-      headers: { 'x-sales-channel-id': '00000000-0000-4000-8000-00000000ffff' },
+      headers: { 'x-sales-channel': 'no-such-channel-053' },
     });
     expect(res.statusCode).toBe(400);
   });
@@ -119,7 +121,7 @@ describe('Storefront resolver endpoint (feature 011 US5)', () => {
     const res1 = await h.app.inject({
       method: 'GET',
       url: `/api/v1/storefront/products/${SEED_PRODUCT_101_ID}/resolved-price?quantity=1`,
-      headers: { 'x-sales-channel-id': channel.id },
+      headers: { 'x-sales-channel': channel.code },
     });
     expect(res1.statusCode).toBe(200);
     const b1 = res1.json() as { data: { resolvedPrice: { basePrice: { amount: string } } } };
@@ -128,7 +130,7 @@ describe('Storefront resolver endpoint (feature 011 US5)', () => {
     const res10 = await h.app.inject({
       method: 'GET',
       url: `/api/v1/storefront/products/${SEED_PRODUCT_101_ID}/resolved-price?quantity=10`,
-      headers: { 'x-sales-channel-id': channel.id },
+      headers: { 'x-sales-channel': channel.code },
     });
     expect(res10.statusCode).toBe(200);
     const b10 = res10.json() as { data: { resolvedPrice: { basePrice: { amount: string } } } };

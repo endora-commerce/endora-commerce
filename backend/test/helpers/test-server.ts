@@ -375,7 +375,8 @@ export async function setupBackendServer(
   // Redis persists across runs, so we must clear the cross-run-stale namespaces
   // here. (cms/megamenu/blog/dictionaries clear their own caches further down
   // via their module handle's `invalidateAll()`, which also drops the LRU.)
-  for (const pattern of ['session:*', 'sales-channels:v1:*', 'settings:v1:*']) {
+  // `sales-channels:*` covers every cache version (feature 053 bumped it to v2).
+  for (const pattern of ['session:*', 'sales-channels:*', 'settings:v1:*']) {
     const keys = await redis.keys(pattern);
     if (keys.length > 0) await redis.del(keys);
   }

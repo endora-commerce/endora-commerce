@@ -243,7 +243,7 @@ describe('Feature 011 / US6 — Sale → Special Price (T070)', () => {
     const res = await h.app.inject({
       method: 'GET',
       url: `/api/v1/storefront/products/${product.id}/resolved-price?quantity=1`,
-      headers: { 'x-sales-channel-id': salesChannel.id },
+      headers: { 'x-sales-channel': salesChannel.code },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {

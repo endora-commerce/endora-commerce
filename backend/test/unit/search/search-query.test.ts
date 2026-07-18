@@ -61,9 +61,9 @@ describe('buildSort', () => {
 
 describe('SearchQueryService — reserved-fallback contract', () => {
   it('throws SearchBackendUnavailable when Meilisearch is unreachable', async () => {
-    // Stub em returns no channel and no attribute rows; the service then
-    // proceeds to the Meilisearch call which fails fast against a port
-    // nothing is listening on.
+    // Stub em returns no attribute rows; the service uses the resolved channel
+    // from the context (no channel query) and proceeds to the Meilisearch call
+    // which fails fast against a port nothing is listening on.
     const fakeEm = {
       find: async (): Promise<unknown[]> => [],
       findOne: async (): Promise<null> => null,
@@ -73,7 +73,18 @@ describe('SearchQueryService — reserved-fallback contract', () => {
       { meilisearchHost: 'http://127.0.0.1:1', meilisearchApiKey: '' },
     );
     await expect(
-      service.listProducts({ limit: 10 }, {}),
+      service.listProducts(
+        { limit: 10 },
+        {
+          resolvedChannel: {
+            id: '00000000-0000-4000-8000-000000000000',
+            code: 'test',
+            isPublic: true,
+            defaultCurrency: 'PLN',
+            defaultLanguage: 'en-US',
+          },
+        },
+      ),
     ).rejects.toThrow(SearchBackendUnavailable);
   });
 });
