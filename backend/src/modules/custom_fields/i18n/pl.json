@@ -1,0 +1,11 @@
+{
+  "customFields.title": "Pola niestandardowe",
+  "customFields.description": "Definiuj typowane pola na kluczowych encjach bez zmiany kodu i migracji.",
+  "customFields.entity.category": "Kategoria",
+  "customFields.entity.order": "Zamówienie",
+  "customFields.entity.organization": "Organizacja",
+  "customFields.entity.customer": "Klient",
+  "customFields.entity.quoteRequest": "Zapytanie ofertowe",
+  "actions.openCustomFields.label": "Pola niestandardowe",
+  "actions.openCustomFields.description": "Definiuj pola na kluczowych encjach."
+}

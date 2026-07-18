@@ -92,6 +92,7 @@ import {
 import { CreditTopupProvider } from '../../src/modules/credit_limits/services/credit-topup.js';
 import { ReturnEmailNotifier } from '../../src/modules/returns/services/return-email-notifier.js';
 import { creditLimitsModule } from '../../src/modules/credit_limits/plugin.js';
+import { customFieldsModule } from '../../src/modules/custom_fields/plugin.js';
 import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
 import { analyticsModule } from '../../src/modules/analytics/plugin.js';
 import { importExportModule } from '../../src/modules/import_export/plugin.js';
@@ -220,6 +221,8 @@ export interface BackendServerHandle {
   adminI18n: ReturnType<typeof adminI18nModule>['handle'];
   /** Feature 015+ — promotions module handle (exposes PromotionService). */
   promotions: ReturnType<typeof promotionsModule>['handle'];
+  /** Feature 055 — custom fields (definition + value services). */
+  customFields: ReturnType<typeof customFieldsModule>['handle'];
   /** Feature 026 — moderation lifecycle, admin notifications, org context. */
   organizations: {
     moderationService: OrganizationModerationService;
@@ -271,6 +274,9 @@ function testAnyLabel(name: unknown): string {
 }
 
 const SEEDED_TABLES = [
+  // Feature 055 — custom fields. Options cascade from definitions.
+  'custom_field_options',
+  'custom_field_definitions',
   // Feature 042 — MFA. Recovery codes cascade from enrolments.
   'mfa_recovery_codes',
   'mfa_enrolments',
@@ -554,6 +560,15 @@ export async function setupBackendServer(
     resolveCustomerContext: customerResolver,
   });
 
+  // Feature 055 — Custom Fields Layer. No Redis publisher in tests; the cache
+  // uses its in-process map + TTL. The value service is threaded into the
+  // organizations module below so org custom-field values validate on edit.
+  const customFields = customFieldsModule({
+    emFactory: em,
+    commandBus,
+    requireAdmin: requireTestAdmin(permissionService),
+  });
+
   // US7 — API keys, webhooks, external integrations. The handle exposes
   // requireApiKey, threaded into the catalog module's by-sku route so that
   // surface gets real bearer-token gating.
@@ -746,6 +761,7 @@ export async function setupBackendServer(
     },
     admin.plugin,
     creditLimits.plugin,
+    customFields.plugin,
     integrations.plugin,
     analytics.plugin,
     importExport.plugin,
@@ -959,6 +975,7 @@ export async function setupBackendServer(
           restrictionService,
           effectivePriceListsService,
           taxIdValidationService: testTaxIdValidationService,
+          customFieldValues: customFields.handle.valueService,
           exposeTestProbe: true,
           dictionaryValidator: dictionaries.handle.validator,
           mailer: moderationMailer,
@@ -1877,6 +1894,7 @@ export async function setupBackendServer(
     dictionaries: dictionaries.handle,
     adminI18n: adminI18n.handle,
     promotions: promotions.handle,
+    customFields: customFields.handle,
     organizations: handleFeature026 ?? {
       moderationService: null as unknown as OrganizationModerationService,
       adminNotificationService: null as unknown as ReturnType<

@@ -43,6 +43,7 @@ import { normalizeOrganizationName } from '../services/normalize-name.js';
 @Entity({ tableName: 'organizations' })
 export class Organization {
   [OptionalProps]?:
+    | 'customFieldValues'
     | 'id'
     | 'createdAt'
     | 'updatedAt'
@@ -200,6 +201,10 @@ export class Organization {
 
   @Property({ type: 'datetime', onUpdate: () => new Date() })
   updatedAt: Date = new Date();
+
+  // Feature 055 — Custom Fields Layer value bag (inherits host tenant scope).
+  @Property({ type: 'json' })
+  customFieldValues: Record<string, unknown> = {};
 
   @Property({ type: 'datetime', nullable: true })
   deletedAt?: Date | null;

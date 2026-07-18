@@ -95,6 +95,13 @@ import { Migration087GoogleAnalyticsInit } from '../modules/google_analytics/mig
 import { Migration088TenantScopeIndexes } from './migrations/088_tenant_scope_indexes.js';
 import { Migration089PersonalOrganizations } from '../modules/organizations/migrations/089_personal_organizations.js';
 import { Migration090BulkOperationRevertState } from '../modules/catalog/migrations/090_bulk_operation_revert_state.js';
+// Feature 055 — Custom Fields Layer (init + additive host value columns).
+import { Migration091CustomFieldsInit } from '../modules/custom_fields/migrations/091_custom_fields_init.js';
+import { Migration092OrderCustomFieldValues } from '../modules/orders/migrations/092_order_custom_field_values.js';
+import { Migration093OrganizationCustomFieldValues } from '../modules/organizations/migrations/093_organization_custom_field_values.js';
+import { Migration094CustomerAccountCustomFieldValues } from '../modules/customer_accounts/migrations/094_customer_account_custom_field_values.js';
+import { Migration095QuoteRequestCustomFieldValues } from '../modules/quote_requests/migrations/095_quote_request_custom_field_values.js';
+import { Migration096CategoryCustomFieldValues } from '../modules/catalog/migrations/096_category_custom_field_values.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -454,6 +461,30 @@ export default defineConfig({
       {
         name: 'Migration090BulkOperationRevertState',
         class: Migration090BulkOperationRevertState,
+      },
+      {
+        name: 'Migration091CustomFieldsInit',
+        class: Migration091CustomFieldsInit,
+      },
+      {
+        name: 'Migration092OrderCustomFieldValues',
+        class: Migration092OrderCustomFieldValues,
+      },
+      {
+        name: 'Migration093OrganizationCustomFieldValues',
+        class: Migration093OrganizationCustomFieldValues,
+      },
+      {
+        name: 'Migration094CustomerAccountCustomFieldValues',
+        class: Migration094CustomerAccountCustomFieldValues,
+      },
+      {
+        name: 'Migration095QuoteRequestCustomFieldValues',
+        class: Migration095QuoteRequestCustomFieldValues,
+      },
+      {
+        name: 'Migration096CategoryCustomFieldValues',
+        class: Migration096CategoryCustomFieldValues,
       },
     ],
     transactional: true,

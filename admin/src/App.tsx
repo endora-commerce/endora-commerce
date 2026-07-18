@@ -76,6 +76,7 @@ import { BlocksPage as NewsletterBlocksPage } from './modules/newsletter/pages/B
 import { ProviderSettingsPage as NewsletterProviderPage } from './modules/newsletter/pages/ProviderSettingsPage.js';
 import { ReturnStatusesConfigPage } from './modules/returns/ReturnStatusesConfigPage.js';
 import { ReturnReasonsPage } from './modules/returns/ReturnReasonsPage.js';
+import { CustomFieldsPage } from './modules/custom_fields/CustomFieldsPage.js';
 import { ReturnDeliveryMethodsPage } from './modules/returns/ReturnDeliveryMethodsPage.js';
 import { OrderCreatePage } from './modules/orders/OrderCreatePage.js';
 import { QuickOrderOnBehalfPage } from './modules/quick_order/QuickOrderOnBehalfPage.js';
@@ -185,6 +186,7 @@ export function App(): ReactNode {
         <Route path="/orders/quick-order" element={<QuickOrderOnBehalfPage />} />
         <Route path="/orders/statuses" element={<OrderStatusConfigPage />} />
         <Route path="/orders/:id" element={<OrderDetail />} />
+        <Route path="/custom-fields" element={<CustomFieldsPage />} />
         <Route path="/returns" element={<ReturnsList />} />
         <Route path="/returns/statuses" element={<ReturnStatusesConfigPage />} />
         <Route path="/returns/reasons" element={<ReturnReasonsPage />} />

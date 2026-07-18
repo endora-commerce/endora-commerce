@@ -1,0 +1,11 @@
+{
+  "customFields.title": "Custom Fields",
+  "customFields.description": "Define runtime typed fields on core entities without a code change or migration.",
+  "customFields.entity.category": "Category",
+  "customFields.entity.order": "Order",
+  "customFields.entity.organization": "Organization",
+  "customFields.entity.customer": "Customer",
+  "customFields.entity.quoteRequest": "Quote request",
+  "actions.openCustomFields.label": "Custom fields",
+  "actions.openCustomFields.description": "Define runtime fields on core entities."
+}
