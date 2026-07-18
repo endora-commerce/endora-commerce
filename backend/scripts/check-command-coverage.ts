@@ -7,21 +7,28 @@ import ts from 'typescript';
  *
  * `pnpm --filter backend run check:command-coverage -- [--strict] [--module <name> ...]`
  *
- * Flags, in service files (`modules/<m>/services/*.ts`):
- *   1. an **unaudited sensitive write** — a mutation call (`persist*`,
- *      `nativeUpdate`, `nativeDelete`, `remove*`, `flush`) in a file that neither
- *      runs a Command (`commandBus.run(...)`) nor writes audit (`.record*(...)`);
- *   2. a **double-audit** — a file that BOTH runs a Command AND writes audit by
+ * Flags, **per method/function** in service files (`modules/<m>/services/*.ts`):
+ *   1. an **unaudited sensitive write** — a method that performs a mutation call
+ *      (`persist*`, `nativeUpdate`, `nativeDelete`, `remove*`, `flush`) but
+ *      neither runs a Command (`commandBus.run(...)`) nor writes audit
+ *      (`.record*(...)`) in the same method;
+ *   2. a **double-audit** — a method that BOTH runs a Command AND writes audit by
  *      hand (a converted write must remove its manual audit call, FR-010).
  *
- * Scope & staging: the check build-breaks (exit 1) only for **migrated modules**
- * (`MIGRATED_MODULES` below, or `--module`); every other module is report-only,
- * so coverage is enforced module-by-module as writes are converted (spec Assumptions).
- * `--strict` build-breaks on any finding regardless of module.
+ * Method-level (not file-level) so a partially-migrated file is judged per
+ * method: a converted `adjust` no longer masks an unaudited `grant` in the same
+ * file, and a Command in one method is not mistaken for a double-audit against a
+ * legacy `record()` in another.
  *
- * NOTE: this is a deliberately file-level heuristic (like the repo's
- * `i18n-hardcoded-strings` static check), not a full data-flow analysis — it
- * catches the regression shapes cheaply without a type checker.
+ * Escape hatch: a genuinely non-sensitive write (bookkeeping rows — progress
+ * counters, cache, queue state) can be exempted by putting a
+ * `command-coverage-ignore: <reason>` comment anywhere in the method. This keeps
+ * "build-breaking per module" honest without forcing audit onto non-domain writes,
+ * mirroring the audited `withSystemScope` escape hatch for tenancy.
+ *
+ * Scope & staging: build-breaks (exit 1) only for **migrated modules**
+ * (`MIGRATED_MODULES` below, or `--module`); every other module is report-only.
+ * `--strict` build-breaks on any finding.
  */
 
 /** Modules whose service writes have been converted to Commands (build-breaking). Grows over time. */
@@ -38,83 +45,151 @@ const MUTATION_METHODS = new Set([
 ]);
 
 const AUDIT_RECEIVER = /(auditLog|auditLogService|auditService|AuditLogService|cartAuditService)$/;
-
-export interface FileAnalysis {
-  /** Performs at least one entity-mutation call. */
-  hasMutation: boolean;
-  /** Calls an audit writer (`.record(` / `.recordWithin(`). */
-  hasAuditWrite: boolean;
-  /** Runs a Command through the bus (`commandBus.run(`). */
-  runsCommand: boolean;
-  /** Line of the first mutation, for reporting. */
-  firstMutationLine: number | null;
-}
-
-/** Static, dependency-free analysis of a single source file. */
-export function analyzeSource(filePath: string, source: string): FileAnalysis {
-  const sf = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true);
-  const analysis: FileAnalysis = {
-    hasMutation: false,
-    hasAuditWrite: false,
-    runsCommand: false,
-    firstMutationLine: null,
-  };
-
-  const visit = (node: ts.Node): void => {
-    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
-      const method = node.expression.name.text;
-      const receiver = node.expression.expression;
-      const receiverText = receiver.getText(sf);
-
-      if (MUTATION_METHODS.has(method)) {
-        analysis.hasMutation = true;
-        if (analysis.firstMutationLine === null) {
-          analysis.firstMutationLine =
-            sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
-        }
-      }
-      if ((method === 'record' || method === 'recordWithin') && AUDIT_RECEIVER.test(receiverText)) {
-        analysis.hasAuditWrite = true;
-      }
-      if (method === 'run' && /commandBus$/.test(receiverText)) {
-        analysis.runsCommand = true;
-      }
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(sf);
-  return analysis;
-}
+const SUPPRESS_TOKEN = 'command-coverage-ignore';
 
 export type FindingKind = 'unaudited-sensitive-write' | 'double-audit';
 
 export interface CoverageFinding {
   filePath: string;
   line: number | null;
+  method: string;
   kind: FindingKind;
   message: string;
 }
 
-/** Turn one file's analysis into findings (pure — no disk). */
-export function findingsFor(filePath: string, a: FileAnalysis): CoverageFinding[] {
-  const out: CoverageFinding[] = [];
-  if (a.hasMutation && !a.runsCommand && !a.hasAuditWrite) {
-    out.push({
-      filePath,
-      line: a.firstMutationLine,
-      kind: 'unaudited-sensitive-write',
-      message: 'sensitive mutation neither runs a Command nor records an audit entry',
-    });
+interface UnitScan {
+  hasMutation: boolean;
+  mutationLine: number | null;
+  hasAuditWrite: boolean;
+  runsCommand: boolean;
+}
+
+/** Scan a single method/function subtree for mutation / audit / command calls. */
+function scanUnit(node: ts.Node, sf: ts.SourceFile): UnitScan {
+  const scan: UnitScan = {
+    hasMutation: false,
+    mutationLine: null,
+    hasAuditWrite: false,
+    runsCommand: false,
+  };
+  const visit = (n: ts.Node): void => {
+    if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression)) {
+      const method = n.expression.name.text;
+      const receiverText = n.expression.expression.getText(sf);
+      if (MUTATION_METHODS.has(method)) {
+        scan.hasMutation = true;
+        if (scan.mutationLine === null) {
+          scan.mutationLine = sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
+        }
+      }
+      if ((method === 'record' || method === 'recordWithin') && AUDIT_RECEIVER.test(receiverText)) {
+        scan.hasAuditWrite = true;
+      }
+      if (method === 'run' && /commandBus$/.test(receiverText)) {
+        scan.runsCommand = true;
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  ts.forEachChild(node, visit);
+  return scan;
+}
+
+/** A named method/function unit and whether it opted out via the escape-hatch comment. */
+interface Unit {
+  name: string;
+  node: ts.Node;
+  suppressed: boolean;
+}
+
+function unitName(node: ts.Node): string {
+  if (
+    (ts.isMethodDeclaration(node) ||
+      ts.isFunctionDeclaration(node) ||
+      ts.isGetAccessorDeclaration(node) ||
+      ts.isSetAccessorDeclaration(node)) &&
+    node.name
+  ) {
+    return node.name.getText();
   }
-  if (a.runsCommand && a.hasAuditWrite) {
-    out.push({
-      filePath,
-      line: a.firstMutationLine,
-      kind: 'double-audit',
-      message: 'file runs a Command AND writes audit by hand (remove the manual record() — FR-010)',
-    });
+  if (ts.isConstructorDeclaration(node)) return 'constructor';
+  if (ts.isPropertyDeclaration(node) && node.name) return node.name.getText();
+  if (ts.isVariableDeclaration(node) && node.name) return node.name.getText();
+  return '<anonymous>';
+}
+
+function isArrowOrFn(node: ts.Node | undefined): boolean {
+  return !!node && (ts.isArrowFunction(node) || ts.isFunctionExpression(node));
+}
+
+/** Collect top-level method/function units (not inline callbacks). */
+function collectUnits(sf: ts.SourceFile): Unit[] {
+  const units: Unit[] = [];
+  const walk = (node: ts.Node): void => {
+    let root: ts.Node | null = null;
+    if (
+      ts.isMethodDeclaration(node) ||
+      ts.isFunctionDeclaration(node) ||
+      ts.isConstructorDeclaration(node) ||
+      ts.isGetAccessorDeclaration(node) ||
+      ts.isSetAccessorDeclaration(node)
+    ) {
+      root = node;
+    } else if (ts.isPropertyDeclaration(node) && isArrowOrFn(node.initializer)) {
+      root = node; // class field arrow method
+    } else if (
+      ts.isVariableDeclaration(node) &&
+      isArrowOrFn(node.initializer) &&
+      // only top-level `const x = () => …`, not locals inside a method
+      node.parent?.parent?.parent !== undefined &&
+      ts.isSourceFile(node.parent.parent.parent)
+    ) {
+      root = node;
+    }
+
+    if (root) {
+      units.push({ name: unitName(root), node: root, suppressed: nodeSuppressed(root, sf) });
+      return; // do NOT recurse — inline callbacks belong to this unit
+    }
+    ts.forEachChild(node, walk);
+  };
+  walk(sf);
+  return units;
+}
+
+function nodeSuppressed(node: ts.Node, sf: ts.SourceFile): boolean {
+  if (node.getFullText(sf).includes(SUPPRESS_TOKEN)) return true;
+  const leading = ts.getLeadingCommentRanges(sf.getFullText(), node.getFullStart()) ?? [];
+  return leading.some((r) => sf.getFullText().slice(r.pos, r.end).includes(SUPPRESS_TOKEN));
+}
+
+/** Static, dependency-free per-method analysis of a single source file. */
+export function analyzeSource(filePath: string, source: string): CoverageFinding[] {
+  const sf = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true);
+  const findings: CoverageFinding[] = [];
+  for (const unit of collectUnits(sf)) {
+    if (unit.suppressed) continue;
+    const scan = scanUnit(unit.node, sf);
+    if (scan.hasMutation && !scan.runsCommand && !scan.hasAuditWrite) {
+      findings.push({
+        filePath,
+        line: scan.mutationLine,
+        method: unit.name,
+        kind: 'unaudited-sensitive-write',
+        message: `${unit.name}() mutates without a Command or an audit entry`,
+      });
+    }
+    if (scan.runsCommand && scan.hasAuditWrite) {
+      findings.push({
+        filePath,
+        line: scan.mutationLine,
+        method: unit.name,
+        kind: 'double-audit',
+        message: `${unit.name}() runs a Command AND records audit by hand (remove the manual record() — FR-010)`,
+      });
+    }
   }
-  return out;
+  return findings;
 }
 
 /** Whether a repo-relative service path belongs to a build-breaking (migrated) module. */
@@ -167,8 +242,7 @@ function main(): void {
   let reportOnly = 0;
   for (const file of files) {
     const rel = relative(process.cwd(), file);
-    const analysis = analyzeSource(rel, readFileSync(file, 'utf8'));
-    const findings = findingsFor(rel, analysis);
+    const findings = analyzeSource(rel, readFileSync(file, 'utf8'));
     if (findings.length === 0) continue;
     const isBlocking = strict || isMigratedServicePath(rel, migrated);
     for (const f of findings) {

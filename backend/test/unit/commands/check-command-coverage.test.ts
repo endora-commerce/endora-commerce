@@ -1,14 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import {
-  analyzeSource,
-  findingsFor,
-  isMigratedServicePath,
-} from '../../../scripts/check-command-coverage.js';
+import { analyzeSource, isMigratedServicePath } from '../../../scripts/check-command-coverage.js';
 
 /** Fixture path under a service dir so the migrated-scope check applies. */
 const PATH = 'src/modules/catalog/services/thing.service.ts';
 
-describe('command coverage check (feature 054, FR-009 / FR-010)', () => {
+describe('command coverage check (feature 054, FR-009 / FR-010) — method-level', () => {
   it('flags an un-migrated sensitive write (mutation, no Command, no audit)', () => {
     const src = `
       export class ThingService {
@@ -20,8 +16,9 @@ describe('command coverage check (feature 054, FR-009 / FR-010)', () => {
           await em.persistAndFlush(t);
         }
       }`;
-    const findings = findingsFor(PATH, analyzeSource(PATH, src));
+    const findings = analyzeSource(PATH, src);
     expect(findings.map((f) => f.kind)).toEqual(['unaudited-sensitive-write']);
+    expect(findings[0]?.method).toBe('rename');
   });
 
   it('passes a write expressed as a Command (no manual audit)', () => {
@@ -32,12 +29,10 @@ describe('command coverage check (feature 054, FR-009 / FR-010)', () => {
           return this.commandBus.run(new RenameThingCommand(id));
         }
       }`;
-    const a = analyzeSource(PATH, src);
-    expect(a.runsCommand).toBe(true);
-    expect(findingsFor(PATH, a)).toEqual([]);
+    expect(analyzeSource(PATH, src)).toEqual([]);
   });
 
-  it('passes a legacy write that still audits by hand (no mutation-without-coverage)', () => {
+  it('passes a legacy write that still audits by hand', () => {
     const src = `
       export class ThingService {
         constructor(private em: () => any, private auditLog: any) {}
@@ -47,10 +42,10 @@ describe('command coverage check (feature 054, FR-009 / FR-010)', () => {
           await this.auditLog.record({ action: 'thing.rename', objectType: 'thing', objectId: id });
         }
       }`;
-    expect(findingsFor(PATH, analyzeSource(PATH, src))).toEqual([]);
+    expect(analyzeSource(PATH, src)).toEqual([]);
   });
 
-  it('flags a double-audit: runs a Command AND records audit by hand', () => {
+  it('flags a double-audit within a single method (Command AND manual record)', () => {
     const src = `
       export class ThingService {
         constructor(private commandBus: any, private auditLogService: any) {}
@@ -59,8 +54,50 @@ describe('command coverage check (feature 054, FR-009 / FR-010)', () => {
           await this.auditLogService.record({ action: 'thing.rename', objectType: 'thing', objectId: id });
         }
       }`;
-    const findings = findingsFor(PATH, analyzeSource(PATH, src));
+    const findings = analyzeSource(PATH, src);
     expect(findings.map((f) => f.kind)).toContain('double-audit');
+  });
+
+  it('does NOT false-positive a double-audit across different methods (mid-migration)', () => {
+    // `patch` runs a Command; a separate legacy `audit()` helper still calls record().
+    const src = `
+      export class ThingService {
+        constructor(private commandBus: any, private auditLog: any) {}
+        patch(id: string) { return this.commandBus.run(new PatchCommand(id)); }
+        private async audit(action: string) {
+          await this.auditLog.record({ action, objectType: 'thing', objectId: '1' });
+        }
+      }`;
+    expect(analyzeSource(PATH, src)).toEqual([]);
+  });
+
+  it('does NOT let a converted method mask an unaudited sibling in the same file', () => {
+    // `adjust` is covered (Command); `grant` is a bare persist → still flagged.
+    const src = `
+      export class Svc {
+        constructor(private em: () => any, private commandBus: any) {}
+        adjust(input: any) { return this.commandBus.run(new AdjustCommand(input)); }
+        async grant(input: any) {
+          const em = this.em();
+          const row = em.create('X', input);
+          await em.persistAndFlush(row);
+        }
+      }`;
+    const findings = analyzeSource(PATH, src);
+    expect(findings.map((f) => f.method)).toEqual(['grant']);
+  });
+
+  it('respects the command-coverage-ignore escape hatch for bookkeeping writes', () => {
+    const src = `
+      export class Svc {
+        constructor(private em: () => any) {}
+        async bumpCounter(id: string) {
+          // command-coverage-ignore: bulk-operation progress bookkeeping, not a domain audit target
+          const em = this.em();
+          await em.nativeUpdate('BulkOperation', { id }, { processed: 1 });
+        }
+      }`;
+    expect(analyzeSource(PATH, src)).toEqual([]);
   });
 
   it('scopes build-breaking to migrated modules', () => {
