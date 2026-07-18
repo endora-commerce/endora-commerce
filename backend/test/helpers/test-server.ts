@@ -595,6 +595,7 @@ export async function setupBackendServer(
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
     redis,
+    auditLog: auditLogService,
   });
 
   // Feature 005 — sales-channels module is built BEFORE every other module

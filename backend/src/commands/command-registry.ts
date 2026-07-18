@@ -159,6 +159,15 @@ export const COMMAND_REGISTRY = {
   'asset_folder.create': { reversible: false, description: 'Create an asset folder' },
   'asset_folder.update': { reversible: false, description: 'Update an asset folder' },
   'asset_folder.delete': { reversible: false, description: 'Delete an asset folder' },
+  // Dictionaries module (US1) — admin reference data.
+  'country.create': { reversible: false, description: 'Create a country' },
+  'country.update': { reversible: false, description: 'Update a country' },
+  'country.set_default': { reversible: false, description: 'Set the default country' },
+  'country.delete': { reversible: false, description: 'Delete a country' },
+  'language_country.upsert': { reversible: false, description: 'Upsert a language-country association' },
+  'language_country.delete': { reversible: false, description: 'Delete a language-country association' },
+  'dictionary_translation.upsert': { reversible: false, description: 'Upsert a dictionary translation' },
+  'dictionary_translation.delete': { reversible: false, description: 'Delete a dictionary translation' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

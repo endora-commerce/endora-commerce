@@ -426,6 +426,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     requireAdmin,
     redis,
+    auditLog: auditLogService,
   });
 
   const salesChannels = salesChannelsModule({

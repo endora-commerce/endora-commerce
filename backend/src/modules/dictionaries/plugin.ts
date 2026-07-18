@@ -8,6 +8,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type { DictionaryValidator as DictionaryValidatorPort } from '@b2b/contracts';
+import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import {
   runDictionarySeedReconciler,
   type SeedReconcilerSummary,
@@ -33,6 +34,8 @@ export interface DictionariesModuleOptions {
   requireAdmin?: RequireAdminFactory;
   /** Redis is optional — when absent, the registry cache is skipped. */
   redis?: Redis;
+  /** Feature 054 — audits dictionary writes co-transactionally when provided. */
+  auditLog?: AuditLogService;
 }
 
 export interface DictionariesModuleHandle {
@@ -61,7 +64,11 @@ export function dictionariesModule(options: DictionariesModuleOptions): {
   };
   const labelResolver = new LabelResolver(options.emFactory);
   const readService = new DictionaryReadService(options.emFactory, cache, labelResolver);
-  const translationService = new TranslationService(options.emFactory, invalidateDictionaryState);
+  const translationService = new TranslationService(
+    options.emFactory,
+    invalidateDictionaryState,
+    options.auditLog,
+  );
 
   const handle: DictionariesModuleHandle = {
     validator,
@@ -80,10 +87,14 @@ export function dictionariesModule(options: DictionariesModuleOptions): {
     if (options.requireAdmin) {
       await registerDictionaryAdminRoutes(app, {
         emFactory: options.emFactory,
-        countryService: new CountryService(options.emFactory, invalidateDictionaryState),
+        countryService: new CountryService(options.emFactory, invalidateDictionaryState, options.auditLog),
         currencyService: new CurrencyService(options.emFactory, invalidateDictionaryState),
         languageService: new LanguageService(options.emFactory, invalidateDictionaryState),
-        languageCountryService: new LanguageCountryService(options.emFactory, invalidateDictionaryState),
+        languageCountryService: new LanguageCountryService(
+          options.emFactory,
+          invalidateDictionaryState,
+          options.auditLog,
+        ),
         translationService,
         invalidateDictionaryState,
         requireAdmin: options.requireAdmin,

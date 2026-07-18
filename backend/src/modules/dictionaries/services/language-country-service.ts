@@ -14,12 +14,32 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { LanguageCountry } from '../entities/language-country.entity.js';
 import { Language } from '../../languages/entities/language.entity.js';
 import { Country } from '../entities/country.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 export class LanguageCountryService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly invalidateDictionaryCache?: () => Promise<void>,
+    private readonly auditLog?: AuditLogService,
   ) {}
+
+  #audit(
+    em: EntityManager,
+    action: string,
+    objectId: string,
+    stateAfter: Record<string, unknown> | null,
+  ): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action,
+        objectType: 'language_country',
+        objectId,
+        stateBefore: null,
+        stateAfter,
+      });
+    }
+  }
 
   async listForLanguage(languageCode: string): Promise<LanguageCountry[]> {
     const em = this.emFactory();
@@ -78,8 +98,10 @@ export class LanguageCountryService {
       languageCode: input.languageCode,
       countryCode: input.countryCode,
     });
+    const objId = `${input.languageCode}:${input.countryCode}`;
     if (existing) {
       if (input.isPrimary !== undefined) existing.isPrimary = wantsPrimary;
+      this.#audit(em, 'language_country.upsert', objId, { isPrimary: existing.isPrimary });
       await em.flush();
       await this.invalidateDictionaryCache?.();
       return existing;
@@ -89,7 +111,9 @@ export class LanguageCountryService {
       countryCode: input.countryCode,
       ...(input.isPrimary !== undefined ? { isPrimary: wantsPrimary } : {}),
     });
-    await em.persistAndFlush(row);
+    em.persist(row);
+    this.#audit(em, 'language_country.upsert', objId, { isPrimary: row.isPrimary });
+    await em.flush();
     await this.invalidateDictionaryCache?.();
     return row;
   }
@@ -98,6 +122,7 @@ export class LanguageCountryService {
     const em = this.emFactory();
     const row = await em.findOne(LanguageCountry, { languageCode, countryCode });
     if (!row) return;
+    this.#audit(em, 'language_country.delete', `${languageCode}:${countryCode}`, null);
     await em.removeAndFlush(row);
     await this.invalidateDictionaryCache?.();
   }
