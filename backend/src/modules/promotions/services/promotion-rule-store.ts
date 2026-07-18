@@ -3,13 +3,36 @@ import { ERROR_CODES, type PromotionRule } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { PromotionRuleEntity } from '../entities/promotion-rule.entity.js';
 import { Promotion } from '../entities/promotion.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /**
  * Feature 045 (US6) — CRUD for standalone, named promotion rules and the
  * dependency lookup used to surface / block deletion of in-use rules.
  */
 export class PromotionRuleStore {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  #audit(
+    em: EntityManager,
+    action: string,
+    objectId: string,
+    stateBefore: Record<string, unknown> | null,
+    stateAfter: Record<string, unknown> | null,
+  ): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action,
+        objectType: 'promotion_rule',
+        objectId,
+        stateBefore,
+        stateAfter,
+      });
+    }
+  }
 
   async list(): Promise<PromotionRuleEntity[]> {
     return this.emFactory().find(PromotionRuleEntity, {}, { orderBy: { name: 'asc' } });
@@ -38,7 +61,9 @@ export class PromotionRuleStore {
       description: input.description ?? null,
       definition: input.definition,
     });
-    await em.persistAndFlush(row);
+    em.persist(row);
+    this.#audit(em, 'promotion_rule.create', row.id, null, { name: row.name });
+    await em.flush();
     return row;
   }
 
@@ -56,6 +81,7 @@ export class PromotionRuleStore {
     row.name = input.name;
     row.description = input.description ?? null;
     row.definition = input.definition;
+    this.#audit(em, 'promotion_rule.update', row.id, null, { name: row.name });
     await em.flush();
     return row;
   }
@@ -72,6 +98,7 @@ export class PromotionRuleStore {
         `rule_in_use: referenced by ${inUse.length} promotion(s)`,
       );
     }
+    this.#audit(em, 'promotion_rule.delete', row.id, { name: row.name }, null);
     await em.removeAndFlush(row);
   }
 }

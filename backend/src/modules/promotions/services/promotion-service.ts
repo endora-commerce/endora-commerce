@@ -10,6 +10,8 @@ import {
   type PromotionRule,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
 import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 import { Promotion } from '../entities/promotion.entity.js';
@@ -93,8 +95,29 @@ export class PromotionService {
     private readonly resolveOrganizationStatus?: (orgId: string) => Promise<string | null>,
     /** Feature 045 — pluggable action catalogue. Defaults to the built-ins. */
     private readonly actionRegistry: PromotionActionRegistry = createPromotionActionRegistry(),
+    /** Feature 054 — co-transactional audit sink (audit_log_entries). */
+    private readonly auditLog?: AuditLogService,
   ) {
     this.usageService = new PromotionUsageService(emFactory);
+  }
+
+  /** Feature 054 — co-transactional promotion audit on `em` (actor from context). */
+  #audit(
+    em: EntityManager,
+    action: string,
+    objectId: string,
+    stateBefore: Record<string, unknown> | null,
+    stateAfter: Record<string, unknown> | null,
+  ): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action,
+        objectType: 'promotion',
+        objectId,
+        stateBefore,
+        stateAfter,
+      });
+    }
   }
 
   private readonly usageService: PromotionUsageService;
@@ -135,13 +158,16 @@ export class PromotionService {
     const data = buildPromotionData(input);
     if (existing) {
       Object.assign(existing, data);
+      this.#audit(em, 'promotion.update', existing.id, null, { name: existing.name, code: existing.code });
       await em.flush();
       return existing;
     }
     // `data` is built from a partial input; `name` is always present per the
     // schema, but the conditional spreads widen the inferred type.
     const row = em.create(Promotion, data as unknown as Promotion);
-    await em.persistAndFlush(row);
+    em.persist(row);
+    this.#audit(em, 'promotion.create', row.id, null, { name: row.name, code: row.code });
+    await em.flush();
     if (this.salesChannelMembership) {
       await this.salesChannelMembership.bindToDefaultIfEmpty('promotion', row.id);
     }
@@ -155,6 +181,7 @@ export class PromotionService {
     if (!existing) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Promotion ${id} not found.`);
     await this.validateUpsertInput(em, input, existing);
     Object.assign(existing, buildPromotionData(input));
+    this.#audit(em, 'promotion.update', existing.id, null, { name: existing.name, code: existing.code });
     await em.flush();
     return existing;
   }
@@ -192,6 +219,7 @@ export class PromotionService {
     const em = this.emFactory();
     const row = await em.findOne(Promotion, { id });
     if (!row) return;
+    this.#audit(em, 'promotion.delete', row.id, { name: row.name, code: row.code }, null);
     await em.removeAndFlush(row);
   }
 

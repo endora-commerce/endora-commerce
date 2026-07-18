@@ -9,10 +9,13 @@ import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import type { CatalogQueryService } from '../catalog/services/catalog-query.service.js';
 import type { DictionaryValidator } from '@b2b/contracts';
+import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 
 export interface PromotionsModuleOptions {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
+  /** Feature 054 — audits promotion/coupon/rule writes co-transactionally when provided. */
+  auditLog?: AuditLogService;
   /** Feature 005 / T027b — when injected, new Promotions auto-bind to the system default. */
   salesChannelMembership?: SalesChannelMembershipService;
   /**
@@ -63,9 +66,11 @@ export function promotionsModule(options: PromotionsModuleOptions): {
     options.dictionaryValidator,
     undefined, // auditLogger — default console
     options.resolveOrganizationStatus,
+    undefined, // actionRegistry — default built-ins
+    options.auditLog,
   );
-  const couponService = new CouponService(options.emFactory);
-  const ruleStore = new PromotionRuleStore(options.emFactory);
+  const couponService = new CouponService(options.emFactory, options.auditLog);
+  const ruleStore = new PromotionRuleStore(options.emFactory, options.auditLog);
   const statsService = new PromotionStatsService(options.emFactory);
   return {
     handle: { promotionService, couponService, ruleStore, statsService },

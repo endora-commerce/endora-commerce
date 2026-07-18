@@ -654,6 +654,7 @@ export async function setupBackendServer(
   const promotions = promotionsModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
+    auditLog: auditLogService,
     salesChannelMembership: salesChannels.handle.membershipService,
     // Feature 012 / US8 — wire the catalog read port so the rule-target
     // picker + criterion validation work in tests.

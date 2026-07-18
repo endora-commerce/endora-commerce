@@ -481,6 +481,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const promotions = promotionsModule({
     emFactory: em,
     requireAdmin,
+    auditLog: auditLogService,
     salesChannelMembership: salesChannels.handle.membershipService,
     catalogQueryService: catalogQueryServiceForPromotions,
     dictionaryValidator: dictionaries.handle.validator,

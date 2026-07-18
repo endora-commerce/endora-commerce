@@ -131,6 +131,16 @@ export const COMMAND_REGISTRY = {
   'organization.tax_id_validation': { reversible: false, description: 'Validate an organization tax ID' },
   'organization.sales_rep_assign': { reversible: false, description: 'Assign a sales rep to an organization' },
   'organization.sales_rep_unassign': { reversible: false, description: 'Unassign a sales rep from an organization' },
+  // Promotions module (US1).
+  'promotion.create': { reversible: false, description: 'Create a promotion' },
+  'promotion.update': { reversible: false, description: 'Update a promotion' },
+  'promotion.delete': { reversible: false, description: 'Delete a promotion' },
+  'promotion_rule.create': { reversible: false, description: 'Create a named promotion rule' },
+  'promotion_rule.update': { reversible: false, description: 'Update a named promotion rule' },
+  'promotion_rule.delete': { reversible: false, description: 'Delete a named promotion rule' },
+  'coupon.create_single': { reversible: false, description: 'Create a single coupon' },
+  'coupon.generate_batch': { reversible: false, description: 'Generate a coupon batch' },
+  'coupon.set_active_bulk': { reversible: false, description: 'Bulk toggle coupon active state' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog
