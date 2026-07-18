@@ -398,7 +398,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // sitemap generator can read the per-channel `sales_channels.storefront_url`
   // setting via the SettingsService port. See `const seo = seoModule(...)` /
   // `modules.push(seo.plugin)` further down.
-  const i18n = i18nModule({ emFactory: em, requireAdmin });
+  const i18n = i18nModule({ emFactory: em, requireAdmin, auditLog: auditLogService });
 
   // Feature 005 — Sales Channels module. The boot-time
   // DefaultChannelReconciler runs FIRST so every other module can rely on a

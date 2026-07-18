@@ -589,6 +589,7 @@ export async function setupBackendServer(
   const i18n = i18nModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
+    auditLog: auditLogService,
   });
 
   const dictionaries = dictionariesModule({

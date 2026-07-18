@@ -168,6 +168,18 @@ export const COMMAND_REGISTRY = {
   'language_country.delete': { reversible: false, description: 'Delete a language-country association' },
   'dictionary_translation.upsert': { reversible: false, description: 'Upsert a dictionary translation' },
   'dictionary_translation.delete': { reversible: false, description: 'Delete a dictionary translation' },
+  // Currencies module (US1).
+  'currency.create': { reversible: false, description: 'Create a currency' },
+  'currency.upsert': { reversible: false, description: 'Upsert a currency' },
+  'currency.update': { reversible: false, description: 'Update a currency' },
+  'currency.set_default': { reversible: false, description: 'Set the default currency' },
+  'currency.delete': { reversible: false, description: 'Delete a currency' },
+  // Languages module (US1).
+  'language.create': { reversible: false, description: 'Create a language' },
+  'language.upsert': { reversible: false, description: 'Upsert a language' },
+  'language.update': { reversible: false, description: 'Update a language' },
+  'language.set_default': { reversible: false, description: 'Set the default language' },
+  'language.delete': { reversible: false, description: 'Delete a language' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

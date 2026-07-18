@@ -2,6 +2,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Currency } from '../entities/currency.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /**
  * CurrencyService — admin CRUD over the currencies pool.
@@ -22,7 +24,26 @@ export class CurrencyService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly invalidateDictionaryCache?: () => Promise<void>,
+    private readonly auditLog?: AuditLogService,
   ) {}
+
+  #audit(
+    em: EntityManager,
+    action: string,
+    objectId: string,
+    stateBefore: Record<string, unknown> | null,
+    stateAfter: Record<string, unknown> | null,
+  ): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action,
+        objectType: 'currency',
+        objectId,
+        stateBefore,
+        stateAfter,
+      });
+    }
+  }
 
   async list(): Promise<Currency[]> {
     const em = this.emFactory();
@@ -71,7 +92,9 @@ export class CurrencyService {
       ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
       ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
     });
-    await em.persistAndFlush(row);
+    em.persist(row);
+    this.#audit(em, 'currency.create', row.code, null, { label: row.label });
+    await em.flush();
     await this.invalidateDictionaryCache?.();
     return row;
   }
@@ -114,6 +137,7 @@ export class CurrencyService {
       existing.symbol = input.symbol;
       if (input.isActive !== undefined) existing.isActive = input.isActive;
       if (input.sortOrder !== undefined) existing.sortOrder = input.sortOrder;
+      this.#audit(em, 'currency.upsert', existing.code, null, { label: existing.label });
       await em.flush();
       await this.invalidateDictionaryCache?.();
       return existing;
@@ -125,7 +149,9 @@ export class CurrencyService {
       ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
       ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
     });
-    await em.persistAndFlush(row);
+    em.persist(row);
+    this.#audit(em, 'currency.upsert', row.code, null, { label: row.label });
+    await em.flush();
     await this.invalidateDictionaryCache?.();
     return row;
   }
@@ -194,6 +220,7 @@ export class CurrencyService {
     if (input.isActive !== undefined) existing.isActive = input.isActive;
     if (input.sortOrder !== undefined) existing.sortOrder = input.sortOrder;
 
+    this.#audit(em, 'currency.update', existing.code, null, { label: existing.label, isActive: existing.isActive });
     await em.flush();
     await this.invalidateDictionaryCache?.();
     return existing;
@@ -219,6 +246,8 @@ export class CurrencyService {
     await em.nativeUpdate(Currency, { isDefault: true }, { isDefault: false });
     await em.nativeUpdate(Currency, { code }, { isDefault: true });
     target.isDefault = true;
+    this.#audit(em, 'currency.set_default', code, null, { isDefault: true });
+    await em.flush();
     await this.invalidateDictionaryCache?.();
     return target;
   }
@@ -289,6 +318,7 @@ export class CurrencyService {
         [{ path: 'consumers', issue: JSON.stringify(dependents) }],
       );
     }
+    this.#audit(em, 'currency.delete', row.code, { label: row.label }, null);
     await em.removeAndFlush(row);
     await this.invalidateDictionaryCache?.();
   }

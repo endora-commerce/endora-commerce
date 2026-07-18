@@ -88,8 +88,8 @@ export function dictionariesModule(options: DictionariesModuleOptions): {
       await registerDictionaryAdminRoutes(app, {
         emFactory: options.emFactory,
         countryService: new CountryService(options.emFactory, invalidateDictionaryState, options.auditLog),
-        currencyService: new CurrencyService(options.emFactory, invalidateDictionaryState),
-        languageService: new LanguageService(options.emFactory, invalidateDictionaryState),
+        currencyService: new CurrencyService(options.emFactory, invalidateDictionaryState, options.auditLog),
+        languageService: new LanguageService(options.emFactory, invalidateDictionaryState, options.auditLog),
         languageCountryService: new LanguageCountryService(
           options.emFactory,
           invalidateDictionaryState,
