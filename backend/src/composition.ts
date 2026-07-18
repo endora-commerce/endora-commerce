@@ -979,7 +979,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCustomerContext: customerResolver,
       salesChannelMembership: salesChannels.handle.membershipService,
       pricingService: priceLists.handle.pricingService,
-      addressService: new AddressService(em, dictionaries.handle.validator),
+      addressService: new AddressService(em, dictionaries.handle.validator, auditLogService),
       promotionService: promotions.handle.promotionService,
       redis,
       // Feature 027 US5 — abandonment-sweep resolvers + dispatcher.

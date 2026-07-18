@@ -143,7 +143,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       options.getMfaLoginPort,
       options.auditLogService,
     );
-    const addressService = new AddressService(options.emFactory, options.dictionaryValidator);
+    const addressService = new AddressService(options.emFactory, options.dictionaryValidator, options.auditLogService);
     const invitationService = new InvitationService(
       options.emFactory,
       mailer,

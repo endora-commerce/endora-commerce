@@ -43,6 +43,8 @@ export class SessionService {
   ) {}
 
   async createSession(input: CreateSessionInput): Promise<SessionCookiePayload> {
+    // command-coverage-ignore: session lifecycle — mints an auth session; auth
+    // infrastructure (owned by SessionService), not an audited domain write.
     const em = this.emFactory();
     const rawToken = randomBytes(32).toString('base64url');
     const tokenHash = sha256Hex(rawToken);
@@ -100,6 +102,8 @@ export class SessionService {
   }
 
   async destroySession(sessionId: string): Promise<void> {
+    // command-coverage-ignore: session lifecycle — logout/session revoke; auth
+    // infrastructure, not an audited domain write.
     const em = this.emFactory();
     const session = await em.findOne(Session, { id: sessionId });
     if (session) {
@@ -114,6 +118,8 @@ export class SessionService {
    * FR-016/SC-002). Clears both the Postgres rows and their Redis caches.
    */
   async destroyAllForCustomer(customerAccountId: string): Promise<void> {
+    // command-coverage-ignore: session lifecycle — revokes all sessions for a
+    // customer; auth infrastructure, not an audited domain write.
     const em = this.emFactory();
     const sessions = await em.find(Session, { customerAccountId });
     if (sessions.length === 0) return;
@@ -128,6 +134,8 @@ export class SessionService {
    * session (Redis marker) to avoid write amplification on every request.
    */
   async touchLastSeen(sessionId: string): Promise<void> {
+    // command-coverage-ignore: session lifecycle — refreshes last-seen presence;
+    // high-volume auth bookkeeping, not an audited domain write.
     const marker = `seen:${sessionId}`;
     const set = await this.redis.set(marker, '1', 'EX', 60, 'NX');
     if (set === null) return; // touched within the last minute

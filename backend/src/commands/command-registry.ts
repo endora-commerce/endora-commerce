@@ -224,6 +224,14 @@ export const COMMAND_REGISTRY = {
   'admin_user.update': { reversible: false, description: 'Update an admin user' },
   'admin_user.delete': { reversible: false, description: 'Soft-delete an admin user' },
   'admin_user.change_password': { reversible: false, description: 'Admin changes their password' },
+  // Addresses module (US1).
+  'address.create': { reversible: false, description: 'Create an org address' },
+  'address.update': { reversible: false, description: 'Update an org address' },
+  'address.delete': { reversible: false, description: 'Delete an org address' },
+  'customer_address.create': { reversible: false, description: 'Create a customer address' },
+  'customer_address.update': { reversible: false, description: 'Update a customer address' },
+  'customer_address.delete': { reversible: false, description: 'Delete a customer address' },
+  'customer_account.register_standalone': { reversible: false, description: 'Standalone (B2C) customer registration' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

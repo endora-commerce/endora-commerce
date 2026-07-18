@@ -5,6 +5,8 @@ import {
   type DictionaryValidator,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { dispatchValidatorMode } from '../../dictionaries/services/dispatch-validator-mode.js';
 import { Address } from '../entities/address.entity.js';
 
@@ -20,7 +22,14 @@ export class AddressService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly dictionaryValidator?: DictionaryValidator,
+    private readonly auditLog?: AuditLogService,
   ) {}
+
+  #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, { action, objectType: 'address', objectId, stateBefore, stateAfter });
+    }
+  }
 
   async list(organizationId: string, kind?: 'delivery' | 'billing'): Promise<Address[]> {
     const em = this.emFactory();
@@ -64,7 +73,9 @@ export class AddressService {
         ...(input.phone ? { phone: input.phone } : {}),
         isDefault: input.isDefault ?? false,
       });
-      await txEm.persistAndFlush(address);
+      txEm.persist(address);
+      this.#audit(txEm, 'address.create', address.id, null, { organizationId, kind: address.kind });
+      await txEm.flush();
       return address;
     });
   }
@@ -108,6 +119,7 @@ export class AddressService {
       if (patch.country !== undefined) address.country = patch.country.toUpperCase();
       if (patch.phone !== undefined) address.phone = patch.phone;
       if (patch.isDefault !== undefined) address.isDefault = patch.isDefault;
+      this.#audit(txEm, 'address.update', address.id, null, { organizationId, kind: address.kind });
       await txEm.flush();
       return address;
     });
@@ -123,6 +135,7 @@ export class AddressService {
     // entity there references addresses via snapshot, so a true "in-use" block
     // must query the Orders table. For now we soft-delete.
     address.deletedAt = new Date();
+    this.#audit(em, 'address.delete', address.id, { organizationId, kind: address.kind }, null);
     await em.flush();
   }
 

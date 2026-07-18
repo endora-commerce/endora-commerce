@@ -91,8 +91,9 @@ export function customersModule(options: CustomersModuleOptions): {
     resolveAllowRegistrationWithoutOrganization:
       options.resolveAllowRegistrationWithoutOrganization,
     personalOrganizationService,
+    auditLog: options.auditLogService,
   });
-  const customerAddressService = new CustomerAddressService(options.emFactory);
+  const customerAddressService = new CustomerAddressService(options.emFactory, options.auditLogService);
   const defaultPreferenceService = new DefaultPreferenceService(
     options.emFactory,
     options.auditLogService,
