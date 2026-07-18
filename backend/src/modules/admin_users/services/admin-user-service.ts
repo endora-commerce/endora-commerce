@@ -5,6 +5,8 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { hashPassword } from '../../auth/services/password-hasher.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
 import { AdminRole } from '../../admin_roles/entities/admin-role.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /**
  * AdminUserService (T193 / FR-080..FR-083). Backs the admin panel's
@@ -52,7 +54,16 @@ export interface ListAdminUsersResult {
 }
 
 export class AdminUserService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, { action, objectType: 'admin_user', objectId, stateBefore, stateAfter });
+    }
+  }
 
   /**
    * List non-deleted admin users with optional substring search and offset
@@ -160,6 +171,7 @@ export class AdminUserService {
       ...(input.adminRoleId ? { adminRoleId: input.adminRoleId } : {}),
       status: 'active',
     });
+    this.#audit(em, 'admin_user.create', user.id, null, { email: user.email });
     try {
       await em.persistAndFlush(user);
     } catch (err) {
@@ -188,6 +200,7 @@ export class AdminUserService {
     if (input.password !== undefined) {
       user.passwordHash = await hashPassword(input.password);
     }
+    this.#audit(em, 'admin_user.update', user.id, null, { email: user.email, status: user.status });
     await em.flush();
     return user;
   }
@@ -197,6 +210,7 @@ export class AdminUserService {
     const user = await this.#getByIdOn(em, id);
     user.deletedAt = new Date();
     user.status = 'inactive';
+    this.#audit(em, 'admin_user.delete', user.id, { email: user.email }, null);
     await em.flush();
   }
 
@@ -211,6 +225,8 @@ export class AdminUserService {
     id: string,
     preferredLanguage: string | null,
   ): Promise<AdminUser> {
+    // command-coverage-ignore: per-admin Admin-UI language preference — personal
+    // UI setting, not an audited domain-state mutation.
     const em = this.emFactory();
     const user = await this.#getByIdOn(em, id);
     user.preferredLanguage = preferredLanguage;

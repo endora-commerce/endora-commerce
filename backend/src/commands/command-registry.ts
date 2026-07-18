@@ -219,6 +219,11 @@ export const COMMAND_REGISTRY = {
   'newsletter_automation.update': { reversible: false, description: 'Update a newsletter automation' },
   'newsletter_automation.activate': { reversible: false, description: 'Activate a newsletter automation' },
   'newsletter_automation.pause': { reversible: false, description: 'Pause a newsletter automation' },
+  // Admin users module (US1).
+  'admin_user.create': { reversible: false, description: 'Create an admin user' },
+  'admin_user.update': { reversible: false, description: 'Update an admin user' },
+  'admin_user.delete': { reversible: false, description: 'Soft-delete an admin user' },
+  'admin_user.change_password': { reversible: false, description: 'Admin changes their password' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

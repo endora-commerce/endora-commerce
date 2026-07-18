@@ -50,6 +50,7 @@ export function adminModule(
     options.emFactory,
     options.sessionService,
     options.getMfaLoginPort,
+    options.auditLogService,
   );
   const impersonationService = new ImpersonationService(
     options.emFactory,
@@ -62,7 +63,7 @@ export function adminModule(
     permissionService: options.permissionService,
     auditLogService: options.auditLogService,
   };
-  const adminUserService = new AdminUserService(options.emFactory);
+  const adminUserService = new AdminUserService(options.emFactory, options.auditLogService);
   const adminRoleService =
     options.adminRoleService ??
     new AdminRoleService(options.emFactory, options.permissionCatalogueService);

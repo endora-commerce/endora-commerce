@@ -5,6 +5,8 @@ import { hashPassword, verifyPassword } from '../../auth/services/password-hashe
 import type { SessionService } from '../../auth/services/session-service.js';
 import type { MfaLoginPort } from '../../auth/services/mfa-login-port.js';
 import { AdminUser } from '../entities/admin-user.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /**
  * AdminAuthService (T186; two-step login added in feature 042). login →
@@ -30,6 +32,7 @@ export class AdminAuthService {
     private readonly sessionService: SessionService,
     /** Lazily resolved so composition can late-bind the MFA module. */
     private readonly getMfaLoginPort?: () => MfaLoginPort | undefined,
+    private readonly auditLog?: AuditLogService,
   ) {}
 
   async login(input: {
@@ -69,6 +72,8 @@ export class AdminAuthService {
       ...(input.ip !== undefined ? { ipAddress: input.ip } : {}),
       ...(input.userAgent !== undefined ? { userAgent: input.userAgent } : {}),
     });
+    // command-coverage-ignore: stamps lastLoginAt — high-volume auth bookkeeping
+    // (session lifecycle owned by SessionService), not an audited domain write.
     admin.lastLoginAt = new Date();
     await em.flush();
     return {
@@ -98,6 +103,15 @@ export class AdminAuthService {
       );
     }
     admin.passwordHash = await hashPassword(newPassword);
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action: 'admin_user.change_password',
+        objectType: 'admin_user',
+        objectId: admin.id,
+        stateBefore: null,
+        stateAfter: { via: 'self_service' },
+      });
+    }
     await em.flush();
   }
 
