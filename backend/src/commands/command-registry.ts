@@ -55,6 +55,9 @@ export const COMMAND_REGISTRY = {
   'gallery_item.create': { reversible: false, description: 'Create a gallery item' },
   'gallery_item.update': { reversible: false, description: 'Update a gallery item' },
   'gallery_item.delete': { reversible: false, description: 'Delete a gallery item' },
+  'grouped_item.add': { reversible: false, description: 'Add a grouped-product child' },
+  'grouped_item.update': { reversible: false, description: 'Update a grouped-product child' },
+  'grouped_item.delete': { reversible: false, description: 'Remove a grouped-product child' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

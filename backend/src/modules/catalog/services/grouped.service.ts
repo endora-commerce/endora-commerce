@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import type { CommandBus } from '../../../commands/index.js';
 import { Product } from '../entities/product.entity.js';
 import { GroupedItem } from '../entities/grouped-item.entity.js';
 
@@ -22,7 +24,30 @@ export interface GroupedItemRow {
 }
 
 export class GroupedService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /** Feature 054 — audits grouped-item writes co-transactionally when provided. */
+    private readonly commandBus?: CommandBus,
+  ) {}
+
+  /** Feature 054 — run a grouped-item write through the Command Bus. */
+  async #audited<T>(
+    action: string,
+    objectId: string,
+    write: (em: EntityManager) => Promise<{
+      result: T;
+      before: Record<string, unknown> | null;
+      after: Record<string, unknown> | null;
+    }>,
+  ): Promise<T> {
+    if (this.commandBus) {
+      return this.commandBus.run({ action, objectType: 'grouped_item', objectId, run: ({ em }) => write(em) });
+    }
+    const em = this.emFactory();
+    const w = await write(em);
+    await em.flush();
+    return w.result;
+  }
 
   async list(parentProductId: string): Promise<GroupedItemRow[]> {
     const em = this.emFactory();
@@ -76,27 +101,38 @@ export class GroupedService {
       const tally = await em.find(GroupedItem, { parentProductId });
       position = tally.reduce((max, r) => Math.max(max, r.position + 1), 0);
     }
-    const row = em.create(GroupedItem, {
-      parentProductId,
-      childProductId: input.childProductId,
-      quantity: input.quantity,
-      position,
-    });
-    try {
-      await em.persistAndFlush(row);
-    } catch (err) {
-      if (
-        err instanceof Error &&
-        /uniq_grouped_items_parent_child/.test(err.message)
-      ) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.VALIDATION_FAILED,
-          `Child product "${input.childProductId}" is already in this group.`,
-        );
+    const id = randomUUID();
+    const row = await this.#audited('grouped_item.add', id, async (cem) => {
+      const r = cem.create(GroupedItem, {
+        id,
+        parentProductId,
+        childProductId: input.childProductId,
+        quantity: input.quantity,
+        position,
+      });
+      try {
+        await cem.flush();
+      } catch (err) {
+        if (err instanceof Error && /uniq_grouped_items_parent_child/.test(err.message)) {
+          throw new HttpError(
+            409,
+            ERROR_CODES.VALIDATION_FAILED,
+            `Child product "${input.childProductId}" is already in this group.`,
+          );
+        }
+        throw err;
       }
-      throw err;
-    }
+      return {
+        result: r,
+        before: null,
+        after: {
+          parentProductId,
+          childProductId: input.childProductId,
+          quantity: input.quantity,
+          position,
+        },
+      };
+    });
     return this.toRow(row);
   }
 
@@ -105,43 +141,44 @@ export class GroupedService {
     itemId: string,
     input: { quantity?: number | undefined; position?: number | undefined },
   ): Promise<GroupedItemRow> {
-    const em = this.emFactory();
-    await this.assertGroupedParent(em, parentProductId);
-    const row = await em.findOne(GroupedItem, { id: itemId, parentProductId });
-    if (!row) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.GROUPED_ITEM_NOT_FOUND,
-        `Grouped item "${itemId}" not found on parent ${parentProductId}.`,
-      );
-    }
-    if (input.quantity !== undefined) {
-      if (input.quantity <= 0) {
+    const row = await this.#audited('grouped_item.update', itemId, async (em) => {
+      await this.assertGroupedParent(em, parentProductId);
+      const r = await em.findOne(GroupedItem, { id: itemId, parentProductId });
+      if (!r) {
         throw new HttpError(
-          400,
-          ERROR_CODES.VALIDATION_FAILED,
-          'quantity must be positive.',
+          404,
+          ERROR_CODES.GROUPED_ITEM_NOT_FOUND,
+          `Grouped item "${itemId}" not found on parent ${parentProductId}.`,
         );
       }
-      row.quantity = input.quantity;
-    }
-    if (input.position !== undefined) row.position = input.position;
-    await em.flush();
+      const before = { quantity: r.quantity, position: r.position };
+      if (input.quantity !== undefined) {
+        if (input.quantity <= 0) {
+          throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'quantity must be positive.');
+        }
+        r.quantity = input.quantity;
+      }
+      if (input.position !== undefined) r.position = input.position;
+      return { result: r, before, after: { quantity: r.quantity, position: r.position } };
+    });
     return this.toRow(row);
   }
 
   async removeItem(parentProductId: string, itemId: string): Promise<void> {
-    const em = this.emFactory();
-    await this.assertGroupedParent(em, parentProductId);
-    const row = await em.findOne(GroupedItem, { id: itemId, parentProductId });
-    if (!row) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.GROUPED_ITEM_NOT_FOUND,
-        `Grouped item "${itemId}" not found on parent ${parentProductId}.`,
-      );
-    }
-    await em.removeAndFlush(row);
+    await this.#audited('grouped_item.delete', itemId, async (em) => {
+      await this.assertGroupedParent(em, parentProductId);
+      const row = await em.findOne(GroupedItem, { id: itemId, parentProductId });
+      if (!row) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.GROUPED_ITEM_NOT_FOUND,
+          `Grouped item "${itemId}" not found on parent ${parentProductId}.`,
+        );
+      }
+      const before = { parentProductId, childProductId: row.childProductId };
+      em.remove(row);
+      return { result: undefined, before, after: null };
+    });
   }
 
   private async assertGroupedParent(

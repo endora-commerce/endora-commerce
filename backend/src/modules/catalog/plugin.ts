@@ -218,7 +218,7 @@ export function catalogModule(options: CatalogModuleOptions) {
     const attachmentService = new AttachmentService(options.emFactory);
     const packagingUnitService = new PackagingUnitService(options.emFactory, options.commandBus);
     const productLinkService = new ProductLinkService(options.emFactory);
-    const groupedService = new GroupedService(options.emFactory);
+    const groupedService = new GroupedService(options.emFactory, options.commandBus);
     const bundleService = new BundleService(options.emFactory);
     await registerCatalogApiKeyRoutes(app, {
       queryService,
