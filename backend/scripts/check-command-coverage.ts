@@ -26,12 +26,19 @@ import ts from 'typescript';
  * "build-breaking per module" honest without forcing audit onto non-domain writes,
  * mirroring the audited `withSystemScope` escape hatch for tenancy.
  *
- * Scope & staging: build-breaks (exit 1) only for **migrated modules**
- * (`MIGRATED_MODULES` below, or `--module`); every other module is report-only.
- * `--strict` build-breaks on any finding.
+ * Scope & staging: build-breaks (exit 1) for **migrated modules**
+ * (`MIGRATED_MODULES` below, or `--module`); any other module would be
+ * report-only. The platform-wide rollout is COMPLETE — every module is migrated
+ * (see the list below) and CI runs with `--strict`, so a finding in ANY module,
+ * including a brand-new one not yet in the list, fails the build.
  */
 
-/** Modules whose service writes have been converted to Commands (build-breaking). Grows over time. */
+/**
+ * Modules whose service writes are converted to Commands / audited / escape-hatched
+ * (build-breaking). The rollout is complete: this is the full module set. New
+ * modules should be added here as they land, but CI's `--strict` flag already
+ * fails on findings in unlisted modules too, so coverage cannot silently regress.
+ */
 export const MIGRATED_MODULES: readonly string[] = [
   'credit_limits',
   'price_lists',
