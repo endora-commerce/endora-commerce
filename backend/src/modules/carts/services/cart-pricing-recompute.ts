@@ -145,6 +145,8 @@ export class CartPricingRecompute {
 
   /** Persist the most recently recomputed prices back onto `cart_items`. */
   async writeBackTo(em: EntityManager, items: CartItem[], prices: RecomputedLinePrice[]): Promise<void> {
+    // command-coverage-ignore: writes derived (recomputed) line prices back to the
+    // ephemeral cart — transient working state, not an audited domain mutation.
     const byId = new Map(prices.map((p) => [p.cartItemId, p]));
     const now = new Date();
     for (const item of items) {

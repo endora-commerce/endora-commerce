@@ -73,6 +73,9 @@ export class CartCouponService {
    * caller's in-memory cart is also updated.
    */
   async apply(cart: Cart, code: string | null): Promise<CouponApplyResult> {
+    // command-coverage-ignore: transient cart coupon state — the durable applied
+    // promotion is captured on the order at checkout (audited there); the cart is
+    // ephemeral pre-order working state.
     if (code === null) {
       await this.clear(cart);
       return { outcome: 'applied', cart, appliedCode: '' };
@@ -196,6 +199,7 @@ export class CartCouponService {
   }
 
   async clear(cart: Cart): Promise<void> {
+    // command-coverage-ignore: transient cart coupon state (see apply()).
     if (cart.appliedPromotionCode === null) return;
     const em = this.emFactory();
     const managedCart = await em.findOne(Cart, { id: cart.id });
@@ -278,6 +282,7 @@ export class CartCouponService {
   }
 
   private async persistDrop(em: EntityManager, cart: Cart): Promise<void> {
+    // command-coverage-ignore: transient cart coupon state (see apply()).
     const managed = await em.findOne(Cart, { id: cart.id });
     if (!managed) return;
     managed.appliedPromotionCode = null;
