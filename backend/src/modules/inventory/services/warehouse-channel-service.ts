@@ -1,5 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../../http/error-envelope.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import { actorFromContext } from '../../../commands/index.js';
+import { getTenantContext } from '../../../tenancy/index.js';
 import { Warehouse } from '../entities/warehouse.entity.js';
 import { WarehouseChannelAssignment } from '../entities/warehouse-channel-assignment.entity.js';
 
@@ -36,7 +39,37 @@ export interface PatchAssignmentInput {
  *     (`setDefault` demotes the previous default in the same flush).
  */
 export class WarehouseChannelService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /** Feature 054 — audits assignment writes co-transactionally when provided. */
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  /**
+   * Feature 054 — record a co-transactional audit entry for a bridge write on
+   * the passed `em` (committed by the caller's flush). Actor is resolved from
+   * the ambient TenantContext; the admin routes always carry one.
+   */
+  #audit(
+    em: EntityManager,
+    action: string,
+    objectId: string,
+    stateBefore: Record<string, unknown> | null,
+    stateAfter: Record<string, unknown> | null,
+  ): void {
+    if (!this.auditLog) return;
+    const ctx = getTenantContext();
+    const actor = ctx ? actorFromContext(ctx) : null;
+    this.auditLog.recordWithin(em, {
+      action,
+      objectType: 'warehouse_channel_assignment',
+      objectId,
+      actorAdminUserId: actor?.actorAdminUserId ?? null,
+      impersonatedCustomerAccountId: actor?.impersonatedCustomerAccountId ?? null,
+      stateBefore,
+      stateAfter,
+    });
+  }
 
   async listForChannel(channelId: string): Promise<ChannelWarehouseAssignmentDTO[]> {
     const em = this.emFactory();
@@ -92,6 +125,12 @@ export class WarehouseChannelService {
         existing.isDefault = true;
       }
       if (input.sortOrder !== undefined) existing.sortOrder = input.sortOrder;
+      this.#audit(em, 'warehouse_channel.assign', existing.id, null, {
+        warehouseId: existing.warehouseId,
+        salesChannelId: channelId,
+        isDefault: existing.isDefault,
+        sortOrder: existing.sortOrder,
+      });
       await em.flush();
       return this.toDTO(existing, warehouse);
     }
@@ -106,7 +145,14 @@ export class WarehouseChannelService {
       isDefault: input.isDefault ?? false,
       sortOrder: input.sortOrder ?? 0,
     });
-    await em.persistAndFlush(row);
+    em.persist(row);
+    this.#audit(em, 'warehouse_channel.assign', row.id, null, {
+      warehouseId: row.warehouseId,
+      salesChannelId: channelId,
+      isDefault: row.isDefault,
+      sortOrder: row.sortOrder,
+    });
+    await em.flush();
     return this.toDTO(row, warehouse);
   }
 
@@ -136,6 +182,10 @@ export class WarehouseChannelService {
       );
     }
     if (input.sortOrder !== undefined) row.sortOrder = input.sortOrder;
+    this.#audit(em, 'warehouse_channel.update', row.id, null, {
+      isDefault: row.isDefault,
+      sortOrder: row.sortOrder,
+    });
     await em.flush();
     const warehouse = await em.findOne(Warehouse, { id: row.warehouseId });
     return this.toDTO(row, warehouse!);
@@ -167,6 +217,12 @@ export class WarehouseChannelService {
         'Promote another warehouse to default before unassigning the current default',
       );
     }
+    this.#audit(em, 'warehouse_channel.unassign', row.id, {
+      warehouseId: row.warehouseId,
+      salesChannelId: channelId,
+      isDefault: row.isDefault,
+      sortOrder: row.sortOrder,
+    }, null);
     await em.removeAndFlush(row);
   }
 

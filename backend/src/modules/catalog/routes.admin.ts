@@ -258,23 +258,9 @@ export async function registerCatalogAdminRoutes(
     },
     async (request) => {
       const body = updateProductRequestSchema.parse(request.body);
-      const auditCtx = deps.resolveAdminAuditContext?.(request);
-      const product = await adminService.updateProduct(
-        request.params.id,
-        body,
-        auditCtx
-          ? {
-              actorAdminUserId: auditCtx.actorAdminUserId,
-              impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId ?? null,
-              ipAddress: request.ip ?? null,
-              userAgent:
-                typeof request.headers['user-agent'] === 'string'
-                  ? request.headers['user-agent']
-                  : null,
-              requestId: request.id,
-            }
-          : undefined,
-      );
+      // Feature 054 — audited co-transactionally via the Command Bus; the actor
+      // is derived from the ambient TenantContext (not from the request body).
+      const product = await adminService.updateProductAudited(request.params.id, body);
       return { data: serializeAdminProduct(product) };
     },
   );
@@ -415,6 +401,38 @@ export async function registerCatalogAdminRoutes(
           throw new HttpError(404, ERROR_CODES.NOT_FOUND, `bulk operation ${id} not found`);
         }
         return { data: op };
+      },
+    );
+
+    // Feature 054 (US2) — undo a reversible bulk edit. Restores every affected
+    // product whose current state still matches the operation, reports the rest
+    // as conflicts (never clobbered), and audits the undo. 404 when unknown,
+    // 409 when not reversible / already reverted.
+    app.post(
+      '/api/v1/admin/catalog/bulk-operations/:id/undo',
+      { preHandler: requireAdmin('catalog:write') },
+      async (request) => {
+        const { id } = request.params as { id: string };
+        const outcome = await bulkOperationService.undo(id);
+        if (!outcome.ok) {
+          if (outcome.code === 'NOT_FOUND') {
+            throw new HttpError(404, ERROR_CODES.NOT_FOUND, `bulk operation ${id} not found`);
+          }
+          throw new HttpError(
+            409,
+            ERROR_CODES.VERSION_CONFLICT,
+            outcome.code === 'ALREADY_REVERTED'
+              ? 'This bulk operation has already been undone.'
+              : 'This bulk operation cannot be undone.',
+          );
+        }
+        return {
+          data: {
+            undoStatus: outcome.undoStatus,
+            reverted: outcome.reverted.length,
+            conflicts: outcome.conflicts,
+          },
+        };
       },
     );
   }

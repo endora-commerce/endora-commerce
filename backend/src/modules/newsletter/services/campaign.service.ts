@@ -13,12 +13,16 @@ import { NewsletterCampaignSubscriber } from '../entities/newsletter-campaign-su
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
 import type { NewsletterCampaignDispatchService } from './campaign-dispatch.service.js';
 import type { NewsletterContentService } from './content.service.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 export interface CampaignServiceDeps {
   emFactory: () => EntityManager;
   dispatch: NewsletterCampaignDispatchService;
   content: NewsletterContentService;
   isProviderConfigured: () => Promise<boolean>;
+  /** Feature 054 — audits campaign lifecycle writes co-transactionally when provided. */
+  auditLog?: AuditLogService;
   /**
    * Enqueue the plan job (production). When omitted, send runs the dispatch
    * inline (console fallback / tests). `delayMs` schedules a future fire.
@@ -34,6 +38,18 @@ function iso(d: Date | null): string | null {
 export class NewsletterCampaignService {
   constructor(private readonly deps: CampaignServiceDeps) {}
 
+  #audit(em: EntityManager, action: string, objectId: string, stateAfter: Record<string, unknown> | null): void {
+    if (this.deps.auditLog) {
+      recordAuditFromContext(this.deps.auditLog, em, {
+        action,
+        objectType: 'newsletter_campaign',
+        objectId,
+        stateBefore: null,
+        stateAfter,
+      });
+    }
+  }
+
   async create(input: CreateCampaignRequest): Promise<CampaignDetail> {
     const em = this.deps.emFactory();
     const campaign = em.create(NewsletterCampaign, {
@@ -46,7 +62,9 @@ export class NewsletterCampaignService {
       targetTagIds: input.targetTagIds ?? [],
       trackingEnabled: input.trackingEnabled ?? true,
     });
-    await em.persistAndFlush(campaign);
+    em.persist(campaign);
+    this.#audit(em, 'newsletter_campaign.create', campaign.id, { name: campaign.name });
+    await em.flush();
     return this.toDetail(campaign);
   }
 
@@ -66,6 +84,7 @@ export class NewsletterCampaignService {
     if (input.targetTagIds !== undefined) campaign.targetTagIds = input.targetTagIds;
     if (input.trackingEnabled !== undefined) campaign.trackingEnabled = input.trackingEnabled;
     campaign.version += 1;
+    this.#audit(em, 'newsletter_campaign.update', campaign.id, { name: campaign.name });
     await em.persistAndFlush(campaign);
     return this.toDetail(campaign);
   }
@@ -88,6 +107,7 @@ export class NewsletterCampaignService {
     for (const subscriberId of subscriberIds) {
       em.create(NewsletterCampaignSubscriber, { campaignId: id, subscriberId });
     }
+    this.#audit(em, 'newsletter_campaign.set_group', id, { subscriberCount: subscriberIds.length });
     await em.flush();
     return this.toDetail(campaign);
   }
@@ -111,6 +131,7 @@ export class NewsletterCampaignService {
       campaign.status = future ? 'scheduled' : 'sending';
       campaign.scheduledAt = future ?? null;
       campaign.version += 1;
+      this.#audit(em, 'newsletter_campaign.send', id, { status: campaign.status, scheduledAt: iso(campaign.scheduledAt) });
       await em.persistAndFlush(campaign);
     } else {
       // Inline path (console fallback / tests): dispatch immediately.
@@ -130,6 +151,7 @@ export class NewsletterCampaignService {
     }
     campaign.status = 'cancelled';
     campaign.version += 1;
+    this.#audit(em, 'newsletter_campaign.cancel', id, { status: 'cancelled' });
     await em.persistAndFlush(campaign);
     return this.toDetail(campaign);
   }

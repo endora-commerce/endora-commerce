@@ -81,6 +81,8 @@ export function customersModule(options: CustomersModuleOptions): {
   const customerAuthService = new CustomerAuthService(
     options.emFactory,
     options.sessionService,
+    undefined, // getMfaLoginPort — not wired in the customers composition
+    options.auditLogService,
   );
   const personalOrganizationService = new PersonalOrganizationService(options.emFactory);
   const registrationService = new CustomerRegistrationService({
@@ -89,8 +91,9 @@ export function customersModule(options: CustomersModuleOptions): {
     resolveAllowRegistrationWithoutOrganization:
       options.resolveAllowRegistrationWithoutOrganization,
     personalOrganizationService,
+    auditLog: options.auditLogService,
   });
-  const customerAddressService = new CustomerAddressService(options.emFactory);
+  const customerAddressService = new CustomerAddressService(options.emFactory, options.auditLogService);
   const defaultPreferenceService = new DefaultPreferenceService(
     options.emFactory,
     options.auditLogService,
@@ -102,7 +105,7 @@ export function customersModule(options: CustomersModuleOptions): {
     customerAddressService,
   );
   const authorityService = new CustomerAuthorityService(
-    new SalesRepAssignmentService(options.emFactory),
+    new SalesRepAssignmentService(options.emFactory, options.auditLogService),
   );
   const moderationService = new CustomerModerationService(
     options.emFactory,
@@ -145,7 +148,7 @@ export function customersModule(options: CustomersModuleOptions): {
     },
     options.resolvePresenceFreshnessMinutes,
   );
-  const passwordResetService = new PasswordResetService(options.emFactory);
+  const passwordResetService = new PasswordResetService(options.emFactory, options.auditLogService);
   const anonymizationSweepWorker = new AnonymizationSweepWorker(
     deletionService,
     options.resolveDeletionRetentionDays,

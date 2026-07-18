@@ -74,6 +74,9 @@ export class CartConversionService {
     ctx: RfqCustomerContext,
     note?: string,
   ): Promise<ConvertToQrResult> {
+    // command-coverage-ignore: the durable write is the RFQ (RfqService
+    // .createForCustomer, audited as quote_request.create); this only marks the
+    // ephemeral cart completed and clears its items — transient working state.
     const em = this.emFactory();
     const items = await em.find(CartItem, { cartId: cart.id });
     if (items.length === 0) {

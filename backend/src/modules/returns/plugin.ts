@@ -73,7 +73,7 @@ export function returnsModule(
   // Self-healing default seed (no-op when the migration already seeded).
   await new ReturnsSeeder(emFactory).ensureDefaults();
 
-  const graphService = new ReturnStatusGraphService(emFactory);
+  const graphService = new ReturnStatusGraphService(emFactory, options.auditLog);
   const transitions = new ReturnTransitionService(emFactory, eventBus, graphService, options.auditLog);
 
   const rmaGenerator = createRmaNumberGenerator({
@@ -114,16 +114,22 @@ export function returnsModule(
     transitions,
     orderContext,
     resolveFreeReturnDays,
+    ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
 
   const deliveryMethodService = new ReturnDeliveryMethodService({
     emFactory,
     graphService,
     resolveDefaultCostBearer,
+    ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
 
-  const shipmentService = new ReturnShipmentService({ emFactory, transitions });
-  const reasonService = new ReturnReasonService(emFactory);
+  const shipmentService = new ReturnShipmentService({
+    emFactory,
+    transitions,
+    ...(options.auditLog ? { auditLog: options.auditLog } : {}),
+  });
+  const reasonService = new ReturnReasonService(emFactory, options.auditLog);
   const attachmentService = new ReturnAttachmentService(emFactory);
   const listService = new ReturnListService({ emFactory, graphService, transitions });
   const listViewService = new ReturnListViewService(emFactory);

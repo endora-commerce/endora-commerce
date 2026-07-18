@@ -59,6 +59,9 @@ export class NewsletterCampaignDispatchService {
 
   /** Phase 1: resolve audience, claim records, mark the campaign `sending`. */
   async planCampaign(campaignId: string): Promise<string[]> {
+    // command-coverage-ignore: campaign send execution — materializes per-
+    // recipient send records; delivery bookkeeping (the campaign send action is
+    // audited in campaign.service).
     const em = this.deps.emFactory();
     const campaign = await em.findOneOrFail(NewsletterCampaign, { id: campaignId });
     const audienceIds = await this.deps.audience.resolve({
@@ -80,6 +83,8 @@ export class NewsletterCampaignDispatchService {
 
   /** Phase 2: render + send one claimed record. Idempotent. */
   async sendRecord(recordId: string): Promise<'sent' | 'failed' | 'skipped'> {
+    // command-coverage-ignore: campaign send execution — dispatches one send
+    // record and stamps its status; delivery bookkeeping.
     const em = this.deps.emFactory();
     const record = await em.findOne(NewsletterSendRecord, { id: recordId });
     if (!record || !record.campaignId) return 'skipped';
@@ -132,6 +137,8 @@ export class NewsletterCampaignDispatchService {
 
   /** Inline both phases (tests + console fallback). Safe to re-run. */
   async dispatchCampaign(campaignId: string): Promise<DispatchResult> {
+    // command-coverage-ignore: campaign send execution — drains the send queue;
+    // delivery bookkeeping.
     const claimedIds = await this.planCampaign(campaignId);
     const result: DispatchResult = { claimed: claimedIds.length, sent: 0, failed: 0 };
     for (const recordId of claimedIds) {

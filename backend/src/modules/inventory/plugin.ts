@@ -106,7 +106,10 @@ export function inventoryModule(options: InventoryModuleOptions) {
       );
       mirror.attach(options.eventBus);
     }
-    const warehouseChannelService = new WarehouseChannelService(options.emFactory);
+    const warehouseChannelService = new WarehouseChannelService(
+      options.emFactory,
+      options.auditLogService,
+    );
     const stockLevelService = new StockLevelService(
       options.emFactory,
       options.eventBus,

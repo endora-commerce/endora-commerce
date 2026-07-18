@@ -52,6 +52,8 @@ export class SearchPhraseRecorder {
    * pattern is `void recorder.record(...)`.
    */
   async record(input: RecordPhraseInput): Promise<void> {
+    // command-coverage-ignore: telemetry/analytics ingestion — high-volume event
+    // recording, not an audited domain-state mutation.
     try {
       const trimmed = input.phrase.trim();
       const threshold = await this.resolveThreshold(input.salesChannelId);

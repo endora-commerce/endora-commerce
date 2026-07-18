@@ -1,5 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Organization } from '../entities/organization.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import {
   OrganizationTaxIdValidation,
   type ReturnedAddress,
@@ -48,6 +50,8 @@ export interface OrganizationTaxIdValidationServiceDeps {
   vies?: VatValidator;
   /** Ministerstwo Finansów adapter — production wires `new MinisterstwoFinansowClient()`. */
   mfPl?: VatValidator;
+  /** Feature 054 — audits the validation write co-transactionally when provided. */
+  auditLog?: AuditLogService;
 }
 
 export class OrganizationTaxIdValidationService {
@@ -100,6 +104,19 @@ export class OrganizationTaxIdValidationService {
     let appliedOrg: TriggerValidationResult['organization'] = null;
     if (input.applyAutoFill && result.outcome === 'validated' && result.legalName) {
       org.legalName = result.legalName;
+    }
+    if (this.deps.auditLog) {
+      recordAuditFromContext(this.deps.auditLog, em, {
+        action: 'organization.tax_id_validation',
+        objectType: 'organization',
+        objectId: org.id,
+        stateBefore: null,
+        stateAfter: {
+          provider: providerKind,
+          outcome: result.outcome,
+          appliedAutoFill: input.applyAutoFill && result.outcome === 'validated' && !!result.legalName,
+        },
+      });
     }
     await em.flush();
     if (input.applyAutoFill && result.outcome === 'validated' && result.legalName) {

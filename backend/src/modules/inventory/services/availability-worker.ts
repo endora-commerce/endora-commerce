@@ -42,6 +42,8 @@ export class AvailabilityWorker {
     productId: string;
     variantId?: string | null;
   }): Promise<{ notified: number }> {
+    // command-coverage-ignore: background restock fan-out — stamps notifiedAt on
+    // subscriptions as it sends, delivery bookkeeping (not an audited domain write).
     // Feature 050 — triggered off a stock-increase event; may run detached, so
     // scope the AvailabilityNotification reads under a system context.
     return withSystemScope('availability stock-increase', async () => {

@@ -601,5 +601,11 @@
   "packagingUnits.action.moveDown": "Move down",
   "packagingUnits.error.load": "Failed to load packaging units.",
   "packagingUnits.error.save": "Save failed.",
-  "packagingUnits.error.invalid": "Enter a name and a whole number of pieces (at least 1)."
+  "packagingUnits.error.invalid": "Enter a name and a whole number of pieces (at least 1).",
+  "bulkOperations.undo.action": "Undo",
+  "bulkOperations.undo.running": "Undoing…",
+  "bulkOperations.undo.confirm": "Undo this bulk edit and restore {count} product(s) to their previous values?",
+  "bulkOperations.undo.result": "Undo complete: {reverted} restored, {conflicts} could not be reverted (changed since the edit).",
+  "bulkOperations.undo.error": "The undo could not be completed.",
+  "bulkOperations.undo.alreadyReverted": "This bulk edit has already been undone."
 }

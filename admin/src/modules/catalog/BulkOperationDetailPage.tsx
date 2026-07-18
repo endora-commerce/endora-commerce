@@ -5,6 +5,7 @@ import {
   type BulkOperation,
   type BulkOperationLogEntry,
   type BulkOperationStatus,
+  type BulkOperationUndoResponse,
 } from '@b2b/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -87,6 +88,8 @@ export function BulkOperationDetailPage(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [elementFilter, setElementFilter] = useState<ElementFilter>('all');
   const [productInfo, setProductInfo] = useState<Record<string, ProductInfo>>({});
+  const [undoing, setUndoing] = useState(false);
+  const [undoResult, setUndoResult] = useState<BulkOperationUndoResponse['data'] | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
@@ -175,6 +178,30 @@ export function BulkOperationDetailPage(): ReactNode {
     return results.filter((r) => r.status === elementFilter);
   }, [op?.results, elementFilter]);
 
+  // Feature 054 — undo a reversible bulk edit. Restores every affected product
+  // whose current state still matches the operation; conflicts are reported.
+  const canUndo =
+    !!op && op.status === 'completed' && op.reversible && op.undoStatus !== 'reverted';
+  const handleUndo = useCallback(async (): Promise<void> => {
+    if (!op) return;
+    if (!confirm(t('bulkOperations.undo.confirm', { count: op.succeeded }))) return;
+    setUndoing(true);
+    setError(null);
+    setUndoResult(null);
+    try {
+      const res = await apiClient.post<BulkOperationUndoResponse>(
+        `/api/v1/admin/catalog/bulk-operations/${op.id}/undo`,
+        {},
+      );
+      setUndoResult(res.data);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : t('bulkOperations.undo.error'));
+    } finally {
+      setUndoing(false);
+    }
+  }, [op, refresh, t]);
+
   const back = { label: t('bulkOperations.detail.back'), to: '/catalog/bulk-operations' };
 
   if (loading && !op) {
@@ -224,9 +251,36 @@ export function BulkOperationDetailPage(): ReactNode {
         </Alert>
       ) : null}
 
+      {undoResult ? (
+        <Alert variant={undoResult.conflicts.length > 0 ? 'warning' : 'success'} className="mb-4">
+          <AlertDescription>
+            {t('bulkOperations.undo.result', {
+              reverted: undoResult.reverted,
+              conflicts: undoResult.conflicts.length,
+            })}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {op.undoStatus === 'reverted' && !undoResult ? (
+        <Alert variant="success" className="mb-4">
+          <AlertDescription>{t('bulkOperations.undo.alreadyReverted')}</AlertDescription>
+        </Alert>
+      ) : null}
+
       <Card className="mb-4">
-        <CardHeader>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
           <CardTitle>{t('bulkOperations.detail.summary')}</CardTitle>
+          {canUndo ? (
+            <button
+              type="button"
+              className="b2b-btn b2b-btn--sm b2b-btn--primary"
+              disabled={undoing}
+              onClick={(): void => void handleUndo()}
+            >
+              {undoing ? t('bulkOperations.undo.running') : t('bulkOperations.undo.action')}
+            </button>
+          ) : null}
         </CardHeader>
         <CardContent>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">

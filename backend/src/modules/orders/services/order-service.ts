@@ -43,6 +43,8 @@ export interface PromotionPort {
 }
 import { Organization } from '../../organizations/entities/organization.entity.js';
 import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import { actorFromContext } from '../../../commands/index.js';
+import { getTenantContext } from '../../../tenancy/index.js';
 import { Address } from '../../addresses/entities/address.entity.js';
 import { Cart } from '../../carts/entities/cart.entity.js';
 import { CartItem } from '../../carts/entities/cart-item.entity.js';
@@ -1453,6 +1455,10 @@ export class OrderService {
    * by the `released_at IS NULL` predicate.
    */
   async releaseAllocations(orderId: string): Promise<{ released: number }> {
+    // command-coverage-ignore: internal stock-reservation release — a lifecycle
+    // side effect of the audited `order.status_transition` (cancel) command, not
+    // a standalone admin write. Runs in its own transaction; the parent
+    // transition owns the audit trail (mirrors credit_limits reserve/release).
     const em = this.emFactory();
     return em.transactional(async (tx) => {
       const knex = tx.getKnex();
@@ -1507,7 +1513,23 @@ export class OrderService {
     const em = this.emFactory();
     const order = await em.findOne(Order, { id: orderId });
     if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
+    const paymentBefore = order.paymentStatus;
     order.paymentStatus = to;
+    // Feature 054 — audit the payment-status change co-transactionally (actor
+    // from the ambient TenantContext; the admin route always carries one).
+    if (this.auditLog) {
+      const ctx = getTenantContext();
+      const actor = ctx ? actorFromContext(ctx) : null;
+      this.auditLog.recordWithin(em, {
+        action: 'order.payment_status_transition',
+        objectType: 'order',
+        objectId: order.id,
+        actorAdminUserId: actor?.actorAdminUserId ?? null,
+        impersonatedCustomerAccountId: actor?.impersonatedCustomerAccountId ?? null,
+        stateBefore: { paymentStatus: paymentBefore },
+        stateAfter: { paymentStatus: to },
+      });
+    }
     await em.flush();
     if (to === 'paid' && this.creditLimit) {
       await this.creditLimit.releaseByOrder({

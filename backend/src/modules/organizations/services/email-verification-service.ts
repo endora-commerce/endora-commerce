@@ -6,6 +6,8 @@ import { Organization } from '../entities/organization.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { EmailVerificationToken } from '../entities/email-verification-token.entity.js';
 import type { OrganizationEventBus } from './registration-service.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /**
  * Email verification flow (T118).
@@ -18,6 +20,7 @@ export class EmailVerificationService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly events: OrganizationEventBus,
+    private readonly auditLog?: AuditLogService,
   ) {}
 
   async verify(rawToken: string): Promise<{
@@ -82,6 +85,15 @@ export class EmailVerificationService {
     customer.emailVerifiedAt = now;
     organization.status = 'active';
     token.consumedAt = now;
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action: 'organization.email_verified',
+        objectType: 'organization',
+        objectId: organization.id,
+        stateBefore: { status: 'pending' },
+        stateAfter: { status: 'active', customerAccountId: customer.id },
+      });
+    }
     await em.flush();
 
     this.events.emit('organization.verified.v1', {

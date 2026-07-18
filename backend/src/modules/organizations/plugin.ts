@@ -130,27 +130,31 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       options.emFactory,
       options.eventBus as OrganizationEventBus,
       options.dictionaryValidator,
+      options.auditLogService,
     );
     const verificationService = new EmailVerificationService(
       options.emFactory,
       options.eventBus as OrganizationEventBus,
+      options.auditLogService,
     );
     const customerAuthService = new CustomerAuthService(
       options.emFactory,
       options.sessionService,
       options.getMfaLoginPort,
+      options.auditLogService,
     );
-    const addressService = new AddressService(options.emFactory, options.dictionaryValidator);
+    const addressService = new AddressService(options.emFactory, options.dictionaryValidator, options.auditLogService);
     const invitationService = new InvitationService(
       options.emFactory,
       mailer,
       { acceptBaseUrl: storefrontBaseUrl },
       options.eventBus as OrganizationEventBus,
       orgTemplateEmail,
+      options.auditLogService,
     );
-    const roleService = new RoleService(options.emFactory);
-    const passwordResetService = new PasswordResetService(options.emFactory);
-    const totpEnrolmentService = new TotpEnrolmentService(options.emFactory);
+    const roleService = new RoleService(options.emFactory, options.auditLogService);
+    const passwordResetService = new PasswordResetService(options.emFactory, options.auditLogService);
+    const totpEnrolmentService = new TotpEnrolmentService(options.emFactory, options.auditLogService);
     const latestInvitationToken: { value: string | null } = { value: null };
 
     await registerOrganizationsPublicRoutes(app, {

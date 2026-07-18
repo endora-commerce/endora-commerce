@@ -33,6 +33,9 @@ export class OrderListViewService {
 
   async create(adminUserId: string, input: SavedViewInput): Promise<OrderListSavedView> {
     const em = this.emFactory();
+    // command-coverage-ignore: per-admin saved list preset (filters/sort/columns
+    // for the orders list) — personal UI configuration, not an order domain
+    // mutation, so it is not an admin-audit target.
     const view = em.create(OrderListSavedView, {
       ownerAdminUserId: adminUserId,
       name: input.name,
@@ -58,6 +61,9 @@ export class OrderListViewService {
     },
   ): Promise<OrderListSavedView> {
     const em = this.emFactory();
+    // command-coverage-ignore: per-admin saved list preset (filters/sort/columns
+    // for the orders list) — personal UI configuration, not an order domain
+    // mutation, so it is not an admin-audit target.
     const view = await this.loadEditable(em, id, adminUserId, isPlatformAdmin);
     if (patch.name !== undefined) view.name = patch.name;
     if (patch.shared !== undefined) view.shared = patch.shared;
@@ -70,6 +76,9 @@ export class OrderListViewService {
 
   async remove(id: string, adminUserId: string, isPlatformAdmin: boolean): Promise<void> {
     const em = this.emFactory();
+    // command-coverage-ignore: per-admin saved list preset (filters/sort/columns
+    // for the orders list) — personal UI configuration, not an order domain
+    // mutation, so it is not an admin-audit target.
     const view = await this.loadEditable(em, id, adminUserId, isPlatformAdmin);
     await em.removeAndFlush(view);
   }

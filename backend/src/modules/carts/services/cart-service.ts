@@ -419,6 +419,8 @@ export class CartService {
    * again. No-op on a missing cart.
    */
   async touch(actor: { customer?: CustomerContext; anonymousToken?: string }): Promise<Cart | null> {
+    // command-coverage-ignore: bumps the ephemeral cart's lastActivityAt for the
+    // abandonment sweep — transient bookkeeping, not an audited domain mutation.
     const em = this.emFactory();
     let cart: Cart | null = null;
     if (actor.customer) {
@@ -558,6 +560,8 @@ export class CartService {
   }
 
   async clearForCustomer(ctx: CustomerContext): Promise<void> {
+    // command-coverage-ignore: empties the ephemeral cart — transient pre-order
+    // working state; the resulting order captures the audited final state.
     const em = this.emFactory();
     const cart = await em.findOne(Cart, {
       customerAccountId: ctx.customerAccountId,

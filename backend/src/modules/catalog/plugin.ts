@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
+import type { CommandBus } from '../../commands/index.js';
 import { BULK_OPERATION_TYPES } from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
 import { defineModuleWorker } from '../_lifecycle/plugin-helpers.js';
@@ -99,6 +100,8 @@ export interface CatalogModuleOptions {
    * is a no-op and queued rows stay `pending` for direct-driven assertions.
    */
   redis?: Redis;
+  /** Feature 054 — enables bulk-edit undo (capture revert state + audited undo). */
+  commandBus?: CommandBus;
   /**
    * When `true` (and `redis` is provided), this process also runs the
    * bulk-operation **consumer** (a BullMQ worker). Co-locating the worker in
@@ -127,7 +130,7 @@ export interface CatalogModuleOptions {
 
 export function catalogModule(options: CatalogModuleOptions) {
   return async (app: FastifyInstance): Promise<void> => {
-    const productLinkServiceForRead = new ProductLinkService(options.emFactory);
+    const productLinkServiceForRead = new ProductLinkService(options.emFactory, options.commandBus);
     const queryService = new CatalogQueryService(
       options.emFactory,
       productLinkServiceForRead,
@@ -137,6 +140,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.eventBus as CatalogEventBus,
       options.auditLogService,
       options.salesChannelMembership,
+      options.commandBus,
     );
     // SearchQueryService is wired even when the env var picks Postgres so that
     // an operator can flip CATALOG_SEARCH_BACKEND=meilisearch at runtime
@@ -175,7 +179,9 @@ export function catalogModule(options: CatalogModuleOptions) {
             },
           }
         : {}),
-    });
+    },
+      options.commandBus,
+    );
 
     // When a reindex runner is wired, flipping an attribute's `searchable`
     // flag enqueues a `search_reindex` bulk operation (visible on the
@@ -192,7 +198,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       });
     }
 
-    const bundleServicePublic = new BundleService(options.emFactory);
+    const bundleServicePublic = new BundleService(options.emFactory, options.commandBus);
     await registerCatalogPublicRoutes(app, {
       queryService,
       searchQueryService,
@@ -205,14 +211,15 @@ export function catalogModule(options: CatalogModuleOptions) {
     const categoryAdminService = new CategoryAdminService(
       options.emFactory,
       options.salesChannelMembership,
+      options.commandBus,
     );
-    const attributeSetService = new AttributeSetService(options.emFactory);
-    const galleryService = new GalleryService(options.emFactory);
-    const attachmentService = new AttachmentService(options.emFactory);
-    const packagingUnitService = new PackagingUnitService(options.emFactory);
-    const productLinkService = new ProductLinkService(options.emFactory);
-    const groupedService = new GroupedService(options.emFactory);
-    const bundleService = new BundleService(options.emFactory);
+    const attributeSetService = new AttributeSetService(options.emFactory, options.commandBus);
+    const galleryService = new GalleryService(options.emFactory, options.commandBus);
+    const attachmentService = new AttachmentService(options.emFactory, options.commandBus);
+    const packagingUnitService = new PackagingUnitService(options.emFactory, options.commandBus);
+    const productLinkService = new ProductLinkService(options.emFactory, options.commandBus);
+    const groupedService = new GroupedService(options.emFactory, options.commandBus);
+    const bundleService = new BundleService(options.emFactory, options.commandBus);
     await registerCatalogApiKeyRoutes(app, {
       queryService,
       adminService,
@@ -240,7 +247,11 @@ export function catalogModule(options: CatalogModuleOptions) {
           )
         : undefined;
     const overridesService = options.salesChannelMembership
-      ? new ProductOverridesService(options.emFactory, options.salesChannelMembership)
+      ? new ProductOverridesService(
+          options.emFactory,
+          options.salesChannelMembership,
+          options.commandBus,
+        )
       : undefined;
 
     await registerCatalogAdminRoutes(app, {

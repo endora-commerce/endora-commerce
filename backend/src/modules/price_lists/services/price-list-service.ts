@@ -14,6 +14,7 @@ import { Setting } from '../../settings/entities/setting.entity.js';
 import { SettingValue } from '../../settings/entities/setting-value.entity.js';
 import { randomUUID } from 'crypto';
 import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
+import type { Command, CommandBus } from '../../../commands/index.js';
 import type { PriceListsAuditContext } from '../plugin.js';
 
 export type DisplayMode = 'gross_only' | 'net_only' | 'both' | 'none';
@@ -74,6 +75,12 @@ export class PriceListService {
     /** Feature 024 — optional audit log writer. When omitted, no audit
      *  rows are emitted (tests that don't care about audit pass nothing). */
     private readonly auditLog?: AuditLogService,
+    /**
+     * Feature 054 — when injected, `patch` runs through the Command Bus so the
+     * update is audited co-transactionally (Principle XIII). Optional: bus-less
+     * construction keeps the legacy audit path, byte-identical.
+     */
+    private readonly commandBus?: CommandBus,
   ) {}
 
   private invalidatePricingCache(): void {
@@ -104,6 +111,49 @@ export class PriceListService {
     });
   }
 
+  /**
+   * Feature 054 — run a price-list write through the Command Bus so the audit is
+   * co-transactional (Principle XIII), or fall back to a self-forked em + the
+   * legacy `this.audit()` helper when no bus is wired (bus-less test
+   * constructions). `write` performs the mutation on the given em (no flush) and
+   * returns the caller result, the audit row identity, and the before/after
+   * snapshot; a `skipAudit` result commits with no audit row and no cache flush.
+   */
+  async #runAudited<T>(
+    action: string,
+    objectId: string,
+    auditCtx: PriceListsAuditContext | undefined,
+    write: (em: EntityManager) => Promise<{
+      result: T;
+      row: { id: string; name: string; code?: string };
+      before: Record<string, unknown> | null;
+      after: Record<string, unknown> | null;
+      skipAudit?: boolean;
+    }>,
+  ): Promise<T> {
+    if (this.commandBus) {
+      return this.commandBus.run({
+        action,
+        objectType: 'price_list',
+        objectId,
+        run: async ({ em }) => {
+          const w = await write(em);
+          if (w.skipAudit) return { result: w.result, skipAudit: true };
+          this.invalidatePricingCache();
+          return { result: w.result, before: w.before, after: w.after };
+        },
+      });
+    }
+    const em = this.emFactory();
+    const w = await write(em);
+    await em.flush();
+    if (!w.skipAudit) {
+      this.invalidatePricingCache();
+      await this.audit(action, w.row, w.before, w.after, auditCtx);
+    }
+    return w.result;
+  }
+
   // ---- PriceList -----------------------------------------------------
 
   async listEngine(filter: {
@@ -130,18 +180,22 @@ export class PriceListService {
   }
 
   async remove(id: string): Promise<void> {
-    const em = this.emFactory();
-    const row = await em.findOne(PriceList, { id });
-    if (!row) return;
-    if (row.isSystem) {
-      throw new HttpError(
-        403,
-        ERROR_CODES.FORBIDDEN,
-        'The Default price list cannot be deleted; it is the system fallback.',
-      );
-    }
-    await em.removeAndFlush(row);
-    this.invalidatePricingCache();
+    await this.#runAudited('price_list.delete', id, undefined, async (em) => {
+      const row = await em.findOne(PriceList, { id });
+      if (!row) {
+        return { result: undefined, row: { id, name: '' }, before: null, after: null, skipAudit: true };
+      }
+      if (row.isSystem) {
+        throw new HttpError(
+          403,
+          ERROR_CODES.FORBIDDEN,
+          'The Default price list cannot be deleted; it is the system fallback.',
+        );
+      }
+      const before = { name: row.name, code: row.code, type: row.type, status: row.status };
+      em.remove(row);
+      return { result: undefined, row, before, after: null };
+    });
   }
 
   /**
@@ -194,42 +248,41 @@ export class PriceListService {
       input.applicationRule !== undefined
         ? await this.normaliseAndValidateRule(input.applicationRule)
         : { kind: 'all' as const };
-    const em = this.emFactory();
-    const row = em.create(PriceList, {
-      // Legacy columns are required by the foundation schema; populate them
-      // with engine-equivalent values so writes don't fail until contract
-      // migration retires them.
-      code: `pl-${randomUUID()}`,
-      name: input.name,
-      currency: 'PLN',
-      isDefault: false,
-      priority: 0,
-      type: input.type,
-      status: 'draft',
-      startsAt: input.startsAt ?? null,
-      endsAt: input.endsAt ?? null,
-      applicationRule: normalisedRule,
-      isSystem: false,
-      modifiedAt: new Date(),
+    const id = randomUUID();
+    return this.#runAudited('price_list.create', id, auditCtx, async (em) => {
+      const row = em.create(PriceList, {
+        id,
+        // Legacy columns are required by the foundation schema; populate them
+        // with engine-equivalent values so writes don't fail until contract
+        // migration retires them.
+        code: `pl-${randomUUID()}`,
+        name: input.name,
+        currency: 'PLN',
+        isDefault: false,
+        priority: 0,
+        type: input.type,
+        status: 'draft',
+        startsAt: input.startsAt ?? null,
+        endsAt: input.endsAt ?? null,
+        applicationRule: normalisedRule,
+        isSystem: false,
+        modifiedAt: new Date(),
+      });
+      return {
+        result: row,
+        row,
+        before: null,
+        after: {
+          name: row.name,
+          code: row.code,
+          type: row.type,
+          status: row.status,
+          startsAt: row.startsAt ?? null,
+          endsAt: row.endsAt ?? null,
+          applicationRuleKind: row.applicationRule.kind,
+        },
+      };
     });
-    await em.persistAndFlush(row);
-    this.invalidatePricingCache();
-    await this.audit(
-      'price_list.create',
-      row,
-      null,
-      {
-        name: row.name,
-        code: row.code,
-        type: row.type,
-        status: row.status,
-        startsAt: row.startsAt ?? null,
-        endsAt: row.endsAt ?? null,
-        applicationRuleKind: row.applicationRule.kind,
-      },
-      auditCtx,
-    );
-    return row;
   }
 
   /**
@@ -241,7 +294,54 @@ export class PriceListService {
     input: PatchPriceListInput,
     auditCtx?: PriceListsAuditContext,
   ): Promise<PriceList> {
+    // Feature 054 — audited path: the Command Bus records the update
+    // co-transactionally. No-op patches (nothing changed) skip the audit row.
+    if (this.commandBus) {
+      return this.commandBus.run(this.#patchCommand(id, input));
+    }
+    // Legacy fallback (bus-less construction): unaudited unless auditCtx given.
     const em = this.emFactory();
+    const r = await this.#applyPatch(em, id, input);
+    await em.flush();
+    if (r.mutated) {
+      this.invalidatePricingCache();
+      await this.audit('price_list.update', r.row, r.stateBefore, r.stateAfter, auditCtx);
+    }
+    return r.row;
+  }
+
+  /** The `patch` write expressed as a Command (audited via the bus). */
+  #patchCommand(id: string, input: PatchPriceListInput): Command<PriceList> {
+    return {
+      action: 'price_list.update',
+      objectType: 'price_list',
+      objectId: id,
+      run: async ({ em }) => {
+        const r = await this.#applyPatch(em, id, input);
+        if (!r.mutated) {
+          // Nothing changed → commit without an audit row.
+          return { result: r.row, skipAudit: true };
+        }
+        this.invalidatePricingCache();
+        return { result: r.row, before: r.stateBefore, after: r.stateAfter };
+      },
+    };
+  }
+
+  /**
+   * Pure patch write on the given em — no flush, no audit, no cache invalidation.
+   * Returns the row, whether it mutated, and the before/after snapshots.
+   */
+  async #applyPatch(
+    em: EntityManager,
+    id: string,
+    input: PatchPriceListInput,
+  ): Promise<{
+    row: PriceList;
+    mutated: boolean;
+    stateBefore: Record<string, unknown>;
+    stateAfter: Record<string, unknown>;
+  }> {
     const row = await this.getById(id, em);
 
     let normalisedRule: ApplicationRule | undefined;
@@ -293,25 +393,15 @@ export class PriceListService {
     if (mutated) {
       row.modifiedAt = new Date();
     }
-    await em.flush();
-    if (mutated) {
-      this.invalidatePricingCache();
-      await this.audit(
-        'price_list.update',
-        row,
-        stateBefore,
-        {
-          name: row.name,
-          type: row.type,
-          status: row.status,
-          startsAt: row.startsAt ?? null,
-          endsAt: row.endsAt ?? null,
-          changedFields,
-        },
-        auditCtx,
-      );
-    }
-    return row;
+    const stateAfter = {
+      name: row.name,
+      type: row.type,
+      status: row.status,
+      startsAt: row.startsAt ?? null,
+      endsAt: row.endsAt ?? null,
+      changedFields,
+    };
+    return { row, mutated, stateBefore, stateAfter };
   }
 
   /**
@@ -319,10 +409,11 @@ export class PriceListService {
    * dictate). FR-009 row 1.
    */
   async activate(id: string, auditCtx?: PriceListsAuditContext): Promise<PriceList> {
-    const em = this.emFactory();
-    const row = await this.getById(id, em);
-    // FR-023: a non-Default list cannot leave `draft` while its rule is empty.
-    if (!row.isSystem && row.applicationRule.kind === 'all') {
+    // Pre-read (no mutation) to resolve the dynamic action token before running
+    // the audited write: `price_list.activate` for a live state, or
+    // `price_list.expire` when the start/end dates push it straight to expired.
+    const preRow = await this.getById(id);
+    if (!preRow.isSystem && preRow.applicationRule.kind === 'all') {
       throw new HttpError(
         400,
         ERROR_CODES.VALIDATION_FAILED,
@@ -331,53 +422,46 @@ export class PriceListService {
     }
     const now = new Date();
     const next: PriceListStatus =
-      row.startsAt && row.startsAt > now
+      preRow.startsAt && preRow.startsAt > now
         ? 'scheduled'
-        : row.endsAt && row.endsAt < now
+        : preRow.endsAt && preRow.endsAt < now
           ? 'expired'
           : 'active';
-    if (row.status === next) return row;
-    await this.assertCanTransitionStatus(id, next);
-    const previousStatus = row.status;
-    row.status = next;
-    row.modifiedAt = new Date();
-    await em.flush();
-    this.invalidatePricingCache();
-    // Pick the right action token for the dashboard: `price_list.activate`
-    // when the row moved into a live state, `price_list.expire` when the
-    // start/end-dates pushed it directly to expired.
     const action = next === 'expired' ? 'price_list.expire' : 'price_list.activate';
-    await this.audit(
-      action,
-      row,
-      { status: previousStatus },
-      { name: row.name, status: row.status, activatedAt: new Date() },
-      auditCtx,
-    );
-    return row;
+    return this.#runAudited(action, id, auditCtx, async (em) => {
+      const row = await this.getById(id, em);
+      if (row.status === next) return { result: row, row, before: null, after: null, skipAudit: true };
+      await this.assertCanTransitionStatus(id, next);
+      const previousStatus = row.status;
+      row.status = next;
+      row.modifiedAt = new Date();
+      return {
+        result: row,
+        row,
+        before: { status: previousStatus },
+        after: { name: row.name, status: row.status, activatedAt: new Date() },
+      };
+    });
   }
 
   /**
    * Manual transition: any state → draft. Freezes the list immediately.
    */
   async draftify(id: string, auditCtx?: PriceListsAuditContext): Promise<PriceList> {
-    const em = this.emFactory();
-    const row = await this.getById(id, em);
-    if (row.status === 'draft') return row;
-    await this.assertCanTransitionStatus(id, 'draft');
-    const previousStatus = row.status;
-    row.status = 'draft';
-    row.modifiedAt = new Date();
-    await em.flush();
-    this.invalidatePricingCache();
-    await this.audit(
-      'price_list.draftify',
-      row,
-      { status: previousStatus },
-      { name: row.name, status: row.status },
-      auditCtx,
-    );
-    return row;
+    return this.#runAudited('price_list.draftify', id, auditCtx, async (em) => {
+      const row = await this.getById(id, em);
+      if (row.status === 'draft') return { result: row, row, before: null, after: null, skipAudit: true };
+      await this.assertCanTransitionStatus(id, 'draft');
+      const previousStatus = row.status;
+      row.status = 'draft';
+      row.modifiedAt = new Date();
+      return {
+        result: row,
+        row,
+        before: { status: previousStatus },
+        after: { name: row.name, status: row.status },
+      };
+    });
   }
 
   /**
@@ -386,80 +470,82 @@ export class PriceListService {
    * a unique name (suffix ` (copy)`, ` (copy 2)`, …) — FR-013.
    */
   async duplicate(id: string, auditCtx?: PriceListsAuditContext): Promise<PriceList> {
-    const em = this.emFactory();
-    const source = await this.getById(id, em);
+    const dupId = randomUUID();
+    return this.#runAudited('price_list.duplicate', dupId, auditCtx, async (em) => {
+      const source = await this.getById(id, em);
 
-    const baseName = source.name;
-    const candidates = await em.find(
-      PriceList,
-      { name: { $like: `${baseName} (copy%` } },
-      { fields: ['id', 'name'] },
-    );
-    let suffix = ' (copy)';
-    if (candidates.length > 0) {
-      // Find the next available numeric suffix.
-      let n = 2;
-      while (candidates.some((c) => c.name === `${baseName} (copy ${n})`)) {
-        n += 1;
+      const baseName = source.name;
+      const candidates = await em.find(
+        PriceList,
+        { name: { $like: `${baseName} (copy%` } },
+        { fields: ['id', 'name'] },
+      );
+      let suffix = ' (copy)';
+      if (candidates.length > 0) {
+        // Find the next available numeric suffix.
+        let n = 2;
+        while (candidates.some((c) => c.name === `${baseName} (copy ${n})`)) {
+          n += 1;
+        }
+        // If the bare " (copy)" doesn't exist yet, use it.
+        if (!candidates.some((c) => c.name === `${baseName} (copy)`)) {
+          suffix = ' (copy)';
+        } else {
+          suffix = ` (copy ${n})`;
+        }
       }
-      // If the bare " (copy)" doesn't exist yet, use it.
-      if (!candidates.some((c) => c.name === `${baseName} (copy)`)) {
-        suffix = ' (copy)';
-      } else {
-        suffix = ` (copy ${n})`;
-      }
-    }
-    const newName = `${baseName}${suffix}`;
+      const newName = `${baseName}${suffix}`;
 
-    const dup = em.create(PriceList, {
-      code: `pl-${randomUUID()}`,
-      name: newName,
-      currency: source.currency,
-      isDefault: false,
-      priority: 0,
-      type: source.type,
-      status: 'draft',
-      startsAt: null,
-      endsAt: null,
-      applicationRule: structuredClone(source.applicationRule),
-      isSystem: false,
-      modifiedAt: new Date(),
-    });
-    await em.persistAndFlush(dup);
-
-    // Copy assignments first (FK target), then brackets.
-    const products = await em.find(PriceListProduct, { priceListId: source.id });
-    for (const p of products) {
-      em.create(PriceListProduct, { priceListId: dup.id, productId: p.productId });
-    }
-    await em.flush();
-
-    const brackets = await em.find(PriceListPriceBracket, { priceListId: source.id });
-    for (const b of brackets) {
-      em.create(PriceListPriceBracket, {
-        priceListId: dup.id,
-        productId: b.productId,
-        currencyCode: b.currencyCode,
-        minQuantity: b.minQuantity,
-        maxQuantity: b.maxQuantity ?? null,
-        amount: b.amount,
+      const dup = em.create(PriceList, {
+        id: dupId,
+        code: `pl-${randomUUID()}`,
+        name: newName,
+        currency: source.currency,
+        isDefault: false,
+        priority: 0,
+        type: source.type,
+        status: 'draft',
+        startsAt: null,
+        endsAt: null,
+        applicationRule: structuredClone(source.applicationRule),
+        isSystem: false,
+        modifiedAt: new Date(),
       });
-    }
-    await em.flush();
-    this.invalidatePricingCache();
+      // `priceListId` is a plain column (not a mapped relation), so the UoW does
+      // not order the parent insert first — flush the new list before its
+      // children, then assignments before brackets (composite-FK ordering).
+      await em.flush();
 
-    await this.audit(
-      'price_list.duplicate',
-      dup,
-      null,
-      {
-        name: dup.name,
-        sourcePriceListId: source.id,
-        sourceName: source.name,
-      },
-      auditCtx,
-    );
-    return dup;
+      // Copy assignments first (FK target), then brackets.
+      const products = await em.find(PriceListProduct, { priceListId: source.id });
+      for (const p of products) {
+        em.create(PriceListProduct, { priceListId: dup.id, productId: p.productId });
+      }
+      await em.flush();
+
+      const brackets = await em.find(PriceListPriceBracket, { priceListId: source.id });
+      for (const b of brackets) {
+        em.create(PriceListPriceBracket, {
+          priceListId: dup.id,
+          productId: b.productId,
+          currencyCode: b.currencyCode,
+          minQuantity: b.minQuantity,
+          maxQuantity: b.maxQuantity ?? null,
+          amount: b.amount,
+        });
+      }
+
+      return {
+        result: dup,
+        row: dup,
+        before: null,
+        after: {
+          name: dup.name,
+          sourcePriceListId: source.id,
+          sourceName: source.name,
+        },
+      };
+    });
   }
 
   /**
@@ -699,6 +785,9 @@ export class PriceListService {
     targetId: string,
     mode: DisplayMode | 'inherit',
   ): Promise<PriceDisplayModeOverride | null> {
+    // command-coverage-ignore: a pricing-DISPLAY config toggle
+    // (PriceDisplayModeOverride) — a presentation setting for how prices render,
+    // not a price/catalog value mutation, so it is not an admin-audit target.
     const em = this.emFactory();
     await this.assertOverrideTargetExists(em, scope, targetId);
     const existing = await em.findOne(PriceDisplayModeOverride, { scope, targetId });
@@ -756,6 +845,9 @@ export class PriceListService {
     mode: DisplayMode,
     salesChannelId?: string,
   ): Promise<void> {
+    // command-coverage-ignore: writes SettingValue rows owned by the settings
+    // module (a cross-module config write); settings changes are the settings
+    // module's audit concern, not the price-list admin audit log.
     const em = this.emFactory();
     const code = `pricing.${key}`;
     const setting = await em.findOneOrFail(Setting, { code });
@@ -965,14 +1057,14 @@ export class PriceListService {
    * when the assignment is actually new.
    */
   async addProduct(priceListId: string, productId: string): Promise<void> {
-    const em = this.emFactory();
-    const list = await this.getById(priceListId, em);
-    const existing = await em.findOne(PriceListProduct, { priceListId, productId });
-    if (existing) return;
-    em.create(PriceListProduct, { priceListId, productId });
-    list.modifiedAt = new Date();
-    await em.flush();
-    this.invalidatePricingCache();
+    await this.#runAudited('price_list.product_add', priceListId, undefined, async (em) => {
+      const list = await this.getById(priceListId, em);
+      const existing = await em.findOne(PriceListProduct, { priceListId, productId });
+      if (existing) return { result: undefined, row: list, before: null, after: null, skipAudit: true };
+      em.create(PriceListProduct, { priceListId, productId });
+      list.modifiedAt = new Date();
+      return { result: undefined, row: list, before: null, after: { name: list.name, productId } };
+    });
   }
 
   /**
@@ -980,14 +1072,14 @@ export class PriceListService {
    * No-op when the assignment does not exist.
    */
   async removeProduct(priceListId: string, productId: string): Promise<void> {
-    const em = this.emFactory();
-    const list = await this.getById(priceListId, em);
-    const existing = await em.findOne(PriceListProduct, { priceListId, productId });
-    if (!existing) return;
-    await em.removeAndFlush(existing);
-    list.modifiedAt = new Date();
-    await em.flush();
-    this.invalidatePricingCache();
+    await this.#runAudited('price_list.product_remove', priceListId, undefined, async (em) => {
+      const list = await this.getById(priceListId, em);
+      const existing = await em.findOne(PriceListProduct, { priceListId, productId });
+      if (!existing) return { result: undefined, row: list, before: null, after: null, skipAudit: true };
+      em.remove(existing);
+      list.modifiedAt = new Date();
+      return { result: undefined, row: list, before: null, after: { name: list.name, productId } };
+    });
   }
 
   /**
@@ -1000,42 +1092,38 @@ export class PriceListService {
     productIds: readonly string[],
     auditCtx?: PriceListsAuditContext,
   ): Promise<ReplaceProductsResult> {
-    const em = this.emFactory();
-    const list = await this.getById(priceListId, em);
+    return this.#runAudited('price_list.products_replace', priceListId, auditCtx, async (em) => {
+      const list = await this.getById(priceListId, em);
 
-    const existing = await em.find(PriceListProduct, { priceListId });
-    const existingSet = new Set(existing.map((e) => e.productId));
-    const wanted = new Set(productIds);
+      const existing = await em.find(PriceListProduct, { priceListId });
+      const existingSet = new Set(existing.map((e) => e.productId));
+      const wanted = new Set(productIds);
 
-    const toAdd = [...wanted].filter((id) => !existingSet.has(id));
-    const toRemove = existing.filter((e) => !wanted.has(e.productId));
-    const unchanged = [...wanted].filter((id) => existingSet.has(id));
+      const toAdd = [...wanted].filter((id) => !existingSet.has(id));
+      const toRemove = existing.filter((e) => !wanted.has(e.productId));
+      const unchanged = [...wanted].filter((id) => existingSet.has(id));
 
-    for (const id of toAdd) em.create(PriceListProduct, { priceListId, productId: id });
-    for (const row of toRemove) em.remove(row);
-    if (toAdd.length > 0 || toRemove.length > 0) {
+      for (const id of toAdd) em.create(PriceListProduct, { priceListId, productId: id });
+      for (const row of toRemove) em.remove(row);
+      const result = { added: toAdd.length, removed: toRemove.length, unchanged: unchanged.length };
+      if (toAdd.length === 0 && toRemove.length === 0) {
+        return { result, row: list, before: null, after: null, skipAudit: true };
+      }
       list.modifiedAt = new Date();
-    }
-    await em.flush();
-    if (toAdd.length > 0 || toRemove.length > 0) {
-      this.invalidatePricingCache();
-      // Feature 024 — emit a single summary audit row carrying only counts
+      // Feature 024 — a single summary audit row carrying only counts
       // (never the full product-id list — FR-013).
-      await this.audit(
-        'price_list.products_replace',
-        list,
-        null,
-        {
+      return {
+        result,
+        row: list,
+        before: null,
+        after: {
           name: list.name,
           added: toAdd.length,
           removed: toRemove.length,
           kept: unchanged.length,
         },
-        auditCtx,
-      );
-    }
-
-    return { added: toAdd.length, removed: toRemove.length, unchanged: unchanged.length };
+      };
+    });
   }
 
   /**
@@ -1055,85 +1143,77 @@ export class PriceListService {
     bracketsByCurrency: Record<string, readonly BracketInput[]>,
     auditCtx?: PriceListsAuditContext,
   ): Promise<Record<string, BracketInput[]>> {
-    const em = this.emFactory();
-    const list = await this.getById(priceListId, em);
-    const assignment = await em.findOne(PriceListProduct, { priceListId, productId });
-    if (!assignment) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.NOT_FOUND,
-        `Product ${productId} is not assigned to price list ${priceListId}.`,
-      );
-    }
-
-    const validated: Record<string, BracketInput[]> = {};
-    for (const [currencyRaw, rows] of Object.entries(bracketsByCurrency)) {
-      const currency = currencyRaw.toUpperCase();
-      if (!/^[A-Z]{3}$/.test(currency)) {
+    return this.#runAudited('price_list.bracket_update', priceListId, auditCtx, async (em) => {
+      const list = await this.getById(priceListId, em);
+      const assignment = await em.findOne(PriceListProduct, { priceListId, productId });
+      if (!assignment) {
         throw new HttpError(
-          400,
-          ERROR_CODES.VALIDATION_FAILED,
-          `Invalid currency code: ${currencyRaw}`,
+          404,
+          ERROR_CODES.NOT_FOUND,
+          `Product ${productId} is not assigned to price list ${priceListId}.`,
         );
       }
-      const sorted = [...rows].sort((a, b) => a.minQuantity - b.minQuantity);
-      this.assertBracketSanity(currency, sorted);
-      this.assertNoOverlap(currency, sorted);
-      validated[currency] = sorted;
-    }
 
-    // Replace: remove every existing bracket for the (list, product) pair
-    // FIRST, flush, then insert the new rows. The two-flush split keeps
-    // MikroORM's UoW from collapsing identical-PK delete+insert pairs.
-    const existing = await em.find(PriceListPriceBracket, { priceListId, productId });
-    for (const row of existing) em.remove(row);
-    if (existing.length > 0) {
-      await em.flush();
-    }
-
-    const out: Record<string, BracketInput[]> = {};
-    for (const [currency, rows] of Object.entries(validated)) {
-      const inserted: BracketInput[] = [];
-      for (const r of rows) {
-        em.create(PriceListPriceBracket, {
-          priceListId,
-          productId,
-          currencyCode: currency,
-          minQuantity: r.minQuantity,
-          maxQuantity: r.maxQuantity ?? null,
-          amount: r.amount,
-        });
-        inserted.push({
-          minQuantity: r.minQuantity,
-          maxQuantity: r.maxQuantity ?? null,
-          amount: r.amount,
-        });
+      const validated: Record<string, BracketInput[]> = {};
+      for (const [currencyRaw, rows] of Object.entries(bracketsByCurrency)) {
+        const currency = currencyRaw.toUpperCase();
+        if (!/^[A-Z]{3}$/.test(currency)) {
+          throw new HttpError(
+            400,
+            ERROR_CODES.VALIDATION_FAILED,
+            `Invalid currency code: ${currencyRaw}`,
+          );
+        }
+        const sorted = [...rows].sort((a, b) => a.minQuantity - b.minQuantity);
+        this.assertBracketSanity(currency, sorted);
+        this.assertNoOverlap(currency, sorted);
+        validated[currency] = sorted;
       }
-      out[currency] = inserted;
-    }
-    list.modifiedAt = new Date();
-    await em.flush();
-    this.invalidatePricingCache();
 
-    // Feature 024 — one audit row per (list, product) bracket save, with
-    // per-currency bracket counts in the summary (never the raw amounts).
-    const summary: Record<string, number> = {};
-    for (const [currency, rows] of Object.entries(out)) {
-      summary[currency] = rows.length;
-    }
-    await this.audit(
-      'price_list.bracket_update',
-      list,
-      null,
-      {
-        name: list.name,
-        productId,
-        bracketCountByCurrency: summary,
-      },
-      auditCtx,
-    );
+      // Replace: remove every existing bracket for the (list, product) pair
+      // FIRST, flush, then insert the new rows. The two-flush split keeps
+      // MikroORM's UoW from collapsing identical-PK delete+insert pairs.
+      const existing = await em.find(PriceListPriceBracket, { priceListId, productId });
+      for (const row of existing) em.remove(row);
+      if (existing.length > 0) {
+        await em.flush();
+      }
 
-    return out;
+      const out: Record<string, BracketInput[]> = {};
+      for (const [currency, rows] of Object.entries(validated)) {
+        const inserted: BracketInput[] = [];
+        for (const r of rows) {
+          em.create(PriceListPriceBracket, {
+            priceListId,
+            productId,
+            currencyCode: currency,
+            minQuantity: r.minQuantity,
+            maxQuantity: r.maxQuantity ?? null,
+            amount: r.amount,
+          });
+          inserted.push({
+            minQuantity: r.minQuantity,
+            maxQuantity: r.maxQuantity ?? null,
+            amount: r.amount,
+          });
+        }
+        out[currency] = inserted;
+      }
+      list.modifiedAt = new Date();
+
+      // Feature 024 — one audit row per (list, product) bracket save, with
+      // per-currency bracket counts in the summary (never the raw amounts).
+      const summary: Record<string, number> = {};
+      for (const [currency, rows] of Object.entries(out)) {
+        summary[currency] = rows.length;
+      }
+      return {
+        result: out,
+        row: list,
+        before: null,
+        after: { name: list.name, productId, bracketCountByCurrency: summary },
+      };
+    });
   }
 
   /**
@@ -1150,65 +1230,64 @@ export class PriceListService {
     fromCurrency: string,
     toCurrencies: readonly string[],
   ): Promise<CopyCurrencyResult> {
-    const em = this.emFactory();
-    const list = await this.getById(priceListId, em);
-    const assignment = await em.findOne(PriceListProduct, { priceListId, productId });
-    if (!assignment) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.NOT_FOUND,
-        `Product ${productId} is not assigned to price list ${priceListId}.`,
-      );
-    }
-    const source = await em.find(PriceListPriceBracket, {
-      priceListId,
-      productId,
-      currencyCode: fromCurrency.toUpperCase(),
-    });
-    if (source.length === 0) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.NOT_FOUND,
-        `Source currency ${fromCurrency} has no brackets for this product.`,
-      );
-    }
-
-    let added = 0;
-    for (const targetRaw of toCurrencies) {
-      const target = targetRaw.toUpperCase();
-      if (target === fromCurrency.toUpperCase()) continue;
-      if (!/^[A-Z]{3}$/.test(target)) {
+    return this.#runAudited('price_list.bracket_copy', priceListId, undefined, async (em) => {
+      const list = await this.getById(priceListId, em);
+      const assignment = await em.findOne(PriceListProduct, { priceListId, productId });
+      if (!assignment) {
         throw new HttpError(
-          400,
-          ERROR_CODES.VALIDATION_FAILED,
-          `Invalid currency code: ${targetRaw}`,
+          404,
+          ERROR_CODES.NOT_FOUND,
+          `Product ${productId} is not assigned to price list ${priceListId}.`,
         );
       }
-      for (const b of source) {
-        const conflict = await em.findOne(PriceListPriceBracket, {
-          priceListId,
-          productId,
-          currencyCode: target,
-          minQuantity: b.minQuantity,
-        });
-        if (conflict) continue;
-        em.create(PriceListPriceBracket, {
-          priceListId,
-          productId,
-          currencyCode: target,
-          minQuantity: b.minQuantity,
-          maxQuantity: b.maxQuantity ?? null,
-          amount: b.amount,
-        });
-        added += 1;
+      const source = await em.find(PriceListPriceBracket, {
+        priceListId,
+        productId,
+        currencyCode: fromCurrency.toUpperCase(),
+      });
+      if (source.length === 0) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.NOT_FOUND,
+          `Source currency ${fromCurrency} has no brackets for this product.`,
+        );
       }
-    }
-    if (added > 0) {
+
+      let added = 0;
+      for (const targetRaw of toCurrencies) {
+        const target = targetRaw.toUpperCase();
+        if (target === fromCurrency.toUpperCase()) continue;
+        if (!/^[A-Z]{3}$/.test(target)) {
+          throw new HttpError(
+            400,
+            ERROR_CODES.VALIDATION_FAILED,
+            `Invalid currency code: ${targetRaw}`,
+          );
+        }
+        for (const b of source) {
+          const conflict = await em.findOne(PriceListPriceBracket, {
+            priceListId,
+            productId,
+            currencyCode: target,
+            minQuantity: b.minQuantity,
+          });
+          if (conflict) continue;
+          em.create(PriceListPriceBracket, {
+            priceListId,
+            productId,
+            currencyCode: target,
+            minQuantity: b.minQuantity,
+            maxQuantity: b.maxQuantity ?? null,
+            amount: b.amount,
+          });
+          added += 1;
+        }
+      }
+      const result = { added };
+      if (added === 0) return { result, row: list, before: null, after: null, skipAudit: true };
       list.modifiedAt = new Date();
-    }
-    await em.flush();
-    if (added > 0) this.invalidatePricingCache();
-    return { added };
+      return { result, row: list, before: null, after: { name: list.name, productId, added } };
+    });
   }
 
   /**

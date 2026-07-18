@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import type { CommandBus } from '../../../commands/index.js';
 import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import { Product } from '../entities/product.entity.js';
@@ -61,7 +62,30 @@ export class ProductOverridesService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly salesChannelMembership: SalesChannelMembershipService,
+    /** Feature 054 — audits the override apply co-transactionally when provided. */
+    private readonly commandBus?: CommandBus,
   ) {}
+
+  /**
+   * Feature 054 — run the override mutations through the Command Bus (its
+   * transaction replaces the local `em.transactional`, and the audit is
+   * co-transactional). Bus-less path keeps the local transaction.
+   */
+  async #audited<T>(
+    action: string,
+    objectId: string,
+    write: (em: EntityManager) => Promise<{
+      result: T;
+      before: Record<string, unknown> | null;
+      after: Record<string, unknown> | null;
+    }>,
+  ): Promise<T> {
+    if (this.commandBus) {
+      return this.commandBus.run({ action, objectType: 'product', objectId, run: ({ em }) => write(em) });
+    }
+    const em = this.emFactory();
+    return em.transactional(async (tem) => (await write(tem)).result);
+  }
 
   async listForProduct(productId: string): Promise<ProductValueOverride[]> {
     const em = this.emFactory();
@@ -178,48 +202,56 @@ export class ProductOverridesService {
     input.upserts.forEach((u, i) => validateEntry('upsert', i, u));
     input.deletes.forEach((d, i) => validateEntry('delete', i, d));
 
-    // Apply in one transaction.
-    let upserted = 0;
-    let deleted = 0;
-    await em.transactional(async (tem) => {
-      for (const u of input.upserts) {
-        const where = {
-          productId,
-          attributeKey: u.attributeKey,
-          channelId: u.channelId,
-          languageCode: u.languageCode ?? null,
-        } as const;
-        const existing = await tem.findOne(ProductValueOverride, where);
-        if (existing) {
-          existing.value = u.value;
-          // Touch flush; updatedAt hook handles the rest.
-        } else {
-          tem.persist(
-            tem.create(ProductValueOverride, {
-              productId,
-              attributeKey: u.attributeKey,
-              channelId: u.channelId,
-              languageCode: u.languageCode,
-              value: u.value,
-            }),
-          );
+    // Apply in one transaction (via the Command Bus — co-transactional audit).
+    const { upserted, deleted } = await this.#audited(
+      'product.overrides_apply',
+      productId,
+      async (tem) => {
+        let up = 0;
+        let del = 0;
+        for (const u of input.upserts) {
+          const where = {
+            productId,
+            attributeKey: u.attributeKey,
+            channelId: u.channelId,
+            languageCode: u.languageCode ?? null,
+          } as const;
+          const existing = await tem.findOne(ProductValueOverride, where);
+          if (existing) {
+            existing.value = u.value;
+            // Touch flush; updatedAt hook handles the rest.
+          } else {
+            tem.persist(
+              tem.create(ProductValueOverride, {
+                productId,
+                attributeKey: u.attributeKey,
+                channelId: u.channelId,
+                languageCode: u.languageCode,
+                value: u.value,
+              }),
+            );
+          }
+          up += 1;
         }
-        upserted += 1;
-      }
-      for (const d of input.deletes) {
-        const existing = await tem.findOne(ProductValueOverride, {
-          productId,
-          attributeKey: d.attributeKey,
-          channelId: d.channelId,
-          languageCode: d.languageCode ?? null,
-        });
-        if (existing) {
-          tem.remove(existing);
-          deleted += 1;
+        for (const d of input.deletes) {
+          const existing = await tem.findOne(ProductValueOverride, {
+            productId,
+            attributeKey: d.attributeKey,
+            channelId: d.channelId,
+            languageCode: d.languageCode ?? null,
+          });
+          if (existing) {
+            tem.remove(existing);
+            del += 1;
+          }
         }
-      }
-      await tem.flush();
-    });
+        return {
+          result: { upserted: up, deleted: del },
+          before: null,
+          after: { productId, upserted: up, deleted: del },
+        };
+      },
+    );
 
     const all = await em.find(ProductValueOverride, { productId });
     return { productId, applied: { upserted, deleted }, overrides: all };

@@ -42,7 +42,8 @@
     "i18n:coverage": "tsx --env-file-if-exists=.env src/modules/_i18n/scripts/coverage.ts",
     "i18n:reload": "tsx --env-file-if-exists=.env src/modules/_i18n/scripts/reload.ts",
     "i18n:hardcoded": "tsx scripts/i18n-hardcoded-strings.ts",
-    "channel:resolution": "tsx scripts/check-channel-resolution.ts"
+    "channel:resolution": "tsx scripts/check-channel-resolution.ts",
+    "check:command-coverage": "tsx scripts/check-command-coverage.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",

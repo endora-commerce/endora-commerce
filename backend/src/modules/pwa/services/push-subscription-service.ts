@@ -22,6 +22,8 @@ export class PushSubscriptionService {
   constructor(private readonly emFactory: () => EntityManager) {}
 
   async register(input: RegisterSubscriptionInput): Promise<RegisterSubscriptionResult> {
+    // command-coverage-ignore: push-notification infrastructure — device
+    // subscription / message delivery / icon asset, not audited domain state.
     const em = this.emFactory();
     const existing = await em.findOne(PushSubscription, { endpoint: input.endpoint });
     if (existing) {
@@ -53,6 +55,8 @@ export class PushSubscriptionService {
 
   /** Revoke by endpoint. Idempotent — returns false if nothing was deleted. */
   async revoke(endpoint: string): Promise<boolean> {
+    // command-coverage-ignore: push-notification infrastructure — device
+    // subscription / message delivery / icon asset, not audited domain state.
     const em = this.emFactory();
     const existing = await em.findOne(PushSubscription, { endpoint });
     if (!existing) return false;
@@ -62,6 +66,8 @@ export class PushSubscriptionService {
 
   /** Mark a subscription invalid and delete it (provider reported the endpoint gone). */
   async prune(subscriptionId: string): Promise<void> {
+    // command-coverage-ignore: push-notification infrastructure — device
+    // subscription / message delivery / icon asset, not audited domain state.
     const em = this.emFactory();
     const existing = await em.findOne(PushSubscription, { id: subscriptionId });
     if (!existing) return;

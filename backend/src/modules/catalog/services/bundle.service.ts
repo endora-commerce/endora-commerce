@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import type { CommandBus } from '../../../commands/index.js';
 import { Product } from '../entities/product.entity.js';
 import { BundleSlot } from '../entities/bundle-slot.entity.js';
 import { BundleSlotOption } from '../entities/bundle-slot-option.entity.js';
@@ -57,7 +59,30 @@ export interface BundleValidationResult {
 }
 
 export class BundleService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /** Feature 054 — audits bundle slot/option writes co-transactionally when provided. */
+    private readonly commandBus?: CommandBus,
+  ) {}
+
+  /** Feature 054 — run a bundle write through the Command Bus. */
+  async #audited<T>(
+    action: string,
+    objectId: string,
+    write: (em: EntityManager) => Promise<{
+      result: T;
+      before: Record<string, unknown> | null;
+      after: Record<string, unknown> | null;
+    }>,
+  ): Promise<T> {
+    if (this.commandBus) {
+      return this.commandBus.run({ action, objectType: 'bundle_slot', objectId, run: ({ em }) => write(em) });
+    }
+    const em = this.emFactory();
+    const w = await write(em);
+    await em.flush();
+    return w.result;
+  }
 
   async listSlots(parentProductId: string): Promise<BundleSlotRow[]> {
     const em = this.emFactory();
@@ -115,14 +140,23 @@ export class BundleService {
       const tally = await em.find(BundleSlot, { parentProductId });
       position = tally.reduce((max, r) => Math.max(max, r.position + 1), 0);
     }
-    const slot = em.create(BundleSlot, {
-      parentProductId,
-      name: input.name,
-      minQuantity,
-      maxQuantity: input.maxQuantity,
-      position,
+    const id = randomUUID();
+    const slot = await this.#audited('bundle_slot.create', id, async (cem) => {
+      const s = cem.create(BundleSlot, {
+        id,
+        parentProductId,
+        name: input.name,
+        minQuantity,
+        maxQuantity: input.maxQuantity,
+        position,
+      });
+      await cem.flush();
+      return {
+        result: s,
+        before: null,
+        after: { parentProductId, name: input.name, minQuantity, maxQuantity: input.maxQuantity, position },
+      };
     });
-    await em.persistAndFlush(slot);
     return {
       id: slot.id,
       parentProductId: slot.parentProductId,
@@ -144,29 +178,40 @@ export class BundleService {
       position?: number | undefined;
     },
   ): Promise<BundleSlotRow> {
-    const em = this.emFactory();
-    await this.assertBundleParent(em, parentProductId);
-    const slot = await em.findOne(BundleSlot, { id: slotId, parentProductId });
-    if (!slot) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.BUNDLE_SLOT_NOT_FOUND,
-        `Bundle slot "${slotId}" not found on parent ${parentProductId}.`,
-      );
-    }
-    if (input.name !== undefined) slot.name = input.name;
-    if (input.minQuantity !== undefined) slot.minQuantity = input.minQuantity;
-    if (input.maxQuantity !== undefined) slot.maxQuantity = input.maxQuantity;
-    if (input.position !== undefined) slot.position = input.position;
-    if (slot.minQuantity > slot.maxQuantity) {
-      throw new HttpError(
-        400,
-        ERROR_CODES.INVALID_QUANTITY_RANGE,
-        `minQuantity (${slot.minQuantity}) must be <= maxQuantity (${slot.maxQuantity}).`,
-      );
-    }
-    await em.flush();
-    const options = await em.find(BundleSlotOption, { slotId });
+    const slot = await this.#audited('bundle_slot.update', slotId, async (em) => {
+      await this.assertBundleParent(em, parentProductId);
+      const s = await em.findOne(BundleSlot, { id: slotId, parentProductId });
+      if (!s) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.BUNDLE_SLOT_NOT_FOUND,
+          `Bundle slot "${slotId}" not found on parent ${parentProductId}.`,
+        );
+      }
+      const before = {
+        name: s.name,
+        minQuantity: s.minQuantity,
+        maxQuantity: s.maxQuantity,
+        position: s.position,
+      };
+      if (input.name !== undefined) s.name = input.name;
+      if (input.minQuantity !== undefined) s.minQuantity = input.minQuantity;
+      if (input.maxQuantity !== undefined) s.maxQuantity = input.maxQuantity;
+      if (input.position !== undefined) s.position = input.position;
+      if (s.minQuantity > s.maxQuantity) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.INVALID_QUANTITY_RANGE,
+          `minQuantity (${s.minQuantity}) must be <= maxQuantity (${s.maxQuantity}).`,
+        );
+      }
+      return {
+        result: s,
+        before,
+        after: { name: s.name, minQuantity: s.minQuantity, maxQuantity: s.maxQuantity, position: s.position },
+      };
+    });
+    const options = await this.emFactory().find(BundleSlotOption, { slotId });
     return {
       id: slot.id,
       parentProductId: slot.parentProductId,
@@ -179,17 +224,20 @@ export class BundleService {
   }
 
   async deleteSlot(parentProductId: string, slotId: string): Promise<void> {
-    const em = this.emFactory();
-    await this.assertBundleParent(em, parentProductId);
-    const slot = await em.findOne(BundleSlot, { id: slotId, parentProductId });
-    if (!slot) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.BUNDLE_SLOT_NOT_FOUND,
-        `Bundle slot "${slotId}" not found.`,
-      );
-    }
-    await em.removeAndFlush(slot);
+    await this.#audited('bundle_slot.delete', slotId, async (em) => {
+      await this.assertBundleParent(em, parentProductId);
+      const slot = await em.findOne(BundleSlot, { id: slotId, parentProductId });
+      if (!slot) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.BUNDLE_SLOT_NOT_FOUND,
+          `Bundle slot "${slotId}" not found.`,
+        );
+      }
+      const before = { parentProductId, name: slot.name };
+      em.remove(slot);
+      return { result: undefined, before, after: null };
+    });
   }
 
   async addOption(
@@ -244,13 +292,22 @@ export class BundleService {
       const tally = await em.find(BundleSlotOption, { slotId });
       position = tally.reduce((max, r) => Math.max(max, r.position + 1), 0);
     }
-    const opt = em.create(BundleSlotOption, {
-      slotId,
-      optionProductId: input.optionProductId,
-      defaultQuantity: input.defaultQuantity ?? 1,
-      position,
+    const id = randomUUID();
+    const opt = await this.#audited('bundle_option.add', id, async (cem) => {
+      const o = cem.create(BundleSlotOption, {
+        id,
+        slotId,
+        optionProductId: input.optionProductId,
+        defaultQuantity: input.defaultQuantity ?? 1,
+        position,
+      });
+      await cem.flush();
+      return {
+        result: o,
+        before: null,
+        after: { slotId, optionProductId: input.optionProductId, position },
+      };
     });
-    await em.persistAndFlush(opt);
     return this.toOptionRow(opt);
   }
 
@@ -259,17 +316,20 @@ export class BundleService {
     slotId: string,
     optionId: string,
   ): Promise<void> {
-    const em = this.emFactory();
-    await this.assertBundleParent(em, parentProductId);
-    const opt = await em.findOne(BundleSlotOption, { id: optionId, slotId });
-    if (!opt) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.BUNDLE_SLOT_OPTION_NOT_FOUND,
-        `Bundle slot option "${optionId}" not found.`,
-      );
-    }
-    await em.removeAndFlush(opt);
+    await this.#audited('bundle_option.remove', optionId, async (em) => {
+      await this.assertBundleParent(em, parentProductId);
+      const opt = await em.findOne(BundleSlotOption, { id: optionId, slotId });
+      if (!opt) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.BUNDLE_SLOT_OPTION_NOT_FOUND,
+          `Bundle slot option "${optionId}" not found.`,
+        );
+      }
+      const before = { slotId, optionProductId: opt.optionProductId };
+      em.remove(opt);
+      return { result: undefined, before, after: null };
+    });
   }
 
   /**

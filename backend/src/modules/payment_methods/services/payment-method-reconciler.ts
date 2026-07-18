@@ -34,6 +34,8 @@ export class PaymentMethodReconciler {
     adapterKey: string,
     defaults: EnsureMethodDefaults,
   ): Promise<PaymentMethod> {
+    // command-coverage-ignore: idempotent reconciliation of adapter-backed payment
+    // methods — a system-invariant repair, not an operator-initiated write.
     const em = this.emFactory();
     const existing = await em.findOne(PaymentMethod, { code: defaults.code });
     if (existing) {

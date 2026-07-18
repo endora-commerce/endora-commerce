@@ -5,6 +5,8 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { Promotion } from '../entities/promotion.entity.js';
 import { PromotionCoupon } from '../entities/promotion-coupon.entity.js';
 import { CouponBatch } from '../entities/coupon-batch.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /** Hard cap on a single generated batch (avoids a speculative queue, Principle X). */
 export const COUPON_BATCH_MAX = 50_000;
@@ -41,7 +43,27 @@ export function buildCouponCode(req: GenerateCouponsRequest): string {
  * code to its promotion through `findByCode`.
  */
 export class CouponService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  #audit(
+    em: EntityManager,
+    action: string,
+    objectId: string,
+    stateAfter: Record<string, unknown> | null,
+  ): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action,
+        objectType: 'promotion',
+        objectId,
+        stateBefore: null,
+        stateAfter,
+      });
+    }
+  }
 
   async listForPromotion(promotionId: string): Promise<PromotionCoupon[]> {
     return this.emFactory().find(
@@ -71,6 +93,7 @@ export class CouponService {
       promotionId,
     });
     for (const c of coupons) c.isActive = isActive;
+    this.#audit(em, 'coupon.set_active_bulk', promotionId, { isActive, count: coupons.length });
     await em.flush();
     return coupons.length;
   }
@@ -93,7 +116,9 @@ export class CouponService {
       limitScope: 'per_coupon',
       isActive: true,
     });
-    await em.persistAndFlush(coupon);
+    em.persist(coupon);
+    this.#audit(em, 'coupon.create_single', promotionId, { code });
+    await em.flush();
     return coupon;
   }
 
@@ -173,6 +198,10 @@ export class CouponService {
         }),
       );
     }
+    this.#audit(em, 'coupon.generate_batch', promotionId, {
+      batchId: batch.id,
+      generated: candidates.length,
+    });
     await em.flush();
     return { batch, generated: candidates.length };
   }

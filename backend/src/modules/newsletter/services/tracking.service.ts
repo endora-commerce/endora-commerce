@@ -12,6 +12,8 @@ export class NewsletterTrackingService {
   constructor(private readonly emFactory: () => EntityManager) {}
 
   async recordOpen(sendRecordId: string): Promise<void> {
+    // command-coverage-ignore: engagement telemetry — records an email open,
+    // high-volume delivery tracking, not an audited domain-state mutation.
     const em = this.emFactory();
     const record = await em.findOne(NewsletterSendRecord, { id: sendRecordId });
     if (!record) return;
@@ -21,6 +23,8 @@ export class NewsletterTrackingService {
   }
 
   async recordClick(sendRecordId: string, linkId: string | null, url: string | null): Promise<void> {
+    // command-coverage-ignore: engagement telemetry — records a link click,
+    // high-volume delivery tracking, not an audited domain-state mutation.
     const em = this.emFactory();
     const record = await em.findOne(NewsletterSendRecord, { id: sendRecordId });
     if (!record) return;

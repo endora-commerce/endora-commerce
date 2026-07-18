@@ -68,6 +68,8 @@ export class AdminNotificationService {
   }
 
   async record(input: RecordNotificationInput): Promise<AdminNotification> {
+    // command-coverage-ignore: admin notification bookkeeping — system-generated
+    // alert record / read-state, not an audited domain-state mutation.
     if (input.audience === 'admin_user' && !input.targetAdminUserId) {
       throw new Error(
         'AdminNotificationService.record: targetAdminUserId is required when audience="admin_user".',
@@ -191,6 +193,8 @@ export class AdminNotificationService {
   }
 
   async markRead(notificationId: string, adminUserId: string): Promise<void> {
+    // command-coverage-ignore: admin notification bookkeeping — system-generated
+    // alert record / read-state, not an audited domain-state mutation.
     const em = this.emFactory();
     const entry = await em.findOne(AdminNotification, { id: notificationId });
     if (!entry) {

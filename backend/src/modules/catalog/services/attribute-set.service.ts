@@ -10,6 +10,7 @@
  *     are a thin wrapper.
  */
 
+import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 
@@ -24,6 +25,7 @@ import {
 } from '@b2b/contracts';
 
 import { HttpError } from '../../../http/error-envelope.js';
+import type { CommandBus } from '../../../commands/index.js';
 import { AttributeSet } from '../entities/attribute-set.entity.js';
 import { ProductAttribute } from '../entities/product-attribute.entity.js';
 import {
@@ -32,8 +34,53 @@ import {
   AttributeSetValidationError,
 } from './attribute-set-validations.js';
 
+/** Result of an attribute-set write closure: the caller value + audit snapshot. */
+interface AttributeSetWrite<T> {
+  result: T;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  skipAudit?: boolean;
+}
+
 export class AttributeSetService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /** Feature 054 — audits attribute-set writes co-transactionally when provided. */
+    private readonly commandBus?: CommandBus,
+  ) {}
+
+  /**
+   * Feature 054 — run a write through the Command Bus (co-transactional audit)
+   * or a plain forked em (bus-less tests). All raw SQL inside `write` MUST pass
+   * `em.getTransactionContext()` so the bridge writes/reads join the command's
+   * transaction (undefined in the bus-less path = the pre-054 pool behavior).
+   */
+  async #audited<T>(
+    action: string,
+    objectId: string,
+    write: (em: EntityManager) => Promise<AttributeSetWrite<T>>,
+  ): Promise<T> {
+    if (this.commandBus) {
+      return this.commandBus.run({
+        action,
+        objectType: 'attribute_set',
+        objectId,
+        run: async ({ em }) => {
+          const w = await write(em);
+          return {
+            result: w.result,
+            before: w.before,
+            after: w.after,
+            ...(w.skipAudit ? { skipAudit: true } : {}),
+          };
+        },
+      });
+    }
+    const em = this.emFactory();
+    const w = await write(em);
+    await em.flush();
+    return w.result;
+  }
 
   // -- READ ------------------------------------------------------------------
 
@@ -98,16 +145,11 @@ export class AttributeSetService {
   // -- WRITE -----------------------------------------------------------------
 
   async createSet(input: CreateAttributeSetRequest): Promise<AttributeSetDetailDto> {
-    const em = this.emFactory();
-
-    // If the caller provided an initial attribute set, validate the IDs
-    // exist BEFORE we insert the new set — keeps the operation atomic
-    // even though we flush twice (set, then bridge rows).
+    // Validate the initial attribute ids exist BEFORE creating the set.
     let initialAttributes: ProductAttribute[] = [];
     if (input.attributeIds && input.attributeIds.length > 0) {
-      initialAttributes = await em.find(ProductAttribute, {
-        id: { $in: input.attributeIds },
-      });
+      const em0 = this.emFactory();
+      initialAttributes = await em0.find(ProductAttribute, { id: { $in: input.attributeIds } });
       if (initialAttributes.length !== input.attributeIds.length) {
         const found = new Set(initialAttributes.map((a) => a.id));
         const missing = input.attributeIds.filter((id) => !found.has(id));
@@ -119,26 +161,43 @@ export class AttributeSetService {
       }
     }
 
-    const set = em.create(AttributeSet, {
-      code: input.code,
-      name: input.name,
-      description: input.description ?? null,
-      isSystem: false,
+    // The set create + its audit are co-transactional (Command Bus).
+    const id = randomUUID();
+    const set = await this.#audited('attribute_set.create', id, async (em) => {
+      const created = em.create(AttributeSet, {
+        id,
+        code: input.code,
+        name: input.name,
+        description: input.description ?? null,
+        isSystem: false,
+      });
+      try {
+        await em.flush();
+      } catch (err) {
+        if (err instanceof UniqueConstraintViolationException) {
+          throw new HttpError(
+            409,
+            ERROR_CODES.ATTRIBUTE_SET_CODE_TAKEN,
+            `Attribute Set with code "${input.code}" already exists.`,
+          );
+        }
+        throw err;
+      }
+      return {
+        result: created,
+        before: null,
+        after: {
+          code: created.code,
+          name: created.name,
+          description: created.description ?? null,
+        },
+      };
     });
 
-    try {
-      await em.persistAndFlush(set);
-    } catch (err) {
-      if (err instanceof UniqueConstraintViolationException) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.ATTRIBUTE_SET_CODE_TAKEN,
-          `Attribute Set with code "${input.code}" already exists.`,
-        );
-      }
-      throw err;
-    }
-
+    // Bridge assignments run AFTER the set commits (matches the pre-054
+    // two-step): the set FK target now exists, and a set with no attributes is
+    // a valid state — so a later failure orphans nothing.
+    const em = this.emFactory();
     if (initialAttributes.length > 0) {
       await this.#insertAssignments(
         em,
@@ -146,7 +205,6 @@ export class AttributeSetService {
         initialAttributes.map((a, idx) => ({ attributeId: a.id, position: idx })),
       );
     }
-
     const attrs = await this.#listAssignedAttributes(em, set.id);
     const counts = await this.#computeCounts(em, set.id);
     return this.#toDetailDto(set, attrs, counts);
@@ -156,46 +214,49 @@ export class AttributeSetService {
     id: string,
     input: UpdateAttributeSetRequest,
   ): Promise<AttributeSetDto> {
-    const em = this.emFactory();
-    const set = await em.findOne(AttributeSet, { id });
-    if (!set) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.ATTRIBUTE_SET_NOT_FOUND,
-        `Attribute Set ${id} not found.`,
-      );
-    }
-
-    // System set rule: `code` is immutable; `name` and `description` may
-    // still be edited. The pure helper raises a typed error which we map
-    // to HTTP 409.
-    try {
-      assertCodeNotImmutable({ isSystem: set.isSystem, code: set.code }, input.code);
-    } catch (err) {
-      if (err instanceof AttributeSetValidationError) {
-        throw new HttpError(409, ERROR_CODES.SYSTEM_ATTRIBUTE_SET_IMMUTABLE, err.message);
-      }
-      throw err;
-    }
-
-    if (input.code !== undefined) set.code = input.code;
-    if (input.name !== undefined) set.name = input.name;
-    if (input.description !== undefined) set.description = input.description;
-
-    try {
-      await em.flush();
-    } catch (err) {
-      if (err instanceof UniqueConstraintViolationException) {
+    const set = await this.#audited('attribute_set.update', id, async (em) => {
+      const s = await em.findOne(AttributeSet, { id });
+      if (!s) {
         throw new HttpError(
-          409,
-          ERROR_CODES.ATTRIBUTE_SET_CODE_TAKEN,
-          `Attribute Set with code "${input.code}" already exists.`,
+          404,
+          ERROR_CODES.ATTRIBUTE_SET_NOT_FOUND,
+          `Attribute Set ${id} not found.`,
         );
       }
-      throw err;
-    }
+      // System set rule: `code` is immutable; `name` and `description` may
+      // still be edited. The pure helper raises a typed error → HTTP 409.
+      try {
+        assertCodeNotImmutable({ isSystem: s.isSystem, code: s.code }, input.code);
+      } catch (err) {
+        if (err instanceof AttributeSetValidationError) {
+          throw new HttpError(409, ERROR_CODES.SYSTEM_ATTRIBUTE_SET_IMMUTABLE, err.message);
+        }
+        throw err;
+      }
+      const before = { code: s.code, name: s.name, description: s.description ?? null };
+      if (input.code !== undefined) s.code = input.code;
+      if (input.name !== undefined) s.name = input.name;
+      if (input.description !== undefined) s.description = input.description;
+      try {
+        await em.flush();
+      } catch (err) {
+        if (err instanceof UniqueConstraintViolationException) {
+          throw new HttpError(
+            409,
+            ERROR_CODES.ATTRIBUTE_SET_CODE_TAKEN,
+            `Attribute Set with code "${input.code}" already exists.`,
+          );
+        }
+        throw err;
+      }
+      return {
+        result: s,
+        before,
+        after: { code: s.code, name: s.name, description: s.description ?? null },
+      };
+    });
 
-    const counts = await this.#computeCounts(em, set.id);
+    const counts = await this.#computeCounts(this.emFactory(), set.id);
     return {
       id: set.id,
       code: set.code,
@@ -210,40 +271,40 @@ export class AttributeSetService {
   }
 
   async deleteSet(id: string): Promise<void> {
-    const em = this.emFactory();
-    const set = await em.findOne(AttributeSet, { id });
-    if (!set) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.ATTRIBUTE_SET_NOT_FOUND,
-        `Attribute Set ${id} not found.`,
-      );
-    }
-
-    // The system Default set is never deletable, even when nothing
-    // references it (the contract test expects this branch precedence
-    // — see specs/002-catalog-module/contracts/catalog-002.contract.md).
-    if (set.isSystem) {
-      throw new HttpError(
-        409,
-        ERROR_CODES.SYSTEM_ATTRIBUTE_SET_IMMUTABLE,
-        `Attribute Set "${set.code}" is systemic and cannot be deleted.`,
-      );
-    }
-
-    const { productCount } = await this.#computeCounts(em, id);
-    try {
-      assertNotInUse(productCount);
-    } catch (err) {
-      if (err instanceof AttributeSetValidationError) {
-        throw new HttpError(409, ERROR_CODES.ATTRIBUTE_SET_IN_USE, err.message, [
-          { path: 'productCount', issue: String(productCount) },
-        ]);
+    await this.#audited('attribute_set.delete', id, async (em) => {
+      const set = await em.findOne(AttributeSet, { id });
+      if (!set) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.ATTRIBUTE_SET_NOT_FOUND,
+          `Attribute Set ${id} not found.`,
+        );
       }
-      throw err;
-    }
-
-    await em.removeAndFlush(set);
+      // The system Default set is never deletable, even when nothing
+      // references it (the contract test expects this branch precedence
+      // — see specs/002-catalog-module/contracts/catalog-002.contract.md).
+      if (set.isSystem) {
+        throw new HttpError(
+          409,
+          ERROR_CODES.SYSTEM_ATTRIBUTE_SET_IMMUTABLE,
+          `Attribute Set "${set.code}" is systemic and cannot be deleted.`,
+        );
+      }
+      const { productCount } = await this.#computeCounts(em, id);
+      try {
+        assertNotInUse(productCount);
+      } catch (err) {
+        if (err instanceof AttributeSetValidationError) {
+          throw new HttpError(409, ERROR_CODES.ATTRIBUTE_SET_IN_USE, err.message, [
+            { path: 'productCount', issue: String(productCount) },
+          ]);
+        }
+        throw err;
+      }
+      const before = { code: set.code, name: set.name };
+      em.remove(set);
+      return { result: undefined, before, after: null };
+    });
   }
 
   async assignAttributes(

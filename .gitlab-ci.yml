@@ -55,6 +55,12 @@ quality:
     # Feature 053 (FR-011) — no storefront module may re-resolve the sales
     # channel outside the canonical resolver. Allow-list is empty; enforced.
     - pnpm --filter backend exec tsx scripts/check-channel-resolution.ts --enforce
+    # Feature 054 (FR-009) — every sensitive write must run through the Command
+    # Bus (record audit / run a Command) or carry a documented
+    # `command-coverage-ignore` escape hatch. Platform-wide rollout is complete
+    # (all 45 modules migrated), so `--strict` build-breaks on ANY finding in ANY
+    # module — a new unaudited write anywhere fails CI (no silent regression).
+    - pnpm --filter backend run check:command-coverage -- --strict
   cache:
     key:
       files:

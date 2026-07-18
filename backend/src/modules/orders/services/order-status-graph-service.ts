@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import type { CommandBus } from '../../../commands/index.js';
 import { OrderStatus } from '../entities/order-status.entity.js';
 import { OrderStatusTransition } from '../entities/order-status-transition.entity.js';
 import { Order } from '../entities/order.entity.js';
@@ -28,10 +29,37 @@ import {
 export class OrderStatusGraphService {
   private cached: OrderStatusGraph | null = null;
 
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /** Feature 054 — audits status-graph writes co-transactionally when provided. */
+    private readonly commandBus?: CommandBus,
+  ) {}
 
   invalidate(): void {
     this.cached = null;
+  }
+
+  /** Feature 054 — run a status-graph write through the Command Bus. */
+  async #audited<T>(
+    action: string,
+    objectId: string,
+    write: (em: EntityManager) => Promise<{
+      result: T;
+      before: Record<string, unknown> | null;
+      after: Record<string, unknown> | null;
+    }>,
+  ): Promise<T> {
+    let out: T;
+    if (this.commandBus) {
+      out = await this.commandBus.run({ action, objectType: 'order_status', objectId, run: ({ em }) => write(em) });
+    } else {
+      const em = this.emFactory();
+      const w = await write(em);
+      await em.flush();
+      out = w.result;
+    }
+    this.invalidate();
+    return out;
   }
 
   /** Build (or return cached) the validated graph. */
@@ -91,29 +119,28 @@ export class OrderStatusGraphService {
     weight?: number | undefined;
     color?: string | undefined;
   }): Promise<void> {
-    const em = this.emFactory();
-    const existing = await em.findOne(OrderStatus, { code: input.code });
-    if (existing) {
-      throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, `Status "${input.code}" already exists.`);
-    }
-    const status = em.create(OrderStatus, {
-      code: input.code,
-      name: input.name,
-      defaultName: input.defaultName,
-      isInitial: false,
-      isTerminal: input.isTerminal ?? false,
-      isSystem: false,
-      weight: input.weight ?? 100,
-      color: input.color ?? 'neutral',
+    await this.#audited('order_status.create', input.code, async (em) => {
+      const existing = await em.findOne(OrderStatus, { code: input.code });
+      if (existing) {
+        throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, `Status "${input.code}" already exists.`);
+      }
+      const status = em.create(OrderStatus, {
+        code: input.code,
+        name: input.name,
+        defaultName: input.defaultName,
+        isInitial: false,
+        isTerminal: input.isTerminal ?? false,
+        isSystem: false,
+        weight: input.weight ?? 100,
+        color: input.color ?? 'neutral',
+      });
+      // Materialize universal on_hold/cancelled edges for the new status so the
+      // graph stays complete (data-model.md §2). Only add edges not already present.
+      if (!status.isTerminal) {
+        await this.ensureUniversalEdges(em);
+      }
+      return { result: undefined, before: null, after: { code: input.code, defaultName: input.defaultName } };
     });
-    em.persist(status);
-    // Materialize universal on_hold/cancelled edges for the new status so the
-    // graph stays complete (data-model.md §2). Only add edges not already present.
-    if (!status.isTerminal) {
-      await this.ensureUniversalEdges(em);
-    }
-    await em.flush();
-    this.invalidate();
   }
 
   async updateStatus(
@@ -126,99 +153,116 @@ export class OrderStatusGraphService {
       color?: string | undefined;
     },
   ): Promise<void> {
-    const em = this.emFactory();
-    const status = await em.findOne(OrderStatus, { code });
-    if (!status) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Status "${code}" not found.`);
-    if (patch.name !== undefined) status.name = patch.name;
-    if (patch.defaultName !== undefined) status.defaultName = patch.defaultName;
-    if (patch.weight !== undefined) status.weight = patch.weight;
-    if (patch.color !== undefined) status.color = patch.color;
-    if (patch.isTerminal !== undefined && patch.isTerminal !== status.isTerminal) {
-      if (patch.isTerminal) {
-        const outgoing = await em.count(OrderStatusTransition, { fromStatusCode: code });
-        if (outgoing > 0) {
-          throw new HttpError(
-            409,
-            ERROR_CODES.VALIDATION_FAILED,
-            `Cannot mark "${code}" terminal while it has outgoing transitions.`,
-          );
+    await this.#audited('order_status.update', code, async (em) => {
+      const status = await em.findOne(OrderStatus, { code });
+      if (!status) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Status "${code}" not found.`);
+      const before = {
+        name: status.name,
+        defaultName: status.defaultName,
+        weight: status.weight,
+        color: status.color,
+        isTerminal: status.isTerminal,
+      };
+      if (patch.name !== undefined) status.name = patch.name;
+      if (patch.defaultName !== undefined) status.defaultName = patch.defaultName;
+      if (patch.weight !== undefined) status.weight = patch.weight;
+      if (patch.color !== undefined) status.color = patch.color;
+      if (patch.isTerminal !== undefined && patch.isTerminal !== status.isTerminal) {
+        if (patch.isTerminal) {
+          const outgoing = await em.count(OrderStatusTransition, { fromStatusCode: code });
+          if (outgoing > 0) {
+            throw new HttpError(
+              409,
+              ERROR_CODES.VALIDATION_FAILED,
+              `Cannot mark "${code}" terminal while it has outgoing transitions.`,
+            );
+          }
         }
+        status.isTerminal = patch.isTerminal;
       }
-      status.isTerminal = patch.isTerminal;
-    }
-    await em.flush();
-    this.invalidate();
+      return {
+        result: undefined,
+        before,
+        after: { defaultName: status.defaultName, weight: status.weight, color: status.color, isTerminal: status.isTerminal },
+      };
+    });
   }
 
   async deleteStatus(code: string): Promise<void> {
-    const em = this.emFactory();
-    const status = await em.findOne(OrderStatus, { code });
-    if (!status) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Status "${code}" not found.`);
-    if (code === ORDER_STATUS_INITIAL || status.isInitial) {
-      throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, 'The initial status cannot be deleted.');
-    }
-    if (status.isSystem) {
-      throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, `System status "${code}" cannot be deleted.`);
-    }
-    const inUse = await em.count(Order, { status: code });
-    if (inUse > 0) {
-      throw new HttpError(
-        409,
-        ERROR_CODES.VALIDATION_FAILED,
-        `Cannot delete status "${code}" while ${inUse} order(s) use it.`,
-      );
-    }
-    const edges = await em.find(OrderStatusTransition, {
-      $or: [{ fromStatusCode: code }, { toStatusCode: code }],
+    await this.#audited('order_status.delete', code, async (em) => {
+      const status = await em.findOne(OrderStatus, { code });
+      if (!status) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Status "${code}" not found.`);
+      if (code === ORDER_STATUS_INITIAL || status.isInitial) {
+        throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, 'The initial status cannot be deleted.');
+      }
+      if (status.isSystem) {
+        throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, `System status "${code}" cannot be deleted.`);
+      }
+      const inUse = await em.count(Order, { status: code });
+      if (inUse > 0) {
+        throw new HttpError(
+          409,
+          ERROR_CODES.VALIDATION_FAILED,
+          `Cannot delete status "${code}" while ${inUse} order(s) use it.`,
+        );
+      }
+      const edges = await em.find(OrderStatusTransition, {
+        $or: [{ fromStatusCode: code }, { toStatusCode: code }],
+      });
+      em.remove(edges);
+      em.remove(status);
+      return { result: undefined, before: { code, defaultName: status.defaultName }, after: null };
     });
-    await em.remove(edges).remove(status).flush();
-    this.invalidate();
   }
 
   async setTransitions(input: {
     add?: Array<{ fromStatusCode: string; toStatusCode: string }> | undefined;
     remove?: Array<{ fromStatusCode: string; toStatusCode: string }> | undefined;
   }): Promise<void> {
-    const em = this.emFactory();
-    const graph = await this.loadGraph();
-    for (const edge of input.add ?? []) {
-      if (!graph.has(edge.fromStatusCode) || !graph.has(edge.toStatusCode)) {
-        throw new HttpError(
-          422,
-          ERROR_CODES.VALIDATION_FAILED,
-          `Transition references an unknown status: ${edge.fromStatusCode} → ${edge.toStatusCode}.`,
-        );
-      }
-      if (graph.isTerminal(edge.fromStatusCode)) {
-        throw new HttpError(
-          422,
-          ERROR_CODES.VALIDATION_FAILED,
-          `Terminal status "${edge.fromStatusCode}" cannot have outgoing transitions.`,
-        );
-      }
-      const exists = await em.findOne(OrderStatusTransition, {
-        fromStatusCode: edge.fromStatusCode,
-        toStatusCode: edge.toStatusCode,
-      });
-      if (!exists) {
-        em.persist(
+    await this.#audited('order_status.set_transitions', 'graph', async (em) => {
+      const graph = await this.loadGraph();
+      let added = 0;
+      let removed = 0;
+      for (const edge of input.add ?? []) {
+        if (!graph.has(edge.fromStatusCode) || !graph.has(edge.toStatusCode)) {
+          throw new HttpError(
+            422,
+            ERROR_CODES.VALIDATION_FAILED,
+            `Transition references an unknown status: ${edge.fromStatusCode} → ${edge.toStatusCode}.`,
+          );
+        }
+        if (graph.isTerminal(edge.fromStatusCode)) {
+          throw new HttpError(
+            422,
+            ERROR_CODES.VALIDATION_FAILED,
+            `Terminal status "${edge.fromStatusCode}" cannot have outgoing transitions.`,
+          );
+        }
+        const exists = await em.findOne(OrderStatusTransition, {
+          fromStatusCode: edge.fromStatusCode,
+          toStatusCode: edge.toStatusCode,
+        });
+        if (!exists) {
           em.create(OrderStatusTransition, {
             fromStatusCode: edge.fromStatusCode,
             toStatusCode: edge.toStatusCode,
             isSystem: false,
-          }),
-        );
+          });
+          added += 1;
+        }
       }
-    }
-    for (const edge of input.remove ?? []) {
-      const row = await em.findOne(OrderStatusTransition, {
-        fromStatusCode: edge.fromStatusCode,
-        toStatusCode: edge.toStatusCode,
-      });
-      if (row && !row.isSystem) em.remove(row);
-    }
-    await em.flush();
-    this.invalidate();
+      for (const edge of input.remove ?? []) {
+        const row = await em.findOne(OrderStatusTransition, {
+          fromStatusCode: edge.fromStatusCode,
+          toStatusCode: edge.toStatusCode,
+        });
+        if (row && !row.isSystem) {
+          em.remove(row);
+          removed += 1;
+        }
+      }
+      return { result: undefined, before: null, after: { added, removed } };
+    });
   }
 
   /** Validate a candidate config (used before persisting structural edits). */
@@ -242,13 +286,12 @@ export class OrderStatusGraphService {
     );
     for (const e of wanted) {
       if (!present.has(`${e.fromStatusCode} ${e.toStatusCode}`)) {
-        em.persist(
-          em.create(OrderStatusTransition, {
-            fromStatusCode: e.fromStatusCode,
-            toStatusCode: e.toStatusCode,
-            isSystem: true,
-          }),
-        );
+        // Auto-persisted via persistOnCreate; the enclosing command commits it.
+        em.create(OrderStatusTransition, {
+          fromStatusCode: e.fromStatusCode,
+          toStatusCode: e.toStatusCode,
+          isSystem: true,
+        });
       }
     }
   }

@@ -5,6 +5,7 @@ import { registerTaxRoutes } from './routes.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import type { DictionaryValidator } from '@b2b/contracts';
+import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 
 export interface TaxesModuleOptions {
   emFactory: () => EntityManager;
@@ -12,6 +13,8 @@ export interface TaxesModuleOptions {
   /** Feature 005 / T027b — when injected, new Taxes auto-bind to the system default. */
   salesChannelMembership?: SalesChannelMembershipService;
   dictionaryValidator?: DictionaryValidator;
+  /** Feature 054 — audits tax writes co-transactionally when provided. */
+  auditLog?: AuditLogService;
 }
 
 export interface TaxesModuleHandle {
@@ -26,6 +29,7 @@ export function taxesModule(options: TaxesModuleOptions): {
     options.emFactory,
     options.salesChannelMembership,
     options.dictionaryValidator,
+    options.auditLog,
   );
   return {
     handle: { taxService },

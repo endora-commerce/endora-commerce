@@ -65,6 +65,8 @@ export class ThresholdSettingsMirror {
     settingCode: string,
     field: 'thresholdHigh' | 'thresholdMedium' | 'thresholdLow',
   ): Promise<void> {
+    // command-coverage-ignore: derived-state sync — mirrors a Settings value into
+    // the global InventoryThreshold row; the Settings write is the audited source.
     const channelId = await this.resolveSettingsChannelId();
     if (!channelId) return;
     const value = await this.settingsService.get(

@@ -4,11 +4,14 @@ import { LanguageService } from './services/language-service.js';
 import { LocaleService } from './services/locale-service.js';
 import { CurrencyService } from '../currencies/services/currency-service.js';
 import { registerI18nRoutes } from './routes.js';
+import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 
 export interface I18nModuleOptions {
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
+  /** Feature 054 — audits language/currency writes co-transactionally when provided. */
+  auditLog?: AuditLogService;
 }
 
 export interface I18nModuleHandle {
@@ -21,8 +24,8 @@ export function i18nModule(options: I18nModuleOptions): {
   plugin: (app: FastifyInstance) => Promise<void>;
   handle: I18nModuleHandle;
 } {
-  const languageService = new LanguageService(options.emFactory);
-  const currencyService = new CurrencyService(options.emFactory);
+  const languageService = new LanguageService(options.emFactory, undefined, options.auditLog);
+  const currencyService = new CurrencyService(options.emFactory, undefined, options.auditLog);
   const localeService = new LocaleService(languageService);
 
   return {

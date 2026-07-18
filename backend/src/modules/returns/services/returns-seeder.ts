@@ -26,6 +26,8 @@ export class ReturnsSeeder {
   }
 
   private async ensureStatusGraph(): Promise<void> {
+    // command-coverage-ignore: idempotent first-run seed of the default status
+    // graph (skips when rows exist), a system bootstrap, not an operator write.
     const em = this.emFactory();
     if ((await em.count(ReturnStatus, {})) > 0) return;
     for (const s of DEFAULT_RETURN_STATUSES) {
@@ -55,6 +57,8 @@ export class ReturnsSeeder {
   }
 
   private async ensureReasons(): Promise<void> {
+    // command-coverage-ignore: idempotent first-run seed of the default reasons
+    // (skips when rows exist), a system bootstrap, not an operator write.
     const em = this.emFactory();
     if ((await em.count(ReturnReason, {})) > 0) return;
     for (const r of DEFAULT_RETURN_REASONS) {

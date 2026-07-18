@@ -11,6 +11,7 @@
  *   step so concurrent admins don't crash into each other's swaps.
  */
 
+import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 
 import {
@@ -22,6 +23,7 @@ import {
 } from '@b2b/contracts';
 
 import { HttpError } from '../../../http/error-envelope.js';
+import type { CommandBus } from '../../../commands/index.js';
 import { Asset } from '../../assets_library/entities/asset.entity.js';
 import { Product } from '../entities/product.entity.js';
 import { GalleryItem } from '../entities/gallery-item.entity.js';
@@ -40,7 +42,34 @@ export interface GalleryServiceOptions {
 }
 
 export class GalleryService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /** Feature 054 — audits gallery-item writes co-transactionally when provided. */
+    private readonly commandBus?: CommandBus,
+  ) {}
+
+  /**
+   * Feature 054 — run a gallery-item write through the Command Bus. The item +
+   * audit are co-transactional; the raw-SQL LABEL writes stay AFTER the command
+   * (a gallery item with no labels is a valid state, so nothing is orphaned).
+   */
+  async #audited<T>(
+    action: string,
+    objectId: string,
+    write: (em: EntityManager) => Promise<{
+      result: T;
+      before: Record<string, unknown> | null;
+      after: Record<string, unknown> | null;
+    }>,
+  ): Promise<T> {
+    if (this.commandBus) {
+      return this.commandBus.run({ action, objectType: 'gallery_item', objectId, run: ({ em }) => write(em) });
+    }
+    const em = this.emFactory();
+    const w = await write(em);
+    await em.flush();
+    return w.result;
+  }
 
   async list(productId: string): Promise<GalleryItemDto[]> {
     const em = this.emFactory();
@@ -53,10 +82,10 @@ export class GalleryService {
     req: CreateGalleryItemRequest,
     options: GalleryServiceOptions,
   ): Promise<GalleryItemDto> {
-    const em = this.emFactory();
-    await this.#assertProductExists(em, productId);
+    const em0 = this.emFactory();
+    await this.#assertProductExists(em0, productId);
 
-    const asset = await em.findOne(Asset, { id: req.assetId });
+    const asset = await em0.findOne(Asset, { id: req.assetId });
     if (!asset) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Asset ${req.assetId} not found.`);
     }
@@ -69,26 +98,26 @@ export class GalleryService {
     }
 
     const labels = this.#normalizeAndValidateLabels(req.labels);
+    const position = req.position ?? ((await this.#nextPosition(em0, productId)) as number);
 
-    // Compute next position when omitted.
-    const conn = em.getConnection();
-    const position =
-      req.position ??
-      ((await this.#nextPosition(em, productId)) as number);
-
-    const item = em.create(GalleryItem, {
-      productId,
-      assetId: req.assetId,
-      position,
+    const id = randomUUID();
+    await this.#audited('gallery_item.create', id, async (em) => {
+      const item = em.create(GalleryItem, { id, productId, assetId: req.assetId, position });
+      await em.flush();
+      return {
+        result: item,
+        before: null,
+        after: { productId, assetId: req.assetId, position, labels },
+      };
     });
-    await em.persistAndFlush(item);
 
+    // Labels run AFTER the item commits (bridge-after-command) — matches the
+    // pre-054 two-step; an item with no labels is a valid state.
+    const em = this.emFactory();
     if (labels.length > 0) {
-      await this.#applyLabels(em, productId, item.id, labels, options);
+      await this.#applyLabels(em, productId, id, labels, options);
     }
-
-    return (await this.#fetchOne(em, item.id))!;
-    void conn; // Used inside helpers — keep import consistent.
+    return (await this.#fetchOne(em, id))!;
   }
 
   async update(
@@ -97,46 +126,48 @@ export class GalleryService {
     req: UpdateGalleryItemRequest,
     options: GalleryServiceOptions,
   ): Promise<GalleryItemDto> {
-    const em = this.emFactory();
-    const item = await em.findOne(GalleryItem, { id: itemId, productId });
-    if (!item) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.GALLERY_ITEM_NOT_FOUND,
-        `Gallery item ${itemId} not found under Product ${productId}.`,
-      );
-    }
-    if (req.position !== undefined) item.position = req.position;
-    await em.flush();
+    await this.#audited('gallery_item.update', itemId, async (em) => {
+      const item = await em.findOne(GalleryItem, { id: itemId, productId });
+      if (!item) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.GALLERY_ITEM_NOT_FOUND,
+          `Gallery item ${itemId} not found under Product ${productId}.`,
+        );
+      }
+      const before = { position: item.position };
+      if (req.position !== undefined) item.position = req.position;
+      return { result: undefined, before, after: { position: item.position } };
+    });
 
+    // Label replacement runs AFTER the item update (bridge-after-command).
     if (req.labels !== undefined) {
+      const em = this.emFactory();
       const labels = this.#normalizeAndValidateLabels(req.labels);
-      // Replace the item's existing labels with the new set.
       const conn = em.getConnection();
-      await conn.execute(
-        `delete from gallery_item_labels where gallery_item_id = ?`,
-        [itemId],
-      );
+      await conn.execute(`delete from gallery_item_labels where gallery_item_id = ?`, [itemId]);
       if (labels.length > 0) {
         await this.#applyLabels(em, productId, itemId, labels, options);
       }
     }
 
-    return (await this.#fetchOne(em, itemId))!;
+    return (await this.#fetchOne(this.emFactory(), itemId))!;
   }
 
   async delete(productId: string, itemId: string): Promise<void> {
-    const em = this.emFactory();
-    const item = await em.findOne(GalleryItem, { id: itemId, productId });
-    if (!item) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.GALLERY_ITEM_NOT_FOUND,
-        `Gallery item ${itemId} not found under Product ${productId}.`,
-      );
-    }
-    await em.removeAndFlush(item);
-    // CASCADE on gallery_item_labels picks up the children.
+    await this.#audited('gallery_item.delete', itemId, async (em) => {
+      const item = await em.findOne(GalleryItem, { id: itemId, productId });
+      if (!item) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.GALLERY_ITEM_NOT_FOUND,
+          `Gallery item ${itemId} not found under Product ${productId}.`,
+        );
+      }
+      const before = { productId, assetId: item.assetId };
+      em.remove(item); // CASCADE on gallery_item_labels picks up the children.
+      return { result: undefined, before, after: null };
+    });
   }
 
   async reorder(productId: string, orderedIds: string[]): Promise<void> {

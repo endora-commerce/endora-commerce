@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { LockMode } from '@mikro-orm/core';
 import type { EventBase, EventBus } from '../../../events/bus.js';
+import type { Command, CommandBus } from '../../../commands/index.js';
 import { CreditLimit } from '../entities/credit-limit.entity.js';
 import { CreditLimitReservation } from '../entities/credit-limit-reservation.entity.js';
 
@@ -48,10 +49,21 @@ export type ReleaseResult =
   | { ok: true; reservationId: string; availableAmountAfter: number }
   | { ok: false; code: 'RESERVATION_NOT_FOUND' | 'ALREADY_RELEASED' };
 
+export type AdjustResult =
+  | { ok: true; limit: CreditLimit }
+  | { ok: false; code: 'ADJUSTMENT_BELOW_ACTIVE' };
+
 export class CreditLimitService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly events: CreditLimitEventBus,
+    /**
+     * Feature 054 — when injected, `adjust` runs through the Command Bus so the
+     * mutation is audited co-transactionally (Principle XIII). Optional: existing
+     * tests construct this service without a bus and keep the legacy (unaudited)
+     * path, which stays byte-identical.
+     */
+    private readonly commandBus?: CommandBus,
   ) {}
 
   async getForOrganization(organizationId: string): Promise<CreditLimit | null> {
@@ -75,8 +87,59 @@ export class CreditLimitService {
     currency: string;
     grantedByAdminUserId?: string;
   }): Promise<CreditLimit> {
+    // Feature 054 — audited path via the Command Bus (one co-transactional audit
+    // row + the event on commit). Legacy fallback for bus-less constructions.
+    if (this.commandBus) return this.commandBus.run(this.#grantCommand(input));
     const em = this.emFactory();
-    const limit = em.create(CreditLimit, {
+    const limit = this.#applyGrant(em, input);
+    await em.flush();
+    this.#emitGranted(input);
+    return limit;
+  }
+
+  #grantCommand(input: {
+    organizationId: string;
+    grantedAmount: number;
+    currency: string;
+    grantedByAdminUserId?: string;
+  }): Command<CreditLimit> {
+    return {
+      action: 'credit_limit.grant',
+      objectType: 'credit_limit',
+      objectId: input.organizationId,
+      run: async ({ em }) => {
+        const limit = this.#applyGrant(em, input);
+        return {
+          result: limit,
+          after: {
+            organizationId: input.organizationId,
+            grantedAmount: limit.grantedAmount,
+            currency: input.currency,
+          },
+        };
+      },
+      event: () => ({
+        eventName: 'credit_limit.granted.v1',
+        payload: {
+          eventId: randomUUID(),
+          occurredAt: new Date().toISOString(),
+          organizationId: input.organizationId,
+          amount: input.grantedAmount,
+        },
+      }),
+    };
+  }
+
+  /**
+   * Pure grant write on the given em — creates the row (auto-persisted via
+   * MikroORM `persistOnCreate`; no explicit flush), no event. The caller's
+   * transaction (Command Bus) or explicit `flush` commits it.
+   */
+  #applyGrant(
+    em: EntityManager,
+    input: { organizationId: string; grantedAmount: number; currency: string; grantedByAdminUserId?: string },
+  ): CreditLimit {
+    return em.create(CreditLimit, {
       organizationId: input.organizationId,
       grantedAmount: input.grantedAmount.toFixed(2),
       currency: input.currency,
@@ -84,49 +147,109 @@ export class CreditLimitService {
         ? { grantedByAdminUserId: input.grantedByAdminUserId }
         : {}),
     });
-    await em.persistAndFlush(limit);
+  }
+
+  #emitGranted(input: { organizationId: string; grantedAmount: number }): void {
     this.events.emit('credit_limit.granted.v1', {
       eventId: randomUUID(),
       occurredAt: new Date().toISOString(),
       organizationId: input.organizationId,
       amount: input.grantedAmount,
     });
-    return limit;
   }
 
   async adjust(input: {
     organizationId: string;
     grantedAmount: number;
     allowOverAllocation?: boolean;
-  }): Promise<{ ok: true; limit: CreditLimit } | { ok: false; code: 'ADJUSTMENT_BELOW_ACTIVE' }> {
+  }): Promise<AdjustResult> {
+    // Feature 054 — audited path: the Command Bus records the mutation
+    // co-transactionally and dispatches the event on commit.
+    if (this.commandBus) {
+      return this.commandBus.run(this.#adjustCommand(input));
+    }
+    // Legacy fallback (no bus injected — e.g. unit tests): unaudited, but
+    // byte-identical to the pre-054 behavior.
     const em = this.emFactory();
     return em.transactional(async (tx) => {
-      const limit = await tx.findOne(
-        CreditLimit,
-        { organizationId: input.organizationId },
-        { lockMode: LockMode.PESSIMISTIC_WRITE },
-      );
-      if (!limit) {
-        // Caller maps to 404; we don't have a separate "not granted" code in
-        // this enum — the route will translate.
-        throw new Error('CREDIT_LIMIT_NOT_GRANTED');
-      }
-      const reservedSum = await this.#sumActiveReservations(tx, limit.id);
-      if (
-        !input.allowOverAllocation &&
-        input.grantedAmount < reservedSum
-      ) {
-        return { ok: false, code: 'ADJUSTMENT_BELOW_ACTIVE' as const };
-      }
-      limit.grantedAmount = input.grantedAmount.toFixed(2);
-      await tx.flush();
-      this.events.emit('credit_limit.adjusted.v1', {
-        eventId: randomUUID(),
-        occurredAt: new Date().toISOString(),
-        organizationId: input.organizationId,
-        amount: input.grantedAmount,
-      });
-      return { ok: true, limit };
+      const r = await this.#applyAdjust(tx, input);
+      if (r.result.ok) this.#emitAdjusted(input);
+      return r.result;
+    });
+  }
+
+  /** The `adjust` write expressed as a Command (audited via the bus). */
+  #adjustCommand(input: {
+    organizationId: string;
+    grantedAmount: number;
+    allowOverAllocation?: boolean;
+  }): Command<AdjustResult> {
+    return {
+      action: 'credit_limit.adjust',
+      objectType: 'credit_limit',
+      objectId: input.organizationId,
+      run: async ({ em }) => {
+        const r = await this.#applyAdjust(em, input);
+        if (!r.result.ok) {
+          // No mutation happened → commit without an audit row.
+          return { result: r.result, skipAudit: true };
+        }
+        return { result: r.result, before: r.before ?? null, after: r.after ?? null };
+      },
+      event: (result) =>
+        result.ok
+          ? {
+              eventName: 'credit_limit.adjusted.v1',
+              payload: {
+                eventId: randomUUID(),
+                occurredAt: new Date().toISOString(),
+                organizationId: input.organizationId,
+                amount: input.grantedAmount,
+              },
+            }
+          : undefined,
+    };
+  }
+
+  /**
+   * Pure adjust write on the given em — no audit, no event. Returns the caller
+   * result plus the before/after snapshot for auditing. The pessimistic lock and
+   * over-allocation guard are preserved exactly.
+   */
+  async #applyAdjust(
+    em: EntityManager,
+    input: { organizationId: string; grantedAmount: number; allowOverAllocation?: boolean },
+  ): Promise<{
+    result: AdjustResult;
+    before?: Record<string, unknown>;
+    after?: Record<string, unknown>;
+  }> {
+    const limit = await em.findOne(
+      CreditLimit,
+      { organizationId: input.organizationId },
+      { lockMode: LockMode.PESSIMISTIC_WRITE },
+    );
+    if (!limit) {
+      // Caller maps to 404; we don't have a separate "not granted" code in
+      // this enum — the route will translate.
+      throw new Error('CREDIT_LIMIT_NOT_GRANTED');
+    }
+    const reservedSum = await this.#sumActiveReservations(em, limit.id);
+    if (!input.allowOverAllocation && input.grantedAmount < reservedSum) {
+      return { result: { ok: false, code: 'ADJUSTMENT_BELOW_ACTIVE' } };
+    }
+    const before = { organizationId: input.organizationId, grantedAmount: limit.grantedAmount };
+    limit.grantedAmount = input.grantedAmount.toFixed(2);
+    const after = { organizationId: input.organizationId, grantedAmount: limit.grantedAmount };
+    return { result: { ok: true, limit }, before, after };
+  }
+
+  #emitAdjusted(input: { organizationId: string; grantedAmount: number }): void {
+    this.events.emit('credit_limit.adjusted.v1', {
+      eventId: randomUUID(),
+      occurredAt: new Date().toISOString(),
+      organizationId: input.organizationId,
+      amount: input.grantedAmount,
     });
   }
 
@@ -138,6 +261,10 @@ export class CreditLimitService {
     /** When called inside the order-placement transaction, the caller passes its tx em. */
     tx?: EntityManager;
   }): Promise<ReserveResult> {
+    // command-coverage-ignore: reserve runs inside the caller's order-placement
+    // transaction (accepts `tx`) and is a system operation, not an admin action.
+    // The credit movement is captured by the credit_limit.reserved.v1 event and
+    // the reservation row — not the admin audit log.
     const run = async (em: EntityManager): Promise<ReserveResult> => {
       const limit = await em.findOne(
         CreditLimit,
@@ -186,6 +313,10 @@ export class CreditLimitService {
     orderId: string;
     reason: 'invoice_paid' | 'order_cancelled' | 'admin_revocation';
   }): Promise<ReleaseResult> {
+    // command-coverage-ignore: releaseByOrder is an automatic system operation
+    // (invoice-paid / order-cancelled / admin-revocation) captured by the
+    // credit_limit.released.v1 event and the reservation row, not the admin audit
+    // log. It also runs in its own pessimistic-lock transaction.
     const em = this.emFactory();
     return em.transactional(async (tx) => {
       const reservation = await tx.findOne(

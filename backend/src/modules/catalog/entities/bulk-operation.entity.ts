@@ -19,9 +19,23 @@ import { randomUUID } from 'crypto';
  */
 export type BulkOperationStatus = 'pending' | 'running' | 'completed' | 'failed';
 
+/** Undo state of a reversible operation (feature 054, FR-014). */
+export type BulkOperationUndoStatus = 'none' | 'reverted' | 'partially_reverted';
+
 export interface BulkOperationPayload {
   productIds: string[];
   fields: Record<string, unknown>;
+}
+
+/**
+ * One affected record's captured pre/post state for undo (feature 054, §R3/§R5).
+ * `before` is the minimal changed-field values to restore; `after` is what the
+ * operation wrote, compared against current state to detect conflicts.
+ */
+export interface BulkOperationRevertRecord {
+  recordId: string;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
 }
 
 /**
@@ -53,7 +67,9 @@ export class BulkOperation {
     | 'error'
     | 'createdAt'
     | 'startedAt'
-    | 'finishedAt';
+    | 'finishedAt'
+    | 'reversible'
+    | 'undoStatus';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -108,4 +124,26 @@ export class BulkOperation {
 
   @Property({ type: 'datetime', nullable: true })
   finishedAt?: Date | null;
+
+  // ---- Feature 054 — reversible bulk operations (US2) --------------------
+
+  /** Per-record before/after snapshot captured for undo. Null ⇒ nothing to revert. */
+  @Property({ type: 'json', nullable: true })
+  revertState?: BulkOperationRevertRecord[] | null;
+
+  /** Whether this operation captured revert data and may be undone (FR-004). */
+  @Property({ type: 'boolean' })
+  reversible = false;
+
+  /** Undo progress: `none` until undone, then `reverted` / `partially_reverted` (FR-014). */
+  @Property({ type: 'string', length: 24 })
+  undoStatus: BulkOperationUndoStatus = 'none';
+
+  /** When the undo completed. */
+  @Property({ type: 'datetime', nullable: true })
+  undoneAt?: Date | null;
+
+  /** Links the undo's own audited action back to this operation (FR-007). */
+  @Property({ type: 'uuid', nullable: true })
+  undoOperationId?: string | null;
 }

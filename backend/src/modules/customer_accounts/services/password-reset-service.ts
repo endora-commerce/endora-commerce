@@ -5,6 +5,8 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { hashPassword } from '../../auth/services/password-hasher.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import { PasswordResetToken } from '../entities/password-reset-token.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /**
  * Password reset flow (FR-045 / T119).
@@ -19,10 +21,16 @@ import { PasswordResetToken } from '../entities/password-reset-token.entity.js';
 const TOKEN_TTL_HOURS = 1;
 
 export class PasswordResetService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
 
   /** Returns the raw token only when the email matched a real account. Caller emails it. */
   async requestReset(email: string): Promise<{ rawToken: string | null }> {
+    // command-coverage-ignore: issues a short-TTL, one-shot reset token (rate-
+    // limited, account-enumeration-safe); the actual password change is audited
+    // at confirmReset (customer_account.password_reset).
     const em = this.emFactory();
     const customer = await em.findOne(CustomerAccount, { email, deletedAt: null });
     if (!customer) return { rawToken: null };
@@ -57,6 +65,15 @@ export class PasswordResetService {
     }
     customer.passwordHash = await hashPassword(newPassword);
     token.consumedAt = new Date();
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action: 'customer_account.password_reset',
+        objectType: 'customer_account',
+        objectId: customer.id,
+        stateBefore: null,
+        stateAfter: { via: 'reset_token' },
+      });
+    }
     await em.flush();
   }
 

@@ -2,6 +2,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import type { ReturnShipmentDto } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnShipment } from '../entities/return-shipment.entity.js';
 import { RETURN_STATUS_RECEIVED } from '../domain/return-status-graph.js';
@@ -10,6 +12,8 @@ import type { ReturnTransitionService } from './return-transition-service.js';
 export interface ReturnShipmentServiceDeps {
   emFactory: () => EntityManager;
   transitions: ReturnTransitionService;
+  /** Feature 054 — audits shipment writes co-transactionally when provided. */
+  auditLog?: AuditLogService;
 }
 
 /**
@@ -46,7 +50,17 @@ export class ReturnShipmentService {
       externalReference: input.externalReference ?? null,
       status: 'pending',
     });
-    await em.persistAndFlush(shipment);
+    em.persist(shipment);
+    if (this.deps.auditLog) {
+      recordAuditFromContext(this.deps.auditLog, em, {
+        action: 'return_shipment.create',
+        objectType: 'return_shipment',
+        objectId: shipment.id,
+        stateBefore: null,
+        stateAfter: { returnCaseId: caseId, direction: shipment.direction },
+      });
+    }
+    await em.flush();
     return toDto(shipment);
   }
 
@@ -56,6 +70,15 @@ export class ReturnShipmentService {
     const shipment = await em.findOne(ReturnShipment, { id: shipmentId, returnCaseId: caseId });
     if (!shipment) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return shipment not found.');
     shipment.status = 'received';
+    if (this.deps.auditLog) {
+      recordAuditFromContext(this.deps.auditLog, em, {
+        action: 'return_shipment.receive',
+        objectType: 'return_shipment',
+        objectId: shipment.id,
+        stateBefore: { status: 'pending' },
+        stateAfter: { status: 'received' },
+      });
+    }
     await em.flush();
     if (shipment.direction === 'inbound') {
       await this.deps.transitions.apply(caseId, RETURN_STATUS_RECEIVED, {

@@ -16,6 +16,8 @@ import type { PuckDataTree } from '@b2b/email-components/schema/envelope';
 import { EMAIL_SAFE_COMPONENT_NAMES } from '@b2b/email-components/schema/component-types';
 import { walkUnknownComponents } from '@b2b/email-components/tree/walk-embeds';
 import { HttpError } from '../../../http/error-envelope.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { EmailTemplate } from '../entities/email-template.entity.js';
 import { EmailTemplateSalesChannel } from '../entities/email-template-sales-channel.entity.js';
 
@@ -29,7 +31,28 @@ function validateTree(content: unknown): void {
 }
 
 export class EmailTemplateService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  #audit(
+    em: EntityManager,
+    action: string,
+    objectId: string,
+    stateBefore: Record<string, unknown> | null,
+    stateAfter: Record<string, unknown> | null,
+  ): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action,
+        objectType: 'email_template',
+        objectId,
+        stateBefore,
+        stateAfter,
+      });
+    }
+  }
 
   private async channelIds(em: EntityManager, templateId: string): Promise<string[]> {
     const rows = await em.find(EmailTemplateSalesChannel, { templateId });
@@ -99,6 +122,7 @@ export class EmailTemplateService {
     for (const scId of req.salesChannelIds ?? []) {
       em.persist(em.create(EmailTemplateSalesChannel, { templateId: tpl.id, salesChannelId: scId, code: tpl.code }));
     }
+    this.#audit(em, 'email_template.create', tpl.id, null, { code: tpl.code, name: tpl.name });
     await em.flush();
     return this.get(tpl.id);
   }
@@ -118,6 +142,7 @@ export class EmailTemplateService {
         em.persist(em.create(EmailTemplateSalesChannel, { templateId: t.id, salesChannelId: scId, code: t.code }));
       }
     }
+    this.#audit(em, 'email_template.update', t.id, null, { code: t.code, name: t.name });
     await em.flush();
     return this.get(id);
   }
@@ -134,6 +159,7 @@ export class EmailTemplateService {
     t.content = { schema_version: env.schema_version ?? 1, languages };
     if (!t.languages.includes(language)) t.languages = [...t.languages, language];
     t.version += 1;
+    this.#audit(em, 'email_template.set_content', t.id, null, { language, version: t.version });
     await em.flush();
     return this.get(id);
   }
@@ -143,6 +169,7 @@ export class EmailTemplateService {
     const t = await this.loadOrThrow(em, id);
     if (t.isSystem) throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, 'System templates cannot be deleted.');
     const bridges = await em.find(EmailTemplateSalesChannel, { templateId: t.id });
+    this.#audit(em, 'email_template.delete', t.id, { code: t.code }, null);
     await em.removeAndFlush([...bridges, t]);
   }
 }

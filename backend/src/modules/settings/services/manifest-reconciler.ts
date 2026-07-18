@@ -128,6 +128,8 @@ export class ManifestReconciler {
     manifests: ModuleSettingsManifest[],
     options: ReconciliationOptions = {},
   ): Promise<ReconciliationResult> {
+    // command-coverage-ignore: idempotent lifecycle reconciler/seed — a system-
+    // invariant repair, not an operator-initiated audited write.
     // (1) Validate every manifest before touching the DB.
     const parsed = manifests.map((m) => {
       const result = ModuleSettingsManifestSchema.safeParse(m);
@@ -176,6 +178,8 @@ export class ManifestReconciler {
     channels: ChannelLookup,
     options: ReconciliationOptions,
   ): Promise<ModuleReconciliationResult> {
+    // command-coverage-ignore: idempotent boot reconcile of one module's settings
+    // manifest — a system-invariant repair, not an operator-initiated audited write.
     const moduleCode = manifest.moduleCode;
     let addedGroups = 0;
     let updatedGroups = 0;

@@ -10,6 +10,7 @@ import {
 } from '../../src/tenancy/resolve-tenant-context.js';
 import { initOrm, closeOrm } from '../../src/db/index.js';
 import { EventBus } from '../../src/events/bus.js';
+import { CommandBus } from '../../src/commands/index.js';
 import { SessionService } from '../../src/modules/auth/services/session-service.js';
 import { AuditLogService } from '../../src/modules/audit_logs/services/audit-log-service.js';
 import { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
@@ -441,6 +442,9 @@ export async function setupBackendServer(
 
   const eventBus = new EventBus();
 
+  // Feature 054 — mirror production: the Command Bus is the audited write path.
+  const commandBus = new CommandBus(orm, auditLogService, eventBus);
+
   // CartService is exposed by the commerce module so the login handler in
   // organizations can merge anonymous baskets after sign-in.
   let cartService: CartService | null = null;
@@ -460,8 +464,8 @@ export async function setupBackendServer(
   // Feature 026 US4 — restriction service + per-request allow-list resolvers.
   // Mirrors the composition.ts pattern: production wiring reads
   // `request.actor`; the test harness uses `request.testActor`.
-  const sharedRestrictionService = new OrganizationRestrictionService(em);
-  const sharedSalesRepAssignment = new SalesRepAssignmentService(em);
+  const sharedRestrictionService = new OrganizationRestrictionService(em, auditLogService);
+  const sharedSalesRepAssignment = new SalesRepAssignmentService(em, auditLogService);
   const buildOrgAllowListResolver = (
     kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
   ) => async (request: FastifyRequest): Promise<string[] | null> => {
@@ -544,6 +548,7 @@ export async function setupBackendServer(
   const creditLimits = creditLimitsModule({
     emFactory: em,
     eventBus,
+    commandBus,
     requireCustomer: requireTestCustomer(),
     requireAdmin: requireTestAdmin(permissionService),
     resolveCustomerContext: customerResolver,
@@ -576,6 +581,7 @@ export async function setupBackendServer(
   const seo = seoModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
+    auditLog: auditLogService,
     sitemap: { staleAfterMs: 0, baseUrl: 'http://test.local' },
   });
 
@@ -584,12 +590,14 @@ export async function setupBackendServer(
   const i18n = i18nModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
+    auditLog: auditLogService,
   });
 
   const dictionaries = dictionariesModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
     redis,
+    auditLog: auditLogService,
   });
 
   // Feature 005 — sales-channels module is built BEFORE every other module
@@ -632,6 +640,7 @@ export async function setupBackendServer(
     // composition uses the default 60-s TTL.
     pricingCacheTtlMs: 0,
     auditLogService,
+    commandBus,
     resolveAdminAuditContext: (request) => ({
       actorAdminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
@@ -644,10 +653,12 @@ export async function setupBackendServer(
     requireAdmin: requireTestAdmin(permissionService),
     salesChannelMembership: salesChannels.handle.membershipService,
     dictionaryValidator: dictionaries.handle.validator,
+    auditLog: auditLogService,
   });
   const promotions = promotionsModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
+    auditLog: auditLogService,
     salesChannelMembership: salesChannels.handle.membershipService,
     // Feature 012 / US8 — wire the catalog read port so the rule-target
     // picker + criterion validation work in tests.
@@ -745,6 +756,7 @@ export async function setupBackendServer(
     taxes.plugin,
     promotions.plugin,
     commerceModule({
+      commandBus,
       emFactory: em,
       eventBus,
       auditLogService,
@@ -918,6 +930,7 @@ export async function setupBackendServer(
         emFactory: em,
         vies: new FakeVatValidator('vies'),
         mfPl: new FakeVatValidator('mf_pl'),
+        auditLog: auditLogService,
       });
       // Expose handles on the harness for tests that want to call the
       // services directly.
@@ -975,6 +988,7 @@ export async function setupBackendServer(
     catalogModule({
       emFactory: em,
       eventBus,
+      commandBus,
       requireAdmin: requireTestAdmin(permissionService),
       auditLogService,
       requireApiKey: integrations.handle.requireApiKey,
@@ -1213,6 +1227,7 @@ export async function setupBackendServer(
   const assetsLibrary = assetsLibraryModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
+    auditLog: auditLogService,
   });
   modules.push(assetsLibrary.plugin);
   registerCatalogAssetReferences(assetsLibrary.handle.referenceRegistry, em);
@@ -1474,6 +1489,7 @@ export async function setupBackendServer(
         return 0;
       }
     },
+    auditLog: auditLogService,
   });
   modules.push(quoteRequests.register);
 
@@ -1589,6 +1605,7 @@ export async function setupBackendServer(
       requireCustomer: requireTestCustomer(),
       settingsService: settings.handle.settingsService,
       audit: auditLogService,
+      auditLog: auditLogService,
       resolveAdminUserId: (req) =>
         req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
       resolveCustomerContext: (req) => ({

@@ -14,6 +14,7 @@ import { registerHealthRoutes } from './modules/health_checks/routes.js';
 import type { ErrorEnvelopeOptions } from './http/error-envelope.js';
 import { initOrm, closeOrm } from './db/index.js';
 import { EventBus } from './events/bus.js';
+import { CommandBus } from './commands/index.js';
 import fastifyPlugin from 'fastify-plugin';
 import { forkScopedEm } from './tenancy/scoped-em.js';
 import { runInTenantContext, type TenantContext } from './tenancy/tenant-context.js';
@@ -201,6 +202,8 @@ export interface ComposeAppHandle {
   redis: Redis;
   modules: ModulePlugin[];
   errorEnvelope: ErrorEnvelopeOptions;
+  /** Feature 054 — the Command Bus, exposed so migrated module wiring can consume it. */
+  commandBus: CommandBus;
   /** Closes the ORM + redis connection; call from a SIGTERM handler. */
   dispose: () => Promise<void>;
 }
@@ -247,9 +250,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const permissionCatalogueService = new PermissionCatalogueService({
     registryEntries: REGISTERED_MANIFESTS,
   });
-  const adminRoleService = new AdminRoleService(em, permissionCatalogueService);
+  const adminRoleService = new AdminRoleService(em, permissionCatalogueService, auditLogService);
 
   const eventBus = new EventBus();
+
+  // Feature 054 (Principle XIII) — the Command Bus: the single, guaranteed audit
+  // writer for sensitive writes. It forks the scoped EM, runs the write + one
+  // audit insert co-transactionally, and dispatches the domain event on commit.
+  // Threaded into module factories alongside `eventBus` as writes are migrated.
+  const commandBus = new CommandBus(orm, auditLogService, eventBus);
 
   // ---- Cross-cutting actor resolvers --------------------------------------
 
@@ -377,6 +386,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const creditLimits = creditLimitsModule({
     emFactory: em,
     eventBus,
+    commandBus,
     requireCustomer,
     requireAdmin,
     resolveCustomerContext: customerResolver,
@@ -388,7 +398,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // sitemap generator can read the per-channel `sales_channels.storefront_url`
   // setting via the SettingsService port. See `const seo = seoModule(...)` /
   // `modules.push(seo.plugin)` further down.
-  const i18n = i18nModule({ emFactory: em, requireAdmin });
+  const i18n = i18nModule({ emFactory: em, requireAdmin, auditLog: auditLogService });
 
   // Feature 005 — Sales Channels module. The boot-time
   // DefaultChannelReconciler runs FIRST so every other module can rely on a
@@ -416,6 +426,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     requireAdmin,
     redis,
+    auditLog: auditLogService,
   });
 
   const salesChannels = salesChannelsModule({
@@ -448,6 +459,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     requireAdmin,
     auditLogService,
+    commandBus,
     resolveAdminAuditContext: (request) => {
       const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
       if (actor?.kind !== 'admin') {
@@ -461,6 +473,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdmin,
     salesChannelMembership: salesChannels.handle.membershipService,
     dictionaryValidator: dictionaries.handle.validator,
+    auditLog: auditLogService,
   });
   // Feature 012 / US8 — promotions reads catalog through CatalogQueryService
   // (the documented cross-module port — Constitution I) so the rule editor
@@ -470,6 +483,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const promotions = promotionsModule({
     emFactory: em,
     requireAdmin,
+    auditLog: auditLogService,
     salesChannelMembership: salesChannels.handle.membershipService,
     catalogQueryService: catalogQueryServiceForPromotions,
     dictionaryValidator: dictionaries.handle.validator,
@@ -675,6 +689,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const seo = seoModule({
     emFactory: em,
     requireAdmin,
+    auditLog: auditLogService,
     settings: {
       get: (code, salesChannelId, schema) =>
         settings.handle.settingsService.get(code, salesChannelId, schema),
@@ -775,7 +790,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
 
   const organizationContextService = new OrganizationContextService(em);
-  const organizationRestrictionService = new OrganizationRestrictionService(em);
+  const organizationRestrictionService = new OrganizationRestrictionService(em, auditLogService);
 
   /**
    * Feature 026 US6 — admin orders/RFQ visibility scope. Sales-rep admins
@@ -855,6 +870,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     vies: new ViesClient(),
     mfPl: new MinisterstwoFinansowClient(),
+    auditLog: auditLogService,
   });
   const assertOrganizationCanTransact = async (organizationId: string): Promise<void> => {
     await organizationContextService.assertCanTransact(organizationId);
@@ -952,6 +968,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     taxes.plugin,
     promotions.plugin,
     commerceModule({
+      commandBus,
       emFactory: em,
       eventBus,
       auditLogService,
@@ -964,7 +981,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCustomerContext: customerResolver,
       salesChannelMembership: salesChannels.handle.membershipService,
       pricingService: priceLists.handle.pricingService,
-      addressService: new AddressService(em, dictionaries.handle.validator),
+      addressService: new AddressService(em, dictionaries.handle.validator, auditLogService),
       promotionService: promotions.handle.promotionService,
       redis,
       // Feature 027 US5 — abandonment-sweep resolvers + dispatcher.
@@ -1253,6 +1270,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     catalogModule({
       emFactory: em,
       eventBus,
+      commandBus,
       requireAdmin,
       auditLogService,
       requireApiKey: integrations.handle.requireApiKey,
@@ -1352,7 +1370,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // are accessible to other modules. Routes (admin upload, public file
   // serving) and consumer wiring (Catalog / CMS reference descriptors) land
   // in subsequent phases (US1 + US2).
-  const assetsLibrary = assetsLibraryModule({ emFactory: em, requireAdmin });
+  const assetsLibrary = assetsLibraryModule({ emFactory: em, requireAdmin, auditLog: auditLogService });
   modules.push(assetsLibrary.plugin);
   // Register Catalog's reference descriptors so the Library's soft-delete
   // path (FR-030) blocks deletion of any asset still pointed at by a
@@ -1727,6 +1745,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return 0;
       }
     },
+    auditLog: auditLogService,
   });
   modules.push(quoteRequests.register);
 
@@ -1840,6 +1859,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireCustomer,
     settingsService: settings.handle.settingsService,
     audit: auditLogService,
+    auditLog: auditLogService,
     resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
     resolveCustomerContext: (req: FastifyRequest) => {
       const c = customerResolver(req);
@@ -2285,6 +2305,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     orm,
     redis,
     modules,
+    commandBus,
     errorEnvelope: {
       resolvePreferredLanguage: async (request) => {
         if (request.actor.kind !== 'admin') return null;

@@ -2,6 +2,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Language } from '../entities/language.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /**
  * LanguageService — admin CRUD over the languages pool.
@@ -25,7 +27,26 @@ export class LanguageService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly invalidateDictionaryCache?: () => Promise<void>,
+    private readonly auditLog?: AuditLogService,
   ) {}
+
+  #audit(
+    em: EntityManager,
+    action: string,
+    objectId: string,
+    stateBefore: Record<string, unknown> | null,
+    stateAfter: Record<string, unknown> | null,
+  ): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action,
+        objectType: 'language',
+        objectId,
+        stateBefore,
+        stateAfter,
+      });
+    }
+  }
 
   async list(): Promise<Language[]> {
     const em = this.emFactory();
@@ -84,7 +105,9 @@ export class LanguageService {
       ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
       ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
     });
-    await em.persistAndFlush(row);
+    em.persist(row);
+    this.#audit(em, 'language.create', row.code, null, { label: row.label });
+    await em.flush();
     await this.invalidateDictionaryCache?.();
     return row;
   }
@@ -127,6 +150,7 @@ export class LanguageService {
       existing.label = input.label;
       if (input.isActive !== undefined) existing.isActive = input.isActive;
       if (input.sortOrder !== undefined) existing.sortOrder = input.sortOrder;
+      this.#audit(em, 'language.upsert', existing.code, null, { label: existing.label });
       await em.flush();
       await this.invalidateDictionaryCache?.();
       return existing;
@@ -137,7 +161,9 @@ export class LanguageService {
       ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
       ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
     });
-    await em.persistAndFlush(row);
+    em.persist(row);
+    this.#audit(em, 'language.upsert', row.code, null, { label: row.label });
+    await em.flush();
     await this.invalidateDictionaryCache?.();
     return row;
   }
@@ -208,6 +234,7 @@ export class LanguageService {
     if (input.isActive !== undefined) existing.isActive = input.isActive;
     if (input.sortOrder !== undefined) existing.sortOrder = input.sortOrder;
 
+    this.#audit(em, 'language.update', existing.code, null, { label: existing.label, isActive: existing.isActive });
     await em.flush();
     await this.invalidateDictionaryCache?.();
     return existing;
@@ -235,6 +262,8 @@ export class LanguageService {
     await em.nativeUpdate(Language, { isDefault: true }, { isDefault: false });
     await em.nativeUpdate(Language, { code }, { isDefault: true });
     target.isDefault = true;
+    this.#audit(em, 'language.set_default', code, null, { isDefault: true });
+    await em.flush();
     await this.invalidateDictionaryCache?.();
     return target;
   }
@@ -311,6 +340,7 @@ export class LanguageService {
         [{ path: 'consumers', issue: JSON.stringify(dependents) }],
       );
     }
+    this.#audit(em, 'language.delete', row.code, { label: row.label }, null);
     await em.removeAndFlush(row);
     await this.invalidateDictionaryCache?.();
   }

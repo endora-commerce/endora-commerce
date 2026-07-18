@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
+import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import { RfqService, type RfqEventBus } from './services/rfq-service.js';
 import { createQuoteRequestBusinessIdGenerator } from './services/quote-request-business-id-generator.js';
 import { RfqAdminService } from './services/rfq-admin-service.js';
@@ -53,6 +54,8 @@ export interface QuoteRequestsModuleOptions {
    * compositions, where prices stay net.
    */
   resolveTaxRate?: (organizationId: string) => Promise<number>;
+  /** Feature 054 — audits RFQ lifecycle writes co-transactionally when provided. */
+  auditLog?: AuditLogService;
 }
 
 export interface QuoteRequestsModuleHandle {
@@ -69,7 +72,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
   const eventService = new RfqEventService(options.emFactory);
   const revisionService = new RfqRevisionService(options.emFactory);
   const notificationService = new RfqNotificationService(options.emFactory);
-  const salesRepAssignment = new SalesRepAssignmentService(options.emFactory);
+  const salesRepAssignment = new SalesRepAssignmentService(options.emFactory, options.auditLog);
 
   // Business Quote Request ID generator — adapts the composition-wired
   // prefix/suffix resolver closures (SettingsService-backed) to the
@@ -92,6 +95,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     salesRepAssignment,
     businessId: businessIdGenerator,
     ...(options.resolveTaxRate ? { resolveTaxRate: options.resolveTaxRate } : {}),
+    ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
 
   const adminService = new RfqAdminService({
@@ -102,6 +106,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     revisionService,
     notificationService,
     salesRepAssignment,
+    ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
 
   const expiryWorker = new RfqExpiryWorker({

@@ -3,6 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import type { EventBus } from '../../../events/bus.js';
 import { HttpError } from '../../../http/error-envelope.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { Order } from '../entities/order.entity.js';
 import type { OrderStatusGraphService } from './order-status-graph-service.js';
 import {
@@ -46,6 +47,14 @@ export class OrderTransitionService {
     private readonly events: EventBus,
     private readonly graphService: OrderStatusGraphService,
     private readonly sideEffects?: OrderTransitionSideEffects,
+    /**
+     * Feature 054 — the status write is audited co-transactionally (one entry
+     * per applied transition, `stateBefore`/`stateAfter` = {status}). Recorded
+     * on the same `em` as the status flush; the event orchestration around the
+     * flush is unchanged (before-guards, before/after bus emits keep their
+     * ordering), so this does not route through the Command Bus's own scope.
+     */
+    private readonly auditLog?: AuditLogService,
   ) {}
 
   /**
@@ -113,6 +122,18 @@ export class OrderTransitionService {
 
     // --- apply ---------------------------------------------------------------
     order.status = to;
+    if (this.auditLog) {
+      this.auditLog.recordWithin(em, {
+        action: 'order.status_transition',
+        objectType: 'order',
+        objectId: order.id,
+        actorAdminUserId: actor.kind === 'admin' ? (actor.adminUserId ?? null) : null,
+        impersonatedCustomerAccountId:
+          actor.kind === 'customer' ? (actor.customerAccountId ?? null) : null,
+        stateBefore: { status: from },
+        stateAfter: { status: to },
+      });
+    }
     await em.flush();
     if (this.sideEffects) await this.sideEffects({ order, from, to });
 
