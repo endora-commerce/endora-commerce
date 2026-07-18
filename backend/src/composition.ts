@@ -14,6 +14,7 @@ import { registerHealthRoutes } from './modules/health_checks/routes.js';
 import type { ErrorEnvelopeOptions } from './http/error-envelope.js';
 import { initOrm, closeOrm } from './db/index.js';
 import { EventBus } from './events/bus.js';
+import { CommandBus } from './commands/index.js';
 import fastifyPlugin from 'fastify-plugin';
 import { forkScopedEm } from './tenancy/scoped-em.js';
 import { runInTenantContext, type TenantContext } from './tenancy/tenant-context.js';
@@ -201,6 +202,8 @@ export interface ComposeAppHandle {
   redis: Redis;
   modules: ModulePlugin[];
   errorEnvelope: ErrorEnvelopeOptions;
+  /** Feature 054 — the Command Bus, exposed so migrated module wiring can consume it. */
+  commandBus: CommandBus;
   /** Closes the ORM + redis connection; call from a SIGTERM handler. */
   dispose: () => Promise<void>;
 }
@@ -250,6 +253,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const adminRoleService = new AdminRoleService(em, permissionCatalogueService);
 
   const eventBus = new EventBus();
+
+  // Feature 054 (Principle XIII) — the Command Bus: the single, guaranteed audit
+  // writer for sensitive writes. It forks the scoped EM, runs the write + one
+  // audit insert co-transactionally, and dispatches the domain event on commit.
+  // Threaded into module factories alongside `eventBus` as writes are migrated.
+  const commandBus = new CommandBus(orm, auditLogService, eventBus);
 
   // ---- Cross-cutting actor resolvers --------------------------------------
 
@@ -2285,6 +2294,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     orm,
     redis,
     modules,
+    commandBus,
     errorEnvelope: {
       resolvePreferredLanguage: async (request) => {
         if (request.actor.kind !== 'admin') return null;

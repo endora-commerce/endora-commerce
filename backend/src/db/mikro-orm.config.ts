@@ -94,6 +94,7 @@ import { Migration086PaymentRefundedAmount } from '../modules/stripe/migrations/
 import { Migration087GoogleAnalyticsInit } from '../modules/google_analytics/migrations/087_google_analytics_init.js';
 import { Migration088TenantScopeIndexes } from './migrations/088_tenant_scope_indexes.js';
 import { Migration089PersonalOrganizations } from '../modules/organizations/migrations/089_personal_organizations.js';
+import { Migration090BulkOperationRevertState } from '../modules/catalog/migrations/090_bulk_operation_revert_state.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -449,6 +450,10 @@ export default defineConfig({
       {
         name: 'Migration089PersonalOrganizations',
         class: Migration089PersonalOrganizations,
+      },
+      {
+        name: 'Migration090BulkOperationRevertState',
+        class: Migration090BulkOperationRevertState,
       },
     ],
     transactional: true,
