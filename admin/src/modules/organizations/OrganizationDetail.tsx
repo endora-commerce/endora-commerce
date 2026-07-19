@@ -11,6 +11,7 @@ import { ModerationActionsPanel } from './panels/ModerationActionsPanel';
 import { ApplicablePriceListsPanel } from './panels/ApplicablePriceListsPanel';
 import { VatValidationPanel } from './panels/VatValidationPanel';
 import { RestrictionsPanel } from './panels/RestrictionsPanel';
+import { CustomFieldValuesPanel } from '../custom_fields/CustomFieldValuesPanel';
 import { DefaultPreferencesPanel } from '../quick_order/DefaultPreferencesPanel';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -54,6 +55,7 @@ interface OrgDetail {
   orderConfirmationEmails?: string[];
   fulfilmentStrategy?: FulfilmentStrategy | null;
   fulfilmentStrategyWarehouseOrder?: string[] | null;
+  customFieldValues?: Record<string, unknown>;
   members: OrgMember[];
   version?: number;
   blockedReason?: string | null;
@@ -156,6 +158,7 @@ export function OrganizationDetail(): ReactNode {
       orderConfirmationEmails?: string[];
       fulfilmentStrategy?: FulfilmentStrategy | null;
       fulfilmentStrategyWarehouseOrder?: string[] | null;
+      customFieldValues?: Record<string, unknown>;
       expectedUpdatedAt?: string;
     }): Promise<void> => {
       if (!org?.updatedAt) return;
@@ -702,6 +705,15 @@ export function OrganizationDetail(): ReactNode {
       {/* Feature 026 US5 — read-only "what price lists apply to this org". */}
       <div className="mt-4">
         <ApplicablePriceListsPanel organizationId={org.id} />
+      </div>
+
+      {/* Feature 055 — operator-defined custom fields for this organization. */}
+      <div className="mt-4">
+        <CustomFieldValuesPanel
+          entityType="organization"
+          values={org.customFieldValues ?? {}}
+          save={(values): Promise<void> => handlePatch({ customFieldValues: values })}
+        />
       </div>
 
       {id ? <OrganizationSalesRepsTab organizationId={id} /> : null}

@@ -18,6 +18,7 @@ import type { NextAction } from '@b2b/contracts';
 @Entity({ tableName: 'orders' })
 export class Order {
   [OptionalProps]?:
+    | 'customFieldValues'
     | 'id'
     | 'businessId'
     | 'createdAt'
@@ -167,4 +168,8 @@ export class Order {
 
   @Property({ type: 'datetime', onUpdate: () => new Date() })
   updatedAt: Date = new Date();
+
+  // Feature 055 — Custom Fields Layer value bag (inherits host tenant scope).
+  @Property({ type: 'json' })
+  customFieldValues: Record<string, unknown> = {};
 }

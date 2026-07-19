@@ -5,8 +5,16 @@ import {
   assignOrganizationRequestSchema,
   assignCustomerGroupRequestSchema,
   customerAddressInputSchema,
+  customFieldValuesSchema,
   validateCustomerVatRequestSchema,
+  ERROR_CODES,
 } from '@b2b/contracts';
+import { HttpError } from '../../http/error-envelope.js';
+import type { Command, CommandBus } from '../../commands/index.js';
+import {
+  CustomFieldValidationError,
+  type CustomFieldValueService,
+} from '../custom_fields/services/custom-field-value.service.js';
 import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '../auth/plugin.js';
 import type { CustomerModerationService } from './services/customer-moderation-service.js';
 import type { CustomerAdminQueryService } from './services/customer-admin-query-service.js';
@@ -82,6 +90,10 @@ export interface CustomersAdminDeps {
   mailer: Mailer;
   auditLogService: AuditLogService;
   storefrontBaseUrl: string;
+  /** Feature 055 — validates + persists Customer custom-field values (via the Command Bus). */
+  customFieldValues?: CustomFieldValueService;
+  /** Feature 055 — audits the custom-field write co-transactionally when provided. */
+  commandBus?: CommandBus;
 }
 
 export async function registerCustomersAdminRoutes(
@@ -90,6 +102,56 @@ export async function registerCustomersAdminRoutes(
 ): Promise<void> {
   const { requireAdmin, resolveModerationActor, moderationService } = deps;
   const { impersonationService, queryService } = deps;
+  const customFieldValues = deps.customFieldValues;
+  const commandBus = deps.commandBus;
+
+  // PATCH /api/v1/admin/customers/:id/custom-fields (feature 055). Audited via
+  // the Command Bus (Principle XIII); validation may reject with a 422.
+  if (customFieldValues && commandBus) {
+    app.patch<{ Params: { id: string } }>(
+      '/api/v1/admin/customers/:id/custom-fields',
+      { preHandler: requireAdmin('customers:manage'), schema: { body: customFieldValuesSchema } },
+      async (request) => {
+        const patch = customFieldValuesSchema.parse(request.body);
+        const id = request.params.id;
+        const command: Command<CustomerAccount> = {
+          action: 'customer.custom_fields.update',
+          objectType: 'customer_account',
+          objectId: id,
+          capture: async ({ em }) => {
+            const c = await em.findOne(CustomerAccount, { id });
+            return c ? { customFieldValues: c.customFieldValues ?? {} } : null;
+          },
+          run: async ({ em }) => {
+            const customer = await em.findOne(CustomerAccount, { id });
+            if (!customer) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer not found.');
+            customer.customFieldValues = await customFieldValues.validateAndMerge(
+              'customer',
+              customer.customFieldValues ?? {},
+              patch,
+            );
+            return { result: customer, after: { customFieldValues: customer.customFieldValues } };
+          },
+        };
+        try {
+          await commandBus.run(command);
+          const detail = await queryService.getDetail(id);
+          if (!detail) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer not found.');
+          return { data: detail };
+        } catch (err) {
+          if (err instanceof CustomFieldValidationError) {
+            throw new HttpError(
+              422,
+              ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
+              'One or more custom fields are invalid.',
+              err.errors.map((e) => ({ path: e.field, issue: e.message })),
+            );
+          }
+          throw err;
+        }
+      },
+    );
+  }
 
   // GET /api/v1/admin/customers — list (authority-scoped)
   app.get<{

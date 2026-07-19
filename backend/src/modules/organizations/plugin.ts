@@ -28,6 +28,7 @@ import { registerOrganizationsStorefrontRoutes } from './routes.storefront.js';
 import { OrganizationContextService } from './services/organization-context-service.js';
 import { registerMembersRoutes } from './routes.members.js';
 import { registerOrganizationsAdminRoutes } from './routes.admin.js';
+import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { RequireAdminAnyFactory } from '../../http/require-admin-any.js';
 import type { DictionaryValidator } from '@b2b/contracts';
@@ -110,6 +111,8 @@ export interface OrganizationsModuleOptions {
    * when provided.
    */
   taxIdValidationService?: OrganizationTaxIdValidationService;
+  /** Feature 055 — validates + reads organization custom-field values on the admin edit path. */
+  customFieldValues?: CustomFieldValueService;
 }
 
 export function organizationsModule(options: OrganizationsModuleOptions) {
@@ -224,6 +227,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
         ...(options.taxIdValidationService
           ? { taxIdValidationService: options.taxIdValidationService }
           : {}),
+        ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
       });
     }
   };

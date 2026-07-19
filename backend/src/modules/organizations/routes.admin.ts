@@ -11,6 +11,10 @@ import {
   inviteMemberRequestSchema,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
+import {
+  CustomFieldValidationError,
+  type CustomFieldValueService,
+} from '../custom_fields/services/custom-field-value.service.js';
 import { Organization } from './entities/organization.entity.js';
 import { CustomerAccount } from '../customer_accounts/entities/customer-account.entity.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
@@ -87,6 +91,12 @@ export interface AdminOrgsDeps {
   taxIdValidationService?: OrganizationTaxIdValidationService;
   /** Optional — when provided, mounts the org-addresses read endpoint used by the default-preferences panel. */
   addressService?: AddressService;
+  /**
+   * Feature 055 — validates + merges custom-field values on org edit and exposes
+   * them on read. The org module owns the write/audit; the value service only
+   * validates (Principle XIV).
+   */
+  customFieldValues?: CustomFieldValueService;
 }
 
 export async function registerOrganizationsAdminRoutes(
@@ -105,6 +115,7 @@ export async function registerOrganizationsAdminRoutes(
   const restrictionService = deps.restrictionService;
   const effectivePriceListsService = deps.effectivePriceListsService;
   const taxIdValidationService = deps.taxIdValidationService;
+  const customFieldValues = deps.customFieldValues;
 
   const customersRead = requireAdminAny(['customers:read', 'customers:manage']);
 
@@ -246,6 +257,27 @@ export async function registerOrganizationsAdminRoutes(
       if (body.fulfilmentStrategy !== undefined) org.fulfilmentStrategy = body.fulfilmentStrategy;
       if (body.fulfilmentStrategyWarehouseOrder !== undefined) {
         org.fulfilmentStrategyWarehouseOrder = body.fulfilmentStrategyWarehouseOrder;
+      }
+      // Feature 055 — validate + merge custom-field values; the org module owns
+      // the write, the value service only validates (Principle XIV).
+      if (body.customFieldValues !== undefined && customFieldValues) {
+        try {
+          org.customFieldValues = await customFieldValues.validateAndMerge(
+            'organization',
+            org.customFieldValues ?? {},
+            body.customFieldValues,
+          );
+        } catch (err) {
+          if (err instanceof CustomFieldValidationError) {
+            throw new HttpError(
+              422,
+              ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
+              'One or more custom fields are invalid.',
+              err.errors.map((e) => ({ path: e.field, issue: e.message })),
+            );
+          }
+          throw err;
+        }
       }
       await em.flush();
       await audit(
@@ -739,6 +771,7 @@ function serializeOrg(o: Organization): Record<string, unknown> {
       provider: o.vatValidationProvider ?? null,
       validatedAt: o.vatValidatedAt?.toISOString() ?? null,
     },
+    customFieldValues: o.customFieldValues ?? {},
     createdAt: o.createdAt.toISOString(),
     updatedAt: o.updatedAt.toISOString(),
   };

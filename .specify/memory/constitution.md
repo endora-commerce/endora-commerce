@@ -1,29 +1,28 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 3.5.0 → 3.6.0
-Rationale: MINOR bump. A new principle — XIII (Uniform Write Auditing via
-Command Bus) — is added, establishing a framework-level command path as the
-single, guaranteed writer of the audit trail for sensitive mutations, and
-opt-in reversibility (undo) built on the same captured before/after state. It
-codifies the architectural decision from the 054-command-bus-audit-undo audit:
-the audit substrate (`audit_log_entries`, with actor + before/after) already
-modeled everything auditing and undo need, but the audit writer was invoked by
-hand at ~70 scattered call sites, so coverage was inconsistent, before/after
-was captured ad-hoc, and no revert path existed. The principle mandates that
-sensitive writes run as Commands whose audit + domain-event + write are
-co-transactional, whose actor is server-derived (composing with Principle XI),
-with no hand-placed audit calls in migrated modules (a CI coverage check
-enforces it) and safe, conflict-aware undo where declared. A new principle is
-added (not a redefinition or removal), so the versioning policy mandates a
-MINOR bump.
+Version change: 3.6.0 → 3.7.0
+Rationale: MINOR bump. A new principle — XIV (Entity-Agnostic Extensibility &
+Runtime Custom Fields) — is added, codifying the architectural stance from the
+055-custom-fields-layer feature. A capability spanning multiple host entity
+types MUST be built as an entity-agnostic core whose host-specific behavior
+lives behind documented extension points, and a generic layer that generalizes
+an existing entity-specific mechanism (e.g. `product_attributes`) MUST leave
+that mechanism the untouched source of truth (reuse the design, not the code;
+any convergence is an adapter, not a rewrite). Runtime extension of core
+entities MUST be data (a definition row), never a schema migration or code
+deploy, with per-write validation and host-inherited tenant scope; the host
+owns persistence + audit while the generic layer owns definitions + validation.
+The principle prevents the observed rot where `product_attributes` accreted
+catalog-only flags until it was no longer reusable. A new principle is added
+(not a redefinition or removal), so the versioning policy mandates a MINOR bump.
 
 Modified principles:
   - (none renamed/redefined)
 
 Added sections:
-  - XIII. Uniform Write Auditing via Command Bus (NON-NEGOTIABLE) — new principle.
-  - Quality gate #12 (Uniform write auditing) in Development Workflow.
+  - XIV. Entity-Agnostic Extensibility & Runtime Custom Fields — new principle.
+  - Quality gate #13 (Entity-agnostic extensibility) in Development Workflow.
 
 Removed sections:
   - (none)
@@ -33,20 +32,21 @@ Templates / artifacts requiring alignment:
        generic; no edits required.
   - ✅ .specify/templates/spec-template.md      — no edits required.
   - ✅ .specify/templates/tasks-template.md     — no edits required.
-  - ✅ README.md — added Principle XIII quick-reference note (point 13) and
+  - ✅ README.md — added Principle XIV quick-reference note (point 14) and
        extended the PR-gates paragraph.
-  - ✅ .github/pull_request_template.md — added gate #12 (uniform write
-       auditing) and refreshed the gate-count comment.
+  - ✅ .github/pull_request_template.md — added gate #13 (entity-agnostic
+       extensibility) and refreshed the gate-count comment.
 
 Deferred items / TODOs:
-  - Principle XIII's interim clause tracks an incremental migration: the
-    Command Bus is introduced by feature 054-command-bus-audit-undo and the
-    ~70 legacy hand-written audit call sites are converted module by module.
-    Until a module is migrated it MAY retain hand-written audit calls (but
-    MUST still audit); the coverage check runs report-only until then, then
-    build-breaking per migrated module. From this amendment forward, NEW
-    sensitive writes MUST be expressed as Commands.
+  - Principle XIV composes with the existing guards rather than introducing a
+    new migration: values are host columns (tenant scope XI holds for free),
+    definition writes are Commands (auditing XIII holds by construction), host
+    interaction is via service/interface (modularity I holds). Product stays on
+    `product_attributes` as its source of truth; a generic bridge, if ever
+    built, is an adapter (out of the initial custom-fields scope).
 
+  (History) 3.5.0 → 3.6.0 added Principle XIII + quality gate #12
+    (uniform write auditing via Command Bus, feature 054-command-bus-audit-undo).
   (History) 3.4.0 → 3.5.0 added Principle XII + quality gate #11
     (sales-channel content scoping, feature 052-scoping-hotfixes).
   (History) 3.3.0 → 3.4.0 expanded Principle XI with the "One tenant
@@ -513,6 +513,59 @@ event bus, and the tenant-scoped EM, adding no new dependency. It is introduced 
 `054-command-bus-audit-undo`; from this amendment forward, new features build on it rather than
 reintroducing scattered audit calls.
 
+### XIV. Entity-Agnostic Extensibility & Runtime Custom Fields
+
+A capability that spans multiple host entity types MUST be built as an **entity-agnostic core**
+whose host-specific behavior lives behind documented extension points — never absorbed into the
+core; and a generic layer that generalizes an existing entity-specific mechanism MUST leave that
+mechanism the untouched source of truth for its own entity. The following are binding for every
+feature that adds a cross-cutting / generic capability or extends core entities with
+runtime-defined data:
+
+- **Generic core stays entity-agnostic.** A module providing a cross-cutting capability over
+  several host entity types MUST NOT embed any host-specific concern (a catalog flag like
+  variant-axis or filter-position, an order status, a channel rule) in its core schema or logic.
+  Host-specific behavior is exposed **only** through a documented extension point — an opaque
+  config the host module interprets, or a host-registered adapter — that the generic core stores
+  but never reads for meaning. A CI / review check MUST confirm the generic core carries no
+  entity-specific capability identifier.
+- **Generalize the design, not the code.** When a new generic layer generalizes an existing
+  entity-specific system (e.g. `product_attributes`), that system MUST remain the untouched
+  **source of truth** for its own entity. The generic layer MUST NOT migrate, duplicate, or break
+  it; reuse its **design** (typed definitions, per-locale labels with default fallback, option
+  lists for select types), not its code. Any later convergence is an **adapter**, not a rewrite.
+- **Runtime extension is data, not DDL.** Where operators must add fields to core entities at
+  deployment time, adding / editing / removing a field MUST be a **data** change (a definition
+  row), never a schema migration or code deploy. Extension values MUST be validated on every write
+  against their definition, MUST reject **per field** on violation (wrong type, missing required,
+  unknown option, out of range), and MUST **inherit the host record's tenant scope** (Principle XI)
+  by construction — never widening visibility. Definition / option mutations are themselves
+  sensitive writes and run through the Command Bus (Principle XIII).
+- **Host owns its data; the generic layer owns definitions + validation.** The generic layer MUST
+  NOT write into host tables or audit host writes: the host persists its own record and (per
+  Principle XIII) audits its own write, calling the generic layer only to validate incoming values
+  and to read definitions. This keeps module boundaries intact (Principle I) and prevents
+  double-auditing (Principle XIII).
+- **Extensibility is not a mandate to over-configure.** Principle IV still governs *whether* a
+  given field is a first-class column or a runtime custom field; this principle governs *how* a
+  runtime-defined field behaves once that choice is made. Do not make everything runtime-configurable
+  to avoid a migration you should simply write.
+
+**Rationale**: The platform's entity set grows and clients need to extend core entities
+(Organization, Order, Customer, Category, QuoteRequest) at deployment time without a code change.
+The failure mode this principle prevents is already visible in the codebase: `product_attributes`
+began as a clean typed-definition registry and accreted catalog-only flags (`isVariantAxis`,
+`isPromoRule`, `filterPosition`, `isVisibleOnProductPage`, `channelScoped`) until it was no longer
+reusable as a generic mechanism. The next generic capability that reaches for it must either inherit
+that entanglement or build fresh — and the temptation is to bolt the *next* entity's specifics onto
+whatever generic core exists first, repeating the rot. Codifying "generic cores stay entity-agnostic,
+host specifics live behind extension points, generalizing never breaks the system it generalizes, and
+runtime extension is validated tenant-scoped data" keeps cross-cutting capabilities from decaying into
+god-modules and keeps the specific systems they generalize stable. It composes with the existing
+guards rather than adding a new mechanism: values are host columns, so tenant isolation (XI) holds for
+free; definition writes are Commands, so auditing (XIII) holds by construction; host interaction is via
+service / interface, so modularity (I) holds. Introduced by feature `055-custom-fields-layer`.
+
 ## Technology Stack
 
 The following stack is mandated. Substitutions require amending this
@@ -679,6 +732,15 @@ Every change MUST pass the following gates before merge:
     whose undo can partially clobber a record changed since (undo MUST be all-or-nothing per
     record with a conflict report, idempotent-safe, and itself audited). The command coverage
     check MUST pass for migrated modules.
+13. **Entity-agnostic extensibility** — reviewers MUST reject any change that violates Principle
+    XIV: a cross-cutting / generic core that embeds an entity-specific concern instead of exposing
+    it through a documented host extension point; a generalization that migrates, duplicates, or
+    breaks the entity-specific system it generalizes (rather than leaving it the source of truth,
+    converging later via an adapter); a runtime-extensible field mechanism that requires a schema
+    migration or code deploy to add a field, skips per-write validation against the definition, or
+    lets extension values widen past the host record's tenant scope; or a generic layer that writes
+    into / audits host tables instead of letting the host own persistence + audit. Definition /
+    option mutations MUST run through the Command Bus (Principle XIII).
 
 Code review MUST explicitly verify each of the above. "LGTM" without
 evidence of checking the gates is not an approval.
@@ -717,4 +779,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 3.6.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-07-18
+**Version**: 3.7.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-07-18

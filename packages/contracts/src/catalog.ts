@@ -952,6 +952,8 @@ export const updateCategoryRequestSchema = z
     sortOrder: z.number().int().optional(),
     /** Feature 013 / US5 — Library Asset rendered as the category's main image. */
     mainImageAssetId: uuidSchema.nullable().optional(),
+    /** Feature 055 — custom-field values for this category (validated on write). */
+    customFieldValues: z.record(z.string(), z.unknown()).optional(),
   })
   .strict();
 export type UpdateCategoryRequest = z.infer<typeof updateCategoryRequestSchema>;

@@ -970,6 +970,9 @@ export async function registerCatalogAdminRoutes(
           ...(body.mainImageAssetId !== undefined
             ? { mainImageAssetId: body.mainImageAssetId }
             : {}),
+          ...(body.customFieldValues !== undefined
+            ? { customFieldValues: body.customFieldValues }
+            : {}),
         });
         return { data: serializeAdminCategory(cat) };
       },
@@ -1839,6 +1842,7 @@ function serializeAdminCategory(c: Category) {
     slug: c.slug,
     sortOrder: c.sortOrder,
     mainImageAssetId: c.mainImageAssetId ?? null,
+    customFieldValues: c.customFieldValues ?? {},
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
   };

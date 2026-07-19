@@ -4,6 +4,8 @@ import type { SessionService } from '../auth/services/session-service.js';
 import type { OrderListService } from '../orders/services/order-list-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { CommandBus } from '../../commands/index.js';
+import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
 import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
 import { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
 import { DefaultPreferenceService } from '../quick_order/services/default-preference-service.js';
@@ -67,6 +69,10 @@ export interface CustomersModuleOptions {
   resolveDeletionRetentionDays: () => Promise<number>;
   /** Reads `customers.presence_freshness_minutes`. */
   resolvePresenceFreshnessMinutes: () => Promise<number>;
+  /** Feature 055 — validates + persists Customer custom-field values on the admin edit path. */
+  customFieldValues?: CustomFieldValueService;
+  /** Feature 054/055 — audits the custom-field write co-transactionally when provided. */
+  commandBus?: CommandBus;
 }
 
 export interface CustomersModuleHandle {
@@ -185,6 +191,8 @@ export function customersModule(options: CustomersModuleOptions): {
       mailer: options.mailer,
       auditLogService: options.auditLogService,
       storefrontBaseUrl: options.storefrontBaseUrl,
+      ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
+      ...(options.commandBus ? { commandBus: options.commandBus } : {}),
     });
   };
 

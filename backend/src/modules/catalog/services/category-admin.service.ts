@@ -5,6 +5,10 @@ import { ERROR_CODES, type CreateCategoryRequest } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import type { CommandBus } from '../../../commands/index.js';
 import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
+import {
+  CustomFieldValidationError,
+  type CustomFieldValueService,
+} from '../../custom_fields/services/custom-field-value.service.js';
 import { Category } from '../entities/category.entity.js';
 
 /** Result of a category write closure: the entity + its audit snapshot. */
@@ -34,6 +38,8 @@ export interface UpdateCategoryInput {
   sortOrder?: number;
   /** Feature 013 / US5 — Library Asset rendered as the storefront category main image. */
   mainImageAssetId?: string | null;
+  /** Feature 055 — custom-field values (validated + merged against definitions on write). */
+  customFieldValues?: Record<string, unknown>;
 }
 
 export class CategoryAdminService {
@@ -49,7 +55,30 @@ export class CategoryAdminService {
     private readonly salesChannelMembership?: SalesChannelMembershipService,
     /** Feature 054 — audits category writes co-transactionally when provided. */
     private readonly commandBus?: CommandBus,
+    /** Feature 055 — validates + merges custom-field values on category write. */
+    private readonly customFieldValues?: CustomFieldValueService,
   ) {}
+
+  /** Validate + merge a custom-field patch, mapping validation errors to HTTP 422. */
+  async #mergeCustomFields(
+    current: Record<string, unknown>,
+    patch: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    if (!this.customFieldValues) return current;
+    try {
+      return await this.customFieldValues.validateAndMerge('category', current ?? {}, patch);
+    } catch (err) {
+      if (err instanceof CustomFieldValidationError) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
+          'One or more custom fields are invalid.',
+          err.errors.map((e) => ({ path: e.field, issue: e.message })),
+        );
+      }
+      throw err;
+    }
+  }
 
   /**
    * Feature 054 — run a category write through the Command Bus (co-transactional
@@ -157,6 +186,9 @@ export class CategoryAdminService {
       if (input.slug !== undefined) cat.slug = input.slug;
       if (input.sortOrder !== undefined) cat.sortOrder = input.sortOrder;
       if (input.mainImageAssetId !== undefined) cat.mainImageAssetId = input.mainImageAssetId;
+      if (input.customFieldValues !== undefined) {
+        cat.customFieldValues = await this.#mergeCustomFields(cat.customFieldValues ?? {}, input.customFieldValues);
+      }
       try {
         await em.flush();
       } catch (err) {

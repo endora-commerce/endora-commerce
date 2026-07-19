@@ -134,6 +134,7 @@ export class CustomerAdminQueryService {
       twoFactorEnabled: customer.twoFactorConfirmedAt != null,
       salesChannelIds: [...new Set(salesChannelIds)],
       defaults,
+      customFieldValues: customer.customFieldValues ?? {},
     };
   }
 

@@ -14,6 +14,7 @@ import { randomUUID } from 'crypto';
 @Entity({ tableName: 'customer_accounts' })
 export class CustomerAccount {
   [OptionalProps]?:
+    | 'customFieldValues'
     | 'id'
     | 'createdAt'
     | 'updatedAt'
@@ -81,6 +82,10 @@ export class CustomerAccount {
 
   @Property({ type: 'datetime', onUpdate: () => new Date() })
   updatedAt: Date = new Date();
+
+  // Feature 055 — Custom Fields Layer value bag (inherits host tenant scope).
+  @Property({ type: 'json' })
+  customFieldValues: Record<string, unknown> = {};
 
   @Property({ type: 'datetime', nullable: true })
   deletedAt?: Date | null;

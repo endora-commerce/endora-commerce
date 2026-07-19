@@ -768,6 +768,7 @@ export class RfqService {
       lastCustomerSeenRevisionNumber: rfq.lastCustomerSeenRevisionNumber,
       headerNote: rfq.headerNote ?? null,
       cancellationReason: rfq.cancellationReason ?? null,
+      customFieldValues: rfq.customFieldValues ?? {},
       items: items.map((it) => ({
         id: it.id,
         productId: it.productId,

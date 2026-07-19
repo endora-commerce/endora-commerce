@@ -237,6 +237,8 @@ export const adminPatchOrganizationRequestSchema = z.object({
    */
   fulfilmentStrategy: fulfilmentStrategySchema.nullable().optional(),
   fulfilmentStrategyWarehouseOrder: z.array(uuidSchema).nullable().optional(),
+  /** Feature 055 — custom-field values for this organization (validated on write). */
+  customFieldValues: z.record(z.string(), z.unknown()).optional(),
   expectedUpdatedAt: z.string().optional(),
 });
 

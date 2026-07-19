@@ -81,6 +81,7 @@ import {
 import { inventoryModule } from './modules/inventory/plugin.js';
 import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
 import { creditLimitsModule } from './modules/credit_limits/plugin.js';
+import { customFieldsModule } from './modules/custom_fields/plugin.js';
 import { integrationsModule } from './modules/api_keys/plugin.js';
 import { analyticsModule } from './modules/analytics/plugin.js';
 import { importExportModule } from './modules/import_export/plugin.js';
@@ -391,6 +392,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdmin,
     resolveCustomerContext: customerResolver,
   });
+
+  // Feature 055 — Custom Fields Layer. Exposes the definition/value services as
+  // a handle consumed by host modules; registers the admin definition API. The
+  // per-entity-type cache subscribes to its own Redis channel for cross-process
+  // invalidation.
+  const customFields = customFieldsModule({
+    emFactory: em,
+    commandBus,
+    requireAdmin,
+    redis,
+  });
+  void customFields.handle.cache.start(redisSubscriber);
 
   const analytics = analyticsModule({ emFactory: em, requireAdmin });
   const importExport = importExportModule({ emFactory: em, requireAdmin });
@@ -958,6 +971,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     tenantContextModulePlugin,
     admin.plugin,
     creditLimits.plugin,
+    customFields.plugin,
     integrations.plugin,
     analytics.plugin,
     importExport.plugin,
@@ -972,6 +986,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       emFactory: em,
       eventBus,
       auditLogService,
+      customFieldValues: customFields.handle.valueService,
       mailer: organizationsMailer,
       // Feature 047 — late-bound; set once the transactional_emails module builds.
       getTransactionalEmailSender: () => transactionalEmailSender,
@@ -1241,6 +1256,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       restrictionService: organizationRestrictionService,
       effectivePriceListsService: organizationEffectivePriceListsService,
       taxIdValidationService: organizationTaxIdValidationService,
+      customFieldValues: customFields.handle.valueService,
       dictionaryValidator: dictionaries.handle.validator,
       ...(process.env['STOREFRONT_BASE_URL']
         ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
@@ -1273,6 +1289,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       commandBus,
       requireAdmin,
       auditLogService,
+      customFieldValues: customFields.handle.valueService,
+      customFieldDefinitions: customFields.handle.definitionService,
       requireApiKey: integrations.handle.requireApiKey,
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,
@@ -1634,6 +1652,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     eventBus,
     requireCustomer,
     requireAdmin,
+    customFieldValues: customFields.handle.valueService,
     resolveCustomerContext: async (request) => {
       if (request.actor.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
@@ -1756,6 +1775,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     sessionService,
     requireCustomer,
+    commandBus,
+    customFieldValues: customFields.handle.valueService,
     resolveCustomerActor: (request) => {
       if (request.actor.kind !== 'customer') {
         throw new HttpError(
