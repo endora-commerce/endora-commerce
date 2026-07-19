@@ -2,7 +2,10 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type Redis from 'ioredis';
 import type { CommandBus } from '../../commands/index.js';
-import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
+import type {
+  CustomFieldValueService,
+  DefinitionSource,
+} from '../custom_fields/services/custom-field-value.service.js';
 import { BULK_OPERATION_TYPES } from '@b2b/contracts';
 import type { EventBus } from '../../events/bus.js';
 import { defineModuleWorker } from '../_lifecycle/plugin-helpers.js';
@@ -129,6 +132,12 @@ export interface CatalogModuleOptions {
   ) => Promise<string | null>;
   /** Feature 055 — validates + reads Category custom-field values on the admin edit path. */
   customFieldValues?: CustomFieldValueService;
+  /**
+   * Feature 055 (US4) — custom-field definition source. When wired, Category
+   * custom fields flagged `config.filterable` are merged into the storefront
+   * filter set by `CatalogQueryService`. Catalog interprets the opaque config.
+   */
+  customFieldDefinitions?: DefinitionSource;
 }
 
 export function catalogModule(options: CatalogModuleOptions) {
@@ -137,6 +146,7 @@ export function catalogModule(options: CatalogModuleOptions) {
     const queryService = new CatalogQueryService(
       options.emFactory,
       productLinkServiceForRead,
+      options.customFieldDefinitions,
     );
     const adminService = new CatalogAdminService(
       options.emFactory,

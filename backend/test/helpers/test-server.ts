@@ -1010,6 +1010,7 @@ export async function setupBackendServer(
       requireAdmin: requireTestAdmin(permissionService),
       auditLogService,
       customFieldValues: customFields.handle.valueService,
+      customFieldDefinitions: customFields.handle.definitionService,
       requireApiKey: integrations.handle.requireApiKey,
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,

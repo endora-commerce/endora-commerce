@@ -10,6 +10,7 @@ import { ProductAttachment } from '../entities/product-attachment.entity.js';
 import { AttachmentType } from '../entities/attachment-type.entity.js';
 import { Asset } from '../../assets_library/entities/asset.entity.js';
 import type { ProductLinkService } from './product-link.service.js';
+import type { DefinitionSource } from '../../custom_fields/services/custom-field-value.service.js';
 import { GroupedItem } from '../entities/grouped-item.entity.js';
 import { ProductPackagingUnit } from '../entities/product-packaging-unit.entity.js';
 import { BundleSlot } from '../entities/bundle-slot.entity.js';
@@ -103,6 +104,13 @@ export class CatalogQueryService {
      * `productDetail.links` is omitted from the response.
      */
     private readonly productLinkService?: ProductLinkService,
+    /**
+     * Feature 055 (US4) — optional custom-field definition source. When wired,
+     * Category custom fields flagged `config.filterable === true` are merged into
+     * the storefront filter set. The catalog interprets the opaque `config` here;
+     * the custom-fields core stays unaware of catalog (Principle XIV / FR-006).
+     */
+    private readonly customFieldDefinitions?: DefinitionSource,
   ) {}
 
   // ------------------------------------------------------------------
@@ -815,14 +823,63 @@ export class CatalogQueryService {
       return false;
     });
 
+    // Feature 055 (US4) — merge Category custom fields flagged `config.filterable`.
+    // These are category-level filters whose options come from the field
+    // definition, not from a product-facet scan, so they are appended AFTER the
+    // product-facet `nonEmpty` drop. The catalog interprets the opaque `config`
+    // (FR-006); the generic custom-fields core is unaware of catalog.
+    const customFilters = await this.buildCustomFieldFilters(ctx, channel);
+
+    const merged = [...nonEmpty, ...customFilters];
+
     // Feature 012 / FR-027 + FR-028 — pre-sort by filterPosition ASC,
     // then by resolved label ASC. Storefront consumes the order verbatim.
-    nonEmpty.sort((a, b) => {
+    merged.sort((a, b) => {
       if (a.filterPosition !== b.filterPosition) return a.filterPosition - b.filterPosition;
       return a.label.localeCompare(b.label);
     });
 
-    return nonEmpty;
+    return merged;
+  }
+
+  /**
+   * Feature 055 (US4) — resolve the filterable Category custom fields into
+   * {@link FilterDefinition}s. Returns `[]` when no definition source is wired.
+   * Select/multiselect fields carry their defined options; scalar fields carry
+   * neither options nor range (they render as a keyword/value filter client-side).
+   */
+  private async buildCustomFieldFilters(
+    ctx: CatalogQueryContext,
+    channel: CatalogQueryContext['resolvedChannel'],
+  ): Promise<FilterDefinition[]> {
+    if (!this.customFieldDefinitions) return [];
+    const defs = await this.customFieldDefinitions.listForEntity('category');
+    const out: FilterDefinition[] = [];
+    for (const { definition, options } of defs) {
+      if (definition.config?.['filterable'] !== true) continue;
+      const label =
+        this.pickLang(definition.label, ctx.preferredLanguage, channel) || definition.labelDefault;
+      const isSelect = definition.valueType === 'select' || definition.valueType === 'multiselect';
+      const def: FilterDefinition = {
+        // Namespaced so a custom field cannot collide with a product attribute key.
+        attributeKey: `cf.${definition.key}`,
+        label,
+        valueType: definition.valueType === 'text' ? 'string' : definition.valueType,
+        filterPosition: definition.sortOrder,
+        ...(isSelect
+          ? {
+              options: options.map((o) => ({
+                value: o.value,
+                label:
+                  this.pickLang(o.label, ctx.preferredLanguage, channel) || o.labelDefault,
+                count: 0,
+              })),
+            }
+          : {}),
+      };
+      out.push(def);
+    }
+    return out;
   }
 
   // ------------------------------------------------------------------

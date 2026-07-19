@@ -47,4 +47,53 @@ describe('Custom Fields — capability opt-in via opaque config (US4) [real DB]'
     const material = defs.find((d) => d.definition.key === 'material');
     expect(material?.definition.config).toEqual({ filterable: true, storefrontVisible: true });
   });
+
+  it('catalog surfaces a filterable custom field in its own filter set; non-filterable stays hidden', async () => {
+    // A filterable select field...
+    await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/custom-fields/definitions',
+      payload: {
+        entityType: 'category',
+        key: 'finish',
+        label: {},
+        labelDefault: 'Finish',
+        valueType: 'select',
+        required: false,
+        sortOrder: 0,
+        config: { filterable: true },
+        options: [
+          { value: 'matte', label: {}, labelDefault: 'Matte', isDefault: false, sortOrder: 0 },
+          { value: 'gloss', label: {}, labelDefault: 'Gloss', isDefault: false, sortOrder: 1 },
+        ],
+      },
+      ...ADMIN,
+    });
+    // ...and a non-filterable one that must NOT surface.
+    await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/custom-fields/definitions',
+      payload: {
+        entityType: 'category',
+        key: 'internal_note',
+        label: {},
+        labelDefault: 'Internal note',
+        valueType: 'text',
+        required: false,
+        sortOrder: 1,
+        config: { filterable: false },
+        options: [],
+      },
+      ...ADMIN,
+    });
+
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/filters' });
+    expect(res.statusCode).toBe(200);
+    const filters = res.json().data as Array<{ attributeKey: string; options?: Array<{ value: string }> }>;
+    const finish = filters.find((f) => f.attributeKey === 'cf.finish');
+    expect(finish, 'filterable custom field should appear in catalog filters').toBeTruthy();
+    expect(finish?.options?.map((o) => o.value).sort()).toEqual(['gloss', 'matte']);
+    // The non-filterable field is not exposed by the catalog filter set (FR-006).
+    expect(filters.some((f) => f.attributeKey === 'cf.internal_note')).toBe(false);
+  });
 });
