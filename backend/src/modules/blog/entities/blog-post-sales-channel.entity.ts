@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * BlogPostSalesChannel — composite-key M2M between blog_posts and
@@ -7,6 +8,7 @@ import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
  * unique index `idx_blog_posts_slug_per_channel_uniq` and the service
  * layer keeps it in sync.
  */
+@GlobalEntity()
 @Entity({ tableName: 'blog_post_sales_channels' })
 export class BlogPostSalesChannel {
   [OptionalProps]?: 'deletedAt';

@@ -9,6 +9,7 @@ import {
   Unique,
   type EventArgs,
 } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 import { normalizeOrganizationName } from '../services/normalize-name.js';
 
@@ -38,14 +39,17 @@ import { normalizeOrganizationName } from '../services/normalize-name.js';
  * backs the admin OrganizationPicker's diacritic-insensitive typeahead
  * without needing pg_trgm/unaccent extensions.
  */
+@GlobalEntity()
 @Entity({ tableName: 'organizations' })
 export class Organization {
   [OptionalProps]?:
+    | 'customFieldValues'
     | 'id'
     | 'createdAt'
     | 'updatedAt'
     | 'status'
     | 'vatStatus'
+    | 'isPersonal'
     | 'deletedAt'
     | 'customerGroupId'
     | 'legalName'
@@ -63,6 +67,9 @@ export class Organization {
     | 'orderConfirmationEmails'
     | 'fulfilmentStrategy'
     | 'fulfilmentStrategyWarehouseOrder'
+    | 'parentId'
+    | 'path'
+    | 'creditInheritanceMode'
     | 'version';
 
   @PrimaryKey({ type: 'uuid' })
@@ -85,6 +92,15 @@ export class Organization {
 
   @Property({ type: 'string', length: 16 })
   vatStatus: 'vat_payer' | 'vat_exempt' | 'reverse_charge' = 'vat_payer';
+
+  /**
+   * Feature 051 — `true` for a single-member Personal Organization backing a B2C
+   * (individual) customer; `false` for a company organization. Personal orgs are
+   * auto-provisioned, created `active`, and excluded from B2B admin surfaces.
+   */
+  @Property({ type: 'boolean' })
+  @Index()
+  isPersonal: boolean = false;
 
   /**
    * Optional pricing bucket. Feeds the feature 011 Application Rule
@@ -171,6 +187,34 @@ export class Organization {
   @Property({ type: 'json', nullable: true })
   fulfilmentStrategyWarehouseOrder?: string[] | null;
 
+  // ── feature 056: organization hierarchy ────────────────────────────────
+
+  /**
+   * Nullable self-referential parent (`parent_id`). NULL ⇒ this org is a root.
+   * The FK (`REFERENCES organizations(id) ON DELETE RESTRICT`) is enforced at
+   * the DB level (migration 097); writes go through the tree Commands only, so
+   * `path` and cycle/depth invariants stay consistent.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  @Index()
+  parentId?: string | null;
+
+  /**
+   * Materialized ancestor-chain path `'/<rootId>/…/<thisId>/'`. Backfilled to
+   * `'/<id>/'` (a root) for every pre-feature org. A `text_pattern_ops` prefix
+   * index backs single-query subtree (`path LIKE :selfPath || '%'`) traversal.
+   */
+  @Property({ type: 'text' })
+  path: string = '';
+
+  /**
+   * Per-org platform-admin override of the credit-inheritance mode. NULL ⇒ use
+   * the Settings global default. Set only through the `organization.set_credit_mode`
+   * Command (platform-admin gated).
+   */
+  @Property({ type: 'string', length: 20, nullable: true })
+  creditInheritanceMode?: 'shared_pool' | 'independent_default' | null;
+
   /**
    * Lowercased + diacritic-stripped copy of `name`. Kept in sync by the
    * BeforeCreate / BeforeUpdate hooks; never read or written by callers
@@ -188,6 +232,10 @@ export class Organization {
 
   @Property({ type: 'datetime', onUpdate: () => new Date() })
   updatedAt: Date = new Date();
+
+  // Feature 055 — Custom Fields Layer value bag (inherits host tenant scope).
+  @Property({ type: 'json' })
+  customFieldValues: Record<string, unknown> = {};
 
   @Property({ type: 'datetime', nullable: true })
   deletedAt?: Date | null;

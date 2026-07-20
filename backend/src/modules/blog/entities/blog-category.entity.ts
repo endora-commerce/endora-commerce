@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -12,6 +13,7 @@ import { randomUUID } from 'crypto';
  * `Default` Category (FR-005, R11) — protected from deletion at the
  * service layer.
  */
+@GlobalEntity()
 @Entity({ tableName: 'blog_categories' })
 @Index({ name: 'idx_blog_categories_parent_position', properties: ['parentId', 'position'] })
 export class BlogCategory {

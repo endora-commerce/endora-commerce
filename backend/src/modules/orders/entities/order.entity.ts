@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { OrgScoped } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 import type { NextAction } from '@b2b/contracts';
 
@@ -13,9 +14,11 @@ import type { NextAction } from '@b2b/contracts';
  *   salesChannelId, deliveryAddressId, billingAddressId,
  *   deliveryMethodId, paymentMethodId, sourceQuoteRequestId.
  */
+@OrgScoped()
 @Entity({ tableName: 'orders' })
 export class Order {
   [OptionalProps]?:
+    | 'customFieldValues'
     | 'id'
     | 'businessId'
     | 'createdAt'
@@ -165,4 +168,8 @@ export class Order {
 
   @Property({ type: 'datetime', onUpdate: () => new Date() })
   updatedAt: Date = new Date();
+
+  // Feature 055 — Custom Fields Layer value bag (inherits host tenant scope).
+  @Property({ type: 'json' })
+  customFieldValues: Record<string, unknown> = {};
 }

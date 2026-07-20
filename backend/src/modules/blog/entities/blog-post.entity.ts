@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 export type BlogPostStatus = 'draft' | 'published' | 'archived';
@@ -13,6 +14,7 @@ export type BlogPostStatus = 'draft' | 'published' | 'archived';
  * delete contracts live at the service layer (see
  * `services/blog-post-service.ts` once it lands in Phase 3).
  */
+@GlobalEntity()
 @Entity({ tableName: 'blog_posts' })
 export class BlogPost {
   [OptionalProps]?:

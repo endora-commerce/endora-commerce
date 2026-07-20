@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { OrgScoped } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -24,9 +25,11 @@ export type QuoteRequestStatus =
   | 'Completed'
   | 'Expired';
 
+@OrgScoped()
 @Entity({ tableName: 'quote_requests' })
 export class QuoteRequest {
   [OptionalProps]?:
+    | 'customFieldValues'
     | 'id'
     | 'businessId'
     | 'createdAt'
@@ -124,4 +127,8 @@ export class QuoteRequest {
 
   @Property({ type: 'datetime', onUpdate: () => new Date() })
   updatedAt: Date = new Date();
+
+  // Feature 055 — Custom Fields Layer value bag (inherits host tenant scope).
+  @Property({ type: 'json' })
+  customFieldValues: Record<string, unknown> = {};
 }

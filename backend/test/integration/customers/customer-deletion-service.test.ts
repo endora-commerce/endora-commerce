@@ -6,8 +6,10 @@ import { SessionService } from '../../../src/modules/auth/services/session-servi
 import { AuditLogService } from '../../../src/modules/audit_logs/services/audit-log-service.js';
 import { AuditLogEntry } from '../../../src/modules/audit_logs/entities/audit-log-entry.entity.js';
 import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { CustomerAuthorityService } from '../../../src/modules/customers/services/customer-authority-service.js';
 import { CustomerDeletionService } from '../../../src/modules/customers/services/customer-deletion-service.js';
+import { PersonalOrganizationService } from '../../../src/modules/organizations/services/personal-organization-service.js';
 import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
 
 /**
@@ -106,5 +108,49 @@ describe('CustomerDeletionService', () => {
     await expect(svc.restore(c.id, actor)).rejects.toMatchObject({
       code: 'CUSTOMER_RESTORE_WINDOW_ELAPSED',
     });
+  });
+
+  it('cascades anonymization to the customer’s orphaned personal org (feature 051 T025)', async () => {
+    const c = await makeCustomer();
+    const org = await new PersonalOrganizationService(() => em).ensureFor(c, em);
+    await em.flush();
+    expect(org.isPersonal).toBe(true);
+
+    await svc.softDelete(c.id, actor);
+    const count = await svc.sweep(0, new Date(Date.now() + 60_000));
+    expect(count).toBe(1);
+
+    const reloadedOrg = await em.findOne(Organization, { id: org.id });
+    expect(reloadedOrg!.deletedAt).not.toBeNull();
+    expect(reloadedOrg!.name).toBe('Deleted customer');
+    expect(reloadedOrg!.registeredAddress.street).toBe('-');
+    expect(
+      await em.find(AuditLogEntry, { action: 'organization.anonymized', objectId: org.id }),
+    ).toHaveLength(1);
+  });
+
+  it('does NOT cascade to a company org when a member is anonymized', async () => {
+    const company = em.create(Organization, {
+      name: 'ACME Sp. z o.o.',
+      taxId: `C${Date.now()}`,
+      status: 'active',
+      vatStatus: 'vat_payer',
+      isPersonal: false,
+      registeredAddress: { street: 'Main 1', city: 'Warsaw', postalCode: '00-001', country: 'PL' },
+    });
+    await em.persistAndFlush(company);
+    const member = await makeCustomer();
+    member.organizationId = company.id;
+    // A second admin keeps the org non-orphaned and satisfies the last-admin guard.
+    const other = await makeCustomer();
+    other.organizationId = company.id;
+    await em.flush();
+
+    await svc.softDelete(member.id, actor);
+    await svc.sweep(0, new Date(Date.now() + 60_000));
+
+    const reloadedCompany = await em.findOne(Organization, { id: company.id });
+    expect(reloadedCompany!.deletedAt ?? null).toBeNull();
+    expect(reloadedCompany!.name).toBe('ACME Sp. z o.o.');
   });
 });

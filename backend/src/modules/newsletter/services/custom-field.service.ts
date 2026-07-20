@@ -7,10 +7,27 @@ import {
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { NewsletterCustomField } from '../entities/newsletter-custom-field.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /** Newsletter custom-field definition CRUD (feature 048, US3). */
 export class NewsletterCustomFieldService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  #audit(em: EntityManager, action: string, objectId: string, stateAfter: Record<string, unknown> | null): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action,
+        objectType: 'newsletter_custom_field',
+        objectId,
+        stateBefore: null,
+        stateAfter,
+      });
+    }
+  }
 
   async list(): Promise<NewsletterCustomFieldDto[]> {
     const em = this.emFactory();
@@ -27,7 +44,9 @@ export class NewsletterCustomFieldService {
       label: input.label,
       type: input.type,
     });
-    await em.persistAndFlush(field);
+    em.persist(field);
+    this.#audit(em, 'newsletter_custom_field.create', field.id, { key: field.key });
+    await em.flush();
     return this.toDto(field);
   }
 
@@ -36,6 +55,7 @@ export class NewsletterCustomFieldService {
     const field = await em.findOne(NewsletterCustomField, { id });
     if (!field) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Field not found.');
     if (input.label !== undefined) field.label = input.label;
+    this.#audit(em, 'newsletter_custom_field.update', field.id, { label: field.label });
     await em.persistAndFlush(field);
     return this.toDto(field);
   }
@@ -44,6 +64,7 @@ export class NewsletterCustomFieldService {
     const em = this.emFactory();
     const field = await em.findOne(NewsletterCustomField, { id });
     if (!field) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Field not found.');
+    this.#audit(em, 'newsletter_custom_field.delete', field.id, null);
     await em.removeAndFlush(field);
   }
 

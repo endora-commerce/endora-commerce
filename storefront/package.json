@@ -20,6 +20,8 @@
     "@b2b/contracts": "workspace:*",
     "@b2b/page-builder-core": "workspace:^",
     "@measured/puck": "^0.20.2",
+    "@stripe/react-stripe-js": "^6.7.0",
+    "@stripe/stripe-js": "^9.9.0",
     "leaflet": "^1.9.4",
     "@tailwindcss/postcss": "^4.2.4",
     "next": "^15.5.15",

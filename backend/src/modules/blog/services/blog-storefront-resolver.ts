@@ -44,6 +44,18 @@ type ChannelRow = {
   default_language: string;
 };
 
+/**
+ * The already-resolved sales channel handed down from the route layer
+ * (feature 053). Mirrors the shape of the sales-channel resolver's
+ * `CachedChannel`; the resolver has already refused inactive/unknown
+ * channels upstream, so no re-query or active check is needed here.
+ */
+export type ResolvedChannel = { id: string; code: string; defaultLanguage: string };
+
+function toChannelRow(channel: ResolvedChannel): ChannelRow {
+  return { id: channel.id, code: channel.code, default_language: channel.defaultLanguage };
+}
+
 type PostRow = {
   id: string;
   slug: string;
@@ -99,12 +111,11 @@ export class BlogStorefrontResolver {
   ) {}
 
   async getIndex(input: {
-    salesChannelCode?: string | undefined;
+    resolvedChannel: ResolvedChannel;
     language?: string | undefined;
   }): Promise<BlogIndexResponse | null> {
     const em = this.emFactory();
-    const channel = await this.resolveChannel(em, input.salesChannelCode);
-    if (!channel) return null;
+    const channel = toChannelRow(input.resolvedChannel);
     const language = input.language ?? channel.default_language;
     const settings = await this.settingsResolver.getResolved(channel.id);
     if (!settings.enabled) return null;
@@ -162,11 +173,10 @@ export class BlogStorefrontResolver {
 
   async getBySlug(
     slug: string,
-    input: { salesChannelCode?: string | undefined; language?: string | undefined; page?: number },
+    input: { resolvedChannel: ResolvedChannel; language?: string | undefined; page?: number },
   ): Promise<BlogBySlugResponse | null> {
     const em = this.emFactory();
-    const channel = await this.resolveChannel(em, input.salesChannelCode);
-    if (!channel) return null;
+    const channel = toChannelRow(input.resolvedChannel);
     const language = input.language ?? channel.default_language;
     const settings = await this.settingsResolver.getResolved(channel.id);
     if (!settings.enabled) return null;
@@ -318,11 +328,10 @@ export class BlogStorefrontResolver {
 
   async getTagByCode(
     code: string,
-    input: { salesChannelCode?: string | undefined; language?: string | undefined; page?: number },
+    input: { resolvedChannel: ResolvedChannel; language?: string | undefined; page?: number },
   ): Promise<BlogTagByCodeResponse | null> {
     const em = this.emFactory();
-    const channel = await this.resolveChannel(em, input.salesChannelCode);
-    if (!channel) return null;
+    const channel = toChannelRow(input.resolvedChannel);
     const language = input.language ?? channel.default_language;
     const settings = await this.settingsResolver.getResolved(channel.id);
     if (!settings.enabled) return null;
@@ -417,25 +426,6 @@ export class BlogStorefrontResolver {
   // ────────────────────────────────────────────────────────────────────
   // Internals
   // ────────────────────────────────────────────────────────────────────
-
-  private async resolveChannel(
-    em: EntityManager,
-    code: string | undefined,
-  ): Promise<ChannelRow | null> {
-    const conn = em.getConnection();
-    if (code) {
-      const rows = (await conn.execute(
-        `select id::text as id, code, default_language from sales_channels where code = ? limit 1`,
-        [code],
-      )) as ChannelRow[];
-      return rows[0] ?? null;
-    }
-    // Fall back to the system-default channel.
-    const rows = (await conn.execute(
-      `select id::text as id, code, default_language from sales_channels where system_default = true limit 1`,
-    )) as ChannelRow[];
-    return rows[0] ?? null;
-  }
 
   /**
    * Language-fallback rule (FR-019 / R12 / per feature 005): pick the

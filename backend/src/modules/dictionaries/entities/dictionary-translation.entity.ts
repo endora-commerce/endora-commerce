@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * DictionaryTranslation — per-Language display-label override for a Country,
@@ -12,6 +13,7 @@ import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/c
  * knows is uniform. ON DELETE CASCADE there: hard-deleting a Language
  * wipes its translations everywhere.
  */
+@GlobalEntity()
 @Entity({ tableName: 'dictionary_translations' })
 export class DictionaryTranslation {
   [OptionalProps]?: 'createdAt' | 'updatedAt';

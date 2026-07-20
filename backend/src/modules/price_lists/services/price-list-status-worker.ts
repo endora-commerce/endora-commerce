@@ -27,6 +27,10 @@ export class PriceListStatusWorker {
   constructor(private readonly emFactory: () => EntityManager) {}
 
   async sweep(now: Date = new Date()): Promise<SweepResult> {
+    // command-coverage-ignore: automatic date-driven status transitions
+    // (scheduled→active / active→expired) by the background sweeper — a system
+    // operation on a schedule, not an admin action; the manual admin transitions
+    // (activate/draftify) are audited via their Commands.
     const em = this.emFactory();
 
     const toActivate = await em.find(PriceList, {

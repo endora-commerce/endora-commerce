@@ -49,6 +49,18 @@ quality:
   script:
     - pnpm -r run typecheck
     - pnpm -r run lint
+    # Feature 050 — every persisted entity must carry exactly one tenant-scope
+    # classification decorator (fails the build on any unclassified entity).
+    - pnpm --filter backend exec tsx scripts/check-entity-tenant-classification.ts
+    # Feature 053 (FR-011) — no storefront module may re-resolve the sales
+    # channel outside the canonical resolver. Allow-list is empty; enforced.
+    - pnpm --filter backend exec tsx scripts/check-channel-resolution.ts --enforce
+    # Feature 054 (FR-009) — every sensitive write must run through the Command
+    # Bus (record audit / run a Command) or carry a documented
+    # `command-coverage-ignore` escape hatch. Platform-wide rollout is complete
+    # (all 45 modules migrated), so `--strict` build-breaks on ANY finding in ANY
+    # module — a new unaudited write anywhere fails CI (no silent regression).
+    - pnpm --filter backend run check:command-coverage -- --strict
   cache:
     key:
       files:
@@ -71,17 +83,32 @@ quality:
 # postgres/redis/meilisearch services, and `vitest --shard` splits the test files
 # between them.
 #
-# Flaky `write EPIPE` after all tests pass: vitest 2.x + tinypool forks pool
-# shutdown race (not a failing assertion). Mitigations in backend/vitest.config.ts:
-#   - no junit reporter on CI shards
-#   - dangerouslyIgnoreUnhandledErrors in CI
-#   - teardownTimeout 60s
-# Long-term: upgrade vitest to ≥4 (pool shutdown fix). More shards alone does not
-# reliably fix EPIPE — the worker can die during IPC teardown on any shard size.
+# NOTE: the speedup is bounded by the runner's `concurrent` setting — N shards
+# only run at once if the runner can execute N jobs concurrently. With
+# concurrent=1 the shards queue and you gain nothing (and pay per-shard setup).
+# Sized for a 4 vCPU / 8 GB runner with `concurrent = 2`.
+#
+# Memory: the singleFork worker accumulates ~10 MB of retained heap PER test
+# file (each file rebuilds the whole module graph and the fork never fully
+# reclaims it). At ~130 files/shard that climbs past 1.5 GB and the worker is
+# OOM-killed by the host (silent "Worker exited unexpectedly") or — once the
+# NODE_OPTIONS cap below is in force — dies with an explicit "heap out of
+# memory". Two levers keep each shard in budget:
+#   1. parallel=5 → fewer files/shard, so peak heap drops. With concurrent=2
+#      the shards run in waves, so peak CONCURRENT host memory is still just
+#      2 live shards + their 3 services each.
+#   2. --max-old-space-size=2048 caps each shard's V8 old-space. Inside the
+#      docker executor Node otherwise sees the host's 8 GB and lets the heap
+#      grow unbounded; capping forces earlier GC and turns any remaining
+#      overflow into an actionable heap error instead of a silent SIGKILL.
+#      2 live shards × 2 GB + the 3 services (~1.5 GB) stays well under 8 GB.
+#      Bumped 1536 → 2048 after the suite grew past a marginal ~1.6 GB peak.
+# The proper long-term fix is to plug the per-file leak in the test harness;
+# until then, add shards / raise the cap as the suite grows.
 test:backend:
   stage: test
   image: node:22.17-slim
-  parallel: 8
+  parallel: 5
   services:
     - name: postgres:16-alpine
       alias: postgres

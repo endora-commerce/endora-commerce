@@ -8,6 +8,7 @@ import {
   Property,
   Unique,
 } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 
@@ -18,6 +19,7 @@ import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity
  * `general` group has `isSystemProtected = true` and is rejected by the
  * service layer when an operator tries to delete it.
  */
+@GlobalEntity()
 @Entity({ tableName: 'setting_groups' })
 export class SettingGroup {
   [OptionalProps]?: 'id' | 'createdAt' | 'updatedAt' | 'isSystemProtected';

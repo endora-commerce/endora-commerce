@@ -54,6 +54,10 @@
   "online.loading": "Loading…",
   "online.empty": "No customers are currently online.",
   "online.column.lastSeen": "Last seen",
+  "online.refresh": "Refresh",
+  "online.autoRefresh": "Auto-refresh",
+  "online.intervalLabel": "Interval (seconds)",
+  "online.refreshedAt": "Updated {time}",
 
   "detail.panel.loading": "Loading…",
   "detail.panel.error": "Could not load this section.",

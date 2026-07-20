@@ -20,7 +20,10 @@ import type { SalesChannel } from '../entities/sales-channel.entity.js';
  * for "no such channel"; absence of a key means "cache miss".
  */
 
-const KEY_PREFIX = 'sales-channels:v1:';
+// v2 (feature 053): `isPublic` added to the cached shape so storefront
+// consumers read price-visibility off the resolved channel instead of
+// re-querying. Bumped from v1 so entries cached without the field are ignored.
+const KEY_PREFIX = 'sales-channels:v2:';
 const TTL_SECONDS = 5 * 60;
 const LRU_MAX = 256;
 const NOT_FOUND_SENTINEL = '__sales_channel_not_found__';
@@ -31,6 +34,8 @@ export interface CachedChannel {
   code: string;
   name: Record<string, string>;
   active: boolean;
+  /** Price-visibility flag (display concern, distinct from resolution). */
+  isPublic: boolean;
   systemDefault: boolean;
   defaultLanguage: string;
   defaultCurrency: string;
@@ -47,6 +52,7 @@ export function toCachedChannel(channel: SalesChannel): CachedChannel {
     code: channel.code,
     name: channel.name,
     active: channel.active,
+    isPublic: channel.isPublic,
     systemDefault: channel.systemDefault,
     defaultLanguage: channel.defaultLanguage,
     defaultCurrency: channel.defaultCurrency,

@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -8,6 +9,7 @@ import { randomUUID } from 'crypto';
  * references the organizations module by value (no hard FK) to preserve
  * module isolation (Constitution Principle I). Absence of a row ⇒ not enforced.
  */
+@GlobalEntity()
 @Entity({ tableName: 'mfa_organization_policies' })
 export class MfaOrganizationPolicy {
   [OptionalProps]?: 'id' | 'enforceTotp' | 'updatedByActor' | 'createdAt' | 'updatedAt';

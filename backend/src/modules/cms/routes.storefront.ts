@@ -1,7 +1,22 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
+import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
 import type { StorefrontResolver } from './services/storefront-resolver.js';
+
+/**
+ * The request's sales channel, resolved once by the canonical resolver
+ * middleware (feature 053 / FR-002). Storefront modules read this instead of
+ * re-parsing the `x-sales-channel` header.
+ */
+function resolvedChannel(request: FastifyRequest): {
+  id: string;
+  code: string;
+  defaultLanguage: string;
+} {
+  const ch = getResolvedChannel(request);
+  return { id: ch.id, code: ch.code, defaultLanguage: ch.defaultLanguage };
+}
 
 export async function registerCmsStorefrontRoutes(
   app: FastifyInstance,
@@ -16,7 +31,7 @@ export async function registerCmsStorefrontRoutes(
 
     const page = await deps.storefrontResolver.resolvePageBySlug({
       slug,
-      salesChannelCode: readHeader(request.headers['x-sales-channel']),
+      resolvedChannel: resolvedChannel(request),
       language: query['language'] ?? readHeader(request.headers['accept-language'])?.split(',')[0],
     });
     if (!page) {
@@ -34,7 +49,7 @@ export async function registerCmsStorefrontRoutes(
 
     const block = await deps.storefrontResolver.resolveBlockByCode({
       code,
-      salesChannelCode: readHeader(request.headers['x-sales-channel']),
+      resolvedChannel: resolvedChannel(request),
       language: query['language'] ?? readHeader(request.headers['accept-language'])?.split(',')[0],
     });
     if (!block) {
@@ -52,7 +67,7 @@ export async function registerCmsStorefrontRoutes(
 
     const hook = await deps.storefrontResolver.resolveHookByCode({
       code,
-      salesChannelCode: readHeader(request.headers['x-sales-channel']),
+      resolvedChannel: resolvedChannel(request),
       language: query['language'] ?? readHeader(request.headers['accept-language'])?.split(',')[0],
     });
     if (!hook) {

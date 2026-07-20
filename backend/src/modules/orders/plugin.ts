@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
+import type { CommandBus } from '../../commands/index.js';
+import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import { CartService } from '../carts/services/cart-service.js';
@@ -77,6 +79,8 @@ import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 export interface OrdersModuleOptions {
   emFactory: () => EntityManager;
   eventBus: EventBus;
+  /** Feature 054 — audits order-config/comment writes co-transactionally when provided. */
+  commandBus?: CommandBus;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   requireAdmin: RequireAdminFactory;
   resolveCustomerContext: (req: FastifyRequest) => {
@@ -86,6 +90,8 @@ export interface OrdersModuleOptions {
   };
   /** Audit-log writer; OrderService stamps order.place_on_behalf rows on impersonated checkouts. */
   auditLogService?: AuditLogService;
+  /** Feature 055 — validates + persists Order custom-field values on the admin edit path. */
+  customFieldValues?: CustomFieldValueService;
   /** Feature 034 — mailer for the order-confirmation e-mail (best-effort, post-commit). */
   mailer?: Mailer;
   /**
@@ -270,6 +276,16 @@ export interface OrdersModuleOptions {
    * sales channel. When unwired the gate defaults to off.
    */
   resolveChannelAllowNegativeStock?: (salesChannelId: string) => Promise<boolean>;
+  /**
+   * Real per-product VAT — resolves the rate (fraction, e.g. `0.23`) for a
+   * product line from its tax class, billing country, and org VAT status. Omit
+   * ⇒ placeOrder falls back to a flat 23%.
+   */
+  resolveTaxRate?: (input: {
+    country: string | null;
+    productType: string;
+    vatStatus: string;
+  }) => Promise<number>;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -377,6 +393,7 @@ export function commerceModule(options: OrdersModuleOptions) {
         // structurally; threaded so placeOrder stamps the cart's coupon
         // discount onto the Order.
         ...(options.promotionService ? { promotion: options.promotionService } : {}),
+        ...(options.resolveTaxRate ? { resolveTaxRate: options.resolveTaxRate } : {}),
         ...(options.mailer ? { mailer: options.mailer } : {}),
         ...(options.getTransactionalEmailSender
           ? { getTransactionalEmailSender: options.getTransactionalEmailSender }
@@ -389,7 +406,7 @@ export function commerceModule(options: OrdersModuleOptions) {
     // against the DB-backed graph, runs veto guards, and emits the templated
     // status events. Cancellation side-effects (release stock allocations +
     // credit-limit reservation) are applied through the side-effects hook.
-    const orderStatusGraphService = new OrderStatusGraphService(options.emFactory);
+    const orderStatusGraphService = new OrderStatusGraphService(options.emFactory, options.commandBus);
     const orderTransitionService = new OrderTransitionService(
       options.emFactory,
       options.eventBus,
@@ -402,6 +419,7 @@ export function commerceModule(options: OrdersModuleOptions) {
           await orderService.releaseAllocations(order.id);
         }
       },
+      options.auditLogService,
     );
     // Feature 043 — hand the configured transition engine to composition so the
     // orders prompt-action tools reuse it (guards + cancel side-effects).
@@ -470,7 +488,11 @@ export function commerceModule(options: OrdersModuleOptions) {
           get: (_target, prop) => {
             const svc = options.getRfqService?.();
             if (!svc) throw new Error('RfqService not yet available');
-            return Reflect.get(svc, prop, svc);
+            const value = Reflect.get(svc, prop, svc);
+            // Bind methods to the real service so `this` inside them is the
+            // instance, not this proxy — otherwise private-field/method access
+            // (`this.#audit`) throws "Receiver must be an instance of class".
+            return typeof value === 'function' ? value.bind(svc) : value;
           },
         }) as RfqService)
       : null;
@@ -520,6 +542,8 @@ export function commerceModule(options: OrdersModuleOptions) {
       ...(options.resolveAdminOrdersScope
         ? { resolveAdminOrdersScope: options.resolveAdminOrdersScope }
         : {}),
+      ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
+      ...(options.commandBus ? { commandBus: options.commandBus } : {}),
     });
     await registerDeliveryMethodsPublicRoutes(app, {
       emFactory: options.emFactory,

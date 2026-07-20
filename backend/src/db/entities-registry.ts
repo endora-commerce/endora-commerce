@@ -1,4 +1,13 @@
 import { Session } from '../modules/auth/entities/session.entity.js';
+// Stripe payment gateway (feature 049)
+import { StripeCustomer } from '../modules/stripe/entities/stripe-customer.entity.js';
+import { StripeSavedCard } from '../modules/stripe/entities/stripe-saved-card.entity.js';
+import { StripePaymentIntent } from '../modules/stripe/entities/stripe-payment-intent.entity.js';
+import { StripeWebhookEvent } from '../modules/stripe/entities/stripe-webhook-event.entity.js';
+import { StripePaymentMethodRule } from '../modules/stripe/entities/stripe-payment-method-rule.entity.js';
+import { StripePaymentMethodOrgDisable } from '../modules/stripe/entities/stripe-payment-method-org-disable.entity.js';
+import { CustomFieldDefinition } from '../modules/custom_fields/entities/custom-field-definition.entity.js';
+import { CustomFieldOption } from '../modules/custom_fields/entities/custom-field-option.entity.js';
 import { AuditLogEntry } from '../modules/audit_logs/entities/audit-log-entry.entity.js';
 import { Asset } from '../modules/assets_library/entities/asset.entity.js';
 import { AssetFolder } from '../modules/assets_library/entities/asset-folder.entity.js';
@@ -63,6 +72,7 @@ import { NewsletterCampaign } from '../modules/newsletter/entities/newsletter-ca
 import { NewsletterCampaignSubscriber } from '../modules/newsletter/entities/newsletter-campaign-subscriber.entity.js';
 import { NewsletterSendRecord } from '../modules/newsletter/entities/newsletter-send-record.entity.js';
 import { NewsletterEngagementEvent } from '../modules/newsletter/entities/newsletter-engagement-event.entity.js';
+import { GaCustomEvent } from '../modules/google_analytics/entities/ga-custom-event.entity.js';
 import { NewsletterAutomation } from '../modules/newsletter/entities/newsletter-automation.entity.js';
 import { NewsletterAutomationRun } from '../modules/newsletter/entities/newsletter-automation-run.entity.js';
 import { Cart } from '../modules/carts/entities/cart.entity.js';
@@ -395,4 +405,15 @@ export const ALL_ENTITIES = [
   NewsletterEngagementEvent,
   NewsletterAutomation,
   NewsletterAutomationRun,
+  GaCustomEvent,
+  // Stripe payment gateway (feature 049)
+  StripeCustomer,
+  StripeSavedCard,
+  StripePaymentIntent,
+  StripeWebhookEvent,
+  StripePaymentMethodRule,
+  StripePaymentMethodOrgDisable,
+  // Feature 055 — Custom Fields Layer (entity-agnostic runtime fields).
+  CustomFieldDefinition,
+  CustomFieldOption,
 ] as const;

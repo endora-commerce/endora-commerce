@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -8,6 +9,7 @@ import { randomUUID } from 'crypto';
  * visibility choice (`isCustomerVisible`) and a `notifyCustomer` flag; customer
  * comments are always visible. Exactly one author id is set.
  */
+@GlobalEntity()
 @Entity({ tableName: 'return_case_comments' })
 export class ReturnCaseComment {
   [OptionalProps]?:

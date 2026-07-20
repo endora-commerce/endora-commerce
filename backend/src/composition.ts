@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import Redis from 'ioredis';
 import { z } from 'zod';
 import { CustomerAccount } from './modules/customer_accounts/entities/customer-account.entity.js';
+import { resolveCustomerRollupSubtreeIds } from './modules/customer_accounts/services/customer-rollup-scope.js';
 import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';
 import { Organization } from './modules/organizations/entities/organization.entity.js';
 import { AdminRole } from './modules/admin_roles/entities/admin-role.entity.js';
@@ -14,6 +15,12 @@ import { registerHealthRoutes } from './modules/health_checks/routes.js';
 import type { ErrorEnvelopeOptions } from './http/error-envelope.js';
 import { initOrm, closeOrm } from './db/index.js';
 import { EventBus } from './events/bus.js';
+import { CommandBus } from './commands/index.js';
+import fastifyPlugin from 'fastify-plugin';
+import { forkScopedEm } from './tenancy/scoped-em.js';
+import { runInTenantContext, type TenantContext } from './tenancy/tenant-context.js';
+import { resolveTenantContext, systemTenantContext } from './tenancy/resolve-tenant-context.js';
+import { withSystemScope } from './tenancy/escape-hatch.js';
 import { authPlugin, promoteAdminActor } from './modules/auth/plugin.js';
 import { SessionService } from './modules/auth/services/session-service.js';
 import { AuditLogService } from './modules/audit_logs/services/audit-log-service.js';
@@ -32,6 +39,9 @@ import { adminNotificationsModule } from './modules/admin_notifications/plugin.j
 import { OrganizationModerationService } from './modules/organizations/services/organization-moderation-service.js';
 import { OrganizationRestrictionService } from './modules/organizations/services/organization-restriction-service.js';
 import { OrganizationEffectivePriceListsService } from './modules/organizations/services/organization-effective-pricelists-service.js';
+import { OrganizationTreeService } from './modules/organizations/services/organization-tree-service.js';
+import { OrganizationInheritanceService } from './modules/organizations/services/organization-inheritance-service.js';
+import { SalesRepAssignmentService } from './modules/organizations/services/sales-rep-assignment-service.js';
 import { OrganizationTaxIdValidationService } from './modules/organizations/services/organization-tax-id-validation-service.js';
 import { ViesClient } from './modules/organizations/integrations/vies-client.js';
 import { MinisterstwoFinansowClient } from './modules/organizations/integrations/ministerstwo-finansow-client.js';
@@ -49,6 +59,7 @@ import { SmtpMailer } from './modules/email/services/smtp-mailer.js';
 import { commerceModule } from './modules/orders/plugin.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import { returnsModule } from './modules/returns/plugin.js';
+import { stripeModule } from './modules/stripe/plugin.js';
 import { OrderReturnContextProvider } from './modules/orders/services/order-return-context.js';
 import { PaymentRefundProvider } from './modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from './modules/invoices/services/corrective-invoice.js';
@@ -74,6 +85,7 @@ import {
 import { inventoryModule } from './modules/inventory/plugin.js';
 import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
 import { creditLimitsModule } from './modules/credit_limits/plugin.js';
+import { customFieldsModule } from './modules/custom_fields/plugin.js';
 import { integrationsModule } from './modules/api_keys/plugin.js';
 import { analyticsModule } from './modules/analytics/plugin.js';
 import { importExportModule } from './modules/import_export/plugin.js';
@@ -119,7 +131,11 @@ import { transactionalEmailsSettingsManifest } from './modules/transactional_ema
 // Feature 048 — Newsletter.
 import { newsletterModule } from './modules/newsletter/plugin.js';
 import { newsletterSettingsManifest } from './modules/newsletter/manifest.js';
+// Feature 049 — Google Analytics.
+import { googleAnalyticsModule } from './modules/google_analytics/plugin.js';
+import { googleAnalyticsSettingsManifest } from './modules/google_analytics/manifest.js';
 import { invoicesSettingsManifest } from './modules/invoices/manifest.js';
+import { stripeSettingsManifest } from './modules/stripe/manifest.js';
 import type { TransactionalEmailSender } from '@b2b/contracts';
 import { emailDefaultsRegistry } from './modules/transactional_emails/services/email-defaults-registry.js';
 import { ORDER_CONFIRMATION_DEFAULT } from './modules/orders/email-templates/order-confirmation.default.js';
@@ -192,6 +208,8 @@ export interface ComposeAppHandle {
   redis: Redis;
   modules: ModulePlugin[];
   errorEnvelope: ErrorEnvelopeOptions;
+  /** Feature 054 — the Command Bus, exposed so migrated module wiring can consume it. */
+  commandBus: CommandBus;
   /** Closes the ORM + redis connection; call from a SIGTERM handler. */
   dispose: () => Promise<void>;
 }
@@ -208,7 +226,11 @@ function anyLabel(name: unknown): string {
 
 export async function composeApp(): Promise<ComposeAppHandle> {
   const orm = await initOrm();
-  const em = (): EntityManager => orm.em.fork() as EntityManager;
+  // Feature 050 — the single EM-injection seam. `forkScopedEm` stamps tenant
+  // filter params from the ambient TenantContext on every fork. It is inert until
+  // an entity is classified (@OrgScoped/@CustomerScoped attach the filters), so
+  // this change is behaviorally neutral for unclassified entities.
+  const em = (): EntityManager => forkScopedEm(orm);
 
   const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
   const redis = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
@@ -234,9 +256,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const permissionCatalogueService = new PermissionCatalogueService({
     registryEntries: REGISTERED_MANIFESTS,
   });
-  const adminRoleService = new AdminRoleService(em, permissionCatalogueService);
+  const adminRoleService = new AdminRoleService(em, permissionCatalogueService, auditLogService);
 
   const eventBus = new EventBus();
+
+  // Feature 054 (Principle XIII) — the Command Bus: the single, guaranteed audit
+  // writer for sensitive writes. It forks the scoped EM, runs the write + one
+  // audit insert co-transactionally, and dispatches the domain event on commit.
+  // Threaded into module factories alongside `eventBus` as writes are migrated.
+  const commandBus = new CommandBus(orm, auditLogService, eventBus);
 
   // ---- Cross-cutting actor resolvers --------------------------------------
 
@@ -334,10 +362,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     await app.register(authPlugin, {
       sessionService,
       apiKeyResolver: async (token) => integrations.handle.apiKeyService.authenticate(token),
-      customerOrgResolver: async (customerAccountId) => {
-        const customer = await em().findOne(CustomerAccount, { id: customerAccountId });
-        return customer?.organizationId ?? null;
-      },
+      customerOrgResolver: async (customerAccountId) =>
+        // Feature 050 — runs in the auth hook, before the tenant context exists;
+        // identity resolution is a system-scoped read.
+        withSystemScope('auth: resolve customer org', async () => {
+          const customer = await em().findOne(CustomerAccount, { id: customerAccountId });
+          return customer?.organizationId ?? null;
+        }),
     });
   };
 
@@ -358,13 +389,50 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     getMfaLoginPort,
   });
 
+  // Feature 056 — organization tree + inheritance resolution port (shared by
+  // US2 scope expansion and US3 commercial-term inheritance). The global
+  // credit-mode default is read from Settings at call time (settings module is
+  // constructed further below; the closure runs at request time).
+  const organizationTreeService = new OrganizationTreeService(em);
+  const organizationInheritanceService = new OrganizationInheritanceService(
+    em,
+    organizationTreeService,
+    async () => {
+      try {
+        const { z } = await import('zod');
+        return await settings.handle.settingsService.get(
+          ORGANIZATIONS_SETTING_CODES.CREDIT_INHERITANCE_MODE,
+          'default',
+          z.enum(['shared_pool', 'independent_default']),
+        );
+      } catch {
+        return 'shared_pool';
+      }
+    },
+  );
+
   const creditLimits = creditLimitsModule({
     emFactory: em,
     eventBus,
+    commandBus,
     requireCustomer,
     requireAdmin,
     resolveCustomerContext: customerResolver,
+    // Feature 056 — inherited credit limits (shared_pool / independent_default).
+    inheritance: organizationInheritanceService,
   });
+
+  // Feature 055 — Custom Fields Layer. Exposes the definition/value services as
+  // a handle consumed by host modules; registers the admin definition API. The
+  // per-entity-type cache subscribes to its own Redis channel for cross-process
+  // invalidation.
+  const customFields = customFieldsModule({
+    emFactory: em,
+    commandBus,
+    requireAdmin,
+    redis,
+  });
+  void customFields.handle.cache.start(redisSubscriber);
 
   const analytics = analyticsModule({ emFactory: em, requireAdmin });
   const importExport = importExportModule({ emFactory: em, requireAdmin });
@@ -372,7 +440,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // sitemap generator can read the per-channel `sales_channels.storefront_url`
   // setting via the SettingsService port. See `const seo = seoModule(...)` /
   // `modules.push(seo.plugin)` further down.
-  const i18n = i18nModule({ emFactory: em, requireAdmin });
+  const i18n = i18nModule({ emFactory: em, requireAdmin, auditLog: auditLogService });
 
   // Feature 005 — Sales Channels module. The boot-time
   // DefaultChannelReconciler runs FIRST so every other module can rely on a
@@ -400,6 +468,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     requireAdmin,
     redis,
+    auditLog: auditLogService,
   });
 
   const salesChannels = salesChannelsModule({
@@ -432,6 +501,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     requireAdmin,
     auditLogService,
+    commandBus,
     resolveAdminAuditContext: (request) => {
       const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
       if (actor?.kind !== 'admin') {
@@ -439,12 +509,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       }
       return { actorAdminUserId: actor.adminUserId };
     },
+    // Feature 056 — inherited price lists resolve up the org tree (nearest-first).
+    resolveOrgChain: (orgId) => organizationInheritanceService.priceListOrgChain(orgId),
   });
   const taxes = taxesModule({
     emFactory: em,
     requireAdmin,
     salesChannelMembership: salesChannels.handle.membershipService,
     dictionaryValidator: dictionaries.handle.validator,
+    auditLog: auditLogService,
   });
   // Feature 012 / US8 — promotions reads catalog through CatalogQueryService
   // (the documented cross-module port — Constitution I) so the rule editor
@@ -454,6 +527,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const promotions = promotionsModule({
     emFactory: em,
     requireAdmin,
+    auditLog: auditLogService,
     salesChannelMembership: salesChannels.handle.membershipService,
     catalogQueryService: catalogQueryServiceForPromotions,
     dictionaryValidator: dictionaries.handle.validator,
@@ -549,10 +623,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       ? new OpenIdOAuthProvider(oauthConfig)
       : undefined;
   const mfaSocialResolvers = {
-    resolveCustomerByEmail: async (email: string) => {
-      const c = await em().findOne(CustomerAccount, { email, deletedAt: null });
-      return c ? { id: c.id } : null;
-    },
+    resolveCustomerByEmail: async (email: string) =>
+      // Feature 050 — social-login identity resolution, before tenant context.
+      withSystemScope('mfa: resolve customer by email', async () => {
+        const c = await em().findOne(CustomerAccount, { email, deletedAt: null });
+        return c ? { id: c.id } : null;
+      }),
     autoCreateCustomer: async (email: string) => {
       let allowed = false;
       try {
@@ -657,6 +733,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const seo = seoModule({
     emFactory: em,
     requireAdmin,
+    auditLog: auditLogService,
     settings: {
       get: (code, salesChannelId, schema) =>
         settings.handle.settingsService.get(code, salesChannelId, schema),
@@ -800,12 +877,27 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
 
   const organizationContextService = new OrganizationContextService(em);
-  const organizationRestrictionService = new OrganizationRestrictionService(em);
+  const organizationRestrictionService = new OrganizationRestrictionService(em, auditLogService);
+
+  // Feature 056 — subtree-aware assignment service. When a scoped sales-rep
+  // actor holds the `organizations:rollup` capability, `listAssignedOrganizationIds`
+  // expands each assignment to its subtree (with per-descendant override, FR-011);
+  // `canSeeOrganization` uses the nearest-assignment-on-ancestor-chain rule.
+  // Without the capability, behavior is byte-for-byte the pre-feature flat set.
+  // (`organizationTreeService` is constructed above, before creditLimits.)
+  const scopedSalesRepAssignment = new SalesRepAssignmentService(em, auditLogService, {
+    treeService: organizationTreeService,
+    hasRollupCapability: (adminUserId) =>
+      permissionService.hasPermission(adminUserId, 'organizations:rollup'),
+  });
 
   /**
    * Feature 026 US6 — admin orders/RFQ visibility scope. Sales-rep admins
    * see only orders/RFQs from organizations they own; any other admin
    * (platform admin, content manager, etc.) sees everything.
+   *
+   * Feature 056 — the assigned set is subtree-expanded when the rep holds the
+   * roll-up capability (see `scopedSalesRepAssignment`).
    */
   const resolveAdminOrdersScope = async (
     request: FastifyRequest,
@@ -823,14 +915,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     if (roleCode !== 'sales_representative') {
       return { allowAll: true };
     }
-    const assignments = (await knex.raw(
-      `select "organization_id" from "organization_sales_rep_assignments" where "admin_user_id" = ?`,
-      [actor.adminUserId],
-    )) as { rows: Array<{ organization_id: string }> };
-    return {
-      allowAll: false,
-      allowedOrganizationIds: assignments.rows.map((r) => r.organization_id),
-    };
+    const allowedOrganizationIds = await scopedSalesRepAssignment.listAssignedOrganizationIds(
+      actor.adminUserId,
+    );
+    return { allowAll: false, allowedOrganizationIds };
   };
 
   /**
@@ -880,6 +968,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     vies: new ViesClient(),
     mfPl: new MinisterstwoFinansowClient(),
+    auditLog: auditLogService,
   });
   const assertOrganizationCanTransact = async (organizationId: string): Promise<void> => {
     await organizationContextService.assertCanTransact(organizationId);
@@ -922,11 +1011,63 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // sets it through exposeSender once built.
   let transactionalEmailSender: TransactionalEmailSender | undefined;
 
+  // Feature 050 — establish the ambient TenantContext for every request from the
+  // already-authenticated actor (never from request inputs). fp-wrapped and
+  // registered right after auth so its onRequest runs after `request.actor` is set
+  // and applies globally (mirrors the auth plugin). See specs/050-org-tenant-scoping/.
+  const tenantContextModulePlugin: ModulePlugin = async (app) => {
+    await app.register(
+      fastifyPlugin(async (inner) => {
+        const buildContext = async (request: FastifyRequest): Promise<TenantContext> => {
+          const actor = request.actor;
+          if (actor.kind === 'customer') {
+            const orgId =
+              actor.organizationId && actor.organizationId.length > 0 ? actor.organizationId : null;
+            // Feature 056 (T032) — a roll-up-enabled customer widens to its org
+            // subtree (server-derived). Absent the capability, stays single-org.
+            const rollupSubtree = await resolveCustomerRollupSubtreeIds(
+              em,
+              (id) => organizationTreeService.subtreeIds(id),
+              actor.customerAccountId,
+              orgId,
+            );
+            return resolveTenantContext({
+              kind: 'customer',
+              customerAccountId: actor.customerAccountId,
+              organizationId: orgId,
+              impersonatorAdminUserId: actor.impersonatorAdminUserId,
+              ...(rollupSubtree && rollupSubtree.length > 0
+                ? { rollupSubtreeOrganizationIds: rollupSubtree }
+                : {}),
+            });
+          }
+          if (actor.kind === 'admin') {
+            const scope = await resolveAdminOrdersScope(request);
+            return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
+          }
+          // anonymous / api_key: trusted platform read scope. Guest-owned rows are
+          // scoped by their own token mechanism, not by the tenant filter.
+          return systemTenantContext(`actor:${actor.kind}`);
+        };
+        // Callback-style hook so the AsyncLocalStorage store propagates to the
+        // route handler (async `enterWith` would not). See runInTenantContext.
+        inner.addHook('onRequest', (request: FastifyRequest, _reply, done) => {
+          buildContext(request).then(
+            (ctx) => runInTenantContext(ctx, () => done()),
+            (err: unknown) => done(err as Error),
+          );
+        });
+      }),
+    );
+  };
+
   const modules: ModulePlugin[] = [
     healthPlugin,
     authModulePlugin,
+    tenantContextModulePlugin,
     admin.plugin,
     creditLimits.plugin,
+    customFields.plugin,
     integrations.plugin,
     analytics.plugin,
     importExport.plugin,
@@ -937,9 +1078,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     taxes.plugin,
     promotions.plugin,
     commerceModule({
+      commandBus,
       emFactory: em,
       eventBus,
       auditLogService,
+      customFieldValues: customFields.handle.valueService,
       mailer: organizationsMailer,
       // Feature 047 — late-bound; set once the transactional_emails module builds.
       getTransactionalEmailSender: () => transactionalEmailSender,
@@ -949,7 +1092,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCustomerContext: customerResolver,
       salesChannelMembership: salesChannels.handle.membershipService,
       pricingService: priceLists.handle.pricingService,
-      addressService: new AddressService(em, dictionaries.handle.validator),
+      addressService: new AddressService(em, dictionaries.handle.validator, auditLogService),
       promotionService: promotions.handle.promotionService,
       redis,
       // Feature 027 US5 — abandonment-sweep resolvers + dispatcher.
@@ -1041,6 +1184,27 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           );
         } catch {
           return 0;
+        }
+      },
+      // Real per-product VAT — resolve the rate from the product's tax class
+      // (its `type`), the billing country, and the org VAT status, against the
+      // `taxes` rules (mirrors Quote Requests). order-service already returns 0
+      // for VAT-exempt / reverse-charge orgs; failures degrade to a flat 23%.
+      resolveTaxRate: async ({ country, productType, vatStatus }) => {
+        try {
+          const resolved = await taxes.handle.taxService.taxRateFor({
+            country: country ?? 'PL',
+            productType: productType as
+              | 'simple'
+              | 'configurable'
+              | 'grouped'
+              | 'bundle'
+              | 'virtual',
+            vatStatus: vatStatus as 'vat_payer' | 'vat_exempt' | 'reverse_charge',
+          });
+          return resolved.rate;
+        } catch {
+          return 0.23;
         }
       },
       // Sales-channel layer of the fulfilment-strategy precedence chain — the
@@ -1173,6 +1337,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     organizationsModule({
       emFactory: em,
       eventBus,
+      commandBus,
       sessionService,
       getMfaLoginPort,
       requireCustomer,
@@ -1188,6 +1353,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       restrictionService: organizationRestrictionService,
       effectivePriceListsService: organizationEffectivePriceListsService,
       taxIdValidationService: organizationTaxIdValidationService,
+      customFieldValues: customFields.handle.valueService,
       dictionaryValidator: dictionaries.handle.validator,
       ...(process.env['STOREFRONT_BASE_URL']
         ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
@@ -1217,8 +1383,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     catalogModule({
       emFactory: em,
       eventBus,
+      commandBus,
       requireAdmin,
       auditLogService,
+      customFieldValues: customFields.handle.valueService,
+      customFieldDefinitions: customFields.handle.definitionService,
       requireApiKey: integrations.handle.requireApiKey,
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,
@@ -1316,7 +1485,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // are accessible to other modules. Routes (admin upload, public file
   // serving) and consumer wiring (Catalog / CMS reference descriptors) land
   // in subsequent phases (US1 + US2).
-  const assetsLibrary = assetsLibraryModule({ emFactory: em, requireAdmin });
+  const assetsLibrary = assetsLibraryModule({ emFactory: em, requireAdmin, auditLog: auditLogService });
   modules.push(assetsLibrary.plugin);
   // Register Catalog's reference descriptors so the Library's soft-delete
   // path (FR-030) blocks deletion of any asset still pointed at by a
@@ -1595,6 +1764,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     eventBus,
     requireCustomer,
     requireAdmin,
+    customFieldValues: customFields.handle.valueService,
     resolveCustomerContext: async (request) => {
       if (request.actor.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
@@ -1706,6 +1876,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return 0;
       }
     },
+    auditLog: auditLogService,
+    // Feature 056 — RFQ admin scope is subtree-aware for reps holding roll-up.
+    salesRepSubtree: {
+      treeService: organizationTreeService,
+      hasRollupCapability: (adminUserId) =>
+        permissionService.hasPermission(adminUserId, 'organizations:rollup'),
+    },
   });
   modules.push(quoteRequests.register);
 
@@ -1716,6 +1893,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     sessionService,
     requireCustomer,
+    commandBus,
+    customFieldValues: customFields.handle.valueService,
     resolveCustomerActor: (request) => {
       if (request.actor.kind !== 'customer') {
         throw new HttpError(
@@ -1798,11 +1977,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       const isPlatformAdmin = (roleRow.rows[0]?.code ?? null) !== 'sales_representative';
       let allowedOrganizationIds: string[] = [];
       if (!isPlatformAdmin) {
-        const rows = (await knex.raw(
-          `select "organization_id" from "organization_sales_rep_assignments" where "admin_user_id" = ?`,
-          [actor.adminUserId],
-        )) as { rows: Array<{ organization_id: string }> };
-        allowedOrganizationIds = rows.rows.map((r) => r.organization_id);
+        // Feature 056 — subtree-expanded when the rep holds `organizations:rollup`.
+        allowedOrganizationIds = await scopedSalesRepAssignment.listAssignedOrganizationIds(
+          actor.adminUserId,
+        );
       }
       return { adminUserId: actor.adminUserId, isPlatformAdmin, allowedOrganizationIds };
     },
@@ -1819,6 +1997,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireCustomer,
     settingsService: settings.handle.settingsService,
     audit: auditLogService,
+    auditLog: auditLogService,
     resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
     resolveCustomerContext: (req: FastifyRequest) => {
       const c = customerResolver(req);
@@ -1932,6 +2111,30 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     emFactory: em,
     getTransactionalEmailSender: () => transactionalEmailSender,
   }).attach(eventBus);
+  // Feature 049 — Stripe payment gateway. Registers the Stripe PaymentAdapter
+  // + gateway refund handler into the shared singletons, seeds one
+  // payment_methods row per Stripe method, and mounts the webhook / storefront /
+  // admin routes. Coupling (settings, sales channels, default channel) is
+  // injected so the module stays isolated (Principle I).
+  modules.push(
+    stripeModule({
+      emFactory: em,
+      eventBus,
+      settingsService: settings.handle.settingsService,
+      settingsAdmin: settings.handle.adminService,
+      requireAdmin,
+      requireCustomer,
+      resolveCustomerAccountId,
+      resolveAdminAuditContext: (request) => ({
+        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+      }),
+      resolveDefaultChannelId: async () =>
+        (await salesChannels.handle.resolver.getSystemDefault())?.id ?? platformSettingsChannelId,
+      salesChannelMembership: salesChannels.handle.membershipService,
+      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
+    }),
+  );
+
   modules.push(
     transactionalEmailsModule({
       emFactory: em,
@@ -1997,6 +2200,43 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         }),
       redis,
       runWorkers,
+    }),
+  );
+
+  // Feature 049 — Google Analytics. GA4 integration: per-channel activation +
+  // Measurement ID, Enhanced Ecommerce, custom events, and server-side tagging.
+  // Config lives in the Settings module; server-side delivery is queue-backed.
+  modules.push(
+    googleAnalyticsModule({
+      emFactory: em,
+      settings: settings.handle.settingsService,
+      requireAdmin,
+      channels: {
+        idByCode: async (code) =>
+          (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+        codeById: async (id) => {
+          const { items } = await salesChannels.handle.salesChannelsService.list({});
+          return items.find((c) => c.id === id)?.code ?? null;
+        },
+      },
+      resolveAuditContext: (request) => ({
+        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+      }),
+      auditLog: auditLogService,
+      redis,
+      runWorkers,
+      // On-demand storefront cache invalidation: any google_analytics.* setting
+      // change (and custom-event CRUD) revalidates the storefront `ga:config`.
+      onSettingChanged: (handler) =>
+        eventBus.on('settings.value_changed', (payload) =>
+          handler((payload as unknown as { settingCode: string }).settingCode),
+        ),
+      ...(process.env['STOREFRONT_BASE_URL']
+        ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
+        : {}),
+      ...(process.env['REVALIDATE_SECRET']
+        ? { revalidateSecret: process.env['REVALIDATE_SECRET'] }
+        : {}),
     }),
   );
 
@@ -2173,7 +2413,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     pwaSettingsManifest,
     transactionalEmailsSettingsManifest,
     newsletterSettingsManifest,
+    googleAnalyticsSettingsManifest,
     invoicesSettingsManifest,
+    stripeSettingsManifest,
     cmsSettingsManifest,
     // Other modules' manifests are appended here as they start using settings.
   ];
@@ -2202,6 +2444,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     orm,
     redis,
     modules,
+    commandBus,
     errorEnvelope: {
       resolvePreferredLanguage: async (request) => {
         if (request.actor.kind !== 'admin') return null;

@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { OrgScoped } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,6 +7,7 @@ import { randomUUID } from 'crypto';
  * Token rules mirror the email-verification flow: random base64url token
  * shown once, sha256 hash stored. One-shot via `consumed_at`.
  */
+@OrgScoped()
 @Entity({ tableName: 'organization_invitations' })
 export class OrganizationInvitation {
   [OptionalProps]?:

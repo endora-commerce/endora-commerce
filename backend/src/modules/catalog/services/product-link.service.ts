@@ -2,13 +2,18 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import type { CommandBus } from '../../../commands/index.js';
 import { Asset } from '../../assets_library/entities/asset.entity.js';
 import { Product } from '../entities/product.entity.js';
 import { ProductLink, type ProductLinkKind } from '../entities/product-link.entity.js';
-import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
-
 interface StorefrontContext {
-  salesChannelCode?: string | null | undefined;
+  /**
+   * The request's resolved sales channel (feature 053 / FR-002). Always
+   * present — the canonical resolver guarantees a concrete channel — so
+   * cross/up-sell filtering is unconditional and fails closed (Principle XII).
+   * `isPublic` is the price-visibility flag.
+   */
+  resolvedChannel: { id: string; code: string; isPublic: boolean };
   preferredLanguage?: string | undefined;
 }
 
@@ -67,7 +72,30 @@ function pickLang(blob: Record<string, string>, preferred?: string): string {
 }
 
 export class ProductLinkService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /** Feature 054 — audits product-link writes co-transactionally when provided. */
+    private readonly commandBus?: CommandBus,
+  ) {}
+
+  /** Feature 054 — run a product-link write through the Command Bus. */
+  async #audited<T>(
+    action: string,
+    objectId: string,
+    write: (em: EntityManager) => Promise<{
+      result: T;
+      before: Record<string, unknown> | null;
+      after: Record<string, unknown> | null;
+    }>,
+  ): Promise<T> {
+    if (this.commandBus) {
+      return this.commandBus.run({ action, objectType: 'product_link', objectId, run: ({ em }) => write(em) });
+    }
+    const em = this.emFactory();
+    const w = await write(em);
+    await em.flush();
+    return w.result;
+  }
 
   async listForAdmin(
     sourceProductId: string,
@@ -156,21 +184,25 @@ export class ProductLinkService {
       if (row.position > cur) nextPositionByKind.set(row.kind, row.position);
     }
 
-    const created: ProductLink[] = [];
-    for (const input of inputs) {
-      const explicit = input.position;
-      const next = (nextPositionByKind.get(input.kind) ?? -1) + 1;
-      const position = explicit !== undefined ? explicit : next;
-      nextPositionByKind.set(input.kind, position);
-      const link = em.create(ProductLink, {
-        sourceProductId,
-        targetProductId: input.targetProductId,
-        kind: input.kind,
-        position,
-      });
-      created.push(link);
-    }
-    await em.persistAndFlush(created);
+    const created = await this.#audited('product_link.bulk_create', sourceProductId, async (cem) => {
+      const rows: ProductLink[] = [];
+      for (const input of inputs) {
+        const explicit = input.position;
+        const next = (nextPositionByKind.get(input.kind) ?? -1) + 1;
+        const position = explicit !== undefined ? explicit : next;
+        nextPositionByKind.set(input.kind, position);
+        rows.push(
+          cem.create(ProductLink, {
+            sourceProductId,
+            targetProductId: input.targetProductId,
+            kind: input.kind,
+            position,
+          }),
+        );
+      }
+      await cem.flush();
+      return { result: rows, before: null, after: { sourceProductId, count: rows.length } };
+    });
     return created.map((r) => ({
       id: r.id,
       sourceProductId: r.sourceProductId,
@@ -181,16 +213,19 @@ export class ProductLinkService {
   }
 
   async removeLink(sourceProductId: string, linkId: string): Promise<void> {
-    const em = this.emFactory();
-    const link = await em.findOne(ProductLink, { id: linkId, sourceProductId });
-    if (!link) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.PRODUCT_LINK_NOT_FOUND,
-        `Link "${linkId}" not found on source ${sourceProductId}.`,
-      );
-    }
-    await em.removeAndFlush(link);
+    await this.#audited('product_link.delete', linkId, async (em) => {
+      const link = await em.findOne(ProductLink, { id: linkId, sourceProductId });
+      if (!link) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.PRODUCT_LINK_NOT_FOUND,
+          `Link "${linkId}" not found on source ${sourceProductId}.`,
+        );
+      }
+      const before = { sourceProductId, targetProductId: link.targetProductId, kind: link.kind };
+      em.remove(link);
+      return { result: undefined, before, after: null };
+    });
   }
 
   /**
@@ -218,23 +253,26 @@ export class ProductLinkService {
     });
     const byId = new Map(targets.map((p) => [p.id, p]));
 
-    // Sales-channel visibility — when ctx specifies a channel, only
-    // products mapped to it are surfaced.
-    let visibleIds: Set<string> = new Set(byId.keys());
-    if (ctx.salesChannelCode) {
-      const channel = await em.findOne(SalesChannel, { code: ctx.salesChannelCode });
-      if (channel) {
-        const visibleRows = await em
-          .getConnection()
-          .execute<{ product_id: string }[]>(
-            `select product_id from sales_channel_products
-             where sales_channel_id = ? and product_id in (${targets
-               .map(() => '?')
-               .join(',')})`,
-            [channel.id, ...targets.map((t) => t.id)],
-          );
-        visibleIds = new Set(visibleRows.map((r) => r.product_id));
-      }
+    // Feature 053 (FR-006 / Principle XII) — sales-channel visibility. The
+    // channel is resolved once upstream (`request.salesChannel`) and handed in;
+    // the membership filter is ALWAYS applied, failing closed to an empty
+    // visible set rather than leaking the full cross-channel target set.
+    const channel = ctx.resolvedChannel;
+    let visibleIds: Set<string>;
+    if (targets.length > 0) {
+      const visibleRows = await em
+        .getConnection()
+        .execute<{ product_id: string }[]>(
+          `select product_id from sales_channel_products
+           where sales_channel_id = ? and product_id in (${targets
+             .map(() => '?')
+             .join(',')})`,
+          [channel.id, ...targets.map((t) => t.id)],
+        );
+      visibleIds = new Set(visibleRows.map((r) => r.product_id));
+    } else {
+      // No channel resolved (or no targets) → nothing is visible (fail closed).
+      visibleIds = new Set<string>();
     }
 
     // Primary asset urls (gallery thumb chain reused via product_assets fallback)
@@ -306,14 +344,9 @@ export class ProductLinkService {
           target.attributeValues['price'] ??
           Number.NaN,
       );
-      // Sales-channel public flag controls price visibility (R-18); reuse
-      // the already-fetched channel by reading it again would be wasteful,
-      // so default to public when no channel is set.
-      let isPublic = true;
-      if (ctx.salesChannelCode) {
-        const channel = await em.findOne(SalesChannel, { code: ctx.salesChannelCode });
-        isPublic = channel?.isPublic ?? true;
-      }
+      // Sales-channel public flag controls price visibility (R-18), read off
+      // the resolved channel handed in by the route.
+      const isPublic = ctx.resolvedChannel.isPublic;
       const currency = 'PLN';
       const price =
         isPublic && Number.isFinite(rawPrice)
@@ -341,26 +374,26 @@ export class ProductLinkService {
     kind: ProductLinkKind,
     linkIds: string[],
   ): Promise<void> {
-    const em = this.emFactory();
-    // Fetch all links of this (source, kind) so we can validate the input
-    // covers exactly that set.
-    const rows = await em.find(ProductLink, { sourceProductId, kind });
-    const byId = new Map(rows.map((r) => [r.id, r]));
-    for (const id of linkIds) {
-      if (!byId.has(id)) {
-        throw new HttpError(
-          400,
-          ERROR_CODES.VALIDATION_FAILED,
-          `Link "${id}" is not part of (${sourceProductId}, ${kind}).`,
-        );
+    await this.#audited('product_link.reorder', sourceProductId, async (em) => {
+      // Fetch all links of this (source, kind) so we can validate the input
+      // covers exactly that set.
+      const rows = await em.find(ProductLink, { sourceProductId, kind });
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      for (const id of linkIds) {
+        if (!byId.has(id)) {
+          throw new HttpError(
+            400,
+            ERROR_CODES.VALIDATION_FAILED,
+            `Link "${id}" is not part of (${sourceProductId}, ${kind}).`,
+          );
+        }
       }
-    }
-    // Apply 0..N positions in array order.
-    for (let i = 0; i < linkIds.length; i++) {
-      const id = linkIds[i]!;
-      const link = byId.get(id)!;
-      link.position = i;
-    }
-    await em.flush();
+      // Apply 0..N positions in array order.
+      for (let i = 0; i < linkIds.length; i++) {
+        const link = byId.get(linkIds[i]!)!;
+        link.position = i;
+      }
+      return { result: undefined, before: null, after: { sourceProductId, kind, count: linkIds.length } };
+    });
   }
 }

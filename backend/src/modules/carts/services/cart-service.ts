@@ -104,6 +104,7 @@ export class CartService {
         customerAccountId: ctx.customerAccountId,
         organizationId: ctx.organizationId,
         status: 'active',
+        salesChannelId: await this.#defaultSalesChannelId(em),
       });
       await em.persistAndFlush(cart);
     }
@@ -116,10 +117,23 @@ export class CartService {
       cart = em.create(Cart, {
         anonymousCartToken: token,
         status: 'active',
+        salesChannelId: await this.#defaultSalesChannelId(em),
       });
       await em.persistAndFlush(cart);
     }
     return cart;
+  }
+
+  /**
+   * Feature 052 — a cart MUST carry a resolved sales channel so promotion and
+   * pricing evaluation is channel-scoped (the promotion channel gate fails closed
+   * on a null-channel cart, FR-005). Until request-driven channel resolution is
+   * unified (spec 03), a new cart defaults to the system-default channel. Returns
+   * `null` only if no system-default channel exists (a misconfigured store).
+   */
+  async #defaultSalesChannelId(em: EntityManager): Promise<string | null> {
+    const channel = await em.findOne(SalesChannel, { systemDefault: true }, { fields: ['id'] });
+    return channel?.id ?? null;
   }
 
   async getItems(cartId: string): Promise<CartItem[]> {
@@ -405,6 +419,8 @@ export class CartService {
    * again. No-op on a missing cart.
    */
   async touch(actor: { customer?: CustomerContext; anonymousToken?: string }): Promise<Cart | null> {
+    // command-coverage-ignore: bumps the ephemeral cart's lastActivityAt for the
+    // abandonment sweep — transient bookkeeping, not an audited domain mutation.
     const em = this.emFactory();
     let cart: Cart | null = null;
     if (actor.customer) {
@@ -544,6 +560,8 @@ export class CartService {
   }
 
   async clearForCustomer(ctx: CustomerContext): Promise<void> {
+    // command-coverage-ignore: empties the ephemeral cart — transient pre-order
+    // working state; the resulting order captures the audited final state.
     const em = this.emFactory();
     const cart = await em.findOne(Cart, {
       customerAccountId: ctx.customerAccountId,

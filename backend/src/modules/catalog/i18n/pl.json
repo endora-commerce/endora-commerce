@@ -601,5 +601,11 @@
   "packagingUnits.action.moveDown": "W dół",
   "packagingUnits.error.load": "Nie udało się wczytać jednostek opakowaniowych.",
   "packagingUnits.error.save": "Zapis nie powiódł się.",
-  "packagingUnits.error.invalid": "Podaj nazwę i całkowitą liczbę sztuk (co najmniej 1)."
+  "packagingUnits.error.invalid": "Podaj nazwę i całkowitą liczbę sztuk (co najmniej 1).",
+  "bulkOperations.undo.action": "Cofnij",
+  "bulkOperations.undo.running": "Cofanie…",
+  "bulkOperations.undo.confirm": "Cofnąć tę edycję masową i przywrócić {count} produkt(ów) do poprzednich wartości?",
+  "bulkOperations.undo.result": "Cofnięcie zakończone: przywrócono {reverted}, nie udało się cofnąć {conflicts} (zmienione po edycji).",
+  "bulkOperations.undo.error": "Nie udało się cofnąć operacji.",
+  "bulkOperations.undo.alreadyReverted": "Ta edycja masowa została już cofnięta."
 }

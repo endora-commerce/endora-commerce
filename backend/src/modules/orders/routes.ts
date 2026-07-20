@@ -10,8 +10,10 @@ import {
   bulkPrintInvoicesRequestSchema,
   createOrderSavedViewRequestSchema,
   createOrderStatusRequestSchema,
+  customFieldValuesSchema,
   customerAddOrderCommentRequestSchema,
   ERROR_CODES,
+  orderPreviewTotalRequestSchema,
   placeOrderRequestSchema,
   setOrderTransitionsRequestSchema,
   updateOrderSavedViewRequestSchema,
@@ -19,6 +21,11 @@ import {
 } from '@b2b/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../http/error-envelope.js';
+import type { Command, CommandBus } from '../../commands/index.js';
+import {
+  CustomFieldValidationError,
+  type CustomFieldValueService,
+} from '../custom_fields/services/custom-field-value.service.js';
 import type { OrderService } from './services/order-service.js';
 import type { OrderStatusGraphService } from './services/order-status-graph-service.js';
 import { OrderStatus } from './entities/order-status.entity.js';
@@ -92,6 +99,10 @@ export interface OrdersDeps {
     | { allowAll: true }
     | { allowAll: false; allowedOrganizationIds: string[] }
   >;
+  /** Feature 055 — validates + persists Order custom-field values (via the Command Bus). */
+  customFieldValues?: CustomFieldValueService;
+  /** Feature 055 — audits the custom-field write co-transactionally when provided. */
+  commandBus?: CommandBus;
 }
 
 export async function registerOrderRoutes(
@@ -100,6 +111,56 @@ export async function registerOrderRoutes(
 ): Promise<void> {
   const { orderService, emFactory, requireCustomer, requireAdmin, resolveCustomerContext } = deps;
   const { assertOrganizationCanTransact } = deps;
+  const customFieldValues = deps.customFieldValues;
+  const commandBus = deps.commandBus;
+
+  // --- Custom fields (feature 055) -------------------------------------
+  // Narrow admin write for Order custom-field values. The write runs through
+  // the Command Bus (audited by construction, Principle XIII); validation may
+  // reject with a per-field 422. Only mounted when both deps are provided.
+  if (customFieldValues && commandBus) {
+    app.patch<{ Params: { id: string } }>(
+      '/api/v1/admin/orders/:id/custom-fields',
+      { preHandler: requireAdmin('orders:write'), schema: { body: customFieldValuesSchema } },
+      async (request) => {
+        const patch = customFieldValuesSchema.parse(request.body);
+        const orderId = request.params.id;
+        const command: Command<Order> = {
+          action: 'order.custom_fields.update',
+          objectType: 'order',
+          objectId: orderId,
+          capture: async ({ em }) => {
+            const o = await em.findOne(Order, { id: orderId });
+            return o ? { customFieldValues: o.customFieldValues ?? {} } : null;
+          },
+          run: async ({ em }) => {
+            const order = await em.findOne(Order, { id: orderId });
+            if (!order) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
+            order.customFieldValues = await customFieldValues.validateAndMerge(
+              'order',
+              order.customFieldValues ?? {},
+              patch,
+            );
+            return { result: order, after: { customFieldValues: order.customFieldValues } };
+          },
+        };
+        try {
+          const order = await commandBus.run(command);
+          return { data: await serializeOrder(emFactory(), order) };
+        } catch (err) {
+          if (err instanceof CustomFieldValidationError) {
+            throw new HttpError(
+              422,
+              ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
+              'One or more custom fields are invalid.',
+              err.errors.map((e) => ({ path: e.field, issue: e.message })),
+            );
+          }
+          throw err;
+        }
+      },
+    );
+  }
 
   // --- Customer surface -------------------------------------------------
   app.post(
@@ -126,6 +187,21 @@ export async function registerOrderRoutes(
       const order = await orderService.placeOrder(ctx, body);
       reply.status(201);
       return { data: await serializeOrder(emFactory(), order) };
+    },
+  );
+
+  // Read-only total preview for the active cart + chosen methods (feature 049).
+  // The exact amount (incl. per-product VAT) is computed server-side so the
+  // storefront can display it — e.g. for the inline Stripe Payment Element —
+  // without re-deriving any pricing on the client.
+  app.post(
+    '/api/v1/orders/preview-total',
+    { preHandler: requireCustomer, schema: { body: orderPreviewTotalRequestSchema } },
+    async (request) => {
+      const body = orderPreviewTotalRequestSchema.parse(request.body);
+      const ctx = resolveCustomerContext(request);
+      const totals = await orderService.previewTotal(ctx, body);
+      return { data: totals };
     },
   );
 
@@ -794,6 +870,7 @@ async function serializeOrder(em: EntityManager, order: Order): Promise<Record<s
     placedOnBehalfByAdminUserId: order.placedOnBehalfByAdminUserId ?? null,
     salesChannelId: order.salesChannelId,
     status: order.status,
+    customFieldValues: order.customFieldValues ?? {},
     statusName: statusDef?.name ?? {},
     statusDefaultName: statusDef?.defaultName ?? order.status,
     paymentStatus: order.paymentStatus,

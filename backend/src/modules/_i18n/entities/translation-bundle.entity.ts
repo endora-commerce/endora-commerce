@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import type { SupportedAdminLanguage, TranslationBundleEntries } from '@b2b/contracts';
 
 /**
@@ -12,6 +13,7 @@ import type { SupportedAdminLanguage, TranslationBundleEntries } from '@b2b/cont
  *
  * No FK on `module_id` — see migration 040 for the rationale.
  */
+@GlobalEntity()
 @Entity({ tableName: 'translation_bundles' })
 @Index({
   properties: ['languageCode'],

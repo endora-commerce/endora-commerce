@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,9 +7,11 @@ import { randomUUID } from 'crypto';
  * `parentCategoryId` is null for roots. `slug` is kebab-case; uniqueness is
  * enforced per-parent at the migration level.
  */
+@GlobalEntity()
 @Entity({ tableName: 'categories' })
 export class Category {
   [OptionalProps]?:
+    | 'customFieldValues'
     | 'id'
     | 'createdAt'
     | 'updatedAt'
@@ -50,6 +53,10 @@ export class Category {
 
   @Property({ type: 'datetime', onUpdate: () => new Date() })
   updatedAt: Date = new Date();
+
+  // Feature 055 — Custom Fields Layer value bag (inherits host tenant scope).
+  @Property({ type: 'json' })
+  customFieldValues: Record<string, unknown> = {};
 
   @Property({ type: 'datetime', nullable: true })
   deletedAt?: Date | null;

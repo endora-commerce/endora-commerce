@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,6 +7,7 @@ import { randomUUID } from 'crypto';
  * (Certificate, Tech Spec, Product Card, …) shared across all
  * Products. Feature 002 US3, data-model.md §2.5.
  */
+@GlobalEntity()
 @Entity({ tableName: 'attachment_types' })
 export class AttachmentType {
   [OptionalProps]?: 'id' | 'position' | 'createdAt' | 'updatedAt';

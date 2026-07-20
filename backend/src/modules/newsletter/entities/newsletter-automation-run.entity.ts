@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,6 +7,7 @@ import { randomUUID } from 'crypto';
  * automation. A partial unique (automation_id, subscriber_id) where status <>
  * 'cancelled' enforces the `once` re-entry policy (created in the migration).
  */
+@GlobalEntity()
 @Entity({ tableName: 'newsletter_automation_runs' })
 @Index({ properties: ['automationId'] })
 export class NewsletterAutomationRun {

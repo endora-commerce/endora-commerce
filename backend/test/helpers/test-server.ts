@@ -2,8 +2,15 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import Redis from 'ioredis';
 import { buildServer, type ModulePlugin } from '../../src/http/server.js';
+import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
+import { runInTenantContext, type TenantContext } from '../../src/tenancy/tenant-context.js';
+import {
+  resolveTenantContext,
+  systemTenantContext,
+} from '../../src/tenancy/resolve-tenant-context.js';
 import { initOrm, closeOrm } from '../../src/db/index.js';
 import { EventBus } from '../../src/events/bus.js';
+import { CommandBus } from '../../src/commands/index.js';
 import { SessionService } from '../../src/modules/auth/services/session-service.js';
 import { AuditLogService } from '../../src/modules/audit_logs/services/audit-log-service.js';
 import { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
@@ -30,6 +37,8 @@ import { OrganizationModerationService } from '../../src/modules/organizations/s
 import { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
 import { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
 import { SalesRepAssignmentService } from '../../src/modules/organizations/services/sales-rep-assignment-service.js';
+import { OrganizationTreeService } from '../../src/modules/organizations/services/organization-tree-service.js';
+import { resolveCustomerRollupSubtreeIds } from '../../src/modules/customer_accounts/services/customer-rollup-scope.js';
 import { OrganizationEffectivePriceListsService } from '../../src/modules/organizations/services/organization-effective-pricelists-service.js';
 import { OrganizationTaxIdValidationService } from '../../src/modules/organizations/services/organization-tax-id-validation-service.js';
 import type {
@@ -49,6 +58,8 @@ import { transactionalEmailsModule } from '../../src/modules/transactional_email
 import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/services/email-defaults-registry.js';
 import { newsletterModule } from '../../src/modules/newsletter/plugin.js';
 import { newsletterSettingsManifest } from '../../src/modules/newsletter/manifest.js';
+import { googleAnalyticsModule } from '../../src/modules/google_analytics/plugin.js';
+import { googleAnalyticsSettingsManifest } from '../../src/modules/google_analytics/manifest.js';
 import { ORDER_CONFIRMATION_DEFAULT } from '../../src/modules/orders/email-templates/order-confirmation.default.js';
 import {
   ORDER_COMMENT_DEFAULT,
@@ -83,6 +94,7 @@ import {
 import { CreditTopupProvider } from '../../src/modules/credit_limits/services/credit-topup.js';
 import { ReturnEmailNotifier } from '../../src/modules/returns/services/return-email-notifier.js';
 import { creditLimitsModule } from '../../src/modules/credit_limits/plugin.js';
+import { customFieldsModule } from '../../src/modules/custom_fields/plugin.js';
 import { integrationsModule } from '../../src/modules/api_keys/plugin.js';
 import { analyticsModule } from '../../src/modules/analytics/plugin.js';
 import { importExportModule } from '../../src/modules/import_export/plugin.js';
@@ -211,6 +223,8 @@ export interface BackendServerHandle {
   adminI18n: ReturnType<typeof adminI18nModule>['handle'];
   /** Feature 015+ — promotions module handle (exposes PromotionService). */
   promotions: ReturnType<typeof promotionsModule>['handle'];
+  /** Feature 055 — custom fields (definition + value services). */
+  customFields: ReturnType<typeof customFieldsModule>['handle'];
   /** Feature 026 — moderation lifecycle, admin notifications, org context. */
   organizations: {
     moderationService: OrganizationModerationService;
@@ -262,6 +276,9 @@ function testAnyLabel(name: unknown): string {
 }
 
 const SEEDED_TABLES = [
+  // Feature 055 — custom fields. Options cascade from definitions.
+  'custom_field_options',
+  'custom_field_definitions',
   // Feature 042 — MFA. Recovery codes cascade from enrolments.
   'mfa_recovery_codes',
   'mfa_enrolments',
@@ -354,7 +371,9 @@ export async function setupBackendServer(
   options: BackendServerOptions = {},
 ): Promise<BackendServerHandle> {
   const orm = await initOrm();
-  const em = (): EntityManager => orm.em.fork() as EntityManager;
+  // Feature 050 — mirror the production seam: forks stamp tenant filter params
+  // from the ambient TenantContext (established per request by the hook below).
+  const em = (): EntityManager => forkScopedEm(orm);
 
   const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
   const redis = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
@@ -365,7 +384,8 @@ export async function setupBackendServer(
   // Redis persists across runs, so we must clear the cross-run-stale namespaces
   // here. (cms/megamenu/blog/dictionaries clear their own caches further down
   // via their module handle's `invalidateAll()`, which also drops the LRU.)
-  for (const pattern of ['session:*', 'sales-channels:v1:*', 'settings:v1:*']) {
+  // `sales-channels:*` covers every cache version (feature 053 bumped it to v2).
+  for (const pattern of ['session:*', 'sales-channels:*', 'settings:v1:*']) {
     const keys = await redis.keys(pattern);
     if (keys.length > 0) await redis.del(keys);
   }
@@ -430,6 +450,9 @@ export async function setupBackendServer(
 
   const eventBus = new EventBus();
 
+  // Feature 054 — mirror production: the Command Bus is the audited write path.
+  const commandBus = new CommandBus(orm, auditLogService, eventBus);
+
   // CartService is exposed by the commerce module so the login handler in
   // organizations can merge anonymous baskets after sign-in.
   let cartService: CartService | null = null;
@@ -449,8 +472,8 @@ export async function setupBackendServer(
   // Feature 026 US4 — restriction service + per-request allow-list resolvers.
   // Mirrors the composition.ts pattern: production wiring reads
   // `request.actor`; the test harness uses `request.testActor`.
-  const sharedRestrictionService = new OrganizationRestrictionService(em);
-  const sharedSalesRepAssignment = new SalesRepAssignmentService(em);
+  const sharedRestrictionService = new OrganizationRestrictionService(em, auditLogService);
+  const sharedSalesRepAssignment = new SalesRepAssignmentService(em, auditLogService);
   const buildOrgAllowListResolver = (
     kind: 'paymentMethodIds' | 'deliveryMethodIds' | 'warehouseIds',
   ) => async (request: FastifyRequest): Promise<string[] | null> => {
@@ -533,9 +556,19 @@ export async function setupBackendServer(
   const creditLimits = creditLimitsModule({
     emFactory: em,
     eventBus,
+    commandBus,
     requireCustomer: requireTestCustomer(),
     requireAdmin: requireTestAdmin(permissionService),
     resolveCustomerContext: customerResolver,
+  });
+
+  // Feature 055 — Custom Fields Layer. No Redis publisher in tests; the cache
+  // uses its in-process map + TTL. The value service is threaded into the
+  // organizations module below so org custom-field values validate on edit.
+  const customFields = customFieldsModule({
+    emFactory: em,
+    commandBus,
+    requireAdmin: requireTestAdmin(permissionService),
   });
 
   // US7 — API keys, webhooks, external integrations. The handle exposes
@@ -565,6 +598,7 @@ export async function setupBackendServer(
   const seo = seoModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
+    auditLog: auditLogService,
     sitemap: { staleAfterMs: 0, baseUrl: 'http://test.local' },
   });
 
@@ -573,12 +607,14 @@ export async function setupBackendServer(
   const i18n = i18nModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
+    auditLog: auditLogService,
   });
 
   const dictionaries = dictionariesModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
     redis,
+    auditLog: auditLogService,
   });
 
   // Feature 005 — sales-channels module is built BEFORE every other module
@@ -621,6 +657,7 @@ export async function setupBackendServer(
     // composition uses the default 60-s TTL.
     pricingCacheTtlMs: 0,
     auditLogService,
+    commandBus,
     resolveAdminAuditContext: (request) => ({
       actorAdminUserId:
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
@@ -633,10 +670,12 @@ export async function setupBackendServer(
     requireAdmin: requireTestAdmin(permissionService),
     salesChannelMembership: salesChannels.handle.membershipService,
     dictionaryValidator: dictionaries.handle.validator,
+    auditLog: auditLogService,
   });
   const promotions = promotionsModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
+    auditLog: auditLogService,
     salesChannelMembership: salesChannels.handle.membershipService,
     // Feature 012 / US8 — wire the catalog read port so the rule-target
     // picker + criterion validation work in tests.
@@ -691,9 +730,51 @@ export async function setupBackendServer(
   let transactionalEmailSender: import('@b2b/contracts').TransactionalEmailSender | undefined;
 
   const modules: ModulePlugin[] = [
-    async (app) => registerTestAuth(app, { sessionService, emFactory: em }),
+    async (app) => {
+      registerTestAuth(app, { sessionService, emFactory: em });
+      // Feature 050 — establish the ambient TenantContext from the resolved test
+      // actor, after registerTestAuth sets it. Mirrors composition.ts wiring
+      // (callback-style so the AsyncLocalStorage store reaches the handler).
+      const buildContext = async (request: FastifyRequest): Promise<TenantContext> => {
+        const actor = request.testActor;
+        if (actor?.kind === 'customer') {
+          const orgId =
+            actor.organizationId && actor.organizationId.length > 0 ? actor.organizationId : null;
+          // Feature 056 (T032) — mirror production: a roll-up-enabled customer
+          // widens to its org subtree (server-derived from the account flag).
+          const rollupSubtree = await resolveCustomerRollupSubtreeIds(
+            em,
+            (id) => new OrganizationTreeService(em).subtreeIds(id),
+            actor.customerAccountId,
+            orgId,
+          );
+          return resolveTenantContext({
+            kind: 'customer',
+            customerAccountId: actor.customerAccountId,
+            organizationId: orgId,
+            impersonatorAdminUserId:
+              (actor as { impersonatorAdminUserId?: string | null }).impersonatorAdminUserId ?? null,
+            ...(rollupSubtree && rollupSubtree.length > 0
+              ? { rollupSubtreeOrganizationIds: rollupSubtree }
+              : {}),
+          });
+        }
+        if (actor?.kind === 'admin') {
+          const scope = await resolveTestAdminOrdersScope(request);
+          return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
+        }
+        return systemTenantContext(`test-actor:${actor?.kind ?? 'anonymous'}`);
+      };
+      app.addHook('onRequest', (request: FastifyRequest, _reply, done) => {
+        buildContext(request).then(
+          (ctx) => runInTenantContext(ctx, () => done()),
+          (err: unknown) => done(err as Error),
+        );
+      });
+    },
     admin.plugin,
     creditLimits.plugin,
+    customFields.plugin,
     integrations.plugin,
     analytics.plugin,
     importExport.plugin,
@@ -704,15 +785,36 @@ export async function setupBackendServer(
     taxes.plugin,
     promotions.plugin,
     commerceModule({
+      commandBus,
       emFactory: em,
       eventBus,
       auditLogService,
+      customFieldValues: customFields.handle.valueService,
       getTransactionalEmailSender: () => transactionalEmailSender,
       creditLimit: creditLimits.handle.creditLimitService,
       requireCustomer: requireTestCustomer(),
       requireAdmin: requireTestAdmin(permissionService),
       resolveCustomerContext: customerResolver,
       salesChannelMembership: salesChannels.handle.membershipService,
+      // Real per-product VAT — mirrors composition.ts so placeOrder resolves the
+      // rate from the tax rules instead of a flat 23%.
+      resolveTaxRate: async ({ country, productType, vatStatus }) => {
+        try {
+          const resolved = await taxes.handle.taxService.taxRateFor({
+            country: country ?? 'PL',
+            productType: productType as
+              | 'simple'
+              | 'configurable'
+              | 'grouped'
+              | 'bundle'
+              | 'virtual',
+            vatStatus: vatStatus as 'vat_payer' | 'vat_exempt' | 'reverse_charge',
+          });
+          return resolved.rate;
+        } catch {
+          return 0.23;
+        }
+      },
       pricingService: priceLists.handle.pricingService,
       promotionService: promotions.handle.promotionService,
       redis,
@@ -858,6 +960,7 @@ export async function setupBackendServer(
         emFactory: em,
         vies: new FakeVatValidator('vies'),
         mfPl: new FakeVatValidator('mf_pl'),
+        auditLog: auditLogService,
       });
       // Expose handles on the harness for tests that want to call the
       // services directly.
@@ -872,6 +975,7 @@ export async function setupBackendServer(
         organizationsModule({
           emFactory: em,
           eventBus,
+          commandBus,
           sessionService,
           getMfaLoginPort: getTestMfaLoginPort,
           getTransactionalEmailSender: () => transactionalEmailSender,
@@ -886,6 +990,7 @@ export async function setupBackendServer(
           restrictionService,
           effectivePriceListsService,
           taxIdValidationService: testTaxIdValidationService,
+          customFieldValues: customFields.handle.valueService,
           exposeTestProbe: true,
           dictionaryValidator: dictionaries.handle.validator,
           mailer: moderationMailer,
@@ -915,8 +1020,11 @@ export async function setupBackendServer(
     catalogModule({
       emFactory: em,
       eventBus,
+      commandBus,
       requireAdmin: requireTestAdmin(permissionService),
       auditLogService,
+      customFieldValues: customFields.handle.valueService,
+      customFieldDefinitions: customFields.handle.definitionService,
       requireApiKey: integrations.handle.requireApiKey,
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,
@@ -1153,6 +1261,7 @@ export async function setupBackendServer(
   const assetsLibrary = assetsLibraryModule({
     emFactory: em,
     requireAdmin: requireTestAdmin(permissionService),
+    auditLog: auditLogService,
   });
   modules.push(assetsLibrary.plugin);
   registerCatalogAssetReferences(assetsLibrary.handle.referenceRegistry, em);
@@ -1373,6 +1482,7 @@ export async function setupBackendServer(
     eventBus,
     requireCustomer: requireTestCustomer(),
     requireAdmin: requireTestAdmin(permissionService),
+    customFieldValues: customFields.handle.valueService,
     resolveCustomerContext: async (request) => {
       const ctx = customerResolver(request);
       const account = await em().findOne(CustomerAccount, { id: ctx.customerAccountId });
@@ -1414,6 +1524,7 @@ export async function setupBackendServer(
         return 0;
       }
     },
+    auditLog: auditLogService,
   });
   modules.push(quoteRequests.register);
 
@@ -1422,6 +1533,8 @@ export async function setupBackendServer(
     emFactory: em,
     sessionService,
     requireCustomer: requireTestCustomer(),
+    commandBus,
+    customFieldValues: customFields.handle.valueService,
     resolveCustomerActor: (request) => {
       if (request.testActor?.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
@@ -1529,6 +1642,7 @@ export async function setupBackendServer(
       requireCustomer: requireTestCustomer(),
       settingsService: settings.handle.settingsService,
       audit: auditLogService,
+      auditLog: auditLogService,
       resolveAdminUserId: (req) =>
         req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
       resolveCustomerContext: (req) => ({
@@ -1658,6 +1772,28 @@ export async function setupBackendServer(
     }),
   );
 
+  // Feature 049 — Google Analytics. No redis wired here, so /collect degrades
+  // to 503 (queue producer absent); config + admin CRUD are fully exercised.
+  modules.push(
+    googleAnalyticsModule({
+      emFactory: em,
+      settings: settings.handle.settingsService,
+      requireAdmin: requireTestAdmin(permissionService),
+      channels: {
+        idByCode: async (code) =>
+          (await salesChannels.handle.resolver.getByCode(code))?.id ?? null,
+        codeById: async (id) => {
+          const { items } = await salesChannels.handle.salesChannelsService.list({});
+          return items.find((c) => c.id === id)?.code ?? null;
+        },
+      },
+      resolveAuditContext: (req) => ({
+        actorAdminUserId: req.testActor?.kind === 'admin' ? req.testActor.adminUserId : null,
+      }),
+      auditLog: auditLogService,
+    }),
+  );
+
   modules.push(
     shoppingListsModule({
       emFactory: em,
@@ -1715,6 +1851,7 @@ export async function setupBackendServer(
     pwaSettingsManifest,
     transactionalEmailsSettingsManifest,
     newsletterSettingsManifest,
+    googleAnalyticsSettingsManifest,
     invoicesSettingsManifest,
   ]);
 
@@ -1777,6 +1914,7 @@ export async function setupBackendServer(
     dictionaries: dictionaries.handle,
     adminI18n: adminI18n.handle,
     promotions: promotions.handle,
+    customFields: customFields.handle,
     organizations: handleFeature026 ?? {
       moderationService: null as unknown as OrganizationModerationService,
       adminNotificationService: null as unknown as ReturnType<

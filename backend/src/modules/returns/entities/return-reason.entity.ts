@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -8,6 +9,7 @@ import { randomUUID } from 'crypto';
  * restricts a reason to Returns, Complaints, or both; `isActive` + `weight`
  * control visibility and order.
  */
+@GlobalEntity()
 @Entity({ tableName: 'return_reasons' })
 export class ReturnReason {
   [OptionalProps]?: 'id' | 'isActive' | 'weight' | 'createdAt' | 'updatedAt';

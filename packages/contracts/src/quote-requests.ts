@@ -153,6 +153,8 @@ export const quoteRequestSchema = z.object({
   lastCustomerSeenRevisionNumber: z.number().int().nonnegative(),
   headerNote: z.string().nullable(),
   cancellationReason: z.string().nullable(),
+  /** Feature 055 — custom-field values captured on this quote request. */
+  customFieldValues: z.record(z.string(), z.unknown()).default({}),
   items: z.array(quoteRequestItemSchema),
   events: z.array(quoteRequestEventSchema),
   comparisonAgainstLastSeen: rfqComparisonAgainstLastSeenSchema.nullable(),
@@ -316,6 +318,8 @@ export const adminPatchQuoteRequestSchema = z
     headerNote: z.string().max(2000).nullable().optional(),
     items: z.array(adminPatchQuoteRequestLineSchema).min(1).optional(),
     expiresInDays: z.number().int().nonnegative().optional(),
+    /** Feature 055 — custom-field values for this quote request (validated on write). */
+    customFieldValues: z.record(z.string(), z.unknown()).optional(),
   })
   .strict();
 export type AdminPatchQuoteRequest = z.infer<typeof adminPatchQuoteRequestSchema>;

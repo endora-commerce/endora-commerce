@@ -1,10 +1,12 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
  * EmailTemplate — feature 047 (US3). Like EmailBlock but without an `active`
  * flag (mirrors CMS templates). Embedded by code via EmailInsertTemplate.
  */
+@GlobalEntity()
 @Entity({ tableName: 'email_templates' })
 export class EmailTemplate {
   [OptionalProps]?: 'isSystem' | 'description' | 'version' | 'createdAt' | 'updatedAt';

@@ -11,6 +11,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Country } from '../entities/country.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 export interface CreateCountryInput {
   code: string;
@@ -50,7 +52,26 @@ export class CountryService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly invalidateDictionaryCache?: () => Promise<void>,
+    private readonly auditLog?: AuditLogService,
   ) {}
+
+  #audit(
+    em: EntityManager,
+    action: string,
+    objectId: string,
+    stateBefore: Record<string, unknown> | null,
+    stateAfter: Record<string, unknown> | null,
+  ): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action,
+        objectType: 'country',
+        objectId,
+        stateBefore,
+        stateAfter,
+      });
+    }
+  }
 
   async list(): Promise<Country[]> {
     const em = this.emFactory();
@@ -101,7 +122,9 @@ export class CountryService {
       ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
       ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
     });
-    await em.persistAndFlush(row);
+    em.persist(row);
+    this.#audit(em, 'country.create', row.code, null, { label: row.label });
+    await em.flush();
     await this.invalidateDictionaryCache?.();
     return row;
   }
@@ -147,6 +170,7 @@ export class CountryService {
     if (input.isActive !== undefined) existing.isActive = input.isActive;
     if (input.sortOrder !== undefined) existing.sortOrder = input.sortOrder;
 
+    this.#audit(em, 'country.update', existing.code, null, { label: existing.label, isActive: existing.isActive });
     await em.flush();
     await this.invalidateDictionaryCache?.();
     return existing;
@@ -173,6 +197,8 @@ export class CountryService {
     await em.nativeUpdate(Country, { isDefault: true }, { isDefault: false });
     await em.nativeUpdate(Country, { code }, { isDefault: true });
     target.isDefault = true;
+    this.#audit(em, 'country.set_default', code, null, { isDefault: true });
+    await em.flush();
     await this.invalidateDictionaryCache?.();
     return target;
   }
@@ -234,6 +260,7 @@ export class CountryService {
         ],
       );
     }
+    this.#audit(em, 'country.delete', row.code, { label: row.label }, null);
     await em.removeAndFlush(row);
     await this.invalidateDictionaryCache?.();
   }

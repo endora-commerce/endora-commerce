@@ -51,6 +51,9 @@ export class OrderReorderService {
     ctx: ReorderContext,
     opts: { notifyCustomer?: boolean } = {},
   ): Promise<ReorderResult> {
+    // command-coverage-ignore: reorder rebuilds the customer's active cart from a
+    // prior order — a cart mutation (the carts module owns cart auditing), not an
+    // order-domain write; fully reconstructable, no undo value.
     const em = this.emFactory();
     const order = await em.findOne(Order, { id: orderId, organizationId: ctx.organizationId });
     if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');

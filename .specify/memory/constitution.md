@@ -1,59 +1,58 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 3.1.0 → 3.2.0
-Rationale: MINOR bump. A new principle (X. Scalable Queue Consumers)
-is added, and a corresponding ninth quality gate is introduced in
-the Development Workflow section. No existing principle is removed,
-narrowed, or redefined; the new rule applies to new and ongoing
-work going forward, so the versioning policy mandates a MINOR (not
-MAJOR) bump. Pre-existing in-process queue drains predate the rule
-and are tracked as compliance-review follow-ups rather than treated
-as retroactively invalidated.
+Version change: 3.6.0 → 3.7.0
+Rationale: MINOR bump. A new principle — XIV (Entity-Agnostic Extensibility &
+Runtime Custom Fields) — is added, codifying the architectural stance from the
+055-custom-fields-layer feature. A capability spanning multiple host entity
+types MUST be built as an entity-agnostic core whose host-specific behavior
+lives behind documented extension points, and a generic layer that generalizes
+an existing entity-specific mechanism (e.g. `product_attributes`) MUST leave
+that mechanism the untouched source of truth (reuse the design, not the code;
+any convergence is an adapter, not a rewrite). Runtime extension of core
+entities MUST be data (a definition row), never a schema migration or code
+deploy, with per-write validation and host-inherited tenant scope; the host
+owns persistence + audit while the generic layer owns definitions + validation.
+The principle prevents the observed rot where `product_attributes` accreted
+catalog-only flags until it was no longer reusable. A new principle is added
+(not a redefinition or removal), so the versioning policy mandates a MINOR bump.
 
 Modified principles:
-  - (none renamed or redefined)
+  - (none renamed/redefined)
 
 Added sections:
-  - X. Scalable Queue Consumers — new principle. Splits a binding
-    architectural invariant from a volume-tuned deployment posture.
-    Invariant (MUST): durable distributed queue (Redis/BullMQ-class),
-    atomic job claim + idempotent handlers (safe at N≥2 instances),
-    producer only enqueues (never inline-executes), and the consumer
-    is a separable worker entrypoint — an in-process `setInterval`
-    sweeper draining the queue inside the API process is prohibited.
-    Posture (SHOULD/MAY): run the consumer as a separate, independently
-    scalable process by default; low-volume work MAY be co-located in
-    the API deployable if it stays a separable entrypoint and the
-    co-location is justified in one sentence (mirrors the Principle IX
-    escape hatch; keeps single-VPS deploys simple per Infrastructure
-    Constraints and aligned with YAGNI / Principle IV).
-  - Development Workflow & Quality Gates — new gate #9 ("Async queue
-    consumers") enforcing Principle X at review time.
+  - XIV. Entity-Agnostic Extensibility & Runtime Custom Fields — new principle.
+  - Quality gate #13 (Entity-agnostic extensibility) in Development Workflow.
 
 Removed sections:
   - (none)
 
 Templates / artifacts requiring alignment:
-  - ✅ .specify/templates/plan-template.md      — references Constitution
-       Check generically; no edits required.
+  - ✅ .specify/templates/plan-template.md      — Constitution Check is
+       generic; no edits required.
   - ✅ .specify/templates/spec-template.md      — no edits required.
   - ✅ .specify/templates/tasks-template.md     — no edits required.
-  - ✅ README.md — principle quick-reference list extended with
-       item 10 (scalable queue consumers); quality-gate sentence updated.
-  - ✅ .github/pull_request_template.md — new gate #9 checkbox added;
-       header comment updated from "eight" to "nine" gates.
+  - ✅ README.md — added Principle XIV quick-reference note (point 14) and
+       extended the PR-gates paragraph.
+  - ✅ .github/pull_request_template.md — added gate #13 (entity-agnostic
+       extensibility) and refreshed the gate-count comment.
 
 Deferred items / TODOs:
-  - Existing in-process queue drains predate Principle X and are now
-    non-compliant: the catalog bulk-operation sweeper
-    (catalog/plugin.ts `setInterval` + `onEnqueued` kick draining the
-    `bulk_operations` table), and the analogous price-lists status
-    sweeper, RFQ-expiry worker, and cart-abandonment sweep. These MUST
-    be migrated to separate, independently scalable consumer processes
-    (or have a documented single-instance exemption recorded) and are
-    tracked via the quarterly compliance review — not a blocker for
-    this amendment.
+  - Principle XIV composes with the existing guards rather than introducing a
+    new migration: values are host columns (tenant scope XI holds for free),
+    definition writes are Commands (auditing XIII holds by construction), host
+    interaction is via service/interface (modularity I holds). Product stays on
+    `product_attributes` as its source of truth; a generic bridge, if ever
+    built, is an adapter (out of the initial custom-fields scope).
+
+  (History) 3.5.0 → 3.6.0 added Principle XIII + quality gate #12
+    (uniform write auditing via Command Bus, feature 054-command-bus-audit-undo).
+  (History) 3.4.0 → 3.5.0 added Principle XII + quality gate #11
+    (sales-channel content scoping, feature 052-scoping-hotfixes).
+  (History) 3.3.0 → 3.4.0 expanded Principle XI with the "One tenant
+    concept — the Organization" clause (feature 051-personal-organizations).
+  (History) 3.2.0 → 3.3.0 added Principle XI + quality gate #10
+    (framework tenant guard, feature 050-org-tenant-scoping).
 -->
 
 # B2B Platform Constitution
@@ -353,6 +352,220 @@ contends with request latency, and it dies with the web server. Mandating the
 default (soft) keeps the rule honest on a single VPS and aligned with YAGNI,
 without ever permitting the in-process-sweeper anti-pattern.
 
+### XI. Systemic Multi-Tenant Isolation (NON-NEGOTIABLE)
+
+Tenant isolation MUST be enforced by a **framework-level guard**, not by per-service
+query conditions. Because the platform is multi-tenant (and multi-deployment), an
+isolation rule that a single forgotten `where`-clause can defeat is not isolation.
+The following are binding for every backend feature that touches tenant-owned data:
+
+- **Ambient context, server-derived.** Every request and every background job MUST run
+  under an ambient **TenantContext** carrying the effective scope (a single organization,
+  an allowed-organization set for scoped admins, or an explicit all-organizations / system
+  marker). The context MUST be derived server-side from the authenticated actor (session
+  for customers; role + assignment for admins) and MUST NOT be settable from request body,
+  query string, or headers.
+- **Data-layer enforcement.** Reads and writes on tenant-owned entities MUST be constrained
+  at the data-access layer (an ORM/EM-level filter), so isolation holds **even when a
+  service omits an explicit tenant condition**. Route-level `requireAdmin` / `requireCustomer`
+  authorization stays in place — the guard is **defense-in-depth**, complementing it, never
+  replacing it.
+- **Fail-closed.** A query against a tenant-owned entity with **no** ambient context MUST
+  raise, never return unscoped rows. Widening scope (system / all-org) MUST be an explicit
+  mode, never the absence of a filter.
+- **Total classification.** Every persisted entity MUST be classified as
+  organization-scoped, customer-account-scoped, transitively-scoped (through a parent
+  aggregate), rule-scoped, or platform-global. A CI check MUST fail the build on any
+  unclassified entity, so a new entity cannot silently escape the guard.
+- **Single audited escape hatch.** Crossing tenants (platform-admin reporting, background
+  reconciliation, migrations) MUST go through one greppable, audited escape hatch
+  (`withSystemScope` / `withOrgScope`, required non-empty reason). No other means of
+  widening scope is permitted; every use MUST be attributable in logs/audit.
+- **Cross-tenant tests.** Every new tenant-owned entity or query MUST ship with tests
+  proving out-of-scope records are inaccessible, and that an out-of-scope response is
+  **indistinguishable from "record does not exist"** (no existence leak via status or
+  message).
+- **One tenant concept — the Organization.** The Organization is the platform's single
+  unit of tenancy. Every **transacting** customer MUST be backed by a non-null Organization:
+  a company organization for B2B, or a single-member **personal organization** for an
+  individual (B2C) customer. There MUST be **no "no-organization" scoping path** — an
+  individual is isolated as their own tenant exactly like a company, so the guard always has
+  a concrete organization to scope by and never resolves a null tenant for a valid customer.
+  Personal organizations are auto-provisioned, single-member, and excluded from B2B admin
+  surfaces; the guard mechanism is unchanged by their existence.
+
+**Rationale**: Roughly 128 hand-written organization `where`-clauses made isolation depend
+on developer discipline and left four admin surfaces (credit_limits, invoices, returns,
+price_lists) leaking cross-tenant the moment a lower-trust role gained a permission. Moving
+enforcement into the data layer converts "remember to scope" into "remember to *un*scope,"
+which fails safe — a forgotten context surfaces as a loud error in tests and logs, not a
+silent cross-tenant read. It is also a prerequisite for the multi-deployment posture, where
+each installation carries a different organization topology and isolation must be structural,
+not per-service. The framework guard is introduced by feature `050-org-tenant-scoping`; from
+this amendment forward, new features build on it rather than reintroducing manual scoping.
+Modeling every customer — including individuals — as an Organization (feature
+`051-personal-organizations`) removes the one case the guard could not isolate: B2C customers
+who shared a null organization. With a single tenant concept, there is no null-tenant edge to
+special-case, and individuals are isolated as first-class tenants.
+
+### XII. Sales-Channel Content Scoping (NON-NEGOTIABLE)
+
+Sales-channel scoping is a **distinct isolation axis** from org tenancy (Principle XI). A single
+deployment serves multiple **sales channels**; catalog visibility, related / cross-sell / up-sell
+links, promotions and coupons, and pricing are bound to channels through the `sales_channel_*`
+membership bridges. Every storefront-facing read and every commercial evaluation MUST be confined
+to the request's **resolved sales channel**. The following are binding for every feature that
+surfaces channel-scoped content or evaluates channel-bound commercial rules:
+
+- **Always resolve a channel; fail closed.** A channel-scoped read or evaluation MUST resolve a
+  concrete channel (explicit header / host map, else the system-default channel) and constrain to
+  it. A path MUST NOT skip the filter and return the full cross-channel set when no explicit
+  channel is present. A **null / unresolved** channel MUST NOT match a channel-bound record — it
+  fails closed, never falls open to "all channels."
+- **Sanctioned accessor only.** The `sales_channel_*` membership bridges MUST be read and written
+  **only** through the channel-membership service; owning modules MUST NOT query the bridge tables
+  directly (enforced by the `no-unscoped-channel-query` lint rule). Channel membership stays one
+  authoritative, auditable path — mirroring how Principle I routes all cross-module access through
+  explicit interfaces.
+- **Evaluation snapshots carry the channel.** Cart / pricing / promotion evaluation MUST include
+  the cart's resolved channel in its snapshot and reject records whose channel binding excludes it.
+  Channel eligibility is part of the decision, not an afterthought applied later.
+- **Cross-channel tests.** Every channel-scoped read or evaluation MUST ship tests proving
+  out-of-channel content does not surface, and that a null / unresolved channel fails closed.
+- **Interim manual scoping is bounded.** Until a unified sales-channel resolver exists, channel
+  scoping MAY be enforced by explicit per-service predicates — but they MUST fail closed and MUST
+  go through the sanctioned accessor. Once the unified resolver lands, features MUST build on it
+  rather than reintroducing ad-hoc `if (channelCode)` guards (the same relationship Principle XI
+  has with the feature `050` tenant guard).
+
+**Rationale**: The `052-scoping-hotfixes` audit found channel isolation depending on optional,
+fail-open predicates. A promotion bound to one channel applied to carts in another — a live
+pricing / money bug — because `applyToCart` never checked the channel binding. PDP related /
+cross-sell / up-sell products leaked across channels whenever the `x-sales-channel` header was
+absent, because the visibility filter ran only `if (channelCode)` and otherwise returned the full
+target set. Org tenancy already has a data-layer guard (Principle XI); channel scoping does not
+yet, so the discipline MUST be explicit and structural in spirit: **always resolve a channel, fail
+closed, and read membership only through the one sanctioned accessor.** Encoding this stops the
+next feature from re-opening the same leaks and fixes the contract the future unified resolver
+will absorb — the point fixes become calls into that resolver, not rework.
+
+### XIII. Uniform Write Auditing via Command Bus (NON-NEGOTIABLE)
+
+Sensitive writes MUST be audited by a **framework-level command path**, not by hand-placed
+audit calls. The platform's audit substrate (`audit_log_entries`, carrying actor, action,
+object identity, and before/after state) already models everything auditing and undo need; the
+failure mode is discipline, not data — the audit writer was invoked by hand at ~70 scattered
+call sites, so coverage was inconsistent, before/after was captured ad-hoc, and no revert path
+existed anywhere. The following are binding for every backend feature that performs a
+**sensitive mutation** (a create / update / delete of a domain record):
+
+- **Single audited write path.** A sensitive mutation MUST run as a named **Command** through
+  the Command Bus, which is the **single, guaranteed writer** of its audit entry. Services in
+  migrated modules MUST NOT call the audit writer directly — the bus records audit for them. A
+  Command carries a stable dot-namespaced action, the target object type + id, the actor, and
+  before/after state.
+- **Co-transactional audit + event + write.** The domain write, exactly one audit entry, and
+  any domain-event emission MUST commit or roll back as **one unit**: a committed Command
+  records exactly one audit entry and dispatches its event exactly once; a rolled-back Command
+  records no audit entry and emits no event. Audit MUST be written **inside** the command's
+  transaction, never as a separate flush that can orphan.
+- **Server-derived actor (composes with XI).** A Command's actor MUST be drawn from the ambient
+  TenantContext (admin id, impersonation pair, or system) — **never** from a request body,
+  query, or header. The bus MUST run on the scoped EM so the Principle XI tenant guard applies
+  to command reads/writes and the audit insert, and MUST fail closed with no ambient context.
+  Background / worker Commands cross scope only through the sanctioned `withSystemScope` /
+  `withOrgScope` escape hatch.
+- **No double-audit; no silent regression.** Converting a write to a Command MUST remove its
+  prior hand-written audit call **in the same change**. A CI coverage check MUST flag a
+  sensitive mutation that neither runs through a registered Command nor records an audit entry,
+  and MUST flag a write that both runs a Command and still audits by hand.
+- **Opt-in reversibility, safe undo.** A Command MAY declare itself reversible by capturing
+  per-record pre-state; **only** reversible Commands expose an operator-facing undo. Undo MUST
+  restore the captured pre-state, be **all-or-nothing per record with a conflict report** (never
+  a silent clobber of a record changed since the operation), be idempotent-safe on
+  re-invocation, and be **itself an audited action linked** to the operation it reverses.
+  Irreversible side effects (emails sent, payment captured, cascade deletes) MUST NOT be offered
+  undo.
+- **Thin layer.** The Command Bus MUST wrap existing services and the existing audit + event
+  infrastructure — **no CQRS, no separate read model, no bespoke command queue, no speculative
+  redo** (Principle IV). Reversible bulk operations reuse the durable queue path (Principle X);
+  large undos run through the separable worker entrypoint, never inline.
+- **Incremental migration is bounded.** Rollout is module by module, starting with the
+  highest-regret writes (bulk operations, catalog, pricing, credit limits). An un-migrated
+  module MAY retain hand-written audit calls, but each such write MUST still audit; the coverage
+  check runs report-only until a module is migrated, then build-breaking for that module. From
+  this amendment forward, **new** sensitive writes MUST be expressed as Commands rather than
+  reintroducing hand-placed audit calls (the same relationship Principle XI has with the feature
+  `050` tenant guard and Principle XII with the channel accessor).
+
+**Rationale**: About 70 hand-written audit calls made auditability depend on developer memory —
+some mutations audited, some did not; before/after was captured inconsistently; and nothing
+could be undone, so a wrong bulk edit across hundreds of products (the platform's highest-regret
+write) had no recovery path. Routing sensitive writes through a Command converts "remember to
+audit" into "audited by construction," exactly as Principle XI converted "remember to scope"
+into a structural guard. Because the Command owns the write, the audit entry, and the domain
+event within one transaction, the three can no longer disagree — a rolled-back write cannot leak
+an orphan audit row or a phantom event, and a committed one cannot silently skip either. The
+same before/after capture that makes auditing uniform is precisely what undo needs, so
+reversibility falls out of the audit discipline rather than being a separate mechanism. The bus
+is deliberately thin (Principle IV): it reuses the existing audit writer, the transactional
+event bus, and the tenant-scoped EM, adding no new dependency. It is introduced by feature
+`054-command-bus-audit-undo`; from this amendment forward, new features build on it rather than
+reintroducing scattered audit calls.
+
+### XIV. Entity-Agnostic Extensibility & Runtime Custom Fields
+
+A capability that spans multiple host entity types MUST be built as an **entity-agnostic core**
+whose host-specific behavior lives behind documented extension points — never absorbed into the
+core; and a generic layer that generalizes an existing entity-specific mechanism MUST leave that
+mechanism the untouched source of truth for its own entity. The following are binding for every
+feature that adds a cross-cutting / generic capability or extends core entities with
+runtime-defined data:
+
+- **Generic core stays entity-agnostic.** A module providing a cross-cutting capability over
+  several host entity types MUST NOT embed any host-specific concern (a catalog flag like
+  variant-axis or filter-position, an order status, a channel rule) in its core schema or logic.
+  Host-specific behavior is exposed **only** through a documented extension point — an opaque
+  config the host module interprets, or a host-registered adapter — that the generic core stores
+  but never reads for meaning. A CI / review check MUST confirm the generic core carries no
+  entity-specific capability identifier.
+- **Generalize the design, not the code.** When a new generic layer generalizes an existing
+  entity-specific system (e.g. `product_attributes`), that system MUST remain the untouched
+  **source of truth** for its own entity. The generic layer MUST NOT migrate, duplicate, or break
+  it; reuse its **design** (typed definitions, per-locale labels with default fallback, option
+  lists for select types), not its code. Any later convergence is an **adapter**, not a rewrite.
+- **Runtime extension is data, not DDL.** Where operators must add fields to core entities at
+  deployment time, adding / editing / removing a field MUST be a **data** change (a definition
+  row), never a schema migration or code deploy. Extension values MUST be validated on every write
+  against their definition, MUST reject **per field** on violation (wrong type, missing required,
+  unknown option, out of range), and MUST **inherit the host record's tenant scope** (Principle XI)
+  by construction — never widening visibility. Definition / option mutations are themselves
+  sensitive writes and run through the Command Bus (Principle XIII).
+- **Host owns its data; the generic layer owns definitions + validation.** The generic layer MUST
+  NOT write into host tables or audit host writes: the host persists its own record and (per
+  Principle XIII) audits its own write, calling the generic layer only to validate incoming values
+  and to read definitions. This keeps module boundaries intact (Principle I) and prevents
+  double-auditing (Principle XIII).
+- **Extensibility is not a mandate to over-configure.** Principle IV still governs *whether* a
+  given field is a first-class column or a runtime custom field; this principle governs *how* a
+  runtime-defined field behaves once that choice is made. Do not make everything runtime-configurable
+  to avoid a migration you should simply write.
+
+**Rationale**: The platform's entity set grows and clients need to extend core entities
+(Organization, Order, Customer, Category, QuoteRequest) at deployment time without a code change.
+The failure mode this principle prevents is already visible in the codebase: `product_attributes`
+began as a clean typed-definition registry and accreted catalog-only flags (`isVariantAxis`,
+`isPromoRule`, `filterPosition`, `isVisibleOnProductPage`, `channelScoped`) until it was no longer
+reusable as a generic mechanism. The next generic capability that reaches for it must either inherit
+that entanglement or build fresh — and the temptation is to bolt the *next* entity's specifics onto
+whatever generic core exists first, repeating the rot. Codifying "generic cores stay entity-agnostic,
+host specifics live behind extension points, generalizing never breaks the system it generalizes, and
+runtime extension is validated tenant-scoped data" keeps cross-cutting capabilities from decaying into
+god-modules and keeps the specific systems they generalize stable. It composes with the existing
+guards rather than adding a new mechanism: values are host columns, so tenant isolation (XI) holds for
+free; definition writes are Commands, so auditing (XIII) holds by construction; host interaction is via
+service / interface, so modularity (I) holds. Introduced by feature `055-custom-fields-layer`.
+
 ## Technology Stack
 
 The following stack is mandated. Substitutions require amending this
@@ -496,6 +709,38 @@ Every change MUST pass the following gates before merge:
    the queue inside the API process. Running the worker as a separate process is
    the production default; co-locating low-volume work is allowed only with a
    one-sentence justification (Principle X).
+10. **Multi-tenant isolation** — reviewers MUST reject any change that violates
+    Principle XI: a new tenant-owned entity that is not classified and covered by the
+    framework guard + cross-tenant tests; a query path that reaches tenant-owned data
+    outside the ambient TenantContext filter; a fail-open on missing context; or any
+    cross-tenant access that does not go through the audited `withSystemScope` /
+    `withOrgScope` escape hatch. The tenant context MUST be server-derived, never taken
+    from request body/query/headers.
+11. **Sales-channel scoping** — reviewers MUST reject any change that violates Principle XII:
+    a channel-scoped read or commercial evaluation that returns the full cross-channel set when
+    no explicit channel is present (fail-open), a null / unresolved channel that matches a
+    channel-bound record, a module that queries a `sales_channel_*` bridge directly instead of the
+    channel-membership service (`no-unscoped-channel-query` must pass), or a channel-scoped path
+    that ships without cross-channel tests (out-of-channel content hidden + null-channel fails
+    closed).
+12. **Uniform write auditing** — reviewers MUST reject any change that violates Principle XIII:
+    a sensitive mutation in a migrated module that hand-writes an audit call instead of running
+    through the Command Bus; a converted write that double-audits (Command **and** a manual audit
+    call for the same action); a Command whose actor is taken from the request rather than the
+    ambient TenantContext; an audit / event / write that is not co-transactional (an orphan audit
+    row or event on rollback, or a missing/duplicate entry on commit); or a reversible operation
+    whose undo can partially clobber a record changed since (undo MUST be all-or-nothing per
+    record with a conflict report, idempotent-safe, and itself audited). The command coverage
+    check MUST pass for migrated modules.
+13. **Entity-agnostic extensibility** — reviewers MUST reject any change that violates Principle
+    XIV: a cross-cutting / generic core that embeds an entity-specific concern instead of exposing
+    it through a documented host extension point; a generalization that migrates, duplicates, or
+    breaks the entity-specific system it generalizes (rather than leaving it the source of truth,
+    converging later via an adapter); a runtime-extensible field mechanism that requires a schema
+    migration or code deploy to add a field, skips per-write validation against the definition, or
+    lets extension values widen past the host record's tenant scope; or a generic layer that writes
+    into / audits host tables instead of letting the host own persistence + audit. Definition /
+    option mutations MUST run through the Command Bus (Principle XIII).
 
 Code review MUST explicitly verify each of the above. "LGTM" without
 evidence of checking the gates is not an approval.
@@ -534,4 +779,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 3.2.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-06-03
+**Version**: 3.7.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-07-18

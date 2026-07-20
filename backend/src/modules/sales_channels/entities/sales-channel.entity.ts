@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -26,6 +27,7 @@ import { randomUUID } from 'crypto';
  * MikroORM relation properties for them so that adding / removing
  * bridges in later features stays a per-module concern.
  */
+@GlobalEntity()
 @Entity({ tableName: 'sales_channels' })
 export class SalesChannel {
   [OptionalProps]?:

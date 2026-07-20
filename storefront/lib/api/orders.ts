@@ -88,6 +88,30 @@ export interface PlaceOrderPayload {
   billingTaxId?: string;
 }
 
+/** Server-computed order-total preview (feature 049) — pricing stays server-side. */
+export interface OrderTotalPreview {
+  subtotal: number;
+  taxTotal: number;
+  deliveryTotal: number;
+  paymentSurcharge: number;
+  discountTotal: number;
+  total: number;
+  currency: string;
+}
+
+export async function previewOrderTotal(
+  sessionCookie: string,
+  payload: { deliveryMethodId: string; paymentMethodId: string; billingAddressId?: string },
+): Promise<OrderTotalPreview> {
+  const result = await apiMutate<OrderTotalPreview>({
+    method: 'POST',
+    path: '/api/v1/orders/preview-total',
+    body: payload,
+    sessionCookie,
+  });
+  return result.data!;
+}
+
 export async function placeOrder(
   sessionCookie: string,
   payload: PlaceOrderPayload,

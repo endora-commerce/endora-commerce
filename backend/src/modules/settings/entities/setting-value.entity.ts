@@ -7,6 +7,7 @@ import {
   Property,
   Unique,
 } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 import { Setting } from './setting.entity.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
@@ -21,6 +22,7 @@ import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity
  * `updatedAt` backs the `If-Match` ETag pattern (R-6 / FR-012); admins must
  * round-trip the timestamp from a prior GET to commit a write.
  */
+@GlobalEntity()
 @Entity({ tableName: 'setting_values' })
 @Unique({ properties: ['setting', 'salesChannel'] })
 export class SettingValue {

@@ -7,6 +7,7 @@ import {
 import type { PwaConfigResolver } from './services/pwa-config-resolver.js';
 import type { PwaIconService } from './services/pwa-icon-service.js';
 import type { PushSubscriptionService } from './services/push-subscription-service.js';
+import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
 
 export interface PwaStorefrontRoutesDeps {
   configResolver: PwaConfigResolver;
@@ -20,19 +21,13 @@ export interface PwaStorefrontRoutesDeps {
   resolveCustomerAccountId?: (request: FastifyRequest) => Promise<string | null>;
 }
 
-function readHeader(request: FastifyRequest, name: string): string | undefined {
-  const value = request.headers[name];
-  if (Array.isArray(value)) return value[0];
-  return value;
-}
-
 export async function registerPwaStorefrontRoutes(
   app: FastifyInstance,
   deps: PwaStorefrontRoutesDeps,
 ): Promise<void> {
   // GET config — manifest identity + toggles + public VAPID key (FR-001/011).
   app.get('/api/v1/storefront/pwa/config', async (request, reply) => {
-    const channelId = await deps.resolveChannelId(readHeader(request, 'x-sales-channel'));
+    const channelId = getResolvedChannel(request).id;
     const config = await deps.configResolver.getPublicConfig(channelId);
     reply.header('Cache-Control', 'public, max-age=60');
     return reply.send(config);
@@ -46,7 +41,7 @@ export async function registerPwaStorefrontRoutes(
       if (!match) return reply.code(404).send();
       const size = Number(match[1]);
       const purpose = match[2] as PwaIconPurpose;
-      const channelId = await deps.resolveChannelId(readHeader(request, 'x-sales-channel'));
+      const channelId = getResolvedChannel(request).id;
       const assetId = await deps.iconService.resolveRenditionAssetId(channelId, size, purpose);
       if (!assetId) return reply.code(404).send();
       const url = await deps.resolveAssetUrl(assetId);
@@ -57,7 +52,7 @@ export async function registerPwaStorefrontRoutes(
 
   // POST subscribe — register (upsert) a Web-Push subscription (FR-017).
   app.post('/api/v1/storefront/pwa/subscriptions', async (request, reply) => {
-    const channelId = await deps.resolveChannelId(readHeader(request, 'x-sales-channel'));
+    const channelId = getResolvedChannel(request).id;
     const config = await deps.configResolver.getPublicConfig(channelId);
     if (!config.pushEnabled) {
       return reply.code(403).send({ error: { code: 'PWA_PUSH_DISABLED', message: 'Push is disabled for this channel.' } });

@@ -7,6 +7,7 @@ import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { Order } from '../orders/entities/order.entity.js';
 import { Invoice } from './entities/invoice.entity.js';
 import { InvoiceService, type InvoiceAuditRecorder } from './services/invoice-service.js';
+import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
 import { InvoiceNumberGenerator, createSettingsPatternResolver } from './services/invoice-number-generator.js';
 import { SellerSettingsResolver, type SettingsReader } from './services/seller-settings.js';
@@ -38,6 +39,8 @@ export interface InvoicesModuleOptions {
   eventBus?: InvoicesEventBus;
   /** FR-035 — audit-log recorder for issuance / correction. */
   audit?: InvoiceAuditRecorder;
+  /** Feature 054 — full audit sink for invoice-template writes (co-transactional). */
+  auditLog?: AuditLogService;
 }
 
 export interface InvoicesModuleHandle {
@@ -63,7 +66,7 @@ export function invoicesModule(options: InvoicesModuleOptions): {
     options.audit,
   );
   const pdfRenderer = new InvoicePdfRenderer();
-  const templateService = new InvoiceTemplateService(options.emFactory);
+  const templateService = new InvoiceTemplateService(options.emFactory, options.auditLog);
 
   let emailDispatcher: InvoiceEmailDispatcher | undefined;
   if (options.getTransactionalEmailSender && options.resolveRecipientEmail && options.resolveLanguage) {

@@ -4,6 +4,8 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import { enroll, verifyTotp } from '../../auth/services/totp-service.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /**
  * Customer-side 2FA enrolment (T119).
@@ -23,7 +25,22 @@ export interface EnableResult {
 }
 
 export class TotpEnrolmentService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  #audit(em: EntityManager, action: string, objectId: string): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action,
+        objectType: 'customer_account',
+        objectId,
+        stateBefore: null,
+        stateAfter: null,
+      });
+    }
+  }
 
   async enable(customerAccountId: string): Promise<EnableResult> {
     const em = this.emFactory();
@@ -38,6 +55,7 @@ export class TotpEnrolmentService {
     const enrolment = enroll(customer.email);
     // Storage: TOTP secret + sha256 hashes of backup codes (joined with ',').
     customer.twoFactorSecret = `${enrolment.secret}|${enrolment.backupCodes.map(sha256Hex).join(',')}`;
+    this.#audit(em, 'customer_account.mfa_enrol_start', customer.id);
     await em.flush();
     return {
       secret: enrolment.secret,
@@ -65,6 +83,7 @@ export class TotpEnrolmentService {
       );
     }
     customer.twoFactorConfirmedAt = new Date();
+    this.#audit(em, 'customer_account.mfa_enabled', customer.id);
     await em.flush();
   }
 
@@ -83,6 +102,7 @@ export class TotpEnrolmentService {
     }
     customer.twoFactorSecret = null;
     customer.twoFactorConfirmedAt = null;
+    this.#audit(em, 'customer_account.mfa_disabled', customer.id);
     await em.flush();
   }
 

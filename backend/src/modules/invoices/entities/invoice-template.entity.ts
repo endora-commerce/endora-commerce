@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -7,6 +8,7 @@ import { randomUUID } from 'crypto';
  * per-channel overrides. `content` is a Puck envelope
  * `{ schema_version, languages: { <lang>: <PuckTree> } }`.
  */
+@GlobalEntity()
 @Entity({ tableName: 'invoice_templates' })
 export class InvoiceTemplate {
   [OptionalProps]?:

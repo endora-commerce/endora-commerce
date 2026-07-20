@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { OrgScoped } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -9,9 +10,11 @@ import { randomUUID } from 'crypto';
  * in the auth module). `twoFactorSecret` holds the base32 TOTP secret only
  * once 2FA is confirmed.
  */
+@OrgScoped()
 @Entity({ tableName: 'customer_accounts' })
 export class CustomerAccount {
   [OptionalProps]?:
+    | 'customFieldValues'
     | 'id'
     | 'createdAt'
     | 'updatedAt'
@@ -22,6 +25,7 @@ export class CustomerAccount {
     | 'lastLoginAt'
     | 'deletedAt'
     | 'customerGroupId'
+    | 'subtreeRollupEnabled'
     | 'blockedAt'
     | 'blockReason'
     | 'blockSource'
@@ -80,6 +84,10 @@ export class CustomerAccount {
   @Property({ type: 'datetime', onUpdate: () => new Date() })
   updatedAt: Date = new Date();
 
+  // Feature 055 — Custom Fields Layer value bag (inherits host tenant scope).
+  @Property({ type: 'json' })
+  customFieldValues: Record<string, unknown> = {};
+
   @Property({ type: 'datetime', nullable: true })
   deletedAt?: Date | null;
 
@@ -94,6 +102,17 @@ export class CustomerAccount {
   @Property({ type: 'uuid', nullable: true })
   @Index()
   customerGroupId?: string | null;
+
+  /**
+   * Feature 056 (T032) — customer-side roll-up capability. When `true`, this
+   * login sees/acts across its organization's **subtree** (the tenant scope is
+   * widened from single-org to `allowed-set(subtreeIds(theirOrg))` server-side,
+   * Principle XI). Default `false` ⇒ node-only (flat behavior). Set only by a
+   * platform admin on the org member surface; mirrors the admin/sales-rep
+   * `organizations:rollup` capability for a buyer account.
+   */
+  @Property({ type: 'boolean' })
+  subtreeRollupEnabled: boolean = false;
 
   /** Non-null ⇒ the account is blocked and login is denied (FR-012/FR-016). */
   @Property({ type: 'datetime', nullable: true })

@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * LanguageCountry — many-to-many association between Languages and the
@@ -8,6 +9,7 @@ import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/c
  * if the channel offers it"). The `is_primary` flag pins at most one
  * primary Language per Country (partial unique index in the migration).
  */
+@GlobalEntity()
 @Entity({ tableName: 'language_countries' })
 export class LanguageCountry {
   [OptionalProps]?: 'createdAt' | 'isPrimary';

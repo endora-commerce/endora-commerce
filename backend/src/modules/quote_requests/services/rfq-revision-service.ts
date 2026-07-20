@@ -49,6 +49,8 @@ export class RfqRevisionService {
   constructor(private readonly emFactory: () => EntityManager) {}
 
   async record(input: RecordRevisionInput): Promise<QuoteRequestRevision> {
+    // command-coverage-ignore: immutable per-revision snapshot of the RFQ state
+    // (version history), written as part of the audited parent RFQ action.
     const em = this.emFactory();
     const itemsSnapshot = input.items.map(toSnapshotLine);
     // Caller sets `rfq.currentRevisionNumber` to the number of the

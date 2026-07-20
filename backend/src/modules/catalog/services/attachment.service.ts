@@ -9,6 +9,7 @@
  * attachments (image / video are reserved for the gallery).
  */
 
+import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 
@@ -23,6 +24,7 @@ import {
 } from '@b2b/contracts';
 
 import { HttpError } from '../../../http/error-envelope.js';
+import type { CommandBus } from '../../../commands/index.js';
 import { Asset } from '../../assets_library/entities/asset.entity.js';
 import { Product } from '../entities/product.entity.js';
 import { AttachmentType } from '../entities/attachment-type.entity.js';
@@ -31,7 +33,31 @@ import { ProductAttachment } from '../entities/product-attachment.entity.js';
 const ASSET_KINDS_ATTACHMENT = new Set(['pdf', 'certificate', 'other']);
 
 export class AttachmentService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /** Feature 054 — audits attachment writes co-transactionally when provided. */
+    private readonly commandBus?: CommandBus,
+  ) {}
+
+  /** Feature 054 — run an attachment write through the Command Bus. */
+  async #audited<T>(
+    action: string,
+    objectType: string,
+    objectId: string,
+    write: (em: EntityManager) => Promise<{
+      result: T;
+      before: Record<string, unknown> | null;
+      after: Record<string, unknown> | null;
+    }>,
+  ): Promise<T> {
+    if (this.commandBus) {
+      return this.commandBus.run({ action, objectType, objectId, run: ({ em }) => write(em) });
+    }
+    const em = this.emFactory();
+    const w = await write(em);
+    await em.flush();
+    return w.result;
+  }
 
   // -- Attachment Types -----------------------------------------------------
 
@@ -64,24 +90,28 @@ export class AttachmentService {
   }
 
   async createType(req: CreateAttachmentTypeRequest): Promise<AttachmentTypeDto> {
-    const em = this.emFactory();
-    const t = em.create(AttachmentType, {
-      code: req.code,
-      name: req.name,
-      ...(req.position !== undefined ? { position: req.position } : {}),
-    });
-    try {
-      await em.persistAndFlush(t);
-    } catch (err) {
-      if (err instanceof UniqueConstraintViolationException) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.ATTACHMENT_TYPE_CODE_TAKEN,
-          `AttachmentType "${req.code}" already exists.`,
-        );
+    const id = randomUUID();
+    const t = await this.#audited('attachment_type.create', 'attachment_type', id, async (em) => {
+      const created = em.create(AttachmentType, {
+        id,
+        code: req.code,
+        name: req.name,
+        ...(req.position !== undefined ? { position: req.position } : {}),
+      });
+      try {
+        await em.flush();
+      } catch (err) {
+        if (err instanceof UniqueConstraintViolationException) {
+          throw new HttpError(
+            409,
+            ERROR_CODES.ATTACHMENT_TYPE_CODE_TAKEN,
+            `AttachmentType "${req.code}" already exists.`,
+          );
+        }
+        throw err;
       }
-      throw err;
-    }
+      return { result: created, before: null, after: { code: created.code, name: created.name, position: created.position } };
+    });
     return {
       id: t.id,
       code: t.code,
@@ -97,31 +127,34 @@ export class AttachmentService {
     id: string,
     req: UpdateAttachmentTypeRequest,
   ): Promise<AttachmentTypeDto> {
-    const em = this.emFactory();
-    const t = await em.findOne(AttachmentType, { id });
-    if (!t) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.ATTACHMENT_TYPE_NOT_FOUND,
-        `AttachmentType ${id} not found.`,
-      );
-    }
-    if (req.code !== undefined) t.code = req.code;
-    if (req.name !== undefined) t.name = req.name;
-    if (req.position !== undefined) t.position = req.position;
-    try {
-      await em.flush();
-    } catch (err) {
-      if (err instanceof UniqueConstraintViolationException) {
+    const t = await this.#audited('attachment_type.update', 'attachment_type', id, async (em) => {
+      const row = await em.findOne(AttachmentType, { id });
+      if (!row) {
         throw new HttpError(
-          409,
-          ERROR_CODES.ATTACHMENT_TYPE_CODE_TAKEN,
-          `AttachmentType "${req.code}" already exists.`,
+          404,
+          ERROR_CODES.ATTACHMENT_TYPE_NOT_FOUND,
+          `AttachmentType ${id} not found.`,
         );
       }
-      throw err;
-    }
-    const usageCount = await this.#computeTypeUsage(em, id);
+      const before = { code: row.code, name: row.name, position: row.position };
+      if (req.code !== undefined) row.code = req.code;
+      if (req.name !== undefined) row.name = req.name;
+      if (req.position !== undefined) row.position = req.position;
+      try {
+        await em.flush();
+      } catch (err) {
+        if (err instanceof UniqueConstraintViolationException) {
+          throw new HttpError(
+            409,
+            ERROR_CODES.ATTACHMENT_TYPE_CODE_TAKEN,
+            `AttachmentType "${req.code}" already exists.`,
+          );
+        }
+        throw err;
+      }
+      return { result: row, before, after: { code: row.code, name: row.name, position: row.position } };
+    });
+    const usageCount = await this.#computeTypeUsage(this.emFactory(), id);
     return {
       id: t.id,
       code: t.code,
@@ -134,25 +167,28 @@ export class AttachmentService {
   }
 
   async deleteType(id: string): Promise<void> {
-    const em = this.emFactory();
-    const t = await em.findOne(AttachmentType, { id });
-    if (!t) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.ATTACHMENT_TYPE_NOT_FOUND,
-        `AttachmentType ${id} not found.`,
-      );
-    }
-    const usageCount = await this.#computeTypeUsage(em, id);
-    if (usageCount > 0) {
-      throw new HttpError(
-        409,
-        ERROR_CODES.ATTACHMENT_TYPE_IN_USE,
-        `AttachmentType "${t.code}" is referenced by ${usageCount} attachment(s); reassign them first.`,
-        [{ path: 'usageCount', issue: String(usageCount) }],
-      );
-    }
-    await em.removeAndFlush(t);
+    await this.#audited('attachment_type.delete', 'attachment_type', id, async (em) => {
+      const t = await em.findOne(AttachmentType, { id });
+      if (!t) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.ATTACHMENT_TYPE_NOT_FOUND,
+          `AttachmentType ${id} not found.`,
+        );
+      }
+      const usageCount = await this.#computeTypeUsage(em, id);
+      if (usageCount > 0) {
+        throw new HttpError(
+          409,
+          ERROR_CODES.ATTACHMENT_TYPE_IN_USE,
+          `AttachmentType "${t.code}" is referenced by ${usageCount} attachment(s); reassign them first.`,
+          [{ path: 'usageCount', issue: String(usageCount) }],
+        );
+      }
+      const before = { code: t.code, name: t.name };
+      em.remove(t);
+      return { result: undefined, before, after: null };
+    });
   }
 
   // -- Product Attachments --------------------------------------------------
@@ -197,15 +233,24 @@ export class AttachmentService {
     }
 
     const position = req.position ?? (await this.#nextPosition(em, productId));
-    const attachment = em.create(ProductAttachment, {
-      productId,
-      assetId: req.assetId,
-      attachmentTypeId: req.attachmentTypeId,
-      name: req.name,
-      description: req.description ?? null,
-      position,
+    const id = randomUUID();
+    const attachment = await this.#audited('product_attachment.create', 'product_attachment', id, async (cem) => {
+      const created = cem.create(ProductAttachment, {
+        id,
+        productId,
+        assetId: req.assetId,
+        attachmentTypeId: req.attachmentTypeId,
+        name: req.name,
+        description: req.description ?? null,
+        position,
+      });
+      await cem.flush();
+      return {
+        result: created,
+        before: null,
+        after: { productId, assetId: req.assetId, attachmentTypeId: req.attachmentTypeId, name: req.name, position },
+      };
     });
-    await em.persistAndFlush(attachment);
     return this.#attachmentDto(attachment);
   }
 
@@ -214,46 +259,55 @@ export class AttachmentService {
     attachmentId: string,
     req: UpdateAttachmentRequest,
   ): Promise<ProductAttachmentDto> {
-    const em = this.emFactory();
-    const a = await em.findOne(ProductAttachment, { id: attachmentId, productId });
-    if (!a) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.ATTACHMENT_NOT_FOUND,
-        `Attachment ${attachmentId} not found under Product ${productId}.`,
-      );
-    }
-    if (req.attachmentTypeId !== undefined) {
-      const type = await em.findOne(AttachmentType, { id: req.attachmentTypeId });
-      if (!type) {
+    const a = await this.#audited('product_attachment.update', 'product_attachment', attachmentId, async (em) => {
+      const row = await em.findOne(ProductAttachment, { id: attachmentId, productId });
+      if (!row) {
         throw new HttpError(
           404,
-          ERROR_CODES.ATTACHMENT_TYPE_NOT_FOUND,
-          `AttachmentType ${req.attachmentTypeId} not found.`,
+          ERROR_CODES.ATTACHMENT_NOT_FOUND,
+          `Attachment ${attachmentId} not found under Product ${productId}.`,
         );
       }
-      a.attachmentTypeId = req.attachmentTypeId;
-    }
-    if (req.name !== undefined) a.name = req.name;
-    if (req.description !== undefined) a.description = req.description;
-    if (req.position !== undefined) a.position = req.position;
-    await em.flush();
+      const before = { attachmentTypeId: row.attachmentTypeId, name: row.name, position: row.position };
+      if (req.attachmentTypeId !== undefined) {
+        const type = await em.findOne(AttachmentType, { id: req.attachmentTypeId });
+        if (!type) {
+          throw new HttpError(
+            404,
+            ERROR_CODES.ATTACHMENT_TYPE_NOT_FOUND,
+            `AttachmentType ${req.attachmentTypeId} not found.`,
+          );
+        }
+        row.attachmentTypeId = req.attachmentTypeId;
+      }
+      if (req.name !== undefined) row.name = req.name;
+      if (req.description !== undefined) row.description = req.description;
+      if (req.position !== undefined) row.position = req.position;
+      return {
+        result: row,
+        before,
+        after: { attachmentTypeId: row.attachmentTypeId, name: row.name, position: row.position },
+      };
+    });
     return this.#attachmentDto(a);
   }
 
   async deleteAttachment(productId: string, attachmentId: string): Promise<void> {
-    const em = this.emFactory();
-    const a = await em.findOne(ProductAttachment, { id: attachmentId, productId });
-    if (!a) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.ATTACHMENT_NOT_FOUND,
-        `Attachment ${attachmentId} not found under Product ${productId}.`,
-      );
-    }
-    await em.removeAndFlush(a);
-    // Asset is FK RESTRICT; the row stays. Whoever uploaded it owns the
-    // asset's lifecycle (research.md R-9).
+    await this.#audited('product_attachment.delete', 'product_attachment', attachmentId, async (em) => {
+      const a = await em.findOne(ProductAttachment, { id: attachmentId, productId });
+      if (!a) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.ATTACHMENT_NOT_FOUND,
+          `Attachment ${attachmentId} not found under Product ${productId}.`,
+        );
+      }
+      const before = { productId, assetId: a.assetId };
+      // Asset is FK RESTRICT; the row stays. Whoever uploaded it owns the
+      // asset's lifecycle (research.md R-9).
+      em.remove(a);
+      return { result: undefined, before, after: null };
+    });
   }
 
   // -- INTERNALS ------------------------------------------------------------

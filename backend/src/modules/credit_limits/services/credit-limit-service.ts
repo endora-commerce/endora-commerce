@@ -2,8 +2,10 @@ import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { LockMode } from '@mikro-orm/core';
 import type { EventBase, EventBus } from '../../../events/bus.js';
+import type { Command, CommandBus } from '../../../commands/index.js';
 import { CreditLimit } from '../entities/credit-limit.entity.js';
 import { CreditLimitReservation } from '../entities/credit-limit-reservation.entity.js';
+import type { OrganizationInheritanceService } from '../../organizations/services/organization-inheritance-service.js';
 
 /**
  * CreditLimitService (T214) — implements the contract documented in
@@ -48,15 +50,44 @@ export type ReleaseResult =
   | { ok: true; reservationId: string; availableAmountAfter: number }
   | { ok: false; code: 'RESERVATION_NOT_FOUND' | 'ALREADY_RELEASED' };
 
+export type AdjustResult =
+  | { ok: true; limit: CreditLimit }
+  | { ok: false; code: 'ADJUSTMENT_BELOW_ACTIVE' };
+
 export class CreditLimitService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly events: CreditLimitEventBus,
+    /**
+     * Feature 054 — when injected, `adjust` runs through the Command Bus so the
+     * mutation is audited co-transactionally (Principle XIII). Optional: existing
+     * tests construct this service without a bus and keep the legacy (unaudited)
+     * path, which stays byte-identical.
+     */
+    private readonly commandBus?: CommandBus,
+    /**
+     * Feature 056 — organizations-owned resolution port. When injected, a
+     * descendant with no own `CreditLimit` row transacts against the nearest
+     * ancestor's per the effective mode (shared_pool / independent_default).
+     * Absent ⇒ flat behavior (byte-for-byte the pre-feature single-org path).
+     */
+    private readonly inheritance?: OrganizationInheritanceService,
   ) {}
 
   async getForOrganization(organizationId: string): Promise<CreditLimit | null> {
     const em = this.emFactory();
-    return em.findOne(CreditLimit, { organizationId });
+    const own = await em.findOne(CreditLimit, { organizationId });
+    if (own || !this.inheritance) return own;
+    // Feature 056 — fall back to the nearest ancestor holding a limit. The owner
+    // may lie outside the caller's tenant scope, so the org filter is disabled
+    // for this resolution read (the reserve/enforcement path is separate).
+    const { ownerOrgId } = await this.inheritance.creditOwner(organizationId);
+    if (!ownerOrgId || ownerOrgId === organizationId) return null;
+    return em.findOne(
+      CreditLimit,
+      { organizationId: ownerOrgId },
+      { filters: { org: false } },
+    );
   }
 
   async listAll(): Promise<CreditLimit[]> {
@@ -75,8 +106,59 @@ export class CreditLimitService {
     currency: string;
     grantedByAdminUserId?: string;
   }): Promise<CreditLimit> {
+    // Feature 054 — audited path via the Command Bus (one co-transactional audit
+    // row + the event on commit). Legacy fallback for bus-less constructions.
+    if (this.commandBus) return this.commandBus.run(this.#grantCommand(input));
     const em = this.emFactory();
-    const limit = em.create(CreditLimit, {
+    const limit = this.#applyGrant(em, input);
+    await em.flush();
+    this.#emitGranted(input);
+    return limit;
+  }
+
+  #grantCommand(input: {
+    organizationId: string;
+    grantedAmount: number;
+    currency: string;
+    grantedByAdminUserId?: string;
+  }): Command<CreditLimit> {
+    return {
+      action: 'credit_limit.grant',
+      objectType: 'credit_limit',
+      objectId: input.organizationId,
+      run: async ({ em }) => {
+        const limit = this.#applyGrant(em, input);
+        return {
+          result: limit,
+          after: {
+            organizationId: input.organizationId,
+            grantedAmount: limit.grantedAmount,
+            currency: input.currency,
+          },
+        };
+      },
+      event: () => ({
+        eventName: 'credit_limit.granted.v1',
+        payload: {
+          eventId: randomUUID(),
+          occurredAt: new Date().toISOString(),
+          organizationId: input.organizationId,
+          amount: input.grantedAmount,
+        },
+      }),
+    };
+  }
+
+  /**
+   * Pure grant write on the given em — creates the row (auto-persisted via
+   * MikroORM `persistOnCreate`; no explicit flush), no event. The caller's
+   * transaction (Command Bus) or explicit `flush` commits it.
+   */
+  #applyGrant(
+    em: EntityManager,
+    input: { organizationId: string; grantedAmount: number; currency: string; grantedByAdminUserId?: string },
+  ): CreditLimit {
+    return em.create(CreditLimit, {
       organizationId: input.organizationId,
       grantedAmount: input.grantedAmount.toFixed(2),
       currency: input.currency,
@@ -84,49 +166,109 @@ export class CreditLimitService {
         ? { grantedByAdminUserId: input.grantedByAdminUserId }
         : {}),
     });
-    await em.persistAndFlush(limit);
+  }
+
+  #emitGranted(input: { organizationId: string; grantedAmount: number }): void {
     this.events.emit('credit_limit.granted.v1', {
       eventId: randomUUID(),
       occurredAt: new Date().toISOString(),
       organizationId: input.organizationId,
       amount: input.grantedAmount,
     });
-    return limit;
   }
 
   async adjust(input: {
     organizationId: string;
     grantedAmount: number;
     allowOverAllocation?: boolean;
-  }): Promise<{ ok: true; limit: CreditLimit } | { ok: false; code: 'ADJUSTMENT_BELOW_ACTIVE' }> {
+  }): Promise<AdjustResult> {
+    // Feature 054 — audited path: the Command Bus records the mutation
+    // co-transactionally and dispatches the event on commit.
+    if (this.commandBus) {
+      return this.commandBus.run(this.#adjustCommand(input));
+    }
+    // Legacy fallback (no bus injected — e.g. unit tests): unaudited, but
+    // byte-identical to the pre-054 behavior.
     const em = this.emFactory();
     return em.transactional(async (tx) => {
-      const limit = await tx.findOne(
-        CreditLimit,
-        { organizationId: input.organizationId },
-        { lockMode: LockMode.PESSIMISTIC_WRITE },
-      );
-      if (!limit) {
-        // Caller maps to 404; we don't have a separate "not granted" code in
-        // this enum — the route will translate.
-        throw new Error('CREDIT_LIMIT_NOT_GRANTED');
-      }
-      const reservedSum = await this.#sumActiveReservations(tx, limit.id);
-      if (
-        !input.allowOverAllocation &&
-        input.grantedAmount < reservedSum
-      ) {
-        return { ok: false, code: 'ADJUSTMENT_BELOW_ACTIVE' as const };
-      }
-      limit.grantedAmount = input.grantedAmount.toFixed(2);
-      await tx.flush();
-      this.events.emit('credit_limit.adjusted.v1', {
-        eventId: randomUUID(),
-        occurredAt: new Date().toISOString(),
-        organizationId: input.organizationId,
-        amount: input.grantedAmount,
-      });
-      return { ok: true, limit };
+      const r = await this.#applyAdjust(tx, input);
+      if (r.result.ok) this.#emitAdjusted(input);
+      return r.result;
+    });
+  }
+
+  /** The `adjust` write expressed as a Command (audited via the bus). */
+  #adjustCommand(input: {
+    organizationId: string;
+    grantedAmount: number;
+    allowOverAllocation?: boolean;
+  }): Command<AdjustResult> {
+    return {
+      action: 'credit_limit.adjust',
+      objectType: 'credit_limit',
+      objectId: input.organizationId,
+      run: async ({ em }) => {
+        const r = await this.#applyAdjust(em, input);
+        if (!r.result.ok) {
+          // No mutation happened → commit without an audit row.
+          return { result: r.result, skipAudit: true };
+        }
+        return { result: r.result, before: r.before ?? null, after: r.after ?? null };
+      },
+      event: (result) =>
+        result.ok
+          ? {
+              eventName: 'credit_limit.adjusted.v1',
+              payload: {
+                eventId: randomUUID(),
+                occurredAt: new Date().toISOString(),
+                organizationId: input.organizationId,
+                amount: input.grantedAmount,
+              },
+            }
+          : undefined,
+    };
+  }
+
+  /**
+   * Pure adjust write on the given em — no audit, no event. Returns the caller
+   * result plus the before/after snapshot for auditing. The pessimistic lock and
+   * over-allocation guard are preserved exactly.
+   */
+  async #applyAdjust(
+    em: EntityManager,
+    input: { organizationId: string; grantedAmount: number; allowOverAllocation?: boolean },
+  ): Promise<{
+    result: AdjustResult;
+    before?: Record<string, unknown>;
+    after?: Record<string, unknown>;
+  }> {
+    const limit = await em.findOne(
+      CreditLimit,
+      { organizationId: input.organizationId },
+      { lockMode: LockMode.PESSIMISTIC_WRITE },
+    );
+    if (!limit) {
+      // Caller maps to 404; we don't have a separate "not granted" code in
+      // this enum — the route will translate.
+      throw new Error('CREDIT_LIMIT_NOT_GRANTED');
+    }
+    const reservedSum = await this.#sumActiveReservations(em, limit.id);
+    if (!input.allowOverAllocation && input.grantedAmount < reservedSum) {
+      return { result: { ok: false, code: 'ADJUSTMENT_BELOW_ACTIVE' } };
+    }
+    const before = { organizationId: input.organizationId, grantedAmount: limit.grantedAmount };
+    limit.grantedAmount = input.grantedAmount.toFixed(2);
+    const after = { organizationId: input.organizationId, grantedAmount: limit.grantedAmount };
+    return { result: { ok: true, limit }, before, after };
+  }
+
+  #emitAdjusted(input: { organizationId: string; grantedAmount: number }): void {
+    this.events.emit('credit_limit.adjusted.v1', {
+      eventId: randomUUID(),
+      occurredAt: new Date().toISOString(),
+      organizationId: input.organizationId,
+      amount: input.grantedAmount,
     });
   }
 
@@ -138,54 +280,165 @@ export class CreditLimitService {
     /** When called inside the order-placement transaction, the caller passes its tx em. */
     tx?: EntityManager;
   }): Promise<ReserveResult> {
-    const run = async (em: EntityManager): Promise<ReserveResult> => {
-      const limit = await em.findOne(
-        CreditLimit,
-        { organizationId: input.organizationId },
-        { lockMode: LockMode.PESSIMISTIC_WRITE },
-      );
-      if (!limit) return { ok: false, code: 'CREDIT_LIMIT_NOT_GRANTED' as const };
-      if (limit.currency !== input.currency) {
-        return { ok: false, code: 'CURRENCY_MISMATCH' as const };
-      }
-      const granted = Number(limit.grantedAmount);
-      const reservedSum = await this.#sumActiveReservations(em, limit.id);
-      const available = granted - reservedSum;
-      if (available < input.amount) {
-        return { ok: false, code: 'LIMIT_INSUFFICIENT' as const, availableAmount: available };
-      }
-      const reservation = em.create(CreditLimitReservation, {
-        creditLimitId: limit.id,
-        orderId: input.orderId,
-        amount: input.amount.toFixed(2),
-        currency: input.currency,
-        status: 'active',
-      });
-      await em.persistAndFlush(reservation);
-
-      this.events.emit('credit_limit.reserved.v1', {
-        eventId: randomUUID(),
-        occurredAt: new Date().toISOString(),
-        organizationId: input.organizationId,
-        orderId: input.orderId,
-        amount: input.amount,
-      });
-      return {
-        ok: true,
-        reservationId: reservation.id,
-        availableAmountAfter: available - input.amount,
-      };
-    };
+    // command-coverage-ignore: reserve runs inside the caller's order-placement
+    // transaction (accepts `tx`) and is a system operation, not an admin action.
+    // The credit movement is captured by the credit_limit.reserved.v1 event and
+    // the reservation row — not the admin audit log.
+    const run = async (em: EntityManager): Promise<ReserveResult> =>
+      this.inheritance ? this.#reserveInherited(em, input) : this.#reserveFlat(em, input);
 
     if (input.tx) return run(input.tx);
     const em = this.emFactory();
     return em.transactional(run);
   }
 
+  /** Pre-feature flat reservation — locks the org's own row (unchanged). */
+  async #reserveFlat(
+    em: EntityManager,
+    input: { organizationId: string; orderId: string; amount: number; currency: string },
+  ): Promise<ReserveResult> {
+    // command-coverage-ignore: reservation path invoked by reserve() inside the
+    // caller's order-placement transaction — a system operation, not an admin
+    // action. The credit movement is captured by the credit_limit.reserved.v1
+    // event and the reservation row, not the admin audit log.
+    const limit = await em.findOne(
+      CreditLimit,
+      { organizationId: input.organizationId },
+      { lockMode: LockMode.PESSIMISTIC_WRITE },
+    );
+    if (!limit) return { ok: false, code: 'CREDIT_LIMIT_NOT_GRANTED' as const };
+    if (limit.currency !== input.currency) {
+      return { ok: false, code: 'CURRENCY_MISMATCH' as const };
+    }
+    const granted = Number(limit.grantedAmount);
+    const reservedSum = await this.#sumActiveReservations(em, limit.id);
+    const available = granted - reservedSum;
+    if (available < input.amount) {
+      return { ok: false, code: 'LIMIT_INSUFFICIENT' as const, availableAmount: available };
+    }
+    const reservation = em.create(CreditLimitReservation, {
+      creditLimitId: limit.id,
+      orderId: input.orderId,
+      amount: input.amount.toFixed(2),
+      currency: input.currency,
+      status: 'active',
+    });
+    await em.persistAndFlush(reservation);
+    this.#emitReserved(input);
+    return { ok: true, reservationId: reservation.id, availableAmountAfter: available - input.amount };
+  }
+
+  /**
+   * Feature 056 — inherited reservation. Resolves the owning ancestor-or-self
+   * (`creditOwner`) and the effective mode:
+   *   - shared_pool: FOR-UPDATE lock on the OWNER's row; `available = granted −
+   *     Σ active reservations against the owner row` (every subtree reservation
+   *     references the owner row, so this sums the whole subtree). Concurrent
+   *     draws serialize on the one owner row → zero double-spend (SC-004).
+   *   - independent_default: lock the owner's row but sum only THIS descendant's
+   *     active reservations (via `orders.organization_id`), so each branch draws
+   *     its full inherited amount without affecting siblings.
+   *
+   * A root org with its own limit is its own owner (shared_pool default), which
+   * collapses to the flat behavior byte-for-byte.
+   */
+  async #reserveInherited(
+    em: EntityManager,
+    input: { organizationId: string; orderId: string; amount: number; currency: string },
+  ): Promise<ReserveResult> {
+    // command-coverage-ignore: reservation path invoked by reserve() inside the
+    // caller's order-placement transaction — a system operation, not an admin
+    // action. The credit movement is captured by the credit_limit.reserved.v1
+    // event and the reservation row, not the admin audit log.
+    const { ownerOrgId, mode } = await this.inheritance!.creditOwner(input.organizationId);
+    if (!ownerOrgId) return { ok: false, code: 'CREDIT_LIMIT_NOT_GRANTED' as const };
+
+    // Lock the owning ancestor's row FOR UPDATE. Raw SQL bypasses the @OrgScoped
+    // filter (the owner may lie outside the reserving descendant's tenant scope)
+    // and gives precise lock control on the money path.
+    const ownerRows = (await em.getConnection().execute(
+      `select "id", "granted_amount", "currency" from "credit_limits"
+         where "organization_id" = ? for update`,
+      [ownerOrgId],
+      'all',
+      em.getTransactionContext(),
+    )) as Array<{ id: string; granted_amount: string; currency: string }>;
+    const owner = ownerRows[0];
+    if (!owner) return { ok: false, code: 'CREDIT_LIMIT_NOT_GRANTED' as const };
+    if (owner.currency !== input.currency) {
+      return { ok: false, code: 'CURRENCY_MISMATCH' as const };
+    }
+
+    const granted = Number(owner.granted_amount);
+    const reservedSum =
+      mode === 'shared_pool'
+        ? await this.#sumReservationsForLimit(em, owner.id)
+        : await this.#sumReservationsForOrg(em, input.organizationId);
+    const available = granted - reservedSum;
+    if (available < input.amount) {
+      return { ok: false, code: 'LIMIT_INSUFFICIENT' as const, availableAmount: available };
+    }
+
+    const reservation = em.create(CreditLimitReservation, {
+      creditLimitId: owner.id,
+      orderId: input.orderId,
+      amount: input.amount.toFixed(2),
+      currency: input.currency,
+      status: 'active',
+    });
+    await em.persistAndFlush(reservation);
+    this.#emitReserved(input);
+    return { ok: true, reservationId: reservation.id, availableAmountAfter: available - input.amount };
+  }
+
+  #emitReserved(input: { organizationId: string; orderId: string; amount: number }): void {
+    this.events.emit('credit_limit.reserved.v1', {
+      eventId: randomUUID(),
+      occurredAt: new Date().toISOString(),
+      organizationId: input.organizationId,
+      orderId: input.orderId,
+      amount: input.amount,
+    });
+  }
+
+  /** Σ active reservations against a credit_limits row (transaction-scoped). */
+  async #sumReservationsForLimit(em: EntityManager, creditLimitId: string): Promise<number> {
+    const rows = (await em.getConnection().execute(
+      `select coalesce(sum(amount), 0) as total
+         from credit_limit_reservations
+         where credit_limit_id = ? and status = 'active'`,
+      [creditLimitId],
+      'all',
+      em.getTransactionContext(),
+    )) as Array<{ total: string | number | null }>;
+    return Number(rows[0]?.total ?? 0);
+  }
+
+  /**
+   * Σ active reservations consumed by a specific organization (via the reserving
+   * order), for the independent_default mode. Transaction-scoped.
+   */
+  async #sumReservationsForOrg(em: EntityManager, organizationId: string): Promise<number> {
+    const rows = (await em.getConnection().execute(
+      `select coalesce(sum(r.amount), 0) as total
+         from credit_limit_reservations r
+         join orders o on o.id = r.order_id
+         where r.status = 'active' and o.organization_id = ?`,
+      [organizationId],
+      'all',
+      em.getTransactionContext(),
+    )) as Array<{ total: string | number | null }>;
+    return Number(rows[0]?.total ?? 0);
+  }
+
   async releaseByOrder(input: {
     orderId: string;
     reason: 'invoice_paid' | 'order_cancelled' | 'admin_revocation';
   }): Promise<ReleaseResult> {
+    // command-coverage-ignore: releaseByOrder is an automatic system operation
+    // (invoice-paid / order-cancelled / admin-revocation) captured by the
+    // credit_limit.released.v1 event and the reservation row, not the admin audit
+    // log. It also runs in its own pessimistic-lock transaction.
     const em = this.emFactory();
     return em.transactional(async (tx) => {
       const reservation = await tx.findOne(

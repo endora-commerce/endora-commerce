@@ -7,6 +7,8 @@ import type {
   ReturnCaseSummary,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnCaseItem } from '../entities/return-case-item.entity.js';
 import { ReturnCaseComment } from '../entities/return-case-comment.entity.js';
@@ -31,6 +33,8 @@ export interface ReturnCaseServiceDeps {
   resolveFreeReturnDays: (salesChannelId: string) => Promise<number>;
   /** Injected for deterministic tests; defaults to `new Date()`. */
   now?: () => Date;
+  /** Feature 054 — audits case creation co-transactionally when provided. */
+  auditLog?: AuditLogService;
 }
 
 /**
@@ -175,6 +179,20 @@ export class ReturnCaseService {
       );
     }
 
+    if (this.deps.auditLog) {
+      recordAuditFromContext(this.deps.auditLog, em, {
+        action: 'return_case.create',
+        objectType: 'return_case',
+        objectId: rc.id,
+        stateBefore: null,
+        stateAfter: {
+          kind: rc.kind,
+          orderId: rc.orderId,
+          statusCode: rc.statusCode,
+          lineCount: input.lines.length,
+        },
+      });
+    }
     await em.flush();
     return this.mapDetail(em, rc.id, { customerView: true });
   }

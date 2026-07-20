@@ -100,11 +100,11 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
     options.emFactory,
     options.auditLog,
   );
-  const tags = new NewsletterTagService(options.emFactory);
-  const customFields = new NewsletterCustomFieldService(options.emFactory);
+  const tags = new NewsletterTagService(options.emFactory, options.auditLog);
+  const customFields = new NewsletterCustomFieldService(options.emFactory, options.auditLog);
   const tracking = new NewsletterTrackingService(options.emFactory);
   const stats = new NewsletterStatsService(options.emFactory);
-  const blocks = new NewsletterEmailBlockService(options.emFactory);
+  const blocks = new NewsletterEmailBlockService(options.emFactory, options.auditLog);
   const providerAdmin = new NewsletterProviderAdminService(
     options.settings,
     options.settingsWrite,
@@ -140,6 +140,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
         await automationStepQueue.add('step', { runId, stepIndex }, delayMs ? { delay: delayMs } : {});
       }
     },
+    ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
 
   const campaigns = new NewsletterCampaignService({
@@ -147,6 +148,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModulePlugin
     dispatch,
     content,
     isProviderConfigured: () => providers.isConfigured(),
+    ...(options.auditLog ? { auditLog: options.auditLog } : {}),
     ...(planQueue
       ? {
           enqueuePlan: async (campaignId: string, delayMs?: number) => {

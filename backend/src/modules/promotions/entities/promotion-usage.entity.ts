@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,6 +7,7 @@ import { randomUUID } from 'crypto';
  * order placement (US5). Denormalized dimensions feed the statistics
  * aggregates (US7).
  */
+@GlobalEntity()
 @Entity({ tableName: 'promotion_usages' })
 @Unique({ properties: ['orderId', 'promotionId'] })
 export class PromotionUsage {

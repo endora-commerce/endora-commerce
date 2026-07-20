@@ -34,6 +34,8 @@ export class ReturnListViewService {
       visibleColumns?: string[] | undefined;
     },
   ): Promise<ReturnSavedViewDto> {
+    // command-coverage-ignore: saved list views are per-admin UI presets
+    // (filters/sort/columns), not audited domain-state.
     const em = this.emFactory();
     const view = em.create(ReturnListSavedView, {
       ownerAdminUserId: adminUserId,
@@ -58,6 +60,8 @@ export class ReturnListViewService {
       visibleColumns?: string[] | null | undefined;
     },
   ): Promise<ReturnSavedViewDto> {
+    // command-coverage-ignore: saved list views are per-admin UI presets, not
+    // audited domain-state.
     const em = this.emFactory();
     const view = await em.findOne(ReturnListSavedView, { id });
     if (!view) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Saved view not found.');
@@ -74,6 +78,8 @@ export class ReturnListViewService {
   }
 
   async remove(id: string, adminUserId: string): Promise<void> {
+    // command-coverage-ignore: saved list views are per-admin UI presets, not
+    // audited domain-state.
     const em = this.emFactory();
     const view = await em.findOne(ReturnListSavedView, { id });
     if (!view) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Saved view not found.');

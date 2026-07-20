@@ -107,6 +107,18 @@ export async function registerPaymentMethodsAdminRoutes(
     },
   );
 
+  // Registered payment adapters (feature 034) — powers the admin adapter picker
+  // so an admin can bind a payment method to a specific backend driver
+  // (e.g. `stripe`, `bank_transfer`) rather than defaulting to its `kind`.
+  app.get(
+    '/api/v1/admin/payment-methods/adapters',
+    { preHandler: requireAdmin('catalog:read') },
+    async () => {
+      const list = deps.registry?.list() ?? [];
+      return { data: list };
+    },
+  );
+
   app.put<{ Params: { code: string } }>(
     '/api/v1/admin/payment-methods/:code',
     {

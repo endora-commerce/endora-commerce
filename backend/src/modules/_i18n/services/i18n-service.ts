@@ -104,6 +104,8 @@ export class I18nService {
     moduleId: string,
     em?: EntityManager,
   ): Promise<{ removed: number }> {
+    // command-coverage-ignore: idempotent lifecycle reconciler/seed — a system-
+    // invariant repair, not an operator-initiated audited write.
     const targetEm = em ?? this.em();
     const removed = await targetEm.nativeDelete(TranslationBundle, { moduleId });
     // Affected languages are unknown without a SELECT-then-DELETE; clear all.

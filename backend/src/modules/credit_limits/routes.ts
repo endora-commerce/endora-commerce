@@ -6,6 +6,7 @@ import {
   grantCreditLimitRequestSchema,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
+import { isOrgInScope } from '../../tenancy/derived-scope.js';
 import type { CreditLimitService } from './services/credit-limit-service.js';
 import type { CreditLimit } from './entities/credit-limit.entity.js';
 import type { CreditLimitReservation } from './entities/credit-limit-reservation.entity.js';
@@ -83,6 +84,15 @@ export async function registerCreditLimitsRoutes(
     },
     async (request, reply) => {
       const body = grantCreditLimitRequestSchema.parse(request.body);
+      // Feature 050 — inserts are not reachable by the org column filter, so gate
+      // the target org explicitly; out-of-scope responds as "not granted" (FR-008).
+      if (!isOrgInScope(request.params.id)) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.CREDIT_LIMIT_NOT_GRANTED,
+          'Credit limit has not been granted for this organization.',
+        );
+      }
       const existing = await creditLimitService.getForOrganization(request.params.id);
       if (existing) {
         throw new HttpError(
@@ -132,6 +142,14 @@ export async function registerCreditLimitsRoutes(
     },
     async (request) => {
       const body = adjustCreditLimitRequestSchema.parse(request.body);
+      // Feature 050 — gate the target org (see POST grant above).
+      if (!isOrgInScope(request.params.id)) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.CREDIT_LIMIT_NOT_GRANTED,
+          'Credit limit has not been granted for this organization.',
+        );
+      }
       try {
         const result = await creditLimitService.adjust({
           organizationId: request.params.id,

@@ -89,6 +89,21 @@ import { Migration081SettingsHiddenFlag } from '../modules/settings/migrations/0
 import { Migration082TransactionalEmailsInit } from '../modules/transactional_emails/migrations/082_transactional_emails_init.js';
 import { Migration083InvoicesModule } from '../modules/invoices/migrations/083_invoices_module.js';
 import { Migration084NewsletterInit } from '../modules/newsletter/migrations/084_newsletter_init.js';
+import { Migration085StripeInit } from '../modules/stripe/migrations/085_stripe_init.js';
+import { Migration086PaymentRefundedAmount } from '../modules/stripe/migrations/086_payment_refunded_amount.js';
+import { Migration087GoogleAnalyticsInit } from '../modules/google_analytics/migrations/087_google_analytics_init.js';
+import { Migration088TenantScopeIndexes } from './migrations/088_tenant_scope_indexes.js';
+import { Migration089PersonalOrganizations } from '../modules/organizations/migrations/089_personal_organizations.js';
+import { Migration090BulkOperationRevertState } from '../modules/catalog/migrations/090_bulk_operation_revert_state.js';
+// Feature 055 — Custom Fields Layer (init + additive host value columns).
+import { Migration091CustomFieldsInit } from '../modules/custom_fields/migrations/091_custom_fields_init.js';
+import { Migration092OrderCustomFieldValues } from '../modules/orders/migrations/092_order_custom_field_values.js';
+import { Migration093OrganizationCustomFieldValues } from '../modules/organizations/migrations/093_organization_custom_field_values.js';
+import { Migration094CustomerAccountCustomFieldValues } from '../modules/customer_accounts/migrations/094_customer_account_custom_field_values.js';
+import { Migration095QuoteRequestCustomFieldValues } from '../modules/quote_requests/migrations/095_quote_request_custom_field_values.js';
+import { Migration096CategoryCustomFieldValues } from '../modules/catalog/migrations/096_category_custom_field_values.js';
+import { Migration097OrgHierarchy } from '../modules/organizations/migrations/097_org_hierarchy.js';
+import { Migration098CustomerSubtreeRollup } from '../modules/customer_accounts/migrations/098_customer_subtree_rollup.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -424,6 +439,62 @@ export default defineConfig({
       {
         name: 'Migration084NewsletterInit',
         class: Migration084NewsletterInit,
+      },
+      {
+        name: 'Migration085StripeInit',
+        class: Migration085StripeInit,
+      },
+      {
+        name: 'Migration086PaymentRefundedAmount',
+        class: Migration086PaymentRefundedAmount,
+      },
+      {
+        name: 'Migration087GoogleAnalyticsInit',
+        class: Migration087GoogleAnalyticsInit,
+      },
+      {
+        name: 'Migration088TenantScopeIndexes',
+        class: Migration088TenantScopeIndexes,
+      },
+      {
+        name: 'Migration089PersonalOrganizations',
+        class: Migration089PersonalOrganizations,
+      },
+      {
+        name: 'Migration090BulkOperationRevertState',
+        class: Migration090BulkOperationRevertState,
+      },
+      {
+        name: 'Migration091CustomFieldsInit',
+        class: Migration091CustomFieldsInit,
+      },
+      {
+        name: 'Migration092OrderCustomFieldValues',
+        class: Migration092OrderCustomFieldValues,
+      },
+      {
+        name: 'Migration093OrganizationCustomFieldValues',
+        class: Migration093OrganizationCustomFieldValues,
+      },
+      {
+        name: 'Migration094CustomerAccountCustomFieldValues',
+        class: Migration094CustomerAccountCustomFieldValues,
+      },
+      {
+        name: 'Migration095QuoteRequestCustomFieldValues',
+        class: Migration095QuoteRequestCustomFieldValues,
+      },
+      {
+        name: 'Migration096CategoryCustomFieldValues',
+        class: Migration096CategoryCustomFieldValues,
+      },
+      {
+        name: 'Migration097OrgHierarchy',
+        class: Migration097OrgHierarchy,
+      },
+      {
+        name: 'Migration098CustomerSubtreeRollup',
+        class: Migration098CustomerSubtreeRollup,
       },
     ],
     transactional: true,

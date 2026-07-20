@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 import type { PwaIconPurpose } from '@b2b/contracts';
 
@@ -9,6 +10,7 @@ import type { PwaIconPurpose } from '@b2b/contracts';
  * `(salesChannelId, size, purpose)` is unique (NULLS NOT DISTINCT for the global
  * row — enforced in migration 080).
  */
+@GlobalEntity()
 @Entity({ tableName: 'pwa_icon_renditions' })
 @Unique({ properties: ['salesChannelId', 'size', 'purpose'] })
 export class PwaIconRendition {

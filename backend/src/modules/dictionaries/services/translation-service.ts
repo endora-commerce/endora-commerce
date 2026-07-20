@@ -5,6 +5,8 @@ import { Currency } from '../../currencies/entities/currency.entity.js';
 import { Language } from '../../languages/entities/language.entity.js';
 import { Country } from '../entities/country.entity.js';
 import { DictionaryTranslation } from '../entities/dictionary-translation.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 export interface UpsertTranslationInput {
   entryType: DictionaryEntryType;
@@ -17,6 +19,7 @@ export class TranslationService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly invalidateDictionaryCache?: () => Promise<void>,
+    private readonly auditLog?: AuditLogService,
   ) {}
 
   async upsert(input: UpsertTranslationInput): Promise<DictionaryTranslation> {
@@ -48,6 +51,15 @@ export class TranslationService {
     } else {
       row.label = input.label;
     }
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action: 'dictionary_translation.upsert',
+        objectType: 'dictionary_translation',
+        objectId: `${input.entryType}:${input.entryCode}:${input.languageCode}`,
+        stateBefore: null,
+        stateAfter: { label: input.label },
+      });
+    }
     await em.flush();
     await this.invalidateDictionaryCache?.();
     return row;
@@ -61,6 +73,15 @@ export class TranslationService {
     const em = this.emFactory();
     const row = await em.findOne(DictionaryTranslation, { entryType, entryCode, languageCode });
     if (!row) throw notFound(entryType, entryCode);
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action: 'dictionary_translation.delete',
+        objectType: 'dictionary_translation',
+        objectId: `${entryType}:${entryCode}:${languageCode}`,
+        stateBefore: { label: row.label },
+        stateAfter: null,
+      });
+    }
     await em.removeAndFlush(row);
     await this.invalidateDictionaryCache?.();
   }

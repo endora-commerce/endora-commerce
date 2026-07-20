@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -12,6 +13,7 @@ import { randomUUID } from 'crypto';
  * trick on the variant column); this entity does not declare a
  * database-level unique constraint.
  */
+@GlobalEntity()
 @Entity({ tableName: 'stock_levels' })
 export class StockLevel {
   [OptionalProps]?: 'id' | 'createdAt' | 'updatedAt' | 'variantId' | 'reserved';

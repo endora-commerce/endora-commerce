@@ -1,6 +1,8 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { randomUUID } from 'crypto';
 import type { InvoiceBuyer, SellerCompanyData } from '@b2b/contracts';
+import { TransitivelyScoped } from '../../../tenancy/org-scoped.decorator.js';
+import { Order } from '../../orders/entities/order.entity.js';
 
 /**
  * Invoice — a document issued against an order (feature 047). Immutable once
@@ -8,6 +10,7 @@ import type { InvoiceBuyer, SellerCompanyData } from '@b2b/contracts';
  * legacy `total` column is retained as an alias of `grossTotal` for back-compat
  * with the original commerce-init schema.
  */
+@TransitivelyScoped(() => Order, 'orderId')
 @Entity({ tableName: 'invoices' })
 export class Invoice {
   [OptionalProps]?:

@@ -12,6 +12,8 @@ import {
   type SearchSuggestResponse,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
+import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
+import type { ResolvedSearchChannel } from './services/search-query.service.js';
 import {
   QueryTooShort,
   SearchBackendUnavailable,
@@ -35,7 +37,6 @@ import type { SearchPhraseRecorder } from './services/search-phrase-recorder.ser
  * `readContext`.
  */
 
-const salesChannelHeaderSchema = z.string().optional();
 const acceptLanguageHeaderSchema = z.string().optional();
 
 /**
@@ -48,7 +49,8 @@ const acceptLanguageHeaderSchema = z.string().optional();
 export type SuggestionPricingEnricher = (
   items: ProductSummary[],
   ctx: {
-    salesChannelCode?: string | undefined;
+    /** The request's resolved sales channel (feature 053 / FR-002). */
+    resolvedChannel: { id: string; defaultCurrency: string };
     /** Organization of the signed-in customer, or null for guests. */
     organizationId?: string | null;
   },
@@ -146,9 +148,7 @@ export async function registerSearchPublicRoutes(
           actor.kind === 'customer' ? actor.organizationId : null;
         try {
           const enriched = await enrichSuggestionPricing(result.data, {
-            ...(ctx.salesChannelCode !== undefined
-              ? { salesChannelCode: ctx.salesChannelCode }
-              : {}),
+            resolvedChannel: ctx.resolvedChannel,
             organizationId,
           });
           return {
@@ -242,12 +242,12 @@ function parseSuggestQuery(request: FastifyRequest): {
 }
 
 function readContext(request: FastifyRequest): {
-  salesChannelCode?: string | undefined;
+  resolvedChannel: ResolvedSearchChannel;
   preferredLanguage?: string | undefined;
 } {
-  const salesChannelCode = salesChannelHeaderSchema.parse(
-    request.headers['x-sales-channel'],
-  );
+  // Feature 053 / FR-002: read the channel resolved once by the canonical
+  // middleware instead of re-parsing the `x-sales-channel` header.
+  const ch = getResolvedChannel(request);
   const acceptLanguage = acceptLanguageHeaderSchema.parse(
     request.headers['accept-language'],
   );
@@ -255,7 +255,13 @@ function readContext(request: FastifyRequest): {
     ? acceptLanguage.split(',')[0]?.trim()
     : undefined;
   return {
-    ...(salesChannelCode !== undefined ? { salesChannelCode } : {}),
+    resolvedChannel: {
+      id: ch.id,
+      code: ch.code,
+      isPublic: ch.isPublic,
+      defaultCurrency: ch.defaultCurrency,
+      defaultLanguage: ch.defaultLanguage,
+    },
     ...(preferredLanguage !== undefined ? { preferredLanguage } : {}),
   };
 }

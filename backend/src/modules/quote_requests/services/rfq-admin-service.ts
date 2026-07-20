@@ -8,6 +8,8 @@ import {
   type QuoteRequestSummary,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { QuoteRequest, type QuoteRequestStatus } from '../entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
@@ -19,6 +21,10 @@ import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqRevisionService } from './rfq-revision-service.js';
 import type { RfqNotificationService } from './rfq-notification-service.js';
 import type { SalesRepAssignmentService } from '../../organizations/services/sales-rep-assignment-service.js';
+import {
+  CustomFieldValidationError,
+  type CustomFieldValueService,
+} from '../../custom_fields/services/custom-field-value.service.js';
 
 /**
  * Admin-facing Quote Requests service — feature 008 workflow.
@@ -59,10 +65,33 @@ export interface RfqAdminServiceDeps {
   revisionService: RfqRevisionService;
   notificationService: RfqNotificationService;
   salesRepAssignment: SalesRepAssignmentService;
+  /** Feature 054 — audits RFQ admin writes co-transactionally when provided. */
+  auditLog?: AuditLogService;
+  /** Feature 055 — validates + merges custom-field values on RFQ edit. */
+  customFieldValues?: CustomFieldValueService;
 }
 
 export class RfqAdminService {
   constructor(private readonly deps: RfqAdminServiceDeps) {}
+
+  /** Feature 054 — co-transactional RFQ audit on `em` (actor from context). */
+  #audit(
+    em: EntityManager,
+    action: string,
+    objectId: string,
+    stateBefore: Record<string, unknown> | null,
+    stateAfter: Record<string, unknown> | null,
+  ): void {
+    if (this.deps.auditLog) {
+      recordAuditFromContext(this.deps.auditLog, em, {
+        action,
+        objectType: 'quote_request',
+        objectId,
+        stateBefore,
+        stateAfter,
+      });
+    }
+  }
 
   // -------------------------------------------------------------------------
   // Read paths
@@ -217,6 +246,7 @@ export class RfqAdminService {
     rfq.awaitingCustomerRevisionAcceptance = false;
     rfq.assignedAdminUserId = ctx.adminUserId;
     rfq.version += 1;
+    this.#audit(em, 'quote_request.approve', rfq.id, { status: 'Pending' }, { status: 'Approved' });
     await em.flush();
 
     if (note && note.trim().length > 0) {
@@ -274,6 +304,7 @@ export class RfqAdminService {
     if (reason) rfq.cancellationReason = reason;
     rfq.assignedAdminUserId = ctx.adminUserId;
     rfq.version += 1;
+    this.#audit(em, 'quote_request.cancel', rfq.id, null, { status: 'Canceled', reason: reason ?? null });
     await em.flush();
 
     const evt = await this.deps.eventService.append({
@@ -307,8 +338,12 @@ export class RfqAdminService {
   async assign(ctx: AdminContext, rfqId: string, targetAdminUserId: string): Promise<RfqDto> {
     const em = this.deps.emFactory();
     const rfq = await this.findVisibleForAdmin(em, ctx, rfqId);
+    const previousAssignee = rfq.assignedAdminUserId;
     rfq.assignedAdminUserId = targetAdminUserId;
     rfq.version += 1;
+    this.#audit(em, 'quote_request.assign', rfq.id, { assignedAdminUserId: previousAssignee }, {
+      assignedAdminUserId: targetAdminUserId,
+    });
     await em.flush();
     return this.deps.rfqService.serializeFull(em, rfq, true);
   }
@@ -331,6 +366,27 @@ export class RfqAdminService {
     this.assertVersion(rfq, expectedVersion);
 
     if (body.headerNote !== undefined) rfq.headerNote = body.headerNote ?? null;
+
+    // Feature 055 — validate + merge custom-field values (host owns the write).
+    if (body.customFieldValues !== undefined && this.deps.customFieldValues) {
+      try {
+        rfq.customFieldValues = await this.deps.customFieldValues.validateAndMerge(
+          'quote_request',
+          rfq.customFieldValues ?? {},
+          body.customFieldValues,
+        );
+      } catch (err) {
+        if (err instanceof CustomFieldValidationError) {
+          throw new HttpError(
+            422,
+            ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
+            'One or more custom fields are invalid.',
+            err.errors.map((e) => ({ path: e.field, issue: e.message })),
+          );
+        }
+        throw err;
+      }
+    }
 
     if (body.items) {
       const products = await em.find(Product, { id: { $in: body.items.map((it) => it.productId) } });
@@ -370,6 +426,10 @@ export class RfqAdminService {
       rfq.expiresAt = new Date(Date.now() + body.expiresInDays * 86_400_000);
     }
     rfq.version += 1;
+    this.#audit(em, 'quote_request.modify', rfq.id, null, {
+      currentRevisionNumber: rfq.currentRevisionNumber,
+      status: rfq.status,
+    });
     await em.flush();
 
     const items = await em.find(QuoteRequestItem, { quoteRequestId: rfq.id });
@@ -494,6 +554,10 @@ export class RfqAdminService {
         }),
       );
     }
+    this.#audit(em, 'quote_request.create_on_behalf', rfq.id, null, {
+      status: rfq.status,
+      itemCount: items.length,
+    });
     await em.persistAndFlush(items);
 
     const revision = await this.deps.revisionService.record({

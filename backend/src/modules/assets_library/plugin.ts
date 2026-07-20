@@ -9,6 +9,7 @@ import { AssetsLibraryService } from './services/assets-library.service.js';
 import { FoldersService } from './services/folders.service.js';
 import { AssetReferenceRegistry } from './services/reference-registry.js';
 import { HmacSigner } from './services/hmac.js';
+import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import { createSettingsView } from './services/storage/settings-view.js';
 import { Setting } from '../settings/entities/setting.entity.js';
 import { SettingValue } from '../settings/entities/setting-value.entity.js';
@@ -25,6 +26,8 @@ export interface AssetsLibraryModuleOptions {
   signer?: HmacSigner;
   /** Permission gate factory. When omitted, a permissive no-op is used (test default). */
   requireAdmin?: RequireAdminFactory;
+  /** Feature 054 — audits asset/folder writes co-transactionally when provided. */
+  auditLog?: AuditLogService;
 }
 
 export interface AssetsLibraryModuleHandle {
@@ -79,8 +82,9 @@ export function assetsLibraryModule(options: AssetsLibraryModuleOptions): {
     adapters,
     referenceRegistry,
     loadUploadPolicy: () => loadUploadPolicy(options.emFactory),
+    ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
-  const folders = new FoldersService(options.emFactory, referenceRegistry);
+  const folders = new FoldersService(options.emFactory, referenceRegistry, options.auditLog);
 
   const requireAdmin = options.requireAdmin ?? noOpRequireAdmin;
 

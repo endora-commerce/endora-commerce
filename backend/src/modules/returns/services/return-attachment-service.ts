@@ -21,6 +21,8 @@ export class ReturnAttachmentService {
     customerAccountId: string,
     input: { assetId: string; returnCaseItemId?: string | undefined },
   ): Promise<ReturnAttachmentDto> {
+    // command-coverage-ignore: append-only evidence attachment on a case, not an
+    // audited domain-state mutation (no before-state, no undo value).
     const em = this.emFactory();
     const rc = await em.findOne(ReturnCase, { id: caseId, customerAccountId });
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');

@@ -1,6 +1,8 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
+@GlobalEntity()
 @Entity({ tableName: 'order_items' })
 export class OrderItem {
   [OptionalProps]?: 'id' | 'createdAt' | 'variantId' | 'variantSnapshot' | 'packagingUnitSnapshot';

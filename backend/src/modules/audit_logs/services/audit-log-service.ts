@@ -28,7 +28,27 @@ export class AuditLogService {
 
   async record(input: RecordAuditInput): Promise<AuditLogEntry> {
     const em = this.emFactory();
-    const entry = em.create(AuditLogEntry, {
+    const entry = this.build(em, input);
+    await em.persistAndFlush(entry);
+    return entry;
+  }
+
+  /**
+   * Co-transactional audit writer (feature 054, Constitution Principle XIII).
+   *
+   * Persists the entry on the CALLER's transactional `em` with NO fork and NO
+   * flush — the caller's `em.transactional(...)` commits it atomically with the
+   * domain write, so the audit row and the write live or die together (FR-003).
+   * Used exclusively by the {@link CommandBus}; regular services keep `record()`.
+   */
+  recordWithin(em: EntityManager, input: RecordAuditInput): AuditLogEntry {
+    const entry = this.build(em, input);
+    em.persist(entry);
+    return entry;
+  }
+
+  private build(em: EntityManager, input: RecordAuditInput): AuditLogEntry {
+    return em.create(AuditLogEntry, {
       action: input.action,
       objectType: input.objectType,
       objectId: input.objectId,
@@ -42,8 +62,6 @@ export class AuditLogService {
       ...(input.userAgent !== undefined ? { userAgent: input.userAgent } : {}),
       ...(input.requestId !== undefined ? { requestId: input.requestId } : {}),
     });
-    await em.persistAndFlush(entry);
-    return entry;
   }
 
   async query(filter: AuditLogFilter = {}): Promise<AuditLogEntry[]> {

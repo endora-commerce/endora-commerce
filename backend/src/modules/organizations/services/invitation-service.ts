@@ -8,6 +8,8 @@ import { Organization } from '../entities/organization.entity.js';
 import { CustomerAccount } from '../../customer_accounts/entities/customer-account.entity.js';
 import { OrganizationInvitation } from '../entities/organization-invitation.entity.js';
 import type { Mailer } from '../../email/services/mailer.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { buildInvitationEmail } from '../email-templates/invitation.js';
 import { noopOrgTemplateEmail, type OrgTemplateEmail } from './org-template-email.js';
 import {
@@ -54,6 +56,7 @@ export class InvitationService {
     options?: InvitationServiceOptions,
     private readonly events?: OrganizationEventBus,
     templateEmail?: OrgTemplateEmail,
+    private readonly auditLog?: AuditLogService,
   ) {
     this.mailer = mailer ?? null;
     this.acceptBaseUrl = options?.acceptBaseUrl ?? 'https://storefront.local';
@@ -67,6 +70,17 @@ export class InvitationService {
     const em = this.emFactory();
     const role = input.role ?? 'regular_user';
     const lowercaseEmail = input.email.toLowerCase();
+
+    // Feature 051 — a personal (B2C) organization is single-member by
+    // definition; it cannot invite additional members.
+    const actorOrg = await em.findOne(Organization, { id: actor.organizationId });
+    if (actorOrg?.isPersonal) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.VALIDATION_FAILED,
+        'A personal (individual) account cannot invite members.',
+      );
+    }
 
     // Pre-check existing membership.
     const existingByEmail = await em.findOne(CustomerAccount, { email: lowercaseEmail });
@@ -94,6 +108,15 @@ export class InvitationService {
       tokenHash: sha256Hex(rawToken),
       expiresAt: new Date(Date.now() + INVITATION_TTL_DAYS * 24 * 60 * 60 * 1_000),
     });
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action: 'organization.invite',
+        objectType: 'organization',
+        objectId: actor.organizationId,
+        stateBefore: null,
+        stateAfter: { email: lowercaseEmail, role },
+      });
+    }
     try {
       await em.persistAndFlush(invitation);
     } catch (err) {
@@ -203,6 +226,15 @@ export class InvitationService {
     }
 
     invitation.revokedAt = new Date();
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action: 'organization.invite_revoke',
+        objectType: 'organization',
+        objectId: invitation.organizationId,
+        stateBefore: { email: invitation.email, role: invitation.role },
+        stateAfter: null,
+      });
+    }
     await em.flush();
   }
 
@@ -253,6 +285,15 @@ export class InvitationService {
       emailVerifiedAt: new Date(), // accepting an invitation implies confirmed email
     });
     invitation.consumedAt = new Date();
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action: 'organization.invite_accept',
+        objectType: 'organization',
+        objectId: invitation.organizationId,
+        stateBefore: null,
+        stateAfter: { email: invitation.email, role: invitation.role, customerAccountId: customer.id },
+      });
+    }
     await em.persistAndFlush([customer, invitation]);
 
     if (this.events) {

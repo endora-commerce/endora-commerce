@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * PriceListPriceBracket — one bracket row inside a price list for a given
@@ -13,6 +14,7 @@ import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
  * `maxQuantity = null` is the open-ended top bracket. `amount` is decimal(14,4)
  * stored as a string to preserve precision through the wire and the ORM.
  */
+@GlobalEntity()
 @Entity({ tableName: 'price_list_price_brackets' })
 export class PriceListPriceBracket {
   [OptionalProps]?: 'createdAt' | 'updatedAt' | 'maxQuantity';

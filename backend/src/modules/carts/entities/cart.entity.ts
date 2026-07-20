@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { CustomerScoped } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -27,6 +28,7 @@ import { randomUUID } from 'crypto';
  * race (buyer-vs-Org-Admin) — aligned with the convention shared by
  * features 003 / 026.
  */
+@CustomerScoped()
 @Entity({ tableName: 'carts' })
 export class Cart {
   [OptionalProps]?:

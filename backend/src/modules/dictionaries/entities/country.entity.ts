@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * Country — ISO 3166-1 alpha-2 territories the platform recognises (feature 017).
@@ -8,6 +9,7 @@ import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/c
  * migration. Hard-delete is service-layer guarded: refused while any
  * consumer references the row (FR-021).
  */
+@GlobalEntity()
 @Entity({ tableName: 'countries' })
 export class Country {
   [OptionalProps]?:

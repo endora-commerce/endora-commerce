@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,6 +7,7 @@ import { randomUUID } from 'crypto';
  * (e.g. header/footer) embedded in campaign/automation content. Global when no
  * sales-channel bridge rows exist. System blocks cannot be deleted.
  */
+@GlobalEntity()
 @Entity({ tableName: 'newsletter_email_blocks' })
 export class NewsletterEmailBlock {
   [OptionalProps]?: 'active' | 'description' | 'isSystem' | 'version' | 'createdAt' | 'updatedAt';

@@ -238,3 +238,37 @@ table for precomposed Latin letters NFD doesn't split (ł/Ł, ø/Ø,
 - `049_customer_accounts_organization_optional.ts` — relaxes
   `customer_accounts.organization_id` to nullable so guest-style
   Customer accounts are representable (FR-010 / FR-012).
+- `089_personal_organizations.ts` — adds `organizations.is_personal`
+  and backfills a personal organization for every pre-existing no-org
+  customer account (see "Personal organizations" below).
+
+### Personal organizations (B2C) — feature 051
+
+The Organization is the platform's single tenant concept. A B2C /
+individual customer is **not** a null-org special case: every standalone
+customer registration provisions a single-member **personal
+organization** (`is_personal = true`), created automatically by
+`PersonalOrganizationService.ensureFor(account)` and linked to the
+account. This means:
+
+- **Transacting works unchanged.** `organization_id` is always non-null,
+  so ordering, RFQs, credit, invoices and addresses need no null-org path.
+- **Isolation is structural.** The feature-050 tenant guard isolates each
+  personal org as its own tenant — two B2C customers can never see each
+  other's data, with zero null-org special-casing.
+- **Individual defaults.** `status = active`, `vat_status = vat_exempt`,
+  `name` from the customer's name (falling back to the email local-part),
+  and a synthetic 32-hex `tax_id` derived from the account id (the column
+  is globally `UNIQUE`; an individual has no company tax id).
+- **Invisible in B2B admin.** Personal orgs are excluded by default from
+  the admin org list/pickers, cannot receive a sales rep, and never enter
+  the moderation queue (they are created `active`). The admin org list
+  accepts `?includePersonal=true` to surface them when needed.
+- **Per-channel gate.** Standalone (B2C) registration is controlled per
+  sales channel by the `customers.allow_registration_without_organization`
+  setting; a B2B-only channel refuses the registration and provisions
+  nothing.
+
+Company (B2B) organizations are unaffected — the single-member invariant
+(`assertMembershipAllowed`) only rejects adding a second member to a
+personal org.

@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -12,6 +13,7 @@ import { randomUUID } from 'crypto';
  * The "option product can't itself be grouped/bundle" rule is enforced
  * at the service layer (research R-8).
  */
+@GlobalEntity()
 @Entity({ tableName: 'bundle_slot_options' })
 export class BundleSlotOption {
   [OptionalProps]?: 'id' | 'defaultQuantity' | 'position' | 'createdAt' | 'updatedAt';

@@ -58,8 +58,11 @@ describe('US3 — four-corner matrix (channel × language) overrides', () => {
     );
     retailChannelId = rows.find((r) => r.code === 'pl_retail')!.id;
     vipChannelId = rows.find((r) => r.code === 'pl_b2b_vip')!.id;
+    // Admin product-create auto-binds to the system-default channel (feature
+    // 053: now pl_retail), so the pl_retail row may already exist — upsert.
     await conn.execute(
-      `insert into sales_channel_products (sales_channel_id, product_id) values (?,?), (?,?)`,
+      `insert into sales_channel_products (sales_channel_id, product_id) values (?,?), (?,?)
+       on conflict do nothing`,
       [retailChannelId, productId, vipChannelId, productId],
     );
     await conn.execute(

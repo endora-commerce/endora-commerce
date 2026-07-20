@@ -270,7 +270,7 @@ export async function registerInventoryAdminRoutes(
     { preHandler: requireAdmin('catalog:write') },
     async (request, reply) => {
       const { id } = request.params as { id: string };
-      await warehouseService.delete(id);
+      await warehouseService.delete(id, buildAuditCtx(request, deps.resolveAdminAuditContext));
       reply.status(204);
     },
   );

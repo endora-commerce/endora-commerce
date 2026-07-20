@@ -10,6 +10,8 @@ import {
   type UpdateAutomationRequest,
 } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import { NewsletterAutomation } from '../entities/newsletter-automation.entity.js';
 import { NewsletterAutomationRun } from '../entities/newsletter-automation-run.entity.js';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
@@ -29,6 +31,8 @@ export interface AutomationServiceDeps {
   resolveSender: () => Promise<{ fromEmail: string; fromName: string }>;
   /** Enqueue the next step (production: BullMQ delayed job). */
   enqueueStep: (runId: string, stepIndex: number, delayMs: number) => Promise<void>;
+  /** Feature 054 — audits automation lifecycle writes co-transactionally when provided. */
+  auditLog?: AuditLogService;
 }
 
 /**
@@ -38,6 +42,18 @@ export interface AutomationServiceDeps {
  */
 export class NewsletterAutomationService {
   constructor(private readonly deps: AutomationServiceDeps) {}
+
+  #audit(em: EntityManager, action: string, objectId: string, stateAfter: Record<string, unknown> | null): void {
+    if (this.deps.auditLog) {
+      recordAuditFromContext(this.deps.auditLog, em, {
+        action,
+        objectType: 'newsletter_automation',
+        objectId,
+        stateBefore: null,
+        stateAfter,
+      });
+    }
+  }
 
   /** Validation issues that block activation (FR-022). Empty ⇒ valid. */
   static validate(triggerType: string, triggerTagIds: string[], steps: AutomationStep[]): string[] {
@@ -69,7 +85,9 @@ export class NewsletterAutomationService {
       reentryPolicy: input.reentryPolicy,
       steps: input.steps as unknown as Array<Record<string, unknown>>,
     });
-    await em.persistAndFlush(automation);
+    em.persist(automation);
+    this.#audit(em, 'newsletter_automation.create', automation.id, { name: automation.name });
+    await em.flush();
     return this.toDetail(automation);
   }
 
@@ -90,6 +108,7 @@ export class NewsletterAutomationService {
     if (input.reentryPolicy !== undefined) a.reentryPolicy = input.reentryPolicy;
     if (input.steps !== undefined) a.steps = input.steps as unknown as Array<Record<string, unknown>>;
     a.version += 1;
+    this.#audit(em, 'newsletter_automation.update', a.id, { name: a.name });
     await em.persistAndFlush(a);
     return this.toDetail(a);
   }
@@ -123,6 +142,7 @@ export class NewsletterAutomationService {
     }
     a.status = 'active';
     a.version += 1;
+    this.#audit(em, 'newsletter_automation.activate', a.id, { status: 'active' });
     await em.persistAndFlush(a);
     return this.toDetail(a);
   }
@@ -135,6 +155,7 @@ export class NewsletterAutomationService {
     }
     a.status = 'paused';
     a.version += 1;
+    this.#audit(em, 'newsletter_automation.pause', a.id, { status: 'paused' });
     await em.persistAndFlush(a);
     return this.toDetail(a);
   }
@@ -166,6 +187,8 @@ export class NewsletterAutomationService {
 
   /** Execute one automation step for a run. Idempotent on (run, stepIndex). */
   async processStep(runId: string, stepIndex: number): Promise<void> {
+    // command-coverage-ignore: automation run execution — advances a run to its
+    // next step; background workflow execution, not an operator write.
     const em = this.deps.emFactory();
     const run = await em.findOne(NewsletterAutomationRun, { id: runId });
     if (!run || run.status !== 'active') return;
@@ -213,6 +236,8 @@ export class NewsletterAutomationService {
 
   /** Cancel all active runs for a subscriber (on unsubscribe/delete — FR-021). */
   async cancelRunsForSubscriber(subscriberId: string): Promise<void> {
+    // command-coverage-ignore: automation run execution — cancels in-flight runs
+    // on unsubscribe; background lifecycle bookkeeping.
     const em = this.deps.emFactory();
     const runs = await em.find(NewsletterAutomationRun, { subscriberId, status: 'active' });
     for (const run of runs) {
@@ -247,6 +272,8 @@ export class NewsletterAutomationService {
     em: EntityManager,
     automation: NewsletterAutomation,
     step: Extract<AutomationStep, { type: 'send' }>,
+    // command-coverage-ignore: automation run execution — dispatches a step
+    // email + stamps the send record; delivery bookkeeping.
     subscriberId: string,
     recordId: string,
   ): Promise<void> {

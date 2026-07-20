@@ -16,11 +16,18 @@ import { tForLocale } from '../../lib/i18n/messages';
  *   - `billingSameAsShipping` checkbox (when checked, billing inputs omitted)
  * The action treats an empty/absent id as "create from the `*_` inputs".
  */
+export interface CountryOption {
+  code: string;
+  label: string;
+}
+
 export interface AddressSectionProps {
   deliveryAddresses: AddressSummary[];
   billingAddresses: AddressSummary[];
   /** Active storefront locale; resolves the PL/EN copy. */
   locale: string;
+  /** Valid, active countries for the address country picker. */
+  countries: CountryOption[];
   /** Feature 039 — resolved default shipping address to pre-select, if any. */
   preferredShippingAddressId?: string | null;
   /** Feature 039 — resolved default billing address to pre-select, if any. */
@@ -53,10 +60,12 @@ function NewAddressFields({
   prefix,
   required,
   locale,
+  countries,
 }: {
   prefix: string;
   required: boolean;
   locale: string;
+  countries: CountryOption[];
 }): React.ReactNode {
   const t = tForLocale(locale);
   return (
@@ -85,13 +94,22 @@ function NewAddressFields({
         required={required}
         className={FIELD_CLASS}
       />
-      <input
+      <select
         name={`${prefix}_country`}
-        placeholder={t('checkout.address.country')}
         required={required}
-        maxLength={2}
-        className={FIELD_CLASS}
-      />
+        defaultValue=""
+        aria-label={t('checkout.address.country')}
+        className={SELECT_CLASS}
+      >
+        <option value="" disabled>
+          {t('checkout.address.country')}
+        </option>
+        {countries.map((c) => (
+          <option key={c.code} value={c.code}>
+            {c.label}
+          </option>
+        ))}
+      </select>
       <input
         name={`${prefix}_phone`}
         placeholder={t('checkout.address.phone')}
@@ -105,6 +123,7 @@ export function AddressSection({
   deliveryAddresses,
   billingAddresses,
   locale,
+  countries,
   preferredShippingAddressId,
   preferredBillingAddressId,
   organizationName,
@@ -157,7 +176,12 @@ export function AddressSection({
             ))}
           </select>
         ) : (
-          <NewAddressFields prefix="delivery" required={shippingMode === 'new'} locale={locale} />
+          <NewAddressFields
+            prefix="delivery"
+            required={shippingMode === 'new'}
+            locale={locale}
+            countries={countries}
+          />
         )}
       </fieldset>
 
@@ -234,6 +258,7 @@ export function AddressSection({
               prefix="billing"
               required={!billingSame && billingMode === 'new'}
               locale={locale}
+              countries={countries}
             />
           )}
         </fieldset>

@@ -9,13 +9,34 @@ import { ERROR_CODES, type AssetFolder as AssetFolderDto } from '@b2b/contracts'
 import { HttpError } from '../../../http/error-envelope.js';
 import { AssetFolder } from '../entities/asset-folder.entity.js';
 import { Asset } from '../entities/asset.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import type { AssetReferenceRegistry } from './reference-registry.js';
 
 export class FoldersService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly referenceRegistry: AssetReferenceRegistry,
+    private readonly auditLog?: AuditLogService,
   ) {}
+
+  #audit(
+    em: EntityManager,
+    action: string,
+    objectId: string,
+    stateBefore: Record<string, unknown> | null,
+    stateAfter: Record<string, unknown> | null,
+  ): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action,
+        objectType: 'asset_folder',
+        objectId,
+        stateBefore,
+        stateAfter,
+      });
+    }
+  }
 
   async listFolderTree(): Promise<AssetFolderDto[]> {
     const em = this.emFactory();
@@ -59,7 +80,9 @@ export class FoldersService {
         name: input.name,
         position,
       });
-      await em.persistAndFlush(f);
+      em.persist(f);
+      this.#audit(em, 'asset_folder.create', f.id, null, { name: f.name, parentId: f.parentId });
+      await em.flush();
       return this.toDto(f, []);
     } catch (e) {
       if (isUniqueViolation(e)) {
@@ -112,6 +135,7 @@ export class FoldersService {
     if (patch.name !== undefined) f.name = patch.name;
     if (patch.position !== undefined) f.position = patch.position;
 
+    this.#audit(em, 'asset_folder.update', f.id, null, { name: f.name, parentId: f.parentId });
     try {
       await em.flush();
     } catch (e) {
@@ -135,6 +159,9 @@ export class FoldersService {
     const em = this.emFactory();
     const f = await em.findOne(AssetFolder, { id });
     if (!f) throw new HttpError(404, ERROR_CODES.ASSET_FOLDER_NOT_FOUND, `Folder ${id} not found.`);
+    // Audit persists on `em`; only committed by the flush in whichever strategy
+    // branch actually deletes (a `cancel`/refs-blocked path throws before flush).
+    this.#audit(em, 'asset_folder.delete', f.id, { name: f.name, strategy }, null);
 
     const childFolders = await em.find(AssetFolder, { parentId: id });
     const directAssets = await em.find(Asset, { folderId: id });

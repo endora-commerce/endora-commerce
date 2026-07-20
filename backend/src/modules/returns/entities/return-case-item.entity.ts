@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -9,6 +10,7 @@ import { randomUUID } from 'crypto';
  * proportional tax); `approvedRefundAmount` is the admin-adjustable settled value,
  * which MUST NOT exceed the default (FR-031/032).
  */
+@GlobalEntity()
 @Entity({ tableName: 'return_case_items' })
 export class ReturnCaseItem {
   [OptionalProps]?:

@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -12,6 +13,7 @@ import { randomUUID } from 'crypto';
  *     cache between mini-cart / full-cart / checkout-entry walks).
  *     Cleared on any cart-side write.
  */
+@GlobalEntity()
 @Entity({ tableName: 'cart_items' })
 export class CartItem {
   [OptionalProps]?:

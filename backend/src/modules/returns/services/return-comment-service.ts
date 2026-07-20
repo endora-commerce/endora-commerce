@@ -30,6 +30,8 @@ export class ReturnCommentService {
     adminUserId: string,
     input: { body: string; isCustomerVisible: boolean; notifyCustomer: boolean },
   ): Promise<ReturnCaseCommentDto> {
+    // command-coverage-ignore: return-case comments are an append-only
+    // communication thread, not audited domain-state (no before-state, no undo).
     const em = this.deps.emFactory();
     const rc = await this.loadOpenCase(em, { id });
     const comment = em.create(ReturnCaseComment, {
@@ -52,6 +54,8 @@ export class ReturnCommentService {
     customerAccountId: string,
     input: { body: string },
   ): Promise<ReturnCaseCommentDto> {
+    // command-coverage-ignore: return-case comments are an append-only
+    // communication thread, not audited domain-state (no before-state, no undo).
     const em = this.deps.emFactory();
     const rc = await this.loadOpenCase(em, { id, customerAccountId });
     const comment = em.create(ReturnCaseComment, {

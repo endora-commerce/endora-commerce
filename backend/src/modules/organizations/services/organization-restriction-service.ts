@@ -4,6 +4,8 @@ import { Organization } from '../entities/organization.entity.js';
 import { OrganizationPaymentMethodLink } from '../entities/organization-payment-method-link.entity.js';
 import { OrganizationDeliveryMethodLink } from '../entities/organization-delivery-method-link.entity.js';
 import { OrganizationWarehouseLink } from '../entities/organization-warehouse-link.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 export interface AllowLists {
   paymentMethodIds: string[];
@@ -45,7 +47,10 @@ export interface PatchAllowListInput {
  * foundational service only owns the persisted state.
  */
 export class OrganizationRestrictionService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
 
   async readAllowLists(organizationId: string): Promise<AllowListsRead> {
     const em = this.emFactory();
@@ -96,6 +101,19 @@ export class OrganizationRestrictionService {
         // Touch the Organization so the version column advances. MikroORM's
         // optimistic-lock semantics bump `version` automatically on flush.
         org.updatedAt = new Date();
+        if (this.auditLog) {
+          recordAuditFromContext(this.auditLog, tem, {
+            action: 'organization.allow_lists_replace',
+            objectType: 'organization',
+            objectId: organizationId,
+            stateBefore: null,
+            stateAfter: {
+              paymentMethodIds: dedupe(input.paymentMethodIds),
+              deliveryMethodIds: dedupe(input.deliveryMethodIds),
+              warehouseIds: dedupe(input.warehouseIds),
+            },
+          });
+        }
         await tem.flush();
       });
     } catch (err) {
@@ -155,6 +173,15 @@ export class OrganizationRestrictionService {
         }
 
         org.updatedAt = new Date();
+        if (this.auditLog) {
+          recordAuditFromContext(this.auditLog, tem, {
+            action: 'organization.allow_list_patch',
+            objectType: 'organization',
+            objectId: organizationId,
+            stateBefore: null,
+            stateAfter: { kind, add: dedupe(input.add ?? []), remove: dedupe(input.remove ?? []) },
+          });
+        }
         await tem.flush();
       });
     } catch (err) {

@@ -64,7 +64,8 @@ describe('Admin customer list + detail (US5)', () => {
     expect(d.email).toBe(email);
     expect(d).toHaveProperty('createdAt');
     expect(d).toHaveProperty('customerGroupId', null);
-    expect(d).toHaveProperty('organizationId', null);
+    // Feature 051 — registered standalone customers are backed by a personal org.
+    expect(d.organizationId).toEqual(expect.any(String));
     expect(d).toHaveProperty('blocked', false);
     expect(d).toHaveProperty('lastLoginAt');
     expect(d.block).toBeNull();

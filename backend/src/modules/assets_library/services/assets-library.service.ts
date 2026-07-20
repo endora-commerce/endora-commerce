@@ -10,6 +10,8 @@ import type { AdapterRegistry } from './storage/adapter-registry.js';
 import type { AssetReferenceRegistry } from './reference-registry.js';
 import { UploadPipeline, type UploadInput, type UploadPolicy } from './upload-pipeline.js';
 import { LegacyAssetCannotHardenError } from './storage/errors.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 export class NotImplementedYet extends Error {
   override readonly name = 'NotImplementedYet';
@@ -26,6 +28,8 @@ export interface AssetsLibraryServiceDeps {
   referenceRegistry: AssetReferenceRegistry;
   /** Upload-policy provider — reads `assets.allowed_file_types` + max-size. */
   loadUploadPolicy: () => Promise<UploadPolicy>;
+  /** Feature 054 — audits asset writes co-transactionally when provided. */
+  auditLog?: AuditLogService;
 }
 
 export interface ListAssetsQuery {
@@ -46,7 +50,26 @@ export class AssetsLibraryService {
       emFactory: deps.emFactory,
       adapters: deps.adapters,
       loadPolicy: deps.loadUploadPolicy,
+      ...(deps.auditLog ? { auditLog: deps.auditLog } : {}),
     });
+  }
+
+  #audit(
+    em: EntityManager,
+    action: string,
+    objectId: string,
+    stateBefore: Record<string, unknown> | null,
+    stateAfter: Record<string, unknown> | null,
+  ): void {
+    if (this.deps.auditLog) {
+      recordAuditFromContext(this.deps.auditLog, em, {
+        action,
+        objectType: 'asset',
+        objectId,
+        stateBefore,
+        stateAfter,
+      });
+    }
   }
 
   /** Upload entry point — runs the atomic put + insert + compensating-delete pipeline. */
@@ -172,6 +195,7 @@ export class AssetsLibraryService {
       a.visibility = patch.visibility;
     }
 
+    this.#audit(em, 'asset.update', a.id, null, { filename: a.filename, visibility: a.visibility });
     await em.flush();
     return this.detail(a);
   }
@@ -207,6 +231,7 @@ export class AssetsLibraryService {
     const now = new Date();
     a.deletedAt = now;
     a.purgeAfterAt = new Date(now.getTime() + retentionDays * 24 * 60 * 60 * 1000);
+    this.#audit(em, 'asset.soft_delete', a.id, { filename: a.filename }, null);
     await em.flush();
     return { deletedAt: a.deletedAt, purgeAfterAt: a.purgeAfterAt };
   }
@@ -218,6 +243,7 @@ export class AssetsLibraryService {
     a.deletedAt = null;
     a.purgeAfterAt = null;
     a.pendingCleanup = false;
+    this.#audit(em, 'asset.restore', a.id, null, { filename: a.filename });
     await em.flush();
     return this.detail(a);
   }
@@ -227,6 +253,7 @@ export class AssetsLibraryService {
     const a = await em.findOne(Asset, { id: assetId });
     if (!a) throw new HttpError(404, ERROR_CODES.ASSET_NOT_FOUND, `Asset ${assetId} not found.`);
     a.folderId = folderId;
+    this.#audit(em, 'asset.move', a.id, null, { folderId });
     await em.flush();
     return this.detail(a);
   }
@@ -235,6 +262,12 @@ export class AssetsLibraryService {
     const em = this.deps.emFactory();
     const assets = await em.find(Asset, { id: { $in: assetIds } });
     for (const a of assets) a.folderId = folderId;
+    if (assets.length > 0) {
+      this.#audit(em, 'asset.move_many', folderId ?? 'root', null, {
+        folderId,
+        assetIds: assets.map((a) => a.id),
+      });
+    }
     await em.flush();
     return { movedCount: assets.length };
   }

@@ -28,6 +28,9 @@ import { registerOrganizationsStorefrontRoutes } from './routes.storefront.js';
 import { OrganizationContextService } from './services/organization-context-service.js';
 import { registerMembersRoutes } from './routes.members.js';
 import { registerOrganizationsAdminRoutes } from './routes.admin.js';
+import { OrganizationTreeService } from './services/organization-tree-service.js';
+import type { CommandBus } from '../../commands/index.js';
+import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { RequireAdminAnyFactory } from '../../http/require-admin-any.js';
 import type { DictionaryValidator } from '@b2b/contracts';
@@ -110,6 +113,14 @@ export interface OrganizationsModuleOptions {
    * when provided.
    */
   taxIdValidationService?: OrganizationTaxIdValidationService;
+  /** Feature 055 — validates + reads organization custom-field values on the admin edit path. */
+  customFieldValues?: CustomFieldValueService;
+  /**
+   * Feature 056 — Command Bus for the org-hierarchy tree mutations
+   * (`organization.set_parent` / `organization.move`). When present alongside
+   * `requireAdmin`, the hierarchy admin endpoints are mounted (Principle XIII).
+   */
+  commandBus?: CommandBus;
 }
 
 export function organizationsModule(options: OrganizationsModuleOptions) {
@@ -130,27 +141,31 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       options.emFactory,
       options.eventBus as OrganizationEventBus,
       options.dictionaryValidator,
+      options.auditLogService,
     );
     const verificationService = new EmailVerificationService(
       options.emFactory,
       options.eventBus as OrganizationEventBus,
+      options.auditLogService,
     );
     const customerAuthService = new CustomerAuthService(
       options.emFactory,
       options.sessionService,
       options.getMfaLoginPort,
+      options.auditLogService,
     );
-    const addressService = new AddressService(options.emFactory, options.dictionaryValidator);
+    const addressService = new AddressService(options.emFactory, options.dictionaryValidator, options.auditLogService);
     const invitationService = new InvitationService(
       options.emFactory,
       mailer,
       { acceptBaseUrl: storefrontBaseUrl },
       options.eventBus as OrganizationEventBus,
       orgTemplateEmail,
+      options.auditLogService,
     );
-    const roleService = new RoleService(options.emFactory);
-    const passwordResetService = new PasswordResetService(options.emFactory);
-    const totpEnrolmentService = new TotpEnrolmentService(options.emFactory);
+    const roleService = new RoleService(options.emFactory, options.auditLogService);
+    const passwordResetService = new PasswordResetService(options.emFactory, options.auditLogService);
+    const totpEnrolmentService = new TotpEnrolmentService(options.emFactory, options.auditLogService);
     const latestInvitationToken: { value: string | null } = { value: null };
 
     await registerOrganizationsPublicRoutes(app, {
@@ -219,6 +234,13 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
           : {}),
         ...(options.taxIdValidationService
           ? { taxIdValidationService: options.taxIdValidationService }
+          : {}),
+        ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
+        ...(options.commandBus
+          ? {
+              commandBus: options.commandBus,
+              treeService: new OrganizationTreeService(options.emFactory),
+            }
           : {}),
       });
     }

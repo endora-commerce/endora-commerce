@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -13,6 +14,7 @@ import { randomUUID } from 'crypto';
  */
 export type InventoryThresholdScopeKind = 'global' | 'category' | 'product';
 
+@GlobalEntity()
 @Entity({ tableName: 'inventory_thresholds' })
 export class InventoryThreshold {
   [OptionalProps]?:

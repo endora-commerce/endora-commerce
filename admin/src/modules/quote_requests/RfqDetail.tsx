@@ -23,6 +23,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
+import { CustomFieldValuesPanel } from '../custom_fields/CustomFieldValuesPanel';
 
 /**
  * Admin Quote Request detail (feature 008 / T043). Restructured to mirror the
@@ -97,6 +98,7 @@ interface AdminRfqDetail {
   currentRevisionNumber: number;
   headerNote: string | null;
   cancellationReason: string | null;
+  customFieldValues?: Record<string, unknown>;
   items: AdminRfqItem[];
   events: AdminRfqEvent[];
   submittedAt: string | null;
@@ -536,6 +538,21 @@ export function RfqDetail(): ReactNode {
                   ) : null}
                 </Table>
               </Section>
+              {/* Feature 055 — operator-defined custom fields for this quote request. */}
+              {!isTerminal ? (
+                <CustomFieldValuesPanel
+                  entityType="quote_request"
+                  values={rfq.customFieldValues ?? {}}
+                  save={async (values): Promise<void> => {
+                    await apiClient.patch(
+                      `/api/v1/admin/quote-requests/${rfq.id}`,
+                      { customFieldValues: values },
+                      { headers: { 'If-Match': `"${rfq.version}"` } },
+                    );
+                    await refresh();
+                  }}
+                />
+              ) : null}
             </>
           ) : null}
 

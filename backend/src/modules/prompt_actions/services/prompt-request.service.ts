@@ -65,6 +65,8 @@ export class PromptRequestService {
   // --------------------------------------------------------------------
 
   async submit(op: OperatorContext, prompt: string): Promise<PromptActionRequest> {
+    // command-coverage-ignore: prompt-action request-queue lifecycle — the executed
+    // admin action is audited by its target service; this is queue state.
     const em = this.deps.emFactory();
 
     const inFlight = await em.count(PromptActionRequest, {
@@ -100,6 +102,8 @@ export class PromptRequestService {
     id: string,
     answer: { selectedCandidateId?: string; text?: string },
   ): Promise<PromptActionRequest> {
+    // command-coverage-ignore: prompt-action request-queue lifecycle — the executed
+    // admin action is audited by its target service; this is queue state.
     const em = this.deps.emFactory();
     const row = await this.loadOwned(em, id, op.adminUserId);
     if (row.status !== 'needs_clarification') {
@@ -297,6 +301,8 @@ export class PromptRequestService {
   // --------------------------------------------------------------------
 
   async cancel(op: OperatorContext, id: string): Promise<PromptActionRequest> {
+    // command-coverage-ignore: prompt-action request-queue lifecycle — the executed
+    // admin action is audited by its target service; this is queue state.
     const em = this.deps.emFactory();
     const row = await this.loadOwned(em, id, op.adminUserId);
     if (row.status !== 'awaiting_confirmation' && row.status !== 'needs_clarification') {
@@ -340,6 +346,8 @@ export class PromptRequestService {
   }
 
   async markSeen(op: OperatorContext, id: string): Promise<void> {
+    // command-coverage-ignore: prompt-action request-queue lifecycle — the executed
+    // admin action is audited by its target service; this is queue state.
     const em = this.deps.emFactory();
     const row = await this.loadOwned(em, id, op.adminUserId);
     if (!row.seenAt) {

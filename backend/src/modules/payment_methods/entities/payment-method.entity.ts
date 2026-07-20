@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,6 +7,7 @@ import { randomUUID } from 'crypto';
  * credit_limit, gateway). Drivers ship with US2/US6/US7 depending on which
  * payment type they handle.
  */
+@GlobalEntity()
 @Entity({ tableName: 'payment_methods' })
 export class PaymentMethod {
   [OptionalProps]?: 'id' | 'createdAt' | 'updatedAt' | 'status' | 'additionalPrice';

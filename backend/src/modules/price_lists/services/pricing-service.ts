@@ -2,7 +2,6 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DisplayMode } from '@b2b/contracts';
 import type { Product } from '../../catalog/entities/product.entity.js';
 import type { Organization } from '../../organizations/entities/organization.entity.js';
-import type { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import { PriceList } from '../entities/price-list.entity.js';
 import { PriceListPriceBracket } from '../entities/price-list-price-bracket.entity.js';
 import {
@@ -43,6 +42,12 @@ export class PricingService {
       displayMode: DisplayMode;
       currencyCode: string;
     }>,
+    /**
+     * Feature 056 — resolves the acting org's inheritance chain (nearest-first,
+     * `[orgId, ...ancestorIds]`) so a descendant inherits an ancestor's org-named
+     * price list. When absent, the chain is `[orgId]` (flat behavior, byte-for-byte).
+     */
+    private readonly resolveOrgChain?: (orgId: string) => Promise<readonly string[]>,
   ) {}
 
   // ---- Engine resolver (US5 / FR-026..FR-032) ------------------------
@@ -79,7 +84,13 @@ export class PricingService {
        * the Organization's group is used (unchanged behavior).
        */
       customerGroupId?: string | null;
-      salesChannel: SalesChannel;
+      /**
+       * The request's resolved sales channel. Only `id` (rule dimension +
+       * cache key) and `defaultCurrency` (currency fallback) are read, so any
+       * resolved-channel shape satisfies this — a full `SalesChannel` entity,
+       * or the request-scoped `CachedChannel` (feature 053 / FR-002).
+       */
+      salesChannel: { id: string; defaultCurrency: string };
       currencyCode?: string;
     };
   }): Promise<{
@@ -119,8 +130,14 @@ export class PricingService {
         `select category_id from product_categories where product_id = ?`,
         [product.id],
       );
+    const orgId = context.organization?.id ?? null;
+    // Feature 056 — build the org inheritance chain (nearest-first). Flat when
+    // no resolver is wired or the org is a root.
+    const organizationChain =
+      orgId !== null && this.resolveOrgChain ? await this.resolveOrgChain(orgId) : orgId !== null ? [orgId] : [];
     const ctx: ResolutionContext = {
-      organizationId: context.organization?.id ?? null,
+      organizationId: orgId,
+      organizationChain,
       customerGroupId: context.customerGroupId ?? context.organization?.customerGroupId ?? null,
       salesChannelId: context.salesChannel.id,
       currencyCode,
@@ -220,7 +237,13 @@ export class PricingService {
       organization?: Organization | null;
       /** Feature 040 — customer's direct group overrides the org's (R6). */
       customerGroupId?: string | null;
-      salesChannel: SalesChannel;
+      /**
+       * The request's resolved sales channel. Only `id` (rule dimension +
+       * cache key) and `defaultCurrency` (currency fallback) are read, so any
+       * resolved-channel shape satisfies this — a full `SalesChannel` entity,
+       * or the request-scoped `CachedChannel` (feature 053 / FR-002).
+       */
+      salesChannel: { id: string; defaultCurrency: string };
       currencyCode?: string;
     };
   }): Promise<{

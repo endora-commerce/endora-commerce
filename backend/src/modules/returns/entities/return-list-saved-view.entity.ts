@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -8,6 +9,7 @@ import { randomUUID } from 'crypto';
  * private to its owner or shared with everyone with list access. Mirrors
  * `order_list_saved_views`.
  */
+@GlobalEntity()
 @Entity({ tableName: 'return_list_saved_views' })
 export class ReturnListSavedView {
   [OptionalProps]?: 'id' | 'shared' | 'visibleColumns' | 'createdAt' | 'updatedAt';

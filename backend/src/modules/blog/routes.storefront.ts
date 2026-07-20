@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ERROR_CODES } from '@b2b/contracts';
 import { z } from 'zod';
 import { HttpError } from '../../http/error-envelope.js';
+import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
 import type { BlogStorefrontResolver } from './services/blog-storefront-resolver.js';
 
 const bySlugQuerySchema = z.object({
@@ -19,9 +20,9 @@ export async function registerBlogStorefrontRoutes(
   deps: { storefrontResolver: BlogStorefrontResolver },
 ): Promise<void> {
   app.get('/api/v1/blog/by-channel', async (request) => {
-    const { salesChannelCode, language } = readContext(request);
+    const { language } = readContext(request);
     const resolved = await deps.storefrontResolver.getIndex({
-      ...(salesChannelCode !== undefined ? { salesChannelCode } : {}),
+      resolvedChannel: resolvedChannel(request),
       ...(language !== undefined ? { language } : {}),
     });
     if (!resolved) {
@@ -32,9 +33,9 @@ export async function registerBlogStorefrontRoutes(
 
   app.get('/api/v1/blog/by-slug', async (request) => {
     const query = bySlugQuerySchema.parse(request.query ?? {});
-    const { salesChannelCode, language } = readContext(request);
+    const { language } = readContext(request);
     const resolved = await deps.storefrontResolver.getBySlug(query.slug, {
-      ...(salesChannelCode !== undefined ? { salesChannelCode } : {}),
+      resolvedChannel: resolvedChannel(request),
       ...(language !== undefined ? { language } : {}),
       ...(query.page !== undefined ? { page: query.page } : {}),
     });
@@ -50,9 +51,9 @@ export async function registerBlogStorefrontRoutes(
 
   app.get('/api/v1/blog/tag-by-code', async (request) => {
     const query = tagByCodeQuerySchema.parse(request.query ?? {});
-    const { salesChannelCode, language } = readContext(request);
+    const { language } = readContext(request);
     const resolved = await deps.storefrontResolver.getTagByCode(query.code, {
-      ...(salesChannelCode !== undefined ? { salesChannelCode } : {}),
+      resolvedChannel: resolvedChannel(request),
       ...(language !== undefined ? { language } : {}),
       ...(query.page !== undefined ? { page: query.page } : {}),
     });
@@ -68,15 +69,27 @@ export async function registerBlogStorefrontRoutes(
 }
 
 function readContext(request: FastifyRequest): {
-  salesChannelCode: string | undefined;
   language: string | undefined;
 } {
   const headers = request.headers;
-  const salesChannelCode = readHeader(headers['x-sales-channel']);
   const language =
     readHeader(headers['x-blog-language']) ??
     readHeader(headers['accept-language'])?.split(',')[0]?.trim();
-  return { salesChannelCode, language };
+  return { language };
+}
+
+/**
+ * Read the sales channel already resolved by the sales-channel resolver
+ * middleware for this request. Feature 053: routes no longer re-parse the
+ * `x-sales-channel` header nor re-query `sales_channels`.
+ */
+function resolvedChannel(request: FastifyRequest): {
+  id: string;
+  code: string;
+  defaultLanguage: string;
+} {
+  const ch = getResolvedChannel(request);
+  return { id: ch.id, code: ch.code, defaultLanguage: ch.defaultLanguage };
 }
 
 function readHeader(value: string | string[] | undefined): string | undefined {

@@ -153,6 +153,31 @@ export const placeOrderRequestSchema = z.object({
 });
 export type PlaceOrderRequest = z.infer<typeof placeOrderRequestSchema>;
 
+/**
+ * Read-only order-total preview for the active cart with a chosen delivery +
+ * payment method (feature 049). Computes the exact total server-side — including
+ * per-product VAT, delivery cost, payment surcharge, and promotion discount —
+ * so the storefront never re-derives pricing on the client. `billingAddressId`
+ * refines the tax country to match placement; omit ⇒ the organization's country.
+ */
+export const orderPreviewTotalRequestSchema = z.object({
+  deliveryMethodId: uuidSchema,
+  paymentMethodId: uuidSchema,
+  billingAddressId: uuidSchema.optional(),
+});
+export type OrderPreviewTotalRequest = z.infer<typeof orderPreviewTotalRequestSchema>;
+
+export const orderPreviewTotalResponseSchema = z.object({
+  subtotal: z.number(),
+  taxTotal: z.number(),
+  deliveryTotal: z.number(),
+  paymentSurcharge: z.number(),
+  discountTotal: z.number(),
+  total: z.number(),
+  currency: z.string(),
+});
+export type OrderPreviewTotalResponse = z.infer<typeof orderPreviewTotalResponseSchema>;
+
 export const adminOrderStatusTransitionSchema = z.object({
   to: orderStatusCodeSchema,
   reason: z.string().optional(),

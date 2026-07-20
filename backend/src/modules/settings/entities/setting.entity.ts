@@ -10,6 +10,7 @@ import {
   Property,
   Unique,
 } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 import { SettingGroup } from './setting-group.entity.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
@@ -31,6 +32,7 @@ export type SettingValueTypeDb = (typeof SETTING_VALUE_TYPES)[number];
  * supplied fallback used by the universal getter when no per-channel
  * `SettingValue` exists for the requested sales channel.
  */
+@GlobalEntity()
 @Entity({ tableName: 'settings' })
 export class Setting {
   [OptionalProps]?:

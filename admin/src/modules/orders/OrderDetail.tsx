@@ -35,6 +35,7 @@ import { OrderPaymentsTab } from './OrderPaymentsTab';
 import { OrderShipmentsTab } from './OrderShipmentsTab';
 import { Section } from './Section';
 import { orderStatusBadgeStyle } from './orderStatusColor';
+import { CustomFieldValuesPanel } from '../custom_fields/CustomFieldValuesPanel';
 
 type OrderTab = 'overview' | 'payment' | 'delivery' | 'comments';
 
@@ -83,6 +84,7 @@ interface OrderDetail {
   customer: OrderCustomer | null;
   status: string;
   paymentStatus: string;
+  customFieldValues?: Record<string, unknown>;
   deliveryAddress: OrderAddress;
   billingAddress: OrderAddress;
   deliveryMethod: { code: string; name: Record<string, string>; cost: number };
@@ -682,6 +684,15 @@ export function OrderDetail(): ReactNode {
                   </tfoot>
                 </Table>
               </Section>
+              {/* Feature 055 — operator-defined custom fields for this order. */}
+              <CustomFieldValuesPanel
+                entityType="order"
+                values={order.customFieldValues ?? {}}
+                save={async (values): Promise<void> => {
+                  await apiClient.patch(`/api/v1/admin/orders/${id}/custom-fields`, values);
+                  await refresh();
+                }}
+              />
             </>
           ) : null}
 

@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,6 +7,7 @@ import { randomUUID } from 'crypto';
  * Referenced by Order at creation time; the cost is captured as a snapshot
  * on the Order so later changes to this row do not rewrite history.
  */
+@GlobalEntity()
 @Entity({ tableName: 'delivery_methods' })
 export class DeliveryMethod {
   [OptionalProps]?:

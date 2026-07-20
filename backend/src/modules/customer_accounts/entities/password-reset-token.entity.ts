@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { CustomerScoped } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,6 +7,7 @@ import { randomUUID } from 'crypto';
  * hash stored, expires_at + consumed_at one-shot. Issued by the public
  * /auth/password-reset/request endpoint.
  */
+@CustomerScoped()
 @Entity({ tableName: 'password_reset_tokens' })
 export class PasswordResetToken {
   [OptionalProps]?: 'id' | 'createdAt' | 'consumedAt';

@@ -13,7 +13,7 @@ const sidebars = {
       type: 'category',
       label: 'Architecture',
       link: { type: 'generated-index', title: 'Architecture' },
-      items: [],
+      items: ['architecture/tenant-scoping', 'architecture/command-bus'],
     },
     {
       type: 'category',
@@ -107,6 +107,7 @@ const sidebars = {
         },
         'modules/orders',
         'modules/organizations',
+        'modules/organization-hierarchy',
         'modules/payment_methods',
         'modules/payments',
         'modules/price_lists',

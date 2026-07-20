@@ -45,6 +45,8 @@ export class PushMessageService {
   ) {}
 
   async createAndEnqueue(input: CreateMessageInput): Promise<CreateMessageResult> {
+    // command-coverage-ignore: push-notification infrastructure — device
+    // subscription / message delivery / icon asset, not audited domain state.
     const em = this.emFactory();
 
     // Idempotency guard for event-triggered sends: a duplicate event is a no-op.

@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 export type ProductLinkKind = 'related' | 'up_sell' | 'cross_sell';
@@ -15,6 +16,7 @@ export type ProductLinkKind = 'related' | 'up_sell' | 'cross_sell';
  * sides cascade on product delete. Position is admin-curated per
  * (source_product_id, kind).
  */
+@GlobalEntity()
 @Entity({ tableName: 'product_links' })
 export class ProductLink {
   [OptionalProps]?: 'id' | 'position' | 'createdAt' | 'updatedAt';

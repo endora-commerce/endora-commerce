@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,6 +7,7 @@ import { randomUUID } from 'crypto';
  * all/tag/tag-list. `steps` is an ordered JSON list whose shape leaves room for
  * future branch/condition/tag-action node types (research R9).
  */
+@GlobalEntity()
 @Entity({ tableName: 'newsletter_automations' })
 export class NewsletterAutomation {
   [OptionalProps]?:

@@ -25,7 +25,6 @@ import type {
   SettingsAdminService,
 } from '../settings/services/settings-admin.service.js';
 import type { SettingsService } from '../settings/services/settings.service.js';
-import { SalesChannel } from '../sales_channels/entities/sales-channel.entity.js';
 import { SEARCH_SETTING_CODES } from './manifest.js';
 
 /**
@@ -124,26 +123,26 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
   // `SettingNotRegistered`). The popup must never 500 because of a
   // Settings glitch.
   const resolveSuggestConfig = options.settingsService
-    ? async (ctx: { salesChannelCode?: string | undefined }): Promise<SuggestionCountConfig> => {
+    ? async (ctx: {
+        resolvedChannel: { id: string };
+      }): Promise<SuggestionCountConfig> => {
         const fallback: SuggestionCountConfig = {
           defaultLimit: DEFAULT_SUGGESTION_COUNT,
           minimumQueryLength: DEFAULT_MINIMUM_QUERY_LENGTH,
         };
         try {
-          const em = options.emFactory();
-          const channel = ctx.salesChannelCode
-            ? await em.findOne(SalesChannel, { code: ctx.salesChannelCode })
-            : await em.findOne(SalesChannel, { isPublic: true });
-          if (!channel) return fallback;
+          // Feature 053 / FR-002: per-channel settings key off the channel
+          // resolved once upstream — no re-resolution here.
+          const channelId = ctx.resolvedChannel.id;
           const [defaultLimit, minimumQueryLength] = await Promise.all([
             options.settingsService!.get(
               SEARCH_SETTING_CODES.POPUP_SUGGESTION_COUNT,
-              channel.id,
+              channelId,
               numberSchema,
             ),
             options.settingsService!.get(
               SEARCH_SETTING_CODES.POPUP_MINIMUM_QUERY_LENGTH,
-              channel.id,
+              channelId,
               numberSchema,
             ),
           ]);

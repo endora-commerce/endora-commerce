@@ -24,6 +24,9 @@ export class ShipmentService {
   ) {}
 
   async createShipment(orderId: string): Promise<Shipment> {
+    // command-coverage-ignore: creates a pending shipment attempt + invokes the
+    // delivery adapter; fulfilment mechanics — the order "shipped" transition is
+    // audited in the orders flow.
     const run = async (): Promise<{ shipment: Shipment; adapterKey: string }> => {
       const em = this.emFactory();
       return em.transactional(async (tx) => {
@@ -87,6 +90,8 @@ export class ShipmentService {
   }
 
   async openRetry(orderId: string): Promise<Shipment> {
+    // command-coverage-ignore: opens a new shipment attempt after a failure —
+    // fulfilment retry mechanics; the order transition is audited in the orders flow.
     const em = this.emFactory();
     return em.transactional(async (tx) => {
       const latest = await tx.findOne(Shipment, { orderId }, { orderBy: { attemptNo: 'desc' } });

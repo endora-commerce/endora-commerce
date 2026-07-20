@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -7,6 +8,7 @@ import { randomUUID } from 'crypto';
  * sibling `GalleryItemLabel` bridge so the per-product UNIQUE constraint
  * can be enforced at the DB level (research.md R-2).
  */
+@GlobalEntity()
 @Entity({ tableName: 'gallery_items' })
 export class GalleryItem {
   [OptionalProps]?: 'id' | 'position' | 'createdAt' | 'updatedAt';

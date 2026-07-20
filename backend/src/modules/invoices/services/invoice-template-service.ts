@@ -3,6 +3,8 @@ import { HttpError } from '../../../http/error-envelope.js';
 import { ERROR_CODES } from '@b2b/contracts';
 import { InvoiceTemplate } from '../entities/invoice-template.entity.js';
 import { pickLanguageTree } from '../pdf-components/tree-mapper.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import {
   GENERIC_INVOICE_TEMPLATE_CODE,
   GENERIC_INVOICE_TEMPLATE_CONTENT,
@@ -39,10 +41,27 @@ function summary(t: InvoiceTemplate): InvoiceTemplateSummary {
  * per-channel active → global active → seeded generic (FR-015/016).
  */
 export class InvoiceTemplateService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  #audit(em: EntityManager, action: string, objectId: string, stateAfter: Record<string, unknown>): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, {
+        action,
+        objectType: 'invoice_template',
+        objectId,
+        stateBefore: null,
+        stateAfter,
+      });
+    }
+  }
 
   /** Idempotently install the system generic template (lifecycle / boot). */
   async ensureGenericSeed(): Promise<void> {
+    // command-coverage-ignore: idempotent boot seed of the system generic invoice
+    // template — a bootstrap, not an operator-initiated write.
     const em = this.emFactory();
     const existing = await em.findOne(InvoiceTemplate, { code: GENERIC_INVOICE_TEMPLATE_CODE, isSystem: true });
     if (existing) return;
@@ -90,7 +109,9 @@ export class InvoiceTemplateService {
       isSystem: false,
       version: 1,
     });
-    await em.persistAndFlush(tpl);
+    em.persist(tpl);
+    this.#audit(em, 'invoice_template.create', tpl.id, { code: tpl.code, name: tpl.name });
+    await em.flush();
     return summary(tpl);
   }
 
@@ -115,6 +136,7 @@ export class InvoiceTemplateService {
     t.content = content;
     if (!t.languages.includes(language)) t.languages = [...t.languages, language];
     t.version += 1;
+    this.#audit(em, 'invoice_template.save_content', t.id, { language, version: t.version });
     await em.persistAndFlush(t);
     return summary(t);
   }

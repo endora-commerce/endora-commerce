@@ -1,7 +1,9 @@
 import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /** NewsletterCustomField — feature 048. Operator-defined subscriber attribute. */
+@GlobalEntity()
 @Entity({ tableName: 'newsletter_custom_fields' })
 export class NewsletterCustomField {
   [OptionalProps]?: 'createdAt' | 'updatedAt';

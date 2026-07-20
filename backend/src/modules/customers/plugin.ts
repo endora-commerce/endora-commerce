@@ -4,12 +4,15 @@ import type { SessionService } from '../auth/services/session-service.js';
 import type { OrderListService } from '../orders/services/order-list-service.js';
 import type { RfqService } from '../quote_requests/services/rfq-service.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { CommandBus } from '../../commands/index.js';
+import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
 import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
 import { CustomerAuthService } from '../customer_accounts/services/customer-auth-service.js';
 import { DefaultPreferenceService } from '../quick_order/services/default-preference-service.js';
 import { SalesRepAssignmentService } from '../organizations/services/sales-rep-assignment-service.js';
 import { ImpersonationService } from '../admin_users/services/impersonation-service.js';
 import { CustomerRegistrationService } from './services/customer-registration-service.js';
+import { PersonalOrganizationService } from '../organizations/services/personal-organization-service.js';
 import { CustomerAddressService } from './services/customer-address-service.js';
 import { CustomerDefaultsService } from './services/customer-defaults-service.js';
 import { CustomerAuthorityService } from './services/customer-authority-service.js';
@@ -66,6 +69,10 @@ export interface CustomersModuleOptions {
   resolveDeletionRetentionDays: () => Promise<number>;
   /** Reads `customers.presence_freshness_minutes`. */
   resolvePresenceFreshnessMinutes: () => Promise<number>;
+  /** Feature 055 — validates + persists Customer custom-field values on the admin edit path. */
+  customFieldValues?: CustomFieldValueService;
+  /** Feature 054/055 — audits the custom-field write co-transactionally when provided. */
+  commandBus?: CommandBus;
 }
 
 export interface CustomersModuleHandle {
@@ -80,14 +87,19 @@ export function customersModule(options: CustomersModuleOptions): {
   const customerAuthService = new CustomerAuthService(
     options.emFactory,
     options.sessionService,
+    undefined, // getMfaLoginPort — not wired in the customers composition
+    options.auditLogService,
   );
+  const personalOrganizationService = new PersonalOrganizationService(options.emFactory);
   const registrationService = new CustomerRegistrationService({
     emFactory: options.emFactory,
     sessionService: options.sessionService,
     resolveAllowRegistrationWithoutOrganization:
       options.resolveAllowRegistrationWithoutOrganization,
+    personalOrganizationService,
+    auditLog: options.auditLogService,
   });
-  const customerAddressService = new CustomerAddressService(options.emFactory);
+  const customerAddressService = new CustomerAddressService(options.emFactory, options.auditLogService);
   const defaultPreferenceService = new DefaultPreferenceService(
     options.emFactory,
     options.auditLogService,
@@ -99,7 +111,7 @@ export function customersModule(options: CustomersModuleOptions): {
     customerAddressService,
   );
   const authorityService = new CustomerAuthorityService(
-    new SalesRepAssignmentService(options.emFactory),
+    new SalesRepAssignmentService(options.emFactory, options.auditLogService),
   );
   const moderationService = new CustomerModerationService(
     options.emFactory,
@@ -142,7 +154,7 @@ export function customersModule(options: CustomersModuleOptions): {
     },
     options.resolvePresenceFreshnessMinutes,
   );
-  const passwordResetService = new PasswordResetService(options.emFactory);
+  const passwordResetService = new PasswordResetService(options.emFactory, options.auditLogService);
   const anonymizationSweepWorker = new AnonymizationSweepWorker(
     deletionService,
     options.resolveDeletionRetentionDays,
@@ -179,6 +191,8 @@ export function customersModule(options: CustomersModuleOptions): {
       mailer: options.mailer,
       auditLogService: options.auditLogService,
       storefrontBaseUrl: options.storefrontBaseUrl,
+      ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
+      ...(options.commandBus ? { commandBus: options.commandBus } : {}),
     });
   };
 

@@ -5,6 +5,7 @@ import {
   invalidateShoppingListMembership,
   loadShoppingListMembership,
 } from '../lib/shoppingListMembership';
+import { emitActionEvents } from '../lib/analytics/collector';
 import {
   addToDefaultListAction,
   addToListAction,
@@ -140,6 +141,7 @@ export function AddToShoppingListButton(props: {
         invalidateShoppingListMembership();
         const fresh = await loadShoppingListMembership(true);
         setInList(fresh.byProduct.has(props.productId));
+        emitActionEvents('add_to_shopping_list', { sku: props.productId, quantity: props.quantity ?? 1 });
       }
       window.dispatchEvent(new CustomEvent('b2b:shopping-list:changed'));
       setState('idle');
@@ -168,6 +170,7 @@ export function AddToShoppingListButton(props: {
       invalidateShoppingListMembership();
       const fresh = await loadShoppingListMembership(true);
       setInList(fresh.byProduct.has(props.productId));
+      emitActionEvents('add_to_shopping_list', { sku: props.productId, quantity: props.quantity ?? 1 });
       window.dispatchEvent(new CustomEvent('b2b:shopping-list:changed'));
       setAddedTo(option.name);
       window.setTimeout(() => setAddedTo(null), 2200);
@@ -193,7 +196,7 @@ export function AddToShoppingListButton(props: {
             onClick={(): void => void toggle()}
             disabled={state === 'busy'}
             aria-pressed={inList}
-            className={`${baseClass}${hasPicker ? ' rounded-r-none' : ''}`}
+            className={`${baseClass} btn--split${hasPicker ? ' rounded-r-none' : ''}`}
             aria-label={activeLabel}
           >
             <HeartIcon filled={inList} />
@@ -204,7 +207,7 @@ export function AddToShoppingListButton(props: {
               type="button"
               onClick={(): void => setMenuOpen((v) => !v)}
               disabled={state === 'busy'}
-              className={`${baseClass} rounded-l-none border-l-0 px-2`}
+              className={`${baseClass} btn--split rounded-l-none border-l-0 px-2`}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
               aria-label="Wybierz listę zakupową"
@@ -216,10 +219,10 @@ export function AddToShoppingListButton(props: {
         {hasPicker && menuOpen ? (
           <ul
             role="menu"
-            className="absolute right-0 top-full z-20 mt-1 min-w-[220px] overflow-hidden rounded-md border border-line bg-surface py-1 shadow-md"
+            className="absolute right-0 top-full z-20 m-0 mt-1 min-w-[220px] list-none overflow-hidden rounded-md border border-line bg-surface px-0 py-1 shadow-md"
           >
             {lists.map((l) => (
-              <li key={l.id} role="none">
+              <li key={l.id} role="none" className="list-none">
                 <button
                   type="button"
                   role="menuitem"

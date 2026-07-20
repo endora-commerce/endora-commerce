@@ -36,6 +36,21 @@ export type OrganizationStatus = z.infer<typeof organizationStatusSchema>;
 export const vatStatusSchema = z.enum(['vat_payer', 'vat_exempt', 'reverse_charge']);
 export type VatStatus = z.infer<typeof vatStatusSchema>;
 
+/**
+ * Feature 056 — per-organization credit-inheritance mode. Platform-admin only.
+ *
+ *  - `shared_pool` — a descendant with no own credit limit draws against the
+ *    nearest ancestor's pool; concurrent draws across the subtree are serialized
+ *    on the owning ancestor's row (zero double-spend).
+ *  - `independent_default` — the inherited amount is each descendant's own
+ *    effective limit; draws are independent of siblings.
+ *
+ * `null` on an Organization ⇒ fall back to the Settings global default
+ * (`organizations.hierarchy.credit_inheritance_mode`, factory `shared_pool`).
+ */
+export const creditInheritanceModeSchema = z.enum(['shared_pool', 'independent_default']);
+export type CreditInheritanceMode = z.infer<typeof creditInheritanceModeSchema>;
+
 export const addressKindSchema = z.enum(['delivery', 'billing']);
 export type AddressKind = z.infer<typeof addressKindSchema>;
 
@@ -47,6 +62,8 @@ export const organizationSchema = z.object({
   taxId: z.string(),
   status: organizationStatusSchema,
   vatStatus: vatStatusSchema,
+  /** Feature 051 — true for a single-member personal (B2C) organization. */
+  isPersonal: z.boolean().optional(),
   registeredAddress: addressSnapshotSchema.omit({ recipientName: true, phone: true }).extend({
     recipientName: z.string().optional(),
     phone: z.string().optional(),
@@ -59,10 +76,71 @@ export const organizationSchema = z.object({
    */
   fulfilmentStrategy: fulfilmentStrategySchema.nullable().optional(),
   fulfilmentStrategyWarehouseOrder: z.array(uuidSchema).nullable().optional(),
+  /**
+   * Feature 056 — hierarchy. `parentId` is the self-referential parent FK
+   * (`null` ⇒ root). `path` is the server-maintained materialized ancestor path
+   * (read-only). `creditInheritanceMode` is the per-org platform-admin override
+   * (`null` ⇒ global default). All three are additive; every pre-feature org is
+   * a root (`parentId = null`, `path = '/<id>/'`).
+   */
+  parentId: uuidSchema.nullable().optional(),
+  path: z.string().optional(),
+  creditInheritanceMode: creditInheritanceModeSchema.nullable().optional(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
 export type Organization = z.infer<typeof organizationSchema>;
+
+// --- Hierarchy (feature 056) ------------------------------------------------
+
+/**
+ * A single node in an organization subtree / ancestor chain. `depth` is the
+ * node's absolute depth in the tree (root = 0). Returned pre-order (subtree) or
+ * nearest-first (ancestors).
+ */
+export const organizationTreeNodeSchema = z.object({
+  id: uuidSchema,
+  name: z.string(),
+  parentId: uuidSchema.nullable(),
+  depth: z.number().int().nonnegative(),
+  status: organizationStatusSchema,
+});
+export type OrganizationTreeNode = z.infer<typeof organizationTreeNodeSchema>;
+
+/** `GET /admin/organizations/:id/subtree` — descendants (incl. self), pre-order. */
+export const organizationSubtreeResponseSchema = z.object({
+  items: z.array(organizationTreeNodeSchema),
+});
+export type OrganizationSubtreeResponse = z.infer<typeof organizationSubtreeResponseSchema>;
+
+/** `GET /admin/organizations/:id/ancestors` — ancestor chain, nearest-first. */
+export const organizationAncestorsResponseSchema = z.object({
+  items: z.array(organizationTreeNodeSchema),
+});
+export type OrganizationAncestorsResponse = z.infer<typeof organizationAncestorsResponseSchema>;
+
+/**
+ * `POST /admin/organizations/:id/parent` — assign / move / detach parent.
+ * `parentId = null` makes `:id` a root. Path maintenance + cycle/depth checks
+ * are guaranteed server-side (this is the only writable path for `parentId`).
+ */
+export const assignOrganizationParentRequestSchema = z.object({
+  parentId: uuidSchema.nullable(),
+});
+export type AssignOrganizationParentRequest = z.infer<
+  typeof assignOrganizationParentRequestSchema
+>;
+
+/**
+ * `PUT /admin/organizations/:id/credit-inheritance-mode` — platform-admin only.
+ * `mode = null` ⇒ fall back to the Settings global default.
+ */
+export const setCreditInheritanceModeRequestSchema = z.object({
+  mode: creditInheritanceModeSchema.nullable(),
+});
+export type SetCreditInheritanceModeRequest = z.infer<
+  typeof setCreditInheritanceModeRequestSchema
+>;
 
 export const customerAccountSchema = z.object({
   id: uuidSchema,
@@ -235,6 +313,8 @@ export const adminPatchOrganizationRequestSchema = z.object({
    */
   fulfilmentStrategy: fulfilmentStrategySchema.nullable().optional(),
   fulfilmentStrategyWarehouseOrder: z.array(uuidSchema).nullable().optional(),
+  /** Feature 055 — custom-field values for this organization (validated on write). */
+  customFieldValues: z.record(z.string(), z.unknown()).optional(),
   expectedUpdatedAt: z.string().optional(),
 });
 
@@ -257,6 +337,16 @@ export const adminPatchMemberRoleRequestSchema = z.object({
   role: organizationRoleSchema,
   expectedUpdatedAt: z.string().optional(),
 });
+
+/**
+ * Feature 056 (T032) — Platform admin — PATCH member roll-up capability.
+ * When enabled, this customer login sees/acts across its organization's subtree.
+ */
+export const adminSetMemberRollupRequestSchema = z.object({
+  subtreeRollupEnabled: z.boolean(),
+  expectedUpdatedAt: z.string().optional(),
+});
+export type AdminSetMemberRollupRequest = z.infer<typeof adminSetMemberRollupRequestSchema>;
 
 /** Platform admin — PATCH `/admin/organizations/:id/members/:customerAccountId` (profile) */
 export const adminPatchMemberProfileRequestSchema = z

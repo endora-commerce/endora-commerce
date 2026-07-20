@@ -35,6 +35,8 @@ export class ReceiveShipmentHandler {
   ) {}
 
   async receive(input: ReceiveShipment): Promise<ReceiveShipmentResult> {
+    // command-coverage-ignore: provider shipment-event ingestion — stamps the
+    // attempt result and drives the order transition (audited in the orders flow).
     const em = this.emFactory();
     const result = await em.transactional(async (tx) => {
       const shipment = await this.resolveShipment(tx, input);

@@ -11,6 +11,7 @@ import {
   SearchBackendUnavailable,
   type SearchQueryService,
 } from '../search/services/search-query.service.js';
+import { getResolvedChannel } from '../sales_channels/middleware/sales-channel-resolver.js';
 
 /**
  * Public catalog routes (US1 read surface).
@@ -28,7 +29,6 @@ import {
  *     keep their behaviour without an opt-in.
  */
 
-const salesChannelHeaderSchema = z.string().optional();
 const acceptLanguageHeaderSchema = z.string().optional();
 
 export interface CatalogPublicDeps {
@@ -106,7 +106,7 @@ export async function registerCatalogPublicRoutes(
           ctx,
         );
         reply.header('x-search-backend', 'meilisearch');
-        return await withListPlaceholder(result, ctx.salesChannelCode);
+        return await withListPlaceholder(result, ctx.resolvedChannel.code);
       } catch (err) {
         if (err instanceof SearchBackendUnavailable) {
           request.log.warn(
@@ -124,7 +124,7 @@ export async function registerCatalogPublicRoutes(
       ctx,
     );
     reply.header('x-search-backend', 'postgres');
-    return await withListPlaceholder(result, ctx.salesChannelCode);
+    return await withListPlaceholder(result, ctx.resolvedChannel.code);
   });
 
   // GET /api/v1/catalog/products/:idOrSlug
@@ -140,7 +140,7 @@ export async function registerCatalogPublicRoutes(
         !product.primaryAssetUrl &&
         product.assets.length === 0
       ) {
-        const url = await resolvePlaceholder(ctx.salesChannelCode);
+        const url = await resolvePlaceholder(ctx.resolvedChannel.code);
         if (url) product.primaryAssetUrl = url;
       }
       return { data: product };
@@ -208,14 +208,28 @@ export async function registerCatalogPublicRoutes(
 }
 
 function readContext(request: FastifyRequest): {
-  salesChannelCode?: string | undefined;
+  resolvedChannel: {
+    id: string;
+    code: string;
+    isPublic: boolean;
+    defaultCurrency: string;
+    defaultLanguage: string;
+  };
   preferredLanguage?: string | undefined;
 } {
-  const salesChannelCode = salesChannelHeaderSchema.parse(request.headers['x-sales-channel']);
+  // Feature 053 / FR-002: the sales channel is resolved once by the canonical
+  // middleware. Read it here instead of re-parsing the `x-sales-channel` header.
+  const ch = getResolvedChannel(request);
   const acceptLanguage = acceptLanguageHeaderSchema.parse(request.headers['accept-language']);
   const preferredLanguage = acceptLanguage ? acceptLanguage.split(',')[0]?.trim() : undefined;
   return {
-    salesChannelCode,
+    resolvedChannel: {
+      id: ch.id,
+      code: ch.code,
+      isPublic: ch.isPublic,
+      defaultCurrency: ch.defaultCurrency,
+      defaultLanguage: ch.defaultLanguage,
+    },
     preferredLanguage,
   };
 }

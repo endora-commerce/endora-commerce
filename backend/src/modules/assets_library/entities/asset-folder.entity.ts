@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,6 +7,7 @@ import { randomUUID } from 'crypto';
  * Folders are pure metadata; moving an asset between folders is a metadata
  * update only, never a physical file move (research R11, FR-008).
  */
+@GlobalEntity()
 @Entity({ tableName: 'asset_folders' })
 export class AssetFolder {
   [OptionalProps]?: 'id' | 'createdAt' | 'updatedAt' | 'parentId' | 'position';

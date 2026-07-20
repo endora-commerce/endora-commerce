@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -18,6 +19,7 @@ export interface WarehouseAddress {
 export const DEFAULT_WAREHOUSE_ID = '00000000-0000-4000-8000-00000000d017';
 export const DEFAULT_WAREHOUSE_CODE = 'default';
 
+@GlobalEntity()
 @Entity({ tableName: 'warehouses' })
 export class Warehouse {
   [OptionalProps]?:

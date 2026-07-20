@@ -34,6 +34,8 @@ export class AdminActionsReconciler {
     actions: readonly ModuleActionDecl[];
     em?: EntityManager;
   }): Promise<{ upserted: number; pruned: number }> {
+    // command-coverage-ignore: idempotent lifecycle reconciler/seed — a system-
+    // invariant repair, not an operator-initiated audited write.
     const targetEm = args.em ?? this.deps.em();
     const knex = targetEm.getKnex();
     const declaredIds = new Set<string>();
@@ -95,6 +97,8 @@ export class AdminActionsReconciler {
     moduleId: string;
     em?: EntityManager;
   }): Promise<{ removed: number }> {
+    // command-coverage-ignore: idempotent lifecycle reconciler/seed — a system-
+    // invariant repair, not an operator-initiated audited write.
     const targetEm = args.em ?? this.deps.em();
     const removed = await targetEm.nativeDelete(ModuleAction, { moduleId: args.moduleId });
     return { removed };

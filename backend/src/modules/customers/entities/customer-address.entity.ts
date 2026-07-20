@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { CustomerScoped } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -8,6 +9,7 @@ import { randomUUID } from 'crypto';
  * "one default per (customer, kind)" is enforced in the migration, mirroring
  * the org-level `addresses` table.
  */
+@CustomerScoped()
 @Entity({ tableName: 'customer_addresses' })
 export class CustomerAddress {
   [OptionalProps]?:

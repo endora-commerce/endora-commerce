@@ -1,7 +1,8 @@
 'use client';
 
-import { useActionState, useState, type ReactNode } from 'react';
+import { useActionState, useEffect, useRef, useState, type ReactNode } from 'react';
 import { addRfqDraftItem } from '../lib/rfqDraft';
+import { trackAddToCart, trackAddToQuoteRequest, type GaLineItem } from '../lib/analytics/ecommerce';
 import { ADD_TO_CART_IDLE, type AddToCartResult } from '../lib/cartAddState';
 import { CartAddedPopup } from './CartAddedPopup';
 import { CartSubmitButton } from './CartSubmitButton';
@@ -88,7 +89,31 @@ export function ProductBuyActions({
   const selectedUnit = units.find((u) => u.id === unitId) ?? null;
   const resultingPieces = selectedUnit ? selectedUnit.baseQuantity * qty : null;
 
+  // Feature 049 — the GA line item built from the info the PDP already has.
+  // SKU is not available in this component; it is simply omitted from the
+  // payload (the collector drops absent fields).
+  const gaItem = (): GaLineItem => ({
+    sku: productId,
+    name: productName,
+    price: unitPrice?.amount ?? 0,
+    quantity: resultingPieces ?? qty,
+    ...(unitPrice?.currency ? { currency: unitPrice.currency } : {}),
+  });
+
+  // Feature 049 — fire add_to_cart (Enhanced Ecommerce + custom events) once
+  // per successful server-action add, keyed off the success token.
+  const lastCartToken = useRef(0);
+  useEffect(() => {
+    if (cartState.status === 'success' && cartState.token !== lastCartToken.current) {
+      lastCartToken.current = cartState.token;
+      trackAddToCart(gaItem());
+    }
+    // gaItem reads current qty/unit; intentionally keyed on cartState only.
+
+  }, [cartState]);
+
   const addToQuote = (): void => {
+    trackAddToQuoteRequest(gaItem());
     // Piece-based: when a packaging unit is selected we add the resulting
     // piece count to the draft (labelled packaging lines come from the
     // cart → quote-request conversion instead).

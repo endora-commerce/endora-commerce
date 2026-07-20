@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * PriceDisplayModeOverride — per-Organization / per-Category / per-Product
@@ -13,6 +14,7 @@ import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
  * table for `scope`; integrity is enforced at the service layer because the
  * target table varies (data-model.md §1.4).
  */
+@GlobalEntity()
 @Entity({ tableName: 'price_display_mode_overrides' })
 export class PriceDisplayModeOverride {
   [OptionalProps]?: 'createdAt' | 'updatedAt';

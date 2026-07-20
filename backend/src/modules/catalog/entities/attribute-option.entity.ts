@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -18,6 +19,7 @@ import { randomUUID } from 'crypto';
  * service refuses to delete an attribute while any product still
  * carries one of its option values (FR-006, FR-025).
  */
+@GlobalEntity()
 @Entity({ tableName: 'attribute_options' })
 @Unique({ properties: ['attributeId', 'value'] })
 export class AttributeOption {

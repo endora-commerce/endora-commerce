@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -11,6 +12,7 @@ import { randomUUID } from 'crypto';
  * tight (typed `from_state` / `to_state` / `metadata`) without bloating
  * the generic audit feed.
  */
+@GlobalEntity()
 @Entity({ tableName: 'cart_audit_entries' })
 export class CartAuditEntry {
   [OptionalProps]?:

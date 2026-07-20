@@ -31,6 +31,15 @@ import { manifest as pwaManifest } from '../pwa/manifest.js';
 import { manifest as transactionalEmailsManifest } from '../transactional_emails/manifest.js';
 // Feature 048 — Newsletter (own-infrastructure bulk email + automations).
 import { manifest as newsletterManifest } from '../newsletter/manifest.js';
+// Feature 049 — Google Analytics (GA4 integration + custom events + server-side tagging).
+import { manifest as googleAnalyticsManifest } from '../google_analytics/manifest.js';
+// Feature 049 — Stripe payment gateway.
+import { manifest as stripeManifest } from '../stripe/manifest.js';
+// Feature 055 — Custom Fields Layer (entity-agnostic runtime fields).
+import {
+  manifest as customFieldsManifest,
+  uninstallHook as customFieldsUninstallHook,
+} from '../custom_fields/manifest.js';
 // Pass C retrofit — manifest backfills for every remaining legacy module.
 // These predate the lifecycle system; the manifest is the static record
 // required for the module to be considered active. A module on disk that
@@ -138,6 +147,16 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   { manifest: transactionalEmailsManifest, filePath: pathFor('transactional_emails') },
   // Feature 048 — Newsletter module.
   { manifest: newsletterManifest, filePath: pathFor('newsletter') },
+  // Feature 049 — Google Analytics module.
+  { manifest: googleAnalyticsManifest, filePath: pathFor('google_analytics') },
+  // Feature 049 — Stripe payment gateway module.
+  { manifest: stripeManifest, filePath: pathFor('stripe') },
+  // Feature 055 — Custom Fields Layer module.
+  {
+    manifest: customFieldsManifest,
+    filePath: pathFor('custom_fields'),
+    uninstallHook: customFieldsUninstallHook,
+  },
   // Pass C retrofit — every remaining legacy module gets a manifest so
   // none of them are treated as inactive. Sort: alphabetical by id.
   { manifest: addressesManifest, filePath: pathFor('addresses') },

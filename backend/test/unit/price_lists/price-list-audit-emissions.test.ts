@@ -89,6 +89,23 @@ describe('PriceListService — audit emissions for lifecycle + content events', 
     expect(Array.isArray(after['changedFields'])).toBe(true);
   });
 
+  it('writes NO price_list.update row for a no-op patch (feature 054 skipAudit)', async () => {
+    const id = await createList('Audit No-op List');
+    // Patch the name to its current value → nothing mutates.
+    const res = await h.app.inject({
+      method: 'PATCH',
+      url: `/api/v1/admin/price-lists-engine/${id}`,
+      payload: { name: 'Audit No-op List' },
+      cookies: adminCookie,
+    });
+    expect(res.statusCode).toBe(200);
+    const rows = await h.em().find(AuditLogEntry, {
+      action: 'price_list.update',
+      objectId: id,
+    });
+    expect(rows.length).toBe(0);
+  });
+
   it('writes price_list.activate on POST /:id/activate', async () => {
     const id = await createList('Audit Activate List', true);
     const res = await h.app.inject({

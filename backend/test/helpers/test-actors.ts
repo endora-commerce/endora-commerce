@@ -42,7 +42,7 @@ export interface TestAdminActor {
 
 export type TestActor = TestCustomerActor | TestAdminActor | { kind: 'anonymous' };
 
-const CUSTOMER_COOKIES: Record<string, { customerAccountId: string; organizationId: string }> = {
+export const CUSTOMER_COOKIES: Record<string, { customerAccountId: string; organizationId: string }> = {
   'stub-customer-session': {
     customerAccountId: TEST_CUSTOMER_ID,
     organizationId: TEST_ORGANIZATION_ID,

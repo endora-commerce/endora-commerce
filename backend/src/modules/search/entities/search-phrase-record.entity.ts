@@ -6,6 +6,7 @@ import {
   PrimaryKey,
   Property,
 } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 
@@ -32,6 +33,7 @@ import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity
  * phrase length is below the channel's `search.popup.minimum_query_length`
  * setting. The threshold check is the recorder's job, not the entity's.
  */
+@GlobalEntity()
 @Entity({ tableName: 'search_phrase_records' })
 export class SearchPhraseRecord {
   [OptionalProps]?: 'id' | 'recordedAt';

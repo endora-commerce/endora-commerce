@@ -3,6 +3,8 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { CustomerAddress } from '../entities/customer-address.entity.js';
 import { Address } from '../../addresses/entities/address.entity.js';
+import { recordAuditFromContext } from '../../../commands/index.js';
+import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 
 /**
  * CustomerAddressService — the personal address book (feature 040, US2).
@@ -35,7 +37,16 @@ export interface CustomerAddressPatch {
 }
 
 export class CustomerAddressService {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly auditLog?: AuditLogService,
+  ) {}
+
+  #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {
+    if (this.auditLog) {
+      recordAuditFromContext(this.auditLog, em, { action, objectType: 'customer_address', objectId, stateBefore, stateAfter });
+    }
+  }
 
   async listPersonal(
     customerAccountId: string,
@@ -86,7 +97,9 @@ export class CustomerAddressService {
         phone: input.phone ?? null,
         isDefault: input.isDefault ?? false,
       });
-      await txEm.persistAndFlush(address);
+      txEm.persist(address);
+      this.#audit(txEm, 'customer_address.create', address.id, null, { customerAccountId, kind: address.kind });
+      await txEm.flush();
       return address;
     });
   }
@@ -113,6 +126,7 @@ export class CustomerAddressService {
       if (patch.country !== undefined) address.country = patch.country;
       if (patch.phone !== undefined) address.phone = patch.phone ?? null;
       if (patch.isDefault !== undefined) address.isDefault = patch.isDefault;
+      this.#audit(txEm, 'customer_address.update', address.id, null, { customerAccountId, kind: address.kind });
       await txEm.persistAndFlush(address);
       return address;
     });
@@ -134,6 +148,7 @@ export class CustomerAddressService {
       // Deleting a default leaves no default of that kind (FR-009 graceful
       // degrade); the storefront prompts re-selection.
       address.isDefault = false;
+      this.#audit(txEm, 'customer_address.delete', address.id, { customerAccountId, kind: address.kind }, null);
       await txEm.persistAndFlush(address);
     });
   }

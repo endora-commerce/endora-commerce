@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -9,6 +10,7 @@ import { randomUUID } from 'crypto';
  * and `body` columns are retained for one release as legacy mirrors —
  * new code reads `slug`, `name`, and `content`.
  */
+@GlobalEntity()
 @Entity({ tableName: 'cms_pages' })
 export class CmsPage {
   [OptionalProps]?:

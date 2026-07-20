@@ -251,7 +251,7 @@ export class WarehouseService {
     });
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, auditCtx?: InventoryAuditContext): Promise<void> {
     const em = this.emFactory();
     const row = await em.findOne(Warehouse, { id });
     if (!row) throw new HttpError(404, 'WAREHOUSE_NOT_FOUND', 'Warehouse not found');
@@ -284,6 +284,13 @@ export class WarehouseService {
     // Drop any (non-default) channel assignments that still reference the
     // warehouse so the FK doesn't block the delete.
     await em.nativeDelete(WarehouseChannelAssignment, { warehouseId: id });
+    await this.audit(
+      'warehouse.delete',
+      row,
+      { code: row.code, name: row.name, active: row.active },
+      {},
+      auditCtx,
+    );
     await em.removeAndFlush(row);
   }
 

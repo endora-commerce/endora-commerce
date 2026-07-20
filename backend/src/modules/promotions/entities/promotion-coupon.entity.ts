@@ -1,10 +1,12 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
  * Feature 045 — an individual coupon code gating a promotion. Either a
  * single specified code (`batchId` null) or one of a generated batch.
  */
+@GlobalEntity()
 @Entity({ tableName: 'promotion_coupons' })
 export class PromotionCoupon {
   [OptionalProps]?: 'id' | 'createdAt' | 'batchId' | 'isActive';

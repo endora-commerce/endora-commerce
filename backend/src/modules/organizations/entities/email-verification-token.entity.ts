@@ -1,4 +1,5 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { CustomerScoped } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -7,6 +8,7 @@ import { randomUUID } from 'crypto';
  * once (in the email body); only the sha256 hash is stored, so leaked DB rows
  * cannot be replayed.
  */
+@CustomerScoped()
 @Entity({ tableName: 'email_verification_tokens' })
 export class EmailVerificationToken {
   [OptionalProps]?: 'id' | 'createdAt' | 'consumedAt';

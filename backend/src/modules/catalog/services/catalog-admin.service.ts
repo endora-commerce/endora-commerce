@@ -38,6 +38,7 @@ import {
 } from './product-type-validations.js';
 import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
+import type { Command, CommandBus } from '../../../commands/index.js';
 
 /** Optional metadata used to attach audit entries to admin mutations. */
 export interface AdminAuditContext {
@@ -80,6 +81,11 @@ export class CatalogAdminService {
      * keep compiling; production composition.ts always provides it.
      */
     private readonly salesChannelMembership?: SalesChannelMembershipService,
+    /**
+     * Feature 054 — when injected, `updateProductAudited` records the admin
+     * single-update through the Command Bus (co-transactional audit + event).
+     */
+    private readonly commandBus?: CommandBus,
   ) {}
 
   /**
@@ -206,6 +212,84 @@ export class CatalogAdminService {
     auditCtx?: AdminAuditContext,
   ): Promise<Product> {
     const em = this.emFactory();
+    const r = await this.#applyProductUpdate(em, id, req);
+    await em.flush();
+    if (this.auditLog && auditCtx) {
+      await this.auditLog.record({
+        actorAdminUserId: auditCtx.actorAdminUserId,
+        ...(auditCtx.impersonatedCustomerAccountId !== undefined
+          ? { impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId }
+          : {}),
+        action: 'product.update',
+        objectType: 'product',
+        objectId: r.product.id,
+        stateBefore: r.stateBefore,
+        stateAfter: { ...r.stateAfter, changedFields: r.changedFields },
+        ...(auditCtx.ipAddress !== undefined ? { ipAddress: auditCtx.ipAddress } : {}),
+        ...(auditCtx.userAgent !== undefined ? { userAgent: auditCtx.userAgent } : {}),
+        ...(auditCtx.requestId !== undefined ? { requestId: auditCtx.requestId } : {}),
+      });
+    }
+    this.events.emit('product.updated.v1', {
+      eventId: randomUUID(),
+      occurredAt: new Date().toISOString(),
+      productId: r.product.id,
+      changedFields: r.changedFields,
+    });
+    return r.product;
+  }
+
+  /**
+   * Feature 054 — admin single-update path, audited co-transactionally via the
+   * Command Bus (one audit row + the event on commit, none on rollback). Falls
+   * back to the legacy `updateProduct` when no bus is injected (bus-less tests).
+   */
+  async updateProductAudited(id: string, req: UpdateProductRequest): Promise<Product> {
+    if (!this.commandBus) return this.updateProduct(id, req);
+    return this.commandBus.run(this.#updateProductCommand(id, req));
+  }
+
+  #updateProductCommand(id: string, req: UpdateProductRequest): Command<Product> {
+    let changedFields: string[] = [];
+    return {
+      action: 'product.update',
+      objectType: 'product',
+      objectId: id,
+      run: async ({ em }) => {
+        const r = await this.#applyProductUpdate(em, id, req);
+        changedFields = r.changedFields;
+        return {
+          result: r.product,
+          before: r.stateBefore,
+          after: { ...r.stateAfter, changedFields },
+        };
+      },
+      event: (product) => ({
+        eventName: 'product.updated.v1',
+        payload: {
+          eventId: randomUUID(),
+          occurredAt: new Date().toISOString(),
+          productId: product.id,
+          changedFields,
+        },
+      }),
+    };
+  }
+
+  /**
+   * Pure product-update write on the given em — no flush, no audit, no event.
+   * Shared by the legacy `updateProduct` and the audited Command path.
+   */
+  async #applyProductUpdate(
+    em: EntityManager,
+    id: string,
+    req: UpdateProductRequest,
+  ): Promise<{
+    product: Product;
+    stateBefore: Record<string, unknown>;
+    stateAfter: Record<string, unknown>;
+    changedFields: string[];
+  }> {
     const product = await em.findOne(Product, { id });
     if (!product) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
@@ -380,42 +464,17 @@ export class CatalogAdminService {
       product.fulfilmentStrategyWarehouseOrder = req.fulfilmentStrategyWarehouseOrder;
       changedFields.push('fulfilmentStrategyWarehouseOrder');
     }
-    await em.flush();
-
-    if (this.auditLog && auditCtx) {
-      await this.auditLog.record({
-        actorAdminUserId: auditCtx.actorAdminUserId,
-        ...(auditCtx.impersonatedCustomerAccountId !== undefined
-          ? { impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId }
-          : {}),
-        action: 'product.update',
-        objectType: 'product',
-        objectId: product.id,
-        stateBefore,
-        stateAfter: {
-          name: { ...product.name },
-          description: { ...product.description },
-          stockMode: product.stockMode,
-          visibility: product.visibility,
-          status: product.status,
-          archivedAt: product.archivedAt ?? null,
-          attributeValues: { ...product.attributeValues },
-          allowedOrganizationIds: [...product.allowedOrganizationIds],
-          changedFields,
-        },
-        ...(auditCtx.ipAddress !== undefined ? { ipAddress: auditCtx.ipAddress } : {}),
-        ...(auditCtx.userAgent !== undefined ? { userAgent: auditCtx.userAgent } : {}),
-        ...(auditCtx.requestId !== undefined ? { requestId: auditCtx.requestId } : {}),
-      });
-    }
-
-    this.events.emit('product.updated.v1', {
-      eventId: randomUUID(),
-      occurredAt: new Date().toISOString(),
-      productId: product.id,
-      changedFields,
-    });
-    return product;
+    const stateAfter: Record<string, unknown> = {
+      name: { ...product.name },
+      description: { ...product.description },
+      stockMode: product.stockMode,
+      visibility: product.visibility,
+      status: product.status,
+      archivedAt: product.archivedAt ?? null,
+      attributeValues: { ...product.attributeValues },
+      allowedOrganizationIds: [...product.allowedOrganizationIds],
+    };
+    return { product, stateBefore, stateAfter, changedFields };
   }
 
   /**
@@ -432,6 +491,30 @@ export class CatalogAdminService {
    * Variants have their own globally-unique SKUs; each is suffixed in
    * the same way against the variant SKU space.
    */
+  /**
+   * Feature 054 — run a catalog write through the Command Bus (co-transactional
+   * audit) or a plain forked em (bus-less tests). `write` performs the mutation
+   * on the given em and returns the caller value + before/after snapshot.
+   */
+  async #auditedWrite<T>(
+    action: string,
+    objectType: string,
+    objectId: string,
+    write: (em: EntityManager) => Promise<{
+      result: T;
+      before: Record<string, unknown> | null;
+      after: Record<string, unknown> | null;
+    }>,
+  ): Promise<T> {
+    if (this.commandBus) {
+      return this.commandBus.run({ action, objectType, objectId, run: ({ em }) => write(em) });
+    }
+    const em = this.emFactory();
+    const w = await write(em);
+    await em.flush();
+    return w.result;
+  }
+
   async duplicateProduct(id: string): Promise<Product> {
     const em = this.emFactory();
     const source = await em.findOne(Product, { id });
@@ -442,9 +525,15 @@ export class CatalogAdminService {
     const newSku = await this.allocateCopySku(em, source.sku);
     const newSlug = await this.allocateCopySlug(em, source.slug);
 
-    const dup = em.create(Product, {
-      sku: newSku,
-      slug: newSlug,
+    // The dup product row + its audit are co-transactional; the bridge copies
+    // run AFTER on this em (matches the pre-054 two-step) — the dup FK target
+    // exists once committed, and a partially-copied dup is no worse than today.
+    const dupId = randomUUID();
+    const dup = await this.#auditedWrite('product.duplicate', 'product', dupId, async (cem) => {
+      const created = cem.create(Product, {
+        id: dupId,
+        sku: newSku,
+        slug: newSlug,
       type: source.type,
       status: 'draft',
       name: this.suffixCopyNames(source.name),
@@ -477,8 +566,14 @@ export class CatalogAdminService {
             ],
           }
         : {}),
+      });
+      await cem.flush();
+      return {
+        result: created,
+        before: null,
+        after: { sku: newSku, slug: newSlug, sourceProductId: id },
+      };
     });
-    await em.persistAndFlush(dup);
 
     const conn = em.getConnection();
 
@@ -798,31 +893,36 @@ export class CatalogAdminService {
       req.label['en-US'] ??
       Object.values(req.label)[0] ??
       req.key;
-    const attr = em.create(ProductAttribute, {
-      key: req.key,
-      label: req.label,
-      labelDefault,
-      valueType: resolved.valueType,
-      isSearchable: req.isSearchable,
-      isFilterable: req.isFilterable,
-      isVariantAxis: req.isVariantAxis,
-      displayAsSlider: resolved.displayAsSlider,
-      isComparable: req.isComparable ?? false,
-      isRequired: req.isRequired ?? false,
-      isPromoRule: req.isPromoRule ?? false,
-      filterPosition: req.filterPosition ?? 0,
-      isVisibleOnProductPage: req.isVisibleOnProductPage ?? false,
-      massEditable: req.massEditable ?? false,
-      quickSearchable: req.quickSearchable ?? false,
-    });
-    try {
-      await em.persistAndFlush(attr);
-    } catch (err) {
-      if (err instanceof UniqueConstraintViolationException) {
-        throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, `Attribute key "${req.key}" already exists.`);
+    const attrId = randomUUID();
+    const attr = await this.#auditedWrite('attribute.create', 'product_attribute', attrId, async (cem) => {
+      const created = cem.create(ProductAttribute, {
+        id: attrId,
+        key: req.key,
+        label: req.label,
+        labelDefault,
+        valueType: resolved.valueType,
+        isSearchable: req.isSearchable,
+        isFilterable: req.isFilterable,
+        isVariantAxis: req.isVariantAxis,
+        displayAsSlider: resolved.displayAsSlider,
+        isComparable: req.isComparable ?? false,
+        isRequired: req.isRequired ?? false,
+        isPromoRule: req.isPromoRule ?? false,
+        filterPosition: req.filterPosition ?? 0,
+        isVisibleOnProductPage: req.isVisibleOnProductPage ?? false,
+        massEditable: req.massEditable ?? false,
+        quickSearchable: req.quickSearchable ?? false,
+      });
+      try {
+        await cem.flush();
+      } catch (err) {
+        if (err instanceof UniqueConstraintViolationException) {
+          throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, `Attribute key "${req.key}" already exists.`);
+        }
+        throw err;
       }
-      throw err;
-    }
+      return { result: created, before: null, after: { key: req.key, valueType: resolved.valueType } };
+    });
     // Feature 012 — when the operator supplies legacy `enumValues` OR the
     // new rich `options` array, materialise them as `attribute_options`
     // rows on the new table. The rich form wins when both are present.
@@ -884,7 +984,7 @@ export class CatalogAdminService {
         `Attribute "${idOrKey}" not found.`,
       );
     }
-    return this.applyAttributeUpdate(em, attr, req, auditCtx);
+    return this.applyAttributeUpdate(attr, req, auditCtx);
   }
 
   async updateAttribute(
@@ -897,11 +997,10 @@ export class CatalogAdminService {
     if (!attr) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute "${key}" not found.`);
     }
-    return this.applyAttributeUpdate(em, attr, req, auditCtx);
+    return this.applyAttributeUpdate(attr, req, auditCtx);
   }
 
   private async applyAttributeUpdate(
-    em: EntityManager,
     attr: ProductAttribute,
     req: UpdateAttributeRequest,
     auditCtx?: AdminAuditContext,
@@ -910,57 +1009,68 @@ export class CatalogAdminService {
     // flip apart from a save that left it untouched (only a real change
     // warrants a full reindex).
     const previousIsSearchable = attr.isSearchable;
-    if (req.label !== undefined) attr.label = req.label;
-    if (req.labelDefault !== undefined) attr.labelDefault = req.labelDefault;
-    if (req.isSearchable !== undefined) attr.isSearchable = req.isSearchable;
-    if (req.isFilterable !== undefined) attr.isFilterable = req.isFilterable;
-    if (req.isVariantAxis !== undefined) attr.isVariantAxis = req.isVariantAxis;
-    if (req.isComparable !== undefined) attr.isComparable = req.isComparable;
-    if (req.isRequired !== undefined) attr.isRequired = req.isRequired;
-    if (req.isPromoRule !== undefined) attr.isPromoRule = req.isPromoRule;
-    if (req.filterPosition !== undefined) attr.filterPosition = req.filterPosition;
-    if (req.isVisibleOnProductPage !== undefined) {
-      attr.isVisibleOnProductPage = req.isVisibleOnProductPage;
-    }
-    if (req.massEditable !== undefined) {
-      attr.massEditable = req.massEditable;
-    }
-    if (req.quickSearchable !== undefined) {
-      attr.quickSearchable = req.quickSearchable;
-    }
-    if (req.type !== undefined) {
-      // Feature 002 — patching `type` re-derives valueType + displayAsSlider.
-      const resolved = resolveAttributeApiType({
-        type: req.type,
-        ...(req.numericKind !== undefined ? { numericKind: req.numericKind } : {}),
-        ...(req.displayAsSlider !== undefined
-          ? { displayAsSlider: req.displayAsSlider }
-          : {}),
-      });
-      attr.valueType = resolved.valueType;
-      attr.displayAsSlider = resolved.displayAsSlider;
-    } else if (req.displayAsSlider !== undefined) {
-      // Same valueType-vs-displayAsSlider rule as createAttribute.
-      if (
-        req.displayAsSlider &&
-        attr.valueType !== 'number' &&
-        attr.valueType !== 'price'
-      ) {
-        throw new HttpError(
-          400,
-          ERROR_CODES.VALIDATION_FAILED,
-          `displayAsSlider is only valid for valueType="number" or "price"; got "${attr.valueType}".`,
-        );
+    const attrId = attr.id;
+    const updated = await this.#auditedWrite('attribute.update', 'product_attribute', attrId, async (em) => {
+      const a = await em.findOne(ProductAttribute, { id: attrId });
+      if (!a) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute "${attrId}" not found.`);
+      const before = {
+        label: a.label,
+        labelDefault: a.labelDefault,
+        isSearchable: a.isSearchable,
+        isFilterable: a.isFilterable,
+        valueType: a.valueType,
+      };
+      if (req.label !== undefined) a.label = req.label;
+      if (req.labelDefault !== undefined) a.labelDefault = req.labelDefault;
+      if (req.isSearchable !== undefined) a.isSearchable = req.isSearchable;
+      if (req.isFilterable !== undefined) a.isFilterable = req.isFilterable;
+      if (req.isVariantAxis !== undefined) a.isVariantAxis = req.isVariantAxis;
+      if (req.isComparable !== undefined) a.isComparable = req.isComparable;
+      if (req.isRequired !== undefined) a.isRequired = req.isRequired;
+      if (req.isPromoRule !== undefined) a.isPromoRule = req.isPromoRule;
+      if (req.filterPosition !== undefined) a.filterPosition = req.filterPosition;
+      if (req.isVisibleOnProductPage !== undefined) {
+        a.isVisibleOnProductPage = req.isVisibleOnProductPage;
       }
-      attr.displayAsSlider = req.displayAsSlider;
-    }
-    await em.flush();
+      if (req.massEditable !== undefined) {
+        a.massEditable = req.massEditable;
+      }
+      if (req.quickSearchable !== undefined) {
+        a.quickSearchable = req.quickSearchable;
+      }
+      if (req.type !== undefined) {
+        // Feature 002 — patching `type` re-derives valueType + displayAsSlider.
+        const resolved = resolveAttributeApiType({
+          type: req.type,
+          ...(req.numericKind !== undefined ? { numericKind: req.numericKind } : {}),
+          ...(req.displayAsSlider !== undefined ? { displayAsSlider: req.displayAsSlider } : {}),
+        });
+        a.valueType = resolved.valueType;
+        a.displayAsSlider = resolved.displayAsSlider;
+      } else if (req.displayAsSlider !== undefined) {
+        // Same valueType-vs-displayAsSlider rule as createAttribute.
+        if (req.displayAsSlider && a.valueType !== 'number' && a.valueType !== 'price') {
+          throw new HttpError(
+            400,
+            ERROR_CODES.VALIDATION_FAILED,
+            `displayAsSlider is only valid for valueType="number" or "price"; got "${a.valueType}".`,
+          );
+        }
+        a.displayAsSlider = req.displayAsSlider;
+      }
+      return {
+        result: a,
+        before,
+        after: { isSearchable: a.isSearchable, isFilterable: a.isFilterable, valueType: a.valueType },
+      };
+    });
+    const attr2 = updated;
     this.events.emit('attribute.updated.v1', {
       eventId: randomUUID(),
       occurredAt: new Date().toISOString(),
-      attributeKey: attr.key,
-      isSearchable: attr.isSearchable,
-      isFilterable: attr.isFilterable,
+      attributeKey: attr2.key,
+      isSearchable: attr2.isSearchable,
+      isFilterable: attr2.isFilterable,
     });
 
     // Feature: when the `searchable` flag actually flips, queue a full
@@ -971,19 +1081,19 @@ export class CatalogAdminService {
     // enqueue must not fail the attribute save.
     if (
       req.isSearchable !== undefined &&
-      attr.isSearchable !== previousIsSearchable &&
+      attr2.isSearchable !== previousIsSearchable &&
       this.enqueueSearchReindex
     ) {
       try {
         await this.enqueueSearchReindex({
           actorAdminUserId: auditCtx?.actorAdminUserId ?? null,
-          attributeKey: attr.key,
+          attributeKey: attr2.key,
         });
       } catch {
         /* enqueue is best-effort — the save already succeeded */
       }
     }
-    return attr;
+    return attr2;
   }
 
   // --- Read methods (admin lists / detail) --------------------------------
@@ -1301,20 +1411,23 @@ export class CatalogAdminService {
         first.message,
       );
     }
-    const em = this.emFactory();
     const sortOrder =
       input.sortOrder ??
       (existing.length > 0 ? Math.max(...existing.map((o) => o.sortOrder)) + 1 : 0);
-    const row = em.create(AttributeOption, {
-      attributeId: attr.id,
-      value: input.value,
-      label: input.label ?? {},
-      labelDefault: input.labelDefault,
-      isDefault: input.isDefault ?? false,
-      sortOrder,
+    const optId = randomUUID();
+    return this.#auditedWrite('attribute_option.add', 'attribute_option', optId, async (em) => {
+      const row = em.create(AttributeOption, {
+        id: optId,
+        attributeId: attr.id,
+        value: input.value,
+        label: input.label ?? {},
+        labelDefault: input.labelDefault,
+        isDefault: input.isDefault ?? false,
+        sortOrder,
+      });
+      await em.flush();
+      return { result: row, before: null, after: { attributeId: attr.id, value: input.value } };
     });
-    await em.persistAndFlush(row);
-    return row;
   }
 
   /** Feature 012 / US4 — patch one option (value is immutable per FR-026). */
@@ -1328,61 +1441,74 @@ export class CatalogAdminService {
     },
   ): Promise<import('../entities/attribute-option.entity.js').AttributeOption> {
     const { AttributeOption } = await import('../entities/attribute-option.entity.js');
-    const em = this.emFactory();
-    const row = await em.findOne(AttributeOption, { id: optionId });
-    if (!row) {
-      throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute option ${optionId} not found.`);
-    }
-    if (input.label !== undefined) row.label = input.label;
-    if (input.labelDefault !== undefined) row.labelDefault = input.labelDefault;
-    if (input.sortOrder !== undefined) row.sortOrder = input.sortOrder;
-    if (input.isDefault !== undefined) {
-      row.isDefault = input.isDefault;
-      if (input.isDefault) {
-        const { validateOptionList } = await import('./attribute-option-validator.js');
-        const attr = await this.getAttributeByIdOrKey(row.attributeId);
-        const all = await this.listAttributeOptions(row.attributeId);
-        const reslist = all.map((o) => ({
-          value: o.value,
-          labelDefault: o.labelDefault,
-          isDefault: o.id === row.id ? true : o.isDefault,
-        }));
-        const result = validateOptionList(reslist, attr.valueType);
-        if (!result.ok) {
-          throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, result.errors[0]!.message);
+    return this.#auditedWrite('attribute_option.update', 'attribute_option', optionId, async (em) => {
+      const row = await em.findOne(AttributeOption, { id: optionId });
+      if (!row) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute option ${optionId} not found.`);
+      }
+      const before = {
+        label: row.label,
+        labelDefault: row.labelDefault,
+        sortOrder: row.sortOrder,
+        isDefault: row.isDefault,
+      };
+      if (input.label !== undefined) row.label = input.label;
+      if (input.labelDefault !== undefined) row.labelDefault = input.labelDefault;
+      if (input.sortOrder !== undefined) row.sortOrder = input.sortOrder;
+      if (input.isDefault !== undefined) {
+        row.isDefault = input.isDefault;
+        if (input.isDefault) {
+          const { validateOptionList } = await import('./attribute-option-validator.js');
+          const attr = await this.getAttributeByIdOrKey(row.attributeId);
+          const all = await this.listAttributeOptions(row.attributeId);
+          const reslist = all.map((o) => ({
+            value: o.value,
+            labelDefault: o.labelDefault,
+            isDefault: o.id === row.id ? true : o.isDefault,
+          }));
+          const result = validateOptionList(reslist, attr.valueType);
+          if (!result.ok) {
+            throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, result.errors[0]!.message);
+          }
         }
       }
-    }
-    await em.flush();
-    return row;
+      return {
+        result: row,
+        before,
+        after: { labelDefault: row.labelDefault, sortOrder: row.sortOrder, isDefault: row.isDefault },
+      };
+    });
   }
 
   /** Feature 012 / US4 — remove one option. Refused while products carry it (FR-025). */
   async removeAttributeOption(optionId: string): Promise<void> {
     const { AttributeOption } = await import('../entities/attribute-option.entity.js');
-    const em = this.emFactory();
-    const row = await em.findOne(AttributeOption, { id: optionId });
-    if (!row) {
-      throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute option ${optionId} not found.`);
-    }
-    const attr = await this.getAttributeByIdOrKey(row.attributeId);
-    const refs = (await em
-      .getConnection()
-      .execute<Array<{ count: string }>>(
-        attr.valueType === 'multiselect'
-          ? `select count(*)::text as count from products where attribute_values->? \\? ?`
-          : `select count(*)::text as count from products where attribute_values->>? = ?`,
-        [attr.key, row.value],
-      )) as Array<{ count: string }>;
-    const productCount = Number(refs[0]?.count ?? '0');
-    if (productCount > 0) {
-      throw new HttpError(
-        409,
-        ERROR_CODES.VALIDATION_FAILED,
-        `option_in_use: ${productCount} product(s) still carry value '${row.value}'.`,
-      );
-    }
-    await em.removeAndFlush(row);
+    await this.#auditedWrite('attribute_option.remove', 'attribute_option', optionId, async (em) => {
+      const row = await em.findOne(AttributeOption, { id: optionId });
+      if (!row) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute option ${optionId} not found.`);
+      }
+      const attr = await this.getAttributeByIdOrKey(row.attributeId);
+      const refs = (await em
+        .getConnection()
+        .execute<Array<{ count: string }>>(
+          attr.valueType === 'multiselect'
+            ? `select count(*)::text as count from products where attribute_values->? \\? ?`
+            : `select count(*)::text as count from products where attribute_values->>? = ?`,
+          [attr.key, row.value],
+        )) as Array<{ count: string }>;
+      const productCount = Number(refs[0]?.count ?? '0');
+      if (productCount > 0) {
+        throw new HttpError(
+          409,
+          ERROR_CODES.VALIDATION_FAILED,
+          `option_in_use: ${productCount} product(s) still carry value '${row.value}'.`,
+        );
+      }
+      const before = { attributeId: row.attributeId, value: row.value };
+      em.remove(row);
+      return { result: undefined, before, after: null };
+    });
   }
 
   /**
@@ -1447,36 +1573,41 @@ export class CatalogAdminService {
    * dependent rows so the admin UI can guide the operator.
    */
   async deleteAttribute(idOrKey: string): Promise<void> {
-    const em = this.emFactory();
-    const attr = await this.getAttributeByIdOrKey(idOrKey);
-    const setRefs = (await em
-      .getConnection()
-      .execute<Array<{ attribute_set_id: string }>>(
-        `select attribute_set_id from attribute_set_attributes where product_attribute_id = ?`,
-        [attr.id],
-      )) as Array<{ attribute_set_id: string }>;
-    if (setRefs.length > 0) {
-      throw new HttpError(
-        409,
-        ERROR_CODES.VALIDATION_FAILED,
-        `Attribute is still referenced by ${setRefs.length} attribute set(s); remove from sets first.`,
-      );
-    }
-    const productRefs = (await em
-      .getConnection()
-      .execute<Array<{ count: string }>>(
-        `select count(*)::text as count from products where attribute_values \\? ?`,
-        [attr.key],
-      )) as Array<{ count: string }>;
-    const productCount = Number(productRefs[0]?.count ?? '0');
-    if (productCount > 0) {
-      throw new HttpError(
-        409,
-        ERROR_CODES.VALIDATION_FAILED,
-        `Attribute is still referenced by ${productCount} product(s); clear values first.`,
-      );
-    }
-    await em.removeAndFlush(attr);
+    await this.#auditedWrite('attribute.delete', 'product_attribute', idOrKey, async (em) => {
+      const attr = await this.getAttributeByIdOrKey(idOrKey);
+      const setRefs = (await em
+        .getConnection()
+        .execute<Array<{ attribute_set_id: string }>>(
+          `select attribute_set_id from attribute_set_attributes where product_attribute_id = ?`,
+          [attr.id],
+        )) as Array<{ attribute_set_id: string }>;
+      if (setRefs.length > 0) {
+        throw new HttpError(
+          409,
+          ERROR_CODES.VALIDATION_FAILED,
+          `Attribute is still referenced by ${setRefs.length} attribute set(s); remove from sets first.`,
+        );
+      }
+      const productRefs = (await em
+        .getConnection()
+        .execute<Array<{ count: string }>>(
+          `select count(*)::text as count from products where attribute_values \\? ?`,
+          [attr.key],
+        )) as Array<{ count: string }>;
+      const productCount = Number(productRefs[0]?.count ?? '0');
+      if (productCount > 0) {
+        throw new HttpError(
+          409,
+          ERROR_CODES.VALIDATION_FAILED,
+          `Attribute is still referenced by ${productCount} product(s); clear values first.`,
+        );
+      }
+      const before = { key: attr.key, valueType: attr.valueType };
+      // `attr` came from a separate read fork — re-fetch on the command em to remove it.
+      const managed = await em.findOne(ProductAttribute, { id: attr.id });
+      if (managed) em.remove(managed);
+      return { result: undefined, before, after: null };
+    });
   }
 
   // ------------------------------------------------------------------
@@ -1512,27 +1643,32 @@ export class CatalogAdminService {
         `SKU "${req.sku}" already taken by an existing Product.`,
       );
     }
-    const variant = em.create(ProductVariant, {
-      parentProductId,
-      sku: req.sku,
-      variantAttributeValues: req.variantAttributeValues,
-      ...(req.priceOverride !== undefined
-        ? { priceOverride: String(req.priceOverride) }
-        : {}),
-      ...(req.stockLevel !== undefined ? { stockLevel: req.stockLevel } : {}),
-    });
-    try {
-      await em.persistAndFlush(variant);
-    } catch (err) {
-      if (err instanceof UniqueConstraintViolationException) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.SKU_ALREADY_EXISTS,
-          `SKU "${req.sku}" already taken by an existing Variant.`,
-        );
+    const variantId = randomUUID();
+    const variant = await this.#auditedWrite('product_variant.create', 'product_variant', variantId, async (cem) => {
+      const v = cem.create(ProductVariant, {
+        id: variantId,
+        parentProductId,
+        sku: req.sku,
+        variantAttributeValues: req.variantAttributeValues,
+        ...(req.priceOverride !== undefined
+          ? { priceOverride: String(req.priceOverride) }
+          : {}),
+        ...(req.stockLevel !== undefined ? { stockLevel: req.stockLevel } : {}),
+      });
+      try {
+        await cem.flush();
+      } catch (err) {
+        if (err instanceof UniqueConstraintViolationException) {
+          throw new HttpError(
+            409,
+            ERROR_CODES.SKU_ALREADY_EXISTS,
+            `SKU "${req.sku}" already taken by an existing Variant.`,
+          );
+        }
+        throw err;
       }
-      throw err;
-    }
+      return { result: v, before: null, after: { parentProductId, sku: req.sku } };
+    });
     this.events.emit('product.updated.v1', {
       eventId: randomUUID(),
       occurredAt: new Date().toISOString(),
@@ -1547,28 +1683,36 @@ export class CatalogAdminService {
     variantId: string,
     req: UpdateVariantRequest,
   ): Promise<ProductVariant> {
-    const em = this.emFactory();
-    const variant = await em.findOne(ProductVariant, {
-      id: variantId,
-      parentProductId,
+    const variant = await this.#auditedWrite('product_variant.update', 'product_variant', variantId, async (em) => {
+      const v = await em.findOne(ProductVariant, { id: variantId, parentProductId });
+      if (!v) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.NOT_FOUND,
+          `Variant ${variantId} not found under Product ${parentProductId}.`,
+        );
+      }
+      const before = {
+        sku: v.sku,
+        variantAttributeValues: { ...v.variantAttributeValues },
+        priceOverride: v.priceOverride,
+        stockLevel: v.stockLevel,
+      };
+      if (req.variantAttributeValues !== undefined) {
+        v.variantAttributeValues = req.variantAttributeValues;
+      }
+      if (req.priceOverride !== undefined) {
+        v.priceOverride = String(req.priceOverride);
+      }
+      if (req.stockLevel !== undefined) {
+        v.stockLevel = req.stockLevel;
+      }
+      return {
+        result: v,
+        before,
+        after: { sku: v.sku, priceOverride: v.priceOverride, stockLevel: v.stockLevel },
+      };
     });
-    if (!variant) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.NOT_FOUND,
-        `Variant ${variantId} not found under Product ${parentProductId}.`,
-      );
-    }
-    if (req.variantAttributeValues !== undefined) {
-      variant.variantAttributeValues = req.variantAttributeValues;
-    }
-    if (req.priceOverride !== undefined) {
-      variant.priceOverride = String(req.priceOverride);
-    }
-    if (req.stockLevel !== undefined) {
-      variant.stockLevel = req.stockLevel;
-    }
-    await em.flush();
     this.events.emit('product.updated.v1', {
       eventId: randomUUID(),
       occurredAt: new Date().toISOString(),
@@ -1579,22 +1723,22 @@ export class CatalogAdminService {
   }
 
   async deleteVariant(parentProductId: string, variantId: string): Promise<void> {
-    const em = this.emFactory();
-    const variant = await em.findOne(ProductVariant, {
-      id: variantId,
-      parentProductId,
+    await this.#auditedWrite('product_variant.delete', 'product_variant', variantId, async (em) => {
+      const variant = await em.findOne(ProductVariant, { id: variantId, parentProductId });
+      if (!variant) {
+        // DELETE is idempotent — but we still 404 here so admins notice
+        // typo'd ids. Foundation pattern (admin DELETE on missing rows
+        // returns 404 too, e.g. category soft-delete).
+        throw new HttpError(
+          404,
+          ERROR_CODES.NOT_FOUND,
+          `Variant ${variantId} not found under Product ${parentProductId}.`,
+        );
+      }
+      const before = { parentProductId, sku: variant.sku };
+      em.remove(variant);
+      return { result: undefined, before, after: null };
     });
-    if (!variant) {
-      // DELETE is idempotent — but we still 404 here so admins notice
-      // typo'd ids. Foundation pattern (admin DELETE on missing rows
-      // returns 404 too, e.g. category soft-delete).
-      throw new HttpError(
-        404,
-        ERROR_CODES.NOT_FOUND,
-        `Variant ${variantId} not found under Product ${parentProductId}.`,
-      );
-    }
-    await em.removeAndFlush(variant);
     this.events.emit('product.updated.v1', {
       eventId: randomUUID(),
       occurredAt: new Date().toISOString(),

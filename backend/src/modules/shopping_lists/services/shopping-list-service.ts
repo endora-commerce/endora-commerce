@@ -73,6 +73,8 @@ export class ShoppingListService {
   }
 
   async create(ctx: CustomerContext, input: { name: string }): Promise<ShoppingList> {
+    // command-coverage-ignore: customer-owned personal saved list — self-service
+    // convenience data; conversions delegate to the audited cart/RFQ paths.
     const em = this.emFactory();
     // The customer's first list automatically becomes their default.
     const existingCount = await em.count(ShoppingList, {
@@ -98,6 +100,8 @@ export class ShoppingListService {
    * Idempotent — safe to call on every storefront default-list read.
    */
   async ensureDefault(ctx: CustomerContext): Promise<ShoppingList> {
+    // command-coverage-ignore: customer-owned personal saved list — self-service
+    // convenience data; conversions delegate to the audited cart/RFQ paths.
     const em = this.emFactory();
     const where = {
       organizationId: ctx.organizationId,
@@ -120,6 +124,8 @@ export class ShoppingListService {
 
   /** Marks `listId` as the customer's default, clearing the flag on the rest. */
   async setDefault(ctx: CustomerContext, listId: string): Promise<ShoppingList> {
+    // command-coverage-ignore: customer-owned personal saved list — self-service
+    // convenience data; conversions delegate to the audited cart/RFQ paths.
     const em = this.emFactory();
     const list = await this.#owned(em, ctx, listId);
     const others = await em.find(ShoppingList, {
@@ -147,6 +153,8 @@ export class ShoppingListService {
   }
 
   async rename(ctx: CustomerContext, listId: string, name: string): Promise<ShoppingList> {
+    // command-coverage-ignore: customer-owned personal saved list — self-service
+    // convenience data; conversions delegate to the audited cart/RFQ paths.
     const em = this.emFactory();
     const list = await this.#owned(em, ctx, listId);
     list.name = name;
@@ -155,6 +163,8 @@ export class ShoppingListService {
   }
 
   async remove(ctx: CustomerContext, listId: string): Promise<void> {
+    // command-coverage-ignore: customer-owned personal saved list — self-service
+    // convenience data; conversions delegate to the audited cart/RFQ paths.
     const em = this.emFactory();
     const list = await this.#owned(em, ctx, listId);
     // The default list can be cleared but never deleted — it is the customer's
@@ -188,6 +198,8 @@ export class ShoppingListService {
     listId: string,
     input: { productId: string; variantId?: string; quantity: number; note?: string },
   ): Promise<ShoppingListItem> {
+    // command-coverage-ignore: customer-owned personal saved list — self-service
+    // convenience data; conversions delegate to the audited cart/RFQ paths.
     const em = this.emFactory();
     const list = await this.#owned(em, ctx, listId);
     const product = await em.findOne(Product, { id: input.productId });
@@ -212,6 +224,8 @@ export class ShoppingListService {
     itemId: string,
     patch: { quantity?: number; note?: string | null },
   ): Promise<ShoppingListItem> {
+    // command-coverage-ignore: customer-owned personal saved list — self-service
+    // convenience data; conversions delegate to the audited cart/RFQ paths.
     const em = this.emFactory();
     const list = await this.#owned(em, ctx, listId);
     const item = await em.findOne(ShoppingListItem, { id: itemId, shoppingListId: list.id });
@@ -224,6 +238,8 @@ export class ShoppingListService {
   }
 
   async removeItem(ctx: CustomerContext, listId: string, itemId: string): Promise<void> {
+    // command-coverage-ignore: customer-owned personal saved list — self-service
+    // convenience data; conversions delegate to the audited cart/RFQ paths.
     const em = this.emFactory();
     const list = await this.#owned(em, ctx, listId);
     const item = await em.findOne(ShoppingListItem, { id: itemId, shoppingListId: list.id });
@@ -238,6 +254,8 @@ export class ShoppingListService {
    * caller can report it.
    */
   async clearItems(ctx: CustomerContext, listId: string): Promise<number> {
+    // command-coverage-ignore: customer-owned personal saved list — self-service
+    // convenience data; conversions delegate to the audited cart/RFQ paths.
     const em = this.emFactory();
     const list = await this.#owned(em, ctx, listId);
     const removed = await em.nativeDelete(ShoppingListItem, { shoppingListId: list.id });

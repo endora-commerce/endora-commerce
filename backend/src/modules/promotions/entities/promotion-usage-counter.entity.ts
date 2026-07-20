@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -6,6 +7,7 @@ import { randomUUID } from 'crypto';
  * enforcement (US5). Incremented inside the order-placement transaction via
  * `UPDATE ... WHERE count < limit` so the last available use is race-safe.
  */
+@GlobalEntity()
 @Entity({ tableName: 'promotion_usage_counters' })
 @Unique({ properties: ['scopeType', 'scopeKey'] })
 export class PromotionUsageCounter {

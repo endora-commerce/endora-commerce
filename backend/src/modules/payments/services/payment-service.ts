@@ -13,6 +13,9 @@ export class PaymentService {
   constructor(private readonly emFactory: () => EntityManager) {}
 
   async openRetry(orderId: string): Promise<Payment> {
+    // command-coverage-ignore: opens a new payment attempt after a failure —
+    // checkout retry mechanics; the order/payment status transition is audited in
+    // the orders flow.
     const em = this.emFactory();
     return em.transactional(async (tx) => {
       const latest = await tx.findOne(

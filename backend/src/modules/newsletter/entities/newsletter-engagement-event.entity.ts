@@ -1,7 +1,9 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 import { randomUUID } from 'crypto';
 
 /** NewsletterEngagementEvent — feature 048. One open/click event per send record. */
+@GlobalEntity()
 @Entity({ tableName: 'newsletter_engagement_events' })
 @Index({ properties: ['sendRecordId'] })
 @Index({ properties: ['type'] })

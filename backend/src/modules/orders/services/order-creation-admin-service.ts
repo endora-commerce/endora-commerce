@@ -58,6 +58,9 @@ export class OrderCreationAdminService {
   ) {}
 
   async create(adminUserId: string | null, input: AdminCreateOrderInput): Promise<Order> {
+    // command-coverage-ignore: the order write is delegated to
+    // OrderService.placeOrder (audited there); the only local mutation here is
+    // the optional append-only OrderComment, not audited domain-state.
     const em = this.emFactory();
     const customer = await em.findOne(CustomerAccount, { id: input.customerAccountId });
     if (!customer) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');

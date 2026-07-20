@@ -94,6 +94,8 @@ export class ComparisonService {
     customerAccountId: string,
     anonymousToken: string,
   ): Promise<void> {
+    // command-coverage-ignore: transient customer working state (like carts) —
+    // self-service convenience data, not an audited domain-state mutation.
     const em = this.emFactory();
     const anon = await em.findOne(Comparison, { anonymousToken });
     if (!anon) return;
@@ -132,6 +134,8 @@ export class ComparisonService {
     salesChannelId: string,
     productId: string,
   ): Promise<Comparison> {
+    // command-coverage-ignore: transient customer working state (like carts) —
+    // self-service convenience data, not an audited domain-state mutation.
     const em = this.emFactory();
 
     const product = await em.findOne(Product, { id: productId });
@@ -172,6 +176,8 @@ export class ComparisonService {
   }
 
   async removeProduct(owner: ComparisonOwner, productId: string): Promise<Comparison> {
+    // command-coverage-ignore: transient customer working state (like carts) —
+    // self-service convenience data, not an audited domain-state mutation.
     const em = this.emFactory();
     const comparison = await em.findOne(Comparison, ownerWhere(owner));
     if (!comparison) throw new ComparisonNotFoundError();
@@ -190,6 +196,8 @@ export class ComparisonService {
     owner: ComparisonOwner,
     mode: ComparisonDisplayMode,
   ): Promise<Comparison> {
+    // command-coverage-ignore: transient customer working state (like carts) —
+    // self-service convenience data, not an audited domain-state mutation.
     const em = this.emFactory();
     const comparison = await em.findOne(Comparison, ownerWhere(owner));
     if (!comparison) throw new ComparisonNotFoundError();
@@ -200,6 +208,8 @@ export class ComparisonService {
   }
 
   async deleteForOwner(owner: ComparisonOwner): Promise<void> {
+    // command-coverage-ignore: transient customer working state (like carts) —
+    // self-service convenience data, not an audited domain-state mutation.
     const em = this.emFactory();
     const comparison = await em.findOne(Comparison, ownerWhere(owner));
     if (!comparison) throw new ComparisonNotFoundError();

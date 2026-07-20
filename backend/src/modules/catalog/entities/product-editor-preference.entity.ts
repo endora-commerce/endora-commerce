@@ -1,4 +1,5 @@
 import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
+import { GlobalEntity } from '../../../tenancy/org-scoped.decorator.js';
 
 /**
  * ProductEditorPreference — feature 022.
@@ -18,6 +19,7 @@ import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
  * product (or deleted) by the time the editor returns, the page falls
  * back to Global on its own and the next save overwrites the row.
  */
+@GlobalEntity()
 @Entity({ tableName: 'product_editor_preferences' })
 export class ProductEditorPreference {
   [OptionalProps]?: 'updatedAt' | 'lastChannelId' | 'lastLanguageCode';

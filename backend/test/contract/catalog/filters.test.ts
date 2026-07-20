@@ -32,7 +32,7 @@ describe('GET /api/v1/catalog/filters — filterable attributes only', () => {
   });
 
   it('returns the filterable attribute definitions', async () => {
-    const res = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/filters' });
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/filters', headers: { 'x-sales-channel': 'pl_retail' } });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: FilterDef[] };
     expect(Array.isArray(body.data)).toBe(true);
@@ -46,7 +46,7 @@ describe('GET /api/v1/catalog/filters — filterable attributes only', () => {
   });
 
   it('excludes an attribute toggled to isFilterable=false', async () => {
-    const res = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/filters' });
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/filters', headers: { 'x-sales-channel': 'pl_retail' } });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: FilterDef[] };
     const keys = body.data.map((f) => f.attributeKey);

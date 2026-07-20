@@ -2,6 +2,8 @@ import { randomUUID } from 'crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
+import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
+import type { CustomFieldValueService } from '../custom_fields/services/custom-field-value.service.js';
 import { RfqService, type RfqEventBus } from './services/rfq-service.js';
 import { createQuoteRequestBusinessIdGenerator } from './services/quote-request-business-id-generator.js';
 import { RfqAdminService } from './services/rfq-admin-service.js';
@@ -9,7 +11,10 @@ import { RfqEventService } from './services/rfq-event-service.js';
 import { RfqRevisionService } from './services/rfq-revision-service.js';
 import { RfqNotificationService } from './services/rfq-notification-service.js';
 import { RfqExpiryWorker } from './services/rfq-expiry-worker.js';
-import { SalesRepAssignmentService } from '../organizations/services/sales-rep-assignment-service.js';
+import {
+  SalesRepAssignmentService,
+  type SalesRepSubtreeDeps,
+} from '../organizations/services/sales-rep-assignment-service.js';
 import { QuoteRequest } from './entities/quote-request.entity.js';
 import { Order } from '../orders/entities/order.entity.js';
 import {
@@ -53,6 +58,15 @@ export interface QuoteRequestsModuleOptions {
    * compositions, where prices stay net.
    */
   resolveTaxRate?: (organizationId: string) => Promise<number>;
+  /** Feature 054 — audits RFQ lifecycle writes co-transactionally when provided. */
+  auditLog?: AuditLogService;
+  /** Feature 055 — validates + reads RFQ custom-field values on the admin edit path. */
+  customFieldValues?: CustomFieldValueService;
+  /**
+   * Feature 056 — when provided, the RFQ admin scope (per-row `canSeeOrganization`
+   * + `scope === 'mine'`) becomes subtree-aware for reps holding `organizations:rollup`.
+   */
+  salesRepSubtree?: SalesRepSubtreeDeps;
 }
 
 export interface QuoteRequestsModuleHandle {
@@ -69,7 +83,11 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
   const eventService = new RfqEventService(options.emFactory);
   const revisionService = new RfqRevisionService(options.emFactory);
   const notificationService = new RfqNotificationService(options.emFactory);
-  const salesRepAssignment = new SalesRepAssignmentService(options.emFactory);
+  const salesRepAssignment = new SalesRepAssignmentService(
+    options.emFactory,
+    options.auditLog,
+    options.salesRepSubtree,
+  );
 
   // Business Quote Request ID generator — adapts the composition-wired
   // prefix/suffix resolver closures (SettingsService-backed) to the
@@ -92,6 +110,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     salesRepAssignment,
     businessId: businessIdGenerator,
     ...(options.resolveTaxRate ? { resolveTaxRate: options.resolveTaxRate } : {}),
+    ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
 
   const adminService = new RfqAdminService({
@@ -102,6 +121,8 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     revisionService,
     notificationService,
     salesRepAssignment,
+    ...(options.auditLog ? { auditLog: options.auditLog } : {}),
+    ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
   });
 
   const expiryWorker = new RfqExpiryWorker({
