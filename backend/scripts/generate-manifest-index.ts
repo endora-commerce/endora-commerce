@@ -56,23 +56,45 @@ function exposesLifecycleManifest(filePath: string): boolean {
 }
 
 function discover(): DiscoveredModule[] {
-  const out: DiscoveredModule[] = [];
+  const byId = new Map<string, DiscoveredModule>();
+  // 1) Core modules (unchanged behaviour).
   for (const entry of readdirSync(modulesRoot).sort()) {
     const dir = join(modulesRoot, entry);
     if (!statSync(dir).isDirectory()) continue;
     const manifestPath = join(dir, 'manifest.ts');
     if (!existsSync(manifestPath)) continue;
     if (!exposesLifecycleManifest(manifestPath)) continue;
-    out.push({
+    byId.set(entry, {
       id: entry,
       // Relative import path from manifest-index.generated.ts to the
-      // module's manifest.ts. The generated file lives in
-      // `_lifecycle/` so the import is one folder up + the module
-      // folder + `manifest.js` (compiled extension).
+      // module's manifest.ts. The generated file lives in `_lifecycle/`
+      // so the import is one folder up + the module folder + `manifest.js`.
       importPath: `../${entry}/manifest.js`,
     });
   }
-  return out;
+  // 2) Overlay modules for the active deployment (feature 057). An overlay
+  // module with a NEW id is added; an overlay manifest for an existing core id
+  // SHADOWS core. When DEPLOYMENT is unset / has no overlay dir, this is a
+  // no-op and the generated index is byte-identical to bare core (FR-008).
+  const deployment = process.env['DEPLOYMENT']?.trim();
+  if (deployment) {
+    const overlayRoot = resolve(here, '../src/apps', deployment, 'modules');
+    if (existsSync(overlayRoot)) {
+      for (const entry of readdirSync(overlayRoot).sort()) {
+        const dir = join(overlayRoot, entry);
+        if (!statSync(dir).isDirectory()) continue;
+        const manifestPath = join(dir, 'manifest.ts');
+        if (!existsSync(manifestPath)) continue;
+        if (!exposesLifecycleManifest(manifestPath)) continue;
+        byId.set(entry, {
+          id: entry,
+          // From `_lifecycle/` up to `src/` then into the overlay tree.
+          importPath: `../../apps/${deployment}/modules/${entry}/manifest.js`,
+        });
+      }
+    }
+  }
+  return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 
 function emit(mods: DiscoveredModule[]): string {

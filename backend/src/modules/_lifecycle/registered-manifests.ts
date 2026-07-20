@@ -1,6 +1,11 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import type { ModuleManifest, ModuleManifestExports } from '@b2b/contracts';
+import { DISCOVERED_MANIFESTS } from './manifest-index.generated.js';
+import {
+  overlayModulesRootFor,
+  selectedDeployment,
+} from '../../overlay/overlay-roots.js';
 import { manifest as lifecycleManifest } from './manifest.js';
 import {
   manifest as settingsManifest,
@@ -244,4 +249,36 @@ export function findInactiveModules(): InactiveModule[] {
     }
   }
   return out;
+}
+
+/**
+ * The **deployment-resolved** manifest set = the hand-maintained core
+ * `REGISTERED_MANIFESTS` PLUS any overlay-only module discovered for the active
+ * deployment (feature 057). The core array is never edited per deployment
+ * (FR-004): overlay modules are appended from the generated manifest index
+ * (which includes overlay entries when the build ran with `DEPLOYMENT` set).
+ *
+ * For a bare-core build (`DEPLOYMENT` unset) the generated index contains only
+ * core modules, so this returns `REGISTERED_MANIFESTS` unchanged (FR-008).
+ * Consumers that must include overlay modules — lifecycle scripts, the
+ * permission catalogue, composition — call this instead of reading the raw
+ * array. `filePath` stays real so the i18n bundle loader keeps working.
+ */
+export function resolvedManifestEntries(): RegisteredManifestEntry[] {
+  const byId = new Map<string, RegisteredManifestEntry>(
+    REGISTERED_MANIFESTS.map((e) => [e.manifest.id, e]),
+  );
+  const deployment = selectedDeployment();
+  for (const discovered of DISCOVERED_MANIFESTS) {
+    if (byId.has(discovered.id)) continue; // core module already registered
+    // An overlay-only module: prefer a real core path if one somehow exists,
+    // else resolve under the deployment's overlay tree.
+    const corePath = pathFor(discovered.id);
+    const filePath =
+      existsSync(corePath) || deployment === null
+        ? corePath
+        : join(overlayModulesRootFor(deployment), discovered.id, 'manifest.ts');
+    byId.set(discovered.id, { manifest: discovered.manifest, filePath });
+  }
+  return [...byId.values()];
 }

@@ -32,6 +32,7 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "paths": {
+      "@core/*": ["./backend/src/*"],
       "@b2b/contracts": ["./packages/contracts/src/index.ts"],
       "@b2b/contracts/*": ["./packages/contracts/src/*"],
       "@b2b/api-client": ["./packages/api-client/src/index.ts"],
