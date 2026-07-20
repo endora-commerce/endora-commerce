@@ -13,7 +13,12 @@ const sidebars = {
       type: 'category',
       label: 'Architecture',
       link: { type: 'generated-index', title: 'Architecture' },
-      items: ['architecture/tenant-scoping', 'architecture/command-bus'],
+      items: [
+        'architecture/tenant-scoping',
+        'architecture/command-bus',
+        'architecture/custom-fields',
+        'architecture/overlay-pattern',
+      ],
     },
     {
       type: 'category',
