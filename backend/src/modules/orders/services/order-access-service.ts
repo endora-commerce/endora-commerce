@@ -34,7 +34,13 @@ export class OrderAccessService {
     const em = this.emFactory();
     const isAdmin = await this.isOrganizationAdmin(em, ctx.customerAccountId);
     if (isAdmin) {
-      return { ...extra, organizationId: ctx.organizationId };
+      // Feature 056 (T032) — an Organization Admin sees "their org(s)". The org
+      // predicate is enforced by the always-on tenant filter (feature 050): it
+      // resolves to single-org for a normal login and to the org SUBTREE for a
+      // roll-up-enabled head-office login. Relying on the ambient filter here
+      // (instead of pinning `ctx.organizationId`) preserves single-org behavior
+      // byte-for-byte and lets roll-up widen without a second scoping path.
+      return { ...extra };
     }
     return {
       ...extra,
@@ -55,7 +61,13 @@ export class OrderAccessService {
   ): Promise<Record<string, unknown>> {
     const isAdmin = await this.isOrganizationAdmin(em, ctx.customerAccountId);
     if (isAdmin) {
-      return { ...extra, organizationId: ctx.organizationId };
+      // Feature 056 (T032) — an Organization Admin sees "their org(s)". The org
+      // predicate is enforced by the always-on tenant filter (feature 050): it
+      // resolves to single-org for a normal login and to the org SUBTREE for a
+      // roll-up-enabled head-office login. Relying on the ambient filter here
+      // (instead of pinning `ctx.organizationId`) preserves single-org behavior
+      // byte-for-byte and lets roll-up widen without a second scoping path.
+      return { ...extra };
     }
     return {
       ...extra,

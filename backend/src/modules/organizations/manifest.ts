@@ -11,6 +11,9 @@ import {
 export const ORGANIZATIONS_SETTING_CODES = {
   MODERATION_MODE: 'organizations.moderation.mode',
   NEW_REGISTRATION_RECIPIENTS: 'organizations.notifications.new_registration_recipients',
+  // Feature 056 — platform-wide factory default for credit inheritance across the
+  // organization tree; a per-org `credit_inheritance_mode` column overrides it.
+  CREDIT_INHERITANCE_MODE: 'organizations.hierarchy.credit_inheritance_mode',
 } as const;
 
 const settings = defineModuleSettingsManifest({
@@ -34,6 +37,15 @@ const settings = defineModuleSettingsManifest({
       groupCode: 'organizations',
       valueType: 'json',
       defaultValue: [],
+    },
+    {
+      code: ORGANIZATIONS_SETTING_CODES.CREDIT_INHERITANCE_MODE,
+      name: 'Credit inheritance mode (organization hierarchy)',
+      description:
+        'Factory default for how a parent organization\'s credit limit is consumed by sub-organizations that have no own limit. One of: shared_pool (branches draw against one shared pool; concurrent draws never exceed it) | independent_default (each branch draws its own full copy of the inherited amount). A per-organization override may be set by a platform administrator.',
+      groupCode: 'organizations',
+      valueType: 'string',
+      defaultValue: 'shared_pool',
     },
   ],
 });

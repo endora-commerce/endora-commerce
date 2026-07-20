@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import Redis from 'ioredis';
 import { z } from 'zod';
 import { CustomerAccount } from './modules/customer_accounts/entities/customer-account.entity.js';
+import { resolveCustomerRollupSubtreeIds } from './modules/customer_accounts/services/customer-rollup-scope.js';
 import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';
 import { Organization } from './modules/organizations/entities/organization.entity.js';
 import { AdminRole } from './modules/admin_roles/entities/admin-role.entity.js';
@@ -38,6 +39,9 @@ import { adminNotificationsModule } from './modules/admin_notifications/plugin.j
 import { OrganizationModerationService } from './modules/organizations/services/organization-moderation-service.js';
 import { OrganizationRestrictionService } from './modules/organizations/services/organization-restriction-service.js';
 import { OrganizationEffectivePriceListsService } from './modules/organizations/services/organization-effective-pricelists-service.js';
+import { OrganizationTreeService } from './modules/organizations/services/organization-tree-service.js';
+import { OrganizationInheritanceService } from './modules/organizations/services/organization-inheritance-service.js';
+import { SalesRepAssignmentService } from './modules/organizations/services/sales-rep-assignment-service.js';
 import { OrganizationTaxIdValidationService } from './modules/organizations/services/organization-tax-id-validation-service.js';
 import { ViesClient } from './modules/organizations/integrations/vies-client.js';
 import { MinisterstwoFinansowClient } from './modules/organizations/integrations/ministerstwo-finansow-client.js';
@@ -384,6 +388,28 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     getMfaLoginPort,
   });
 
+  // Feature 056 — organization tree + inheritance resolution port (shared by
+  // US2 scope expansion and US3 commercial-term inheritance). The global
+  // credit-mode default is read from Settings at call time (settings module is
+  // constructed further below; the closure runs at request time).
+  const organizationTreeService = new OrganizationTreeService(em);
+  const organizationInheritanceService = new OrganizationInheritanceService(
+    em,
+    organizationTreeService,
+    async () => {
+      try {
+        const { z } = await import('zod');
+        return await settings.handle.settingsService.get(
+          ORGANIZATIONS_SETTING_CODES.CREDIT_INHERITANCE_MODE,
+          'default',
+          z.enum(['shared_pool', 'independent_default']),
+        );
+      } catch {
+        return 'shared_pool';
+      }
+    },
+  );
+
   const creditLimits = creditLimitsModule({
     emFactory: em,
     eventBus,
@@ -391,6 +417,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireCustomer,
     requireAdmin,
     resolveCustomerContext: customerResolver,
+    // Feature 056 — inherited credit limits (shared_pool / independent_default).
+    inheritance: organizationInheritanceService,
   });
 
   // Feature 055 — Custom Fields Layer. Exposes the definition/value services as
@@ -480,6 +508,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       }
       return { actorAdminUserId: actor.adminUserId };
     },
+    // Feature 056 — inherited price lists resolve up the org tree (nearest-first).
+    resolveOrgChain: (orgId) => organizationInheritanceService.priceListOrgChain(orgId),
   });
   const taxes = taxesModule({
     emFactory: em,
@@ -805,10 +835,25 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const organizationContextService = new OrganizationContextService(em);
   const organizationRestrictionService = new OrganizationRestrictionService(em, auditLogService);
 
+  // Feature 056 — subtree-aware assignment service. When a scoped sales-rep
+  // actor holds the `organizations:rollup` capability, `listAssignedOrganizationIds`
+  // expands each assignment to its subtree (with per-descendant override, FR-011);
+  // `canSeeOrganization` uses the nearest-assignment-on-ancestor-chain rule.
+  // Without the capability, behavior is byte-for-byte the pre-feature flat set.
+  // (`organizationTreeService` is constructed above, before creditLimits.)
+  const scopedSalesRepAssignment = new SalesRepAssignmentService(em, auditLogService, {
+    treeService: organizationTreeService,
+    hasRollupCapability: (adminUserId) =>
+      permissionService.hasPermission(adminUserId, 'organizations:rollup'),
+  });
+
   /**
    * Feature 026 US6 — admin orders/RFQ visibility scope. Sales-rep admins
    * see only orders/RFQs from organizations they own; any other admin
    * (platform admin, content manager, etc.) sees everything.
+   *
+   * Feature 056 — the assigned set is subtree-expanded when the rep holds the
+   * roll-up capability (see `scopedSalesRepAssignment`).
    */
   const resolveAdminOrdersScope = async (
     request: FastifyRequest,
@@ -826,14 +871,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     if (roleCode !== 'sales_representative') {
       return { allowAll: true };
     }
-    const assignments = (await knex.raw(
-      `select "organization_id" from "organization_sales_rep_assignments" where "admin_user_id" = ?`,
-      [actor.adminUserId],
-    )) as { rows: Array<{ organization_id: string }> };
-    return {
-      allowAll: false,
-      allowedOrganizationIds: assignments.rows.map((r) => r.organization_id),
-    };
+    const allowedOrganizationIds = await scopedSalesRepAssignment.listAssignedOrganizationIds(
+      actor.adminUserId,
+    );
+    return { allowAll: false, allowedOrganizationIds };
   };
 
   /**
@@ -938,11 +979,22 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           if (actor.kind === 'customer') {
             const orgId =
               actor.organizationId && actor.organizationId.length > 0 ? actor.organizationId : null;
+            // Feature 056 (T032) — a roll-up-enabled customer widens to its org
+            // subtree (server-derived). Absent the capability, stays single-org.
+            const rollupSubtree = await resolveCustomerRollupSubtreeIds(
+              em,
+              (id) => organizationTreeService.subtreeIds(id),
+              actor.customerAccountId,
+              orgId,
+            );
             return resolveTenantContext({
               kind: 'customer',
               customerAccountId: actor.customerAccountId,
               organizationId: orgId,
               impersonatorAdminUserId: actor.impersonatorAdminUserId,
+              ...(rollupSubtree && rollupSubtree.length > 0
+                ? { rollupSubtreeOrganizationIds: rollupSubtree }
+                : {}),
             });
           }
           if (actor.kind === 'admin') {
@@ -1241,6 +1293,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     organizationsModule({
       emFactory: em,
       eventBus,
+      commandBus,
       sessionService,
       getMfaLoginPort,
       requireCustomer,
@@ -1765,6 +1818,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       }
     },
     auditLog: auditLogService,
+    // Feature 056 — RFQ admin scope is subtree-aware for reps holding roll-up.
+    salesRepSubtree: {
+      treeService: organizationTreeService,
+      hasRollupCapability: (adminUserId) =>
+        permissionService.hasPermission(adminUserId, 'organizations:rollup'),
+    },
   });
   modules.push(quoteRequests.register);
 
@@ -1859,11 +1918,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       const isPlatformAdmin = (roleRow.rows[0]?.code ?? null) !== 'sales_representative';
       let allowedOrganizationIds: string[] = [];
       if (!isPlatformAdmin) {
-        const rows = (await knex.raw(
-          `select "organization_id" from "organization_sales_rep_assignments" where "admin_user_id" = ?`,
-          [actor.adminUserId],
-        )) as { rows: Array<{ organization_id: string }> };
-        allowedOrganizationIds = rows.rows.map((r) => r.organization_id);
+        // Feature 056 — subtree-expanded when the rep holds `organizations:rollup`.
+        allowedOrganizationIds = await scopedSalesRepAssignment.listAssignedOrganizationIds(
+          actor.adminUserId,
+        );
       }
       return { adminUserId: actor.adminUserId, isPlatformAdmin, allowedOrganizationIds };
     },

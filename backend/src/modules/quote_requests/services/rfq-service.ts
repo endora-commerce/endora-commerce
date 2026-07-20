@@ -133,9 +133,11 @@ export class RfqService {
 
   async listForCustomer(ctx: CustomerContext): Promise<QuoteRequestSummary[]> {
     const em = this.deps.emFactory();
-    const where = ctx.isOrgAdmin
-      ? { organizationId: ctx.organizationId }
-      : { customerAccountId: ctx.customerAccountId };
+    // Feature 056 (T032) — an Organization Admin sees "their org(s)"; the org
+    // predicate is enforced by the always-on tenant filter (single-org, or the
+    // SUBTREE for a roll-up-enabled head-office login), so we do not pin
+    // `ctx.organizationId` here. A regular user still sees only their own RFQs.
+    const where = ctx.isOrgAdmin ? {} : { customerAccountId: ctx.customerAccountId };
     const rfqs = await em.find(QuoteRequest, where, { orderBy: { createdAt: 'desc' } });
     if (rfqs.length === 0) return [];
 

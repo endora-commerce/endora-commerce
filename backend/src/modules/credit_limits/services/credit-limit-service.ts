@@ -5,6 +5,7 @@ import type { EventBase, EventBus } from '../../../events/bus.js';
 import type { Command, CommandBus } from '../../../commands/index.js';
 import { CreditLimit } from '../entities/credit-limit.entity.js';
 import { CreditLimitReservation } from '../entities/credit-limit-reservation.entity.js';
+import type { OrganizationInheritanceService } from '../../organizations/services/organization-inheritance-service.js';
 
 /**
  * CreditLimitService (T214) — implements the contract documented in
@@ -64,11 +65,29 @@ export class CreditLimitService {
      * path, which stays byte-identical.
      */
     private readonly commandBus?: CommandBus,
+    /**
+     * Feature 056 — organizations-owned resolution port. When injected, a
+     * descendant with no own `CreditLimit` row transacts against the nearest
+     * ancestor's per the effective mode (shared_pool / independent_default).
+     * Absent ⇒ flat behavior (byte-for-byte the pre-feature single-org path).
+     */
+    private readonly inheritance?: OrganizationInheritanceService,
   ) {}
 
   async getForOrganization(organizationId: string): Promise<CreditLimit | null> {
     const em = this.emFactory();
-    return em.findOne(CreditLimit, { organizationId });
+    const own = await em.findOne(CreditLimit, { organizationId });
+    if (own || !this.inheritance) return own;
+    // Feature 056 — fall back to the nearest ancestor holding a limit. The owner
+    // may lie outside the caller's tenant scope, so the org filter is disabled
+    // for this resolution read (the reserve/enforcement path is separate).
+    const { ownerOrgId } = await this.inheritance.creditOwner(organizationId);
+    if (!ownerOrgId || ownerOrgId === organizationId) return null;
+    return em.findOne(
+      CreditLimit,
+      { organizationId: ownerOrgId },
+      { filters: { org: false } },
+    );
   }
 
   async listAll(): Promise<CreditLimit[]> {
@@ -265,48 +284,151 @@ export class CreditLimitService {
     // transaction (accepts `tx`) and is a system operation, not an admin action.
     // The credit movement is captured by the credit_limit.reserved.v1 event and
     // the reservation row — not the admin audit log.
-    const run = async (em: EntityManager): Promise<ReserveResult> => {
-      const limit = await em.findOne(
-        CreditLimit,
-        { organizationId: input.organizationId },
-        { lockMode: LockMode.PESSIMISTIC_WRITE },
-      );
-      if (!limit) return { ok: false, code: 'CREDIT_LIMIT_NOT_GRANTED' as const };
-      if (limit.currency !== input.currency) {
-        return { ok: false, code: 'CURRENCY_MISMATCH' as const };
-      }
-      const granted = Number(limit.grantedAmount);
-      const reservedSum = await this.#sumActiveReservations(em, limit.id);
-      const available = granted - reservedSum;
-      if (available < input.amount) {
-        return { ok: false, code: 'LIMIT_INSUFFICIENT' as const, availableAmount: available };
-      }
-      const reservation = em.create(CreditLimitReservation, {
-        creditLimitId: limit.id,
-        orderId: input.orderId,
-        amount: input.amount.toFixed(2),
-        currency: input.currency,
-        status: 'active',
-      });
-      await em.persistAndFlush(reservation);
-
-      this.events.emit('credit_limit.reserved.v1', {
-        eventId: randomUUID(),
-        occurredAt: new Date().toISOString(),
-        organizationId: input.organizationId,
-        orderId: input.orderId,
-        amount: input.amount,
-      });
-      return {
-        ok: true,
-        reservationId: reservation.id,
-        availableAmountAfter: available - input.amount,
-      };
-    };
+    const run = async (em: EntityManager): Promise<ReserveResult> =>
+      this.inheritance ? this.#reserveInherited(em, input) : this.#reserveFlat(em, input);
 
     if (input.tx) return run(input.tx);
     const em = this.emFactory();
     return em.transactional(run);
+  }
+
+  /** Pre-feature flat reservation — locks the org's own row (unchanged). */
+  async #reserveFlat(
+    em: EntityManager,
+    input: { organizationId: string; orderId: string; amount: number; currency: string },
+  ): Promise<ReserveResult> {
+    // command-coverage-ignore: reservation path invoked by reserve() inside the
+    // caller's order-placement transaction — a system operation, not an admin
+    // action. The credit movement is captured by the credit_limit.reserved.v1
+    // event and the reservation row, not the admin audit log.
+    const limit = await em.findOne(
+      CreditLimit,
+      { organizationId: input.organizationId },
+      { lockMode: LockMode.PESSIMISTIC_WRITE },
+    );
+    if (!limit) return { ok: false, code: 'CREDIT_LIMIT_NOT_GRANTED' as const };
+    if (limit.currency !== input.currency) {
+      return { ok: false, code: 'CURRENCY_MISMATCH' as const };
+    }
+    const granted = Number(limit.grantedAmount);
+    const reservedSum = await this.#sumActiveReservations(em, limit.id);
+    const available = granted - reservedSum;
+    if (available < input.amount) {
+      return { ok: false, code: 'LIMIT_INSUFFICIENT' as const, availableAmount: available };
+    }
+    const reservation = em.create(CreditLimitReservation, {
+      creditLimitId: limit.id,
+      orderId: input.orderId,
+      amount: input.amount.toFixed(2),
+      currency: input.currency,
+      status: 'active',
+    });
+    await em.persistAndFlush(reservation);
+    this.#emitReserved(input);
+    return { ok: true, reservationId: reservation.id, availableAmountAfter: available - input.amount };
+  }
+
+  /**
+   * Feature 056 — inherited reservation. Resolves the owning ancestor-or-self
+   * (`creditOwner`) and the effective mode:
+   *   - shared_pool: FOR-UPDATE lock on the OWNER's row; `available = granted −
+   *     Σ active reservations against the owner row` (every subtree reservation
+   *     references the owner row, so this sums the whole subtree). Concurrent
+   *     draws serialize on the one owner row → zero double-spend (SC-004).
+   *   - independent_default: lock the owner's row but sum only THIS descendant's
+   *     active reservations (via `orders.organization_id`), so each branch draws
+   *     its full inherited amount without affecting siblings.
+   *
+   * A root org with its own limit is its own owner (shared_pool default), which
+   * collapses to the flat behavior byte-for-byte.
+   */
+  async #reserveInherited(
+    em: EntityManager,
+    input: { organizationId: string; orderId: string; amount: number; currency: string },
+  ): Promise<ReserveResult> {
+    // command-coverage-ignore: reservation path invoked by reserve() inside the
+    // caller's order-placement transaction — a system operation, not an admin
+    // action. The credit movement is captured by the credit_limit.reserved.v1
+    // event and the reservation row, not the admin audit log.
+    const { ownerOrgId, mode } = await this.inheritance!.creditOwner(input.organizationId);
+    if (!ownerOrgId) return { ok: false, code: 'CREDIT_LIMIT_NOT_GRANTED' as const };
+
+    // Lock the owning ancestor's row FOR UPDATE. Raw SQL bypasses the @OrgScoped
+    // filter (the owner may lie outside the reserving descendant's tenant scope)
+    // and gives precise lock control on the money path.
+    const ownerRows = (await em.getConnection().execute(
+      `select "id", "granted_amount", "currency" from "credit_limits"
+         where "organization_id" = ? for update`,
+      [ownerOrgId],
+      'all',
+      em.getTransactionContext(),
+    )) as Array<{ id: string; granted_amount: string; currency: string }>;
+    const owner = ownerRows[0];
+    if (!owner) return { ok: false, code: 'CREDIT_LIMIT_NOT_GRANTED' as const };
+    if (owner.currency !== input.currency) {
+      return { ok: false, code: 'CURRENCY_MISMATCH' as const };
+    }
+
+    const granted = Number(owner.granted_amount);
+    const reservedSum =
+      mode === 'shared_pool'
+        ? await this.#sumReservationsForLimit(em, owner.id)
+        : await this.#sumReservationsForOrg(em, input.organizationId);
+    const available = granted - reservedSum;
+    if (available < input.amount) {
+      return { ok: false, code: 'LIMIT_INSUFFICIENT' as const, availableAmount: available };
+    }
+
+    const reservation = em.create(CreditLimitReservation, {
+      creditLimitId: owner.id,
+      orderId: input.orderId,
+      amount: input.amount.toFixed(2),
+      currency: input.currency,
+      status: 'active',
+    });
+    await em.persistAndFlush(reservation);
+    this.#emitReserved(input);
+    return { ok: true, reservationId: reservation.id, availableAmountAfter: available - input.amount };
+  }
+
+  #emitReserved(input: { organizationId: string; orderId: string; amount: number }): void {
+    this.events.emit('credit_limit.reserved.v1', {
+      eventId: randomUUID(),
+      occurredAt: new Date().toISOString(),
+      organizationId: input.organizationId,
+      orderId: input.orderId,
+      amount: input.amount,
+    });
+  }
+
+  /** Σ active reservations against a credit_limits row (transaction-scoped). */
+  async #sumReservationsForLimit(em: EntityManager, creditLimitId: string): Promise<number> {
+    const rows = (await em.getConnection().execute(
+      `select coalesce(sum(amount), 0) as total
+         from credit_limit_reservations
+         where credit_limit_id = ? and status = 'active'`,
+      [creditLimitId],
+      'all',
+      em.getTransactionContext(),
+    )) as Array<{ total: string | number | null }>;
+    return Number(rows[0]?.total ?? 0);
+  }
+
+  /**
+   * Σ active reservations consumed by a specific organization (via the reserving
+   * order), for the independent_default mode. Transaction-scoped.
+   */
+  async #sumReservationsForOrg(em: EntityManager, organizationId: string): Promise<number> {
+    const rows = (await em.getConnection().execute(
+      `select coalesce(sum(r.amount), 0) as total
+         from credit_limit_reservations r
+         join orders o on o.id = r.order_id
+         where r.status = 'active' and o.organization_id = ?`,
+      [organizationId],
+      'all',
+      em.getTransactionContext(),
+    )) as Array<{ total: string | number | null }>;
+    return Number(rows[0]?.total ?? 0);
   }
 
   async releaseByOrder(input: {

@@ -37,7 +37,20 @@ export function pickPriorityChain<TList>(
   if (candidates.length === 0) return null;
   for (const level of PRIORITY_ORDER) {
     const atLevel = candidates.filter((c) => c.evaluation.explicitOn.has(level));
-    if (atLevel.length > 0) return tieBreak(atLevel);
+    if (atLevel.length === 0) continue;
+    if (level === 'organization') {
+      // Feature 056 — within the organization level, a list naming a NEARER org
+      // (smaller nearness rank) outranks one naming a farther ancestor (R5). A
+      // flat direct-org match is rank 0, so flat behavior is unchanged.
+      const nearest = Math.min(
+        ...atLevel.map((c) => c.evaluation.organizationRank ?? Number.POSITIVE_INFINITY),
+      );
+      const nearestOnly = atLevel.filter(
+        (c) => (c.evaluation.organizationRank ?? Number.POSITIVE_INFINITY) === nearest,
+      );
+      return tieBreak(nearestOnly);
+    }
+    return tieBreak(atLevel);
   }
   // Step 5 — any other matching list. Default lives here.
   return tieBreak(candidates);

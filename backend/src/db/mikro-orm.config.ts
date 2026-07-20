@@ -102,6 +102,8 @@ import { Migration093OrganizationCustomFieldValues } from '../modules/organizati
 import { Migration094CustomerAccountCustomFieldValues } from '../modules/customer_accounts/migrations/094_customer_account_custom_field_values.js';
 import { Migration095QuoteRequestCustomFieldValues } from '../modules/quote_requests/migrations/095_quote_request_custom_field_values.js';
 import { Migration096CategoryCustomFieldValues } from '../modules/catalog/migrations/096_category_custom_field_values.js';
+import { Migration097OrgHierarchy } from '../modules/organizations/migrations/097_org_hierarchy.js';
+import { Migration098CustomerSubtreeRollup } from '../modules/customer_accounts/migrations/098_customer_subtree_rollup.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -485,6 +487,14 @@ export default defineConfig({
       {
         name: 'Migration096CategoryCustomFieldValues',
         class: Migration096CategoryCustomFieldValues,
+      },
+      {
+        name: 'Migration097OrgHierarchy',
+        class: Migration097OrgHierarchy,
+      },
+      {
+        name: 'Migration098CustomerSubtreeRollup',
+        class: Migration098CustomerSubtreeRollup,
       },
     ],
     transactional: true,

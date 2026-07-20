@@ -43,6 +43,11 @@ export interface PriceListsModuleOptions {
     actorAdminUserId: string;
     impersonatedCustomerAccountId?: string | null;
   };
+  /**
+   * Feature 056 — resolves the acting org's inheritance chain (nearest-first)
+   * so a descendant inherits an ancestor's org-named price list. Absent ⇒ flat.
+   */
+  resolveOrgChain?: (orgId: string) => Promise<readonly string[]>;
 }
 
 export interface PriceListsModuleHandle {
@@ -66,7 +71,11 @@ export function priceListsModule(options: PriceListsModuleOptions): {
     options.auditLogService,
     options.commandBus,
   );
-  const pricingService = new PricingService(options.emFactory, pricingCache);
+  const pricingService = new PricingService(
+    options.emFactory,
+    pricingCache,
+    options.resolveOrgChain,
+  );
   const statusWorker = new PriceListStatusWorker(options.emFactory);
 
   return {
