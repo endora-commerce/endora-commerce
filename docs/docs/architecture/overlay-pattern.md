@@ -43,10 +43,12 @@ core stays deployment-agnostic and the bare-core build keeps working unchanged.
 
 A core service is overridable only if it exposes a documented interface — a
 sibling `*.interface.ts` the core class `implements`. An overlay service imports
-that interface via the `@core/*` alias and `implements` it too, so the standard
-`tsc` build fails if the overlay does not satisfy the contract. Contract drift
-(core changes the interface, the overlay does not) is therefore a **build
-failure**, never a per-deployment runtime surprise (FR-003).
+that interface via a **relative `.js` path** (overlay files are dynamically
+imported at runtime, so a `@core/*` tsconfig alias — which resolves under
+tsc/tsx but not `node dist/` — is not used) and `implements` it too, so the
+standard `tsc` build fails if the overlay does not satisfy the contract.
+Contract drift (core changes the interface, the overlay does not) is therefore a
+**build failure**, never a per-deployment runtime surprise (FR-003).
 
 ## Fail-closed guards
 

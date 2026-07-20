@@ -176,7 +176,17 @@ import { priceListsManifest } from './modules/price_lists/manifest.js';
 import { assetsLibraryManifest } from './modules/assets_library/manifest.js';
 import { assetsLibraryModule } from './modules/assets_library/plugin.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
-import { REGISTERED_MANIFESTS } from './modules/_lifecycle/registered-manifests.js';
+import {
+  REGISTERED_MANIFESTS,
+  type RegisteredManifestEntry,
+} from './modules/_lifecycle/registered-manifests.js';
+// Feature 057 — per-deployment overlay resolution (build/composition-time).
+import {
+  discoverOverlayModuleManifests,
+  loadOverlayModulePlugins,
+  loadOverlayServiceClasses,
+} from './overlay/overlay-runtime.js';
+import type { PricingService } from './modules/price_lists/services/pricing-service.js';
 import { i18nModule as adminI18nModule } from './modules/_i18n/plugin.js';
 import { adminActionsModule } from './modules/admin_actions/plugin.js';
 import { AdminUserService } from './modules/admin_users/services/admin-user-service.js';
@@ -252,8 +262,23 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const sessionService = new SessionService(em, redis);
   const auditLogService = new AuditLogService(em);
   const permissionService = new PermissionService(em);
+
+  // Feature 057 — resolve the per-deployment overlay once. For a bare-core
+  // build (no DEPLOYMENT / no overlay dir) all of these are empty and the wiring
+  // below is byte-for-byte unchanged. `resolvedRegistry` = the hand-maintained
+  // core registry + overlay-only modules (the core array is never edited).
+  const overlayServiceClasses = await loadOverlayServiceClasses();
+  const overlayPricingService = overlayServiceClasses.get(
+    'price_lists/services/pricing-service.ts',
+  ) as typeof PricingService | undefined;
+  const overlayModuleManifests = await discoverOverlayModuleManifests();
+  const resolvedRegistry: RegisteredManifestEntry[] = [
+    ...REGISTERED_MANIFESTS,
+    ...overlayModuleManifests.map((m) => ({ manifest: m.manifest, filePath: m.filePath })),
+  ];
+
   const permissionCatalogueService = new PermissionCatalogueService({
-    registryEntries: REGISTERED_MANIFESTS,
+    registryEntries: resolvedRegistry,
   });
   const adminRoleService = new AdminRoleService(em, permissionCatalogueService, auditLogService);
 
@@ -501,6 +526,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdmin,
     auditLogService,
     commandBus,
+    // Feature 057 — swap in the deployment's overlay pricing engine, if any.
+    ...(overlayPricingService ? { pricingServiceClass: overlayPricingService } : {}),
     resolveAdminAuditContext: (request) => {
       const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
       if (actor?.kind !== 'admin') {
@@ -2082,7 +2109,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       settingsService: settings.handle.settingsService,
       requireAdmin,
       resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
-      manifests: REGISTERED_MANIFESTS.map((e) => e.manifest),
+      manifests: resolvedRegistry.map((e) => e.manifest),
       mailer: organizationsMailer,
       auditLog: auditLogService,
       settingsAdmin: settings.handle.adminService,
@@ -2273,7 +2300,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // module_actions aligned with the lifecycle.
       adminActionsReconciler: adminActions.handle.reconciler,
     },
-    REGISTERED_MANIFESTS.map((e) => ({
+    resolvedRegistry.map((e) => ({
       manifest: e.manifest,
       filePath: e.filePath,
       ...(e.installHook ? { installHook: e.installHook } : {}),
@@ -2379,6 +2406,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       orphanCount: m.orphanGroups.length + m.orphanSettings.length,
     } as never);
   }
+
+  // Feature 057 — mount the active deployment's client-only overlay modules.
+  // Empty for a bare-core build, so `modules` is unchanged there.
+  const overlayModulePlugins = await loadOverlayModulePlugins({
+    emFactory: em,
+    redis,
+    eventBus,
+    commandBus,
+    auditLogService,
+    requireAdmin,
+  });
+  for (const plugin of overlayModulePlugins) modules.push(plugin);
 
   return {
     orm,

@@ -16,6 +16,7 @@ import {
   resolvePriceBracket,
   type PriceBracketRow,
 } from './price-bracket-resolver.js';
+import type { PricingServiceContract } from './pricing-service.interface.js';
 
 /**
  * PricingService (feature 011).
@@ -33,7 +34,7 @@ import {
  * `PricingCache` injected at construction.
  */
 
-export class PricingService {
+export class PricingService implements PricingServiceContract {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly cache?: import('./pricing-cache.js').PricingCache<{
