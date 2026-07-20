@@ -297,6 +297,10 @@ export class CreditLimitService {
     em: EntityManager,
     input: { organizationId: string; orderId: string; amount: number; currency: string },
   ): Promise<ReserveResult> {
+    // command-coverage-ignore: reservation path invoked by reserve() inside the
+    // caller's order-placement transaction — a system operation, not an admin
+    // action. The credit movement is captured by the credit_limit.reserved.v1
+    // event and the reservation row, not the admin audit log.
     const limit = await em.findOne(
       CreditLimit,
       { organizationId: input.organizationId },
@@ -342,6 +346,10 @@ export class CreditLimitService {
     em: EntityManager,
     input: { organizationId: string; orderId: string; amount: number; currency: string },
   ): Promise<ReserveResult> {
+    // command-coverage-ignore: reservation path invoked by reserve() inside the
+    // caller's order-placement transaction — a system operation, not an admin
+    // action. The credit movement is captured by the credit_limit.reserved.v1
+    // event and the reservation row, not the admin audit log.
     const { ownerOrgId, mode } = await this.inheritance!.creditOwner(input.organizationId);
     if (!ownerOrgId) return { ok: false, code: 'CREDIT_LIMIT_NOT_GRANTED' as const };
 
