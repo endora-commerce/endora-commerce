@@ -147,6 +147,10 @@ Every new module with admin routes gated by `requireAdmin(...)` **must** registe
 
 Do not duplicate shared codes from core `PERMISSION_CATALOGUE` (`packages/contracts/src/admin.ts`). Contract: `specs/026-admin-roles-permissions/contracts/module-manifest-permissions.md`.
 
+### Overlay modules (per-deployment customization, feature 057)
+
+A **client-only overlay module** lives under `backend/src/apps/<deployment>/modules/<id>/` and is discovered without editing the shared core registry (`REGISTERED_MANIFESTS` stays untouched — FR-004). It is an ordinary lifecycle participant, so the same rules apply, with one difference: its admin permissions must appear on `/admin-roles` and pass the permission-inventory check **for that deployment** — run the inventory test with `DEPLOYMENT=<name>` set. Overriding a core **service** requires the core service to expose a `*.interface.ts`; the overlay `implements` it via the `@core/*` alias so `tsc` is the contract gate. Never override a core entity/migration (schema overrides are out of v1) — ship new schema as tables owned by the overlay module. See `docs/docs/architecture/overlay-pattern.md` and `specs/057-overlay-pattern-multideploy/`.
+
 When you introduce new feature, follow principles described in `.specify/memory/constitution.md` file.
 
 Do not create commit messages in other language than English.
