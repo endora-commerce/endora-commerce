@@ -48,6 +48,14 @@ export interface PriceListsModuleOptions {
    * so a descendant inherits an ancestor's org-named price list. Absent ⇒ flat.
    */
   resolveOrgChain?: (orgId: string) => Promise<readonly string[]>;
+  /**
+   * Feature 057 — per-deployment overlay override for the pricing engine.
+   * When a deployment ships an overlay `PricingService` (assignable to the core
+   * class, satisfying `PricingServiceContract`), composition passes it here and
+   * it replaces the core implementation for every consumer. Absent ⇒ core
+   * (byte-for-byte unchanged for the bare-core build).
+   */
+  pricingServiceClass?: typeof PricingService;
 }
 
 export interface PriceListsModuleHandle {
@@ -71,7 +79,11 @@ export function priceListsModule(options: PriceListsModuleOptions): {
     options.auditLogService,
     options.commandBus,
   );
-  const pricingService = new PricingService(
+  // Feature 057 — resolve the pricing engine to the deployment's overlay when
+  // one is provided, else the core class. Consumers read `handle.pricingService`
+  // unchanged, so the swap propagates everywhere it is used.
+  const PricingImpl = options.pricingServiceClass ?? PricingService;
+  const pricingService = new PricingImpl(
     options.emFactory,
     pricingCache,
     options.resolveOrgChain,
