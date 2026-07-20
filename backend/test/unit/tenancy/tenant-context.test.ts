@@ -25,6 +25,29 @@ describe('resolveTenantContext', () => {
     expect(ctx.customerAccountId).toBe('cust-1');
   });
 
+  it('feature 056 — customer with a roll-up subtree → allowed-set (widened)', () => {
+    const ctx = resolveTenantContext({
+      kind: 'customer',
+      customerAccountId: 'cust-1',
+      organizationId: 'org-A',
+      rollupSubtreeOrganizationIds: ['org-A', 'org-A1', 'org-A2'],
+    });
+    expect(ctx.mode).toBe('allowed-set');
+    expect(ctx.allowedOrganizationIds).toEqual(['org-A', 'org-A1', 'org-A2']);
+    expect(ctx.customerAccountId).toBe('cust-1');
+  });
+
+  it('feature 056 — customer with an empty roll-up subtree stays single-org (flat)', () => {
+    const ctx = resolveTenantContext({
+      kind: 'customer',
+      customerAccountId: 'cust-1',
+      organizationId: 'org-A',
+      rollupSubtreeOrganizationIds: [],
+    });
+    expect(ctx.mode).toBe('single-org');
+    expect(ctx.organizationId).toBe('org-A');
+  });
+
   it('customer with impersonation records both real admin and impersonated account', () => {
     const ctx = resolveTenantContext({
       kind: 'customer',

@@ -107,6 +107,7 @@ const sidebars = {
         },
         'modules/orders',
         'modules/organizations',
+        'modules/organization-hierarchy',
         'modules/payment_methods',
         'modules/payments',
         'modules/price_lists',

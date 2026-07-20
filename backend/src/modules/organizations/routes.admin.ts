@@ -8,9 +8,18 @@ import {
   adminDirectMemberRequestSchema,
   adminPatchMemberRoleRequestSchema,
   adminPatchMemberProfileRequestSchema,
+  adminSetMemberRollupRequestSchema,
+  assignOrganizationParentRequestSchema,
+  setCreditInheritanceModeRequestSchema,
   inviteMemberRequestSchema,
 } from '@b2b/contracts';
+import type { CommandBus } from '../../commands/index.js';
 import { HttpError } from '../../http/error-envelope.js';
+import { getTenantContext } from '../../tenancy/tenant-context.js';
+import type { OrganizationTreeService } from './services/organization-tree-service.js';
+import { makeSetParentCommand } from './commands/set-parent.command.js';
+import { makeMoveCommand } from './commands/move.command.js';
+import { makeSetCreditModeCommand } from './commands/set-credit-mode.command.js';
 import {
   CustomFieldValidationError,
   type CustomFieldValueService,
@@ -97,6 +106,13 @@ export interface AdminOrgsDeps {
    * validates (Principle XIV).
    */
   customFieldValues?: CustomFieldValueService;
+  /**
+   * Feature 056 — when both are provided, mounts the org-hierarchy endpoints
+   * (assign/move parent, subtree/ancestors read, delete-with-children guard).
+   * Tree mutations run through the Command Bus (Principle XIII).
+   */
+  treeService?: OrganizationTreeService;
+  commandBus?: CommandBus;
 }
 
 export async function registerOrganizationsAdminRoutes(
@@ -634,6 +650,41 @@ export async function registerOrganizationsAdminRoutes(
     },
   );
 
+  // Feature 056 (T032) — toggle the customer-side roll-up capability. When
+  // enabled, this member's login sees/acts across its organization's subtree.
+  app.patch<{ Params: { id: string; customerAccountId: string } }>(
+    '/api/v1/admin/organizations/:id/members/:customerAccountId/rollup',
+    {
+      preHandler: requireAdmin('customers:manage'),
+      schema: { body: adminSetMemberRollupRequestSchema },
+    },
+    async (request) => {
+      const body = adminSetMemberRollupRequestSchema.parse(request.body);
+      const em = emFactory();
+      const member = await em.findOne(CustomerAccount, {
+        id: request.params.customerAccountId,
+        organizationId: request.params.id,
+        deletedAt: null,
+      });
+      if (!member) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Member not found.');
+      }
+      assertVersion(member.updatedAt, body.expectedUpdatedAt);
+      const before = serializeMemberDetail(member);
+      member.subtreeRollupEnabled = body.subtreeRollupEnabled;
+      await em.flush();
+      await audit(
+        request,
+        'customer_account.admin_rollup_change',
+        'customer_account',
+        member.id,
+        before as Record<string, unknown>,
+        serializeMemberDetail(member) as Record<string, unknown>,
+      );
+      return { data: serializeMemberDetail(member) };
+    },
+  );
+
   app.patch<{ Params: { id: string; customerAccountId: string } }>(
     '/api/v1/admin/organizations/:id/members/:customerAccountId',
     {
@@ -744,6 +795,134 @@ export async function registerOrganizationsAdminRoutes(
       return { data: serializeMemberDetail(member) };
     },
   );
+
+  // ── Hierarchy (feature 056 US1) ─────────────────────────────────────────
+  // Assign/move parent (Command Bus), read subtree/ancestors, and the
+  // delete-with-children guard. Mounted only when the tree service + command
+  // bus are wired.
+  if (deps.treeService && deps.commandBus) {
+    const treeService = deps.treeService;
+    const commandBus = deps.commandBus;
+
+    // Assign / move / detach parent. `parentId = null` detaches to a root.
+    app.post<{ Params: { id: string } }>(
+      '/api/v1/admin/organizations/:id/parent',
+      {
+        preHandler: requireAdmin('customers:manage'),
+        schema: { body: assignOrganizationParentRequestSchema },
+      },
+      async (request) => {
+        const body = assignOrganizationParentRequestSchema.parse(request.body);
+        const em = emFactory();
+        const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
+        if (!org) {
+          throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+        }
+        // A distinct command action for a clean audit label: first-assign /
+        // detach ⇒ set_parent; re-parent of an existing child ⇒ move.
+        const input = { organizationId: request.params.id, parentId: body.parentId };
+        const wasChild = (org.parentId ?? null) !== null;
+        const command =
+          wasChild && body.parentId !== null
+            ? makeMoveCommand({ tree: treeService }, input)
+            : makeSetParentCommand({ tree: treeService }, input);
+        const updated = await commandBus.run(command);
+        return { data: serializeOrg(updated) };
+      },
+    );
+
+    // Read the subtree (descendants incl. self), pre-order.
+    app.get<{ Params: { id: string } }>(
+      '/api/v1/admin/organizations/:id/subtree',
+      { preHandler: customersRead },
+      async (request) => {
+        const em = emFactory();
+        const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
+        if (!org) {
+          throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+        }
+        const items = await treeService.subtreeNodes(request.params.id);
+        return { items };
+      },
+    );
+
+    // Read the ancestor chain, nearest-first.
+    app.get<{ Params: { id: string } }>(
+      '/api/v1/admin/organizations/:id/ancestors',
+      { preHandler: customersRead },
+      async (request) => {
+        const em = emFactory();
+        const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
+        if (!org) {
+          throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+        }
+        const items = await treeService.ancestorNodes(request.params.id);
+        return { items };
+      },
+    );
+
+    // Set the per-org credit-inheritance mode (US3). Platform-admin only — a
+    // scoped / roll-up actor is rejected 403 (money-behavior switch, R6).
+    app.put<{ Params: { id: string } }>(
+      '/api/v1/admin/organizations/:id/credit-inheritance-mode',
+      {
+        preHandler: requireAdmin('customers:manage'),
+        schema: { body: setCreditInheritanceModeRequestSchema },
+      },
+      async (request) => {
+        const ctx = getTenantContext();
+        if (!ctx || ctx.mode !== 'all') {
+          // Only a platform admin (unrestricted scope) may change credit behavior.
+          throw new HttpError(
+            403,
+            ERROR_CODES.FORBIDDEN,
+            'Only a platform administrator can change an organization credit-inheritance mode.',
+          );
+        }
+        const body = setCreditInheritanceModeRequestSchema.parse(request.body);
+        const em = emFactory();
+        const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
+        if (!org) {
+          throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+        }
+        const updated = await commandBus.run(
+          makeSetCreditModeCommand({ organizationId: request.params.id, mode: body.mode }),
+        );
+        return { data: serializeOrg(updated) };
+      },
+    );
+
+    // Delete an organization — blocked (409 has_children) while any child
+    // exists (FR-010). Backed by the DB `parent_id ON DELETE RESTRICT`.
+    app.delete<{ Params: { id: string } }>(
+      '/api/v1/admin/organizations/:id',
+      { preHandler: requireAdmin('customers:manage') },
+      async (request, reply) => {
+        const em = emFactory();
+        const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
+        if (!org) {
+          throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+        }
+        const childCount = await em.count(Organization, {
+          parentId: request.params.id,
+          deletedAt: null,
+        });
+        if (childCount > 0) {
+          throw new HttpError(
+            409,
+            ERROR_CODES.ORGANIZATION_HAS_CHILDREN,
+            'This organization has sub-organizations. Reassign or remove the children first.',
+            { code: 'has_children' },
+          );
+        }
+        const before = serializeOrg(org);
+        org.deletedAt = new Date();
+        await em.flush();
+        await audit(request, 'organization.delete', 'organization', org.id, before, null);
+        return reply.status(204).send();
+      },
+    );
+  }
 }
 
 function serializeOrg(o: Organization): Record<string, unknown> {
@@ -759,6 +938,10 @@ function serializeOrg(o: Organization): Record<string, unknown> {
     orderConfirmationEmails: o.orderConfirmationEmails ?? [],
     fulfilmentStrategy: o.fulfilmentStrategy ?? null,
     fulfilmentStrategyWarehouseOrder: o.fulfilmentStrategyWarehouseOrder ?? null,
+    // Feature 056 — hierarchy.
+    parentId: o.parentId ?? null,
+    path: o.path,
+    creditInheritanceMode: o.creditInheritanceMode ?? null,
     version: o.version,
     blockedReason: o.blockedReason ?? null,
     blockedAt: o.blockedAt?.toISOString() ?? null,
@@ -784,6 +967,7 @@ function serializeMemberDetail(m: CustomerAccount): Record<string, unknown> {
     firstName: m.firstName,
     lastName: m.lastName,
     role: m.role,
+    subtreeRollupEnabled: m.subtreeRollupEnabled,
     emailVerifiedAt: m.emailVerifiedAt?.toISOString() ?? null,
     twoFactorEnabled: !!m.twoFactorConfirmedAt,
     lastLoginAt: m.lastLoginAt?.toISOString() ?? null,

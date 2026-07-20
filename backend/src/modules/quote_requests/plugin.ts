@@ -11,7 +11,10 @@ import { RfqEventService } from './services/rfq-event-service.js';
 import { RfqRevisionService } from './services/rfq-revision-service.js';
 import { RfqNotificationService } from './services/rfq-notification-service.js';
 import { RfqExpiryWorker } from './services/rfq-expiry-worker.js';
-import { SalesRepAssignmentService } from '../organizations/services/sales-rep-assignment-service.js';
+import {
+  SalesRepAssignmentService,
+  type SalesRepSubtreeDeps,
+} from '../organizations/services/sales-rep-assignment-service.js';
 import { QuoteRequest } from './entities/quote-request.entity.js';
 import { Order } from '../orders/entities/order.entity.js';
 import {
@@ -59,6 +62,11 @@ export interface QuoteRequestsModuleOptions {
   auditLog?: AuditLogService;
   /** Feature 055 — validates + reads RFQ custom-field values on the admin edit path. */
   customFieldValues?: CustomFieldValueService;
+  /**
+   * Feature 056 — when provided, the RFQ admin scope (per-row `canSeeOrganization`
+   * + `scope === 'mine'`) becomes subtree-aware for reps holding `organizations:rollup`.
+   */
+  salesRepSubtree?: SalesRepSubtreeDeps;
 }
 
 export interface QuoteRequestsModuleHandle {
@@ -75,7 +83,11 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
   const eventService = new RfqEventService(options.emFactory);
   const revisionService = new RfqRevisionService(options.emFactory);
   const notificationService = new RfqNotificationService(options.emFactory);
-  const salesRepAssignment = new SalesRepAssignmentService(options.emFactory, options.auditLog);
+  const salesRepAssignment = new SalesRepAssignmentService(
+    options.emFactory,
+    options.auditLog,
+    options.salesRepSubtree,
+  );
 
   // Business Quote Request ID generator — adapts the composition-wired
   // prefix/suffix resolver closures (SettingsService-backed) to the

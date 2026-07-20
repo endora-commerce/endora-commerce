@@ -67,6 +67,9 @@ export class Organization {
     | 'orderConfirmationEmails'
     | 'fulfilmentStrategy'
     | 'fulfilmentStrategyWarehouseOrder'
+    | 'parentId'
+    | 'path'
+    | 'creditInheritanceMode'
     | 'version';
 
   @PrimaryKey({ type: 'uuid' })
@@ -183,6 +186,34 @@ export class Organization {
 
   @Property({ type: 'json', nullable: true })
   fulfilmentStrategyWarehouseOrder?: string[] | null;
+
+  // ── feature 056: organization hierarchy ────────────────────────────────
+
+  /**
+   * Nullable self-referential parent (`parent_id`). NULL ⇒ this org is a root.
+   * The FK (`REFERENCES organizations(id) ON DELETE RESTRICT`) is enforced at
+   * the DB level (migration 097); writes go through the tree Commands only, so
+   * `path` and cycle/depth invariants stay consistent.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  @Index()
+  parentId?: string | null;
+
+  /**
+   * Materialized ancestor-chain path `'/<rootId>/…/<thisId>/'`. Backfilled to
+   * `'/<id>/'` (a root) for every pre-feature org. A `text_pattern_ops` prefix
+   * index backs single-query subtree (`path LIKE :selfPath || '%'`) traversal.
+   */
+  @Property({ type: 'text' })
+  path: string = '';
+
+  /**
+   * Per-org platform-admin override of the credit-inheritance mode. NULL ⇒ use
+   * the Settings global default. Set only through the `organization.set_credit_mode`
+   * Command (platform-admin gated).
+   */
+  @Property({ type: 'string', length: 20, nullable: true })
+  creditInheritanceMode?: 'shared_pool' | 'independent_default' | null;
 
   /**
    * Lowercased + diacritic-stripped copy of `name`. Kept in sync by the

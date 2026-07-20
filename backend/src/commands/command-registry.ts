@@ -131,6 +131,13 @@ export const COMMAND_REGISTRY = {
   'organization.tax_id_validation': { reversible: false, description: 'Validate an organization tax ID' },
   'organization.sales_rep_assign': { reversible: false, description: 'Assign a sales rep to an organization' },
   'organization.sales_rep_unassign': { reversible: false, description: 'Unassign a sales rep from an organization' },
+  // Feature 056 — hierarchy. Re-parent captures prior parent_id + subtree paths.
+  'organization.set_parent': { reversible: true, description: 'Assign or detach an organization parent' },
+  'organization.move': { reversible: true, description: 'Move an organization to a new parent' },
+  'organization.set_credit_mode': {
+    reversible: false,
+    description: 'Set an organization credit-inheritance mode (platform-admin only)',
+  },
   // Promotions module (US1).
   'promotion.create': { reversible: false, description: 'Create a promotion' },
   'promotion.update': { reversible: false, description: 'Update a promotion' },

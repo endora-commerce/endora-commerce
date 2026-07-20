@@ -42,6 +42,12 @@ export class PricingService {
       displayMode: DisplayMode;
       currencyCode: string;
     }>,
+    /**
+     * Feature 056 — resolves the acting org's inheritance chain (nearest-first,
+     * `[orgId, ...ancestorIds]`) so a descendant inherits an ancestor's org-named
+     * price list. When absent, the chain is `[orgId]` (flat behavior, byte-for-byte).
+     */
+    private readonly resolveOrgChain?: (orgId: string) => Promise<readonly string[]>,
   ) {}
 
   // ---- Engine resolver (US5 / FR-026..FR-032) ------------------------
@@ -124,8 +130,14 @@ export class PricingService {
         `select category_id from product_categories where product_id = ?`,
         [product.id],
       );
+    const orgId = context.organization?.id ?? null;
+    // Feature 056 — build the org inheritance chain (nearest-first). Flat when
+    // no resolver is wired or the org is a root.
+    const organizationChain =
+      orgId !== null && this.resolveOrgChain ? await this.resolveOrgChain(orgId) : orgId !== null ? [orgId] : [];
     const ctx: ResolutionContext = {
-      organizationId: context.organization?.id ?? null,
+      organizationId: orgId,
+      organizationChain,
       customerGroupId: context.customerGroupId ?? context.organization?.customerGroupId ?? null,
       salesChannelId: context.salesChannel.id,
       currencyCode,

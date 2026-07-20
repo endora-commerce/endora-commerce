@@ -37,6 +37,8 @@ import { OrganizationModerationService } from '../../src/modules/organizations/s
 import { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
 import { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
 import { SalesRepAssignmentService } from '../../src/modules/organizations/services/sales-rep-assignment-service.js';
+import { OrganizationTreeService } from '../../src/modules/organizations/services/organization-tree-service.js';
+import { resolveCustomerRollupSubtreeIds } from '../../src/modules/customer_accounts/services/customer-rollup-scope.js';
 import { OrganizationEffectivePriceListsService } from '../../src/modules/organizations/services/organization-effective-pricelists-service.js';
 import { OrganizationTaxIdValidationService } from '../../src/modules/organizations/services/organization-tax-id-validation-service.js';
 import type {
@@ -738,12 +740,23 @@ export async function setupBackendServer(
         if (actor?.kind === 'customer') {
           const orgId =
             actor.organizationId && actor.organizationId.length > 0 ? actor.organizationId : null;
+          // Feature 056 (T032) — mirror production: a roll-up-enabled customer
+          // widens to its org subtree (server-derived from the account flag).
+          const rollupSubtree = await resolveCustomerRollupSubtreeIds(
+            em,
+            (id) => new OrganizationTreeService(em).subtreeIds(id),
+            actor.customerAccountId,
+            orgId,
+          );
           return resolveTenantContext({
             kind: 'customer',
             customerAccountId: actor.customerAccountId,
             organizationId: orgId,
             impersonatorAdminUserId:
               (actor as { impersonatorAdminUserId?: string | null }).impersonatorAdminUserId ?? null,
+            ...(rollupSubtree && rollupSubtree.length > 0
+              ? { rollupSubtreeOrganizationIds: rollupSubtree }
+              : {}),
           });
         }
         if (actor?.kind === 'admin') {
@@ -962,6 +975,7 @@ export async function setupBackendServer(
         organizationsModule({
           emFactory: em,
           eventBus,
+          commandBus,
           sessionService,
           getMfaLoginPort: getTestMfaLoginPort,
           getTransactionalEmailSender: () => transactionalEmailSender,

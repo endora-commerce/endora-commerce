@@ -9,6 +9,7 @@ import { formatDateTime } from '@/lib/format';
 import { OrganizationSalesRepsTab } from './OrganizationSalesRepsTab';
 import { ModerationActionsPanel } from './panels/ModerationActionsPanel';
 import { ApplicablePriceListsPanel } from './panels/ApplicablePriceListsPanel';
+import { HierarchyPanel } from './panels/HierarchyPanel';
 import { VatValidationPanel } from './panels/VatValidationPanel';
 import { RestrictionsPanel } from './panels/RestrictionsPanel';
 import { CustomFieldValuesPanel } from '../custom_fields/CustomFieldValuesPanel';
@@ -56,6 +57,8 @@ interface OrgDetail {
   fulfilmentStrategy?: FulfilmentStrategy | null;
   fulfilmentStrategyWarehouseOrder?: string[] | null;
   customFieldValues?: Record<string, unknown>;
+  /** Feature 056 — hierarchy. `null` ⇒ this org is a root. */
+  parentId?: string | null;
   members: OrgMember[];
   version?: number;
   blockedReason?: string | null;
@@ -656,6 +659,13 @@ export function OrganizationDetail(): ReactNode {
           </CardContent>
         </Card>
       ) : null}
+
+      {/* Feature 056 US1 — organization hierarchy (parent picker + subtree view). */}
+      <HierarchyPanel
+        organizationId={org.id}
+        parentId={org.parentId ?? null}
+        onChanged={refresh}
+      />
 
       {/* Feature 026 US4 — per-Organization payment / delivery / warehouse allow-lists. */}
       <div className="mt-4">
