@@ -1,28 +1,34 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 3.6.0 → 3.7.0
-Rationale: MINOR bump. A new principle — XIV (Entity-Agnostic Extensibility &
-Runtime Custom Fields) — is added, codifying the architectural stance from the
-055-custom-fields-layer feature. A capability spanning multiple host entity
-types MUST be built as an entity-agnostic core whose host-specific behavior
-lives behind documented extension points, and a generic layer that generalizes
-an existing entity-specific mechanism (e.g. `product_attributes`) MUST leave
-that mechanism the untouched source of truth (reuse the design, not the code;
-any convergence is an adapter, not a rewrite). Runtime extension of core
-entities MUST be data (a definition row), never a schema migration or code
-deploy, with per-write validation and host-inherited tenant scope; the host
-owns persistence + audit while the generic layer owns definitions + validation.
-The principle prevents the observed rot where `product_attributes` accreted
-catalog-only flags until it was no longer reusable. A new principle is added
-(not a redefinition or removal), so the versioning policy mandates a MINOR bump.
+Version change: 3.7.0 → 3.8.0
+Rationale: MINOR bump. A new principle — XV (Untouched Core & Per-Deployment
+Overlay) — is added, codifying the architectural stance from the
+057-overlay-pattern-multideploy feature. The platform is a multi-deployment
+product (one codebase, many client installations). Per-deployment customization
+MUST go through a per-deployment overlay location whose files shadow/extend
+their core equivalents, resolved deterministically at build/composition time —
+never by editing a file under the core modules tree or forking. The core stays
+deployment-agnostic and the bare-core build MUST keep working unchanged.
+Overriding a core unit is contract-gated: the unit exposes a documented
+interface an overlay MUST satisfy, checked at build time, so contract drift is a
+build failure, not a runtime surprise. Conflicting overrides fail the build
+(never silent last-wins); every build emits an override manifest so a
+deployment's divergence from core is auditable. Overlay modules are ordinary
+lifecycle participants that register without editing the shared core registry,
+declare their permissions, and run under the same tenant (XI), channel (XII),
+and Command-Bus (XIII) guards. The v1 overridable surface is services, routes,
+config, and whole new modules; schema/entity/migration overrides are out of
+scope until a deployment demands them, and resolution adds no new runtime
+dependency. A new principle is added (not a redefinition or removal), so the
+versioning policy mandates a MINOR bump.
 
 Modified principles:
   - (none renamed/redefined)
 
 Added sections:
-  - XIV. Entity-Agnostic Extensibility & Runtime Custom Fields — new principle.
-  - Quality gate #13 (Entity-agnostic extensibility) in Development Workflow.
+  - XV. Untouched Core & Per-Deployment Overlay — new principle.
+  - Quality gate #14 (Per-deployment overlay customization) in Development Workflow.
 
 Removed sections:
   - (none)
@@ -32,19 +38,24 @@ Templates / artifacts requiring alignment:
        generic; no edits required.
   - ✅ .specify/templates/spec-template.md      — no edits required.
   - ✅ .specify/templates/tasks-template.md     — no edits required.
-  - ✅ README.md — added Principle XIV quick-reference note (point 14) and
+  - ✅ README.md — added Principle XV quick-reference note (point 15) and
        extended the PR-gates paragraph.
-  - ✅ .github/pull_request_template.md — added gate #13 (entity-agnostic
-       extensibility) and refreshed the gate-count comment.
+  - ✅ .github/pull_request_template.md — added gate #14 (per-deployment overlay
+       customization) and refreshed the gate-count comment.
 
 Deferred items / TODOs:
-  - Principle XIV composes with the existing guards rather than introducing a
-    new migration: values are host columns (tenant scope XI holds for free),
-    definition writes are Commands (auditing XIII holds by construction), host
-    interaction is via service/interface (modularity I holds). Product stays on
-    `product_attributes` as its source of truth; a generic bridge, if ever
-    built, is an adapter (out of the initial custom-fields scope).
+  - Principle XV composes with the existing guards rather than adding a new
+    mechanism: an override swaps an implementation, never a guard seam, so
+    tenant isolation (XI), channel scoping (XII), and Command-Bus auditing (XIII)
+    hold unchanged for overlay code. Resolution reuses the existing filesystem-
+    scan + codegen pattern (feature 018) and the TypeScript compiler API already
+    present as a devDependency — no new runtime dependency (Principle IV).
+    Schema/entity/migration overrides are deferred; a deployment needing new
+    schema ships it as a client-only overlay module that owns its own tables.
 
+  (History) 3.6.0 → 3.7.0 added Principle XIV + quality gate #13
+    (entity-agnostic extensibility & runtime custom fields, feature
+    055-custom-fields-layer).
   (History) 3.5.0 → 3.6.0 added Principle XIII + quality gate #12
     (uniform write auditing via Command Bus, feature 054-command-bus-audit-undo).
   (History) 3.4.0 → 3.5.0 added Principle XII + quality gate #11
@@ -566,6 +577,70 @@ guards rather than adding a new mechanism: values are host columns, so tenant is
 free; definition writes are Commands, so auditing (XIII) holds by construction; host interaction is via
 service / interface, so modularity (I) holds. Introduced by feature `055-custom-fields-layer`.
 
+### XV. Untouched Core & Per-Deployment Overlay
+
+The platform is a **multi-deployment** product — one codebase, many client installations. A
+per-deployment customization MUST be delivered through a **per-deployment overlay location**
+whose files shadow or extend their core equivalents, resolved deterministically at
+build/composition time — **never** by editing a file under the core modules tree and never by
+forking. The following are binding for every feature that customizes a deployment or ships a
+capability meant to be per-deployment overridable:
+
+- **Untouched, deployment-agnostic core.** Core modules MUST contain no client-specific logic,
+  and the **bare-core build** (no overlay) MUST keep working unchanged. Client-specific behavior
+  MUST live in the overlay, not in a core edit or a fork. A change that puts a deployment's
+  specifics into core, or that forks a core file to customize it, is prohibited — the overlay is
+  the one sanctioned customization seam (the same "one authoritative path" discipline Principle I
+  applies to cross-module calls).
+- **Deterministic, build-time resolution.** Overrides MUST resolve at **build/composition time**,
+  not at runtime: an overlay unit shadows its core equivalent by convention and every consumer
+  resolves to the overlay implementation for that deployment. Resolution MUST be **deterministic**
+  — identical inputs (core + a given overlay) MUST produce identical resolution and an identical
+  override manifest, with no timestamps, machine paths, or ordering nondeterminism.
+- **Contract-gated overrides; drift fails the build.** A core unit that may be overridden MUST
+  expose a **documented interface**, and an overlay replacing it MUST satisfy that interface,
+  **checked at build time**. A mismatch MUST fail the build — there is no silent divergence, and
+  contract drift (core changes the interface, the overlay does not) surfaces as a build failure,
+  never a per-deployment runtime surprise.
+- **No silent conflict; unknown targets fail closed.** Two overlays targeting the **same** core
+  unit MUST NOT resolve by silent last-wins — the build MUST fail (or apply one **documented,
+  explicit** precedence rule). An overlay whose target core unit does not exist (a stale or
+  mistyped target) MUST fail the build, never be silently ignored.
+- **Auditable divergence.** Every build MUST emit an **override manifest** enumerating each active
+  override and the core unit it targets, so a reviewer or operator can see exactly how a deployment
+  diverges from core. The manifest is a committed, deterministic build artifact (mirroring the
+  generated module index), not a runtime lookup.
+- **Overlays are ordinary participants, under the same guards.** An overlay MUST be able to add a
+  client-only module (routes, permissions, lifecycle participation) **without** editing the shared
+  core module registry or shared composition root. Overlay modules are ordinary module-lifecycle
+  participants (install / uninstall / reconcile), MUST register their permissions and pass the
+  permission-inventory check **per deployment**, and MUST run under the same tenant-isolation guard
+  (Principle XI), sales-channel scoping (Principle XII), and Command-Bus auditing (Principle XIII)
+  as core — an override swaps an **implementation**, never a guard seam.
+- **Bounded overridable surface (YAGNI).** The overridable surface is **services, routes, config,
+  and whole new modules**; schema / entity / migration overrides of existing core units are **out
+  of scope** until a deployment actually demands them (a deployment needing new schema ships it as a
+  client-only overlay module that owns its own tables). Resolution MUST be a build/composition-time
+  concern on the **existing toolchain** — no new runtime dependency (Principle IV).
+
+**Rationale**: The product is confirmed multi-deployment, but modules are wired by a
+hand-maintained static registry plus manual composition, and there is no overlay directory or
+override-resolution layer. The only way to customize a client installation was therefore to **edit
+core files or fork** — which does not scale across many deployments and re-creates the divergent-
+fork problem (every installation drifts, merges become painful, the shared core destabilizes).
+Codifying "untouched deployment-agnostic core + deterministic build-time overlay resolution +
+contract-gated overrides + auditable divergence" converts per-client customization from an
+ad-hoc core edit into a **structural, deterministic, reviewable** layer — the same move Principle
+XI made for tenant scoping, XII for channel scoping, and XIII for write auditing (turn
+"remember not to touch core" into a guarded seam that fails closed). Making overrides contract-
+gated means core can evolve without silently breaking a deployment: drift is caught at build time.
+The layer is deliberately additive and thin — it composes with the module lifecycle and the
+existing guards rather than replacing them (an override runs under the same tenant / channel /
+audit guards as the code it replaces), reuses the existing filesystem-scan + codegen pattern, and
+adds no runtime dependency. The bounded v1 surface (services / routes / config / new modules,
+schema deferred) keeps the mechanism minimal until a real deployment need justifies more.
+Introduced by feature `057-overlay-pattern-multideploy`.
+
 ## Technology Stack
 
 The following stack is mandated. Substitutions require amending this
@@ -741,6 +816,19 @@ Every change MUST pass the following gates before merge:
     lets extension values widen past the host record's tenant scope; or a generic layer that writes
     into / audits host tables instead of letting the host own persistence + audit. Definition /
     option mutations MUST run through the Command Bus (Principle XIII).
+14. **Per-deployment overlay customization** — reviewers MUST reject any change that violates
+    Principle XV: a client-specific behavior added by editing a file under the core modules tree or
+    by forking core instead of through the per-deployment overlay location; a core edit that makes a
+    core module deployment-specific or breaks the bare-core build; an override that resolves at
+    runtime or nondeterministically instead of at build/composition time with an identical override
+    manifest for identical inputs; a service override that is not gated by a documented core
+    interface checked at build time (contract drift MUST fail the build); two overlays targeting one
+    core unit resolving by silent last-wins, or a stale/unknown override target that is silently
+    ignored rather than failing the build; a build that ships without emitting the override manifest;
+    an overlay module added by editing the shared core registry, or one that skips permission
+    registration / the per-deployment permission-inventory check, or that bypasses the tenant (XI),
+    channel (XII), or Command-Bus (XIII) guards; or a schema / entity / migration override of an
+    existing core unit (out of scope) rather than a client-only overlay module owning its own tables.
 
 Code review MUST explicitly verify each of the above. "LGTM" without
 evidence of checking the gates is not an approval.
@@ -779,4 +867,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 3.7.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-07-18
+**Version**: 3.8.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-07-20
