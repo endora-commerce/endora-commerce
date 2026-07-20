@@ -12,7 +12,7 @@
     "build": "pnpm run manifest-index:generate && pnpm run overlay:manifest && tsc -p tsconfig.build.json",
     "manifest-index:generate": "tsx scripts/generate-manifest-index.ts",
     "overlay:manifest": "tsx scripts/generate-override-manifest.ts",
-    "overlay:check": "pnpm run manifest-index:generate && pnpm run overlay:manifest && git diff --exit-code -- src/overlay/override-manifest.core.generated.ts src/modules/_lifecycle/manifest-index.generated.ts",
+    "overlay:check": "tsx scripts/check-overlay-determinism.ts",
     "start": "node dist/index.js",
     "worker": "node dist/worker.js",
     "worker:dev": "tsx watch --env-file-if-exists=.env src/worker.ts",

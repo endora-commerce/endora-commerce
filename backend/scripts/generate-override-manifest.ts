@@ -21,6 +21,7 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   activeOverlayModulesRoot,
   coreModulesRoot,
@@ -33,10 +34,18 @@ import {
   serializeManifestModule,
 } from '../src/overlay/override-manifest.js';
 
-function main(): void {
-  const deployment = selectedDeployment();
+/** Pure render — the target path + expected file content. Used by the generator
+ * and by the git-free determinism check (`check-overlay-determinism.ts`). */
+export function renderOverrideManifest(env: NodeJS.ProcessEnv = process.env): {
+  outputPath: string;
+  content: string;
+  overrides: number;
+  newModules: number;
+  deployment: string;
+} {
+  const deployment = selectedDeployment(env);
   const coreRoot = coreModulesRoot();
-  const overlayRoot = activeOverlayModulesRoot();
+  const overlayRoot = activeOverlayModulesRoot(env);
 
   // resolveOverlay throws (fails the build) on conflict / unknown target /
   // schema override / missing contract — no silent divergence.
@@ -54,21 +63,26 @@ function main(): void {
   if (sep !== '/') typesSpec = typesSpec.split(sep).join('/');
   if (!typesSpec.startsWith('.')) typesSpec = `./${typesSpec}`;
   const content = serializeManifestModule(manifest, typesSpec);
-
-  mkdirSync(dirname(outputPath), { recursive: true });
-  writeFileSync(outputPath, content, 'utf8');
-
-  process.stdout.write(
-    `[override-manifest] deployment=${manifest.deployment} ` +
-      `overrides=${manifest.overrides.length} newModules=${manifest.newModules.length} ` +
-      `→ ${outputPath}\n`,
-  );
-  for (const o of manifest.overrides) {
-    process.stdout.write(`  · override ${o.moduleId}:${o.kind}:${o.unitKey}\n`);
-  }
-  for (const id of manifest.newModules) {
-    process.stdout.write(`  · new-module ${id}\n`);
-  }
+  return {
+    outputPath,
+    content,
+    overrides: manifest.overrides.length,
+    newModules: manifest.newModules.length,
+    deployment: manifest.deployment,
+  };
 }
 
-main();
+function main(): void {
+  const { outputPath, content, overrides, newModules, deployment } = renderOverrideManifest();
+  mkdirSync(dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, content, 'utf8');
+  process.stdout.write(
+    `[override-manifest] deployment=${deployment} overrides=${overrides} ` +
+      `newModules=${newModules} → ${outputPath}\n`,
+  );
+}
+
+// Only write when executed directly (not when imported by the determinism check).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}

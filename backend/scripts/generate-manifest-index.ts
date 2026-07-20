@@ -7,7 +7,7 @@ import {
   existsSync,
 } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /**
  * Generates `backend/src/modules/_lifecycle/manifest-index.generated.ts`
@@ -128,16 +128,20 @@ ${entries}
 `;
 }
 
-function main(): void {
-  const mods = discover();
-  const content = emit(mods);
-  writeFileSync(outputPath, content, 'utf8');
-  process.stdout.write(
-    `[manifest-index] wrote ${mods.length} entries to ${outputPath}\n`,
-  );
-  for (const m of mods) {
-    process.stdout.write(`  · ${m.id}\n`);
-  }
+/** Pure render — the target path + expected file content. Used by the generator
+ * and by the git-free determinism check (`check-overlay-determinism.ts`). */
+export function renderManifestIndex(): { outputPath: string; content: string } {
+  return { outputPath, content: emit(discover()) };
 }
 
-main();
+function main(): void {
+  const { outputPath: out, content } = renderManifestIndex();
+  writeFileSync(out, content, 'utf8');
+  const count = (content.match(/^\s*\{ id:/gm) ?? []).length;
+  process.stdout.write(`[manifest-index] wrote ${count} entries to ${out}\n`);
+}
+
+// Only write when executed directly (not when imported by the determinism check).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}
