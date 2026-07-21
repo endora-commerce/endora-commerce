@@ -10,6 +10,7 @@ import {
 import { PromptActionToolRegistry } from './services/tool-registry.js';
 import {
   LlmProviderFactory,
+  type CredentialResolvePort,
   type SettingsReadPort,
 } from './services/llm/provider-factory.js';
 import type { FetchLike } from './services/llm/provider.js';
@@ -37,6 +38,8 @@ export interface PromptActionsModuleOptions {
   requireAdmin: RequireAdminFactory;
   resolveAdminContext: (req: FastifyRequest) => { adminUserId: string };
   auditLogService?: AuditLogService;
+  /** Feature 058 — resolves `prompt_actions.llm_credentials`; falls back to legacy settings when absent. */
+  credentials?: CredentialResolvePort;
   /** Injected in tests to script provider responses; defaults to global fetch. */
   llmFetch?: FetchLike;
   /** US2: folds live catalog bulk-operation progress into delegated requests. */
@@ -67,6 +70,7 @@ export function promptActionsModule(
     settings: options.settings,
     resolveChannelId: options.resolveSettingsChannelId,
     ...(options.llmFetch !== undefined ? { fetchImpl: options.llmFetch } : {}),
+    ...(options.credentials !== undefined ? { credentials: options.credentials } : {}),
   });
 
   const interpreter = new InterpreterService({

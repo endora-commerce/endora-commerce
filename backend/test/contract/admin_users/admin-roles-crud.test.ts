@@ -44,7 +44,8 @@ describe('Admin roles CRUD', () => {
     // +2 for feature 049 stripe (stripe:read, stripe:write).
     // +2 for feature 055 custom fields (custom_fields:read, custom_fields:write).
     // +1 for feature 056 hierarchical organizations (organizations:rollup).
-    expect(body.data.length).toBe(53);
+    // +2 for feature 058 credentials (credentials:read, credentials:write).
+    expect(body.data.length).toBe(55);
     expect(body.data.some((p) => p.code === 'promotions:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'stripe:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'mfa:reset')).toBe(true);

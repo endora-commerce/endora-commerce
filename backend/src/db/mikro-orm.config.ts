@@ -104,6 +104,8 @@ import { Migration095QuoteRequestCustomFieldValues } from '../modules/quote_requ
 import { Migration096CategoryCustomFieldValues } from '../modules/catalog/migrations/096_category_custom_field_values.js';
 import { Migration097OrgHierarchy } from '../modules/organizations/migrations/097_org_hierarchy.js';
 import { Migration098CustomerSubtreeRollup } from '../modules/customer_accounts/migrations/098_customer_subtree_rollup.js';
+import { Migration099CredentialsInit } from '../modules/credentials/migrations/099_credentials_init.js';
+import { Migration100SettingsCredentialRefValueType } from '../modules/settings/migrations/100_settings_credential_ref_value_type.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -495,6 +497,14 @@ export default defineConfig({
       {
         name: 'Migration098CustomerSubtreeRollup',
         class: Migration098CustomerSubtreeRollup,
+      },
+      {
+        name: 'Migration099CredentialsInit',
+        class: Migration099CredentialsInit,
+      },
+      {
+        name: 'Migration100SettingsCredentialRefValueType',
+        class: Migration100SettingsCredentialRefValueType,
       },
     ],
     transactional: true,

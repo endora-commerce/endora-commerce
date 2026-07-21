@@ -3,6 +3,7 @@ import {
   PromptActionsProviderSchema,
   type PromptActionsCapability,
   type PromptActionsProvider,
+  type ResolveResult,
 } from '@b2b/contracts';
 import { PROMPT_ACTIONS_SETTING_CODES } from '../../manifest.js';
 import { AnthropicAdapter } from './anthropic-adapter.js';
@@ -16,11 +17,22 @@ import type { FetchLike, LlmProviderAdapter } from './provider.js';
  * universal getter (Redis/LRU-cached), so provider, model and key changes
  * take effect on the next prompt without a restart (US4/AC4). The API key
  * never leaves this module: the capability DTO carries only the status.
+ *
+ * Feature 058 — the provider/model/key are sourced SOLELY from the
+ * `prompt_actions.llm_credentials` reference (a reusable `llm` credential
+ * configuration). When that reference is unset or unresolvable, the assistant
+ * reports `not_configured` and fails closed; there is no separate provider /
+ * model / api_key setting.
  */
 
 /** Narrow port over SettingsService so the module depends on a shape, not the class. */
 export interface SettingsReadPort {
   get<T>(code: string, salesChannelId: string, schema: z.ZodType<T>): Promise<T>;
+}
+
+/** Narrow port over CredentialsService.resolve (feature 058, Principle I). */
+export interface CredentialResolvePort {
+  resolve(configurationCode: string): Promise<ResolveResult>;
 }
 
 export class AssistantDisabled extends Error {
@@ -44,6 +56,8 @@ export interface LlmProviderFactoryDeps {
   /** Channel used to resolve the (global-scope) assistant settings. */
   resolveChannelId: () => Promise<string>;
   fetchImpl?: FetchLike;
+  /** Feature 058 — resolves the `prompt_actions.llm_credentials` reference. */
+  credentials?: CredentialResolvePort;
 }
 
 export interface ResolvedAssistant {
@@ -102,20 +116,39 @@ export class LlmProviderFactory {
         return fallback;
       }
     };
-    const [enabled, providerRaw, model, apiKey, bulkLimit] = await Promise.all([
+    const [enabled, refCode, bulkLimit] = await Promise.all([
       read(PROMPT_ACTIONS_SETTING_CODES.ENABLED, z.boolean(), false),
-      read(PROMPT_ACTIONS_SETTING_CODES.PROVIDER, z.string(), ''),
-      read(PROMPT_ACTIONS_SETTING_CODES.MODEL, z.string(), ''),
-      read(PROMPT_ACTIONS_SETTING_CODES.API_KEY, z.string(), ''),
+      read(PROMPT_ACTIONS_SETTING_CODES.LLM_CREDENTIALS, z.string(), ''),
       read(PROMPT_ACTIONS_SETTING_CODES.BULK_LIMIT, z.number().int().positive(), 500),
     ]);
-    const provider = PromptActionsProviderSchema.safeParse(providerRaw);
+
+    // Feature 058 — the `prompt_actions.llm_credentials` reference is the SINGLE
+    // source of provider/model/apiKey. When it is unset or unresolvable (or
+    // resolves to a provider prompt_actions has no adapter for), the assistant
+    // reports `not_configured` and fails closed — there is no legacy path.
+    const fromCredential = await this.resolveFromCredential(refCode.trim());
     return {
       enabled,
-      provider: provider.success ? provider.data : null,
-      model: model.trim(),
-      apiKey: apiKey.trim(),
+      provider: fromCredential?.provider ?? null,
+      model: fromCredential?.model ?? '',
+      apiKey: fromCredential?.apiKey ?? '',
       bulkLimit,
     };
+  }
+
+  private async resolveFromCredential(
+    refCode: string,
+  ): Promise<{ provider: PromptActionsProvider; model: string; apiKey: string } | null> {
+    if (!this.deps.credentials || !refCode) return null;
+    const resolved = await this.deps.credentials.resolve(refCode).catch(() => null);
+    if (!resolved || resolved.status !== 'ok') return null;
+    // Only providers prompt_actions has an adapter for (anthropic/google/openai)
+    // are usable; any other resolved provider (e.g. deepseek) is not_configured.
+    const provider = PromptActionsProviderSchema.safeParse(resolved.providerCode);
+    if (!provider.success) return null;
+    const model = typeof resolved.values['model'] === 'string' ? resolved.values['model'].trim() : '';
+    const apiKey = typeof resolved.values['apiKey'] === 'string' ? resolved.values['apiKey'].trim() : '';
+    if (!model || !apiKey) return null;
+    return { provider: provider.data, model, apiKey };
   }
 }

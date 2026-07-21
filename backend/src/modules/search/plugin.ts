@@ -12,6 +12,7 @@ import {
   DEFAULT_MINIMUM_QUERY_LENGTH,
 } from './services/search-suggest.service.js';
 import { LlmToggleService } from './services/llm-toggle.service.js';
+import type { CredentialResolvePort } from './services/embedder-config-resolver.js';
 import { SearchReindexWorker } from './services/search-reindex-worker.js';
 import { SearchPhraseRecorder } from './services/search-phrase-recorder.service.js';
 import {
@@ -59,6 +60,12 @@ export interface SearchModuleOptions {
    * predate Settings.
    */
   settingsService?: SettingsService;
+  /**
+   * Feature 058 — resolves the `search.llm.embedder_credentials` reference into
+   * the embedder config, falling back per field to the legacy embedder settings.
+   * Injected as a narrow port (Principle I); optional.
+   */
+  credentials?: CredentialResolvePort;
   /**
    * Admin Settings service — required when admin routes are mounted.
    * Drives the `LlmToggleService.toggle` write path. Without it, only
@@ -115,6 +122,7 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
     ...(options.settingsService !== undefined
       ? { settingsService: options.settingsService }
       : {}),
+    ...(options.credentials !== undefined ? { credentials: options.credentials } : {}),
   });
   const searchQueryService = new SearchQueryService(options.emFactory);
 
@@ -163,6 +171,7 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
           options.emFactory,
           options.settingsService,
           options.settingsAdminService,
+          options.credentials,
         )
       : undefined;
 

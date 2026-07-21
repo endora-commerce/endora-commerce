@@ -175,6 +175,7 @@ import { StockAllocation } from '../modules/inventory/entities/stock-allocation.
 import { ModuleRegistration } from '../modules/_lifecycle/entities/module-registration.entity.js';
 import { TranslationBundle } from '../modules/_i18n/entities/translation-bundle.entity.js';
 import { ModuleAction } from '../modules/admin_actions/entities/module-action.entity.js';
+import { CredentialConfiguration } from '../modules/credentials/entities/credential-configuration.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -341,6 +342,8 @@ export const ALL_ENTITIES = [
   SettingGroup,
   Setting,
   SettingValue,
+  // credentials (feature 058)
+  CredentialConfiguration,
   // search analytics ingest (feature 006 / US3)
   SearchPhraseRecord,
   // comparisons (feature 007)

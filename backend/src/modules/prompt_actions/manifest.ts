@@ -9,13 +9,12 @@ import { defineModuleManifest, defineModuleSettingsManifest } from '@b2b/contrac
  * catalogue, presents a confirmable plan, and executes it through existing
  * module services under the operator's own permissions.
  *
- * Settings (research §R4):
- *   - prompt_actions.enabled      — platform-wide kill switch (FR-015).
- *   - prompt_actions.provider     — 'anthropic' | 'google' | 'openai'.
- *   - prompt_actions.model        — provider model ID.
- *   - prompt_actions.api_key      — provider credential; `secret` value type
- *                                   (write-only, encrypted at rest, FR-021).
- *   - prompt_actions.bulk_limit   — max affected records per prompt (FR-010).
+ * Settings (research §R4; provider credentials via feature 058):
+ *   - prompt_actions.enabled          — platform-wide kill switch (FR-015).
+ *   - prompt_actions.llm_credentials  — reference to a reusable `llm` credential
+ *                                       configuration (provider + model + API
+ *                                       key). The single credential source.
+ *   - prompt_actions.bulk_limit       — max affected records per prompt (FR-010).
  *
  * No palette `actions:` entry: feature 020 actions are navigation-only, and
  * the prompt mode has no standalone route — its entry point is the
@@ -25,9 +24,9 @@ import { defineModuleManifest, defineModuleSettingsManifest } from '@b2b/contrac
 
 export const PROMPT_ACTIONS_SETTING_CODES = {
   ENABLED: 'prompt_actions.enabled',
-  PROVIDER: 'prompt_actions.provider',
-  MODEL: 'prompt_actions.model',
-  API_KEY: 'prompt_actions.api_key',
+  // Feature 058 — the single credential source: a reusable `llm` credential
+  // configuration supplying provider + model + API key.
+  LLM_CREDENTIALS: 'prompt_actions.llm_credentials',
   BULK_LIMIT: 'prompt_actions.bulk_limit',
 } as const;
 
@@ -47,30 +46,13 @@ const settings = defineModuleSettingsManifest({
       defaultValue: false,
     },
     {
-      code: PROMPT_ACTIONS_SETTING_CODES.PROVIDER,
-      name: 'LLM provider',
+      code: PROMPT_ACTIONS_SETTING_CODES.LLM_CREDENTIALS,
+      name: 'LLM credentials',
       description:
-        "Which provider interprets operator prompts: 'anthropic' (Claude), 'google' (Gemini) or 'openai' (GPT).",
+        'Reference a reusable LLM credential configuration (Credentials screen) providing the provider, model and API key. Required to enable the assistant.',
       groupCode: 'prompt_actions',
-      valueType: 'string',
-      defaultValue: 'anthropic',
-    },
-    {
-      code: PROMPT_ACTIONS_SETTING_CODES.MODEL,
-      name: 'LLM model',
-      description:
-        "Model ID for the selected provider, e.g. 'claude-sonnet-4-6', 'gemini-2.5-flash' or 'gpt-4o'.",
-      groupCode: 'prompt_actions',
-      valueType: 'string',
-      defaultValue: 'claude-sonnet-4-6',
-    },
-    {
-      code: PROMPT_ACTIONS_SETTING_CODES.API_KEY,
-      name: 'Provider API key',
-      description:
-        'Credential for the selected LLM provider. Write-only: the value is encrypted at rest and never returned by the settings API after saving.',
-      groupCode: 'prompt_actions',
-      valueType: 'secret',
+      valueType: 'credential_ref',
+      configurationType: 'llm',
       defaultValue: '',
     },
     {
@@ -94,7 +76,7 @@ export const manifest = defineModuleManifest({
   description:
     'Natural-language prompt mode for the admin command palette: interpret an operator instruction with an LLM, preview the plan, execute it through existing module services after explicit confirmation.',
   version: '1.0.0',
-  dependencies: ['_lifecycle', '_i18n', 'settings'],
+  dependencies: ['_lifecycle', '_i18n', 'settings', 'credentials'],
   settings,
   i18n: { bundlesDir: 'i18n' },
   permissions: [

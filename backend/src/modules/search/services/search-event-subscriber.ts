@@ -5,6 +5,10 @@ import type { SettingsService } from '../../settings/services/settings.service.j
 import { z } from 'zod';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import { SEARCH_SETTING_CODES } from '../manifest.js';
+import {
+  resolveEmbedderConfig,
+  type CredentialResolvePort,
+} from './embedder-config-resolver.js';
 
 /**
  * SearchEventSubscriber (T067 — incremental upsert path).
@@ -71,6 +75,11 @@ export interface SearchEventSubscriberDeps {
    */
   settingsService?: SettingsService;
   /**
+   * Feature 058 — resolves `search.llm.embedder_credentials` into the embedder
+   * config, falling back per field to the legacy embedder settings. Optional.
+   */
+  credentials?: CredentialResolvePort;
+  /**
    * Logger hook for failures. Defaults to console.warn so production logs
    * still surface them; tests pass a vi.fn() to assert.
    */
@@ -78,7 +87,6 @@ export interface SearchEventSubscriberDeps {
 }
 
 const booleanSchema = z.boolean();
-const stringSchema = z.string();
 
 export class SearchEventSubscriber {
   private unsubscribers: Array<() => void> = [];
@@ -157,23 +165,13 @@ export class SearchEventSubscriber {
                 booleanSchema,
               );
               if (enabled) {
-                const [url, apiKey, model] = await Promise.all([
-                  settingsService.get(
-                    SEARCH_SETTING_CODES.LLM_EMBEDDER_URL,
-                    channel.id,
-                    stringSchema,
-                  ),
-                  settingsService.get(
-                    SEARCH_SETTING_CODES.LLM_EMBEDDER_API_KEY,
-                    channel.id,
-                    stringSchema,
-                  ),
-                  settingsService.get(
-                    SEARCH_SETTING_CODES.LLM_EMBEDDER_MODEL,
-                    channel.id,
-                    stringSchema,
-                  ),
-                ]);
+                // Feature 058 — prefer the credential reference, fall back per
+                // field to the legacy embedder settings.
+                const { url, apiKey, model } = await resolveEmbedderConfig(
+                  settingsService,
+                  channel.id,
+                  this.deps.credentials,
+                );
                 if (url && apiKey && model) {
                   await indexer.attachEmbedderForChannel(channel.code, {
                     url,

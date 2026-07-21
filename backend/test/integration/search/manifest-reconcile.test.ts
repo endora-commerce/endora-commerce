@@ -9,6 +9,7 @@ import { searchManifest } from '../../../src/modules/search/manifest.js';
 import { settingsManifest } from '../../../src/modules/settings/manifest.js';
 import { SettingGroup } from '../../../src/modules/settings/entities/setting-group.entity.js';
 import { Setting } from '../../../src/modules/settings/entities/setting.entity.js';
+import { SettingValue } from '../../../src/modules/settings/entities/setting-value.entity.js';
 import { SEARCH_SETTING_CODES } from '../../../src/modules/search/manifest.js';
 
 /**
@@ -28,6 +29,23 @@ describe('search manifest reconciliation (T020)', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
+
+    // Feature 058 removed the legacy embedder_* settings. The reconciler never
+    // deletes, so a persistent (developer) DB may still carry those orphaned
+    // rows from an earlier boot — CI's fresh DB never creates them. Drop any
+    // `search` setting no longer declared by the manifest so the exact-set and
+    // zero-orphan assertions match CI.
+    const em = h.em();
+    const validCodes = new Set<string>(Object.values(SEARCH_SETTING_CODES));
+    const group = await em.findOne(SettingGroup, { code: 'search' });
+    if (group) {
+      const settings = await em.find(Setting, { group });
+      for (const s of settings) {
+        if (validCodes.has(s.code)) continue;
+        await em.nativeDelete(SettingValue, { setting: s });
+        await em.nativeDelete(Setting, { id: s.id });
+      }
+    }
   });
 
   afterAll(async () => {
@@ -44,9 +62,9 @@ describe('search manifest reconciliation (T020)', () => {
     const codes = settings.map((s) => s.code).sort();
     expect(codes).toEqual(
       [
-        SEARCH_SETTING_CODES.LLM_EMBEDDER_API_KEY,
-        SEARCH_SETTING_CODES.LLM_EMBEDDER_MODEL,
-        SEARCH_SETTING_CODES.LLM_EMBEDDER_URL,
+        // Feature 058 — the embedder credential reference is the single source
+        // of the embedder Base URL / API key / model (legacy embedder_* removed).
+        SEARCH_SETTING_CODES.LLM_EMBEDDER_CREDENTIALS,
         SEARCH_SETTING_CODES.LLM_ENABLED,
         SEARCH_SETTING_CODES.POPUP_MINIMUM_QUERY_LENGTH,
         SEARCH_SETTING_CODES.POPUP_SUGGESTION_COUNT,
@@ -64,8 +82,10 @@ describe('search manifest reconciliation (T020)', () => {
     );
     expect(byCode.get(SEARCH_SETTING_CODES.LLM_ENABLED)?.valueType).toBe('boolean');
     expect(byCode.get(SEARCH_SETTING_CODES.LLM_ENABLED)?.defaultValue).toBe(false);
-    expect(byCode.get(SEARCH_SETTING_CODES.LLM_EMBEDDER_URL)?.valueType).toBe('string');
-    expect(byCode.get(SEARCH_SETTING_CODES.LLM_EMBEDDER_URL)?.defaultValue).toBe('');
+    expect(byCode.get(SEARCH_SETTING_CODES.LLM_EMBEDDER_CREDENTIALS)?.valueType).toBe(
+      'credential_ref',
+    );
+    expect(byCode.get(SEARCH_SETTING_CODES.LLM_EMBEDDER_CREDENTIALS)?.configurationType).toBe('llm');
     expect(byCode.get(SEARCH_SETTING_CODES.REINDEX_INTERVAL_MINUTES)?.valueType).toBe(
       'number',
     );

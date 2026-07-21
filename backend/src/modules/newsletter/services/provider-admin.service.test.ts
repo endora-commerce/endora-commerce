@@ -20,62 +20,54 @@ class FakeWriter implements SettingsWriter {
   }
 }
 
-describe('NewsletterProviderAdminService (US7)', () => {
+describe('NewsletterProviderAdminService (US7; feature 058)', () => {
   const C = NEWSLETTER_SETTING_CODES;
 
   function build(store: Record<string, unknown>) {
     const settings = new FakeSettings();
     settings.store = store;
     const writer = new FakeWriter();
-    const providers = { resolveProvider: async () => ({ verify: async () => ({ ok: true as const }) }) } as unknown as NewsletterProviderRegistry;
-    const svc = new NewsletterProviderAdminService(settings as unknown as SettingsService, writer, providers, 'default');
+    const providers = {
+      resolveProvider: async () => ({ verify: async () => ({ ok: true as const }) }),
+    } as unknown as NewsletterProviderRegistry;
+    const svc = new NewsletterProviderAdminService(
+      settings as unknown as SettingsService,
+      writer,
+      providers,
+      'default',
+    );
     return { svc, writer };
   }
 
-  it('reports passwordSet without returning the secret', async () => {
+  it('reads the non-credential sender + throttle config', async () => {
     const { svc } = build({
-      [C.PROVIDER]: 'smtp',
-      [C.SMTP_HOST]: 'smtp.test',
-      [C.SMTP_PORT]: 587,
-      [C.SMTP_SECURE]: false,
-      [C.SMTP_USERNAME]: 'user',
-      [C.SMTP_PASSWORD]: 'secret-pass',
       [C.SENDER_FROM_EMAIL]: 'n@s.test',
       [C.SENDER_FROM_NAME]: 'Shop',
       [C.RATE_LIMIT_PER_SECOND]: 20,
     });
     const cfg = await svc.getConfig();
-    expect(cfg.provider).toBe('smtp');
-    expect(cfg.smtp.passwordSet).toBe(true);
-    expect(cfg.smtp).not.toHaveProperty('password');
+    expect(cfg.sender).toEqual({ fromEmail: 'n@s.test', fromName: 'Shop' });
     expect(cfg.rateLimitPerSecond).toBe(20);
+    // The credential/SMTP block is no longer part of this surface.
+    expect(cfg).not.toHaveProperty('smtp');
+    expect(cfg).not.toHaveProperty('provider');
   });
 
-  it('writes all config codes and only writes the secret when provided', async () => {
-    const { svc, writer } = build({ [C.SMTP_PASSWORD]: '' });
+  it('writes the sender + throttle codes (no SMTP settings)', async () => {
+    const { svc, writer } = build({});
     await svc.putConfig(
       {
-        provider: 'smtp',
-        smtp: { host: 'h', port: 465, secure: true, username: 'u' }, // no password
         sender: { fromEmail: 'a@b.test', fromName: 'N' },
         rateLimitPerSecond: 10,
       },
       { actorAdminUserId: 'admin-1' },
     );
     const codes = writer.writes.map((w) => w.code);
-    expect(codes).toContain(C.SMTP_HOST);
-    expect(codes).not.toContain(C.SMTP_PASSWORD); // omitted → unchanged
-
-    writer.writes = [];
-    await svc.putConfig(
-      {
-        provider: 'smtp',
-        smtp: { host: 'h', port: 465, secure: true, username: 'u', password: 'new-secret' },
-        sender: { fromEmail: 'a@b.test', fromName: 'N' },
-        rateLimitPerSecond: 10,
-      },
-      { actorAdminUserId: 'admin-1' },
-    );
-    expect(writer.writes.find((w) => w.code === C.SMTP_PASSWORD)?.value).toBe('new-secret');
+    expect(codes).toContain(C.SENDER_FROM_EMAIL);
+    expect(codes).toContain(C.SENDER_FROM_NAME);
+    expect(codes).toContain(C.RATE_LIMIT_PER_SECOND);
+    // No SMTP connection / password writes (those live in the credential).
+    expect(codes.some((c) => c.startsWith('newsletter.smtp'))).toBe(false);
+    expect(codes).not.toContain('newsletter.provider');
   });
 });

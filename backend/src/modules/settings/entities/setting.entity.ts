@@ -22,6 +22,8 @@ export const SETTING_VALUE_TYPES = [
   'json',
   'string_list',
   'secret',
+  // Feature 058 — reference to a saved credential configuration (by code).
+  'credential_ref',
 ] as const;
 export type SettingValueTypeDb = (typeof SETTING_VALUE_TYPES)[number];
 
@@ -42,6 +44,7 @@ export class Setting {
     | 'description'
     | 'globalValue'
     | 'enumOptions'
+    | 'configurationType'
     | 'hidden';
 
   @PrimaryKey({ type: 'uuid' })
@@ -86,6 +89,14 @@ export class Setting {
    */
   @Property({ type: 'json', nullable: true, fieldName: 'enum_options' })
   enumOptions?: string[] | null;
+
+  /**
+   * Feature 058 — for a `credential_ref` setting, the configuration type its
+   * reference is constrained to (e.g. `'llm'`). NULL for every other value
+   * type. Manifest-driven config, kept in sync by the reconciler.
+   */
+  @Property({ type: 'string', length: 64, nullable: true, fieldName: 'configuration_type' })
+  configurationType?: string | null;
 
   /**
    * When true, the setting is excluded from the generic admin Settings screen

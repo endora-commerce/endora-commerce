@@ -122,6 +122,10 @@ import { createSuggestionPricingEnricher } from '../../src/modules/search/servic
 import { searchManifest } from '../../src/modules/search/manifest.js';
 import { promptActionsModule, type PromptActionsModuleOptions } from '../../src/modules/prompt_actions/plugin.js';
 import { promptActionsSettingsManifest } from '../../src/modules/prompt_actions/manifest.js';
+import { credentialsModule } from '../../src/modules/credentials/plugin.js';
+import { configurationTypeRegistry } from '../../src/modules/credentials/services/registry-singleton.js';
+import { llmConfigurationType } from '../../src/modules/credentials/types/llm.type.js';
+import { emailAdapterConfigurationType } from '../../src/modules/credentials/types/email-adapter.type.js';
 import { pwaModule } from '../../src/modules/pwa/plugin.js';
 import { pwaSettingsManifest } from '../../src/modules/pwa/manifest.js';
 import { transactionalEmailsSettingsManifest } from '../../src/modules/transactional_emails/manifest.js';
@@ -200,6 +204,8 @@ export interface BackendServerHandle {
   settings: ReturnType<typeof settingsModule>['handle'];
   /** Feature 043 — prompt assistant handle (registry + request service). */
   promptActions: ReturnType<typeof promptActionsModule>['handle'];
+  /** Feature 058 — credentials handle (config-type registry + service). */
+  credentials: ReturnType<typeof credentialsModule>['handle'];
   /** Feature 046 — PWA handle (config resolver, push services, delivery queue). */
   pwa: ReturnType<typeof pwaModule>['handle'];
   /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
@@ -276,6 +282,8 @@ function testAnyLabel(name: unknown): string {
 }
 
 const SEEDED_TABLES = [
+  // Feature 058 — credentials. Platform-global; truncate so each test starts clean.
+  'credential_configurations',
   // Feature 055 — custom fields. Options cascade from definitions.
   'custom_field_options',
   'custom_field_definitions',
@@ -1214,6 +1222,33 @@ export async function setupBackendServer(
   });
   modules.push(adminActions.plugin);
 
+  // Feature 058 — Credentials module. Instantiated before the consumer modules
+  // (prompt_actions, search, newsletter) so they can receive
+  // `credentials.handle.service` for the `credential_ref` resolution path.
+  if (!configurationTypeRegistry.isRegistered(llmConfigurationType.code)) {
+    configurationTypeRegistry.register(llmConfigurationType);
+  }
+  if (!configurationTypeRegistry.isRegistered(emailAdapterConfigurationType.code)) {
+    configurationTypeRegistry.register(emailAdapterConfigurationType);
+  }
+  const credentials = credentialsModule({
+    emFactory: em,
+    settings: settings.handle.settingsService,
+    permissionService,
+    requireAdmin: requireTestAdmin(permissionService),
+    resolveAdminContext: (request) => ({
+      adminUserId:
+        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+    }),
+    commandBus,
+    configurationTypeRegistry,
+    auditLogService,
+    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
+      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
+      : {}),
+  });
+  modules.push(credentials.plugin);
+
   // Feature 043 — prompt assistant (mirrors composition.ts). Tool handlers
   // contributed by catalog/inventory; provider HTTP is injected by tests.
   const catalogToolDeps = {
@@ -1238,6 +1273,7 @@ export async function setupBackendServer(
           : TEST_ADMIN_ID,
     }),
     auditLogService,
+    credentials: credentials.handle.service,
     bulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
     ...(options.promptActionsLlmFetch !== undefined
       ? { llmFetch: options.promptActionsLlmFetch }
@@ -1449,6 +1485,7 @@ export async function setupBackendServer(
     eventBus,
     settingsService: settings.handle.settingsService,
     settingsAdminService: settings.handle.adminService,
+    credentials: credentials.handle.service,
     requireAdmin: requireTestAdmin(permissionService),
     enrichSuggestionPricing: createSuggestionPricingEnricher({
       emFactory: em,
@@ -1769,6 +1806,7 @@ export async function setupBackendServer(
           occurredAt: new Date().toISOString(),
           ...payload,
         }),
+      credentials: credentials.handle.service,
     }),
   );
 
@@ -1900,6 +1938,7 @@ export async function setupBackendServer(
     sessionService,
     auditLogService,
     promptActions: promptActions.handle,
+    credentials: credentials.handle,
     pwa: pwa.handle,
     permissionService,
     permissionCatalogueService,

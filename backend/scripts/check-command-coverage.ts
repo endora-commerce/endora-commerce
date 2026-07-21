@@ -85,6 +85,7 @@ export const MIGRATED_MODULES: readonly string[] = [
   'admin_notifications',
   'admin_actions',
   '_i18n',
+  'credentials',
 ];
 
 const MUTATION_METHODS = new Set([

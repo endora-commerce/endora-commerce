@@ -72,6 +72,7 @@ const sidebars = {
           items: ['modules/cms/extending-page-builder'],
         },
         { type: 'doc', id: 'modules/comparisons', label: 'Compare Products' },
+        'modules/credentials',
         'modules/credit_limits',
         'modules/currencies',
         'modules/customer_accounts',

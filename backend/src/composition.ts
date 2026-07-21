@@ -121,6 +121,11 @@ import { quoteRequestsManifest, QUOTE_REQUESTS_SETTING_CODES } from './modules/q
 import { inventoryManifest } from './modules/inventory/manifest.js';
 import { promptActionsModule } from './modules/prompt_actions/plugin.js';
 import { promptActionsSettingsManifest } from './modules/prompt_actions/manifest.js';
+// Feature 058 — Credentials (reusable credential configurations).
+import { credentialsModule } from './modules/credentials/plugin.js';
+import { configurationTypeRegistry } from './modules/credentials/services/registry-singleton.js';
+import { llmConfigurationType } from './modules/credentials/types/llm.type.js';
+import { emailAdapterConfigurationType } from './modules/credentials/types/email-adapter.type.js';
 // Feature 046 — Progressive Web App.
 import { pwaModule } from './modules/pwa/plugin.js';
 import { pwaSettingsManifest } from './modules/pwa/manifest.js';
@@ -637,6 +642,32 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     );
   }
 
+  // Feature 058 — Credentials module. Instantiated right after `settings` (its
+  // only hard dependency) so that consumer modules constructed further down
+  // (search, newsletter, prompt_actions) can receive `credentials.handle.service`
+  // for the `credential_ref` resolution path (feature 058 Phase 8). The
+  // configuration-type registry is the process-wide cross-module seam; core
+  // types are registered here at boot.
+  configurationTypeRegistry.register(llmConfigurationType);
+  configurationTypeRegistry.register(emailAdapterConfigurationType);
+  const credentials = credentialsModule({
+    emFactory: em,
+    // US2 — the delete-integrity guard reaches settings only through this port
+    // (Principle I): `SettingsService.listReferencesToConfiguration`.
+    settings: settings.handle.settingsService,
+    permissionService,
+    requireAdmin,
+    resolveAdminContext: adminContextResolver,
+    commandBus,
+    configurationTypeRegistry,
+    auditLogService,
+    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
+      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
+      : {}),
+  });
+  // `credentials.plugin` is added to the `modules` array below (declared later);
+  // the handle is used by the consumer modules constructed above/below.
+
   // Feature 042 — MFA module. Constructed here (after `settings`) so it can
   // read the per-scope MFA settings; its login port is bound to the late-bound
   // `mfaLoginPort` captured by the auth services above. Plugin pushed below.
@@ -1049,6 +1080,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     authModulePlugin,
     tenantContextModulePlugin,
     admin.plugin,
+    // Feature 058 — Credentials (instantiated earlier, right after settings).
+    credentials.plugin,
     creditLimits.plugin,
     customFields.plugin,
     integrations.plugin,
@@ -1668,6 +1701,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     eventBus,
     settingsService: settings.handle.settingsService,
     settingsAdminService: settings.handle.adminService,
+    // Feature 058 — resolve `search.llm.embedder_credentials`; legacy embedder
+    // settings remain the per-field fallback.
+    credentials: credentials.handle.service,
     requireAdmin,
     // Typeahead suggestions carry the per-customer price-list resolution so
     // the popup shows the price the searching user would actually pay,
@@ -2168,6 +2204,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         }),
       redis,
       runWorkers,
+      // Feature 058 — resolve `newsletter.email_credentials` (email_adapter);
+      // falls back to the legacy `newsletter.smtp.*` settings when unset.
+      credentials: credentials.handle.service,
     }),
   );
 
@@ -2340,6 +2379,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     requireAdmin,
     resolveAdminContext: adminContextResolver,
     auditLogService,
+    // Feature 058 — resolve `prompt_actions.llm_credentials`; legacy settings
+    // remain the fallback when no credential reference is configured.
+    credentials: credentials.handle.service,
     bulkProgressResolver: catalogBulkProgressResolver(catalogToolDeps),
   });
   // Feature 043 — per-module AI-assistant command registration.
