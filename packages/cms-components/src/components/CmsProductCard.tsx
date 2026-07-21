@@ -1,6 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
+import {
+  CORNER_RADIUS_PX,
+  resolveResponsiveNumber,
+  type BreakpointTier,
+} from '@b2b/page-builder-core';
 import type { CmsProductSummary } from '../schema/catalog-types.js';
 import type { CmsProductCardProps } from '../schema/component-types.js';
 
@@ -12,6 +17,43 @@ function formatPrice(product: CmsProductSummary, locale: string): string | null 
   }).format(product.price.amount);
 }
 
+function mediaRatioClass(imageRatio: CmsProductCardProps['imageRatio']): string {
+  if (imageRatio === '4:3') return 'cmsc-pb-product-card__media--43';
+  if (imageRatio === '16:9') return 'cmsc-pb-product-card__media--169';
+  if (imageRatio === 'auto') return 'cmsc-pb-product-card__media--auto';
+  return 'cmsc-pb-product-card__media--square';
+}
+
+export function productCardLayoutStyle(
+  props: {
+    maxWidthPx?: CmsProductCardProps['maxWidthPx'];
+    imageHeightPx?: CmsProductCardProps['imageHeightPx'];
+    imageObjectFit?: CmsProductCardProps['imageObjectFit'];
+    cornerRadius?: CmsProductCardProps['cornerRadius'];
+  },
+  tier: BreakpointTier = 'desktop',
+): { card: CSSProperties; media: CSSProperties; img: CSSProperties } {
+  const maxWidth = resolveResponsiveNumber(props.maxWidthPx, tier, 0);
+  const imageHeight = resolveResponsiveNumber(props.imageHeightPx, tier, 0);
+  return {
+    card: {
+      ...(maxWidth > 0 ? { maxWidth: `${maxWidth}px`, width: '100%' } : {}),
+      ...(props.cornerRadius
+        ? { borderRadius: `${CORNER_RADIUS_PX[props.cornerRadius]}px` }
+        : {}),
+    },
+    media: {
+      ...(imageHeight > 0 ? { height: `${imageHeight}px`, aspectRatio: 'unset' } : {}),
+    },
+    img: {
+      objectFit: props.imageObjectFit ?? 'contain',
+      ...(props.imageObjectFit && props.imageObjectFit !== 'contain'
+        ? { maxWidth: '100%', maxHeight: '100%' }
+        : {}),
+    },
+  };
+}
+
 export function CmsProductCardView({
   product,
   locale = 'pl-PL',
@@ -19,8 +61,13 @@ export function CmsProductCardView({
   showSku = true,
   showStock = true,
   imageRatio = 'square',
+  imageObjectFit = 'contain',
+  maxWidthPx,
+  imageHeightPx,
+  cornerRadius,
   variant = 'default',
   ctaLabel,
+  previewTier = 'desktop',
 }: {
   product: CmsProductSummary;
   locale?: string;
@@ -28,17 +75,43 @@ export function CmsProductCardView({
   showSku?: boolean;
   showStock?: boolean;
   imageRatio?: CmsProductCardProps['imageRatio'];
+  imageObjectFit?: CmsProductCardProps['imageObjectFit'];
+  maxWidthPx?: CmsProductCardProps['maxWidthPx'];
+  imageHeightPx?: CmsProductCardProps['imageHeightPx'];
+  cornerRadius?: CmsProductCardProps['cornerRadius'];
   variant?: CmsProductCardProps['variant'];
   ctaLabel?: string;
+  previewTier?: BreakpointTier;
 }): React.ReactElement {
-  const ratioClass = imageRatio === '4:3' ? 'cmsc-pb-product-card__media--43' : 'cmsc-pb-product-card__media--square';
+  const ratioClass = mediaRatioClass(imageRatio);
   const price = showPrice ? formatPrice(product, locale) : null;
+  const layout = productCardLayoutStyle(
+    {
+      ...(maxWidthPx !== undefined ? { maxWidthPx } : {}),
+      ...(imageHeightPx !== undefined ? { imageHeightPx } : {}),
+      ...(imageObjectFit !== undefined ? { imageObjectFit } : {}),
+      ...(cornerRadius !== undefined ? { cornerRadius } : {}),
+    },
+    previewTier,
+  );
 
   return (
-    <article className={`cmsc-pb-product-card cmsc-pb-product-card--${variant}`}>
-      <a href={`/p/${product.slug}`} className={`cmsc-pb-product-card__media ${ratioClass}`}>
+    <article
+      className={`cmsc-pb-product-card cmsc-pb-product-card--${variant}`}
+      style={layout.card}
+    >
+      <a
+        href={`/p/${product.slug}`}
+        className={`cmsc-pb-product-card__media ${ratioClass}`}
+        style={layout.media}
+      >
         {product.primaryAssetUrl ? (
-          <img src={product.primaryAssetUrl} alt={product.name} loading="lazy" />
+          <img
+            src={product.primaryAssetUrl}
+            alt={product.name}
+            loading="lazy"
+            style={layout.img}
+          />
         ) : (
           <span className="cmsc-pb-product-card__placeholder" aria-hidden />
         )}
@@ -63,19 +136,22 @@ export function CmsProductCardView({
 }
 
 export function CmsProductCardLoader(
-  props: CmsProductCardProps & { locale?: string; editing?: boolean },
+  props: CmsProductCardProps & { locale?: string; editing?: boolean; previewTier?: BreakpointTier },
 ): React.ReactElement {
-  const { productSlug, editing = false, locale = 'pl-PL', ...viewProps } = props;
+  const { productSlug, editing = false, locale = 'pl-PL', previewTier, ...viewProps } = props;
   const [product, setProduct] = useState<CmsProductSummary | null>(null);
   const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(Boolean(productSlug));
 
   useEffect(() => {
     if (!productSlug) {
       setProduct(null);
       setError(false);
+      setLoading(false);
       return;
     }
     let cancelled = false;
+    setLoading(true);
     void (async () => {
       try {
         const { fetchProductsBySlugs } = await import('../utils/catalog-fetch.js');
@@ -83,11 +159,13 @@ export function CmsProductCardLoader(
         if (!cancelled) {
           setProduct(list[0] ?? null);
           setError(!list[0]);
+          setLoading(false);
         }
       } catch {
         if (!cancelled) {
           setProduct(null);
           setError(true);
+          setLoading(false);
         }
       }
     })();
@@ -103,14 +181,28 @@ export function CmsProductCardLoader(
       </div>
     );
   }
+  if (loading) {
+    return (
+      <div className="cmsc-pb-product-card cmsc-pb-product-card--placeholder">
+        <p className="cmsc:text-sm cmsc:text-[#64748b]">Loading product…</p>
+      </div>
+    );
+  }
   if (error || !product) {
     return (
       <div className="cmsc-pb-product-card cmsc-pb-product-card--placeholder">
         <p className="cmsc:text-sm cmsc:text-[#64748b]">
-          {editing ? `Loading product…` : 'Product unavailable'}
+          {editing ? 'Product not found' : 'Product unavailable'}
         </p>
       </div>
     );
   }
-  return <CmsProductCardView product={product} locale={locale} {...viewProps} />;
+  return (
+    <CmsProductCardView
+      product={product}
+      locale={locale}
+      {...(previewTier !== undefined ? { previewTier } : {})}
+      {...viewProps}
+    />
+  );
 }

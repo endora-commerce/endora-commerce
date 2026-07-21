@@ -1,6 +1,5 @@
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { Puck, Render, type Config, type ComponentConfig, type Data, type PuckAction } from '@measured/puck';
-import { Maximize2, Minimize2 } from 'lucide-react';
 import '@measured/puck/puck.css';
 // Self-contained, prefix-isolated (`cmsc:`) stylesheet for the shared CMS components
 // (feature 041, FR-012b). This is the admin's ONLY change; it carries its own token
@@ -12,12 +11,11 @@ import {
   withCmsPageRoot,
   type CmsRenderEmbeds,
 } from '@b2b/cms-components';
-import { DEFAULT_BREAKPOINTS, filterConfigByContext } from '@b2b/page-builder-core';
+import { filterConfigByContext } from '@b2b/page-builder-core';
 import { createPageBuilderEditorPlugin } from '@b2b/page-builder-core/editor';
 import { AdminCmsAssetProvider } from './AdminCmsAssetProvider';
 import type { CmsPageBuilderDescriptor } from '@b2b/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
 import { cmsClient } from '../api/cms-client';
@@ -34,8 +32,10 @@ import {
   createImageAssetField,
   createImageSourceField,
   createImageUrlField,
+  createSlideImageField,
 } from './AssetPickers';
 import { createAdminBackgroundField } from './BackgroundFields';
+import { buildViewports } from './build-viewports';
 import {
   applyRowLayoutPreset,
   findRowById,
@@ -47,6 +47,10 @@ import { isContentSliderSlidesZone, toPuckItemArray } from '@b2b/page-builder-co
 import { createPuckActionHandler, PuckDispatchBridgeSlot } from './PuckActionGuard';
 import { RowLayoutPicker } from './RowLayoutPicker';
 import { PageBuilderActionBar } from './PageBuilderActionBar';
+import { PageBuilderHeaderActions } from './PageBuilderHeaderActions';
+import { PageBuilderDrawer } from './PageBuilderDrawer';
+import { applyPageBuilderTranslations } from './page-builder-i18n';
+import { emptyPageBuilderData, isEmptyPageBuilderData } from './page-builder-data';
 import { PageBuilderOverlayBridge } from './PageBuilderOverlayBridge';
 import { hasInvalidColumnPlacement } from '@b2b/page-builder-core/editor';
 
@@ -179,6 +183,20 @@ function mergeConfig(
     } as ComponentConfig;
   }
 
+  const hero = components['Hero'];
+  if (hero) {
+    components['Hero'] = {
+      ...hero,
+      fields: {
+        ...hero.fields,
+        buttonLinkSlug: createButtonLinkSlugField({
+          label: 'Button link target',
+          linkTypeProp: 'buttonLinkType',
+        }),
+      },
+    } as ComponentConfig;
+  }
+
   const productCard = components['ProductCard'];
   if (productCard) {
     components['ProductCard'] = {
@@ -240,9 +258,7 @@ function mergeConfig(
             ? {
                 ...itemsField,
                 arrayFields: {
-                  imageSource: createImageSourceField(),
-                  src: createImageUrlField('Image URL'),
-                  assetId: createImageAssetField('Image'),
+                  image: createSlideImageField(),
                   title: { type: 'text', label: 'Title' },
                   titlePlacement: itemsField.arrayFields?.titlePlacement ?? {
                     type: 'select',
@@ -258,6 +274,24 @@ function mergeConfig(
                       { label: 'Bottom right', value: 'bottom-right' },
                     ],
                   },
+                  ...(itemsField.arrayFields?.titleBackground
+                    ? { titleBackground: itemsField.arrayFields.titleBackground }
+                    : {}),
+                  ...(itemsField.arrayFields?.titleColor
+                    ? { titleColor: itemsField.arrayFields.titleColor }
+                    : {}),
+                  ...(itemsField.arrayFields?.titleBorderColor
+                    ? { titleBorderColor: itemsField.arrayFields.titleBorderColor }
+                    : {}),
+                  ...(itemsField.arrayFields?.titleBorderWidth
+                    ? { titleBorderWidth: itemsField.arrayFields.titleBorderWidth }
+                    : {}),
+                  ...(itemsField.arrayFields?.titleBorderRadius
+                    ? { titleBorderRadius: itemsField.arrayFields.titleBorderRadius }
+                    : {}),
+                  ...(itemsField.arrayFields?.titlePaddingPx
+                    ? { titlePaddingPx: itemsField.arrayFields.titlePaddingPx }
+                    : {}),
                 },
               }
             : itemsField,
@@ -265,7 +299,7 @@ function mergeConfig(
     } as ComponentConfig;
   }
 
-  for (const name of ['Row', 'Column'] as const) {
+  for (const name of ['Row', 'Column', 'Hero', 'Testimonial', 'NewsletterSignup'] as const) {
     const cfg = components[name];
     if (cfg) {
       components[name] = {
@@ -276,6 +310,44 @@ function mergeConfig(
         },
       } as ComponentConfig;
     }
+  }
+
+  const testimonial = components['Testimonial'];
+  if (testimonial) {
+    components['Testimonial'] = {
+      ...testimonial,
+      fields: {
+        ...testimonial.fields,
+        avatarSource: createImageSourceField(),
+        avatarUrl: createImageUrlField('Avatar URL'),
+        avatarAssetId: createImageAssetField('Avatar'),
+      },
+    } as ComponentConfig;
+  }
+
+  const logoStrip = components['LogoStrip'];
+  if (logoStrip) {
+    const itemsField = logoStrip.fields?.items;
+    components['LogoStrip'] = {
+      ...logoStrip,
+      fields: {
+        ...logoStrip.fields,
+        items:
+          itemsField && itemsField.type === 'array'
+            ? {
+                ...itemsField,
+                arrayFields: {
+                  image: createSlideImageField(),
+                  alt: itemsField.arrayFields?.alt ?? { type: 'text', label: 'Alt text' },
+                  href: itemsField.arrayFields?.href ?? {
+                    type: 'text',
+                    label: 'Link URL (optional)',
+                  },
+                },
+              }
+            : itemsField,
+      },
+    } as ComponentConfig;
   }
 
   if (descriptor) {
@@ -304,21 +376,14 @@ function mergeConfig(
   return { ...base, components, categories } as Config;
 }
 
-function buildViewports(descriptor: CmsPageBuilderDescriptor | null) {
-  const tabletMin = descriptor?.breakpoints?.tabletMin ?? DEFAULT_BREAKPOINTS.tabletMin;
-  const desktopMin = descriptor?.breakpoints?.desktopMin ?? DEFAULT_BREAKPOINTS.desktopMin;
-  return [
-    { width: 360, label: 'Mobile', icon: 'Smartphone' as const },
-    { width: tabletMin, label: 'Tablet', icon: 'Tablet' as const },
-    { width: desktopMin, label: 'Desktop', icon: 'Monitor' as const },
-  ];
-}
-
 export function PageBuilderEditor({
   data,
   onChange,
   contentKey,
   pageContainer = false,
+  languages = [],
+  activeLanguage = null,
+  onResolveLanguageContent,
 }: {
   data: Data | null;
   onChange: (data: Data) => void;
@@ -337,6 +402,11 @@ export function PageBuilderEditor({
   contentKey?: string;
   /** Wrap the canvas in the CMS page max-width container (pages only). */
   pageContainer?: boolean;
+  /** Content languages available for "copy from language". */
+  languages?: string[];
+  activeLanguage?: string | null;
+  /** Load another language's saved/draft content (used by Copy from language). */
+  onResolveLanguageContent?: (language: string) => Data | null | Promise<Data | null>;
 }): ReactNode {
   const t = useTranslation('cms');
   const [descriptor, setDescriptor] = useState<CmsPageBuilderDescriptor | null>(null);
@@ -345,6 +415,8 @@ export function PageBuilderEditor({
   const [error, setError] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [rowLayoutPickerForId, setRowLayoutPickerForId] = useState<string | null>(null);
+  /** Bumped on clear / copy-from so Puck remounts (data prop is mount-only). */
+  const [canvasEpoch, setCanvasEpoch] = useState(0);
   const dispatchRef = useRef<((action: PuckAction) => void) | null>(null);
 
   // Allow exiting fullscreen with Escape.
@@ -423,20 +495,25 @@ export function PageBuilderEditor({
   const config = useMemo(() => {
     const merged = mergeConfig(descriptor, t('pageBuilder.extensions'), blockOptions);
     const filtered = filterConfigByContext(merged, 'cms');
-    return pageContainer ? withCmsPageRoot(filtered) : filtered;
+    const rooted = pageContainer ? withCmsPageRoot(filtered) : filtered;
+    return applyPageBuilderTranslations(rooted, t);
   }, [descriptor, t, blockOptions, pageContainer]);
   const viewports = useMemo(() => buildViewports(descriptor), [descriptor]);
   const plugins = useMemo(() => [createPageBuilderEditorPlugin()], []);
-  const editorData = data ?? emptyData;
+  /** Holds canvas data across remount until parent `data` catches up (clear / copy-from). */
+  const pendingSeedRef = useRef<Data | null>(null);
+  const editorData = pendingSeedRef.current ?? data ?? emptyData;
   const lastValidDataRef = useRef(editorData);
   const knownRowIdsRef = useRef<Set<string>>(collectRowIds(editorData));
 
   useEffect(() => {
-    lastValidDataRef.current = editorData;
-    knownRowIdsRef.current = collectRowIds(editorData);
+    pendingSeedRef.current = null;
+    lastValidDataRef.current = data ?? emptyData;
+    knownRowIdsRef.current = collectRowIds(data ?? emptyData);
     setRowLayoutPickerForId(null);
+    setCanvasEpoch(0);
     // Only reseed when switching page/language — not on every draft edit.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- editorData intentionally omitted
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- data intentionally omitted
   }, [contentKey]);
 
   useEffect(() => {
@@ -454,6 +531,7 @@ export function PageBuilderEditor({
         return;
       }
 
+      pendingSeedRef.current = null;
       const nextRowIds = collectRowIds(next);
       let newRowId: string | null = null;
       for (const id of nextRowIds) {
@@ -474,8 +552,52 @@ export function PageBuilderEditor({
     [onChange],
   );
 
-  const headerActionsStateRef = useRef({ fullscreen, setFullscreen, t });
-  headerActionsStateRef.current = { fullscreen, setFullscreen, t };
+  const applyCanvasData = useCallback(
+    (next: Data): void => {
+      pendingSeedRef.current = next;
+      lastValidDataRef.current = next;
+      knownRowIdsRef.current = collectRowIds(next);
+      onChange(next);
+      // Puck treats `data` as initial only — remount so the canvas reseeds.
+      setCanvasEpoch((epoch) => epoch + 1);
+    },
+    [onChange],
+  );
+
+  const headerActionsStateRef = useRef({
+    fullscreen,
+    setFullscreen,
+    t,
+    languages,
+    activeLanguage,
+    editorData: data ?? emptyPageBuilderData(),
+    onCopyFromLanguage: null as null | ((sourceLanguage: string) => Promise<void>),
+    onClearCanvas: null as null | (() => void),
+    drawerSearchPlaceholder: t('pageBuilder.drawer.searchPlaceholder'),
+    drawerSearchEmpty: t('pageBuilder.drawer.searchEmpty'),
+  });
+  headerActionsStateRef.current = {
+    fullscreen,
+    setFullscreen,
+    t,
+    languages,
+    activeLanguage,
+    editorData: editorData,
+    onCopyFromLanguage: onResolveLanguageContent
+      ? async (sourceLanguage: string): Promise<void> => {
+          const resolved = await onResolveLanguageContent(sourceLanguage);
+          if (isEmptyPageBuilderData(resolved)) {
+            throw new Error(t('pageBuilder.copyLanguage.emptySource'));
+          }
+          applyCanvasData(structuredClone(resolved as Data));
+        }
+      : null,
+    onClearCanvas: (): void => {
+      applyCanvasData(emptyPageBuilderData());
+    },
+    drawerSearchPlaceholder: t('pageBuilder.drawer.searchPlaceholder'),
+    drawerSearchEmpty: t('pageBuilder.drawer.searchEmpty'),
+  };
 
   const applyRowPreset = useCallback((rowId: string, presetId: RowLayoutPresetId) => {
     dispatchRef.current?.({
@@ -544,28 +666,30 @@ export function PageBuilderEditor({
         name: string;
         children: ReactNode;
       }): ReactElement => (name === 'Column' || name === 'Slide' ? <></> : <>{children}</>),
-      headerActions: (): ReactElement => {
-        const { fullscreen: isFullscreen, setFullscreen: setFs, t: translate } = headerActionsStateRef.current;
+      drawer: ({ children }: { children: ReactNode }): ReactElement => {
+        const state = headerActionsStateRef.current;
         return (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={(): void => setFs((f) => !f)}
-            aria-pressed={isFullscreen}
+          <PageBuilderDrawer
+            searchPlaceholder={state.drawerSearchPlaceholder}
+            emptyLabel={state.drawerSearchEmpty}
           >
-            {isFullscreen ? (
-              <>
-                <Minimize2 className="mr-1 h-4 w-4" />
-                {translate('pageBuilder.fullscreen.exit')}
-              </>
-            ) : (
-              <>
-                <Maximize2 className="mr-1 h-4 w-4" />
-                {translate('pageBuilder.fullscreen.enter')}
-              </>
-            )}
-          </Button>
+            {children}
+          </PageBuilderDrawer>
+        );
+      },
+      headerActions: (): ReactElement => {
+        const state = headerActionsStateRef.current;
+        return (
+          <PageBuilderHeaderActions
+            fullscreen={state.fullscreen}
+            onToggleFullscreen={(): void => state.setFullscreen((f) => !f)}
+            languages={state.languages}
+            activeLanguage={state.activeLanguage}
+            currentData={state.editorData}
+            {...(state.onCopyFromLanguage ? { onCopyFromLanguage: state.onCopyFromLanguage } : {})}
+            {...(state.onClearCanvas ? { onClearCanvas: state.onClearCanvas } : {})}
+            t={state.t}
+          />
         );
       },
     }),
@@ -589,7 +713,7 @@ export function PageBuilderEditor({
       ) : null}
       <div
         className={cn(
-          'cms-page-builder__canvas overflow-x-hidden overflow-y-auto border',
+          'cms-page-builder__canvas overflow-x-auto overflow-y-auto border',
           fullscreen ? 'min-h-0 flex-1 rounded-md' : 'min-h-[640px] rounded-md',
         )}
       >
@@ -604,12 +728,13 @@ export function PageBuilderEditor({
           <AdminCatalogPreviewProvider>
             <PageBuilderColorPaletteProvider initialEntries={descriptor?.colorPalette ?? []}>
               <Puck
-                key={contentKey}
+                key={`${contentKey ?? 'pb'}:${canvasEpoch}`}
                 config={config}
                 data={editorData}
                 onChange={handleEditorChange}
                 onAction={handlePuckAction}
                 viewports={viewports}
+                iframe={{ enabled: true, waitForStyles: true }}
                 plugins={plugins}
                 overrides={puckOverrides}
               />

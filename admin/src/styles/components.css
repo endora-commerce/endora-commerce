@@ -392,6 +392,10 @@
 .cms-content-editor__builder .cms-page-builder {
   min-height: calc(100vh - 320px);
 }
+/* While filtering the component drawer, force all category sections open. */
+.cms-page-builder [data-pb-drawer-filtering] [class*="ComponentList-content"] {
+  display: block !important;
+}
 @media (max-width: 1023px) {
   .cms-content-editor__builder .cms-page-builder {
     min-height: min(70vh, 640px);

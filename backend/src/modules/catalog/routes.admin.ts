@@ -499,11 +499,13 @@ export async function registerCatalogAdminRoutes(
           ? typeRaw
           : undefined;
       const search = q['q']?.trim();
+      const categorySlug = q['categorySlug']?.trim();
       const result = await adminService.listProducts({
         includeArchived,
         ...(status ? { status } : {}),
         ...(type ? { type } : {}),
         ...(search ? { q: search } : {}),
+        ...(categorySlug ? { categorySlug } : {}),
         ...(q['page'] ? { page: Number.parseInt(q['page'], 10) } : {}),
         ...(q['pageSize'] ? { pageSize: Number.parseInt(q['pageSize'], 10) } : {}),
       });

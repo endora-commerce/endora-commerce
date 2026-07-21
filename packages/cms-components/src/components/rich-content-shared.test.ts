@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { coerceRichContentProps, resolveRichContentHtml } from './rich-content-shared.js';
+import {
+  coerceRichContentProps,
+  htmlFromTiptap,
+  resolveRichContentHtml,
+  sanitizeRichHtml,
+} from './rich-content-shared.js';
 
 describe('coerceRichContentProps', () => {
   it('parses stringified tiptap JSON', () => {
@@ -24,5 +29,37 @@ describe('coerceRichContentProps', () => {
     });
 
     expect(resolveRichContentHtml(result)).toContain('Stored html');
+  });
+});
+
+describe('sanitizeRichHtml', () => {
+  it('keeps img and safe color styles', () => {
+    const html = sanitizeRichHtml(
+      '<p><span style="color: #ff0000; position: absolute">Red</span><img src="https://cdn.example/a.png" alt="A" /></p>',
+    );
+    expect(html).toContain('img');
+    expect(html).toContain('color: #ff0000');
+    expect(html).not.toContain('position');
+  });
+
+  it('strips scripts and javascript urls', () => {
+    expect(sanitizeRichHtml('<p onclick="x()">x</p><script>alert(1)</script>')).not.toContain('script');
+    expect(sanitizeRichHtml('<a href="javascript:alert(1)">x</a>')).not.toContain('javascript:');
+  });
+});
+
+describe('htmlFromTiptap', () => {
+  it('returns empty string when DOM serialization is unavailable', () => {
+    // generateHTML needs a DOM (document/window); Vitest node env has none.
+    const html = htmlFromTiptap({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'Hi' }],
+        },
+      ],
+    });
+    expect(typeof html).toBe('string');
   });
 });

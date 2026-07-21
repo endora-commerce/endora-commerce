@@ -68,15 +68,19 @@ function LinkSlugFieldControl({
   onChange,
   readOnly,
   label,
+  linkTypeProp = 'linkType',
 }: {
   value: string | undefined;
   onChange: (value: string) => void;
   readOnly?: boolean;
   label: string;
+  linkTypeProp?: string;
 }): ReactElement {
-  const linkType = usePageBuilderPuck(
-    (s) => (s.selectedItem?.props as { linkType?: string } | undefined)?.linkType ?? 'url',
-  );
+  const linkType = usePageBuilderPuck((s) => {
+    const props = s.selectedItem?.props as Record<string, unknown> | undefined;
+    const raw = props?.[linkTypeProp];
+    return typeof raw === 'string' ? raw : 'url';
+  });
   const [query, setQuery] = useState('');
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [categories, setCategories] = useState<{ slug: string; label: string }[]>([]);
@@ -224,16 +228,20 @@ function LinkSlugFieldControl({
   );
 }
 
-export function createButtonLinkSlugField(): Field<string, Record<string, unknown>> {
+export function createButtonLinkSlugField(options?: {
+  label?: string;
+  linkTypeProp?: string;
+}): Field<string, Record<string, unknown>> {
   return {
     type: 'custom',
-    label: 'Link target',
+    label: options?.label ?? 'Link target',
     render: ({ value, onChange, readOnly, field }): ReactElement => (
       <LinkSlugFieldControl
         value={value}
         onChange={onChange}
         {...(readOnly === true ? { readOnly: true } : {})}
-        label={field.label ?? 'Link target'}
+        label={field.label ?? options?.label ?? 'Link target'}
+        linkTypeProp={options?.linkTypeProp ?? 'linkType'}
       />
     ),
   };

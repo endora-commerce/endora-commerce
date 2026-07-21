@@ -112,6 +112,30 @@ export function cmsModule(options: CmsModuleOptions): {
         },
         contexts: ['cms'],
       },
+      Icons: {
+        fields: {
+          name: { type: 'text', label: 'Icon name' },
+          size: { type: 'number', label: 'Size' },
+        },
+        contexts: ['cms'],
+        previewIcon: 'sparkles',
+      },
+      Social: {
+        fields: {
+          layout: {
+            type: 'select',
+            label: 'Layout',
+            options: [
+              { label: 'Icons only', value: 'icons-only' },
+              { label: 'Icons with labels', value: 'icons-with-labels' },
+              { label: 'Vertical list', value: 'vertical-list' },
+              { label: 'Pills', value: 'pills' },
+            ],
+          },
+        },
+        contexts: ['cms'],
+        previewIcon: 'share',
+      },
       RichContent: { fields: { content: { type: 'richtext', label: 'Content' } }, contexts: ['cms'] },
       Heading: {
         fields: {
@@ -182,6 +206,16 @@ export function cmsModule(options: CmsModuleOptions): {
         },
         contexts: ['cms'],
       },
+      Spacer: { fields: { heightPx: { type: 'number', label: 'Height' } }, contexts: ['cms'] },
+      FeatureList: { fields: {}, contexts: ['cms'], previewIcon: 'layout' },
+      Hero: { fields: { heading: { type: 'text', label: 'Heading' } }, contexts: ['cms'] },
+      LogoStrip: { fields: {}, contexts: ['cms'] },
+      Testimonial: { fields: { quote: { type: 'textarea', label: 'Quote' } }, contexts: ['cms'] },
+      Stats: { fields: {}, contexts: ['cms'] },
+      AnnouncementBar: { fields: { text: { type: 'text', label: 'Message' } }, contexts: ['cms'] },
+      SimpleTable: { fields: {}, contexts: ['cms'] },
+      NewsletterSignup: { fields: {}, contexts: ['cms'] },
+      ContactFormEmbed: { fields: {}, contexts: ['cms'] },
     },
   });
 

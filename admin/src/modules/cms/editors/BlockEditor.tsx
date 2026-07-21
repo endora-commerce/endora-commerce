@@ -15,6 +15,7 @@ import { normalize } from '@/lib/admin-actions/normalize';
 import { ContentLanguageTabs } from '../components/ContentLanguageTabs';
 import { CmsContentEditorLayout } from '../components/CmsContentEditorLayout';
 import { PageBuilderEditor } from '../components/PageBuilderEditor';
+import { emptyPageBuilderData } from '../components/page-builder-data';
 import { ScopePicker, type CmsScopeValue } from '../components/ScopePicker';
 import { resolveScopedContentLanguage } from '../components/scope-utils';
 import { cmsClient } from '../api/cms-client';
@@ -63,6 +64,7 @@ export function BlockEditor(): ReactNode {
   const [scope, setScope] = useState<CmsScopeValue>({ salesChannelIds: [], languages: [] });
   const [activeLanguage, setActiveLanguage] = useState<string | null>(null);
   const [draftData, setDraftData] = useState<Data | null>(null);
+  const [languageContentOverrides, setLanguageContentOverrides] = useState<Record<string, Data>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -91,6 +93,7 @@ export function BlockEditor(): ReactNode {
     setScope({ salesChannelIds: [], languages: [] });
     setActiveLanguage(null);
     setDraftData(null);
+    setLanguageContentOverrides({});
     setCodeEdited(false);
     setError(null);
   }, [isNew, id]);
@@ -101,6 +104,7 @@ export function BlockEditor(): ReactNode {
   // mask the newly-loaded content.
   useEffect(() => {
     setDraftData(null);
+    setLanguageContentOverrides({});
   }, [id]);
 
   useEffect(() => {
@@ -110,10 +114,13 @@ export function BlockEditor(): ReactNode {
     }
   }, [activeLanguage, scope.languages]);
 
-  const currentData = useMemo(
-    () => draftData ?? dataFor(block, activeLanguage),
-    [activeLanguage, block, draftData],
-  );
+  const currentData = useMemo(() => {
+    if (draftData) return draftData;
+    if (activeLanguage && languageContentOverrides[activeLanguage]) {
+      return languageContentOverrides[activeLanguage] ?? null;
+    }
+    return dataFor(block, activeLanguage);
+  }, [activeLanguage, block, draftData, languageContentOverrides]);
 
   const save = async (): Promise<boolean> => {
     if (scope.salesChannelIds.length === 0) {
@@ -158,8 +165,16 @@ export function BlockEditor(): ReactNode {
           version: saved.version,
         });
       }
+      for (const [lang, data] of Object.entries(languageContentOverrides)) {
+        if (lang === contentLanguage) continue;
+        saved = await cmsClient.putBlockContent(saved.id, lang, {
+          data,
+          version: saved.version,
+        });
+      }
       setBlock(saved);
       setDraftData(null);
+      setLanguageContentOverrides({});
       if (isNew) navigate(`/cms/blocks/${saved.id}`, { replace: true });
       return true;
     } catch (err) {
@@ -261,6 +276,12 @@ export function BlockEditor(): ReactNode {
           languages={scope.languages}
           activeLanguage={activeLanguage}
           onChange={(language) => {
+            if (activeLanguage && draftData) {
+              setLanguageContentOverrides((prev) => ({
+                ...prev,
+                [activeLanguage]: draftData,
+              }));
+            }
             setDraftData(null);
             setActiveLanguage(language);
           }}
@@ -271,6 +292,17 @@ export function BlockEditor(): ReactNode {
           data={currentData}
           onChange={setDraftData}
           contentKey={`${id ?? 'new'}:${activeLanguage ?? ''}`}
+          languages={scope.languages}
+          activeLanguage={activeLanguage}
+          onResolveLanguageContent={(language) => {
+            if (language === activeLanguage && draftData) {
+              return structuredClone(draftData);
+            }
+            if (languageContentOverrides[language]) {
+              return structuredClone(languageContentOverrides[language]!);
+            }
+            return structuredClone(dataFor(block, language) ?? emptyPageBuilderData());
+          }}
         />
       }
     />

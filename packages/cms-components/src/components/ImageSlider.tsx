@@ -4,6 +4,7 @@ import { type ComponentConfig, type PuckComponent } from '@measured/puck';
 import {
   PB_ITEMS_METADATA,
   PB_RESPONSIVE_METADATA,
+  createColorField,
   resolveResponsiveNumber,
   withHideOn,
 } from '@b2b/page-builder-core';
@@ -16,11 +17,19 @@ import {
   BOX_BORDER_FIELD,
   BOX_MARGIN_FIELD,
   BOX_PADDING_FIELD,
+  CORNER_RADIUS_FIELD,
   DEFAULT_BOX_PROPS,
 } from '../fields/shared-fields.js';
 import { CarouselShell } from './carousel/CarouselShell.js';
 import { useCmsRenderAssets, useCmsRenderMediaBaseUrl } from './render-context.js';
 import { resolveImageUrl } from '../utils/resolve-image-url.js';
+import {
+  imageSliderTitleStyle,
+  normalizeImageSliderItem,
+  syncImageSliderItemImage,
+} from './image-slider-item.js';
+
+export { imageSliderTitleStyle } from './image-slider-item.js';
 
 function slidesPerViewForTier(tier: 'mobile' | 'tablet' | 'desktop'): number {
   if (tier === 'desktop') return 8;
@@ -87,7 +96,8 @@ function ImageSliderBody({
         {...(editing && carouselId !== undefined ? { editorCarouselId: carouselId } : {})}
       >
         {items.map((item, index) => {
-          const src = resolveImageUrl(item, tier, assets, mediaBaseUrl);
+          const normalized = normalizeImageSliderItem(item);
+          const src = resolveImageUrl(normalized, tier, assets, mediaBaseUrl);
           const showTitle = Boolean(item.title?.trim()) && item.titlePlacement !== 'none';
           return (
             <div key={index} className="cmsc-pb-carousel__slide cmsc-pb-image-slider__slide">
@@ -101,7 +111,10 @@ function ImageSliderBody({
                 <div className="cmsc-pb-image-slider__placeholder">Add an image</div>
               )}
               {showTitle ? (
-                <div className={`cmsc-pb-image-slider__title ${titlePlacementClass(item.titlePlacement)}`}>
+                <div
+                  className={`cmsc-pb-image-slider__title ${titlePlacementClass(item.titlePlacement)}`}
+                  style={imageSliderTitleStyle(item)}
+                >
                   {item.title}
                 </div>
               ) : null}
@@ -142,29 +155,58 @@ const imageSliderConfig: ComponentConfig<ImageSliderProps> = {
       label: 'Slides',
       metadata: PB_ITEMS_METADATA,
       arrayFields: {
-        imageSource: {
-          type: 'select',
-          label: 'Image source',
-          options: [
-            { label: 'URL', value: 'url' },
-            { label: 'Asset library', value: 'library' },
-          ],
+        image: {
+          type: 'object',
+          label: 'Image',
+          objectFields: {
+            imageSource: {
+              type: 'select',
+              label: 'Image source',
+              options: [
+                { label: 'URL', value: 'url' },
+                { label: 'Asset library', value: 'library' },
+              ],
+            },
+            src: { type: 'text', label: 'Image URL' },
+            assetId: { type: 'text', label: 'Asset' },
+          },
         },
-        src: { type: 'text', label: 'Image URL' },
-        assetId: { type: 'text', label: 'Asset' },
         title: { type: 'text', label: 'Title' },
         titlePlacement: {
           type: 'select',
           label: 'Title placement',
           options: [...TITLE_PLACEMENT_OPTIONS],
         },
-      },
+        titleBackground: createColorField({ label: 'Title background' }),
+        titleColor: createColorField({ label: 'Title color' }),
+        titleBorderColor: createColorField({ label: 'Title border color' }),
+        titleBorderWidth: {
+          type: 'number',
+          label: 'Title border width (px)',
+          min: 0,
+          max: 12,
+        },
+        titleBorderRadius: { ...CORNER_RADIUS_FIELD, label: 'Title border radius' },
+        titlePaddingPx: {
+          type: 'number',
+          label: 'Title padding (px)',
+          min: 0,
+          max: 48,
+        },
+      } as never,
       defaultItemProps: {
+        image: { imageSource: 'url', src: '', assetId: '' },
         imageSource: 'url',
         src: '',
         assetId: '',
         title: '',
         titlePlacement: 'bottom-center',
+        titleBackground: '',
+        titleColor: '',
+        titleBorderColor: '',
+        titleBorderWidth: 0,
+        titleBorderRadius: 'small',
+        titlePaddingPx: 8,
       },
     },
     slidesPerView: {
@@ -203,7 +245,16 @@ const imageSliderConfig: ComponentConfig<ImageSliderProps> = {
     border: BOX_BORDER_FIELD,
   },
   defaultProps: {
-    items: [{ imageSource: 'url', src: '', assetId: '', title: '', titlePlacement: 'bottom-center' }],
+    items: [
+      {
+        image: { imageSource: 'url', src: '', assetId: '' },
+        imageSource: 'url',
+        src: '',
+        assetId: '',
+        title: '',
+        titlePlacement: 'bottom-center',
+      },
+    ],
     slidesPerView: { base: 1, tablet: 4, desktop: 8 },
     gap: 16,
     autoplay: false,
@@ -213,6 +264,12 @@ const imageSliderConfig: ComponentConfig<ImageSliderProps> = {
     equalHeight: true,
     ...DEFAULT_BOX_PROPS,
   },
+  resolveData: ({ props }) => ({
+    props: {
+      ...props,
+      items: (props.items ?? []).map((item) => syncImageSliderItemImage(item)),
+    },
+  }),
   render: (props) =>
     props.puck?.isEditing ? (
       <ImageSliderEditingRender {...props} />

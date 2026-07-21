@@ -1,11 +1,30 @@
 'use client';
 
+import { useSyncExternalStore } from 'react';
 import { tierFromViewportWidth, type BreakpointTier } from '../types/responsive.js';
-import { usePageBuilderPuck } from './use-page-builder-puck.js';
 
-/** Subscribes to Puck preview viewport width — re-renders when Mobile / Tablet / Desktop changes. */
+function subscribe(onStoreChange: () => void): () => void {
+  if (typeof window === 'undefined') return () => undefined;
+  window.addEventListener('resize', onStoreChange);
+  return () => window.removeEventListener('resize', onStoreChange);
+}
+
+function getSnapshot(): number {
+  return typeof window !== 'undefined' ? window.innerWidth : 1024;
+}
+
+function getServerSnapshot(): number {
+  // Prefer desktop SSR so published CSS media queries (not JS tier) drive layout after hydrate.
+  return 1024;
+}
+
+/**
+ * Breakpoint tier for responsive editor preview and published renders.
+ *
+ * Uses `window.innerWidth` so it is safe outside `<Puck>` (storefront `Render`).
+ * Inside Puck's preview iframe, the iframe width matches the selected Mobile / Tablet / Desktop viewport.
+ */
 export function usePreviewBreakpointTier(): BreakpointTier {
-  const width = usePageBuilderPuck((s) => s.appState?.ui?.viewports?.current?.width);
-  if (typeof width !== 'number') return 'desktop';
+  const width = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   return tierFromViewportWidth(width);
 }

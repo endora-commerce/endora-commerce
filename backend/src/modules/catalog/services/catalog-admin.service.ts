@@ -29,6 +29,7 @@ export interface CatalogEvents extends Record<string, EventBase> {
 
 export type CatalogEventBus = EventBus<CatalogEvents>;
 import { HttpError } from '../../../http/error-envelope.js';
+import { Category } from '../entities/category.entity.js';
 import { Product } from '../entities/product.entity.js';
 import { ProductAttribute } from '../entities/product-attribute.entity.js';
 import { ProductVariant } from '../entities/product-variant.entity.js';
@@ -1104,6 +1105,8 @@ export class CatalogAdminService {
       status?: 'active' | 'draft' | 'inactive';
       type?: 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
       q?: string;
+      /** When set, restrict to products in this category or any descendant. */
+      categorySlug?: string;
       page?: number;
       pageSize?: number;
     } = {},
@@ -1131,28 +1134,51 @@ export class CatalogAdminService {
       where['type'] = options.type;
     }
 
+    const categoryProductIds = options.categorySlug?.trim()
+      ? await this.productIdsInCategoryTree(em, options.categorySlug.trim())
+      : null;
+    if (categoryProductIds && categoryProductIds.size === 0) {
+      const knexEmpty = em.getKnex();
+      const countRowsEmpty = (await knexEmpty('products')
+        .whereNull('deleted_at')
+        .select('status')
+        .count<{ status: string; count: string | number }[]>('* as count')
+        .groupBy('status')) as Array<{ status: string; count: string | number }>;
+      const countsEmpty = { all: 0, active: 0, draft: 0, inactive: 0 };
+      for (const row of countRowsEmpty) {
+        const n = Number(row.count) || 0;
+        countsEmpty.all += n;
+        if (row.status === 'active') countsEmpty.active = n;
+        else if (row.status === 'draft') countsEmpty.draft = n;
+        else if (row.status === 'inactive') countsEmpty.inactive = n;
+      }
+      return { items: [], page, pageSize, total: 0, counts: countsEmpty };
+    }
+    if (categoryProductIds) {
+      where['id'] = { $in: [...categoryProductIds] };
+    }
+
     let items: Product[];
     let total: number;
     const trimmedQ = options.q?.trim();
-    if (trimmedQ) {
-      // Text search: case-insensitive substring on SKU, slug, and any value
-      // in the localized `name` JSON column. The JSON filter uses a raw
-      // `LOWER("name"::text) LIKE ?` because MikroORM's structured operators
-      // don't reach into JSON columns. We page via knex to keep the SQL
-      // single-statement, then re-hydrate Product entities by id.
+    if (trimmedQ || categoryProductIds) {
+      // Text search and/or category filter: page via knex, then re-hydrate.
       const knex = em.getKnex();
-      const needle = `%${trimmedQ.toLowerCase()}%`;
       const baseQuery = knex('products').where((qb) => {
         qb.whereNull('deleted_at');
         if (options.status) qb.where('status', options.status);
         else if (!options.includeArchived) qb.whereNot('status', 'inactive');
         if (options.type) qb.where('type', options.type);
-        qb.andWhere((inner) => {
-          inner
-            .whereRaw('LOWER("sku") LIKE ?', [needle])
-            .orWhereRaw('LOWER("slug") LIKE ?', [needle])
-            .orWhereRaw('LOWER("name"::text) LIKE ?', [needle]);
-        });
+        if (categoryProductIds) qb.whereIn('id', [...categoryProductIds]);
+        if (trimmedQ) {
+          const needle = `%${trimmedQ.toLowerCase()}%`;
+          qb.andWhere((inner) => {
+            inner
+              .whereRaw('LOWER("sku") LIKE ?', [needle])
+              .orWhereRaw('LOWER("slug") LIKE ?', [needle])
+              .orWhereRaw('LOWER("name"::text) LIKE ?', [needle]);
+          });
+        }
       });
       const totalRow = (await baseQuery.clone().count<{ count: string | number }>('* as count').first()) as
         | { count: string | number }
@@ -1285,6 +1311,33 @@ export class CatalogAdminService {
       [productId],
     )) as Array<{ category_id: string }>;
     return rows.map((r) => r.category_id);
+  }
+
+  /** Product ids in a category tree (root + descendants), for admin list filters. */
+  private async productIdsInCategoryTree(
+    em: EntityManager,
+    categorySlug: string,
+  ): Promise<Set<string>> {
+    const root = await em.findOne(Category, { slug: categorySlug, deletedAt: null });
+    if (!root) return new Set();
+
+    const all: string[] = [root.id];
+    let frontier: string[] = [root.id];
+    while (frontier.length > 0) {
+      const children = await em.find(Category, {
+        parentCategoryId: { $in: frontier },
+        deletedAt: null,
+      });
+      const nextIds = children.map((c) => c.id);
+      all.push(...nextIds);
+      frontier = nextIds;
+    }
+
+    const rows = await em.getConnection().execute<{ product_id: string }[]>(
+      `select product_id from product_categories where category_id in (${all.map(() => '?').join(',')})`,
+      all,
+    );
+    return new Set(rows.map((r) => r.product_id));
   }
 
   /**

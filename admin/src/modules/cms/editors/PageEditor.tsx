@@ -16,6 +16,7 @@ import { normalize } from '@/lib/admin-actions/normalize';
 import { ContentLanguageTabs } from '../components/ContentLanguageTabs';
 import { CmsContentEditorLayout } from '../components/CmsContentEditorLayout';
 import { PageBuilderEditor } from '../components/PageBuilderEditor';
+import { emptyPageBuilderData } from '../components/page-builder-data';
 import { ScopePicker, type CmsScopeValue } from '../components/ScopePicker';
 import { resolveScopedContentLanguage } from '../components/scope-utils';
 import { cmsClient } from '../api/cms-client';
@@ -71,6 +72,7 @@ export function PageEditor(): ReactNode {
   const [scope, setScope] = useState<CmsScopeValue>({ salesChannelIds: [], languages: [] });
   const [activeLanguage, setActiveLanguage] = useState<string | null>(null);
   const [draftData, setDraftData] = useState<Data | null>(null);
+  const [languageContentOverrides, setLanguageContentOverrides] = useState<Record<string, Data>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // For a new page the slug is auto-derived from the name until the operator
@@ -106,6 +108,7 @@ export function PageEditor(): ReactNode {
     setScope({ salesChannelIds: [], languages: [] });
     setActiveLanguage(null);
     setDraftData(null);
+    setLanguageContentOverrides({});
     setSlugEdited(false);
     setError(null);
   }, [isNew, id]);
@@ -116,6 +119,7 @@ export function PageEditor(): ReactNode {
   // mask the newly-loaded content.
   useEffect(() => {
     setDraftData(null);
+    setLanguageContentOverrides({});
   }, [id]);
 
   useEffect(() => {
@@ -125,10 +129,15 @@ export function PageEditor(): ReactNode {
     }
   }, [activeLanguage, scope.languages]);
 
-  const currentData = useMemo(
-    () => draftData ?? dataFor(page, activeLanguage),
-    [activeLanguage, draftData, page],
-  );
+  const currentData = useMemo(() => {
+    // Prefer the in-progress draft for the active tab; otherwise a stashed
+    // per-language override; otherwise the last saved content.
+    if (draftData) return draftData;
+    if (activeLanguage && languageContentOverrides[activeLanguage]) {
+      return languageContentOverrides[activeLanguage] ?? null;
+    }
+    return dataFor(page, activeLanguage);
+  }, [activeLanguage, draftData, languageContentOverrides, page]);
 
   const saveMeta = async (contentLanguage: string | null): Promise<CmsPageDetail> => {
     const meta =
@@ -193,8 +202,16 @@ export function PageEditor(): ReactNode {
           version: saved.version,
         });
       }
+      for (const [lang, data] of Object.entries(languageContentOverrides)) {
+        if (lang === contentLanguage) continue;
+        saved = await cmsClient.putPageContent(saved.id, lang, {
+          data,
+          version: saved.version,
+        });
+      }
       setPage(saved);
       setDraftData(null);
+      setLanguageContentOverrides({});
       if (isNew) navigate(`/cms/pages/${saved.id}`, { replace: true });
       return true;
     } catch (err) {
@@ -358,6 +375,14 @@ export function PageEditor(): ReactNode {
           languages={scope.languages}
           activeLanguage={activeLanguage}
           onChange={(language) => {
+            // Keep unsaved canvas per language — clearing draft without stashing
+            // would drop edits when switching tabs.
+            if (activeLanguage && draftData) {
+              setLanguageContentOverrides((prev) => ({
+                ...prev,
+                [activeLanguage]: draftData,
+              }));
+            }
             setDraftData(null);
             setActiveLanguage(language);
           }}
@@ -369,6 +394,17 @@ export function PageEditor(): ReactNode {
           onChange={setDraftData}
           contentKey={`${id ?? 'new'}:${activeLanguage ?? ''}`}
           pageContainer
+          languages={scope.languages}
+          activeLanguage={activeLanguage}
+          onResolveLanguageContent={(language) => {
+            if (language === activeLanguage && draftData) {
+              return structuredClone(draftData);
+            }
+            if (languageContentOverrides[language]) {
+              return structuredClone(languageContentOverrides[language]!);
+            }
+            return structuredClone(dataFor(page, language) ?? emptyPageBuilderData());
+          }}
         />
       }
     />

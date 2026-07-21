@@ -93,9 +93,48 @@ export interface TextProps extends HideOnProps, BoxStyleProps, TypographyProps {
   html?: string;
 }
 
+export type ImageAlign = 'left' | 'center' | 'right';
+
+export interface IconsProps extends HideOnProps, BoxStyleProps {
+  name: string;
+  size?: number;
+  color?: string;
+  strokeWidth?: number;
+  align?: ImageAlign | ResponsiveProp<ImageAlign>;
+  href?: string;
+  linkTarget?: '_self' | '_blank';
+}
+
+export type SocialNetwork =
+  | 'facebook'
+  | 'x'
+  | 'instagram'
+  | 'linkedin'
+  | 'youtube'
+  | 'tiktok'
+  | 'website'
+  | 'email';
+
+export type SocialLayout = 'icons-only' | 'icons-with-labels' | 'vertical-list' | 'pills';
+
+export interface SocialItem {
+  network: SocialNetwork;
+  label?: string;
+  url: string;
+}
+
+export interface SocialProps extends HideOnProps, BoxStyleProps {
+  items: SocialItem[];
+  layout?: SocialLayout;
+  size?: number;
+  gap?: number;
+  color?: string;
+  useBrandColors?: boolean;
+  align?: ImageAlign | ResponsiveProp<ImageAlign>;
+}
+
 export type ImageObjectFit = 'cover' | 'contain' | 'fill' | 'none';
 export type ImageWidthMode = 'auto' | 'full' | 'custom';
-export type ImageAlign = 'left' | 'center' | 'right';
 export type ImageSourceKind = 'url' | 'library';
 
 export interface ImageProps extends HideOnProps, BoxStyleProps {
@@ -189,11 +228,23 @@ export type ImageSliderTitlePlacement =
   | 'bottom-right';
 
 export interface ImageSliderItem {
+  /** Nested image fields for the editor (conditional source UI). Flat fields kept in sync via resolveData. */
+  image?: {
+    imageSource?: ImageSourceKind;
+    src?: string;
+    assetId?: string;
+  };
   imageSource?: ImageSourceKind;
   src: string;
   assetId?: string;
   title?: string;
   titlePlacement?: ImageSliderTitlePlacement;
+  titleBackground?: string;
+  titleColor?: string;
+  titleBorderColor?: string;
+  titleBorderWidth?: number;
+  titleBorderRadius?: CornerRadius;
+  titlePaddingPx?: number;
 }
 
 export interface ImageSliderProps extends HideOnProps, BoxStyleProps {
@@ -234,12 +285,17 @@ export interface AccordionProps extends HideOnProps, BoxStyleProps {
 
 export type ProductSource = 'manual' | 'category' | 'query';
 
-export interface CmsProductCardProps extends HideOnProps, BoxStyleProps {
+export interface CmsProductCardProps extends HideOnProps, BoxStyleProps, AppearanceProps {
   productSlug: string;
   showPrice?: boolean;
   showSku?: boolean;
   showStock?: boolean;
-  imageRatio?: 'square' | '4:3';
+  imageRatio?: 'square' | '4:3' | '16:9' | 'auto';
+  imageObjectFit?: 'cover' | 'contain' | 'fill' | 'none';
+  /** Max card width in px; omit or 0 = stretch to container. */
+  maxWidthPx?: number | ResponsiveProp<number>;
+  /** Fixed media height in px; when set, overrides aspect-ratio from imageRatio. */
+  imageHeightPx?: number | ResponsiveProp<number>;
   variant?: 'default' | 'compact' | 'horizontal';
   ctaLabel?: string;
 }
@@ -312,4 +368,134 @@ export interface MapProps extends HideOnProps, BoxStyleProps {
   zoom?: number;
   markers?: MapMarker[];
   googleApiKey?: string;
+}
+
+export interface SpacerProps extends HideOnProps {
+  heightPx?: number | ResponsiveProp<number>;
+  showDivider?: boolean;
+  dividerColor?: string;
+}
+
+export interface FeatureListItem {
+  icon?: string;
+  title: string;
+  description?: string;
+}
+
+export interface FeatureListProps extends HideOnProps, BoxStyleProps {
+  items: FeatureListItem[];
+  columns?: number | ResponsiveProp<number>;
+  gap?: number | ResponsiveProp<number>;
+  iconColor?: string;
+  iconSize?: number;
+  align?: ImageAlign;
+}
+
+export interface HeroProps extends HideOnProps, BoxStyleProps, AppearanceProps {
+  heading: string;
+  subtitle?: string;
+  buttonLabel?: string;
+  buttonLinkType?: ButtonLinkType;
+  buttonLinkSlug?: string;
+  buttonHref?: string;
+  buttonTarget?: ButtonTarget;
+  buttonVariant?: ButtonVariant | ResponsiveProp<ButtonVariant>;
+  buttonBackgroundColor?: string;
+  buttonTextColor?: string;
+  minHeightPx?: number | ResponsiveProp<number>;
+  contentAlign?: ImageAlign;
+  overlayOpacity?: number;
+  textColor?: string;
+}
+
+export interface LogoStripItem {
+  /** Nested image control (URL vs asset library) — same pattern as Image Slider. */
+  image?: {
+    imageSource?: ImageSourceKind;
+    src?: string;
+    assetId?: string;
+  };
+  imageSource?: ImageSourceKind;
+  src?: string;
+  assetId?: string;
+  alt?: string;
+  href?: string;
+}
+
+export interface LogoStripProps extends HideOnProps, BoxStyleProps {
+  items: LogoStripItem[];
+  gap?: number;
+  logoMaxHeightPx?: number;
+  grayscale?: boolean;
+  align?: ImageAlign;
+}
+
+export interface TestimonialProps extends HideOnProps, BoxStyleProps, AppearanceProps {
+  quote: string;
+  author?: string;
+  role?: string;
+  /** Avatar image source — same pattern as Image (`url` | `library`). */
+  avatarSource?: ImageSourceKind;
+  avatarUrl?: string;
+  avatarAssetId?: string;
+}
+
+export interface StatsItem {
+  value: string;
+  label: string;
+}
+
+export interface StatsProps extends HideOnProps, BoxStyleProps {
+  items: StatsItem[];
+  columns?: number | ResponsiveProp<number>;
+  gap?: number;
+  align?: ImageAlign;
+  valueColor?: string;
+}
+
+export interface AnnouncementBarProps extends HideOnProps {
+  text: string;
+  href?: string;
+  backgroundColor?: string;
+  textColor?: string;
+}
+
+export interface SimpleTableHeader {
+  label: string;
+}
+
+export interface SimpleTableCell {
+  value: string;
+}
+
+export interface SimpleTableRow {
+  cells: SimpleTableCell[];
+}
+
+export interface SimpleTableProps extends HideOnProps, BoxStyleProps {
+  /** @deprecated legacy pipe-separated headers — migrated in resolveData */
+  headers?: string | SimpleTableHeader[];
+  /** @deprecated legacy pipe-separated rows — migrated in resolveData */
+  rows?: string | SimpleTableRow[];
+  columns?: SimpleTableHeader[];
+  tableRows?: SimpleTableRow[];
+  striped?: boolean;
+}
+
+export interface NewsletterSignupProps extends HideOnProps, BoxStyleProps, AppearanceProps {
+  heading?: string;
+  description?: string;
+  placeholder?: string;
+  buttonLabel?: string;
+  /** Form action URL (newsletter endpoint or external). */
+  actionUrl?: string;
+}
+
+export interface ContactFormEmbedProps extends HideOnProps, BoxStyleProps {
+  heading?: string;
+  description?: string;
+  /** External form embed URL (iframe) or leave empty for mailto fallback. */
+  embedUrl?: string;
+  mailto?: string;
+  heightPx?: number;
 }

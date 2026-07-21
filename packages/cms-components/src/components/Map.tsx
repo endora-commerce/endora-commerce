@@ -20,6 +20,17 @@ import {
   DEFAULT_BOX_PROPS,
 } from '../fields/shared-fields.js';
 
+function ensureLeafletCss(): void {
+  if (typeof document === 'undefined') return;
+  if (document.querySelector('link[data-cmsc-leaflet-css]')) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+  link.crossOrigin = '';
+  link.setAttribute('data-cmsc-leaflet-css', '1');
+  document.head.appendChild(link);
+}
+
 function googleEmbedUrl(props: MapProps): string | null {
   const key = props.googleApiKey?.trim();
   if (!key) return null;
@@ -28,6 +39,11 @@ function googleEmbedUrl(props: MapProps): string | null {
   const zoom = props.zoom ?? 12;
   return `https://www.google.com/maps/embed/v1/view?key=${encodeURIComponent(key)}&center=${lat},${lng}&zoom=${zoom}`;
 }
+
+type LeafletMapHandle = {
+  remove: () => void;
+  invalidateSize: (opts?: { animate?: boolean }) => void;
+};
 
 function LeafletMap({
   centerLat,
@@ -43,38 +59,79 @@ function LeafletMap({
   height: number;
 }): React.ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<{ remove: () => void } | null>(null);
+  const mapRef = useRef<LeafletMapHandle | null>(null);
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     let cancelled = false;
+    let resizeObserver: ResizeObserver | null = null;
 
     void (async () => {
       try {
+        ensureLeafletCss();
         const leaflet = await import('leaflet');
         if (cancelled) return;
-        const map = leaflet.map(el).setView([centerLat, centerLng], zoom);
-        leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap contributors',
-        }).addTo(map);
+
+        // Default marker icons break under bundlers without explicit URLs — use circle markers.
+        const map = leaflet
+          .map(el, {
+            scrollWheelZoom: false,
+          })
+          .setView([centerLat, centerLng], zoom);
+
+        leaflet
+          .tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors',
+          })
+          .addTo(map);
+
         for (const m of markers ?? []) {
-          leaflet.marker([m.lat, m.lng]).addTo(map).bindPopup(m.label ?? '');
+          leaflet
+            .circleMarker([m.lat, m.lng], {
+              radius: 8,
+              color: '#0f766e',
+              fillColor: '#14b8a6',
+              fillOpacity: 0.9,
+              weight: 2,
+            })
+            .addTo(map)
+            .bindPopup(m.label ?? '');
         }
+
+        const invalidate = (): void => {
+          map.invalidateSize({ animate: false });
+        };
+        // Layout may settle after paint (editor iframe / flex parents).
+        requestAnimationFrame(invalidate);
+        window.setTimeout(invalidate, 50);
+        window.setTimeout(invalidate, 250);
+
+        resizeObserver = new ResizeObserver(() => invalidate());
+        resizeObserver.observe(el.parentElement ?? el);
+
         mapRef.current = map;
       } catch {
-        if (el) el.innerHTML = '<p style="padding:12px;color:#64748b">Leaflet not available — install leaflet on storefront</p>';
+        if (el && !cancelled) {
+          el.innerHTML =
+            '<p style="padding:12px;color:#64748b">Leaflet not available — install leaflet on storefront</p>';
+        }
       }
     })();
 
     return () => {
       cancelled = true;
+      resizeObserver?.disconnect();
       mapRef.current?.remove();
       mapRef.current = null;
     };
   }, [centerLat, centerLng, zoom, markers]);
 
-  return <div ref={containerRef} style={{ height: `${height}px`, width: '100%' }} />;
+  useEffect(() => {
+    mapRef.current?.invalidateSize({ animate: false });
+  }, [height]);
+
+  return <div ref={containerRef} className="cmsc-pb-map__leaflet" />;
 }
 
 function MapBody({
@@ -101,19 +158,19 @@ function MapBody({
 
   return (
     <BoxStyled {...box} {...(editing ? { previewTier: tier } : {})}>
-      <div className="cmsc-pb-map">
+      <div className="cmsc-pb-map" style={{ height: `${heightPx}px` }}>
         {provider === 'google' ? (
           embed ? (
             <iframe
               title="Map"
               src={embed}
               className="cmsc-pb-map__iframe"
-              style={{ height: `${heightPx}px` }}
+              style={{ height: '100%' }}
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
             />
           ) : (
-            <p className="cmsc:text-sm cmsc:text-[#64748b]">
+            <p className="cmsc:text-sm cmsc:text-[#64748b] cmsc:p-3">
               {editing ? 'Enter Google Maps API key for embed' : 'Map unavailable'}
             </p>
           )
@@ -139,37 +196,45 @@ const MapPublishedRender: PuckComponent<MapProps> = (props) => (
   <MapBody props={props} tier={useViewportBreakpointTier()} editing={false} />
 );
 
+const MAP_FIELDS = {
+  provider: {
+    type: 'select' as const,
+    label: 'Provider',
+    options: [
+      { label: 'Leaflet + OpenStreetMap', value: 'leaflet' },
+      { label: 'Google Maps (embed)', value: 'google' },
+    ],
+  },
+  googleApiKey: { type: 'text' as const, label: 'Google API key (embed)' },
+  height: {
+    type: 'number' as const,
+    label: 'Height (px)',
+    min: 200,
+    max: 800,
+    metadata: PB_RESPONSIVE_METADATA,
+  },
+  centerLat: { type: 'number' as const, label: 'Center latitude' },
+  centerLng: { type: 'number' as const, label: 'Center longitude' },
+  zoom: { type: 'number' as const, label: 'Zoom', min: 1, max: 18 },
+  markers: {
+    type: 'array' as const,
+    label: 'Markers',
+    arrayFields: {
+      lat: { type: 'number' as const, label: 'Latitude' },
+      lng: { type: 'number' as const, label: 'Longitude' },
+      label: { type: 'text' as const, label: 'Label' },
+      link: { type: 'text' as const, label: 'Link URL' },
+    },
+    defaultItemProps: { lat: 52.23, lng: 21.01, label: '', link: '' },
+  },
+  margin: BOX_MARGIN_FIELD,
+  padding: BOX_PADDING_FIELD,
+  border: BOX_BORDER_FIELD,
+};
+
 const mapConfig: ComponentConfig<MapProps> = {
   label: 'Map',
-  fields: {
-    provider: {
-      type: 'select',
-      label: 'Provider',
-      options: [
-        { label: 'Leaflet + OpenStreetMap', value: 'leaflet' },
-        { label: 'Google Maps (embed)', value: 'google' },
-      ],
-    },
-    height: { type: 'number', label: 'Height (px)', min: 200, max: 800, metadata: PB_RESPONSIVE_METADATA },
-    centerLat: { type: 'number', label: 'Center latitude' },
-    centerLng: { type: 'number', label: 'Center longitude' },
-    zoom: { type: 'number', label: 'Zoom', min: 1, max: 18 },
-    googleApiKey: { type: 'text', label: 'Google API key (embed)' },
-    markers: {
-      type: 'array',
-      label: 'Markers',
-      arrayFields: {
-        lat: { type: 'number', label: 'Latitude' },
-        lng: { type: 'number', label: 'Longitude' },
-        label: { type: 'text', label: 'Label' },
-        link: { type: 'text', label: 'Link URL' },
-      },
-      defaultItemProps: { lat: 52.23, lng: 21.01, label: '', link: '' },
-    },
-    margin: BOX_MARGIN_FIELD,
-    padding: BOX_PADDING_FIELD,
-    border: BOX_BORDER_FIELD,
-  },
+  fields: MAP_FIELDS,
   defaultProps: {
     provider: 'leaflet',
     height: 360,
@@ -179,6 +244,11 @@ const mapConfig: ComponentConfig<MapProps> = {
     googleApiKey: '',
     markers: [],
     ...DEFAULT_BOX_PROPS,
+  },
+  resolveFields: (data) => {
+    if (data.props.provider === 'google') return MAP_FIELDS;
+    const { googleApiKey: _key, ...rest } = MAP_FIELDS;
+    return rest;
   },
   render: (props) =>
     props.puck?.isEditing ? <MapEditingRender {...props} /> : <MapPublishedRender {...props} />,

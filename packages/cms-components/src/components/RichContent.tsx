@@ -40,7 +40,11 @@ export const RichContent: ComponentConfig<RichContentProps> = {
       type: 'custom',
       label: 'Content',
       render: ({ value, onChange, readOnly }) => (
-        <RichContentFieldRender value={value} onChange={onChange} readOnly={readOnly} />
+        <RichContentFieldRender
+          value={value}
+          onChange={onChange}
+          {...(readOnly === true ? { readOnly: true } : {})}
+        />
       ),
     },
     html: { type: 'textarea', label: 'HTML fallback' },

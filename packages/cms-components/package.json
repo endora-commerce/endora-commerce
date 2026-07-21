@@ -49,20 +49,28 @@
       "optional": true
     }
   },
+  "dependencies": {
+    "lucide-react": "^1.11.0",
+    "react-icons": "^5.5.0"
+  },
   "devDependencies": {
     "@b2b/page-builder-core": "workspace:^",
     "@tailwindcss/cli": "4",
     "@tiptap/core": "^3.22.5",
+    "@tiptap/extension-color": "3.22.5",
+    "@tiptap/extension-highlight": "3.22.5",
+    "@tiptap/extension-image": "3.22.5",
     "@tiptap/extension-text-align": "3.22.5",
+    "@tiptap/extension-text-style": "3.22.5",
     "@tiptap/react": "^3.22.5",
     "@tiptap/starter-kit": "^3.22.5",
+    "@types/leaflet": "^1.9.21",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "leaflet": "^1.9.4",
     "react-dom": "^19.2.5",
     "tailwindcss": "4",
     "typescript": "^5.9.3",
-    "leaflet": "^1.9.4",
-    "@types/leaflet": "^1.9.21",
     "vitest": "^2.1.4"
   }
 }

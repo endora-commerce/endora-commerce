@@ -9,12 +9,14 @@ import {
   PB_RESPONSIVE_METADATA,
   resolveResponsive,
   resolveResponsiveNumber,
-  resolveTextAlignClassForTier,
+  resolveTextAlignForTier,
   responsiveTextAlignClass,
+  textAlignDataAttrs,
   withHideOn,
 } from '@b2b/page-builder-core';
 import { usePreviewBreakpointTier } from '@b2b/page-builder-core/client';
 import type { ImageProps, ImageWidthMode } from '../schema/component-types.js';
+import { imageUsesCustomWidth, shouldShowImageCustomWidthField } from './image-fields.js';
 import { BoxStyled } from './box-styles.js';
 import {
   BOX_BORDER_FIELD,
@@ -158,10 +160,15 @@ const ImageEditingRender: PuckComponent<ImageProps> = (props) => {
     widthPx,
     ...box
   } = props;
+  const alignAttrs = textAlignDataAttrs(align, 'left');
 
   return (
     <BoxStyled previewTier={tier} {...box}>
-      <div className={resolveTextAlignClassForTier(align, tier, 'left')}>
+      <div
+        className="cmsc-pb-text-align"
+        style={{ textAlign: resolveTextAlignForTier(align, tier, 'left') }}
+        {...alignAttrs}
+      >
         <ImageContent
           props={imageContentProps(imageSource, src, assetId, alt, href, linkTarget, objectFit, opacity, cornerRadius, widthMode, widthPx)}
           tier={tier}
@@ -192,17 +199,15 @@ const ImagePublishedRender: PuckComponent<ImageProps> = (props) => {
     widthPx,
     ...box
   } = props;
-  const usesCustomWidth =
-    resolveResponsive(widthMode, 'mobile', 'auto') === 'custom' ||
-    resolveResponsive(widthMode, 'tablet', 'auto') === 'custom' ||
-    resolveResponsive(widthMode, 'desktop', 'auto') === 'custom';
+  const usesCustomWidth = imageUsesCustomWidth(widthMode);
+  const alignAttrs = textAlignDataAttrs(align, 'left');
 
   return (
     <BoxStyled
       {...box}
       {...(usesCustomWidth ? { style: buildResponsiveNumberVars('image-width', widthPx, 320) } : {})}
     >
-      <div className={responsiveTextAlignClass(align, 'left')}>
+      <div className={responsiveTextAlignClass(align, 'left')} {...alignAttrs}>
         <ImageContent
           props={imageContentProps(imageSource, src, assetId, alt, href, linkTarget, objectFit, opacity, cornerRadius, widthMode, widthPx)}
           tier={null}
@@ -312,6 +317,9 @@ const imageConfig: ComponentConfig<ImageProps> = {
       delete next.src;
     } else {
       delete next.assetId;
+    }
+    if (!shouldShowImageCustomWidthField(data.props.widthMode)) {
+      delete next.widthPx;
     }
     return next as typeof fields;
   },

@@ -4,6 +4,12 @@ import { useMemo, type ReactNode } from 'react';
 import type { CatalogPreviewApi, CmsCategoryNode, CmsProductSummary } from '@b2b/cms-components';
 import { CatalogPreviewProvider as CmsCatalogPreviewProvider } from '@b2b/cms-components';
 import { apiClient } from '@/lib/api-client';
+import {
+  mapAdminProductToCmsSummary,
+  pickAdminLocalizedName,
+} from './admin-catalog-preview-map';
+
+export { mapAdminProductToCmsSummary, pickAdminLocalizedName } from './admin-catalog-preview-map';
 
 interface AdminProduct {
   id: string;
@@ -20,23 +26,6 @@ interface AdminCategory {
   sortOrder: number;
 }
 
-function pickName(name: Record<string, string> | string, fallback: string): string {
-  if (typeof name === 'string') return name || fallback;
-  return name['pl-PL'] ?? name['en-US'] ?? Object.values(name)[0] ?? fallback;
-}
-
-function mapAdminProduct(product: AdminProduct): CmsProductSummary {
-  return {
-    id: product.id,
-    slug: product.slug,
-    name: pickName(product.name, product.slug),
-    sku: product.sku,
-    primaryAssetUrl: null,
-    price: null,
-    stockLevel: null,
-  };
-}
-
 function buildCategoryTree(categories: AdminCategory[]): CmsCategoryNode[] {
   const byParent = new Map<string | null, AdminCategory[]>();
   for (const cat of categories) {
@@ -51,7 +40,7 @@ function buildCategoryTree(categories: AdminCategory[]): CmsCategoryNode[] {
 
   const toNode = (cat: AdminCategory): CmsCategoryNode => ({
     id: cat.id,
-    name: pickName(cat.name, cat.slug),
+    name: pickAdminLocalizedName(cat.name, cat.slug),
     slug: cat.slug,
     sortOrder: cat.sortOrder,
     productCount: 0,
@@ -63,6 +52,7 @@ function buildCategoryTree(categories: AdminCategory[]): CmsCategoryNode[] {
 
 async function fetchAdminProducts(params: {
   q?: string;
+  categorySlug?: string;
   page?: number;
   pageSize?: number;
 }): Promise<AdminProduct[]> {
@@ -70,6 +60,7 @@ async function fetchAdminProducts(params: {
   search.set('page', String(params.page ?? 0));
   search.set('pageSize', String(params.pageSize ?? 20));
   if (params.q?.trim()) search.set('q', params.q.trim());
+  if (params.categorySlug?.trim()) search.set('categorySlug', params.categorySlug.trim());
   const res = await apiClient.get<{ data: AdminProduct[] }>(
     `/api/v1/admin/catalog/products?${search.toString()}`,
   );
@@ -88,7 +79,7 @@ function createAdminCatalogPreviewApi(): CatalogPreviewApi {
         }),
       );
       const bySlug = new Map(
-        found.filter(Boolean).map((p) => [p!.slug, mapAdminProduct(p!)]),
+        found.filter(Boolean).map((p) => [p!.slug, mapAdminProductToCmsSummary(p!)]),
       );
       return slugs.map((slug) => bySlug.get(slug)).filter(Boolean) as CmsProductSummary[];
     },
@@ -99,25 +90,14 @@ function createAdminCatalogPreviewApi(): CatalogPreviewApi {
       limit?: number;
     }): Promise<CmsProductSummary[]> {
       const limit = query.limit ?? 12;
-      if (query.categorySlug) {
-        const params = new URLSearchParams();
-        params.set('filter[category]', query.categorySlug);
-        params.set('limit', String(limit));
-        try {
-          const res = await apiClient.get<{ data: CmsProductSummary[] }>(
-            `/api/v1/catalog/products?${params.toString()}`,
-            { headers: { 'x-sales-channel': 'default' } },
-          );
-          return res.data;
-        } catch {
-          return [];
-        }
-      }
+      // Admin list is not sales-channel-scoped (unlike the public catalog). Use it for
+      // category and search previews so editors see products without channel membership.
       const rows = await fetchAdminProducts({
+        ...(query.categorySlug ? { categorySlug: query.categorySlug } : {}),
         ...(query.q ? { q: query.q } : {}),
         pageSize: limit,
       });
-      return rows.map(mapAdminProduct);
+      return rows.map(mapAdminProductToCmsSummary);
     },
 
     async fetchCategoryTree(): Promise<CmsCategoryNode[]> {

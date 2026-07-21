@@ -206,6 +206,41 @@ count (1–12 per breakpoint) with equal-width tracks.
 Use `createSpacingField`, `createBorderField`, and `createColorField` from
 `@b2b/page-builder-core` when adding new CMS components.
 
+## Built-in Icons / Social
+
+- **`Icons`** — curated Lucide allowlist (~100 icons) in
+  `packages/cms-components/src/components/icon-catalog.ts` with a **visual
+  grid picker** (`IconPickerField`). Do not expose the full Lucide catalog.
+- **`Social`** — brand icons via `react-icons/fa6` (Facebook, X, Instagram,
+  LinkedIn, YouTube, TikTok, …). Array items use `getItemSummary` so the
+  selected **network name** appears in the Links list. Layouts:
+  `icons-only` | `icons-with-labels` | `vertical-list` | `pills`.
+
+## Additional landing components
+
+| Component | Purpose |
+| --------- | ------- |
+| `Spacer` | Vertical space + optional divider |
+| `FeatureList` | Icon + title + description columns |
+| `Hero` | Background + heading + CTA first-fold |
+| `LogoStrip` | Partner / trust logos |
+| `Testimonial` | Quote + author |
+| `Stats` | KPI strip |
+| `AnnouncementBar` | Thin promo strip |
+| `SimpleTable` | Pipe-separated headers/rows |
+| `NewsletterSignup` | Email form (wire `actionUrl` to newsletter) |
+| `ContactFormEmbed` | Iframe embed or mailto fallback |
+
+## Suggested follow-up (deeper integrations)
+
+| Priority | Idea | Why |
+| -------- | ---- | --- |
+| Medium | Newsletter ↔ module 048 | Auto-wire channel subscribe endpoint |
+| Low | Contact ↔ forms module | Pick an existing form instead of iframe URL |
+
+`Accordion` / `Tabs` already cover FAQ-style sections; prefer those before a
+dedicated FAQ component.
+
 ## Testing
 
 The platform ships a TDD scaffold for the SPI in

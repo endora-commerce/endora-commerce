@@ -111,7 +111,15 @@ function ProductSliderBody({
     return (
       <BoxStyled {...box} {...(editing ? { previewTier: tier } : {})}>
         <p className="cmsc-pb-product-grid__empty">
-          {editing ? 'No products to preview — configure the source in the sidebar.' : 'No products found'}
+          {editing
+            ? source === 'category' && !categorySlug
+              ? 'Select a category in the sidebar to preview products.'
+              : source === 'category'
+                ? 'No products in this category (or none visible for preview).'
+                : source === 'query' && !searchQuery
+                  ? 'Enter a search query in the sidebar to preview products.'
+                  : 'No products to preview — configure the source in the sidebar.'
+            : 'No products found'}
         </p>
       </BoxStyled>
     );

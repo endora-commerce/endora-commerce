@@ -230,6 +230,68 @@ export function createImageAssetField(label: string): CustomField<string> {
   };
 }
 
+export type SlideImageValue = {
+  imageSource?: 'url' | 'library';
+  src?: string;
+  assetId?: string;
+};
+
+/** Single control for Image Slider slides — hides URL vs Asset based on source. */
+export function createSlideImageField(): CustomField<SlideImageValue> {
+  return {
+    type: 'custom',
+    label: 'Image',
+    render: ({ value, onChange, readOnly, field }): ReactElement => {
+      const imageSource = value?.imageSource ?? 'url';
+      const src = value?.src ?? '';
+      const assetId = value?.assetId ?? '';
+      return (
+        <FieldLabel label={field.label ?? 'Image'} {...(readOnly === true ? { readOnly: true } : {})}>
+          <div className="space-y-3">
+            <select
+              className={inputClassName}
+              disabled={readOnly === true}
+              value={imageSource}
+              onChange={(e): void =>
+                onChange({
+                  imageSource: e.target.value as 'url' | 'library',
+                  src,
+                  assetId,
+                })
+              }
+            >
+              <option value="url">URL</option>
+              <option value="library">Asset library</option>
+            </select>
+            {imageSource === 'library' ? (
+              <AssetModalFieldControl
+                value={assetId}
+                onChange={(nextId): void =>
+                  onChange({ imageSource: 'library', src: '', assetId: nextId })
+                }
+                {...(readOnly === true ? { readOnly: true } : {})}
+                label="Image"
+                acceptMimePrefix="image/"
+                modalTitle="Select image"
+              />
+            ) : (
+              <input
+                className={inputClassName}
+                readOnly={readOnly === true}
+                value={src}
+                placeholder="https://…"
+                onChange={(e): void =>
+                  onChange({ imageSource: 'url', src: e.target.value, assetId: '' })
+                }
+              />
+            )}
+          </div>
+        </FieldLabel>
+      );
+    },
+  };
+}
+
 export function createVideoAssetField(label: string): CustomField<string> {
   return {
     type: 'custom',
