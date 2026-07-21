@@ -38,6 +38,7 @@ how to consume it.
 | [catalog](./catalog) | Products, variants, categories, attributes, sales channels | yes |
 | [cms](./cms) | Page Builder authoring surface — Pages, Blocks, Templates, Hooks — per channel + language | yes |
 | [comparisons](./comparisons) | Compare Products: customer-curated set with display modes, share link, and PDF export | yes |
+| [credentials](./credentials) | Reusable typed credential configurations (LLM, email adapter) referenced from settings | yes (admin) |
 | [credit_limits](./credit_limits) | Credit-limit grant + atomic reservation | yes |
 | [currencies](./currencies) | Pool of accepted ISO 4217 currencies + default | yes |
 | [customer_accounts](./customer_accounts) | Customer login, password reset, 2FA, role assignment | yes |
