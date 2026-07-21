@@ -254,6 +254,12 @@ export const COMMAND_REGISTRY = {
   'webhook.create': { reversible: false, description: 'Create a webhook' },
   'webhook.update': { reversible: false, description: 'Update a webhook' },
   'webhook.delete': { reversible: false, description: 'Delete a webhook' },
+  // Credentials module (feature 058, US1) — sensitive credential writes.
+  // Irreversible: undoing a secret change would restore a prior (possibly
+  // compromised) secret and interacts badly with external-system state.
+  'credential.create': { reversible: false, description: 'Create a credential configuration' },
+  'credential.update': { reversible: false, description: 'Update a credential configuration' },
+  'credential.delete': { reversible: false, description: 'Delete a credential configuration' },
   // Product update via the admin single-edit path (US1).
   'product.update': { reversible: false, description: 'Update a product (admin single edit)' },
   // Reversible bulk edit + its undo (US2). Registered ahead of the catalog

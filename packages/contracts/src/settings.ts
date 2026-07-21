@@ -20,6 +20,9 @@ export const SettingValueTypeSchema = z.enum([
   'json',
   'string_list',
   'secret',
+  // Feature 058 — references a saved credential configuration by its code,
+  // constrained to one configuration type (see `configurationType` below).
+  'credential_ref',
 ]);
 export type SettingValueType = z.infer<typeof SettingValueTypeSchema>;
 
@@ -44,6 +47,9 @@ export function valueSchemaForType(t: SettingValueType): z.ZodType<unknown> {
     case 'string_list':
       return z.array(z.string());
     case 'secret':
+      return z.string();
+    case 'credential_ref':
+      // The stored value is a configuration code (or '' when not configured).
       return z.string();
   }
 }
@@ -91,6 +97,13 @@ export const SettingManifestEntrySchema = z
      */
     enumOptions: z.array(z.string().min(1)).min(1).optional(),
     /**
+     * Feature 058 — the configuration type a `credential_ref` setting is
+     * constrained to (e.g. `'llm'`). REQUIRED when `valueType === 'credential_ref'`
+     * and forbidden otherwise. The admin renders a picker of matching
+     * configurations; the backend never interprets provider meaning.
+     */
+    configurationType: z.string().min(1).optional(),
+    /**
      * When true, the setting is registered and remains fully readable/writable
      * through its owning module's dedicated surface (e.g. the PWA settings
      * page), but is excluded from the generic admin Settings screen so it is
@@ -107,6 +120,11 @@ export const SettingManifestEntrySchema = z
   .refine((s) => s.enumOptions === undefined || s.valueType === 'string', {
     message: "enumOptions is only supported for valueType 'string'.",
     path: ['enumOptions'],
+  })
+  .refine((s) => (s.valueType === 'credential_ref') === (s.configurationType !== undefined), {
+    message:
+      "configurationType is required for valueType 'credential_ref' and forbidden otherwise.",
+    path: ['configurationType'],
   })
   .refine(
     (s) =>
@@ -168,6 +186,12 @@ export const SettingDtoSchema = z.object({
    * the admin renders a dropdown bound to these values.
    */
   enumOptions: z.array(z.string()).nullish(),
+  /**
+   * Feature 058 — for a `credential_ref` setting, the configuration type the
+   * reference is constrained to (e.g. `'llm'`); the admin filters the config
+   * picker by this. Null/absent for every other value type.
+   */
+  configurationType: z.string().nullish(),
   /**
    * Manifest-declared default value (immutable; surfaces in `defaultValue`).
    */

@@ -280,6 +280,12 @@ const NAV: NavSection[] = [
       { to: '/webhooks', labelKey: 'appShell.nav.webhooks', icon: Webhook },
       { to: '/integrations', labelKey: 'appShell.nav.integrations', icon: Code2 },
       {
+        to: '/credentials',
+        labelKey: 'appShell.nav.credentials',
+        icon: KeyRound,
+        requiredPermission: 'credentials:read',
+      },
+      {
         to: '/analytics',
         labelKey: 'appShell.nav.analytics',
         icon: LineChart,

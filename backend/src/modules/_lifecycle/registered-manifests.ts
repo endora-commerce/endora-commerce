@@ -45,6 +45,8 @@ import {
   manifest as customFieldsManifest,
   uninstallHook as customFieldsUninstallHook,
 } from '../custom_fields/manifest.js';
+// Feature 058 — Credentials (reusable credential configurations).
+import { manifest as credentialsManifest } from '../credentials/manifest.js';
 // Pass C retrofit — manifest backfills for every remaining legacy module.
 // These predate the lifecycle system; the manifest is the static record
 // required for the module to be considered active. A module on disk that
@@ -162,6 +164,8 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
     filePath: pathFor('custom_fields'),
     uninstallHook: customFieldsUninstallHook,
   },
+  // Feature 058 — Credentials module.
+  { manifest: credentialsManifest, filePath: pathFor('credentials') },
   // Pass C retrofit — every remaining legacy module gets a manifest so
   // none of them are treated as inactive. Sort: alphabetical by id.
   { manifest: addressesManifest, filePath: pathFor('addresses') },
