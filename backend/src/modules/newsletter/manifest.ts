@@ -6,7 +6,9 @@ import { NEWSLETTER_SETTING_CODES } from '@b2b/contracts';
  * fields, campaigns, linear automations, reusable email-safe blocks, the
  * bulk-sending provider (SMTP / Amazon SES via nodemailer), and engagement
  * tracking. Bulk delivery is independent of the transactional-email transport.
- * Provider credentials are stored as Settings `secret` values (feature 043).
+ * The SMTP connection + credentials come from a reusable `email_adapter`
+ * credential configuration referenced by `newsletter.email_credentials`
+ * (feature 058); when unset, dispatch uses the console (dev) sink.
  */
 export const newsletterSettingsManifest = defineModuleSettingsManifest({
   moduleCode: 'newsletter',
@@ -30,59 +32,14 @@ export const newsletterSettingsManifest = defineModuleSettingsManifest({
       defaultValue: 168,
     },
     {
-      code: NEWSLETTER_SETTING_CODES.PROVIDER,
-      name: 'Sending provider',
-      description: 'Bulk sending provider used for newsletter dispatch.',
+      code: NEWSLETTER_SETTING_CODES.EMAIL_CREDENTIALS,
+      name: 'Email credentials',
+      description:
+        'Reference a reusable Email adapter credential configuration (Credentials screen) providing the SMTP host/port/security/username/password. Required to send real mail; when empty, newsletter dispatch uses the console (dev) sink.',
       groupCode: 'newsletter',
-      valueType: 'string',
-      enumOptions: ['smtp', 'console'],
-      defaultValue: 'console',
-      hidden: true,
-    },
-    {
-      code: NEWSLETTER_SETTING_CODES.SMTP_HOST,
-      name: 'SMTP host',
-      description: 'SMTP host (e.g. email-smtp.<region>.amazonaws.com for Amazon SES).',
-      groupCode: 'newsletter',
-      valueType: 'string',
+      valueType: 'credential_ref',
+      configurationType: 'email_adapter',
       defaultValue: '',
-      hidden: true,
-    },
-    {
-      code: NEWSLETTER_SETTING_CODES.SMTP_PORT,
-      name: 'SMTP port',
-      description: 'SMTP port (587 for STARTTLS, 465 for TLS).',
-      groupCode: 'newsletter',
-      valueType: 'number',
-      defaultValue: 587,
-      hidden: true,
-    },
-    {
-      code: NEWSLETTER_SETTING_CODES.SMTP_SECURE,
-      name: 'SMTP TLS',
-      description: 'Use implicit TLS (true for port 465).',
-      groupCode: 'newsletter',
-      valueType: 'boolean',
-      defaultValue: false,
-      hidden: true,
-    },
-    {
-      code: NEWSLETTER_SETTING_CODES.SMTP_USERNAME,
-      name: 'SMTP username',
-      description: 'SMTP username / SES SMTP credential id.',
-      groupCode: 'newsletter',
-      valueType: 'string',
-      defaultValue: '',
-      hidden: true,
-    },
-    {
-      code: NEWSLETTER_SETTING_CODES.SMTP_PASSWORD,
-      name: 'SMTP password',
-      description: 'SMTP password / SES SMTP secret. Stored encrypted (write-only).',
-      groupCode: 'newsletter',
-      valueType: 'secret',
-      defaultValue: '',
-      hidden: true,
     },
     {
       code: NEWSLETTER_SETTING_CODES.SENDER_FROM_EMAIL,
@@ -120,7 +77,7 @@ export const manifest = defineModuleManifest({
   description:
     'Own-infrastructure newsletter: subscribers with tags + custom fields, campaigns, linear automations, email-safe templates and variables, engagement stats, and a configurable bulk-sending provider.',
   version: '1.0.0',
-  dependencies: ['settings', 'sales_channels', 'customers', 'email', 'audit_logs'],
+  dependencies: ['settings', 'sales_channels', 'customers', 'email', 'audit_logs', 'credentials'],
   settings: newsletterSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   permissions: [

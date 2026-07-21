@@ -60,9 +60,6 @@ export const sendRecordStatusSchema = z.enum([
 ]);
 export type SendRecordStatus = z.infer<typeof sendRecordStatusSchema>;
 
-export const newsletterProviderKindSchema = z.enum(['smtp', 'console']);
-export type NewsletterProviderKind = z.infer<typeof newsletterProviderKindSchema>;
-
 // A single email value — `customFields` values are scalar-only by design.
 export const customFieldValueSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 export type CustomFieldValue = z.infer<typeof customFieldValueSchema>;
@@ -374,15 +371,14 @@ export type UpdateNewsletterEmailBlockRequest = z.infer<
 // (7) Provider configuration
 // ---------------------------------------------------------------------------
 
+/**
+ * Feature 058 — the SMTP connection + credentials now live in a reusable
+ * `email_adapter` credential configuration referenced by the
+ * `newsletter.email_credentials` setting (managed on the Credentials / Settings
+ * screen). This surface manages only the non-credential sender + throttle
+ * config.
+ */
 export const providerConfigSchema = z.object({
-  provider: newsletterProviderKindSchema,
-  smtp: z.object({
-    host: z.string(),
-    port: z.number().int(),
-    secure: z.boolean(),
-    username: z.string(),
-    passwordSet: z.boolean(),
-  }),
   sender: z.object({
     fromEmail: z.string(),
     fromName: z.string(),
@@ -392,15 +388,6 @@ export const providerConfigSchema = z.object({
 export type ProviderConfig = z.infer<typeof providerConfigSchema>;
 
 export const putProviderRequestSchema = z.object({
-  provider: newsletterProviderKindSchema,
-  smtp: z.object({
-    host: z.string().max(255),
-    port: z.number().int().positive().max(65535),
-    secure: z.boolean(),
-    username: z.string().max(255),
-    // Optional: omit to leave the stored secret unchanged.
-    password: z.string().max(1024).optional(),
-  }),
   sender: z.object({
     fromEmail: z.string().email(),
     fromName: z.string().max(200),
@@ -497,12 +484,9 @@ export interface NewsletterSendProvider {
 export const NEWSLETTER_SETTING_CODES = {
   OPT_IN_MODE: 'newsletter.opt_in_mode',
   CONFIRM_TTL_HOURS: 'newsletter.confirm_ttl_hours',
-  PROVIDER: 'newsletter.provider',
-  SMTP_HOST: 'newsletter.smtp.host',
-  SMTP_PORT: 'newsletter.smtp.port',
-  SMTP_SECURE: 'newsletter.smtp.secure',
-  SMTP_USERNAME: 'newsletter.smtp.username',
-  SMTP_PASSWORD: 'newsletter.smtp.password',
+  // Feature 058 — the single email credential source: a reusable `email_adapter`
+  // credential configuration (SMTP host/port/secure/username/password).
+  EMAIL_CREDENTIALS: 'newsletter.email_credentials',
   SENDER_FROM_EMAIL: 'newsletter.sender.from_email',
   SENDER_FROM_NAME: 'newsletter.sender.from_name',
   RATE_LIMIT_PER_SECOND: 'newsletter.rate_limit_per_second',

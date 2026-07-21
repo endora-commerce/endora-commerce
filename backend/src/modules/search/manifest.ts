@@ -6,15 +6,16 @@ import {
 /**
  * Built-in settings manifest for the search module — feature 006.
  *
- * Reserves the `search` group and registers the six knobs described in
- * `data-model.md §2`:
+ * Reserves the `search` group and registers the search knobs
+ * (`data-model.md §2`; embedder credentials via feature 058):
  *
  *   1. search.popup.suggestion_count       (number 0..50)
  *   2. search.popup.minimum_query_length   (number 1..32)
  *   3. search.llm.enabled                  (boolean)
- *   4. search.llm.embedder_url             (string; URL when set)
- *   5. search.llm.embedder_api_key         (string; secret in admin UI)
- *   6. search.llm.embedder_model           (string)
+ *   4. search.llm.embedder_credentials     (credential_ref → `llm`: Base URL +
+ *                                           API key + model; the single embedder
+ *                                           credential source)
+ *   5. search.reindex_interval_minutes     (number)
  *
  * The Settings module's value-type registry only recognises a handful of
  * primitives (`string`, `number`, `boolean`, `json`, `string_list`) — range
@@ -25,9 +26,10 @@ export const SEARCH_SETTING_CODES = {
   POPUP_SUGGESTION_COUNT: 'search.popup.suggestion_count',
   POPUP_MINIMUM_QUERY_LENGTH: 'search.popup.minimum_query_length',
   LLM_ENABLED: 'search.llm.enabled',
-  LLM_EMBEDDER_URL: 'search.llm.embedder_url',
-  LLM_EMBEDDER_API_KEY: 'search.llm.embedder_api_key',
-  LLM_EMBEDDER_MODEL: 'search.llm.embedder_model',
+  // Feature 058 — the single embedder credential source: a reusable `llm`
+  // credential configuration supplying the embedder URL (Base URL), API key and
+  // model.
+  LLM_EMBEDDER_CREDENTIALS: 'search.llm.embedder_credentials',
   REINDEX_INTERVAL_MINUTES: 'search.reindex_interval_minutes',
 } as const;
 
@@ -72,30 +74,13 @@ const settings = defineModuleSettingsManifest({
       defaultValue: false,
     },
     {
-      code: SEARCH_SETTING_CODES.LLM_EMBEDDER_URL,
-      name: 'LLM-augmented search — embedder URL',
+      code: SEARCH_SETTING_CODES.LLM_EMBEDDER_CREDENTIALS,
+      name: 'LLM-augmented search — embedder credentials',
       description:
-        'REST endpoint Meilisearch calls to obtain embeddings. Required when LLM-augmented search is enabled.',
+        'Reference a reusable LLM credential configuration (Credentials screen). Its Base URL, API Key and Model provide the embedder endpoint, credential and model. Required to enable LLM-augmented search.',
       groupCode: 'search',
-      valueType: 'string',
-      defaultValue: '',
-    },
-    {
-      code: SEARCH_SETTING_CODES.LLM_EMBEDDER_API_KEY,
-      name: 'LLM-augmented search — embedder API key',
-      description:
-        'Secret credential Meilisearch presents to the embedder service. Write-only: the admin API never returns the value after saving (feature 043 secret value type); the indexer still reads it through the universal getter.',
-      groupCode: 'search',
-      valueType: 'secret',
-      defaultValue: '',
-    },
-    {
-      code: SEARCH_SETTING_CODES.LLM_EMBEDDER_MODEL,
-      name: 'LLM-augmented search — embedder model',
-      description:
-        'Model identifier the embedder service uses (e.g. text-embedding-3-small). Required when LLM-augmented search is enabled.',
-      groupCode: 'search',
-      valueType: 'string',
+      valueType: 'credential_ref',
+      configurationType: 'llm',
       defaultValue: '',
     },
     {
@@ -117,7 +102,7 @@ export const manifest = defineModuleManifest({
   description:
     'Per-channel Meilisearch indexes, suggest popup, and optional LLM-augmented search.',
   version: '1.0.0',
-  dependencies: ['settings', 'sales_channels'],
+  dependencies: ['settings', 'sales_channels', 'credentials'],
   settings,
   i18n: { bundlesDir: 'i18n' },
   permissions: [{ code: 'search:write', label: 'Configure search (LLM / indexing)' }],
