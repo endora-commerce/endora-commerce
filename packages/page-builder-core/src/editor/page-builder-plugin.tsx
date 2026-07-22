@@ -5,6 +5,7 @@ import type { Plugin } from '@measured/puck';
 import { FieldsTabPanel } from './fields-tab-panel.js';
 import { PageBuilderComponentOverlay } from './page-builder-component-overlay.js';
 import { PageBuilderOutline } from './page-builder-outline.js';
+import { PreviewViewportBridge } from './preview-viewport-bridge.js';
 import { renderResponsiveNumberField, renderResponsiveSelectField } from '../fields/responsive-field-types.js';
 
 /** Stable references — recreating these remounts Puck fields and drops input focus. */
@@ -34,12 +35,17 @@ const STABLE_COMPONENT_OVERLAY_OVERRIDE = (props: {
   componentType: string;
 }): ReactElement => <PageBuilderComponentOverlay {...props} />;
 
+const STABLE_PUCK_OVERRIDE = ({ children }: { children: ReactNode }): ReactElement => (
+  <PreviewViewportBridge>{children}</PreviewViewportBridge>
+);
+
 /**
  * Puck plugin: tabbed fields panel, responsive field types, viewport-aware preview, outline labels.
  */
 export function createPageBuilderEditorPlugin(): Plugin {
   return {
     overrides: {
+      puck: STABLE_PUCK_OVERRIDE,
       fields: STABLE_FIELDS_OVERRIDE,
       outline: STABLE_OUTLINE_OVERRIDE,
       componentOverlay: STABLE_COMPONENT_OVERLAY_OVERRIDE,

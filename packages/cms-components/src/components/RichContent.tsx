@@ -47,11 +47,12 @@ export const RichContent: ComponentConfig<RichContentProps> = {
         />
       ),
     },
-    html: { type: 'textarea', label: 'HTML fallback' },
+    // `html` is kept on props (synced from TipTap in resolveData) for published
+    // render + legacy trees, but is not an author-facing field.
     margin: BOX_MARGIN_FIELD,
     padding: BOX_PADDING_FIELD,
     border: BOX_BORDER_FIELD,
-  },
+  } as NonNullable<ComponentConfig<RichContentProps>['fields']>,
   defaultProps: {
     content: defaultRichContent,
     html: '',

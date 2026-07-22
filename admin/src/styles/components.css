@@ -396,6 +396,58 @@
 .cms-page-builder [data-pb-drawer-filtering] [class*="ComponentList-content"] {
   display: block !important;
 }
+.cms-page-builder .cms-pb-header-shell {
+  display: contents;
+}
+/* Left column: sidebar toggles + template actions, flush start. */
+.cms-page-builder .cms-pb-header-left {
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.cms-page-builder .cms-pb-header-leading {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  /* Puck's left toggle column sets a muted `color` — reset so our buttons match. */
+  color: hsl(var(--foreground));
+}
+.cms-page-builder .cms-pb-header-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.375rem;
+  color: hsl(var(--foreground));
+}
+/* Keep the center title as a single centered label (Puck 1fr / auto / 1fr grid). */
+.cms-page-builder [class*="PuckHeader-title"] {
+  justify-self: center;
+  text-align: center;
+}
+/* Right tools: never wrap onto a second row. */
+.cms-page-builder [class*="PuckHeader-tools"] {
+  align-items: center;
+  min-width: 0;
+}
+.cms-page-builder [class*="MenuBar-inner"] {
+  flex-wrap: nowrap !important;
+  gap: 0.5rem !important;
+}
+/* Prefer compact icon buttons on the right; show labels when there is room. */
+.cms-page-builder [class*="PuckHeader-tools"] .cms-pb-header-actions__label {
+  display: none;
+  margin-inline-start: 0.25rem;
+}
+@media (min-width: 1280px) {
+  .cms-page-builder [class*="PuckHeader-tools"] .cms-pb-header-actions__label {
+    display: inline;
+  }
+}
+/* Left template actions keep their labels. */
+.cms-page-builder .cms-pb-header-leading .cms-pb-header-actions__label {
+  display: inline;
+}
 @media (max-width: 1023px) {
   .cms-content-editor__builder .cms-page-builder {
     min-height: min(70vh, 640px);
@@ -1382,18 +1434,18 @@ textarea.b2b-field {
   cursor: grabbing;
 }
 
-[data-puck-preview] [class*='DropZone-hitbox'] {
+[data-puck-entry] [class*='DropZone-hitbox'] {
   height: 36px;
   bottom: -18px;
   z-index: 2;
 }
 
-[data-puck-preview] [class*='DropZone--isDestination'] {
+[data-puck-entry] [class*='DropZone--isDestination'] {
   outline: 2px solid var(--puck-color-azure-04, #0158ad) !important;
   outline-offset: 2px !important;
 }
 
-[data-puck-preview] [data-dnd-placeholder] {
+[data-puck-entry] [data-dnd-placeholder] {
   opacity: 0.55 !important;
   min-height: 52px !important;
   border-radius: 6px !important;
@@ -1426,7 +1478,7 @@ textarea.b2b-field {
   box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
 }
 
-[data-puck-preview]:has([data-puck-dragging]) [class*='DropZone--isEnabled'] {
+[data-puck-entry]:has([data-puck-dragging]) [class*='DropZone--isEnabled'] {
   outline: 1px dashed var(--puck-color-azure-06, #6499cf);
   outline-offset: 1px;
 }

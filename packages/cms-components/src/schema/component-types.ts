@@ -154,6 +154,7 @@ export interface ImageProps extends HideOnProps, BoxStyleProps {
 
 export interface RichContentProps extends HideOnProps, BoxStyleProps {
   content: import('@tiptap/core').JSONContent | null;
+  /** Synced from TipTap in resolveData — not shown as an author-facing field. */
   html: string;
 }
 

@@ -28,7 +28,17 @@ import { COLUMN_SLOT_EDIT_PROPS } from '../editor/slot-edit-props.js';
 
 const HIDE_ON_FIELD = createHideOnField();
 
-function columnSpanStyle(span: ColumnProps['span'], tier: ReturnType<typeof usePreviewBreakpointTier>, editing: boolean): CSSProperties {
+/**
+ * Published: CSS vars + @media (storefront).
+ * Editing: inline `grid-column` from the selected Puck viewport tier. Relying on
+ * iframe @media alone is brittle — a tablet frame of exactly 768px often fails
+ * `min-width: 768px` once a scrollbar eats a few pixels, so columns stay span 12.
+ */
+function columnSpanStyle(
+  span: ColumnProps['span'],
+  tier: ReturnType<typeof usePreviewBreakpointTier>,
+  editing: boolean,
+): CSSProperties {
   if (editing) {
     return { gridColumn: `span ${resolveColumnSpan(span, tier, 12)}` };
   }

@@ -64,7 +64,7 @@ export function PageBuilderDrawer({
 
   return (
     <div className="flex min-h-0 flex-col gap-2">
-      <div className="sticky top-0 z-10 bg-background px-2 pt-2">
+      <div className="sticky top-0 z-[1] bg-background px-2 pt-2">
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -72,7 +72,7 @@ export function PageBuilderDrawer({
             value={query}
             onChange={(e): void => setQuery(e.target.value)}
             placeholder={searchPlaceholder}
-            className="h-8 pl-8 text-xs"
+            className="h-8 bg-white pl-8 text-xs"
             aria-label={searchPlaceholder}
           />
         </div>

@@ -142,7 +142,7 @@ export const defaultPageBuilderConfig: Config = {
     },
     embeds: {
       title: 'Embeds',
-      components: ['InsertBlock', 'InsertTemplate'],
+      components: ['InsertBlock'],
     },
   },
   components: {

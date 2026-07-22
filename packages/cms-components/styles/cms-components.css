@@ -27,6 +27,18 @@
   --breakpoint-desktop: 1024px;
 }
 
+/*
+ * Editor canvas styles must use `[data-puck-entry]` (iframe `#frame-root`), not
+ * `[data-puck-preview]` — the latter wraps the iframe in the parent document, so
+ * descendant selectors never match component markup inside the frame.
+ */
+[data-puck-entry],
+[data-puck-entry] *,
+.cmsc-pb-page,
+.cmsc-pb-page * {
+  box-sizing: border-box;
+}
+
 /* ── CMS page container (storefront + editor preview) ─────────────── */
 .cmsc-pb-page {
   --pb-page-padding: 24px;
@@ -42,6 +54,8 @@
 /* ── Page Builder hide-on (per screen size) ───────────────────────── */
 .cmsc-pb-hide-on {
   display: block;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Storefront: hide only within each breakpoint tier's viewport range */
@@ -301,8 +315,11 @@
 .cmsc-pb-row-cols {
   display: grid;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   grid-auto-rows: minmax(min-content, auto);
+  box-sizing: border-box;
 }
 .cmsc-pb-row-cols--editing:not(:has([data-puck-component])) {
   min-height: 8rem;
@@ -322,8 +339,8 @@
 .cmsc-pb-row-editing--filled {
   min-height: 0;
 }
-[data-puck-preview] .cmsc-pb-row-editing:hover,
-[data-puck-preview] .pb-component-overlay--row.pb-component-overlay--active .cmsc-pb-row-editing {
+[data-puck-entry] .cmsc-pb-row-editing:hover,
+[data-puck-entry] .pb-component-overlay--row.pb-component-overlay--active .cmsc-pb-row-editing {
   outline: 2px solid color-mix(in srgb, var(--puck-color-azure-04, #0158ad) 70%, transparent);
   outline-offset: -2px;
 }
@@ -358,12 +375,12 @@
   padding-bottom: 10px;
 }
 /* Puck always sets --min-empty-height inline; collapse filled column dropzones. */
-[data-puck-preview] [data-puck-dropzone].cmsc-pb-column-slot:has([data-puck-component]) {
+[data-puck-entry] [data-puck-dropzone].cmsc-pb-column-slot:has([data-puck-component]) {
   --min-empty-height: 0px !important;
   min-height: 0 !important;
   height: auto !important;
 }
-[data-puck-preview] [data-puck-dropzone].cmsc-pb-column-slot:not(:has([data-puck-component])) {
+[data-puck-entry] [data-puck-dropzone].cmsc-pb-column-slot:not(:has([data-puck-component])) {
   min-height: 4.5rem;
 }
 .cmsc-pb-row-col[data-pb-editing='1']:has([data-puck-component]) {
@@ -371,17 +388,17 @@
   height: auto;
 }
 /* While dragging — highlight valid layout drop areas. */
-[data-puck-preview]:has([data-puck-dragging]) .cmsc-pb-row-col[data-pb-editing='1'] {
+[data-puck-entry]:has([data-puck-dragging]) .cmsc-pb-row-col[data-pb-editing='1'] {
   outline-color: color-mix(in srgb, #3b82f6 55%, #94a3b8);
 }
-[data-puck-preview]:has([data-puck-dragging]) .cmsc-pb-row-col[data-pb-editing='1'] .cmsc-pb-column-slot {
+[data-puck-entry]:has([data-puck-dragging]) .cmsc-pb-row-col[data-pb-editing='1'] .cmsc-pb-column-slot {
   outline: 1px dashed color-mix(in srgb, #3b82f6 50%, transparent);
   background: color-mix(in srgb, #3b82f6 8%, transparent);
 }
-[data-puck-preview]:has([data-puck-dragging]) .cmsc-pb-row-cols--editing {
+[data-puck-entry]:has([data-puck-dragging]) .cmsc-pb-row-cols--editing {
   background: color-mix(in srgb, #3b82f6 3%, transparent);
 }
-[data-puck-preview]:has([data-puck-dragging]) .cmsc-pb-row-col[data-pb-editing='1'] .cmsc-pb-column-slot > [data-puck-component]:not([data-puck-dragging]) {
+[data-puck-entry]:has([data-puck-dragging]) .cmsc-pb-row-col[data-pb-editing='1'] .cmsc-pb-column-slot > [data-puck-component]:not([data-puck-dragging]) {
   outline: 1px solid color-mix(in srgb, #64748b 35%, transparent);
   outline-offset: 2px;
   border-radius: 4px;
@@ -401,6 +418,8 @@
 .cmsc-pb-row-col {
   grid-column: span var(--pb-col-span, 12);
   min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 @media (min-width: 768px) {
   .cmsc-pb-row-col {
@@ -448,34 +467,60 @@
   margin-right: 0 !important;
 }
 
-/* Puck preview: page padding lives on the root dropzone so breakout rows can span edge-to-edge */
-[data-puck-preview] .cmsc-pb-page {
-  padding-inline: 0;
+/* Puck preview: keep padding on the page shell. Do not use negative-margin
+   breakouts inside the iframe — they routinely overshoot the canvas width and
+   clip column outlines while the hit-target still extends past the edge. */
+[data-puck-entry] .cmsc-pb-page {
+  padding-inline: var(--pb-page-padding, 24px);
   width: 100%;
   max-width: 1360px;
 }
-[data-puck-preview] .cmsc-pb-page > [data-puck-dropzone] {
-  padding-inline: var(--pb-page-padding, 24px);
+[data-puck-entry] .cmsc-pb-page > [data-puck-dropzone] {
+  padding-inline: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
-/* Root list without an intermediate dropzone wrapper */
-[data-puck-preview] .cmsc-pb-page:not(:has(> [data-puck-dropzone])) {
-  padding-inline: var(--pb-page-padding, 24px);
-}
-[data-puck-preview] [data-puck-dropzone],
-[data-puck-preview] [data-puck-component] {
+[data-puck-entry] [data-puck-dropzone]:not(.cmsc-pb-row-slot),
+[data-puck-entry] [data-puck-component]:not(.cmsc-pb-row-col) {
   width: 100%;
-  max-width: none;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
-[data-puck-preview] .cmsc-pb-row-full-width,
-[data-puck-preview] .cmsc-pb-row-full-viewport,
-[data-puck-preview] .cmsc-pb-full-bleed {
+/* Half-span columns must size to the grid area, not 100% of the row. */
+[data-puck-entry] .cmsc-pb-row-col,
+[data-puck-entry] .cmsc-pb-row-col[data-puck-component] {
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+}
+[data-puck-entry] .cmsc-pb-row-cols {
+  max-width: 100%;
+  min-width: 0;
+}
+[data-puck-entry] .cmsc-pb-row-full-width,
+[data-puck-entry] .cmsc-pb-row-full-viewport,
+[data-puck-entry] .cmsc-pb-full-bleed,
+[data-puck-entry] [data-row-section='full_width'],
+[data-puck-entry] [data-row-section='full_viewport'],
+[data-puck-entry] [data-row-section='full_bleed'] {
   position: static;
   left: auto;
   transform: none;
-  width: calc(100% + 2 * var(--pb-page-padding, 24px));
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+/* full_* rows already sit in the padded page — don't add a second inset. */
+[data-puck-entry] .cmsc-pb-row-full-width .cmsc-pb-row-inner,
+[data-puck-entry] .cmsc-pb-row-full-viewport .cmsc-pb-row-inner,
+[data-puck-entry] .cmsc-pb-full-bleed [data-row-section='in_flow'] .cmsc-pb-row-inner {
+  padding-left: 0;
+  padding-right: 0;
   max-width: none;
-  margin-inline: calc(-1 * var(--pb-page-padding, 24px));
 }
 
 .cmsc-pb-row-position[data-position='top'] {
@@ -586,9 +631,9 @@
 .cmsc-pb-carousel__track--slot .cmsc-pb-content-slider-slot > * .cmsc-pb-full-bleed,
 .cmsc-pb-carousel__track--slot .cmsc-pb-content-slider-slot > * .cmsc-pb-row-full-width,
 .cmsc-pb-carousel__track--slot .cmsc-pb-content-slider-slot > * .cmsc-pb-row-full-viewport,
-[data-puck-preview] .cmsc-pb-slide .cmsc-pb-full-bleed,
-[data-puck-preview] .cmsc-pb-slide .cmsc-pb-row-full-width,
-[data-puck-preview] .cmsc-pb-slide .cmsc-pb-row-full-viewport {
+[data-puck-entry] .cmsc-pb-slide .cmsc-pb-full-bleed,
+[data-puck-entry] .cmsc-pb-slide .cmsc-pb-row-full-width,
+[data-puck-entry] .cmsc-pb-slide .cmsc-pb-row-full-viewport {
   width: 100% !important;
   max-width: 100% !important;
   margin-left: 0 !important;

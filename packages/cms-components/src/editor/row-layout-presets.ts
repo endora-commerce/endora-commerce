@@ -36,7 +36,7 @@ export const ROW_LAYOUT_PRESETS: RowLayoutPreset[] = [
 ];
 
 export const ROW_PRESET_DEFAULTS: Pick<RowProps, 'sectionLayout' | 'gap' | 'rowGap'> = {
-  sectionLayout: { base: 'full_width', tablet: 'in_flow', desktop: 'in_flow' },
+  sectionLayout: 'in_flow',
   gap: 24,
   rowGap: 24,
 };

@@ -2,14 +2,18 @@
 
 import { useSyncExternalStore } from 'react';
 import { tierFromViewportWidth, type BreakpointTier } from '../types/responsive.js';
+import {
+  getPreviewViewportWidth,
+  subscribePreviewViewportWidth,
+} from './preview-viewport-store.js';
 
-function subscribe(onStoreChange: () => void): () => void {
+function subscribeWindow(onStoreChange: () => void): () => void {
   if (typeof window === 'undefined') return () => undefined;
   window.addEventListener('resize', onStoreChange);
   return () => window.removeEventListener('resize', onStoreChange);
 }
 
-function getSnapshot(): number {
+function getWindowWidth(): number {
   return typeof window !== 'undefined' ? window.innerWidth : 1024;
 }
 
@@ -18,11 +22,25 @@ function getServerSnapshot(): number {
   return 1024;
 }
 
+function subscribe(onStoreChange: () => void): () => void {
+  const unsubStore = subscribePreviewViewportWidth(onStoreChange);
+  const unsubWindow = subscribeWindow(onStoreChange);
+  return (): void => {
+    unsubStore();
+    unsubWindow();
+  };
+}
+
+function getSnapshot(): number {
+  return getPreviewViewportWidth() ?? getWindowWidth();
+}
+
 /**
  * Breakpoint tier for responsive editor preview and published renders.
  *
- * Uses `window.innerWidth` so it is safe outside `<Puck>` (storefront `Render`).
- * Inside Puck's preview iframe, the iframe width matches the selected Mobile / Tablet / Desktop viewport.
+ * Prefer Puck's selected Mobile / Tablet / Desktop frame width when a
+ * `PreviewViewportBridge` is mounted; otherwise use `window.innerWidth`
+ * (storefront `Render`, SSR).
  */
 export function usePreviewBreakpointTier(): BreakpointTier {
   const width = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);

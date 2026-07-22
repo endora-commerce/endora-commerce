@@ -12,7 +12,7 @@ storefront with full sales-channel and language scoping.
 | ----------- | ----------------- | ------------------------------------ | --------------------------------------------- |
 | **Page**    | `slug` (per channel) | `draft → published → archived`       | URL on the storefront                         |
 | **Block**   | `code` (per channel) | `active` flag                        | Pages (`InsertBlock`) and Hooks (attachment)  |
-| **Template**| `code` (per channel) | always-visible (no flag)             | Pages and Blocks (`InsertTemplate`)           |
+| **Template**| `code` (per channel) | always-visible (no flag)             | Blueprints for pages/blocks (**Save as template** / **Apply template**). Legacy `InsertTemplate` embeds still resolve at runtime. |
 | **Hook**    | `code` (global)      | `active` flag, system-protected seed | Storefront layouts (`<Hook code="..." />`)    |
 
 ## Entities and the reference graph
@@ -24,8 +24,11 @@ The entity graph at runtime:
                                 ▼
                             Block ─── InsertBlock ───┐
                                                      ▼
-                            Template ── InsertTemplate ──> Page (slug-routed)
+                            Template (blueprint) ──> Page / Block canvas (Save as / Apply template)
+                            Template ── InsertTemplate (legacy) ──> Page (slug-routed)
 ```
+
+Content templates (`cms_templates`) are reusable Page Builder layouts (Save as template / Apply template). Email and invoice templates stay in their own admin lists and storage. Embedding via `InsertTemplate` is withdrawn from the component drawer; existing trees still render.
 
 Reference protection runs on every delete:
 
@@ -63,7 +66,7 @@ in `@b2b/cms-components`. Core layout/content defaults:
 | `NewsletterSignup` | Email signup form (configurable action URL).                        |
 | `ContactFormEmbed` | Form iframe embed or mailto.                                        |
 | `InsertBlock`   | Embeds a Block by `code`. Storefront inlines the resolved Block.       |
-| `InsertTemplate`| Embeds a Template by `code`. Storefront inlines the resolved Template. |
+| `InsertTemplate`| Legacy: embeds a Template by `code`. Kept for existing trees; **not** in the drawer palette. Prefer Save as / Apply template. |
 
 Additional categories (catalog, media, interactive, forms, advanced) ship
 Product*, Video, Map, sliders, Tabs, Accordion, RawHtml/RawJs, etc.

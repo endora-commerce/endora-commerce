@@ -165,6 +165,8 @@ export function cmsModule(options: CmsModuleOptions): {
         contexts: ['cms'],
       },
       InsertTemplate: {
+        // Legacy embed — kept in the SPI so existing trees resolve; not in the
+        // drawer palette (see @b2b/cms-components categories.embeds).
         fields: { code: { type: 'text', label: 'Template code', required: true } },
         contexts: ['cms'],
       },

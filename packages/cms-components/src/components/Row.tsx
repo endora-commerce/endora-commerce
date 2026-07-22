@@ -143,36 +143,27 @@ function RowColumnsSlot({
   editing: boolean;
 }): ReactElement {
   const Content = slotContent;
-  const resolvedGap = resolveResponsiveNumber(gap, tier, 24) + (editing ? 12 : 0);
-  const resolvedRowGap = resolveResponsiveNumber(rowGap, tier, 24) + (editing ? 8 : 0);
+  // Prefer CSS vars + @media (same as publish). Inline `gap` on a 12-column grid
+  // applies between every track (11 gutters); editing used to add +12/+8 which
+  // overflowed the mobile canvas (11×36px ≈ 396px).
   const align = verticalAlignToCss(resolveVerticalAlign(verticalAlign, tier));
   const verticalAlignResponsive = normalizeResponsive(verticalAlign, 'stretch');
 
   return (
     <div
-      className={`cmsc-pb-row-cols cmsc:grid cmsc:w-full ${editing ? 'cmsc-pb-row-cols--editing' : 'cmsc-pb-gap cmsc-pb-row-gap cmsc-pb-cols-align'} ${columnDivider ? 'cmsc-pb-col-divider' : ''} ${reverseOnMobile ? 'cmsc-pb-cols-reverse-mobile' : ''}`}
-      style={
-        editing
-          ? {
-              gap: `${resolvedGap}px`,
-              rowGap: `${resolvedRowGap}px`,
-              alignItems: align,
-            }
-          : {
-              ...buildResponsiveNumberVars('gap', gap, 24),
-              ...buildResponsiveNumberVars('row-gap', rowGap, 24),
-            }
+      className={`cmsc-pb-row-cols cmsc:grid cmsc:w-full cmsc-pb-gap cmsc-pb-row-gap cmsc-pb-cols-align ${editing ? 'cmsc-pb-row-cols--editing' : ''} ${columnDivider ? 'cmsc-pb-col-divider' : ''} ${reverseOnMobile ? 'cmsc-pb-cols-reverse-mobile' : ''}`}
+      style={{
+        ...buildResponsiveNumberVars('gap', gap, 24),
+        ...buildResponsiveNumberVars('row-gap', rowGap, 24),
+        ...(editing ? { alignItems: align } : {}),
+      }}
+      data-align={verticalAlignResponsive.base}
+      data-align-md={verticalAlignResponsive.tablet ?? verticalAlignResponsive.base}
+      data-align-lg={
+        verticalAlignResponsive.desktop ??
+        verticalAlignResponsive.tablet ??
+        verticalAlignResponsive.base
       }
-      {...(editing
-        ? {}
-        : {
-            'data-align': verticalAlignResponsive.base,
-            'data-align-md': verticalAlignResponsive.tablet ?? verticalAlignResponsive.base,
-            'data-align-lg':
-              verticalAlignResponsive.desktop ??
-              verticalAlignResponsive.tablet ??
-              verticalAlignResponsive.base,
-          })}
     >
       {editing ? <Content {...ROW_SLOT_EDIT_PROPS} /> : <Content />}
     </div>

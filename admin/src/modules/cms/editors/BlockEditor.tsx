@@ -16,6 +16,11 @@ import { ContentLanguageTabs } from '../components/ContentLanguageTabs';
 import { CmsContentEditorLayout } from '../components/CmsContentEditorLayout';
 import { PageBuilderEditor } from '../components/PageBuilderEditor';
 import { emptyPageBuilderData } from '../components/page-builder-data';
+import {
+  listCmsTemplatesForApply,
+  loadCmsTemplateCanvas,
+  saveCanvasAsCmsTemplate,
+} from '../components/cms-template-layout';
 import { ScopePicker, type CmsScopeValue } from '../components/ScopePicker';
 import { resolveScopedContentLanguage } from '../components/scope-utils';
 import { cmsClient } from '../api/cms-client';
@@ -303,6 +308,19 @@ export function BlockEditor(): ReactNode {
             }
             return structuredClone(dataFor(block, language) ?? emptyPageBuilderData());
           }}
+          onSaveAsTemplate={async (meta, canvasData) => {
+            await saveCanvasAsCmsTemplate({
+              ...meta,
+              data: canvasData,
+              salesChannelIds: scope.salesChannelIds,
+              languages: scope.languages,
+              activeLanguage,
+            });
+          }}
+          onListTemplatesForApply={listCmsTemplatesForApply}
+          onResolveTemplateLayout={(templateId) =>
+            loadCmsTemplateCanvas(templateId, activeLanguage)
+          }
         />
       }
     />

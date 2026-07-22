@@ -4,11 +4,12 @@ sidebar_position: 2
 
 # Extending the Page Builder
 
-The CMS module ships seven built-in components — `Row`, `Columns`, `Text`,
-`Heading`, `Button`, `InsertBlock`, `InsertTemplate` — but every other
+The CMS module ships built-in components — `Row`, `Columns`, `Text`,
+`Heading`, `Button`, `InsertBlock`, and others — but every other
 backend module can contribute its own components through an in-process
-service-provider interface (SPI). A contributing module participates in
-three places:
+service-provider interface (SPI). (`InsertTemplate` remains registered for
+legacy content trees but is no longer listed in the drawer palette.)
+A contributing module participates in three places:
 
 1. **Backend descriptor**: register field metadata at composition time so
    the admin's component palette can render the editor controls.

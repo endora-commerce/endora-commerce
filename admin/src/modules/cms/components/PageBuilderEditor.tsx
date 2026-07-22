@@ -11,7 +11,7 @@ import {
   withCmsPageRoot,
   type CmsRenderEmbeds,
 } from '@b2b/cms-components';
-import { filterConfigByContext } from '@b2b/page-builder-core';
+import { filterConfigByContext, type PageBuilderContext } from '@b2b/page-builder-core';
 import { createPageBuilderEditorPlugin } from '@b2b/page-builder-core/editor';
 import { AdminCmsAssetProvider } from './AdminCmsAssetProvider';
 import type { CmsPageBuilderDescriptor } from '@b2b/contracts';
@@ -47,7 +47,11 @@ import { isContentSliderSlidesZone, toPuckItemArray } from '@b2b/page-builder-co
 import { createPuckActionHandler, PuckDispatchBridgeSlot } from './PuckActionGuard';
 import { RowLayoutPicker } from './RowLayoutPicker';
 import { PageBuilderActionBar } from './PageBuilderActionBar';
-import { PageBuilderHeaderActions } from './PageBuilderHeaderActions';
+import {
+  PageBuilderHeaderActions,
+  PageBuilderHeaderShell,
+  PageBuilderTemplateActions,
+} from './PageBuilderHeaderActions';
 import { PageBuilderDrawer } from './PageBuilderDrawer';
 import { applyPageBuilderTranslations } from './page-builder-i18n';
 import { emptyPageBuilderData, isEmptyPageBuilderData } from './page-builder-data';
@@ -381,9 +385,13 @@ export function PageBuilderEditor({
   onChange,
   contentKey,
   pageContainer = false,
+  context = 'cms',
   languages = [],
   activeLanguage = null,
   onResolveLanguageContent,
+  onSaveAsTemplate,
+  onListTemplatesForApply,
+  onResolveTemplateLayout,
 }: {
   data: Data | null;
   onChange: (data: Data) => void;
@@ -402,11 +410,19 @@ export function PageBuilderEditor({
   contentKey?: string;
   /** Wrap the canvas in the CMS page max-width container (pages only). */
   pageContainer?: boolean;
+  /** Page Builder palette context (default CMS content). */
+  context?: PageBuilderContext;
   /** Content languages available for "copy from language". */
   languages?: string[];
   activeLanguage?: string | null;
   /** Load another language's saved/draft content (used by Copy from language). */
   onResolveLanguageContent?: (language: string) => Data | null | Promise<Data | null>;
+  /** Persist the current canvas as a new CMS content template. */
+  onSaveAsTemplate?: (meta: { name: string; code: string }, data: Data) => void | Promise<void>;
+  /** List CMS content templates for Apply template. */
+  onListTemplatesForApply?: () => Promise<Array<{ id: string; label: string }>>;
+  /** Resolve a CMS content template layout to replace the canvas. */
+  onResolveTemplateLayout?: (templateId: string) => Data | Promise<Data>;
 }): ReactNode {
   const t = useTranslation('cms');
   const [descriptor, setDescriptor] = useState<CmsPageBuilderDescriptor | null>(null);
@@ -494,10 +510,10 @@ export function PageBuilderEditor({
 
   const config = useMemo(() => {
     const merged = mergeConfig(descriptor, t('pageBuilder.extensions'), blockOptions);
-    const filtered = filterConfigByContext(merged, 'cms');
+    const filtered = filterConfigByContext(merged, context);
     const rooted = pageContainer ? withCmsPageRoot(filtered) : filtered;
     return applyPageBuilderTranslations(rooted, t);
-  }, [descriptor, t, blockOptions, pageContainer]);
+  }, [descriptor, t, blockOptions, pageContainer, context]);
   const viewports = useMemo(() => buildViewports(descriptor), [descriptor]);
   const plugins = useMemo(() => [createPageBuilderEditorPlugin()], []);
   /** Holds canvas data across remount until parent `data` catches up (clear / copy-from). */
@@ -573,6 +589,9 @@ export function PageBuilderEditor({
     editorData: data ?? emptyPageBuilderData(),
     onCopyFromLanguage: null as null | ((sourceLanguage: string) => Promise<void>),
     onClearCanvas: null as null | (() => void),
+    onSaveAsTemplate: null as null | ((meta: { name: string; code: string }, data: Data) => Promise<void>),
+    onListTemplatesForApply: null as null | (() => Promise<Array<{ id: string; label: string }>>),
+    onApplyTemplate: null as null | ((templateId: string) => Promise<void>),
     drawerSearchPlaceholder: t('pageBuilder.drawer.searchPlaceholder'),
     drawerSearchEmpty: t('pageBuilder.drawer.searchEmpty'),
   });
@@ -595,6 +614,18 @@ export function PageBuilderEditor({
     onClearCanvas: (): void => {
       applyCanvasData(emptyPageBuilderData());
     },
+    onSaveAsTemplate: onSaveAsTemplate
+      ? async (meta, canvasData): Promise<void> => {
+          await onSaveAsTemplate(meta, canvasData);
+        }
+      : null,
+    onListTemplatesForApply: onListTemplatesForApply ?? null,
+    onApplyTemplate: onResolveTemplateLayout
+      ? async (templateId: string): Promise<void> => {
+          const next = await onResolveTemplateLayout(templateId);
+          applyCanvasData(structuredClone(next));
+        }
+      : null,
     drawerSearchPlaceholder: t('pageBuilder.drawer.searchPlaceholder'),
     drawerSearchEmpty: t('pageBuilder.drawer.searchEmpty'),
   };
@@ -675,6 +706,35 @@ export function PageBuilderEditor({
           >
             {children}
           </PageBuilderDrawer>
+        );
+      },
+      header: ({ children }: { children: ReactNode; actions: ReactNode }): ReactElement => {
+        const state = headerActionsStateRef.current;
+        const hasTemplates = Boolean(state.onSaveAsTemplate || state.onApplyTemplate);
+        return (
+          <PageBuilderHeaderShell
+            leading={
+              hasTemplates ? (
+                <PageBuilderTemplateActions
+                  currentData={state.editorData}
+                  {...(state.onSaveAsTemplate ? { onSaveAsTemplate: state.onSaveAsTemplate } : {})}
+                  {...(state.onListTemplatesForApply
+                    ? { onListTemplatesForApply: state.onListTemplatesForApply }
+                    : {})}
+                  {...(state.onApplyTemplate
+                    ? {
+                        onApplyTemplate: async (templateId: string): Promise<void> => {
+                          await state.onApplyTemplate?.(templateId);
+                        },
+                      }
+                    : {})}
+                  t={state.t}
+                />
+              ) : null
+            }
+          >
+            {children}
+          </PageBuilderHeaderShell>
         );
       },
       headerActions: (): ReactElement => {

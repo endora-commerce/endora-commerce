@@ -91,7 +91,6 @@ export function PagesListPage(): ReactNode {
                   <TableHead>{t('columns.slug')}</TableHead>
                   <TableHead>{t('columns.status')}</TableHead>
                   <TableHead>{t('columns.languages')}</TableHead>
-                  <TableHead className="text-right">{t('columns.version')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -118,9 +117,6 @@ export function PagesListPage(): ReactNode {
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {page.languages.join(', ')}
-                    </TableCell>
-                    <TableCell className="text-right text-xs text-muted-foreground">
-                      v{page.version}
                     </TableCell>
                   </TableRow>
                 ))}
