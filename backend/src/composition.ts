@@ -64,6 +64,7 @@ import { OrderReturnContextProvider } from './modules/orders/services/order-retu
 import { PaymentRefundProvider } from './modules/payments/services/payment-refund.js';
 import { CorrectiveInvoiceProvider } from './modules/invoices/services/corrective-invoice.js';
 import { invoicesModule } from './modules/invoices/plugin.js';
+import { ksefModule } from './modules/ksef/plugin.js';
 import { CreditTopupProvider } from './modules/credit_limits/services/credit-topup.js';
 import { ReturnEmailNotifier } from './modules/returns/services/return-email-notifier.js';
 import { AddressService } from './modules/addresses/services/address-service.js';
@@ -2017,6 +2018,41 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
   modules.push(invoices.plugin);
 
+  // Feature 059 — KSeF (Krajowy System e-Faktur). Consumes the invoices
+  // domain events, submits FA(3) documents through a durable queue, and feeds
+  // the KSeF number/QR back through the invoices port + PDF-renderer seam.
+  const ksef = ksefModule({
+    emFactory: em,
+    requireAdmin,
+    settingsService: settings.handle.settingsService,
+    commandBus,
+    eventBus,
+    invoices: {
+      buildDetail: (invoiceId) => invoices.handle.invoiceService.buildDetail(invoiceId),
+      recordKsefAssignment: (invoiceId, assignment) =>
+        invoices.handle.invoiceService.recordKsefAssignment(invoiceId, assignment),
+    },
+    auditLogService,
+    redis,
+    runWorkers,
+    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
+      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
+      : {}),
+    resolveSellerNip: async () => {
+      try {
+        const raw = await settings.handle.settingsService.get('invoices.seller.tax_id', '00000000-0000-0000-0000-000000000000', z.string());
+        const nip = raw.replace(/^PL/i, '').replace(/[\s-]/g, '');
+        return nip.length > 0 ? nip : null;
+      } catch {
+        return null;
+      }
+    },
+  });
+  modules.push(ksef.plugin);
+  // PDF QR seam (contracts/invoices-integration.md §3) — one resolver covers
+  // every render path; absent/disabled module ⇒ pre-059 output.
+  invoices.handle.pdfRenderer.setKsefVerificationResolver(ksef.handle.buildVerification);
+
   // Feature 046 — Returns & Complaints (Refunds, RMA). Reads order facts only
   // through the OrderReturnContextPort (Principle I); settings drive the
   // free-return window and RMA prefix/suffix.
@@ -2031,7 +2067,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
       orderContext: new OrderReturnContextProvider(em),
       paymentRefund: new PaymentRefundProvider(em),
-      correctiveInvoice: new CorrectiveInvoiceProvider(em, invoices.handle.numberGenerator, auditLogService),
+      correctiveInvoice: new CorrectiveInvoiceProvider(em, invoices.handle.numberGenerator, auditLogService, eventBus),
       creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
       auditLog: auditLogService,
       notifier: new ReturnEmailNotifier(

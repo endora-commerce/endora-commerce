@@ -33,6 +33,7 @@ import {
   PanelLeftOpen,
   PercentDiamond,
   Receipt,
+  ReceiptText,
   Scale,
   Search,
   Settings,
@@ -115,6 +116,7 @@ const NAV: NavSection[] = [
       { to: '/quote-requests', labelKey: 'appShell.nav.quoteRequests', icon: FileText },
       { to: '/invoices', labelKey: 'appShell.nav.invoices', icon: Receipt, requiredPermission: 'invoices:read' },
       { to: '/invoices/templates', labelKey: 'appShell.nav.invoiceTemplates', icon: Receipt, requiredPermission: 'invoices:read' },
+      { to: '/ksef', labelKey: 'appShell.nav.ksef', icon: ReceiptText, requiredPermission: 'ksef:read' },
     ],
   },
   {

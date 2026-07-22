@@ -32,6 +32,7 @@ describe('permission inventory (SC-001)', () => {
     // +2 for feature 055 custom fields (custom_fields:read, custom_fields:write).
     // +1 for feature 056 hierarchical organizations (organizations:rollup).
     // +2 for feature 058 credentials (credentials:read, credentials:write).
-    expect(assignable.size).toBe(55);
+    // +2 for feature 059 KSeF (ksef:read, ksef:write).
+    expect(assignable.size).toBe(57);
   });
 });

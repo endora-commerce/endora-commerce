@@ -49,6 +49,7 @@ how to consume it.
 | [integrations](./integrations) | External vendor configurations (encrypted) | yes |
 | [inventory](./inventory) | Stock levels, reservations, availability notifications | yes |
 | [invoices](./invoices) | PDF invoice / proforma generation + asset linkage | yes |
+| [ksef](./ksef) | Krajowy System e-Faktur integration — FA(3) submission of issued invoices, KSeF numbers + UPO, certificate management | yes (admin) |
 | [languages](./languages) | Pool of supported BCP-47 language tags + translation-fallback helper | yes |
 | [megamenu](./megamenu) | Configurable navigation tree with per-channel + per-language bindings | yes |
 | [module-lifecycle](./module-lifecycle) | CLI-driven install / uninstall / enable / disable / status for every backend module + dependency validation + first-boot reconciliation | yes (read-only admin endpoint) |

@@ -106,6 +106,7 @@ import { Migration097OrgHierarchy } from '../modules/organizations/migrations/09
 import { Migration098CustomerSubtreeRollup } from '../modules/customer_accounts/migrations/098_customer_subtree_rollup.js';
 import { Migration099CredentialsInit } from '../modules/credentials/migrations/099_credentials_init.js';
 import { Migration100SettingsCredentialRefValueType } from '../modules/settings/migrations/100_settings_credential_ref_value_type.js';
+import { Migration101KsefInit } from '../modules/ksef/migrations/101_ksef_init.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -505,6 +506,10 @@ export default defineConfig({
       {
         name: 'Migration100SettingsCredentialRefValueType',
         class: Migration100SettingsCredentialRefValueType,
+      },
+      {
+        name: 'Migration101KsefInit',
+        class: Migration101KsefInit,
       },
     ],
     transactional: true,

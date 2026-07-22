@@ -17,9 +17,11 @@ import { registerInvoicesAdminRoutes } from './routes.admin.js';
 import { registerInvoicesCustomerRoutes } from './routes.customer.js';
 import { INVOICES_SETTING_CODES } from './manifest.js';
 
-/** Minimal event-bus surface this module needs (auto-issue subscription). */
+/** Minimal event-bus surface this module needs (auto-issue subscription + domain events). */
 export interface InvoicesEventBus {
   on(eventName: string, handler: (payload: unknown) => void | Promise<void>): () => void;
+  /** Present on the real EventBus — used to emit invoice.issued/corrected.v1 (feature 059). */
+  emit?(eventName: string, payload: { eventId: string; occurredAt: string }): void;
 }
 
 export interface InvoicesModuleOptions {
@@ -64,6 +66,12 @@ export function invoicesModule(options: InvoicesModuleOptions): {
     numberGenerator,
     sellerSettings,
     options.audit,
+    options.eventBus?.emit
+      ? {
+          emit: (eventName: string, payload: Record<string, unknown>) =>
+            options.eventBus!.emit!(eventName, payload as { eventId: string; occurredAt: string }),
+        }
+      : undefined,
   );
   const pdfRenderer = new InvoicePdfRenderer();
   const templateService = new InvoiceTemplateService(options.emFactory, options.auditLog);

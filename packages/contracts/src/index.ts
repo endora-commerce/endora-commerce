@@ -114,3 +114,4 @@ export * from './newsletter.js';
 export * from './google-analytics.js';
 export * from './custom-fields.js';
 export * from './credentials.js';
+export * from './ksef.js';
