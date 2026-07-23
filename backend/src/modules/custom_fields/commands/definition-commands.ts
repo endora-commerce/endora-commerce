@@ -1,4 +1,3 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   CreateCustomFieldDefinitionRequest,
   CustomFieldOptionDto,
@@ -7,15 +6,26 @@ import type {
 import type { Command } from '../../../commands/index.js';
 import { CustomFieldDefinition } from '../entities/custom-field-definition.entity.js';
 import { CustomFieldOption } from '../entities/custom-field-option.entity.js';
+import {
+  applyCreateDefinition,
+  applyCreateOption,
+  applyDeleteDefinition,
+  applyDeleteOption,
+  applyUpdateDefinition,
+  applyUpdateOption,
+  type DefinitionChangeProbes,
+} from '../services/custom-field-definition-apply.js';
 
 /**
  * Command factories for custom-field definition/option mutations (feature 055,
  * Principle XIII). Each returns a named {@link Command} the {@link CommandBus}
  * runs co-transactionally — the bus writes exactly one audit entry, so the
  * module never calls the audit writer by hand.
+ *
+ * The command bodies delegate the entity writes + invariants to the shared
+ * apply functions (feature 061) so the public CRUD and the host apply seam are
+ * a single write path.
  */
-
-const SELECT_TYPES = new Set(['select', 'multiselect']);
 
 function snapshotDefinition(def: CustomFieldDefinition): Record<string, unknown> {
   return {
@@ -40,22 +50,7 @@ export function createDefinitionCommand(
     objectType: 'custom_field_definition',
     objectId: 'new',
     run: async ({ em }) => {
-      const def = em.create(CustomFieldDefinition, {
-        entityType: input.entityType,
-        key: input.key,
-        label: input.label,
-        labelDefault: input.labelDefault,
-        valueType: input.valueType,
-        required: input.required,
-        sortOrder: input.sortOrder,
-        config: input.config,
-      });
-      if (SELECT_TYPES.has(input.valueType)) {
-        // Flush the definition first: options reference it by id (no ORM relation),
-        // so MikroORM cannot infer the insert order and would violate the FK.
-        await em.flush();
-        for (const opt of input.options) createOption(em, def.id, opt);
-      }
+      const def = await applyCreateDefinition(em, input);
       return { result: def, after: snapshotDefinition(def) };
     },
   };
@@ -65,6 +60,7 @@ export function createDefinitionCommand(
 export function updateDefinitionCommand(
   id: string,
   patch: UpdateCustomFieldDefinitionRequest,
+  probes?: DefinitionChangeProbes,
 ): Command<CustomFieldDefinition> {
   return {
     action: 'custom_fields.definition.updated',
@@ -75,13 +71,7 @@ export function updateDefinitionCommand(
       return def ? snapshotDefinition(def) : null;
     },
     run: async ({ em }) => {
-      const def = await em.findOneOrFail(CustomFieldDefinition, { id });
-      if (patch.label !== undefined) def.label = patch.label;
-      if (patch.labelDefault !== undefined) def.labelDefault = patch.labelDefault;
-      if (patch.valueType !== undefined) def.valueType = patch.valueType;
-      if (patch.required !== undefined) def.required = patch.required;
-      if (patch.sortOrder !== undefined) def.sortOrder = patch.sortOrder;
-      if (patch.config !== undefined) def.config = patch.config;
+      const def = await applyUpdateDefinition(em, id, patch, probes);
       return { result: def, after: snapshotDefinition(def) };
     },
   };
@@ -98,10 +88,7 @@ export function deleteDefinitionCommand(id: string): Command<{ id: string }> {
       return def ? snapshotDefinition(def) : null;
     },
     run: async ({ em }) => {
-      const def = await em.findOneOrFail(CustomFieldDefinition, { id });
-      const options = await em.find(CustomFieldOption, { definitionId: id });
-      for (const o of options) em.remove(o);
-      em.remove(def);
+      await applyDeleteDefinition(em, id);
       return { result: { id }, after: null };
     },
   };
@@ -117,7 +104,7 @@ export function createOptionCommand(
     objectType: 'custom_field_option',
     objectId: 'new',
     run: async ({ em }) => {
-      const opt = createOption(em, definitionId, input);
+      const opt = await applyCreateOption(em, definitionId, input);
       return { result: opt, after: { id: opt.id, definitionId, value: opt.value } };
     },
   };
@@ -125,6 +112,7 @@ export function createOptionCommand(
 
 /** Patch one option's label/default/ordering. */
 export function updateOptionCommand(
+  definitionId: string,
   optionId: string,
   patch: Partial<Pick<CustomFieldOptionDto, 'label' | 'labelDefault' | 'isDefault' | 'sortOrder'>>,
 ): Command<CustomFieldOption> {
@@ -137,18 +125,18 @@ export function updateOptionCommand(
       return o ? { id: o.id, value: o.value, labelDefault: o.labelDefault } : null;
     },
     run: async ({ em }) => {
-      const o = await em.findOneOrFail(CustomFieldOption, { id: optionId });
-      if (patch.label !== undefined) o.label = patch.label;
-      if (patch.labelDefault !== undefined) o.labelDefault = patch.labelDefault;
-      if (patch.isDefault !== undefined) o.isDefault = patch.isDefault;
-      if (patch.sortOrder !== undefined) o.sortOrder = patch.sortOrder;
+      const o = await applyUpdateOption(em, definitionId, optionId, patch);
       return { result: o, after: { id: o.id, value: o.value, labelDefault: o.labelDefault } };
     },
   };
 }
 
-/** Delete one option (the in-use guard runs in the service before dispatch). */
-export function deleteOptionCommand(optionId: string): Command<{ id: string }> {
+/** Delete one option (the in-use guard also runs in the service before dispatch). */
+export function deleteOptionCommand(
+  definitionId: string,
+  optionId: string,
+  probes?: DefinitionChangeProbes,
+): Command<{ id: string }> {
   return {
     action: 'custom_fields.option.deleted',
     objectType: 'custom_field_option',
@@ -158,24 +146,8 @@ export function deleteOptionCommand(optionId: string): Command<{ id: string }> {
       return o ? { id: o.id, value: o.value } : null;
     },
     run: async ({ em }) => {
-      const o = await em.findOneOrFail(CustomFieldOption, { id: optionId });
-      em.remove(o);
+      await applyDeleteOption(em, definitionId, optionId, probes);
       return { result: { id: optionId }, after: null };
     },
   };
-}
-
-function createOption(
-  em: EntityManager,
-  definitionId: string,
-  input: CustomFieldOptionDto,
-): CustomFieldOption {
-  return em.create(CustomFieldOption, {
-    definitionId,
-    value: input.value,
-    label: input.label,
-    labelDefault: input.labelDefault,
-    isDefault: input.isDefault,
-    sortOrder: input.sortOrder,
-  });
 }

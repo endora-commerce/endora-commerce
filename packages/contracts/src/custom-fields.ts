@@ -18,6 +18,9 @@ export const supportedEntityTypeSchema = z.enum([
   'organization',
   'customer',
   'quote_request',
+  // Feature 061 — product attributes are catalog extensions of product-host
+  // definitions; the type is host-managed (writes only via /catalog/attributes).
+  'product',
 ]);
 export type SupportedEntityType = z.infer<typeof supportedEntityTypeSchema>;
 
