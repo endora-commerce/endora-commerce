@@ -2,6 +2,8 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import Redis from 'ioredis';
 import { buildServer, type ModulePlugin } from '../../src/http/server.js';
+import { ApiInterceptorRegistry } from '../../src/http/interceptors/index.js';
+import { registerApiInterceptorAdminRoutes } from '../../src/modules/_lifecycle/routes.admin.js';
 import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
 import { runInTenantContext, type TenantContext } from '../../src/tenancy/tenant-context.js';
 import {
@@ -188,6 +190,12 @@ export interface BackendServerOptions {
   promptActionsLlmFetch?: PromptActionsModuleOptions['llmFetch'];
   promptActionsNow?: () => Date;
   promptActionsTtlMinutes?: number;
+  /**
+   * Feature 060 — contribute API interceptor registrations before the server
+   * seals the registry on ready. Contract tests use this to register fixture
+   * interceptors against real module endpoints.
+   */
+  configureInterceptors?: (registry: ApiInterceptorRegistry) => void;
 }
 
 export interface BackendServerHandle {
@@ -195,6 +203,8 @@ export interface BackendServerHandle {
   orm: MikroORM;
   em: () => EntityManager;
   eventBus: EventBus;
+  /** Feature 060 — the sealed API interceptor registry (execution plan via `.list()`). */
+  apiInterceptors: ApiInterceptorRegistry;
   redis: Redis;
   sessionService: SessionService;
   auditLogService: AuditLogService;
@@ -1870,6 +1880,20 @@ export async function setupBackendServer(
 
   if (options.extraModules) modules.push(...options.extraModules);
 
+  // Feature 060 — API interceptor registry, mirroring composition.ts wiring.
+  // Fixture registrations arrive via `options.configureInterceptors`; the
+  // registry is sealed (after boot validation) inside app.ready().
+  const apiInterceptors = new ApiInterceptorRegistry({
+    isModuleEnabled: (moduleId) => registryCache.isEnabled(moduleId),
+  });
+  modules.push(async (app) => {
+    registerApiInterceptorAdminRoutes(app, {
+      registry: apiInterceptors,
+      requireAdmin: requireTestAdmin(permissionService),
+    });
+  });
+  options.configureInterceptors?.(apiInterceptors);
+
   // Feature 004 — boot-time manifest reconciliation. Runs before
   // app.ready() so contract tests start from a consistent settings
   // catalog.
@@ -1902,6 +1926,7 @@ export async function setupBackendServer(
     },
     disableRateLimit: true,
     modules,
+    apiInterceptors,
     errorEnvelope: {
       resolvePreferredLanguage: async (request) => {
         if (request.testActor?.kind !== 'admin') return null;
@@ -1934,6 +1959,7 @@ export async function setupBackendServer(
     orm,
     em,
     eventBus,
+    apiInterceptors,
     redis,
     sessionService,
     auditLogService,

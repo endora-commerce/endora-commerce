@@ -237,7 +237,7 @@ export async function registerPromotionRoutes(
 
   app.get<{ Params: { id: string; batchId: string } }>(
     '/api/v1/admin/promotions/:id/coupon-batches/:batchId/export',
-    { preHandler: readGate },
+    { preHandler: readGate, config: { streamingResponse: true } },
     async (request, reply) => {
       const codes = await couponService.listBatchCodes(request.params.batchId);
       reply.header('content-type', 'text/csv; charset=utf-8');

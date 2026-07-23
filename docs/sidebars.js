@@ -15,6 +15,7 @@ const sidebars = {
       link: { type: 'generated-index', title: 'Architecture' },
       items: [
         'architecture/tenant-scoping',
+        'architecture/api-interceptor',
         'architecture/command-bus',
         'architecture/custom-fields',
         'architecture/overlay-pattern',

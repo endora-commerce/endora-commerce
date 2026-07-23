@@ -11,6 +11,7 @@ import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
+import { ApiInterceptorRegistry } from './http/interceptors/index.js';
 import { registerHealthRoutes } from './modules/health_checks/routes.js';
 import type { ErrorEnvelopeOptions } from './http/error-envelope.js';
 import { initOrm, closeOrm } from './db/index.js';
@@ -181,6 +182,7 @@ import { priceListsManifest } from './modules/price_lists/manifest.js';
 import { assetsLibraryManifest } from './modules/assets_library/manifest.js';
 import { assetsLibraryModule } from './modules/assets_library/plugin.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
+import { registerApiInterceptorAdminRoutes } from './modules/_lifecycle/routes.admin.js';
 import {
   REGISTERED_MANIFESTS,
   type RegisteredManifestEntry,
@@ -224,6 +226,12 @@ export interface ComposeAppHandle {
   errorEnvelope: ErrorEnvelopeOptions;
   /** Feature 054 — the Command Bus, exposed so migrated module wiring can consume it. */
   commandBus: CommandBus;
+  /**
+   * Feature 060 — the API interceptor registry. index.ts passes it to
+   * `buildServer({ apiInterceptors })`; modules receive it through their
+   * factory options / OverlayModuleContext and register during composition.
+   */
+  apiInterceptors: ApiInterceptorRegistry;
   /** Closes the ORM + redis connection; call from a SIGTERM handler. */
   dispose: () => Promise<void>;
 }
@@ -294,6 +302,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // audit insert co-transactionally, and dispatches the domain event on commit.
   // Threaded into module factories alongside `eventBus` as writes are migrated.
   const commandBus = new CommandBus(orm, auditLogService, eventBus);
+
+  // Feature 060 — API interceptor registry. Modules register pre/post
+  // interceptors against endpoints owned by other modules; execution is
+  // lifecycle-gated per interceptor via the enabled-set cache predicate.
+  const apiInterceptors = new ApiInterceptorRegistry({
+    isModuleEnabled: (moduleId) => registryCache.isEnabled(moduleId),
+  });
 
   // ---- Cross-cutting actor resolvers --------------------------------------
 
@@ -2356,6 +2371,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
 
   modules.push(lifecycle.plugin);
+  // Feature 060 — read-only interceptor diagnostics on the lifecycle admin
+  // surface (same permission gate as the modules listing).
+  modules.push(async (app) => {
+    registerApiInterceptorAdminRoutes(app, { registry: apiInterceptors, requireAdmin });
+  });
   modules.push(adminI18n.plugin);
   modules.push(adminActions.plugin);
 
@@ -2458,6 +2478,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     commandBus,
     auditLogService,
     requireAdmin,
+    apiInterceptors,
   });
   for (const plugin of overlayModulePlugins) modules.push(plugin);
 
@@ -2466,6 +2487,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     redis,
     modules,
     commandBus,
+    apiInterceptors,
     errorEnvelope: {
       resolvePreferredLanguage: async (request) => {
         if (request.actor.kind !== 'admin') return null;
