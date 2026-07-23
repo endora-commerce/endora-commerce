@@ -6,6 +6,7 @@ import {
   type OverlayModuleContext,
 } from '../../src/overlay/overlay-runtime.js';
 import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-manifests.js';
+import { ApiInterceptorRegistry } from '../../src/http/interceptors/index.js';
 
 const EXAMPLE: NodeJS.ProcessEnv = { DEPLOYMENT: 'example' } as NodeJS.ProcessEnv;
 
@@ -17,6 +18,7 @@ const stubCtx = {
   commandBus: {} as never,
   auditLogService: {} as never,
   requireAdmin: () => async (): Promise<void> => {},
+  apiInterceptors: new ApiInterceptorRegistry(),
 } as unknown as OverlayModuleContext;
 
 // US2 scenario 1 + 3 (SC-001, FR-004/FR-009): a client-only overlay module is

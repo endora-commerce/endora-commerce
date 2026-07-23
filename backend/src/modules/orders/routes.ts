@@ -227,7 +227,7 @@ export async function registerOrderRoutes(
 
   app.get<{ Params: { id: string } }>(
     '/api/v1/orders/:id/invoice',
-    { preHandler: requireCustomer },
+    { preHandler: requireCustomer, config: { streamingResponse: true } },
     async (request, reply) => {
       const ctx = resolveCustomerContext(request);
       const order = await orderService.getById(request.params.id, ctx);
@@ -297,7 +297,11 @@ export async function registerOrderRoutes(
 
   app.get(
     '/api/v1/admin/orders/export',
-    { preHandler: requireAdmin('orders:read'), schema: { querystring: adminOrdersListQuerySchema } },
+    {
+      preHandler: requireAdmin('orders:read'),
+      schema: { querystring: adminOrdersListQuerySchema },
+      config: { streamingResponse: true },
+    },
     async (request, reply) => {
       const query = adminOrdersListQuerySchema.parse(request.query);
       const scope = await resolveListScope(request);
@@ -335,7 +339,11 @@ export async function registerOrderRoutes(
 
   app.post(
     '/api/v1/admin/orders/bulk/print-invoices',
-    { preHandler: requireAdmin('orders:read'), schema: { body: bulkPrintInvoicesRequestSchema } },
+    {
+      preHandler: requireAdmin('orders:read'),
+      schema: { body: bulkPrintInvoicesRequestSchema },
+      config: { streamingResponse: true },
+    },
     async (request, reply) => {
       const body = bulkPrintInvoicesRequestSchema.parse(request.body);
       const em = emFactory();

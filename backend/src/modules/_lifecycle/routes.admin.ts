@@ -2,8 +2,11 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   ModuleListQuerySchema,
   ModuleListResponseSchema,
+  apiInterceptorListSchema,
+  type ApiInterceptorList,
   type ModuleListResponse,
 } from '@b2b/contracts';
+import type { ApiInterceptorRegistry } from '../../http/interceptors/index.js';
 import type { ModuleLifecycleOrchestrator } from './services/orchestrator.js';
 
 /**
@@ -49,5 +52,36 @@ export async function registerLifecycleAdminRoutes(
       }
       return { modules };
     },
+  );
+}
+
+export interface ApiInterceptorAdminDeps {
+  registry: ApiInterceptorRegistry;
+  requireAdmin: RequireAdminFactory;
+}
+
+/**
+ * Feature 060 — read-only diagnostics for the API interceptor mechanism.
+ * The response IS the execution plan: items sorted by target, then phase
+ * (pre before post), then execution order. `moduleEnabled` is resolved live
+ * from the enabled-set predicate at request time. Registrations are shipped
+ * module code, so there is no write surface (and no Command Bus involvement).
+ */
+export function registerApiInterceptorAdminRoutes(
+  app: FastifyInstance,
+  deps: ApiInterceptorAdminDeps,
+): void {
+  app.get(
+    '/api/v1/admin/api-interceptors',
+    {
+      preHandler: deps.requireAdmin('platform.modules.read'),
+      schema: { response: { 200: apiInterceptorListSchema } },
+    },
+    async (): Promise<ApiInterceptorList> => ({
+      items: deps.registry.list().map((item) => ({
+        ...item,
+        moduleEnabled: deps.registry.isModuleEnabled(item.module),
+      })),
+    }),
   );
 }

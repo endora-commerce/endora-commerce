@@ -87,7 +87,7 @@ export async function registerNewsletterStorefrontRoutes(
   });
 
   // --- Engagement tracking (US6) -----------------------------------------
-  app.get('/api/v1/newsletter/o/:token.gif', async (request, reply) => {
+  app.get('/api/v1/newsletter/o/:token.gif', { config: { streamingResponse: true } }, async (request, reply) => {
     const { token } = request.params as { token: string };
     const claims = deps.tokens.verify(token, 'open');
     if (claims) await deps.tracking.recordOpen(claims.id);

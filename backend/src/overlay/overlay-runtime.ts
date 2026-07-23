@@ -21,6 +21,7 @@ import type { EventBus } from '../events/bus.js';
 import type { CommandBus } from '../commands/index.js';
 import type { AuditLogService } from '../modules/audit_logs/services/audit-log-service.js';
 import type { RequireAdminFactory } from '../modules/catalog/routes.admin.js';
+import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 import {
   activeOverlayModulesRoot,
   coreModulesRoot,
@@ -86,7 +87,11 @@ export async function loadOverlayServiceClasses(
 
 // ---- Overlay-only modules (US2) -------------------------------------------
 
-/** Common dependencies handed to an overlay module's plugin factory. */
+/**
+ * Common dependencies handed to an overlay module's plugin factory.
+ * Includes the API interceptor registry (feature 060, FR-012) so client-only
+ * overlay modules can register pre/post interceptors during composition.
+ */
 export interface OverlayModuleContext {
   emFactory: () => EntityManager;
   redis: Redis;
@@ -94,6 +99,7 @@ export interface OverlayModuleContext {
   commandBus: CommandBus;
   auditLogService: AuditLogService;
   requireAdmin: RequireAdminFactory;
+  apiInterceptors: ApiInterceptorRegistry;
 }
 
 /** An overlay module's `plugin.ts` exports this as `overlayModule` (or default). */

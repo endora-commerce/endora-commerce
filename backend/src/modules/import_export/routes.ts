@@ -17,7 +17,7 @@ export async function registerImportExportRoutes(
 
   app.get<{ Params: { entity: string } }>(
     '/api/v1/admin/export/:entity.csv',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: requireAdmin('catalog:write'), config: { streamingResponse: true } },
     async (request, reply) => {
       const { entity } = request.params;
       if (!FILENAME_RE.test(entity)) {

@@ -25,7 +25,7 @@ export async function registerSeoRoutes(
   // SalesChannelResolverMiddleware via header / query / host map / system
   // default). Each channel has its own cache row; if the resolver did not
   // attach a channel (e.g. middleware bypass in tests), we serve nothing.
-  app.get('/api/v1/catalog/sitemap.xml', async (request, reply) => {
+  app.get('/api/v1/catalog/sitemap.xml', { config: { streamingResponse: true } }, async (request, reply) => {
     const channel = request.salesChannel;
     if (!channel) {
       reply
@@ -110,7 +110,7 @@ export async function registerSeoRoutes(
     Querystring: { download?: string };
   }>(
     '/api/v1/admin/seo/sitemap/:channelCode/xml',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: requireAdmin('catalog:write'), config: { streamingResponse: true } },
     async (request, reply) => {
       const { channelCode } = request.params;
       const { payload } = await sitemap.getOrGenerateForChannel(channelCode);
