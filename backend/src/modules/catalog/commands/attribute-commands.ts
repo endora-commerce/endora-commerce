@@ -612,14 +612,38 @@ export function deleteAttributeOptionCommand(
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute option ${optionId} not found.`);
       }
       // Catalog's authoritative in-use check (the CF probe is defense-in-depth
-      // for flat shapes — research §R9).
+      // for flat shapes — research §R9). Shape-aware: a language-scoped
+      // attribute stores `{ "<key>": { "<lang>": value } }` (value is a scalar
+      // for single-select styles or an array for multiselect), which the flat
+      // `->>key = value` probe would miss — so every stored shape is checked:
+      //   object → any language slot equals the value / contains it in-array;
+      //   array  → flat multiselect containment;
+      //   else   → flat scalar equality.
       const refs = (await em
         .getConnection()
         .execute<Array<{ count: string }>>(
-          attr.valueType === 'multiselect'
-            ? `select count(*)::text as count from products where attribute_values->? \\? ?`
-            : `select count(*)::text as count from products where attribute_values->>? = ?`,
-          [attr.key, existing.value],
+          `select count(*)::text as count
+             from products p
+            where case jsonb_typeof(p.attribute_values -> ?)
+                    when 'object' then exists (
+                      select 1
+                        from jsonb_each(p.attribute_values -> ?) kv
+                       where (jsonb_typeof(kv.value) = 'array' and kv.value \\? ?)
+                          or kv.value #>> '{}' = ?
+                    )
+                    when 'array' then (p.attribute_values -> ?) \\? ?
+                    else p.attribute_values ->> ? = ?
+                  end`,
+          [
+            attr.key,
+            attr.key,
+            existing.value,
+            existing.value,
+            attr.key,
+            existing.value,
+            attr.key,
+            existing.value,
+          ],
         )) as Array<{ count: string }>;
       const productCount = Number(refs[0]?.count ?? '0');
       if (productCount > 0) {

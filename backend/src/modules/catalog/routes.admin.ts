@@ -1022,13 +1022,10 @@ export async function registerCatalogAdminRoutes(
       },
       async (request, reply) => {
         const body = createAttributeSetRequestSchema.parse(request.body);
+        // Feature 054/061 — audited co-transactionally inside the service's
+        // `attribute_set.create` Command (no hand audit here, Principle XIII).
         const detail = await attrSetService.createSet(body);
         reply.status(201);
-        await auditEmit(request, {
-          action: 'attribute_set.create',
-          objectType: 'attribute_set',
-          objectId: detail.id,
-        });
         return { data: detail };
       },
     );
@@ -1041,12 +1038,8 @@ export async function registerCatalogAdminRoutes(
       },
       async (request) => {
         const body = updateAttributeSetRequestSchema.parse(request.body);
+        // Audited co-transactionally via the `attribute_set.update` Command.
         const set = await attrSetService.updateSet(request.params.id, body);
-        await auditEmit(request, {
-          action: 'attribute_set.update',
-          objectType: 'attribute_set',
-          objectId: request.params.id,
-        });
         return { data: set };
       },
     );
@@ -1055,12 +1048,8 @@ export async function registerCatalogAdminRoutes(
       '/api/v1/admin/catalog/attribute-sets/:id',
       { preHandler: requireAdmin('catalog:write') },
       async (request, reply) => {
+        // Audited co-transactionally via the `attribute_set.delete` Command.
         await attrSetService.deleteSet(request.params.id);
-        await auditEmit(request, {
-          action: 'attribute_set.delete',
-          objectType: 'attribute_set',
-          objectId: request.params.id,
-        });
         return reply.status(204).send();
       },
     );
@@ -1073,12 +1062,9 @@ export async function registerCatalogAdminRoutes(
       },
       async (request) => {
         const body = assignAttributesRequestSchema.parse(request.body);
+        // Audited co-transactionally via the `attribute_set.assign_attributes`
+        // Command (feature 061 — the bridge write and audit share one tx).
         const detail = await attrSetService.assignAttributes(request.params.id, body);
-        await auditEmit(request, {
-          action: 'attribute_set.assign_attributes',
-          objectType: 'attribute_set',
-          objectId: request.params.id,
-        });
         return { data: detail };
       },
     );
@@ -1087,15 +1073,12 @@ export async function registerCatalogAdminRoutes(
       '/api/v1/admin/catalog/attribute-sets/:id/attributes/:attributeId',
       { preHandler: requireAdmin('catalog:write') },
       async (request, reply) => {
+        // Audited co-transactionally via the `attribute_set.unassign_attribute`
+        // Command (no-op deletes stay 204 and are not double-audited).
         await attrSetService.unassignAttribute(
           request.params.id,
           request.params.attributeId,
         );
-        await auditEmit(request, {
-          action: 'attribute_set.unassign_attribute',
-          objectType: 'attribute_set',
-          objectId: request.params.id,
-        });
         return reply.status(204).send();
       },
     );

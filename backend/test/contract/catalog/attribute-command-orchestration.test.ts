@@ -268,4 +268,203 @@ describe('attribute command orchestration (feature 061, T017)', () => {
     const keys = (cf.json() as { data: Array<{ key: string }> }).data.map((d) => d.key);
     expect(keys).not.toContain('orch_material');
   });
+
+  // -------------------------------------------------------------------------
+  // T026 (feature 061, US1) — delete/option-removal refusals against LIVE
+  // product values, including the language-scoped nested shapes
+  // `{ "<key>": { "en": "x", "pl": "y" } }` that defeat the generic flat
+  // `->>key = value` probe (research §R9 — catalog's own checks stay
+  // authoritative).
+  // -------------------------------------------------------------------------
+  describe('in-use refusals against live product values (T026)', () => {
+    let defaultSetId: string;
+    let langSelect: { id: string; options: Array<{ id: string; value: string }> };
+    let langMulti: { id: string; options: Array<{ id: string; value: string }> };
+    let flatSelect: { id: string; options: Array<{ id: string; value: string }> };
+
+    async function createAttribute(payload: Record<string, unknown>): Promise<{
+      id: string;
+      options: Array<{ id: string; value: string }>;
+    }> {
+      const res = await h.app.inject({
+        method: 'POST',
+        url: '/api/v1/admin/catalog/attributes',
+        payload,
+        cookies: adminCookie,
+      });
+      expect(res.statusCode).toBe(201);
+      const id = (res.json() as { data: { id: string } }).data.id;
+      const opts = await h.app.inject({
+        method: 'GET',
+        url: `/api/v1/admin/catalog/attributes/${id}/options`,
+        cookies: adminCookie,
+      });
+      expect(opts.statusCode).toBe(200);
+      return {
+        id,
+        options: (opts.json() as { data: { items: Array<{ id: string; value: string }> } }).data
+          .items,
+      };
+    }
+
+    function optionId(
+      attr: { options: Array<{ id: string; value: string }> },
+      value: string,
+    ): string {
+      const opt = attr.options.find((o) => o.value === value);
+      expect(opt).toBeDefined();
+      return opt!.id;
+    }
+
+    async function deleteOption(attrId: string, optId: string): Promise<number> {
+      const res = await h.app.inject({
+        method: 'DELETE',
+        url: `/api/v1/admin/catalog/attributes/${attrId}/options/${optId}`,
+        cookies: adminCookie,
+      });
+      return res.statusCode;
+    }
+
+    it('fixture: language-scoped + flat attributes on the Default set with live product values', async () => {
+      const sets = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/admin/catalog/attribute-sets',
+        cookies: adminCookie,
+      });
+      const defaultSet = (sets.json() as { data: Array<{ id: string; code: string }> }).data.find(
+        (s) => s.code === 'default',
+      );
+      expect(defaultSet).toBeDefined();
+      defaultSetId = defaultSet!.id;
+
+      const base = {
+        isSearchable: false,
+        isFilterable: false,
+        isVariantAxis: false,
+      };
+      langSelect = await createAttribute({
+        ...base,
+        key: 'orch_lang_material',
+        label: { 'en-US': 'Material (lang)' },
+        labelDefault: 'Material (lang)',
+        type: 'select',
+        languageScoped: true,
+        options: [
+          { value: 'steel', labelDefault: 'Steel' },
+          { value: 'stal', labelDefault: 'Stal' },
+          { value: 'brass', labelDefault: 'Brass' },
+        ],
+      });
+      langMulti = await createAttribute({
+        ...base,
+        key: 'orch_lang_tags',
+        label: { 'en-US': 'Tags (lang)' },
+        labelDefault: 'Tags (lang)',
+        type: 'multiselect',
+        languageScoped: true,
+        enumValues: ['fast', 'eco', 'quiet'],
+      });
+      flatSelect = await createAttribute({
+        ...base,
+        key: 'orch_flat_color',
+        label: { 'en-US': 'Color (flat)' },
+        labelDefault: 'Color (flat)',
+        type: 'select',
+        options: [
+          { value: 'red', labelDefault: 'Red' },
+          { value: 'blue', labelDefault: 'Blue' },
+        ],
+      });
+
+      const assign = await h.app.inject({
+        method: 'POST',
+        url: `/api/v1/admin/catalog/attribute-sets/${defaultSetId}/attributes`,
+        payload: {
+          assignments: [
+            { attributeId: langSelect.id },
+            { attributeId: langMulti.id },
+            { attributeId: flatSelect.id },
+          ],
+        },
+        cookies: adminCookie,
+      });
+      expect(assign.statusCode).toBe(200);
+
+      const product = await h.app.inject({
+        method: 'POST',
+        url: '/api/v1/admin/catalog/products',
+        payload: {
+          sku: 'ORCH-IN-USE-001',
+          type: 'simple',
+          name: { 'en-US': 'In-use probe product' },
+          description: { 'en-US': 'desc' },
+          categoryIds: [],
+          visibility: 'public',
+          attributeSetId: defaultSetId,
+          attributeValues: {
+            // Language-scoped nested shapes (research §R9).
+            orch_lang_material: { en: 'steel', pl: 'stal' },
+            orch_lang_tags: { en: ['fast'], pl: ['eco'] },
+            // Flat legacy shape.
+            orch_flat_color: 'red',
+          },
+        },
+        cookies: adminCookie,
+      });
+      expect(product.statusCode).toBe(201);
+    });
+
+    it('option delete is refused for a value carried inside a language-scoped nested shape', async () => {
+      // Non-default-language value ('pl') — invisible to the flat ->>key probe.
+      expect(await deleteOption(langSelect.id, optionId(langSelect, 'stal'))).toBe(409);
+      // Default-language value.
+      expect(await deleteOption(langSelect.id, optionId(langSelect, 'steel'))).toBe(409);
+      // An option no product carries still deletes fine.
+      expect(await deleteOption(langSelect.id, optionId(langSelect, 'brass'))).toBe(204);
+    });
+
+    it('option delete is refused for a value inside a language-scoped multiselect array', async () => {
+      expect(await deleteOption(langMulti.id, optionId(langMulti, 'eco'))).toBe(409);
+      expect(await deleteOption(langMulti.id, optionId(langMulti, 'fast'))).toBe(409);
+      expect(await deleteOption(langMulti.id, optionId(langMulti, 'quiet'))).toBe(204);
+    });
+
+    it('option delete is refused for a flat in-use value (legacy shape still authoritative)', async () => {
+      expect(await deleteOption(flatSelect.id, optionId(flatSelect, 'red'))).toBe(409);
+      expect(await deleteOption(flatSelect.id, optionId(flatSelect, 'blue'))).toBe(204);
+    });
+
+    it('attribute delete is refused while set-assigned, then while product values exist (incl. nested)', async () => {
+      // Set membership blocks first (RESTRICT semantics).
+      const whileAssigned = await h.app.inject({
+        method: 'DELETE',
+        url: `/api/v1/admin/catalog/attributes/${langSelect.id}`,
+        cookies: adminCookie,
+      });
+      expect(whileAssigned.statusCode).toBe(409);
+
+      // Unassign — the language-scoped nested product value alone must still refuse.
+      const unassign = await h.app.inject({
+        method: 'DELETE',
+        url: `/api/v1/admin/catalog/attribute-sets/${defaultSetId}/attributes/${langSelect.id}`,
+        cookies: adminCookie,
+      });
+      expect(unassign.statusCode).toBe(204);
+      const withValues = await h.app.inject({
+        method: 'DELETE',
+        url: `/api/v1/admin/catalog/attributes/${langSelect.id}`,
+        cookies: adminCookie,
+      });
+      expect(withValues.statusCode).toBe(409);
+
+      // No orphaning: the definition is still on the generic surface.
+      const cf = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/admin/custom-fields/definitions?entityType=product',
+        cookies: adminCookie,
+      });
+      const keys = (cf.json() as { data: Array<{ key: string }> }).data.map((d) => d.key);
+      expect(keys).toContain('orch_lang_material');
+    });
+  });
 });

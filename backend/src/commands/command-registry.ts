@@ -47,6 +47,16 @@ export const COMMAND_REGISTRY = {
   'attribute_set.create': { reversible: false, description: 'Create an attribute set' },
   'attribute_set.update': { reversible: false, description: 'Update an attribute set' },
   'attribute_set.delete': { reversible: false, description: 'Delete an attribute set' },
+  // Feature 061 — set membership writes join the Command Bus (the bridge is
+  // definition-keyed; the API keeps speaking attribute/extension ids).
+  'attribute_set.assign_attributes': {
+    reversible: false,
+    description: 'Assign attributes to an attribute set',
+  },
+  'attribute_set.unassign_attribute': {
+    reversible: false,
+    description: 'Unassign an attribute from an attribute set',
+  },
   'product.overrides_apply': { reversible: false, description: 'Apply product value overrides' },
   'packaging_unit.create': { reversible: false, description: 'Create a packaging unit' },
   'packaging_unit.update': { reversible: false, description: 'Update a packaging unit' },

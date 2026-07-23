@@ -335,8 +335,8 @@ export class AttributeSetService {
     id: string,
     input: AssignAttributesRequest,
   ): Promise<AttributeSetDetailDto> {
-    const em = this.emFactory();
-    const set = await em.findOne(AttributeSet, { id });
+    const readEm = this.emFactory();
+    const set = await readEm.findOne(AttributeSet, { id });
     if (!set) {
       throw new HttpError(
         404,
@@ -359,36 +359,53 @@ export class AttributeSetService {
       );
     }
 
-    // Default position when omitted: append at the end of the current
-    // assignments. We compute the next-position once per call rather
-    // than per-assignment to avoid a roundtrip per row.
-    const conn = em.getConnection();
-    const rows = (await conn.execute(
-      `select coalesce(max(position), -1) + 1 as next_position
-       from attribute_set_attributes where attribute_set_id = ?`,
-      [id],
-    )) as Array<{ next_position: number }>;
-    let runningTail = rows[0]?.next_position ?? 0;
-    const resolved = input.assignments.map((a) => {
-      const definitionId = viewById.get(a.attributeId)!.customFieldDefinitionId;
-      if (a.position === undefined) {
-        const pos = runningTail;
-        runningTail += 1;
-        return { definitionId, position: pos };
-      }
-      return { definitionId, position: a.position };
+    // The bridge write + its audit are co-transactional (Command Bus,
+    // Principle XIII — replaces the hand audit the route used to emit).
+    await this.#audited('attribute_set.assign_attributes', id, async (em) => {
+      // Default position when omitted: append at the end of the current
+      // assignments. We compute the next-position once per call rather
+      // than per-assignment to avoid a roundtrip per row.
+      const conn = em.getConnection();
+      const rows = (await conn.execute(
+        `select coalesce(max(position), -1) + 1 as next_position
+         from attribute_set_attributes where attribute_set_id = ?`,
+        [id],
+        'all',
+        em.getTransactionContext(),
+      )) as Array<{ next_position: number }>;
+      let runningTail = rows[0]?.next_position ?? 0;
+      const resolved = input.assignments.map((a) => {
+        const definitionId = viewById.get(a.attributeId)!.customFieldDefinitionId;
+        if (a.position === undefined) {
+          const pos = runningTail;
+          runningTail += 1;
+          return { attributeId: a.attributeId, definitionId, position: pos };
+        }
+        return { attributeId: a.attributeId, definitionId, position: a.position };
+      });
+
+      await this.#insertAssignments(em, id, resolved);
+      return {
+        result: undefined,
+        before: null,
+        after: {
+          assignments: resolved.map((r) => ({
+            attributeId: r.attributeId,
+            position: r.position,
+          })),
+        },
+      };
     });
 
-    await this.#insertAssignments(em, id, resolved);
-
+    const em = this.emFactory();
     const attrs = await this.#listAssignedAttributes(em, id);
     const counts = await this.#computeCounts(em, id);
     return this.#toDetailDto(set, attrs, counts);
   }
 
   async unassignAttribute(id: string, attributeId: string): Promise<void> {
-    const em = this.emFactory();
-    const set = await em.findOne(AttributeSet, { id });
+    const readEm = this.emFactory();
+    const set = await readEm.findOne(AttributeSet, { id });
     if (!set) {
       throw new HttpError(
         404,
@@ -396,18 +413,28 @@ export class AttributeSetService {
         `Attribute Set ${id} not found.`,
       );
     }
-    const conn = em.getConnection();
     // DELETE is idempotent — a missing assignment (or an unknown attribute id)
     // is a no-op (matches the "DELETE returns 204 even if it wasn't there"
     // REST convention). The URL carries the attribute (extension) id; the
     // bridge row is keyed by definition id (feature 061).
     const view = await this.#requireAttributeRead().getByIdOrKey(attributeId);
     if (!view) return;
-    await conn.execute(
-      `delete from attribute_set_attributes
-       where attribute_set_id = ? and custom_field_definition_id = ?`,
-      [id, view.customFieldDefinitionId],
-    );
+    // The bridge delete + its audit are co-transactional (Command Bus,
+    // Principle XIII — replaces the hand audit the route used to emit).
+    await this.#audited('attribute_set.unassign_attribute', id, async (em) => {
+      await em.getConnection().execute(
+        `delete from attribute_set_attributes
+         where attribute_set_id = ? and custom_field_definition_id = ?`,
+        [id, view.customFieldDefinitionId],
+        'run',
+        em.getTransactionContext(),
+      );
+      return {
+        result: undefined,
+        before: { attributeId: view.id, key: view.key },
+        after: null,
+      };
+    });
   }
 
   // -- INTERNAL HELPERS ------------------------------------------------------
@@ -473,10 +500,14 @@ export class AttributeSetService {
     const conn = em.getConnection();
     const values = assignments.map(() => '(?, ?, ?)').join(', ');
     const params = assignments.flatMap((a) => [setId, a.definitionId, a.position]);
+    // Joins the caller's transaction when run inside a Command (undefined
+    // context = plain pool execution, e.g. the post-commit createSet path).
     await conn.execute(
       `insert into attribute_set_attributes (attribute_set_id, custom_field_definition_id, position) values ${values}
        on conflict (attribute_set_id, custom_field_definition_id) do update set position = excluded.position`,
       params,
+      'run',
+      em.getTransactionContext(),
     );
   }
 
