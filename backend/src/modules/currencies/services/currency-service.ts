@@ -52,7 +52,9 @@ export class CurrencyService {
 
   async listActive(): Promise<Currency[]> {
     const em = this.emFactory();
-    return em.find(Currency, { isActive: true }, { orderBy: { sortOrder: 'asc' } });
+    // `code` tiebreak keeps the order deterministic when several currencies
+    // share a sortOrder (e.g. the seed default 0) — matches list() above.
+    return em.find(Currency, { isActive: true }, { orderBy: { sortOrder: 'asc', code: 'asc' } });
   }
 
   async getDefault(): Promise<Currency | null> {
