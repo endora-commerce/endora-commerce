@@ -167,6 +167,35 @@ describe('Custom Fields — host-managed entity types [contract]', () => {
     expectHostManaged(del);
   });
 
+  it('GET entity-types lists every supported host with managedBy metadata (feature 061 T037)', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/custom-fields/entity-types',
+      ...ADMIN,
+    });
+    expect(res.statusCode).toBe(200);
+    const rows = res.json().data as Array<{
+      entityType: string;
+      labelKey: string;
+      managedBy?: { moduleId: string; labelKey: string; route: string };
+    }>;
+    const byType = new Map(rows.map((r) => [r.entityType, r]));
+    // Every registry host is listed.
+    for (const et of ['category', 'order', 'organization', 'customer', 'quote_request', 'product']) {
+      expect(byType.has(et)).toBe(true);
+    }
+    // The product host carries the managedBy marker pointing at catalog attributes.
+    const product = byType.get('product');
+    expect(product?.labelKey).toBe('customFields.entity.product');
+    expect(product?.managedBy).toEqual({
+      moduleId: 'catalog',
+      labelKey: 'customFields.managedBy.catalogAttributes',
+      route: '/catalog/attributes',
+    });
+    // Non-managed hosts carry no marker.
+    expect(byType.get('organization')?.managedBy).toBeUndefined();
+  });
+
   it('non-managed hosts keep full CRUD (unaffected)', async () => {
     const create = await h.app.inject({
       method: 'POST',

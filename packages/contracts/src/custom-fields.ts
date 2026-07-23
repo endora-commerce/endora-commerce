@@ -83,6 +83,26 @@ export const updateCustomFieldDefinitionSchema = createCustomFieldDefinitionSche
   .omit({ entityType: true, key: true });
 export type UpdateCustomFieldDefinitionRequest = z.infer<typeof updateCustomFieldDefinitionSchema>;
 
+/**
+ * One supported host entity type as served by the admin entity-types listing
+ * (feature 061 T037). `managedBy` is present only for host-managed types
+ * (e.g. `product` → catalog attributes): the generic admin UI renders those
+ * read-only and links to `managedBy.route`. Label fields are i18n keys
+ * resolved against the `custom_fields` module bundle.
+ */
+export const customFieldEntityTypeInfoSchema = z.object({
+  entityType: supportedEntityTypeSchema,
+  labelKey: z.string(),
+  managedBy: z
+    .object({
+      moduleId: z.string(),
+      labelKey: z.string(),
+      route: z.string(),
+    })
+    .optional(),
+});
+export type CustomFieldEntityTypeInfo = z.infer<typeof customFieldEntityTypeInfoSchema>;
+
 /** A validated value bag keyed by definition `key`. Values are typed by their definition's `valueType`. */
 export const customFieldValuesSchema = z.record(z.string(), z.unknown());
 export type CustomFieldValues = z.infer<typeof customFieldValuesSchema>;

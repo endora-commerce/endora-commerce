@@ -5,6 +5,8 @@ import {
   customFieldOptionSchema,
   supportedEntityTypeSchema,
   updateCustomFieldDefinitionSchema,
+  type CustomFieldEntityTypeInfo,
+  type SupportedEntityType,
 } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
@@ -13,7 +15,11 @@ import {
   CustomFieldDefinitionError,
   type CustomFieldDefinitionService,
 } from './services/custom-field-definition.service.js';
-import { isSupportedEntityType, SUPPORTED_ENTITIES } from './services/custom-field-registry.js';
+import {
+  isSupportedEntityType,
+  SUPPORTED_ENTITIES,
+  type SupportedEntityMeta,
+} from './services/custom-field-registry.js';
 
 export interface CustomFieldsAdminDeps {
   definitionService: CustomFieldDefinitionService;
@@ -96,6 +102,32 @@ export async function registerCustomFieldsAdminRoutes(
     const def = await definitionService.getById(id);
     if (def) assertNotHostManaged(def.definition.entityType);
   }
+
+  // Feature 061 T037 — supported entity types + host-managed metadata, so the
+  // generic admin UI can render managed types read-only with a link to the
+  // owning module's surface (no hard-coded entity list in the frontend).
+  app.get(
+    '/api/v1/admin/custom-fields/entity-types',
+    { preHandler: requireAdmin('custom_fields:read') },
+    async () => {
+      const data: CustomFieldEntityTypeInfo[] = (
+        Object.entries(SUPPORTED_ENTITIES) as Array<[SupportedEntityType, SupportedEntityMeta]>
+      ).map(([entityType, meta]) => ({
+        entityType,
+        labelKey: meta.labelKey,
+        ...(meta.managedBy
+          ? {
+              managedBy: {
+                moduleId: meta.managedBy.moduleId,
+                labelKey: meta.managedBy.labelKey,
+                route: meta.managedBy.route,
+              },
+            }
+          : {}),
+      }));
+      return { data };
+    },
+  );
 
   app.get<{ Querystring: { entityType?: string } }>(
     '/api/v1/admin/custom-fields/definitions',

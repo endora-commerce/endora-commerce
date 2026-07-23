@@ -171,4 +171,80 @@ describe('Attribute searchable flip → search_reindex bulk operation', () => {
     expect(after?.status).toBe('failed');
     expect(after?.error).toMatch(/not configured/i);
   });
+
+  // Feature 061 — the indexer's option-label aggregation is sourced from
+  // `custom_field_options` (through CatalogAttributeReadService.optionLabelIndex),
+  // replacing the former raw `attribute_options` SQL (research §R10).
+  describe('option-label aggregation source (feature 061)', () => {
+    const key = 'reindex_opt_source';
+
+    it('an option created via the catalog API lands in custom_field_options and feeds optionLabelIndex', async () => {
+      const res = await h.app.inject({
+        method: 'POST',
+        url: '/api/v1/admin/catalog/attributes',
+        payload: {
+          key,
+          label: { 'en-US': 'Option Source' },
+          labelDefault: 'Option Source',
+          valueType: 'enum',
+          isSearchable: true,
+          isFilterable: false,
+          isVariantAxis: false,
+          options: [
+            { value: 'ruby', labelDefault: 'Ruby', label: { 'pl-PL': 'Rubin' }, isDefault: true },
+          ],
+        },
+        cookies: adminCookie,
+      });
+      expect(res.statusCode).toBe(201);
+
+      // DB probe: the option row lives on the product-host custom-field definition.
+      const rows = await h
+        .em()
+        .getConnection()
+        .execute<
+          { value: string; label_default: string; label: Record<string, string> }[]
+        >(
+          `select o.value, o.label_default, o.label
+             from custom_field_options o
+             join custom_field_definitions d on d.id = o.definition_id
+            where d.entity_type = 'product' and d.key = ?`,
+          [key],
+        );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.value).toBe('ruby');
+      expect(rows[0]?.label_default).toBe('Ruby');
+
+      // The indexer's label source resolves the same row through the read service.
+      const index = await h.catalogAttributeRead.optionLabelIndex();
+      expect(index.get(key)?.get('ruby')).toEqual({
+        label: { 'pl-PL': 'Rubin' },
+        labelDefault: 'Ruby',
+      });
+    });
+
+    it('optionLabelIndex is fresh after an option-label update (settings refresh source)', async () => {
+      const list = await h.app.inject({
+        method: 'GET',
+        url: `/api/v1/admin/catalog/attributes/${key}/options`,
+        cookies: adminCookie,
+      });
+      expect(list.statusCode).toBe(200);
+      const option = (list.json() as {
+        data: { items: Array<{ id: string; value: string }> };
+      }).data.items.find((o) => o.value === 'ruby');
+      expect(option).toBeDefined();
+
+      const patch = await h.app.inject({
+        method: 'PATCH',
+        url: `/api/v1/admin/catalog/attributes/${key}/options/${option!.id}`,
+        payload: { labelDefault: 'Ruby Red' },
+        cookies: adminCookie,
+      });
+      expect(patch.statusCode).toBe(200);
+
+      const index = await h.catalogAttributeRead.optionLabelIndex();
+      expect(index.get(key)?.get('ruby')?.labelDefault).toBe('Ruby Red');
+    });
+  });
 });
