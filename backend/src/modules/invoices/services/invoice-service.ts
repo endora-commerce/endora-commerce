@@ -224,6 +224,9 @@ export class InvoiceService {
         'The invoice already carries a different KSeF number — KSeF identity is immutable.',
       );
     }
+    // command-coverage-ignore: idempotent stamp of the already-audited KSeF
+    // identity onto the invoice — the outcome is audited by the KSeF submission
+    // flow (`ksef.submission.accepted`); this is the sole-writer projection of it.
     inv.ksefReferenceNumber = assignment.ksefReferenceNumber;
     inv.ksefProcessedAt = assignment.ksefProcessedAt;
     await em.persistAndFlush(inv);
