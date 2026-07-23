@@ -41,16 +41,22 @@ function stripVolatile(value: unknown): unknown {
 
 async function sample(configure?: Parameters<typeof setupBackendServer>[0]) {
   const h = await setupBackendServer(configure ?? {});
+  const baselineEnabled = registryCache.enabledIds();
   if (configure?.configureInterceptors) {
-    registryCache.__setEnabledForTesting([...registryCache.enabledIds(), 'interceptor_fixture']);
+    registryCache.__setEnabledForTesting([...baselineEnabled, 'interceptor_fixture']);
   }
-  const results = [];
-  for (const req of SAMPLED) {
-    const res = await h.app.inject(req);
-    results.push({ statusCode: res.statusCode, body: stripVolatile(res.json()) });
+  try {
+    const results = [];
+    for (const req of SAMPLED) {
+      const res = await h.app.inject(req);
+      results.push({ statusCode: res.statusCode, body: stripVolatile(res.json()) });
+    }
+    return results;
+  } finally {
+    // Restore the global enabled-set so no fixture id leaks into the next suite.
+    registryCache.__setEnabledForTesting(baselineEnabled);
+    await teardownBackendServer(h);
   }
-  await teardownBackendServer(h);
-  return results;
 }
 
 describe('untargeted endpoints are untouched (feature 060 / US1, SC-002)', () => {

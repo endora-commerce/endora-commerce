@@ -17,6 +17,7 @@ const TARGET = 'GET /api/v1/admin/dictionary/countries';
 
 describe('GET /api/v1/admin/api-interceptors (feature 060 / US3)', () => {
   let h: BackendServerHandle;
+  let baselineEnabled: string[] = [];
 
   beforeAll(async () => {
     h = await setupBackendServer({
@@ -39,10 +40,12 @@ describe('GET /api/v1/admin/api-interceptors (feature 060 / US3)', () => {
         });
       },
     });
-    registryCache.__setEnabledForTesting([...registryCache.enabledIds(), FIXTURE_MODULE]);
+    baselineEnabled = registryCache.enabledIds();
+    registryCache.__setEnabledForTesting([...baselineEnabled, FIXTURE_MODULE]);
   });
 
   afterAll(async () => {
+    registryCache.__setEnabledForTesting(baselineEnabled);
     await teardownBackendServer(h);
   });
 

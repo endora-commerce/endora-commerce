@@ -26,6 +26,7 @@ const OTHER_ORG_ID = '00000000-0000-4000-8000-0000000000ab';
 
 describe('API interceptor context propagation (feature 060 / US1)', () => {
   let h: BackendServerHandle;
+  let baselineEnabled: string[] = [];
   let capturedCtx: TenantContext | undefined;
   let listsSeenByInterceptor: ShoppingList[] = [];
 
@@ -46,7 +47,8 @@ describe('API interceptor context propagation (feature 060 / US1)', () => {
         });
       },
     });
-    registryCache.__setEnabledForTesting([...registryCache.enabledIds(), FIXTURE_MODULE]);
+    baselineEnabled = registryCache.enabledIds();
+    registryCache.__setEnabledForTesting([...baselineEnabled, FIXTURE_MODULE]);
 
     // Seed one in-scope and one OUT-of-scope shopping list via raw SQL
     // (bypassing the ORM guard on purpose — this is test arrangement).
@@ -68,6 +70,7 @@ describe('API interceptor context propagation (feature 060 / US1)', () => {
   });
 
   afterAll(async () => {
+    registryCache.__setEnabledForTesting(baselineEnabled);
     await teardownBackendServer(h);
   });
 

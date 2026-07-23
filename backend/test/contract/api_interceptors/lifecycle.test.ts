@@ -59,11 +59,16 @@ function fixtures(callOrder: 'a-first' | 'b-first') {
 
 async function bootAndSample(callOrder: 'a-first' | 'b-first'): Promise<string[]> {
   const h = await setupBackendServer({ configureInterceptors: fixtures(callOrder) });
-  registryCache.__setEnabledForTesting([...registryCache.enabledIds(), MODULE_A, MODULE_B]);
-  const res = await h.app.inject({ method: 'GET', url: TARGET.split(' ')[1]!, cookies: adminCookie });
-  const sequence = (res.json() as { sequence?: string[] }).sequence ?? [];
-  await teardownBackendServer(h);
-  return sequence;
+  const baselineEnabled = registryCache.enabledIds();
+  registryCache.__setEnabledForTesting([...baselineEnabled, MODULE_A, MODULE_B]);
+  try {
+    const res = await h.app.inject({ method: 'GET', url: TARGET.split(' ')[1]!, cookies: adminCookie });
+    return (res.json() as { sequence?: string[] }).sequence ?? [];
+  } finally {
+    // Restore the global enabled-set so no fixture id leaks into the next suite.
+    registryCache.__setEnabledForTesting(baselineEnabled);
+    await teardownBackendServer(h);
+  }
 }
 
 describe('API interceptor ordering & lifecycle (feature 060 / US3)', () => {
@@ -76,13 +81,16 @@ describe('API interceptor ordering & lifecycle (feature 060 / US3)', () => {
 
   describe('gating', () => {
     let h: BackendServerHandle;
+    let baselineEnabled: string[] = [];
 
     beforeAll(async () => {
       h = await setupBackendServer({ configureInterceptors: fixtures('a-first') });
-      registryCache.__setEnabledForTesting([...registryCache.enabledIds(), MODULE_A, MODULE_B]);
+      baselineEnabled = registryCache.enabledIds();
+      registryCache.__setEnabledForTesting([...baselineEnabled, MODULE_A, MODULE_B]);
     });
 
     afterAll(async () => {
+      registryCache.__setEnabledForTesting(baselineEnabled);
       await teardownBackendServer(h);
     });
 

@@ -17,6 +17,7 @@ const FIXTURE_MODULE = 'interceptor_fixture';
 
 describe('API interceptor post-phase failure (feature 060 / US2)', () => {
   let h: BackendServerHandle;
+  let baselineEnabled: string[] = [];
   let ran = 0;
 
   beforeAll(async () => {
@@ -34,10 +35,12 @@ describe('API interceptor post-phase failure (feature 060 / US2)', () => {
         });
       },
     });
-    registryCache.__setEnabledForTesting([...registryCache.enabledIds(), FIXTURE_MODULE]);
+    baselineEnabled = registryCache.enabledIds();
+    registryCache.__setEnabledForTesting([...baselineEnabled, FIXTURE_MODULE]);
   });
 
   afterAll(async () => {
+    registryCache.__setEnabledForTesting(baselineEnabled);
     await teardownBackendServer(h);
   });
 

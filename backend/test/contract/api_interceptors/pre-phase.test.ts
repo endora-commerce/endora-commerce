@@ -18,6 +18,7 @@ const adminCookie = { b2b_session: 'stub-admin-session' };
 
 describe('API interceptor pre phase (feature 060 / US1)', () => {
   let h: BackendServerHandle;
+  let baselineEnabled: string[] = [];
   let preRan = 0;
   let bodySeenByInterceptor: unknown;
 
@@ -39,10 +40,12 @@ describe('API interceptor pre phase (feature 060 / US1)', () => {
     });
     // The fixture module id is not a real registered module; enable it in the
     // in-process lifecycle cache so the dispatch gate lets it run.
-    registryCache.__setEnabledForTesting([...registryCache.enabledIds(), FIXTURE_MODULE]);
+    baselineEnabled = registryCache.enabledIds();
+    registryCache.__setEnabledForTesting([...baselineEnabled, FIXTURE_MODULE]);
   });
 
   afterAll(async () => {
+    registryCache.__setEnabledForTesting(baselineEnabled);
     await teardownBackendServer(h);
   });
 
