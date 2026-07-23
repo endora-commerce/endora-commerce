@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useAuth } from '@/lib/auth';
+import { InvoiceKsefPanel } from '@/modules/ksef/components/InvoiceKsefPanel';
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
   pending: 'warning',
@@ -311,18 +312,26 @@ export function InvoiceDetail(): ReactNode {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('invoiceDetail.section.totals')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1 text-sm">
-            <Row label={t('invoiceDetail.totals.net')} value={money(invoice.netTotal)} />
-            <Row label={t('invoiceDetail.totals.tax')} value={money(invoice.taxTotal)} />
-            <Row label={t('invoiceDetail.totals.gross')} value={<strong>{money(invoice.grossTotal)}</strong>} />
-            <Row label={t('invoiceDetail.totals.paid')} value={money(invoice.paidTotal)} />
-            <Row label={t('invoiceDetail.totals.due')} value={money(invoice.amountDue)} />
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('invoiceDetail.section.totals')}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1 text-sm">
+              <Row label={t('invoiceDetail.totals.net')} value={money(invoice.netTotal)} />
+              <Row label={t('invoiceDetail.totals.tax')} value={money(invoice.taxTotal)} />
+              <Row label={t('invoiceDetail.totals.gross')} value={<strong>{money(invoice.grossTotal)}</strong>} />
+              <Row label={t('invoiceDetail.totals.paid')} value={money(invoice.paidTotal)} />
+              <Row label={t('invoiceDetail.totals.due')} value={money(invoice.amountDue)} />
+            </CardContent>
+          </Card>
+          {/* KSeF state rendered next to the payment fields (feature 059 US5). */}
+          <InvoiceKsefPanel
+            invoiceId={invoice.id}
+            kind={invoice.kind}
+            ksefReferenceNumber={invoice.ksefReferenceNumber}
+          />
+        </div>
       </div>
     </>
   );

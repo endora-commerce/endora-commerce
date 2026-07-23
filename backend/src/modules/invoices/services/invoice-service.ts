@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../../../http/error-envelope.js';
 import { ERROR_CODES, type InvoiceDetail, type InvoiceKind, type VatSummaryRow } from '@b2b/contracts';
@@ -31,6 +32,15 @@ export interface InvoiceAuditRecorder {
   }): Promise<unknown>;
 }
 
+/**
+ * Domain-event seam (feature 059, contracts/invoices-integration.md §1).
+ * Emissions are inert without a subscriber — the KSeF module (or any other
+ * consumer) subscribes; removing it changes nothing here.
+ */
+export interface InvoiceDomainEventEmitter {
+  emit(eventName: string, payload: { eventId: string; occurredAt: string } & Record<string, unknown>): void;
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
@@ -45,6 +55,7 @@ export class InvoiceService {
     private readonly numbers: InvoiceNumberGenerator,
     private readonly sellerSettings: SellerSettingsResolver,
     private readonly audit?: InvoiceAuditRecorder,
+    private readonly events?: InvoiceDomainEventEmitter,
   ) {}
 
   /** Issue an invoice/proforma for an order. Idempotent per (order, kind). */
@@ -179,7 +190,46 @@ export class InvoiceService {
         .catch(() => undefined);
     }
 
+    // Feature 059 — domain event for downstream consumers (e.g. KSeF submission).
+    this.events?.emit('invoice.issued.v1', {
+      eventId: randomUUID(),
+      occurredAt: new Date().toISOString(),
+      invoiceId: invoice.id,
+      orderId,
+      kind,
+      salesChannelId: order.salesChannelId ?? null,
+    });
+
     return this.buildDetail(invoice.id);
+  }
+
+  /**
+   * Record the KSeF identity assigned to an invoice (feature 059,
+   * contracts/invoices-integration.md §2). The invoices module is the SOLE
+   * writer of these columns. Idempotent for the same number; a different
+   * non-null number is refused — an accepted KSeF number is immutable.
+   */
+  async recordKsefAssignment(
+    invoiceId: string,
+    assignment: { ksefReferenceNumber: string; ksefProcessedAt: Date },
+  ): Promise<void> {
+    const em = this.emFactory().fork();
+    const inv = await em.findOne(Invoice, { id: invoiceId });
+    if (!inv) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
+    if (inv.ksefReferenceNumber) {
+      if (inv.ksefReferenceNumber === assignment.ksefReferenceNumber) return;
+      throw new HttpError(
+        409,
+        ERROR_CODES.VERSION_CONFLICT,
+        'The invoice already carries a different KSeF number — KSeF identity is immutable.',
+      );
+    }
+    // command-coverage-ignore: idempotent stamp of the already-audited KSeF
+    // identity onto the invoice — the outcome is audited by the KSeF submission
+    // flow (`ksef.submission.accepted`); this is the sole-writer projection of it.
+    inv.ksefReferenceNumber = assignment.ksefReferenceNumber;
+    inv.ksefProcessedAt = assignment.ksefProcessedAt;
+    await em.persistAndFlush(inv);
   }
 
   /** Load an invoice as a render-ready detail (lines + derived VAT summary). */

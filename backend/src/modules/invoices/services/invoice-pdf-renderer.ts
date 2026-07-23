@@ -68,7 +68,23 @@ function builtinLayout(inv: InvoiceDetail, locale: AmountToWordsLocale): Content
  * built-in generic layout (FR-016). Both paths share the same section builders.
  */
 export class InvoicePdfRenderer {
-  render(
+  /**
+   * Feature 059 — optional KSeF-verification resolver, late-bound in
+   * composition when the ksef module is active. Covers every render path
+   * (admin PDF, regenerate, customer download, email attachment) with one
+   * seam; absent ⇒ pre-059 output byte-for-byte.
+   */
+  private ksefVerificationResolver?: (
+    invoiceId: string,
+  ) => Promise<import('../pdf-components/sections.js').KsefVerificationData | null>;
+
+  setKsefVerificationResolver(
+    resolver: (invoiceId: string) => Promise<import('../pdf-components/sections.js').KsefVerificationData | null>,
+  ): void {
+    this.ksefVerificationResolver = resolver;
+  }
+
+  async render(
     invoice: InvoiceDetail,
     locale: AmountToWordsLocale = 'pl',
     templateTree?: unknown,
@@ -78,8 +94,19 @@ export class InvoicePdfRenderer {
       pdfMake.setUrlAccessPolicy(() => false);
       fontsRegistered = true;
     }
-    const fromTemplate = templateTree ? treeToContent(templateTree, invoice, locale) : null;
-    const content = fromTemplate ?? builtinLayout(invoice, locale);
+    let enriched = invoice;
+    if (this.ksefVerificationResolver) {
+      try {
+        const verification = await this.ksefVerificationResolver(invoice.id);
+        if (verification) {
+          enriched = { ...invoice, ksefVerification: verification } as InvoiceDetail;
+        }
+      } catch {
+        // Verification data is an enrichment — rendering never fails on it.
+      }
+    }
+    const fromTemplate = templateTree ? treeToContent(templateTree, enriched, locale) : null;
+    const content = fromTemplate ?? builtinLayout(enriched, locale);
     return pdfMake.createPdf(this.buildDoc(content)).getBuffer();
   }
 

@@ -47,6 +47,8 @@ import {
 } from '../custom_fields/manifest.js';
 // Feature 058 — Credentials (reusable credential configurations).
 import { manifest as credentialsManifest } from '../credentials/manifest.js';
+// Feature 059 — KSeF (Krajowy System e-Faktur invoice integration).
+import { manifest as ksefManifest } from '../ksef/manifest.js';
 // Pass C retrofit — manifest backfills for every remaining legacy module.
 // These predate the lifecycle system; the manifest is the static record
 // required for the module to be considered active. A module on disk that
@@ -166,6 +168,8 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   },
   // Feature 058 — Credentials module.
   { manifest: credentialsManifest, filePath: pathFor('credentials') },
+  // Feature 059 — KSeF module.
+  { manifest: ksefManifest, filePath: pathFor('ksef') },
   // Pass C retrofit — every remaining legacy module gets a manifest so
   // none of them are treated as inactive. Sort: alphabetical by id.
   { manifest: addressesManifest, filePath: pathFor('addresses') },

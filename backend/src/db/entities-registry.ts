@@ -176,6 +176,8 @@ import { ModuleRegistration } from '../modules/_lifecycle/entities/module-regist
 import { TranslationBundle } from '../modules/_i18n/entities/translation-bundle.entity.js';
 import { ModuleAction } from '../modules/admin_actions/entities/module-action.entity.js';
 import { CredentialConfiguration } from '../modules/credentials/entities/credential-configuration.entity.js';
+import { KsefCredential } from '../modules/ksef/entities/ksef-credential.entity.js';
+import { KsefSubmission } from '../modules/ksef/entities/ksef-submission.entity.js';
 
 /**
  * Explicit entity registry consumed by `mikro-orm.config.ts`.
@@ -344,6 +346,9 @@ export const ALL_ENTITIES = [
   SettingValue,
   // credentials (feature 058)
   CredentialConfiguration,
+  // ksef (feature 059)
+  KsefCredential,
+  KsefSubmission,
   // search analytics ingest (feature 006 / US3)
   SearchPhraseRecord,
   // comparisons (feature 007)

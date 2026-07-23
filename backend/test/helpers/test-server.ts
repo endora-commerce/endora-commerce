@@ -125,6 +125,8 @@ import { searchManifest } from '../../src/modules/search/manifest.js';
 import { promptActionsModule, type PromptActionsModuleOptions } from '../../src/modules/prompt_actions/plugin.js';
 import { promptActionsSettingsManifest } from '../../src/modules/prompt_actions/manifest.js';
 import { credentialsModule } from '../../src/modules/credentials/plugin.js';
+import { ksefModule } from '../../src/modules/ksef/plugin.js';
+import type { KsefApiClientPort } from '../../src/modules/ksef/integrations/ksef-client.interface.js';
 import { configurationTypeRegistry } from '../../src/modules/credentials/services/registry-singleton.js';
 import { llmConfigurationType } from '../../src/modules/credentials/types/llm.type.js';
 import { emailAdapterConfigurationType } from '../../src/modules/credentials/types/email-adapter.type.js';
@@ -132,6 +134,7 @@ import { pwaModule } from '../../src/modules/pwa/plugin.js';
 import { pwaSettingsManifest } from '../../src/modules/pwa/manifest.js';
 import { transactionalEmailsSettingsManifest } from '../../src/modules/transactional_emails/manifest.js';
 import { invoicesSettingsManifest } from '../../src/modules/invoices/manifest.js';
+import { ksefSettingsManifest } from '../../src/modules/ksef/manifest.js';
 import { SalesChannel } from '../../src/modules/sales_channels/entities/sales-channel.entity.js';
 import { Order } from '../../src/modules/orders/entities/order.entity.js';
 import {
@@ -190,6 +193,8 @@ export interface BackendServerOptions {
   promptActionsLlmFetch?: PromptActionsModuleOptions['llmFetch'];
   promptActionsNow?: () => Date;
   promptActionsTtlMinutes?: number;
+  /** Feature 059 — stub KSeF API client for submission/credential tests. */
+  ksefClientFactory?: (baseUrl: string) => KsefApiClientPort;
   /**
    * Feature 060 — contribute API interceptor registrations before the server
    * seals the registry on ready. Contract tests use this to register fixture
@@ -216,6 +221,10 @@ export interface BackendServerHandle {
   promptActions: ReturnType<typeof promptActionsModule>['handle'];
   /** Feature 058 — credentials handle (config-type registry + service). */
   credentials: ReturnType<typeof credentialsModule>['handle'];
+  /** Feature 047 — invoices handle (issuance service, PDF renderer, number generator). */
+  invoices: ReturnType<typeof invoicesModule>['handle'];
+  /** Feature 059 — KSeF handle (settings, auth, credentials, submissions). */
+  ksef: ReturnType<typeof ksefModule>['handle'];
   /** Feature 046 — PWA handle (config resolver, push services, delivery queue). */
   pwa: ReturnType<typeof pwaModule>['handle'];
   /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
@@ -331,6 +340,8 @@ const SEEDED_TABLES = [
   'sitemap_cache',
   'seo_meta_overrides',
   'audit_log_entries',
+  'ksef_submissions',
+  'ksef_credentials',
   'invoices',
   'payments',
   'order_items',
@@ -1665,6 +1676,7 @@ export async function setupBackendServer(
         em,
         new InvoiceNumberGenerator(createSettingsPatternResolver(settings.handle.settingsService)),
         auditLogService,
+        eventBus,
       ),
       creditTopup: new CreditTopupProvider(creditLimits.handle.creditLimitService),
       auditLog: auditLogService,
@@ -1681,8 +1693,7 @@ export async function setupBackendServer(
   );
 
   // Feature 047 — Invoices.
-  modules.push(
-    invoicesModule({
+  const invoices = invoicesModule({
       emFactory: em,
       eventBus,
       requireAdmin: requireTestAdmin(permissionService),
@@ -1707,8 +1718,43 @@ export async function setupBackendServer(
         (salesChannelId
           ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
           : null) ?? 'en-US',
-    }).plugin,
-  );
+  });
+  modules.push(invoices.plugin);
+
+  // Feature 059 — KSeF. No redis queue in tests (submissions are processed by
+  // driving `submissions.process(...)` directly); the sweep interval is off.
+  const ksef = ksefModule({
+    emFactory: em,
+    requireAdmin: requireTestAdmin(permissionService),
+    settingsService: settings.handle.settingsService,
+    commandBus,
+    eventBus,
+    invoices: {
+      buildDetail: (invoiceId) => invoices.handle.invoiceService.buildDetail(invoiceId),
+      recordKsefAssignment: (invoiceId, assignment) =>
+        invoices.handle.invoiceService.recordKsefAssignment(invoiceId, assignment),
+    },
+    auditLogService,
+    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
+      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
+      : {}),
+    resolveSellerNip: async () => {
+      try {
+        const { z: zod } = await import('zod');
+        const raw = await settings.handle.settingsService.get('invoices.seller.tax_id', '00000000-0000-0000-0000-000000000000', zod.string());
+        const nip = raw.replace(/^PL/i, '').replace(/[\s-]/g, '');
+        return nip.length > 0 ? nip : null;
+      } catch {
+        return null;
+      }
+    },
+    ...(options.ksefClientFactory ? { clientFactory: options.ksefClientFactory } : {}),
+    sweepIntervalMs: 0,
+    pollAttempts: 3,
+    pollIntervalMs: 5,
+  });
+  modules.push(ksef.plugin);
+  invoices.handle.pdfRenderer.setKsefVerificationResolver(ksef.handle.buildVerification);
 
   // Feature 047 — Transactional Emails.
   emailDefaultsRegistry.register('order_confirmation', {
@@ -1915,6 +1961,7 @@ export async function setupBackendServer(
     newsletterSettingsManifest,
     googleAnalyticsSettingsManifest,
     invoicesSettingsManifest,
+    ksefSettingsManifest,
   ]);
 
   const app = await buildServer({
@@ -1965,6 +2012,8 @@ export async function setupBackendServer(
     auditLogService,
     promptActions: promptActions.handle,
     credentials: credentials.handle,
+    invoices: invoices.handle,
+    ksef: ksef.handle,
     pwa: pwa.handle,
     permissionService,
     permissionCatalogueService,

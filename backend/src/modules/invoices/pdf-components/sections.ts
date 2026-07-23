@@ -154,13 +154,48 @@ export function notesSection(props: { text?: string }, inv: InvoiceDetail): Cont
   return { text: interpolate(raw, inv), margin: [0, 0, 0, 8] };
 }
 
+/**
+ * KSeF verification data supplied by the ksef module (feature 059) through the
+ * renderer's optional resolver — absent when the module is inactive, in which
+ * case this section renders exactly the pre-059 number + date.
+ */
+export interface KsefVerificationData {
+  /** KOD I verification URL rendered as a QR code. */
+  verificationUrl: string;
+  /** Issued during a KSeF outage — offline marking required (FR-017). */
+  offline: boolean;
+}
+
+export type InvoiceDetailWithKsef = InvoiceDetail & { ksefVerification?: KsefVerificationData };
+
 export function ksefSection(inv: InvoiceDetail): Content {
-  if (!inv.ksefReferenceNumber) return { text: '' };
+  const verification = (inv as InvoiceDetailWithKsef).ksefVerification;
+  if (!inv.ksefReferenceNumber) {
+    // Offline marking applies even before the KSeF number is assigned — a
+    // document shared during an outage must say so (FR-017).
+    if (verification?.offline) {
+      return { text: 'Faktura wystawiona w trybie offline — oczekuje na przydzielenie numeru KSeF.', fontSize: 8, margin: [0, 8, 0, 0] };
+    }
+    return { text: '' };
+  }
   return {
     stack: [
       { text: `Numer w KSeF: ${inv.ksefReferenceNumber}`, fontSize: 8 },
       ...(inv.ksefProcessedAt
         ? [{ text: `Data przetworzenia w KSeF: ${inv.ksefProcessedAt.slice(0, 19).replace('T', ' ')}`, fontSize: 8 }]
+        : []),
+      ...(verification?.offline
+        ? [{ text: 'Faktura wystawiona w trybie offline.', fontSize: 8 }]
+        : []),
+      ...(verification && verification.verificationUrl
+        ? [
+            {
+              qr: verification.verificationUrl,
+              fit: 90,
+              margin: [0, 6, 0, 2] as [number, number, number, number],
+            },
+            { text: 'Zweryfikuj fakturę w KSeF', fontSize: 7 },
+          ]
         : []),
     ],
     margin: [0, 8, 0, 0],
