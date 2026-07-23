@@ -1,8 +1,19 @@
 import type {
+  AttributeValueType,
   ComparisonAttributeRow,
   ComparisonRowClass,
 } from '@b2b/contracts';
-import type { ProductAttribute } from '../../catalog/entities/product-attribute.entity.js';
+
+/**
+ * The slice of the catalog's composed `CatalogAttributeView` this projection
+ * needs (feature 061 — comparisons no longer imports catalog entities; the
+ * definitions arrive through the injected `CatalogAttributeReadService`).
+ */
+export interface ComparableAttributeDefinition {
+  key: string;
+  label: Record<string, string>;
+  valueType: AttributeValueType;
+}
 
 /**
  * Pure projection from "products + comparable-attribute definitions" to
@@ -36,7 +47,7 @@ import type { ProductAttribute } from '../../catalog/entities/product-attribute.
 export class ComparableAttributeProjection {
   projectRows(
     products: Array<{ attributeValues: Record<string, unknown> }>,
-    attributeDefinitions: ProductAttribute[],
+    attributeDefinitions: ComparableAttributeDefinition[],
   ): ComparisonAttributeRow[] {
     return attributeDefinitions.map((def) => {
       const rawValues = products.map((p) => p.attributeValues?.[def.key]);
@@ -72,7 +83,7 @@ function isMissing(v: unknown): boolean {
  * the value is missing — the storefront / PDF render `—` for null cells.
  */
 export function formatForDisplay(
-  valueType: ProductAttribute['valueType'],
+  valueType: AttributeValueType,
   v: unknown,
 ): string | null {
   if (isMissing(v)) return null;
@@ -102,7 +113,7 @@ export function formatForDisplay(
  * other case is 'different'.
  */
 export function classifyRow(
-  valueType: ProductAttribute['valueType'],
+  valueType: AttributeValueType,
   rawValues: unknown[],
 ): ComparisonRowClass {
   if (rawValues.length < 2) {
@@ -119,7 +130,7 @@ export function classifyRow(
 }
 
 function equalsForType(
-  valueType: ProductAttribute['valueType'],
+  valueType: AttributeValueType,
   a: unknown,
   b: unknown,
 ): boolean {

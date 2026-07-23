@@ -70,6 +70,7 @@ describe('SearchQueryService — reserved-fallback contract', () => {
     };
     const service = new SearchQueryService(
       () => fakeEm as never,
+      undefined,
       { meilisearchHost: 'http://127.0.0.1:1', meilisearchApiKey: '' },
     );
     await expect(

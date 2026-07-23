@@ -34,7 +34,7 @@ describe('Custom Fields — host-managed entity types [contract]', () => {
     const em = h.em();
     const def = em.create(CustomFieldDefinition, {
       entityType: 'product',
-      key: 'material',
+      key: 'hm_probe_material',
       label: { en: 'Material' },
       labelDefault: 'Material',
       valueType: 'select',
@@ -75,7 +75,7 @@ describe('Custom Fields — host-managed entity types [contract]', () => {
     });
     expect(filtered.statusCode).toBe(200);
     const keys = (filtered.json().data as { key: string }[]).map((d) => d.key);
-    expect(keys).toContain('material');
+    expect(keys).toContain('hm_probe_material');
 
     const all = await h.app.inject({
       method: 'GET',
@@ -86,7 +86,7 @@ describe('Custom Fields — host-managed entity types [contract]', () => {
     const allKeys = (all.json().data as { entityType: string; key: string }[])
       .filter((d) => d.entityType === 'product')
       .map((d) => d.key);
-    expect(allKeys).toContain('material');
+    expect(allKeys).toContain('hm_probe_material');
 
     const byId = await h.app.inject({
       method: 'GET',
@@ -94,7 +94,7 @@ describe('Custom Fields — host-managed entity types [contract]', () => {
       ...ADMIN,
     });
     expect(byId.statusCode).toBe(200);
-    expect((byId.json().data as { key: string }).key).toBe('material');
+    expect((byId.json().data as { key: string }).key).toBe('hm_probe_material');
   });
 
   it('POST a definition for a managedBy host → 409 host_managed', async () => {

@@ -6,10 +6,10 @@ import {
   type ResolverContext,
 } from '@b2b/contracts';
 import { Product } from '../../catalog/entities/product.entity.js';
-import { ProductAttribute } from '../../catalog/entities/product-attribute.entity.js';
 import { ProductValueOverride } from '../../catalog/entities/product-value-override.entity.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import { SYSTEM_ATTRIBUTE_SCOPES } from '../../catalog/services/system-attribute-scopes.js';
+import type { CatalogAttributeReadService } from '../../catalog/services/catalog-attribute-read.service.js';
 
 /**
  * SearchIndexer (T067 — initial offline path).
@@ -34,6 +34,13 @@ export interface SearchIndexerOptions {
   meilisearchApiKey?: string;
   /** Override the indexed locale, defaults to en-US. */
   locale?: string;
+  /**
+   * Feature 061 — the catalog's composed attribute read model (Principle I:
+   * replaces the former direct `ProductAttribute` entity find + raw
+   * `attribute_options` SQL). Required — the searchable/filterable settings
+   * and the option-label aggregation are derived from it.
+   */
+  attributeRead: CatalogAttributeReadService;
 }
 
 export interface IndexedDocument {
@@ -70,8 +77,9 @@ export interface IndexedDocument {
 export class SearchIndexer {
   private readonly client: Meilisearch;
   private readonly locale: string;
+  private readonly attributeRead: CatalogAttributeReadService;
 
-  constructor(options: SearchIndexerOptions = {}) {
+  constructor(options: SearchIndexerOptions) {
     const host =
       options.meilisearchHost ??
       process.env['MEILISEARCH_URL'] ??
@@ -82,6 +90,7 @@ export class SearchIndexer {
       undefined;
     this.client = new Meilisearch(apiKey ? { host, apiKey } : { host });
     this.locale = options.locale ?? FALLBACK_LOCALE;
+    this.attributeRead = options.attributeRead;
   }
 
   /**
@@ -162,18 +171,7 @@ export class SearchIndexer {
       await this.client.tasks.waitForTask(task.taskUid);
     }
 
-    const attributes = await em.find(ProductAttribute, {});
-    // Feature 012 — `searchableOptions` is the rendered per-locale option
-    // label aggregator for every isSearchable select-style attribute. It
-    // joins the customer's mental model ("brass") with the operator's
-    // canonical option value ("brass_001" / "Mosiądz").
-    const searchable = ['name', 'sku', 'description', 'searchableOptions'];
-    const filterable: string[] = ['categoryIds', 'categorySlugs', 'visibility', 'status'];
-    for (const attr of attributes) {
-      const path = `attributes.${attr.key}`;
-      if (attr.isSearchable) searchable.push(path);
-      if (attr.isFilterable) filterable.push(path);
-    }
+    const { searchable, filterable } = await this.attributeSettings();
     await index.updateSearchableAttributes(searchable);
     await index.updateFilterableAttributes(filterable);
 
@@ -276,19 +274,12 @@ export class SearchIndexer {
    */
   async refreshAttributeSettings(em: EntityManager): Promise<string[]> {
     const channels = await em.find(SalesChannel, {});
-    const attributes = await em.find(ProductAttribute, {});
     // Feature 012 — keep `searchableOptions` in the searchable list so
     // toggling isSearchable on a select-style attribute takes effect
     // without a full reindex. The aggregated field stays in the index
     // documents from the previous reindex; settings refresh just opts
     // it back into the search rank.
-    const searchable = ['name', 'sku', 'description', 'searchableOptions'];
-    const filterable: string[] = ['categoryIds', 'categorySlugs', 'visibility', 'status'];
-    for (const attr of attributes) {
-      const path = `attributes.${attr.key}`;
-      if (attr.isSearchable) searchable.push(path);
-      if (attr.isFilterable) filterable.push(path);
-    }
+    const { searchable, filterable } = await this.attributeSettings();
     const touched: string[] = [];
     for (const channel of channels) {
       const indexUid = indexUidFor(channel);
@@ -381,52 +372,56 @@ export class SearchIndexer {
    * set) so the per-product loop stays O(1).
    */
   async loadSearchableOptionLookup(
-    em: EntityManager,
+    _em: EntityManager,
     locale: string,
   ): Promise<Map<string, Map<string, string>>> {
+    // Feature 061 — the option labels come from the composed view (backed by
+    // `custom_field_options`), restricted to isSearchable select-style
+    // attributes; no raw SQL against catalog storage.
     const out = new Map<string, Map<string, string>>();
-    const attrs = await em.find(ProductAttribute, {
-      isSearchable: true,
-      valueType: { $in: ['select', 'enum', 'multiselect'] as ProductAttribute['valueType'][] },
-    });
+    const attrs = (await this.attributeRead.listByFlag('isSearchable')).filter(
+      (a) =>
+        a.valueType === 'select' || a.valueType === 'enum' || a.valueType === 'multiselect',
+    );
     if (attrs.length === 0) return out;
-    const conn = em.getConnection();
-    const placeholders = attrs.map(() => '?').join(', ');
-    const rows = (await conn.execute<
-      Array<{
-        attribute_id: string;
-        value: string;
-        label: Record<string, string>;
-        label_default: string;
-      }>
-    >(
-      `select "attribute_id", "value", "label", "label_default" from "attribute_options" where "attribute_id" in (${placeholders})`,
-      attrs.map((a) => a.id),
-    )) as Array<{
-      attribute_id: string;
-      value: string;
-      label: Record<string, string>;
-      label_default: string;
-    }>;
-    const attrKeyById = new Map(attrs.map((a) => [a.id, a.key]));
-    for (const r of rows) {
-      const key = attrKeyById.get(r.attribute_id);
-      if (!key) continue;
-      let bucket = out.get(key);
+    for (const attr of attrs) {
+      let bucket = out.get(attr.key);
       if (!bucket) {
         bucket = new Map();
-        out.set(key, bucket);
+        out.set(attr.key, bucket);
       }
-      const labelMap = r.label ?? {};
-      const rendered =
-        labelMap[locale] ??
-        labelMap[FALLBACK_LOCALE] ??
-        Object.values(labelMap)[0] ??
-        r.label_default ??
-        r.value;
-      bucket.set(r.value, rendered);
+      for (const o of attr.options) {
+        const labelMap = o.label ?? {};
+        const rendered =
+          labelMap[locale] ??
+          labelMap[FALLBACK_LOCALE] ??
+          Object.values(labelMap)[0] ??
+          o.labelDefault ??
+          o.value;
+        bucket.set(o.value, rendered);
+      }
     }
     return out;
+  }
+
+  /** Feature 061 — derive per-index searchable/filterable settings from the view. */
+  private async attributeSettings(): Promise<{
+    searchable: string[];
+    filterable: string[];
+  }> {
+    const attributes = await this.attributeRead.listAll();
+    // Feature 012 — `searchableOptions` is the rendered per-locale option
+    // label aggregator for every isSearchable select-style attribute. It
+    // joins the customer's mental model ("brass") with the operator's
+    // canonical option value ("brass_001" / "Mosiądz").
+    const searchable = ['name', 'sku', 'description', 'searchableOptions'];
+    const filterable: string[] = ['categoryIds', 'categorySlugs', 'visibility', 'status'];
+    for (const attr of attributes) {
+      const path = `attributes.${attr.key}`;
+      if (attr.isSearchable) searchable.push(path);
+      if (attr.isFilterable) filterable.push(path);
+    }
+    return { searchable, filterable };
   }
 
   private async ensureIndex(uid: string): Promise<Index> {

@@ -21,8 +21,8 @@
 import { initOrm, closeOrm } from '../../../db/index.js';
 import { Product } from '../entities/product.entity.js';
 import { Category } from '../entities/category.entity.js';
-import { ProductAttribute } from '../entities/product-attribute.entity.js';
 import { AttributeSetAttribute } from '../entities/attribute-set-attribute.entity.js';
+import { createAttributeFixture } from './attribute-fixtures.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import { Megamenu } from '../../megamenu/entities/megamenu.entity.js';
 import { MegamenuItem } from '../../megamenu/entities/megamenu-item.entity.js';
@@ -222,6 +222,15 @@ async function main(): Promise<void> {
       payment_methods
     cascade
   `);
+  // Feature 061 — product attributes are backed by product-host custom-field
+  // definitions; clear them so re-seeding never hits the duplicate-key guard.
+  // Other hosts' definitions are left untouched.
+  await conn.execute(
+    `delete from custom_field_options cfo
+      using custom_field_definitions cfd
+      where cfd.id = cfo.definition_id and cfd.entity_type = 'product'`,
+  );
+  await conn.execute(`delete from custom_field_definitions where entity_type = 'product'`);
 
   // --- Sales Channels --------------------------------------------------
   const retail = em.create(SalesChannel, {
@@ -367,109 +376,79 @@ async function main(): Promise<void> {
   await em.flush();
 
   // --- Product attributes ---------------------------------------------
-  const attrColor = em.create(ProductAttribute, {
+  // Feature 061 — a product attribute is a product-host Custom Field
+  // definition + a catalog extension row; the fixture helper creates the pair.
+  const optionsFromValues = (values: readonly string[]) =>
+    values.map((v, i) => ({ value: v, labelDefault: v, sortOrder: i }));
+  const { extension: attrColor } = await createAttributeFixture(em, {
     key: 'color',
     label: { 'en-US': 'Color' },
     labelDefault: 'Color',
     valueType: 'enum',
     isSearchable: true,
     isFilterable: true,
-    isVariantAxis: false,
+    sortOrder: 0,
+    options: optionsFromValues(COLOR_VALUES),
   });
-  const attrMaterial = em.create(ProductAttribute, {
+  const { extension: attrMaterial } = await createAttributeFixture(em, {
     key: 'material',
     label: { 'en-US': 'Material' },
     labelDefault: 'Material',
     valueType: 'enum',
-    isSearchable: false,
     isFilterable: true,
-    isVariantAxis: false,
+    sortOrder: 1,
+    options: optionsFromValues(MATERIAL_VALUES),
   });
-  const attrWeight = em.create(ProductAttribute, {
+  const { extension: attrWeight } = await createAttributeFixture(em, {
     key: 'weight_kg',
     label: { 'en-US': 'Weight (kg)' },
     labelDefault: 'Weight (kg)',
     valueType: 'number',
-    isSearchable: false,
     isFilterable: true,
-    isVariantAxis: false,
+    sortOrder: 2,
   });
-  const attrCertification = em.create(ProductAttribute, {
+  const { extension: attrCertification } = await createAttributeFixture(em, {
     key: 'certification',
     label: { 'en-US': 'Certification' },
     labelDefault: 'Certification',
     valueType: 'string',
     isSearchable: true,
-    isFilterable: false,
-    isVariantAxis: false,
+    sortOrder: 3,
   });
-  const attrInternalNotes = em.create(ProductAttribute, {
+  const { extension: attrInternalNotes } = await createAttributeFixture(em, {
     key: 'internal_sku_notes',
     label: { 'en-US': 'Internal SKU notes' },
     labelDefault: 'Internal SKU notes',
     valueType: 'string',
     isSearchable: true,
-    isFilterable: false,
-    isVariantAxis: false,
+    sortOrder: 4,
   });
   // Feature 002 — sample attributes of the new API-form types so the
   // admin UI editor can demonstrate `multiselect` and `price` paths.
-  const attrCompatibleSystems = em.create(ProductAttribute, {
+  const { extension: attrCompatibleSystems } = await createAttributeFixture(em, {
     key: 'compatible_systems',
     label: { 'en-US': 'Compatible systems' },
     labelDefault: 'Compatible systems',
     valueType: 'multiselect',
     isSearchable: true,
     isFilterable: true,
-    isVariantAxis: false,
+    sortOrder: 5,
+    options: optionsFromValues(['windows', 'macos', 'linux']),
   });
-  const attrManufacturerPrice = em.create(ProductAttribute, {
+  const { extension: attrManufacturerPrice } = await createAttributeFixture(em, {
     key: 'manufacturer_price',
     label: { 'en-US': 'Manufacturer price' },
     labelDefault: 'Manufacturer price',
     valueType: 'price',
-    isSearchable: false,
     isFilterable: true,
-    isVariantAxis: false,
     displayAsSlider: true,
+    sortOrder: 6,
   });
-  await em.persistAndFlush([
-    attrColor,
-    attrMaterial,
-    attrWeight,
-    attrCertification,
-    attrInternalNotes,
-    attrCompatibleSystems,
-    attrManufacturerPrice,
-  ]);
-
-  // Feature 012 — option-list rows for the three select-style attributes
-  // (formerly stored as enum_values: string[] on the parent; the column is
-  // gone). The dev seed populates labelDefault from the value itself.
-  const { AttributeOption } = await import('../entities/attribute-option.entity.js');
-  const optionRows: Array<{ attributeId: string; values: readonly string[] }> = [
-    { attributeId: attrColor.id, values: COLOR_VALUES },
-    { attributeId: attrMaterial.id, values: MATERIAL_VALUES },
-    { attributeId: attrCompatibleSystems.id, values: ['windows', 'macos', 'linux'] },
-  ];
-  for (const row of optionRows) {
-    for (const [i, v] of row.values.entries()) {
-      em.create(AttributeOption, {
-        attributeId: row.attributeId,
-        value: v,
-        label: {},
-        labelDefault: v,
-        isDefault: false,
-        sortOrder: i,
-      });
-    }
-  }
-  await em.flush();
 
   // Feature 002 — assign every seeded attribute to the system Default
   // Attribute Set so the admin Product editor lists them out of the box.
   // The Default set itself is created/preserved by migration 017 with
-  // a deterministic UUID; we never re-create it from this seed.
+  // a deterministic UUID; membership is definition-keyed (feature 061).
   const DEFAULT_ATTRIBUTE_SET_ID = 'defa0017-0000-4000-8000-000000000000';
   const allSeededAttributes = [
     attrColor,
@@ -483,7 +462,7 @@ async function main(): Promise<void> {
   const assignments = allSeededAttributes.map((attr, idx) =>
     em.create(AttributeSetAttribute, {
       attributeSetId: DEFAULT_ATTRIBUTE_SET_ID,
-      productAttributeId: attr.id,
+      customFieldDefinitionId: attr.customFieldDefinitionId,
       position: idx,
     }),
   );

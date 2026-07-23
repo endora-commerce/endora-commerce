@@ -3,12 +3,9 @@ import { randomUUID } from 'crypto';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
   ERROR_CODES,
-  type ApiAttributeType,
-  type AttributeValueType,
   type CreateAttributeRequest,
   type CreateProductRequest,
   type CreateVariantRequest,
-  type NumericKind,
   type UpdateAttributeRequest,
   type UpdateProductRequest,
   type UpdateVariantRequest,
@@ -30,7 +27,6 @@ export interface CatalogEvents extends Record<string, EventBase> {
 export type CatalogEventBus = EventBus<CatalogEvents>;
 import { HttpError } from '../../../http/error-envelope.js';
 import { Product } from '../entities/product.entity.js';
-import { ProductAttribute } from '../entities/product-attribute.entity.js';
 import { ProductVariant } from '../entities/product-variant.entity.js';
 import {
   assertVirtualDownloadFields,
@@ -39,6 +35,37 @@ import {
 import type { AuditLogService } from '../../audit_logs/services/audit-log-service.js';
 import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 import type { Command, CommandBus } from '../../../commands/index.js';
+import type { CustomFieldDefinitionApplyApi } from '../../custom_fields/services/custom-field-definition.service.js';
+import type { CachedDefinition } from '../../custom_fields/services/custom-field-definitions-cache.js';
+import type {
+  CatalogAttributeReadService,
+  CatalogAttributeView,
+} from './catalog-attribute-read.service.js';
+import {
+  createAttributeCommand,
+  createAttributeOptionCommand,
+  deleteAttributeCommand,
+  deleteAttributeOptionCommand,
+  updateAttributeCommand,
+  updateAttributeOptionCommand,
+  type AttributeCommandDeps,
+  type AttributeOptionCommandTarget,
+  type AttributeOptionResult,
+} from '../commands/attribute-commands.js';
+
+// Feature 061 — the API-form mapping helpers moved next to the R7 map; the
+// re-exports keep the long-standing import site (routes, tests) stable.
+export { dbToApiAttributeType, resolveAttributeApiType } from './attribute-type-mapping.js';
+
+/**
+ * The slice of the custom_fields definition service the catalog write path
+ * needs: the transactional apply seam + the committed-state read used for
+ * audit capture and option guards. `CustomFieldDefinitionService` satisfies
+ * this structurally (Principle I — documented exported service surface only).
+ */
+export interface CatalogCustomFieldsPort extends CustomFieldDefinitionApplyApi {
+  getById(id: string): Promise<CachedDefinition | null>;
+}
 
 /** Optional metadata used to attach audit entries to admin mutations. */
 export interface AdminAuditContext {
@@ -86,7 +113,72 @@ export class CatalogAdminService {
      * single-update through the Command Bus (co-transactional audit + event).
      */
     private readonly commandBus?: CommandBus,
+    /**
+     * Feature 061 — composed attribute read model. Required for every
+     * attribute/option method; optional in the signature so legacy product-only
+     * fixtures keep constructing the service without attribute wiring.
+     */
+    private readonly attributeRead?: CatalogAttributeReadService,
+    /**
+     * Feature 061 — custom_fields apply seam + committed-state definition read.
+     * Required for attribute/option mutations.
+     */
+    private readonly customFields?: CatalogCustomFieldsPort,
   ) {}
+
+  #requireAttributeRead(): CatalogAttributeReadService {
+    if (!this.attributeRead) {
+      throw new Error(
+        'CatalogAdminService: CatalogAttributeReadService is not wired — attribute reads are unavailable.',
+      );
+    }
+    return this.attributeRead;
+  }
+
+  #requireCustomFields(): CatalogCustomFieldsPort {
+    if (!this.customFields) {
+      throw new Error(
+        'CatalogAdminService: the custom_fields definition port is not wired — attribute writes are unavailable.',
+      );
+    }
+    return this.customFields;
+  }
+
+  #attributeCommandDeps(): AttributeCommandDeps {
+    const customFields = this.#requireCustomFields();
+    return {
+      apply: customFields,
+      readDefinition: (id) => customFields.getById(id),
+    };
+  }
+
+  /**
+   * Feature 061 — run an attribute/option Command through the bus (audited)
+   * or, in bus-less fixtures, directly on a transactional em (no audit — same
+   * fallback contract as {@link #auditedWrite}). The domain event declared on
+   * the command is emitted either way (on commit only).
+   */
+  async #runAttributeCommand<T>(command: Command<T>): Promise<T> {
+    if (this.commandBus) {
+      return this.commandBus.run(command);
+    }
+    const em = this.emFactory();
+    const result = await em.transactional(async (tem) => {
+      const outcome = await command.run({
+        em: tem,
+        actor: { actorAdminUserId: null, impersonatedCustomerAccountId: null, kind: 'system' },
+      });
+      return outcome.result;
+    });
+    const evt = command.event?.(result);
+    if (evt) {
+      this.events.emit(
+        evt.eventName as keyof CatalogEvents & string,
+        evt.payload as CatalogEvents[keyof CatalogEvents & string],
+      );
+    }
+    return result;
+  }
 
   /**
    * Enqueues a full Meilisearch reindex (a `search_reindex` bulk operation)
@@ -872,118 +964,33 @@ export class CatalogAdminService {
   // Attributes
   // ------------------------------------------------------------------
 
-  async createAttribute(req: CreateAttributeRequest): Promise<ProductAttribute> {
-    const em = this.emFactory();
-    // Feature 002 T013/T021/T022 — resolve API `type` (or legacy
-    // `valueType`) to the persisted `valueType` + `displayAsSlider`.
-    const resolved = resolveAttributeApiType(req);
-    if (
-      resolved.displayAsSlider &&
-      resolved.valueType !== 'number' &&
-      resolved.valueType !== 'price'
-    ) {
-      throw new HttpError(
-        400,
-        ERROR_CODES.VALIDATION_FAILED,
-        `displayAsSlider is only valid for valueType="number" or "price"; got "${resolved.valueType}".`,
-      );
+  async createAttribute(req: CreateAttributeRequest): Promise<CatalogAttributeView> {
+    const read = this.#requireAttributeRead();
+    // Definition sort order: append after the current tail (matches the CF
+    // admin surface's manual ordering semantics).
+    const existing = await read.listAll();
+    const nextSortOrder = existing.length;
+    const extensionId = randomUUID();
+    await this.#runAttributeCommand(
+      createAttributeCommand(this.#attributeCommandDeps(), req, {
+        extensionId,
+        sortOrder: nextSortOrder,
+      }),
+    );
+    await this.#requireCustomFields().publishInvalidate('product');
+    const view = await read.getByIdOrKey(extensionId);
+    if (!view) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute "${req.key}" not found.`);
     }
-    const labelDefault =
-      req.labelDefault ??
-      req.label['en-US'] ??
-      Object.values(req.label)[0] ??
-      req.key;
-    const attrId = randomUUID();
-    const attr = await this.#auditedWrite('attribute.create', 'product_attribute', attrId, async (cem) => {
-      const created = cem.create(ProductAttribute, {
-        id: attrId,
-        key: req.key,
-        label: req.label,
-        labelDefault,
-        valueType: resolved.valueType,
-        isSearchable: req.isSearchable,
-        isFilterable: req.isFilterable,
-        isVariantAxis: req.isVariantAxis,
-        displayAsSlider: resolved.displayAsSlider,
-        isComparable: req.isComparable ?? false,
-        isRequired: req.isRequired ?? false,
-        isPromoRule: req.isPromoRule ?? false,
-        filterPosition: req.filterPosition ?? 0,
-        isVisibleOnProductPage: req.isVisibleOnProductPage ?? false,
-        massEditable: req.massEditable ?? false,
-        quickSearchable: req.quickSearchable ?? false,
-      });
-      try {
-        await cem.flush();
-      } catch (err) {
-        if (err instanceof UniqueConstraintViolationException) {
-          throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, `Attribute key "${req.key}" already exists.`);
-        }
-        throw err;
-      }
-      return { result: created, before: null, after: { key: req.key, valueType: resolved.valueType } };
-    });
-    // Feature 012 — when the operator supplies legacy `enumValues` OR the
-    // new rich `options` array, materialise them as `attribute_options`
-    // rows on the new table. The rich form wins when both are present.
-    const inlineOptions = req.options;
-    const legacyValues = req.enumValues;
-    if (inlineOptions && inlineOptions.length > 0) {
-      const { AttributeOption } = await import('../entities/attribute-option.entity.js');
-      for (const [i, o] of inlineOptions.entries()) {
-        em.create(AttributeOption, {
-          attributeId: attr.id,
-          value: o.value,
-          label: o.label ?? {},
-          labelDefault: o.labelDefault,
-          isDefault: o.isDefault ?? false,
-          sortOrder: o.sortOrder ?? i,
-        });
-      }
-      await em.flush();
-    } else if (legacyValues && legacyValues.length > 0) {
-      const { AttributeOption } = await import('../entities/attribute-option.entity.js');
-      for (const [i, v] of legacyValues.entries()) {
-        em.create(AttributeOption, {
-          attributeId: attr.id,
-          value: v,
-          label: {},
-          labelDefault: v,
-          isDefault: false,
-          sortOrder: i,
-        });
-      }
-      await em.flush();
-    }
-    this.events.emit('attribute.updated.v1', {
-      eventId: randomUUID(),
-      occurredAt: new Date().toISOString(),
-      attributeKey: attr.key,
-      isSearchable: attr.isSearchable,
-      isFilterable: attr.isFilterable,
-    });
-    return attr;
+    return view;
   }
 
   async updateAttributeByIdOrKey(
     idOrKey: string,
     req: UpdateAttributeRequest,
     auditCtx?: AdminAuditContext,
-  ): Promise<ProductAttribute> {
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrKey);
-    const em = this.emFactory();
-    const attr = await em.findOne(
-      ProductAttribute,
-      isUuid ? { id: idOrKey } : { key: idOrKey },
-    );
-    if (!attr) {
-      throw new HttpError(
-        404,
-        ERROR_CODES.NOT_FOUND,
-        `Attribute "${idOrKey}" not found.`,
-      );
-    }
+  ): Promise<CatalogAttributeView> {
+    const attr = await this.getAttributeByIdOrKey(idOrKey);
     return this.applyAttributeUpdate(attr, req, auditCtx);
   }
 
@@ -991,109 +998,50 @@ export class CatalogAdminService {
     key: string,
     req: UpdateAttributeRequest,
     auditCtx?: AdminAuditContext,
-  ): Promise<ProductAttribute> {
-    const em = this.emFactory();
-    const attr = await em.findOne(ProductAttribute, { key });
-    if (!attr) {
-      throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute "${key}" not found.`);
-    }
+  ): Promise<CatalogAttributeView> {
+    const attr = await this.getAttributeByIdOrKey(key);
     return this.applyAttributeUpdate(attr, req, auditCtx);
   }
 
   private async applyAttributeUpdate(
-    attr: ProductAttribute,
+    attr: CatalogAttributeView,
     req: UpdateAttributeRequest,
     auditCtx?: AdminAuditContext,
-  ): Promise<ProductAttribute> {
+  ): Promise<CatalogAttributeView> {
     // Capture the searchable flag before applying so we can tell a real
     // flip apart from a save that left it untouched (only a real change
     // warrants a full reindex).
     const previousIsSearchable = attr.isSearchable;
-    const attrId = attr.id;
-    const updated = await this.#auditedWrite('attribute.update', 'product_attribute', attrId, async (em) => {
-      const a = await em.findOne(ProductAttribute, { id: attrId });
-      if (!a) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute "${attrId}" not found.`);
-      const before = {
-        label: a.label,
-        labelDefault: a.labelDefault,
-        isSearchable: a.isSearchable,
-        isFilterable: a.isFilterable,
-        valueType: a.valueType,
-      };
-      if (req.label !== undefined) a.label = req.label;
-      if (req.labelDefault !== undefined) a.labelDefault = req.labelDefault;
-      if (req.isSearchable !== undefined) a.isSearchable = req.isSearchable;
-      if (req.isFilterable !== undefined) a.isFilterable = req.isFilterable;
-      if (req.isVariantAxis !== undefined) a.isVariantAxis = req.isVariantAxis;
-      if (req.isComparable !== undefined) a.isComparable = req.isComparable;
-      if (req.isRequired !== undefined) a.isRequired = req.isRequired;
-      if (req.isPromoRule !== undefined) a.isPromoRule = req.isPromoRule;
-      if (req.filterPosition !== undefined) a.filterPosition = req.filterPosition;
-      if (req.isVisibleOnProductPage !== undefined) {
-        a.isVisibleOnProductPage = req.isVisibleOnProductPage;
-      }
-      if (req.massEditable !== undefined) {
-        a.massEditable = req.massEditable;
-      }
-      if (req.quickSearchable !== undefined) {
-        a.quickSearchable = req.quickSearchable;
-      }
-      if (req.type !== undefined) {
-        // Feature 002 — patching `type` re-derives valueType + displayAsSlider.
-        const resolved = resolveAttributeApiType({
-          type: req.type,
-          ...(req.numericKind !== undefined ? { numericKind: req.numericKind } : {}),
-          ...(req.displayAsSlider !== undefined ? { displayAsSlider: req.displayAsSlider } : {}),
-        });
-        a.valueType = resolved.valueType;
-        a.displayAsSlider = resolved.displayAsSlider;
-      } else if (req.displayAsSlider !== undefined) {
-        // Same valueType-vs-displayAsSlider rule as createAttribute.
-        if (req.displayAsSlider && a.valueType !== 'number' && a.valueType !== 'price') {
-          throw new HttpError(
-            400,
-            ERROR_CODES.VALIDATION_FAILED,
-            `displayAsSlider is only valid for valueType="number" or "price"; got "${a.valueType}".`,
-          );
-        }
-        a.displayAsSlider = req.displayAsSlider;
-      }
-      return {
-        result: a,
-        before,
-        after: { isSearchable: a.isSearchable, isFilterable: a.isFilterable, valueType: a.valueType },
-      };
-    });
-    const attr2 = updated;
-    this.events.emit('attribute.updated.v1', {
-      eventId: randomUUID(),
-      occurredAt: new Date().toISOString(),
-      attributeKey: attr2.key,
-      isSearchable: attr2.isSearchable,
-      isFilterable: attr2.isFilterable,
-    });
+    await this.#runAttributeCommand(
+      updateAttributeCommand(this.#attributeCommandDeps(), attr.id, req),
+    );
+    await this.#requireCustomFields().publishInvalidate('product');
+    const updated = await this.#requireAttributeRead().getByIdOrKey(attr.id);
+    if (!updated) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute "${attr.id}" not found.`);
+    }
 
     // Feature: when the `searchable` flag actually flips, queue a full
     // Meilisearch reindex as a bulk operation (the `search:reindex` CLI
-    // equivalent). The event above only refreshes Meili's searchable-field
+    // equivalent). The command's event only refreshes Meili's searchable-field
     // settings; a flag flip needs the documents re-pushed so the field
     // starts/stops contributing to matches. Best-effort — a failure to
     // enqueue must not fail the attribute save.
     if (
       req.isSearchable !== undefined &&
-      attr2.isSearchable !== previousIsSearchable &&
+      updated.isSearchable !== previousIsSearchable &&
       this.enqueueSearchReindex
     ) {
       try {
         await this.enqueueSearchReindex({
           actorAdminUserId: auditCtx?.actorAdminUserId ?? null,
-          attributeKey: attr2.key,
+          attributeKey: updated.key,
         });
       } catch {
         /* enqueue is best-effort — the save already succeeded */
       }
     }
-    return attr2;
+    return updated;
   }
 
   // --- Read methods (admin lists / detail) --------------------------------
@@ -1318,9 +1266,10 @@ export class CatalogAdminService {
     return { items, page, pageSize, total };
   }
 
-  async listAttributes(): Promise<ProductAttribute[]> {
-    const em = this.emFactory();
-    return em.find(ProductAttribute, {}, { orderBy: { key: 'asc' } });
+  async listAttributes(): Promise<CatalogAttributeView[]> {
+    // Legacy list ordering was `key ASC`; preserved for the admin surface.
+    const views = await this.#requireAttributeRead().listAll();
+    return [...views].sort((a, b) => a.key.localeCompare(b.key));
   }
 
   /**
@@ -1339,32 +1288,62 @@ export class CatalogAdminService {
       | 'isVisibleOnProductPage'
       | 'isRequired'
       | 'isMassEditable',
-  ): Promise<ProductAttribute[]> {
-    const em = this.emFactory();
-    // `isMassEditable` is exposed as a separate API flag name; the backing
-    // entity field is `massEditable` (no `is` prefix). Map here.
-    const entityFlag = flag === 'isMassEditable' ? 'massEditable' : flag;
-    return em.find(
-      ProductAttribute,
-      { [entityFlag]: true } as Partial<ProductAttribute>,
-      { orderBy: { key: 'asc' } },
-    );
+  ): Promise<CatalogAttributeView[]> {
+    const read = this.#requireAttributeRead();
+    // `isRequired` lives on the definition (not an extension column) — filter
+    // the composed views. `isMassEditable` is exposed as a separate API flag
+    // name; the backing extension field is `massEditable` (no `is` prefix).
+    if (flag === 'isRequired') {
+      const all = await read.listAll();
+      return all
+        .filter((v) => v.isRequired)
+        .sort((a, b) => a.key.localeCompare(b.key));
+    }
+    return read.listByFlag(flag === 'isMassEditable' ? 'massEditable' : flag);
   }
 
   /**
    * Feature 012 / US4 — list every option for one attribute, ordered
-   * by sortOrder ASC then value ASC.
+   * by sortOrder ASC then value ASC. Backed by `custom_field_options`
+   * through the composed view (feature 061); `attributeId` on the result
+   * is the attribute (extension) id the admin API has always exposed.
    */
-  async listAttributeOptions(
-    attributeId: string,
-  ): Promise<import('../entities/attribute-option.entity.js').AttributeOption[]> {
-    const { AttributeOption } = await import('../entities/attribute-option.entity.js');
-    const em = this.emFactory();
-    return em.find(
-      AttributeOption,
-      { attributeId },
-      { orderBy: { sortOrder: 'asc', value: 'asc' } },
-    );
+  async listAttributeOptions(attributeId: string): Promise<AttributeOptionResult[]> {
+    const attr = await this.getAttributeByIdOrKey(attributeId);
+    return [...attr.options]
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.value.localeCompare(b.value))
+      .map((o) => ({
+        id: o.id,
+        attributeId: attr.id,
+        value: o.value,
+        label: o.label,
+        labelDefault: o.labelDefault,
+        isDefault: o.isDefault,
+        sortOrder: o.sortOrder,
+        createdAt: o.createdAt,
+        updatedAt: o.updatedAt,
+      }));
+  }
+
+  /** Feature 061 — the option-command target slice of a composed view. */
+  #optionCommandTarget(attr: CatalogAttributeView): AttributeOptionCommandTarget {
+    return {
+      extensionId: attr.id,
+      definitionId: attr.customFieldDefinitionId,
+      key: attr.key,
+      valueType: attr.valueType,
+      options: attr.options,
+    };
+  }
+
+  /** Feature 061 — resolve the attribute whose option list contains `optionId`. */
+  async #attributeByOptionId(optionId: string): Promise<CatalogAttributeView> {
+    const all = await this.#requireAttributeRead().listAll();
+    const attr = all.find((v) => v.options.some((o) => o.id === optionId));
+    if (!attr) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute option ${optionId} not found.`);
+    }
+    return attr;
   }
 
   /** Feature 012 / US4 — append an option (validated cross-list). */
@@ -1377,57 +1356,17 @@ export class CatalogAdminService {
       isDefault?: boolean;
       sortOrder?: number;
     },
-  ): Promise<import('../entities/attribute-option.entity.js').AttributeOption> {
-    const { AttributeOption } = await import('../entities/attribute-option.entity.js');
-    const { validateOptionList, isValidOptionValue } = await import(
-      './attribute-option-validator.js'
-    );
+  ): Promise<AttributeOptionResult> {
     const attr = await this.getAttributeByIdOrKey(attributeIdOrKey);
-    if (!isValidOptionValue(input.value)) {
-      throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, `invalid_option_value: ${input.value}`);
-    }
-    const existing = await this.listAttributeOptions(attr.id);
-    const candidate = {
-      value: input.value,
-      labelDefault: input.labelDefault,
-      isDefault: input.isDefault ?? false,
-    };
-    const result = validateOptionList(
-      [
-        ...existing.map((o) => ({
-          value: o.value,
-          labelDefault: o.labelDefault,
-          isDefault: o.isDefault,
-        })),
-        candidate,
-      ],
-      attr.valueType,
+    const result = await this.#runAttributeCommand(
+      createAttributeOptionCommand(
+        this.#attributeCommandDeps(),
+        this.#optionCommandTarget(attr),
+        input,
+      ),
     );
-    if (!result.ok) {
-      const first = result.errors[0]!;
-      throw new HttpError(
-        first.code === 'attribute_type_unsupported' ? 400 : 409,
-        ERROR_CODES.VALIDATION_FAILED,
-        first.message,
-      );
-    }
-    const sortOrder =
-      input.sortOrder ??
-      (existing.length > 0 ? Math.max(...existing.map((o) => o.sortOrder)) + 1 : 0);
-    const optId = randomUUID();
-    return this.#auditedWrite('attribute_option.add', 'attribute_option', optId, async (em) => {
-      const row = em.create(AttributeOption, {
-        id: optId,
-        attributeId: attr.id,
-        value: input.value,
-        label: input.label ?? {},
-        labelDefault: input.labelDefault,
-        isDefault: input.isDefault ?? false,
-        sortOrder,
-      });
-      await em.flush();
-      return { result: row, before: null, after: { attributeId: attr.id, value: input.value } };
-    });
+    await this.#requireCustomFields().publishInvalidate('product');
+    return result;
   }
 
   /** Feature 012 / US4 — patch one option (value is immutable per FR-026). */
@@ -1439,93 +1378,44 @@ export class CatalogAdminService {
       isDefault?: boolean;
       sortOrder?: number;
     },
-  ): Promise<import('../entities/attribute-option.entity.js').AttributeOption> {
-    const { AttributeOption } = await import('../entities/attribute-option.entity.js');
-    return this.#auditedWrite('attribute_option.update', 'attribute_option', optionId, async (em) => {
-      const row = await em.findOne(AttributeOption, { id: optionId });
-      if (!row) {
-        throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute option ${optionId} not found.`);
-      }
-      const before = {
-        label: row.label,
-        labelDefault: row.labelDefault,
-        sortOrder: row.sortOrder,
-        isDefault: row.isDefault,
-      };
-      if (input.label !== undefined) row.label = input.label;
-      if (input.labelDefault !== undefined) row.labelDefault = input.labelDefault;
-      if (input.sortOrder !== undefined) row.sortOrder = input.sortOrder;
-      if (input.isDefault !== undefined) {
-        row.isDefault = input.isDefault;
-        if (input.isDefault) {
-          const { validateOptionList } = await import('./attribute-option-validator.js');
-          const attr = await this.getAttributeByIdOrKey(row.attributeId);
-          const all = await this.listAttributeOptions(row.attributeId);
-          const reslist = all.map((o) => ({
-            value: o.value,
-            labelDefault: o.labelDefault,
-            isDefault: o.id === row.id ? true : o.isDefault,
-          }));
-          const result = validateOptionList(reslist, attr.valueType);
-          if (!result.ok) {
-            throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, result.errors[0]!.message);
-          }
-        }
-      }
-      return {
-        result: row,
-        before,
-        after: { labelDefault: row.labelDefault, sortOrder: row.sortOrder, isDefault: row.isDefault },
-      };
-    });
+  ): Promise<AttributeOptionResult> {
+    const attr = await this.#attributeByOptionId(optionId);
+    const result = await this.#runAttributeCommand(
+      updateAttributeOptionCommand(
+        this.#attributeCommandDeps(),
+        this.#optionCommandTarget(attr),
+        optionId,
+        input,
+      ),
+    );
+    await this.#requireCustomFields().publishInvalidate('product');
+    return result;
   }
 
   /** Feature 012 / US4 — remove one option. Refused while products carry it (FR-025). */
   async removeAttributeOption(optionId: string): Promise<void> {
-    const { AttributeOption } = await import('../entities/attribute-option.entity.js');
-    await this.#auditedWrite('attribute_option.remove', 'attribute_option', optionId, async (em) => {
-      const row = await em.findOne(AttributeOption, { id: optionId });
-      if (!row) {
-        throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute option ${optionId} not found.`);
-      }
-      const attr = await this.getAttributeByIdOrKey(row.attributeId);
-      const refs = (await em
-        .getConnection()
-        .execute<Array<{ count: string }>>(
-          attr.valueType === 'multiselect'
-            ? `select count(*)::text as count from products where attribute_values->? \\? ?`
-            : `select count(*)::text as count from products where attribute_values->>? = ?`,
-          [attr.key, row.value],
-        )) as Array<{ count: string }>;
-      const productCount = Number(refs[0]?.count ?? '0');
-      if (productCount > 0) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.VALIDATION_FAILED,
-          `option_in_use: ${productCount} product(s) still carry value '${row.value}'.`,
-        );
-      }
-      const before = { attributeId: row.attributeId, value: row.value };
-      em.remove(row);
-      return { result: undefined, before, after: null };
-    });
+    const attr = await this.#attributeByOptionId(optionId);
+    await this.#runAttributeCommand(
+      deleteAttributeOptionCommand(
+        this.#attributeCommandDeps(),
+        this.#optionCommandTarget(attr),
+        optionId,
+      ),
+    );
+    await this.#requireCustomFields().publishInvalidate('product');
   }
 
   /**
    * Feature 012 — projection of the legacy `enumValues: string[]` shape
-   * from the new `attribute_options` rows for one attribute. Returns
-   * `null` when the attribute is non-select-style or has no options.
+   * from the option rows for one attribute. Returns `null` when the
+   * attribute has no options.
    */
   async getAttributeOptionValues(attributeId: string): Promise<string[] | null> {
-    const em = this.emFactory();
-    const rows = (await em
-      .getConnection()
-      .execute<Array<{ value: string }>>(
-        `select "value" from "attribute_options" where "attribute_id" = ? order by "sort_order" asc, "value" asc`,
-        [attributeId],
-      )) as Array<{ value: string }>;
-    if (rows.length === 0) return null;
-    return rows.map((r) => r.value);
+    const view = await this.#requireAttributeRead().getByIdOrKey(attributeId);
+    if (!view || view.options.length === 0) return null;
+    return [...view.options]
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.value.localeCompare(b.value))
+      .map((o) => o.value);
   }
 
   /** Feature 012 — bulk variant of getAttributeOptionValues for the list endpoint. */
@@ -1534,80 +1424,48 @@ export class CatalogAdminService {
   ): Promise<Map<string, string[]>> {
     const out = new Map<string, string[]>();
     if (attributeIds.length === 0) return out;
-    const em = this.emFactory();
-    // Use individual `?` placeholders so MikroORM binds each id as a
-    // separate parameter (its array binder doesn't work with ANY()).
-    const placeholders = attributeIds.map(() => '?').join(', ');
-    const rows = (await em
-      .getConnection()
-      .execute<Array<{ attribute_id: string; value: string }>>(
-        `select "attribute_id", "value" from "attribute_options" where "attribute_id" in (${placeholders}) order by "sort_order" asc, "value" asc`,
-        attributeIds as unknown as string[],
-      )) as Array<{ attribute_id: string; value: string }>;
-    for (const r of rows) {
-      const list = out.get(r.attribute_id) ?? [];
-      list.push(r.value);
-      out.set(r.attribute_id, list);
+    const wanted = new Set(attributeIds);
+    const all = await this.#requireAttributeRead().listAll();
+    for (const view of all) {
+      if (!wanted.has(view.id) || view.options.length === 0) continue;
+      out.set(
+        view.id,
+        [...view.options]
+          .sort((a, b) => a.sortOrder - b.sortOrder || a.value.localeCompare(b.value))
+          .map((o) => o.value),
+      );
     }
     return out;
   }
 
   /** Feature 012 — read a single attribute by UUID or snake_case key. */
-  async getAttributeByIdOrKey(idOrKey: string): Promise<ProductAttribute> {
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrKey);
-    const em = this.emFactory();
-    const attr = await em.findOne(
-      ProductAttribute,
-      isUuid ? { id: idOrKey } : { key: idOrKey },
-    );
-    if (!attr) {
+  async getAttributeByIdOrKey(idOrKey: string): Promise<CatalogAttributeView> {
+    const view = await this.#requireAttributeRead().getByIdOrKey(idOrKey);
+    if (!view) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Attribute "${idOrKey}" not found.`);
     }
-    return attr;
+    return view;
   }
 
   /**
    * Feature 012 — delete an attribute. Refused while any Attribute Set or
    * product still references it (FR-006). The structured error names the
-   * dependent rows so the admin UI can guide the operator.
+   * dependent rows so the admin UI can guide the operator. Deletes the
+   * extension AND the backing definition (+ options cascade) in one
+   * transaction (feature 061).
    */
   async deleteAttribute(idOrKey: string): Promise<void> {
-    await this.#auditedWrite('attribute.delete', 'product_attribute', idOrKey, async (em) => {
-      const attr = await this.getAttributeByIdOrKey(idOrKey);
-      const setRefs = (await em
-        .getConnection()
-        .execute<Array<{ attribute_set_id: string }>>(
-          `select attribute_set_id from attribute_set_attributes where product_attribute_id = ?`,
-          [attr.id],
-        )) as Array<{ attribute_set_id: string }>;
-      if (setRefs.length > 0) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.VALIDATION_FAILED,
-          `Attribute is still referenced by ${setRefs.length} attribute set(s); remove from sets first.`,
-        );
-      }
-      const productRefs = (await em
-        .getConnection()
-        .execute<Array<{ count: string }>>(
-          `select count(*)::text as count from products where attribute_values \\? ?`,
-          [attr.key],
-        )) as Array<{ count: string }>;
-      const productCount = Number(productRefs[0]?.count ?? '0');
-      if (productCount > 0) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.VALIDATION_FAILED,
-          `Attribute is still referenced by ${productCount} product(s); clear values first.`,
-        );
-      }
-      const before = { key: attr.key, valueType: attr.valueType };
-      // `attr` came from a separate read fork — re-fetch on the command em to remove it.
-      const managed = await em.findOne(ProductAttribute, { id: attr.id });
-      if (managed) em.remove(managed);
-      return { result: undefined, before, after: null };
-    });
+    const attr = await this.getAttributeByIdOrKey(idOrKey);
+    await this.#runAttributeCommand(
+      deleteAttributeCommand(this.#attributeCommandDeps(), {
+        idOrKey,
+        extensionId: attr.id,
+        definitionId: attr.customFieldDefinitionId,
+        key: attr.key,
+        legacyValueType: attr.valueType,
+      }),
+    );
+    await this.#requireCustomFields().publishInvalidate('product');
   }
 
   // ------------------------------------------------------------------
@@ -1771,14 +1629,21 @@ export class CatalogAdminService {
     if (keys.length === 0) return;
 
     const conn = em.getConnection();
+    // Feature 061 — set membership is keyed by definition id; the key lives on
+    // the definition, resolved through the composed view (Principle I).
     const rows = (await conn.execute(
-      `select pa.key
-       from attribute_set_attributes asa
-       join product_attributes pa on pa.id = asa.product_attribute_id
-       where asa.attribute_set_id = ?`,
+      `select custom_field_definition_id
+       from attribute_set_attributes
+       where attribute_set_id = ?`,
       [attributeSetId],
-    )) as Array<{ key: string }>;
-    const allowed = new Set(rows.map((r) => r.key));
+    )) as Array<{ custom_field_definition_id: string }>;
+    const views = await this.#requireAttributeRead().listAll();
+    const keyByDefinitionId = new Map(views.map((v) => [v.customFieldDefinitionId, v.key]));
+    const allowed = new Set(
+      rows
+        .map((r) => keyByDefinitionId.get(r.custom_field_definition_id))
+        .filter((k): k is string => k !== undefined),
+    );
 
     const rejected = keys.filter(
       (k) =>
@@ -1812,16 +1677,19 @@ export class CatalogAdminService {
     mergedAttributeValues: Record<string, unknown>,
   ): Promise<void> {
     const conn = em.getConnection();
+    // Feature 061 — the required flag lives on the definition (composed view).
     const rows = (await conn.execute(
-      `select pa.key
-       from attribute_set_attributes asa
-       join product_attributes pa on pa.id = asa.product_attribute_id
-       where asa.attribute_set_id = ?
-         and pa.is_required = true`,
+      `select custom_field_definition_id
+       from attribute_set_attributes
+       where attribute_set_id = ?`,
       [attributeSetId],
-    )) as Array<{ key: string }>;
+    )) as Array<{ custom_field_definition_id: string }>;
+    const views = await this.#requireAttributeRead().listAll();
+    const viewByDefinitionId = new Map(views.map((v) => [v.customFieldDefinitionId, v]));
     const missing = rows
-      .map((r) => r.key)
+      .map((r) => viewByDefinitionId.get(r.custom_field_definition_id))
+      .filter((v): v is CatalogAttributeView => v !== undefined && v.isRequired)
+      .map((v) => v.key)
       .filter((k) => {
         const v = mergedAttributeValues[k];
         return v === undefined || v === null || v === '';
@@ -1856,20 +1724,25 @@ export class CatalogAdminService {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
     const conn = em.getConnection();
+    // Feature 061 — membership is definition-keyed; identity fields come from
+    // the composed view.
+    const views = await this.#requireAttributeRead().listAll();
+    const viewByDefinitionId = new Map(views.map((v) => [v.customFieldDefinitionId, v]));
     const fetchKeys = async (
       setId: string | null,
     ): Promise<Map<string, { labelDefault: string; isRequired: boolean }>> => {
       const out = new Map<string, { labelDefault: string; isRequired: boolean }>();
       if (!setId) return out;
       const rows = (await conn.execute(
-        `select pa.key, pa.label_default as label_default, pa.is_required as is_required
-         from attribute_set_attributes asa
-         join product_attributes pa on pa.id = asa.product_attribute_id
-         where asa.attribute_set_id = ?`,
+        `select custom_field_definition_id
+         from attribute_set_attributes
+         where attribute_set_id = ?`,
         [setId],
-      )) as Array<{ key: string; label_default: string; is_required: boolean }>;
+      )) as Array<{ custom_field_definition_id: string }>;
       for (const r of rows) {
-        out.set(r.key, { labelDefault: r.label_default, isRequired: r.is_required });
+        const view = viewByDefinitionId.get(r.custom_field_definition_id);
+        if (!view) continue;
+        out.set(view.key, { labelDefault: view.labelDefault, isRequired: view.isRequired });
       }
       return out;
     };
@@ -1918,94 +1791,5 @@ export class CatalogAdminService {
   private anyValue(blob: Record<string, string>): string {
     const key = Object.keys(blob)[0];
     return key ? (blob[key] ?? '') : '';
-  }
-}
-
-/**
- * Maps an API-form attribute request onto the persisted `valueType` +
- * `displayAsSlider` pair (research R-7). Either `type` (preferred) or
- * `valueType` (legacy) MUST be set — Zod refines guarantee it for create;
- * update callers pass `type` explicitly so it's always present here.
- */
-export function resolveAttributeApiType(req: {
-  type?: ApiAttributeType | undefined;
-  valueType?: AttributeValueType | undefined;
-  numericKind?: NumericKind | undefined;
-  displayAsSlider?: boolean | undefined;
-}): { valueType: AttributeValueType; displayAsSlider: boolean } {
-  if (req.type === undefined) {
-    if (req.valueType === undefined) {
-      throw new HttpError(
-        400,
-        ERROR_CODES.VALIDATION_FAILED,
-        'either type or valueType is required',
-      );
-    }
-    return {
-      valueType: req.valueType,
-      displayAsSlider: req.displayAsSlider ?? false,
-    };
-  }
-  switch (req.type) {
-    case 'input':
-      return { valueType: 'string', displayAsSlider: false };
-    case 'number':
-      return { valueType: 'number', displayAsSlider: req.displayAsSlider ?? false };
-    case 'select':
-      return { valueType: 'enum', displayAsSlider: false };
-    case 'multiselect':
-      return { valueType: 'multiselect', displayAsSlider: false };
-    case 'price':
-      return { valueType: 'price', displayAsSlider: req.displayAsSlider ?? false };
-    case 'slider': {
-      // Zod refine catches the missing-numericKind path; this is a
-      // belt-and-braces guard for direct service callers (seeders, etc).
-      if (req.numericKind === undefined) {
-        throw new HttpError(
-          400,
-          ERROR_CODES.VALIDATION_FAILED,
-          'numericKind is required when type=slider',
-        );
-      }
-      return {
-        valueType: req.numericKind === 'price' ? 'price' : 'number',
-        displayAsSlider: true,
-      };
-    }
-  }
-}
-
-/**
- * Inverse of `resolveAttributeApiType` — derives the API-form `type` +
- * `numericKind` from the persisted (`valueType`, `displayAsSlider`) pair
- * so list/detail responses surface the form admins authored against.
- */
-export function dbToApiAttributeType(
-  valueType: AttributeValueType,
-  displayAsSlider: boolean,
-): { type: ApiAttributeType; numericKind: NumericKind | null } {
-  if (displayAsSlider && (valueType === 'number' || valueType === 'price')) {
-    return { type: 'slider', numericKind: valueType };
-  }
-  switch (valueType) {
-    case 'string':
-      return { type: 'input', numericKind: null };
-    case 'number':
-      return { type: 'number', numericKind: null };
-    case 'enum':
-      return { type: 'select', numericKind: null };
-    case 'select':
-      // Feature 012 — `'select'` shares storage with `'enum'`; differs only in
-      // rendering intent (compact pill vs full dropdown). Maps to the same
-      // API affordance for now.
-      return { type: 'select', numericKind: null };
-    case 'multiselect':
-      return { type: 'multiselect', numericKind: null };
-    case 'price':
-      return { type: 'price', numericKind: null };
-    case 'boolean':
-    case 'date':
-      // These DB-only types have no API alias; surface the legacy form.
-      return { type: 'input', numericKind: null };
   }
 }

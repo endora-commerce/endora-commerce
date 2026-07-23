@@ -56,7 +56,8 @@ import { productValueOverridesPatchRequestSchema } from '@b2b/contracts';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { ProductVariant } from './entities/product-variant.entity.js';
 import type { Product } from './entities/product.entity.js';
-import type { ProductAttribute } from './entities/product-attribute.entity.js';
+import type { CatalogAttributeView } from './services/catalog-attribute-read.service.js';
+import type { AttributeOptionResult } from './commands/attribute-commands.js';
 import type { Category } from './entities/category.entity.js';
 
 /**
@@ -847,9 +848,9 @@ export async function registerCatalogAdminRoutes(
   );
 
   // Feature 012 / US4 — option-list CRUD per contracts/attribute-options.contract.md.
-  function serializeOption(
-    o: import('./entities/attribute-option.entity.js').AttributeOption,
-  ): Record<string, unknown> {
+  // Backed by `custom_field_options` since feature 061; `attributeId` stays the
+  // attribute (extension) id the admin API has always exposed.
+  function serializeOption(o: AttributeOptionResult): Record<string, unknown> {
     return {
       id: o.id,
       attributeId: o.attributeId,
@@ -1784,7 +1785,7 @@ function serializeAdminProduct(p: Product) {
 }
 
 function serializeAdminAttribute(
-  a: ProductAttribute,
+  a: CatalogAttributeView,
   optionValues: string[] | null = null,
 ) {
   const api = dbToApiAttributeType(a.valueType, a.displayAsSlider);
@@ -1798,10 +1799,10 @@ function serializeAdminAttribute(
     type: api.type,
     numericKind: api.numericKind,
     valueType: a.valueType,
-    // Feature 012 — legacy projection of the attribute_options rows
-    // (callers that need the rich shape use the dedicated
-    // /attributes/:id/options endpoints). Null when the attribute
-    // has no options or the caller didn't fetch them.
+    // Feature 012 — legacy projection of the option rows (callers that
+    // need the rich shape use the dedicated /attributes/:id/options
+    // endpoints). Null when the attribute has no options or the caller
+    // didn't fetch them.
     enumValues: optionValues,
     isSearchable: a.isSearchable,
     isFilterable: a.isFilterable,
@@ -1816,6 +1817,9 @@ function serializeAdminAttribute(
     massEditable: a.massEditable,
     // Feature 039 — gates participation in Quick Order search.
     quickSearchable: a.quickSearchable,
+    // Feature 061 (additive) — id of the backing product-host Custom Field
+    // definition (adminAttributeResponseSchema.customFieldDefinitionId).
+    customFieldDefinitionId: a.customFieldDefinitionId,
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
   };

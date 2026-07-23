@@ -2,8 +2,11 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { Product } from '../entities/product.entity.js';
 import { ProductVariant } from '../entities/product-variant.entity.js';
 import { Category } from '../entities/category.entity.js';
-import { ProductAttribute } from '../entities/product-attribute.entity.js';
 import { AttributeSet } from '../entities/attribute-set.entity.js';
+import type {
+  CatalogAttributeReadService,
+  CatalogAttributeView,
+} from './catalog-attribute-read.service.js';
 import { GalleryItem } from '../entities/gallery-item.entity.js';
 import { GalleryItemLabel } from '../entities/gallery-item-label.entity.js';
 import { ProductAttachment } from '../entities/product-attachment.entity.js';
@@ -111,7 +114,23 @@ export class CatalogQueryService {
      * the custom-fields core stays unaware of catalog (Principle XIV / FR-006).
      */
     private readonly customFieldDefinitions?: DefinitionSource,
+    /**
+     * Feature 061 — composed attribute read model. Required for every
+     * attribute-metadata read (filters, PDP visible attributes, promo-rule and
+     * comparable key ports); optional in the signature so product-only
+     * fixtures keep constructing the service without attribute wiring.
+     */
+    private readonly attributeRead?: CatalogAttributeReadService,
   ) {}
+
+  #requireAttributeRead(): CatalogAttributeReadService {
+    if (!this.attributeRead) {
+      throw new Error(
+        'CatalogQueryService: CatalogAttributeReadService is not wired — attribute reads are unavailable.',
+      );
+    }
+    return this.attributeRead;
+  }
 
   // ------------------------------------------------------------------
   // Products
@@ -129,8 +148,8 @@ export class CatalogQueryService {
     if (params.attributeFilters) {
       const keys = Object.keys(params.attributeFilters);
       if (keys.length > 0) {
-        const attrs = await em.find(ProductAttribute, { key: { $in: keys } });
-        const byKey = new Map(attrs.map((a) => [a.key, a]));
+        const views = await this.#requireAttributeRead().listAll();
+        const byKey = new Map(views.map((a) => [a.key, a]));
         for (const k of keys) {
           const a = byKey.get(k);
           if (!a || !a.isFilterable) {
@@ -754,7 +773,7 @@ export class CatalogQueryService {
   async getFilterDefinitions(ctx: CatalogQueryContext): Promise<FilterDefinition[]> {
     const em = this.emFactory();
     const channel = ctx.resolvedChannel;
-    const attrs = await em.find(ProductAttribute, { isFilterable: true });
+    const attrs = await this.#requireAttributeRead().listByFlag('isFilterable');
 
     // Build option / range facets by scanning Products in the channel.
     const products = await em.find(Product, { status: 'active', deletedAt: null });
@@ -905,7 +924,7 @@ export class CatalogQueryService {
     product: Product,
     preferredLanguage: string | undefined,
     channel: CatalogResolvedChannel,
-  ): Promise<Array<{ key: string; label: string; valueType: ProductAttribute['valueType']; valueRendered: string }>> {
+  ): Promise<Array<{ key: string; label: string; valueType: CatalogAttributeView['valueType']; valueRendered: string }>> {
     const values = product.attributeValues ?? {};
     const valueKeys = Object.keys(values).filter((k) => {
       const v = values[k];
@@ -913,44 +932,23 @@ export class CatalogQueryService {
     });
     if (valueKeys.length === 0) return [];
 
-    const attrs = await em.find(ProductAttribute, {
-      key: { $in: valueKeys },
-      isVisibleOnProductPage: true,
-    });
+    // Feature 061 — attribute metadata + options come from the composed view.
+    const valueKeySet = new Set(valueKeys);
+    const allViews = await this.#requireAttributeRead().listAll();
+    const attrs = allViews.filter((a) => valueKeySet.has(a.key) && a.isVisibleOnProductPage);
     if (attrs.length === 0) return [];
 
-    // Pull the option-label map for select-style attributes in one batch.
-    const selectStyleAttrs = attrs.filter(
-      (a) => a.valueType === 'select' || a.valueType === 'enum' || a.valueType === 'multiselect',
-    );
-    const optionLabelByAttrAndValue = new Map<string, Map<string, { label: Record<string, string>; labelDefault: string }>>();
-    if (selectStyleAttrs.length > 0) {
-      const conn = em.getConnection();
-      const placeholders = selectStyleAttrs.map(() => '?').join(', ');
-      const optionRows = (await conn.execute<
-        Array<{
-          attribute_id: string;
-          value: string;
-          label: Record<string, string>;
-          label_default: string;
-        }>
-      >(
-        `select "attribute_id", "value", "label", "label_default" from "attribute_options" where "attribute_id" in (${placeholders})`,
-        selectStyleAttrs.map((a) => a.id),
-      )) as Array<{
-        attribute_id: string;
-        value: string;
-        label: Record<string, string>;
-        label_default: string;
-      }>;
-      for (const r of optionRows) {
-        let bucket = optionLabelByAttrAndValue.get(r.attribute_id);
-        if (!bucket) {
-          bucket = new Map();
-          optionLabelByAttrAndValue.set(r.attribute_id, bucket);
-        }
-        bucket.set(r.value, { label: r.label ?? {}, labelDefault: r.label_default });
+    const optionLabelByAttrAndValue = new Map<
+      string,
+      Map<string, { label: Record<string, string>; labelDefault: string }>
+    >();
+    for (const a of attrs) {
+      if (a.options.length === 0) continue;
+      const bucket = new Map<string, { label: Record<string, string>; labelDefault: string }>();
+      for (const o of a.options) {
+        bucket.set(o.value, { label: o.label ?? {}, labelDefault: o.labelDefault });
       }
+      optionLabelByAttrAndValue.set(a.id, bucket);
     }
 
     const renderOptionLabel = (attrId: string, value: string): string => {
@@ -960,18 +958,27 @@ export class CatalogQueryService {
       return this.pickLang(meta.label, preferredLanguage, channel) || meta.labelDefault;
     };
 
-    // Pull the AttributeSetAttribute positions for sort determinism.
+    // Pull the AttributeSetAttribute positions for sort determinism
+    // (membership is definition-keyed since feature 061).
     let positionByKey = new Map<string, number>();
     if (product.attributeSetId) {
       const conn = em.getConnection();
-      const posRows = (await conn.execute<Array<{ key: string; position: number }>>(
-        `select pa.key, asa.position
-         from attribute_set_attributes asa
-         join product_attributes pa on pa.id = asa.product_attribute_id
-         where asa.attribute_set_id = ?`,
+      const posRows = (await conn.execute<
+        Array<{ custom_field_definition_id: string; position: number }>
+      >(
+        `select custom_field_definition_id, position
+         from attribute_set_attributes
+         where attribute_set_id = ?`,
         [product.attributeSetId],
-      )) as Array<{ key: string; position: number }>;
-      positionByKey = new Map(posRows.map((r) => [r.key, r.position]));
+      )) as Array<{ custom_field_definition_id: string; position: number }>;
+      const keyByDefinitionId = new Map(
+        allViews.map((v) => [v.customFieldDefinitionId, v.key]),
+      );
+      positionByKey = new Map(
+        posRows
+          .map((r) => [keyByDefinitionId.get(r.custom_field_definition_id), r.position] as const)
+          .filter((pair): pair is [string, number] => pair[0] !== undefined),
+      );
     }
 
     const items = attrs.map((a) => {
@@ -1010,8 +1017,8 @@ export class CatalogQueryService {
   }
 
   /** Cached per-call list of attribute keys that should match free-text search. */
-  private async searchableAttributeKeys(em: EntityManager): Promise<string[]> {
-    const attrs = await em.find(ProductAttribute, { isSearchable: true });
+  private async searchableAttributeKeys(_em: EntityManager): Promise<string[]> {
+    const attrs = await this.#requireAttributeRead().listByFlag('isSearchable');
     return attrs.map((a) => a.key);
   }
 
@@ -1024,12 +1031,8 @@ export class CatalogQueryService {
    * importing internals).
    */
   async comparableAttributeKeys(): Promise<string[]> {
-    const em = this.emFactory();
-    const attrs = await em.find(
-      ProductAttribute,
-      { isComparable: true },
-      { orderBy: { key: 'asc' } },
-    );
+    // listByFlag orders by key ASC (legacy parity).
+    const attrs = await this.#requireAttributeRead().listByFlag('isComparable');
     return attrs.map((a) => a.key);
   }
 
@@ -1042,12 +1045,8 @@ export class CatalogQueryService {
    * service port, not by importing internals).
    */
   async promoRuleAttributeKeys(): Promise<string[]> {
-    const em = this.emFactory();
-    const attrs = await em.find(
-      ProductAttribute,
-      { isPromoRule: true },
-      { orderBy: { key: 'asc' } },
-    );
+    // listByFlag orders by key ASC (legacy parity).
+    const attrs = await this.#requireAttributeRead().listByFlag('isPromoRule');
     return attrs.map((a) => a.key);
   }
 
@@ -1064,30 +1063,19 @@ export class CatalogQueryService {
     key: string;
     label: Record<string, string>;
     labelDefault: string;
-    valueType: ProductAttribute['valueType'];
+    valueType: CatalogAttributeView['valueType'];
     isPromoRule: boolean;
     options: Array<{ value: string; label: Record<string, string>; labelDefault: string }>;
   } | null> {
-    const em = this.emFactory();
-    const attr = await em.findOne(ProductAttribute, { key });
+    const attr = await this.#requireAttributeRead().getByIdOrKey(key);
     if (!attr) return null;
-    const isSelectStyle =
-      attr.valueType === 'select' || attr.valueType === 'enum' || attr.valueType === 'multiselect';
-    let options: Array<{ value: string; label: Record<string, string>; labelDefault: string }> = [];
-    if (isSelectStyle) {
-      const conn = em.getConnection();
-      const rows = (await conn.execute<
-        Array<{ value: string; label: Record<string, string>; label_default: string }>
-      >(
-        `select "value", "label", "label_default" from "attribute_options" where "attribute_id" = ? order by "sort_order" asc, "value" asc`,
-        [attr.id],
-      )) as Array<{ value: string; label: Record<string, string>; label_default: string }>;
-      options = rows.map((r) => ({
-        value: r.value,
-        label: r.label ?? {},
-        labelDefault: r.label_default,
+    const options = [...attr.options]
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.value.localeCompare(b.value))
+      .map((o) => ({
+        value: o.value,
+        label: o.label ?? {},
+        labelDefault: o.labelDefault,
       }));
-    }
     return {
       id: attr.id,
       key: attr.key,

@@ -9,7 +9,7 @@ import {
   SEED_PRODUCT_101_ID,
   SEED_PRODUCT_102_ID,
 } from '../../helpers/seed-catalog.js';
-import { ProductAttribute } from '../../../src/modules/catalog/entities/product-attribute.entity.js';
+import { findAttributeExtensionByKey } from '../../helpers/seed-catalog.js';
 import { Comparison } from '../../../src/modules/comparisons/entities/comparison.entity.js';
 import { ComparisonProduct } from '../../../src/modules/comparisons/entities/comparison-product.entity.js';
 
@@ -26,10 +26,10 @@ describe('GET /api/v1/comparisons/share/:token — feature 007 / US2', () => {
   beforeAll(async () => {
     h = await setupBackendServer();
     const em = h.em();
-    const attrs = await em.find(ProductAttribute, {
-      key: { $in: ['color', 'material'] },
-    });
-    for (const a of attrs) a.isComparable = true;
+    for (const key of ['color', 'material']) {
+      const ext = await findAttributeExtensionByKey(em, key);
+      if (ext) ext.isComparable = true;
+    }
     await em.flush();
   }, 60_000);
 

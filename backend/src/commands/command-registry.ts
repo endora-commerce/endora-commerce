@@ -73,12 +73,23 @@ export const COMMAND_REGISTRY = {
   'product_attachment.update': { reversible: false, description: 'Update a product attachment' },
   'product_attachment.delete': { reversible: false, description: 'Delete a product attachment' },
   'product.duplicate': { reversible: false, description: 'Duplicate a product' },
-  'attribute.create': { reversible: false, description: 'Create a product attribute' },
-  'attribute.update': { reversible: false, description: 'Update a product attribute' },
-  'attribute.delete': { reversible: false, description: 'Delete a product attribute' },
-  'attribute_option.add': { reversible: false, description: 'Add an attribute option' },
-  'attribute_option.update': { reversible: false, description: 'Update an attribute option' },
-  'attribute_option.remove': { reversible: false, description: 'Remove an attribute option' },
+  // Feature 061 — attribute + option mutations are catalog Commands over the
+  // custom_fields apply seam (definition + extension in one transaction).
+  'catalog.attribute.create': {
+    reversible: false,
+    description: 'Create a product attribute (definition + catalog extension)',
+  },
+  'catalog.attribute.update': {
+    reversible: false,
+    description: 'Update a product attribute (definition + catalog extension)',
+  },
+  'catalog.attribute.delete': {
+    reversible: false,
+    description: 'Delete a product attribute (definition + catalog extension)',
+  },
+  'catalog.attribute_option.create': { reversible: false, description: 'Add an attribute option' },
+  'catalog.attribute_option.update': { reversible: false, description: 'Update an attribute option' },
+  'catalog.attribute_option.delete': { reversible: false, description: 'Remove an attribute option' },
   'product_variant.create': { reversible: false, description: 'Create a product variant' },
   'product_variant.update': { reversible: false, description: 'Update a product variant' },
   'product_variant.delete': { reversible: false, description: 'Delete a product variant' },

@@ -15,7 +15,6 @@ import { Product } from '../modules/catalog/entities/product.entity.js';
 import { ProductVariant } from '../modules/catalog/entities/product-variant.entity.js';
 import { Category } from '../modules/catalog/entities/category.entity.js';
 import { ProductAttribute } from '../modules/catalog/entities/product-attribute.entity.js';
-import { AttributeOption } from '../modules/catalog/entities/attribute-option.entity.js';
 import { ProductValueOverride } from '../modules/catalog/entities/product-value-override.entity.js';
 import { ProductEditorPreference } from '../modules/catalog/entities/product-editor-preference.entity.js';
 import { BulkOperation } from '../modules/catalog/entities/bulk-operation.entity.js';
@@ -207,7 +206,6 @@ export const ALL_ENTITIES = [
   ProductVariant,
   Category,
   ProductAttribute,
-  AttributeOption,
   // per-channel + per-language overrides (feature 022)
   ProductValueOverride,
   ProductEditorPreference,

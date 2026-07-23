@@ -11,8 +11,8 @@ import {
 } from '@b2b/contracts';
 import type { LanguageService } from '../../languages/services/language-service.js';
 import type { Product } from '../entities/product.entity.js';
-import { ProductAttribute } from '../entities/product-attribute.entity.js';
 import { ProductValueOverride } from '../entities/product-value-override.entity.js';
+import type { CatalogAttributeReadService } from './catalog-attribute-read.service.js';
 import {
   SYSTEM_ATTRIBUTE_SCOPES,
   type SystemAttributeKey,
@@ -33,6 +33,8 @@ export class ProductValueResolverService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly languageService: LanguageService,
+    /** Feature 061 — composed attribute read model (scope lookups). */
+    private readonly attributeRead?: CatalogAttributeReadService,
   ) {}
 
   /** Load every override row for a product in one query. */
@@ -87,12 +89,18 @@ export class ProductValueResolverService {
     const overrides = await this.loadOverrides(product.id);
     const userAttrKeys = Object.keys(product.attributeValues ?? {});
 
-    // Look up user-defined attribute rows in one query.
-    const em = this.emFactory();
+    // Look up user-defined attribute metadata through the composed view
+    // (feature 061 — the key/scope pair spans definition + extension).
+    if (!this.attributeRead) {
+      throw new Error(
+        'ProductValueResolverService: CatalogAttributeReadService is not wired — attribute reads are unavailable.',
+      );
+    }
+    const wantedKeys = new Set(userAttrKeys);
     const userAttrRows =
       userAttrKeys.length === 0
         ? []
-        : await em.find(ProductAttribute, { key: { $in: userAttrKeys } });
+        : (await this.attributeRead.listAll()).filter((v) => wantedKeys.has(v.key));
     const userAttrByKey = new Map(userAttrRows.map((r) => [r.key, r]));
 
     const defs: AttributeDef[] = [];

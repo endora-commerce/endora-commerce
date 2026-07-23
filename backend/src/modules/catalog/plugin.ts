@@ -17,7 +17,12 @@ import {
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { SalesChannelMembershipService } from '../sales_channels/services/sales-channel-membership.service.js';
 import { CatalogQueryService } from './services/catalog-query.service.js';
-import { CatalogAdminService, type CatalogEventBus } from './services/catalog-admin.service.js';
+import {
+  CatalogAdminService,
+  type CatalogCustomFieldsPort,
+  type CatalogEventBus,
+} from './services/catalog-admin.service.js';
+import { CatalogAttributeReadService } from './services/catalog-attribute-read.service.js';
 import { CatalogBulkUpdateService } from './services/catalog-bulk-update.service.js';
 import {
   BulkOperationService,
@@ -136,17 +141,42 @@ export interface CatalogModuleOptions {
    * Feature 055 (US4) — custom-field definition source. When wired, Category
    * custom fields flagged `config.filterable` are merged into the storefront
    * filter set by `CatalogQueryService`. Catalog interprets the opaque config.
+   *
+   * Feature 061 — the same object (production wiring passes the
+   * `CustomFieldDefinitionService`) also backs the composed attribute read
+   * model and, when it satisfies {@link CatalogCustomFieldsPort}, the
+   * attribute write path (apply seam).
    */
   customFieldDefinitions?: DefinitionSource;
+  /**
+   * Feature 061 — the custom_fields apply seam + committed-state read used by
+   * the attribute Commands. Production + test composition pass the
+   * `CustomFieldDefinitionService` here (it satisfies the port structurally).
+   */
+  customFieldsPort?: CatalogCustomFieldsPort;
+  /**
+   * Feature 061 — pre-built composed attribute read service. When omitted but
+   * `customFieldDefinitions` is present, the plugin constructs its own.
+   */
+  attributeReadService?: CatalogAttributeReadService;
 }
 
 export function catalogModule(options: CatalogModuleOptions) {
   return async (app: FastifyInstance): Promise<void> => {
     const productLinkServiceForRead = new ProductLinkService(options.emFactory, options.commandBus);
+    // Feature 061 — the composed attribute read model (definitions from the
+    // custom_fields cache + catalog extension rows). Constructed once and
+    // threaded into every attribute consumer in this module.
+    const attributeReadService =
+      options.attributeReadService ??
+      (options.customFieldDefinitions
+        ? new CatalogAttributeReadService(options.emFactory, options.customFieldDefinitions)
+        : undefined);
     const queryService = new CatalogQueryService(
       options.emFactory,
       productLinkServiceForRead,
       options.customFieldDefinitions,
+      attributeReadService,
     );
     const adminService = new CatalogAdminService(
       options.emFactory,
@@ -154,13 +184,15 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.auditLogService,
       options.salesChannelMembership,
       options.commandBus,
+      attributeReadService,
+      options.customFieldsPort,
     );
     // SearchQueryService is wired even when the env var picks Postgres so that
     // an operator can flip CATALOG_SEARCH_BACKEND=meilisearch at runtime
     // without restarting (R-08 reserved-fallback still applies). Lifecycle
     // for the indexer + event subscriber lives in `searchModule` (feature
     // 006 / R-3); catalog only owns the read-side adapter here.
-    const searchQueryService = new SearchQueryService(options.emFactory);
+    const searchQueryService = new SearchQueryService(options.emFactory, attributeReadService);
 
     const bulkUpdateService = new CatalogBulkUpdateService(
       options.emFactory,
@@ -227,7 +259,11 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.commandBus,
       options.customFieldValues,
     );
-    const attributeSetService = new AttributeSetService(options.emFactory, options.commandBus);
+    const attributeSetService = new AttributeSetService(
+      options.emFactory,
+      options.commandBus,
+      attributeReadService,
+    );
     const galleryService = new GalleryService(options.emFactory, options.commandBus);
     const attachmentService = new AttachmentService(options.emFactory, options.commandBus);
     const packagingUnitService = new PackagingUnitService(options.emFactory, options.commandBus);
@@ -249,7 +285,11 @@ export function catalogModule(options: CatalogModuleOptions) {
       options.emFactory,
     );
     const valueResolverService = options.languageService
-      ? new ProductValueResolverService(options.emFactory, options.languageService)
+      ? new ProductValueResolverService(
+          options.emFactory,
+          options.languageService,
+          attributeReadService,
+        )
       : undefined;
     const scopeContextService =
       options.salesChannelMembership && options.languageService
@@ -265,6 +305,7 @@ export function catalogModule(options: CatalogModuleOptions) {
           options.emFactory,
           options.salesChannelMembership,
           options.commandBus,
+          attributeReadService,
         )
       : undefined;
 

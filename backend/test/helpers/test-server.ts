@@ -154,6 +154,7 @@ import { blogManifest } from '../../src/modules/blog/manifest.js';
 import { registerCatalogAssetReferences } from '../../src/modules/catalog/services/asset-references.js';
 import { registerCmsAssetReferences } from '../../src/modules/cms/services/asset-references.js';
 import { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
+import { CatalogAttributeReadService } from '../../src/modules/catalog/services/catalog-attribute-read.service.js';
 import { DefaultChannelReconciler } from '../../src/modules/sales_channels/services/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/modules/settings/services/manifest-reconciler.js';
 import type { CartService } from '../../src/modules/carts/services/cart-service.js';
@@ -250,6 +251,8 @@ export interface BackendServerHandle {
   promotions: ReturnType<typeof promotionsModule>['handle'];
   /** Feature 055 — custom fields (definition + value services). */
   customFields: ReturnType<typeof customFieldsModule>['handle'];
+  /** Feature 061 — the composed attribute read model (definition + extension views). */
+  catalogAttributeRead: CatalogAttributeReadService;
   /** Feature 026 — moderation lifecycle, admin notifications, org context. */
   organizations: {
     moderationService: OrganizationModerationService;
@@ -600,6 +603,14 @@ export async function setupBackendServer(
     requireAdmin: requireTestAdmin(permissionService),
   });
 
+  // Feature 061 — the composed attribute read model (mirrors composition.ts):
+  // product-host custom-field definitions + catalog extension rows, threaded
+  // into catalog, search, quick_order, and comparisons.
+  const catalogAttributeReadService = new CatalogAttributeReadService(
+    em,
+    customFields.handle.definitionService,
+  );
+
   // US7 — API keys, webhooks, external integrations. The handle exposes
   // requireApiKey, threaded into the catalog module's by-sku route so that
   // surface gets real bearer-token gating.
@@ -708,7 +719,7 @@ export async function setupBackendServer(
     salesChannelMembership: salesChannels.handle.membershipService,
     // Feature 012 / US8 — wire the catalog read port so the rule-target
     // picker + criterion validation work in tests.
-    catalogQueryService: new CatalogQueryService(em),
+    catalogQueryService: new CatalogQueryService(em, undefined, undefined, catalogAttributeReadService),
     dictionaryValidator: dictionaries.handle.validator,
     // Feature 026 US5 — org-targeted promotions skip when the Organization
     // is not active. Inlined as a raw SQL lookup to avoid coupling promotions
@@ -1054,6 +1065,9 @@ export async function setupBackendServer(
       auditLogService,
       customFieldValues: customFields.handle.valueService,
       customFieldDefinitions: customFields.handle.definitionService,
+      // Feature 061 — apply seam + composed attribute read model.
+      customFieldsPort: customFields.handle.definitionService,
+      attributeReadService: catalogAttributeReadService,
       requireApiKey: integrations.handle.requireApiKey,
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,
@@ -1504,6 +1518,7 @@ export async function setupBackendServer(
   const search = searchModule({
     emFactory: em,
     eventBus,
+    catalogAttributeRead: catalogAttributeReadService,
     settingsService: settings.handle.settingsService,
     settingsAdminService: settings.handle.adminService,
     credentials: credentials.handle.service,
@@ -1524,7 +1539,8 @@ export async function setupBackendServer(
   // in subsequent stories.
   const comparisons = comparisonsModule({
     emFactory: em,
-    catalogQueryService: new CatalogQueryService(em),
+    catalogQueryService: new CatalogQueryService(em, undefined, undefined, catalogAttributeReadService),
+    catalogAttributeRead: catalogAttributeReadService,
     settingsService: settings.handle.settingsService,
     requireAdmin: requireTestAdmin(permissionService),
   });
@@ -1892,6 +1908,7 @@ export async function setupBackendServer(
     shoppingListsModule({
       emFactory: em,
       rfqService: quoteRequests.handle().rfqService,
+      catalogAttributeRead: catalogAttributeReadService,
       requireCustomer: requireTestCustomer(),
       resolveCustomerContext: customerResolver,
       eventBus,
@@ -2029,6 +2046,8 @@ export async function setupBackendServer(
     adminI18n: adminI18n.handle,
     promotions: promotions.handle,
     customFields: customFields.handle,
+    // Feature 061 — the composed attribute read model for test fixtures.
+    catalogAttributeRead: catalogAttributeReadService,
     organizations: handleFeature026 ?? {
       moderationService: null as unknown as OrganizationModerationService,
       adminNotificationService: null as unknown as ReturnType<

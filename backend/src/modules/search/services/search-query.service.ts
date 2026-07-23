@@ -3,7 +3,7 @@ import { Meilisearch, type SearchResponse } from 'meilisearch';
 import { ERROR_CODES, type ProductSummary } from '@b2b/contracts';
 import { HttpError } from '../../../http/error-envelope.js';
 import { Product } from '../../catalog/entities/product.entity.js';
-import { ProductAttribute } from '../../catalog/entities/product-attribute.entity.js';
+import type { CatalogAttributeReadService } from '../../catalog/services/catalog-attribute-read.service.js';
 import { encodeCursor, decodeCursor } from '../../../http/cursor.js';
 import { indexUidFor, type IndexedDocument } from './search-indexer.js';
 
@@ -76,6 +76,11 @@ export class SearchQueryService {
 
   constructor(
     private readonly emFactory: () => EntityManager,
+    /**
+     * Feature 061 — the catalog's composed attribute read model (Principle I:
+     * filterable validation reads the view, not the catalog entity).
+     */
+    private readonly attributeRead?: CatalogAttributeReadService,
     options: SearchQueryOptions = {},
   ) {
     const host =
@@ -102,7 +107,12 @@ export class SearchQueryService {
     if (params.attributeFilters) {
       const keys = Object.keys(params.attributeFilters);
       if (keys.length > 0) {
-        const attrs = await em.find(ProductAttribute, { key: { $in: keys } });
+        if (!this.attributeRead) {
+          throw new Error(
+            'SearchQueryService: CatalogAttributeReadService is not wired — attribute-filter validation is unavailable.',
+          );
+        }
+        const attrs = await this.attributeRead.listAll();
         const byKey = new Map(attrs.map((a) => [a.key, a]));
         for (const k of keys) {
           const a = byKey.get(k);
