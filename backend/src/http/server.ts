@@ -16,6 +16,13 @@ import {
   type OpenApiMetadata,
 } from './openapi.js';
 import type { ErrorEnvelopeOptions } from './error-envelope.js';
+import {
+  makePostDispatchPreSerialization,
+  makePreDispatchOnRoute,
+  RouteTable,
+  validateRegistrations,
+  type ApiInterceptorRegistry,
+} from './interceptors/index.js';
 
 /**
  * Module registration hook — each backend module exposes a plugin that takes
@@ -52,6 +59,13 @@ export interface BuildServerOptions {
   modules?: ModulePlugin[];
   /** Optional i18n bridge for translating standardized error envelopes. */
   errorEnvelope?: ErrorEnvelopeOptions;
+  /**
+   * Feature 060 — API interceptor registry. When present, buildServer installs
+   * the pre/post dispatch hooks and seals the registry (after fail-closed
+   * target validation) in an onReady hook. When absent, the server is
+   * byte-for-byte identical to the pre-060 behavior.
+   */
+  apiInterceptors?: ApiInterceptorRegistry;
 }
 
 export async function buildServer(options: BuildServerOptions): Promise<FastifyInstance> {
@@ -116,6 +130,21 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   app.addHook('onSend', async (request, reply) => {
     reply.header('x-request-id', request.id);
   });
+
+  // Feature 060 — API interceptors. Installed BEFORE the module loop so the
+  // onRoute hooks observe every route (including those mounted in encapsulated
+  // defineModuleRoutes child contexts, which inherit onRoute).
+  if (options.apiInterceptors) {
+    const registry = options.apiInterceptors;
+    const routeTable = new RouteTable();
+    app.addHook('onRoute', routeTable.onRouteListener);
+    app.addHook('onRoute', makePreDispatchOnRoute(registry));
+    app.addHook('preSerialization', makePostDispatchPreSerialization(registry));
+    app.addHook('onReady', async () => {
+      validateRegistrations(registry, routeTable);
+      registry.seal();
+    });
+  }
 
   registerErrorEnvelope(app, options.errorEnvelope);
   attachOpenApiAutoRegistration(app);

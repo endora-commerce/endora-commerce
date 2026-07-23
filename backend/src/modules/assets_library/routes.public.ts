@@ -38,6 +38,7 @@ export async function registerAssetsLibraryPublicRoutes(
     Querystring: { token?: string; exp?: string; download?: string };
   }>(
     '/assets/file/:assetId',
+    { config: { streamingResponse: true } },
     async (req, reply: FastifyReply) => {
       const em = deps.emFactory();
       const a = await em.findOne(Asset, { id: req.params.assetId });

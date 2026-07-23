@@ -57,6 +57,7 @@ async function main(): Promise<void> {
       },
       modules: composition.modules,
       errorEnvelope: composition.errorEnvelope,
+      apiInterceptors: composition.apiInterceptors,
       ...(disableRateLimit ? { disableRateLimit: true } : {}),
       ...(rateLimitMax && Number.isFinite(rateLimitMax) ? { rateLimitMax } : {}),
     });

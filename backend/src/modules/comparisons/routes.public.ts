@@ -147,7 +147,7 @@ export async function registerComparisonsPublicRoutes(
   // -----------------------------------------------------------------
 
   if (pdfRenderer) {
-    app.get('/api/v1/comparisons/me/pdf', async (request, reply) => {
+    app.get('/api/v1/comparisons/me/pdf', { config: { streamingResponse: true } }, async (request, reply) => {
       const owner = readOwner(request);
       if (!owner) throw notFoundComparison();
       const comparison = await comparisonService.getForOwner(owner);

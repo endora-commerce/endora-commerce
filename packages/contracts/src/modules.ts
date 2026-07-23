@@ -234,3 +234,29 @@ export const ModuleListQuerySchema = z.object({
   flag: z.enum(['orphan', 'pending-upgrade']).optional(),
 });
 export type ModuleListQuery = z.infer<typeof ModuleListQuerySchema>;
+
+// ---- Feature 060 — API interceptor diagnostics (read-only admin) ----------
+
+/**
+ * One row of the interceptor execution plan served by
+ * `GET /api/v1/admin/api-interceptors`. Items are sorted in execution order:
+ * target, then phase (pre before post), then order + (module, id) tie-break.
+ */
+export const apiInterceptorEntrySchema = z.object({
+  /** Endpoint identity, e.g. `POST /api/v1/orders`. */
+  target: z.string(),
+  phase: z.enum(['pre', 'post']),
+  order: z.number().int(),
+  /** Owning module id — execution is lifecycle-gated on this module. */
+  module: z.string(),
+  /** Interceptor id, unique within the module. */
+  id: z.string(),
+  /** Live enabled state of the owning module at request time. */
+  moduleEnabled: z.boolean(),
+});
+export type ApiInterceptorEntry = z.infer<typeof apiInterceptorEntrySchema>;
+
+export const apiInterceptorListSchema = z.object({
+  items: z.array(apiInterceptorEntrySchema),
+});
+export type ApiInterceptorList = z.infer<typeof apiInterceptorListSchema>;
