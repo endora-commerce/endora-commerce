@@ -1089,7 +1089,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
             const scope = await resolveAdminOrdersScope(request);
             return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
           }
-          // anonymous / api_key: trusted platform read scope. Guest-owned rows are
+          // Feature 062 — a BOUND api key pins the request to its organization +
+          // designated service account; an unbound key keeps the legacy trusted
+          // system scope (its only surface is the global-entity PIM path).
+          if (actor.kind === 'api_key') {
+            return resolveTenantContext({
+              kind: 'api_key',
+              apiKeyId: actor.apiKeyId,
+              organizationId: actor.organizationId ?? null,
+              customerAccountId: actor.customerAccountId ?? null,
+            });
+          }
+          // anonymous: trusted platform read scope. Guest-owned rows are
           // scoped by their own token mechanism, not by the tenant filter.
           return systemTenantContext(`actor:${actor.kind}`);
         };

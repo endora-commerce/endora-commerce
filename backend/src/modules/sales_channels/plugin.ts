@@ -115,6 +115,10 @@ export function salesChannelsModule(
       await registerSalesChannelResolverMiddleware(app, {
         resolver,
         ...(options.strictAdmin !== undefined ? { strictAdmin: options.strictAdmin } : {}),
+        // Feature 062 — audit sink for bound-key channel-mismatch refusals.
+        ...(options.auditLogService !== undefined
+          ? { auditLogService: options.auditLogService }
+          : {}),
       });
       if (options.requireAdmin) {
         await registerSalesChannelsAdminRoutes(app, {

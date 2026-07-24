@@ -22,7 +22,8 @@ import { AsyncLocalStorage } from 'async_hooks';
 export type TenantScopeMode = 'single-org' | 'allowed-set' | 'all' | 'system';
 
 export interface TenantActor {
-  readonly kind: 'customer' | 'admin' | 'system';
+  /** `api_key` (feature 062) = a bound distributor key acting as the tenant principal. */
+  readonly kind: 'customer' | 'admin' | 'system' | 'api_key';
   readonly id?: string;
 }
 

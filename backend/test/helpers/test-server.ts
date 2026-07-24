@@ -230,6 +230,8 @@ export interface BackendServerHandle {
   pwa: ReturnType<typeof pwaModule>['handle'];
   /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
   salesChannels: ReturnType<typeof salesChannelsModule>['handle'];
+  /** Feature 062 — api-keys/webhooks/integrations handle (api-key gates). */
+  integrations: ReturnType<typeof integrationsModule>['handle'];
   /** Feature 006 — exposes the indexer + suggest service for tests that
    *  want deterministic teardown or to exercise embedder attach/detach. */
   search: ReturnType<typeof searchModule>['handle'];
@@ -771,7 +773,14 @@ export async function setupBackendServer(
 
   const modules: ModulePlugin[] = [
     async (app) => {
-      registerTestAuth(app, { sessionService, emFactory: em });
+      registerTestAuth(app, {
+        sessionService,
+        emFactory: em,
+        // Feature 062 — mirror production: Bearer sk_live_* resolves to an
+        // api_key actor (incl. distributor binding) before the tenant hook
+        // and the sales-channel resolver run.
+        apiKeyResolver: async (token) => integrations.handle.apiKeyService.authenticate(token),
+      });
       // Feature 050 — establish the ambient TenantContext from the resolved test
       // actor, after registerTestAuth sets it. Mirrors composition.ts wiring
       // (callback-style so the AsyncLocalStorage store reaches the handler).
@@ -802,6 +811,16 @@ export async function setupBackendServer(
         if (actor?.kind === 'admin') {
           const scope = await resolveTestAdminOrdersScope(request);
           return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
+        }
+        // Feature 062 — mirror production: a bound api key derives single-org
+        // scope from its binding; an unbound key keeps trusted system scope.
+        if (actor?.kind === 'api_key') {
+          return resolveTenantContext({
+            kind: 'api_key',
+            apiKeyId: actor.apiKeyId,
+            organizationId: actor.organizationId ?? null,
+            customerAccountId: actor.customerAccountId ?? null,
+          });
         }
         return systemTenantContext(`test-actor:${actor?.kind ?? 'anonymous'}`);
       };
@@ -2036,6 +2055,7 @@ export async function setupBackendServer(
     permissionCatalogueService,
     settings: settings.handle,
     salesChannels: salesChannels.handle,
+    integrations: integrations.handle,
     search: search.handle,
     comparisons: comparisons.handle,
     assetsLibrary: assetsLibrary.handle,

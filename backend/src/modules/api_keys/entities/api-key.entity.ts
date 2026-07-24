@@ -22,7 +22,11 @@ export class ApiKey {
     | 'scopes'
     | 'lastUsedAt'
     | 'revokedAt'
-    | 'createdByAdminUserId';
+    | 'createdByAdminUserId'
+    | 'organizationId'
+    | 'salesChannelId'
+    | 'customerAccountId'
+    | 'expiresAt';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -55,6 +59,27 @@ export class ApiKey {
 
   @Property({ type: 'uuid', nullable: true })
   createdByAdminUserId?: string | null;
+
+  // ── Feature 062 — distributor binding (all-or-none, immutable) ──────────
+  // The three binding columns are either all set (bound distributor key:
+  // single-org tenant scope + pinned channel + designated service account)
+  // or all NULL (legacy unbound platform key). Enforced by the
+  // `api_keys_binding_all_or_none` CHECK; the cross-row org-membership rule
+  // is validated at creation in ApiKeyService (research §R4).
+
+  @Property({ type: 'uuid', nullable: true })
+  @Index()
+  organizationId?: string | null;
+
+  @Property({ type: 'uuid', nullable: true })
+  salesChannelId?: string | null;
+
+  @Property({ type: 'uuid', nullable: true })
+  customerAccountId?: string | null;
+
+  /** NULL = non-expiring. `authenticate()` refuses keys past this instant. */
+  @Property({ type: 'datetime', nullable: true })
+  expiresAt?: Date | null;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

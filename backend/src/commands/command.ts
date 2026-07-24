@@ -26,7 +26,7 @@ export interface CommandActor {
   /** The impersonated Customer Account, when an admin acted on a customer's behalf. */
   readonly impersonatedCustomerAccountId: string | null;
   /** The originating tenant-actor kind, for callers that need to branch on it. */
-  readonly kind: 'admin' | 'customer' | 'system';
+  readonly kind: 'admin' | 'customer' | 'system' | 'api_key';
 }
 
 /** A domain event a Command emits on commit, in the shape the {@link EventBus} expects. */
