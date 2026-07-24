@@ -192,6 +192,11 @@ export interface BackendServerOptions {
   extraModules?: ModulePlugin[];
   /** When set, injected into `organizationsModule` so tests can assert outbound mail (verification + invitations). */
   organizationsMailer?: Mailer;
+  /**
+   * Feature 062 — when set, injected into `commerceModule` so tests can assert
+   * the order-confirmation e-mail on placement paths (SC-004 parity).
+   */
+  commerceMailer?: Mailer;
   /** Feature 043 — scripted LLM fetch + clock/TTL seams for prompt-action tests. */
   promptActionsLlmFetch?: PromptActionsModuleOptions['llmFetch'];
   promptActionsNow?: () => Date;
@@ -884,6 +889,21 @@ export async function setupBackendServer(
       pricingService: priceLists.handle.pricingService,
       promotionService: promotions.handle.promotionService,
       redis,
+      // Feature 062 — external orders namespace (mirrors composition.ts):
+      // bound-key gate + the org method allow-lists (FR-021 envelope).
+      requireBoundApiKey: integrations.handle.requireBoundApiKey,
+      resolveOrganizationMethodAllowLists: async (organizationId: string) => {
+        try {
+          const lists = await sharedRestrictionService.readAllowLists(organizationId);
+          return {
+            paymentMethodIds: lists.paymentMethodIds,
+            deliveryMethodIds: lists.deliveryMethodIds,
+          };
+        } catch {
+          return null;
+        }
+      },
+      ...(options.commerceMailer ? { mailer: options.commerceMailer } : {}),
       getRfqService: () => quoteRequests?.handle().rfqService ?? null,
       // Global backorder gate — resolved at request time via the Settings
       // module (declared below; the closure runs well after setup completes).

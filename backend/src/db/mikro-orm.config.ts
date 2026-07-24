@@ -111,6 +111,8 @@ import { Migration101KsefInit } from '../modules/ksef/migrations/101_ksef_init.j
 import { Migration102AttributesOnCustomFields } from '../modules/catalog/migrations/102_attributes_on_custom_fields.js';
 // Feature 062 — Distributor API: api-key binding columns.
 import { Migration103ApiKeysDistributorBinding } from '../modules/api_keys/migrations/103_api_keys_distributor_binding.js';
+// Feature 062 — Distributor API: durable order-intake idempotency.
+import { Migration104OrderPlacementIntents } from '../modules/orders/migrations/104_order_placement_intents.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -522,6 +524,10 @@ export default defineConfig({
       {
         name: 'Migration103ApiKeysDistributorBinding',
         class: Migration103ApiKeysDistributorBinding,
+      },
+      {
+        name: 'Migration104OrderPlacementIntents',
+        class: Migration104OrderPlacementIntents,
       },
     ],
     transactional: true,

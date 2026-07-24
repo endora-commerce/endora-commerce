@@ -1161,6 +1161,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       addressService: new AddressService(em, dictionaries.handle.validator, auditLogService),
       promotionService: promotions.handle.promotionService,
       redis,
+      // Feature 062 — external orders namespace (/api/v1/external/orders*):
+      // bound-key gate + the org method allow-lists (FR-021 envelope).
+      requireBoundApiKey: integrations.handle.requireBoundApiKey,
+      resolveOrganizationMethodAllowLists: async (organizationId: string) => {
+        try {
+          const lists = await organizationRestrictionService.readAllowLists(organizationId);
+          return {
+            paymentMethodIds: lists.paymentMethodIds,
+            deliveryMethodIds: lists.deliveryMethodIds,
+          };
+        } catch {
+          return null;
+        }
+      },
       // Feature 027 US5 — abandonment-sweep resolvers + dispatcher.
       resolveCartAbandonmentInactivityMinutes: async () => {
         try {
