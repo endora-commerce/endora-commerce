@@ -278,6 +278,29 @@ export class PricingService implements PricingServiceContract {
   }
 
   /**
+   * Feature 062 — distinct bracket start quantities (ascending) across every
+   * ACTIVE list for a (product, currency). Consumers probe `resolveLinePrice`
+   * at each quantity to derive the acting org's effective tier ladder; a
+   * quantity contributed by a non-matching list simply resolves to the same
+   * amount as its predecessor and is de-duplicated by the caller — no
+   * cross-org data leaks through this read.
+   */
+  async listBracketMinQuantities(productId: string, currencyCode: string): Promise<number[]> {
+    const em = this.emFactory();
+    const rows = await em
+      .getConnection()
+      .execute<Array<{ min_quantity: number | string }>>(
+        `select distinct b.min_quantity
+           from price_list_price_brackets b
+           join price_lists l on l.id = b.price_list_id
+          where b.product_id = ? and b.currency_code = ? and l.status = 'active'
+          order by b.min_quantity asc`,
+        [productId, currencyCode.toUpperCase()],
+      );
+    return rows.map((r) => Number(r.min_quantity));
+  }
+
+  /**
    * Walks the priority chain until a list yields a bracket for the
    * requested (product, currency, quantity). Excluded candidates are
    * ones that already failed the bracket lookup. Returns the first

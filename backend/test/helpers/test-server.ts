@@ -53,6 +53,8 @@ import { ConsoleMailer } from '../../src/modules/email/services/mailer.js';
 import { commerceModule } from '../../src/modules/orders/plugin.js';
 import { adminModule } from '../../src/modules/admin_users/plugin.js';
 import { inventoryModule } from '../../src/modules/inventory/plugin.js';
+import { StockLevelService } from '../../src/modules/inventory/services/stock-level-service.js';
+import { WarehouseChannelService } from '../../src/modules/inventory/services/warehouse-channel-service.js';
 import { shoppingListsModule } from '../../src/modules/shopping_lists/plugin.js';
 import { returnsModule } from '../../src/modules/returns/plugin.js';
 import { invoicesModule } from '../../src/modules/invoices/plugin.js';
@@ -771,6 +773,11 @@ export async function setupBackendServer(
   // Feature 047 — late-bound transactional-email sender (mirrors composition).
   let transactionalEmailSender: import('@b2b/contracts').TransactionalEmailSender | undefined;
 
+  // Feature 062 — read-only inventory accessors backing the external catalog
+  // namespace's availability indication (mirrors composition.ts).
+  const externalAvailabilityStockLevels = new StockLevelService(em);
+  const externalAvailabilityWarehouseChannels = new WarehouseChannelService(em);
+
   const modules: ModulePlugin[] = [
     async (app) => {
       registerTestAuth(app, {
@@ -1088,6 +1095,19 @@ export async function setupBackendServer(
       customFieldsPort: customFields.handle.definitionService,
       attributeReadService: catalogAttributeReadService,
       requireApiKey: integrations.handle.requireApiKey,
+      // Feature 062 — external catalog namespace (mirrors composition.ts):
+      // bound-key gate + the SAME pricing engine cart pricing uses + the
+      // inventory availability port.
+      requireBoundApiKey: integrations.handle.requireBoundApiKey,
+      pricingService: priceLists.handle.pricingService,
+      resolveExternalAvailability: async (productIds, salesChannelId) => {
+        const candidateWarehouseIds =
+          await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
+        return externalAvailabilityStockLevels.resolveAvailabilityBands(
+          productIds,
+          candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
+        );
+      },
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,
       // Tests assert the queued ack only: no `redis` is wired into the catalog

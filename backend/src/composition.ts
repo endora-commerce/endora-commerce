@@ -85,6 +85,8 @@ import {
   type OAuthProviderPort,
 } from './modules/mfa/services/oauth-provider-service.js';
 import { inventoryModule } from './modules/inventory/plugin.js';
+import { StockLevelService } from './modules/inventory/services/stock-level-service.js';
+import { WarehouseChannelService } from './modules/inventory/services/warehouse-channel-service.js';
 import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
 import { creditLimitsModule } from './modules/credit_limits/plugin.js';
 import { customFieldsModule } from './modules/custom_fields/plugin.js';
@@ -1116,6 +1118,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     );
   };
 
+  // Feature 062 — read-only inventory accessors backing the external catalog
+  // namespace's availability indication (channel-candidate warehouses +
+  // cumulative on-hand → display band). Standalone instances: reads only,
+  // no event emission, no audit.
+  const externalAvailabilityStockLevels = new StockLevelService(em);
+  const externalAvailabilityWarehouseChannels = new WarehouseChannelService(em);
+
   const modules: ModulePlugin[] = [
     healthPlugin,
     authModulePlugin,
@@ -1449,6 +1458,19 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       customFieldsPort: customFields.handle.definitionService,
       attributeReadService: catalogAttributeReadService,
       requireApiKey: integrations.handle.requireApiKey,
+      // Feature 062 — external catalog namespace (/api/v1/external/catalog/*):
+      // bound-key gate + the SAME pricing engine cart pricing uses (SC-001
+      // parity by construction) + the inventory availability indication port.
+      requireBoundApiKey: integrations.handle.requireBoundApiKey,
+      pricingService: priceLists.handle.pricingService,
+      resolveExternalAvailability: async (productIds, salesChannelId) => {
+        const candidateWarehouseIds =
+          await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
+        return externalAvailabilityStockLevels.resolveAvailabilityBands(
+          productIds,
+          candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
+        );
+      },
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,
       adminNotificationService: adminNotifications.handle.adminNotificationService,

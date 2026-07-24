@@ -46,4 +46,11 @@ export interface PricingLineResult {
 export interface PricingServiceContract {
   resolveEngine(input: PricingResolutionInput): Promise<PricingEngineResult>;
   resolveLinePrice(input: PricingResolutionInput): Promise<PricingLineResult | null>;
+  /**
+   * Feature 062 — distinct bracket start quantities (ascending) across every
+   * ACTIVE price list for a (product, currency). The external catalog detail
+   * probes `resolveLinePrice` at each returned quantity to build the caller
+   * org's effective tier ladder without re-implementing resolution.
+   */
+  listBracketMinQuantities(productId: string, currencyCode: string): Promise<number[]>;
 }
