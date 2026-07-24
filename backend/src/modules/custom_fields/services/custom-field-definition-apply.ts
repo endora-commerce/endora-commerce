@@ -74,6 +74,10 @@ export async function applyCreateDefinition(
   em: EntityManager,
   input: CreateCustomFieldDefinitionRequest,
 ): Promise<CustomFieldDefinition> {
+  // command-coverage-ignore: apply-seam primitive — mutates on the invoking Command's
+  // transactional EM; the caller (custom_fields definition command or a host command,
+  // e.g. catalog.attribute.*) records the single audit row co-transactionally.
+  // Contract: specs/061-attributes-on-custom-fields/contracts/custom-fields-product-host.md.
   if (!isSupportedEntityType(input.entityType)) {
     throw new CustomFieldDefinitionError('entity_type_unknown', `Unknown entity type "${input.entityType}".`);
   }
@@ -137,6 +141,10 @@ export async function applyUpdateDefinition(
 
 /** Delete a definition on the caller's EM. Options cascade; host values stay dormant (FR-010). */
 export async function applyDeleteDefinition(em: EntityManager, id: string): Promise<CustomFieldDefinition> {
+  // command-coverage-ignore: apply-seam primitive — mutates on the invoking Command's
+  // transactional EM; the caller (custom_fields definition command or a host command,
+  // e.g. catalog.attribute.*) records the single audit row co-transactionally.
+  // Contract: specs/061-attributes-on-custom-fields/contracts/custom-fields-product-host.md.
   const def = await em.findOne(CustomFieldDefinition, { id });
   if (!def) throw new CustomFieldDefinitionError('not_found', `Custom field ${id} not found.`);
   const options = await em.find(CustomFieldOption, { definitionId: id });
@@ -184,6 +192,10 @@ export async function applyDeleteOption(
   optionId: string,
   probes?: DefinitionChangeProbes,
 ): Promise<CustomFieldOption> {
+  // command-coverage-ignore: apply-seam primitive — mutates on the invoking Command's
+  // transactional EM; the caller (custom_fields definition command or a host command,
+  // e.g. catalog.attribute.*) records the single audit row co-transactionally.
+  // Contract: specs/061-attributes-on-custom-fields/contracts/custom-fields-product-host.md.
   const def = await em.findOne(CustomFieldDefinition, { id: definitionId });
   if (!def) throw new CustomFieldDefinitionError('not_found', `Custom field ${definitionId} not found.`);
   const option = await em.findOne(CustomFieldOption, { id: optionId });
