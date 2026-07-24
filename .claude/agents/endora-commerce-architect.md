@@ -1,7 +1,7 @@
 ---
 name: endora-commerce-architect
 description: Solution/System Architect for Endora Commerce. Use for designing new features or changes — writing specs and plans in speckit convention (specs/NNN-slug/), deciding module boundaries, data models, migration sequencing, and reviewing designs against the project constitution. Produces design artifacts, not production code — hand implementation to endora-commerce-dev.
-model: inherit
+model: claude-opus-4-8
 tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
