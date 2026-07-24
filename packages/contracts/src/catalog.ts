@@ -844,7 +844,8 @@ const baseCreateAttributeObject = z.object({
   /**
    * Feature 012 — rich option list for select / enum / multiselect types.
    * When supplied alongside the legacy `enumValues`, this wins. The
-   * service layer creates corresponding `attribute_options` rows.
+   * service layer creates corresponding `custom_field_options` rows
+   * (feature 061; formerly the catalog-owned `attribute_options` table).
    */
   options: z.array(createAttributeOptionRequestSchema).optional(),
 });
@@ -858,7 +859,7 @@ export const createAttributeRequestSchema = baseCreateAttributeObject
     (v) => {
       // Select-style attributes need either the legacy `enumValues: string[]`
       // shape OR the new feature-012 `options: AttributeOption[]` shape.
-      // The service maps either to `attribute_options` rows.
+      // The service maps either to `custom_field_options` rows (feature 061).
       const wantsEnum =
         v.type === 'multiselect' ||
         v.type === 'select' ||
@@ -926,6 +927,44 @@ export const updateAttributeRequestSchema = z
     },
   );
 export type UpdateAttributeRequest = z.infer<typeof updateAttributeRequestSchema>;
+
+/**
+ * Feature 061 — admin attribute payload returned by
+ * `GET/POST/PATCH /api/v1/admin/catalog/attributes*`. Formalizes the shape
+ * `serializeAdminAttribute` has emitted since features 002/012/022/023/039 and
+ * adds the single additive field `customFieldDefinitionId` — the backing
+ * product-host Custom Field definition (contracts/attribute-admin-api.md).
+ * All request schemas above are byte-compatible and unchanged (FR-007, SC-003).
+ */
+export const adminAttributeResponseSchema = z.object({
+  id: uuidSchema,
+  key: z.string(),
+  label: multilingualStringSchema,
+  labelDefault: z.string(),
+  /** API-form type (feature 002) — emitted alongside the legacy `valueType`. */
+  type: apiAttributeTypeSchema,
+  /** Present only when `type === 'slider'`. */
+  numericKind: numericKindSchema.optional(),
+  valueType: attributeValueTypeSchema,
+  /** Legacy projection of the option values; `null` when not fetched or absent. */
+  enumValues: z.array(z.string()).nullable(),
+  isSearchable: z.boolean(),
+  isFilterable: z.boolean(),
+  isVariantAxis: z.boolean(),
+  displayAsSlider: z.boolean(),
+  isComparable: z.boolean(),
+  isRequired: z.boolean(),
+  isPromoRule: z.boolean(),
+  filterPosition: z.number().int(),
+  isVisibleOnProductPage: z.boolean(),
+  massEditable: z.boolean(),
+  quickSearchable: z.boolean(),
+  /** Feature 061 (additive) — id of the backing product-host Custom Field definition. */
+  customFieldDefinitionId: uuidSchema,
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type AdminAttributeResponse = z.infer<typeof adminAttributeResponseSchema>;
 
 export const createCategoryRequestSchema = z.object({
   parentCategoryId: uuidSchema.nullable().optional(),

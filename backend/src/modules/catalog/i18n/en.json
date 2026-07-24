@@ -186,6 +186,7 @@
   "attributes.column.actions": "Actions",
   "attributes.edit.title": "Edit attribute {key}",
   "attributes.edit.lockedHint": "Key and type cannot be changed after creation.",
+  "attributes.edit.customFieldDefinitionId": "Custom field definition ID:",
   "attributes.batch.unsaved": "{count} unsaved flag change(s)",
   "attributes.success.flagsSaved": "Saved {count} attribute(s).",
   "attributes.options.title": "Options",

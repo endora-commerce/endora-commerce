@@ -6,6 +6,9 @@
   "customFields.entity.organization": "Organization",
   "customFields.entity.customer": "Customer",
   "customFields.entity.quoteRequest": "Quote request",
+  "customFields.entity.product": "Product",
+  "customFields.managedBy.catalogAttributes": "Managed on Catalog → Attributes",
+  "customFields.managedBy.notice": "Definitions for this entity type are managed by another module and are read-only here.",
   "actions.openCustomFields.label": "Custom fields",
   "actions.openCustomFields.description": "Define runtime fields on core entities."
 }

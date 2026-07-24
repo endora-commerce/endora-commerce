@@ -21,6 +21,7 @@ import {
 } from './routes.public.js';
 import { registerSearchAdminRoutes } from './routes.admin.js';
 import type { RequireAdminFactory } from '../settings/plugin.js';
+import type { CatalogAttributeReadService } from '../catalog/services/catalog-attribute-read.service.js';
 import type {
   AdminAuditContext,
   SettingsAdminService,
@@ -51,6 +52,12 @@ import { SEARCH_SETTING_CODES } from './manifest.js';
 export interface SearchModuleOptions {
   emFactory: () => EntityManager;
   eventBus: EventBus;
+  /**
+   * Feature 061 — the catalog's composed attribute read model (Principle I).
+   * Backs the indexer's searchable/filterable settings + option-label
+   * aggregation and the query service's filterable validation.
+   */
+  catalogAttributeRead: CatalogAttributeReadService;
   /**
    * Universal-getter for Settings. When provided, the suggest service
    * resolves its per-channel popup-count + minimum-query-length from
@@ -114,7 +121,7 @@ export interface SearchModuleResult {
 const numberSchema = z.number();
 
 export function searchModule(options: SearchModuleOptions): SearchModuleResult {
-  const indexer = new SearchIndexer();
+  const indexer = new SearchIndexer({ attributeRead: options.catalogAttributeRead });
   const subscriber = new SearchEventSubscriber({
     eventBus: options.eventBus as never,
     emFactory: options.emFactory,
@@ -124,7 +131,10 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
       : {}),
     ...(options.credentials !== undefined ? { credentials: options.credentials } : {}),
   });
-  const searchQueryService = new SearchQueryService(options.emFactory);
+  const searchQueryService = new SearchQueryService(
+    options.emFactory,
+    options.catalogAttributeRead,
+  );
 
   // Settings-aware suggest config, with fallback to manifest defaults
   // when the resolver fails for any reason (e.g. Redis hiccup,

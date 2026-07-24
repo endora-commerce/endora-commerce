@@ -314,6 +314,10 @@ export const ERROR_CODES = {
   CUSTOM_FIELD_KEY_CONFLICT: 'CUSTOM_FIELD_KEY_CONFLICT',
   CUSTOM_FIELD_DEFINITION_INVALID: 'CUSTOM_FIELD_DEFINITION_INVALID',
   CUSTOM_FIELD_VALUE_INVALID: 'CUSTOM_FIELD_VALUE_INVALID',
+  // Feature 061 — the entity type's registry entry declares `managedBy`, so
+  // definitions are mutated only through the owning host module's surface
+  // (generic admin mutations refuse with 409 "host_managed").
+  CUSTOM_FIELD_HOST_MANAGED: 'CUSTOM_FIELD_HOST_MANAGED',
 
   // Feature 058 — Credentials (reusable credential configurations).
   CREDENTIAL_NOT_FOUND: 'CREDENTIAL_NOT_FOUND',

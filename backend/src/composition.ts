@@ -202,6 +202,7 @@ import { registerCatalogAssetReferences } from './modules/catalog/services/asset
 import { registerCmsAssetReferences } from './modules/cms/services/asset-references.js';
 import { WarehouseChannelReconciler } from './modules/inventory/services/warehouse-channel-reconciler.js';
 import { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
+import { CatalogAttributeReadService } from './modules/catalog/services/catalog-attribute-read.service.js';
 import type { ModuleSettingsManifest } from '@b2b/contracts';
 import type { CartService } from './modules/carts/services/cart-service.js';
 import type { ShoppingListService } from './modules/shopping_lists/services/shopping-list-service.js';
@@ -479,6 +480,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   });
   void customFields.handle.cache.start(redisSubscriber);
 
+  // Feature 061 — the composed attribute read model (product-host custom-field
+  // definitions + catalog extension rows). Built once, threaded into catalog,
+  // search, quick_order, and comparisons as the sanctioned attribute read port.
+  const catalogAttributeReadService = new CatalogAttributeReadService(
+    em,
+    customFields.handle.definitionService,
+  );
+
   const analytics = analyticsModule({ emFactory: em, requireAdmin });
   const importExport = importExportModule({ emFactory: em, requireAdmin });
   // `seoModule` is instantiated AFTER settings (further below) so the
@@ -570,7 +579,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // (the documented cross-module port — Constitution I) so the rule editor
   // can list `isPromoRule` attributes and the resolver can validate
   // `attribute` criteria against the authoritative option list.
-  const catalogQueryServiceForPromotions = new CatalogQueryService(em);
+  const catalogQueryServiceForPromotions = new CatalogQueryService(
+    em,
+    undefined,
+    undefined,
+    catalogAttributeReadService,
+  );
   const promotions = promotionsModule({
     emFactory: em,
     requireAdmin,
@@ -1420,6 +1434,9 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       auditLogService,
       customFieldValues: customFields.handle.valueService,
       customFieldDefinitions: customFields.handle.definitionService,
+      // Feature 061 — apply seam + composed attribute read model.
+      customFieldsPort: customFields.handle.definitionService,
+      attributeReadService: catalogAttributeReadService,
       requireApiKey: integrations.handle.requireApiKey,
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,
@@ -1435,7 +1452,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // `searchable` flag flips. A fresh indexer reads Meili config from env,
       // exactly like the CLI.
       reindexSearchIndexes: async () => {
-        const indexer = new SearchIndexer();
+        const indexer = new SearchIndexer({ attributeRead: catalogAttributeReadService });
         const results = await indexer.reindexAllChannels(em());
         const documentCount = results.reduce((sum, r) => sum + r.documentCount, 0);
         return { documentCount };
@@ -1715,6 +1732,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const search = searchModule({
     emFactory: em,
     eventBus,
+    catalogAttributeRead: catalogAttributeReadService,
     settingsService: settings.handle.settingsService,
     settingsAdminService: settings.handle.adminService,
     // Feature 058 — resolve `search.llm.embedder_credentials`; legacy embedder
@@ -1760,10 +1778,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // routes respectively. Reads catalog through CatalogQueryService (the
   // documented service port — Constitution I) and `compare.max_products`
   // through SettingsService.
-  const catalogQueryServiceForCompare = new CatalogQueryService(em);
+  const catalogQueryServiceForCompare = new CatalogQueryService(
+    em,
+    undefined,
+    undefined,
+    catalogAttributeReadService,
+  );
   const comparisons = comparisonsModule({
     emFactory: em,
     catalogQueryService: catalogQueryServiceForCompare,
+    catalogAttributeRead: catalogAttributeReadService,
     settingsService: settings.handle.settingsService,
     requireAdmin,
   });
@@ -2304,6 +2328,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     shoppingListsModule({
       emFactory: em,
       rfqService: quoteRequests.handle().rfqService,
+      catalogAttributeRead: catalogAttributeReadService,
       requireCustomer,
       resolveCustomerContext: customerResolver,
       // Provision the customer's default shopping list eagerly on creation.

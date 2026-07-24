@@ -20,13 +20,19 @@ export class CustomFieldValidationError extends Error {
   }
 }
 
-/** Host-table binding for the change-guard existence probe (read-only introspection, feature 055). */
-const HOST_TABLE_BY_ENTITY: Record<SupportedEntityType, string> = {
-  category: 'categories',
-  order: 'orders',
-  organization: 'organizations',
-  customer: 'customer_accounts',
-  quote_request: 'quote_requests',
+/**
+ * Host-table binding for the change-guard probes (read-only introspection,
+ * feature 055; generalized to a per-host `{table, column}` pair by feature 061
+ * — the `product` host stores its value bag in `products.attribute_values`).
+ * Purely a storage binding: no host logic lives here.
+ */
+const HOST_TABLE_BY_ENTITY: Record<SupportedEntityType, { table: string; column: string }> = {
+  category: { table: 'categories', column: 'custom_field_values' },
+  order: { table: 'orders', column: 'custom_field_values' },
+  organization: { table: 'organizations', column: 'custom_field_values' },
+  customer: { table: 'customer_accounts', column: 'custom_field_values' },
+  quote_request: { table: 'quote_requests', column: 'custom_field_values' },
+  product: { table: 'products', column: 'attribute_values' },
 };
 
 const DEFAULT_TEXT_MAX = 10_000;
@@ -110,26 +116,32 @@ export class CustomFieldValueService {
     entityType: SupportedEntityType,
     key: string,
   ): Promise<boolean> {
-    const table = HOST_TABLE_BY_ENTITY[entityType];
+    const { table, column } = HOST_TABLE_BY_ENTITY[entityType];
     const rows = await em.getConnection().execute<{ one: number }[]>(
-      `select 1 as one from "${table}" where jsonb_exists("custom_field_values", ?) limit 1`,
+      `select 1 as one from "${table}" where jsonb_exists("${column}", ?) limit 1`,
       [key],
     );
     return rows.length > 0;
   }
 
-  /** Is a specific option value in use for a `select`/`multiselect` field? (option-removal guard). */
+  /**
+   * Is a specific option value in use for a `select`/`multiselect` field?
+   * (option-removal guard). Known limitation: the flat `->>key` probe does not
+   * see through nested per-language value shapes — a host whose storage nests
+   * values under the key runs its own authoritative in-use checks first; this
+   * probe is defense-in-depth for the flat shapes (feature 061, research §R9).
+   */
   async isOptionInUse(
     em: EntityManager,
     entityType: SupportedEntityType,
     key: string,
     optionValue: string,
   ): Promise<boolean> {
-    const table = HOST_TABLE_BY_ENTITY[entityType];
+    const { table, column } = HOST_TABLE_BY_ENTITY[entityType];
     const rows = await em.getConnection().execute<{ one: number }[]>(
       `select 1 as one from "${table}" ` +
-        `where "custom_field_values"->>? = ? ` +
-        `or (jsonb_typeof("custom_field_values"->?) = 'array' and "custom_field_values"->? @> to_jsonb(?::text)) ` +
+        `where "${column}"->>? = ? ` +
+        `or (jsonb_typeof("${column}"->?) = 'array' and "${column}"->? @> to_jsonb(?::text)) ` +
         `limit 1`,
       [key, optionValue, key, key, optionValue],
     );

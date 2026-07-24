@@ -22,8 +22,11 @@ export const manifest = defineModuleManifest({
   name: 'Catalog',
   description:
     'Products, variants, categories, attributes, attribute sets, gallery, attachments, links, and bundles.',
-  version: '1.5.0',
-  dependencies: [],
+  version: '1.6.0',
+  // Feature 061 (FR-020) — product attributes are catalog extensions of
+  // product-host Custom Field definitions; the lifecycle must install
+  // custom_fields first and must not hard-uninstall it under a live catalog.
+  dependencies: ['custom_fields'],
   i18n: { bundlesDir: 'i18n' },
   actions: [
     {

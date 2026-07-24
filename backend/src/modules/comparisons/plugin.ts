@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CatalogQueryService } from '../catalog/services/catalog-query.service.js';
+import type { CatalogAttributeReadService } from '../catalog/services/catalog-attribute-read.service.js';
 import type { SettingsService } from '../settings/services/settings.service.js';
 import { ShareTokenGenerator } from './services/share-token-generator.js';
 import { ComparableAttributeProjection } from './services/comparable-attribute-projection.js';
@@ -33,6 +34,8 @@ import type { RequireAdminFactory } from '../settings/plugin.js';
 export interface ComparisonsModuleOptions {
   emFactory: () => EntityManager;
   catalogQueryService: CatalogQueryService;
+  /** Feature 061 — the catalog's composed attribute read model (Principle I). */
+  catalogAttributeRead?: CatalogAttributeReadService;
   settingsService?: SettingsService;
   /** When provided, admin routes mount under `/api/v1/admin/comparisons/*` (US5). */
   requireAdmin?: RequireAdminFactory;
@@ -62,6 +65,7 @@ export function comparisonsModule(
     projection,
     tokens,
     options.settingsService,
+    options.catalogAttributeRead,
   );
   const pdfRenderer = new ComparisonPdfRenderer();
   const adminService = new ComparisonAdminService(

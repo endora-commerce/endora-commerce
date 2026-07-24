@@ -2,6 +2,7 @@ import { apiClient } from '@/lib/api-client';
 import type {
   CreateCustomFieldDefinitionRequest,
   CustomFieldDefinitionDto,
+  CustomFieldEntityTypeInfo,
   SupportedEntityType,
   UpdateCustomFieldDefinitionRequest,
 } from '@b2b/contracts';
@@ -11,6 +12,11 @@ type Wrap<T> = { data: T };
 const unwrap = <T>(p: Promise<Wrap<T>>): Promise<T> => p.then((r) => r.data);
 
 export const customFieldsClient = {
+  /** Supported host entity types + host-managed metadata (feature 061). */
+  listEntityTypes: (): Promise<CustomFieldEntityTypeInfo[]> =>
+    unwrap(
+      apiClient.get<Wrap<CustomFieldEntityTypeInfo[]>>('/api/v1/admin/custom-fields/entity-types'),
+    ),
   list: (entityType?: SupportedEntityType): Promise<CustomFieldDefinitionDto[]> =>
     unwrap(
       apiClient.get<Wrap<CustomFieldDefinitionDto[]>>(

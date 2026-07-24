@@ -7,7 +7,7 @@ import {
 } from '../../helpers/test-server.js';
 import { SearchIndexer } from '../../../src/modules/search/services/search-indexer.js';
 import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
-import { ProductAttribute } from '../../../src/modules/catalog/entities/product-attribute.entity.js';
+import { findAttributeExtensionByKey } from '../../helpers/seed-catalog.js';
 
 /**
  * T010 — Contract test for `GET /api/v1/search/suggest` (US1, feature 006).
@@ -40,14 +40,14 @@ describe('GET /api/v1/search/suggest — feature 006 / US1', () => {
 
     h = await setupBackendServer();
 
-    // The seeded catalog has at least one ProductAttribute; flag one as
+    // The seeded catalog has at least one attribute; flag one as
     // searchable so the indexer surfaces attribute values too. The MVP
     // happy-path assertion only requires name matching, so this is
     // belt-and-braces.
     const em = h.em();
-    const attrs = await em.find(ProductAttribute, {});
-    if (attrs.length > 0) {
-      attrs[0]!.isSearchable = true;
+    const ext = await findAttributeExtensionByKey(em, 'color');
+    if (ext) {
+      ext.isSearchable = true;
       await em.flush();
     }
 
@@ -55,6 +55,7 @@ describe('GET /api/v1/search/suggest — feature 006 / US1', () => {
     const indexer = new SearchIndexer({
       meilisearchHost,
       meilisearchApiKey: meilisearchKey,
+      attributeRead: h.catalogAttributeRead,
     });
     const channels = await h.em().find(SalesChannel, {});
     for (const channel of channels) {

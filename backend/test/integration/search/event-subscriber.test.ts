@@ -8,7 +8,7 @@ import { EventBus } from '../../../src/events/bus.js';
 import { SearchIndexer, indexUidFor } from '../../../src/modules/search/services/search-indexer.js';
 import { SearchEventSubscriber } from '../../../src/modules/search/services/search-event-subscriber.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { ProductAttribute } from '../../../src/modules/catalog/entities/product-attribute.entity.js';
+import { findAttributeExtensionByKey } from '../../helpers/seed-catalog.js';
 import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales-channel.entity.js';
 import { Meilisearch } from 'meilisearch';
 
@@ -42,6 +42,7 @@ describe('SearchEventSubscriber — incremental index updates', () => {
     indexer = new SearchIndexer({
       meilisearchHost,
       meilisearchApiKey: meilisearchKey,
+      attributeRead: h.catalogAttributeRead,
     });
     eventBus = new EventBus();
     subscriber = new SearchEventSubscriber({
@@ -125,7 +126,7 @@ describe('SearchEventSubscriber — incremental index updates', () => {
   it('attribute.updated.v1 re-applies filterable + searchable settings', async () => {
     const em = h.em();
     // Toggle `internal_sku_notes` from "searchable but not filterable" to filterable.
-    const attr = await em.findOneOrFail(ProductAttribute, { key: 'internal_sku_notes' });
+    const attr = (await findAttributeExtensionByKey(em, 'internal_sku_notes'))!;
     attr.isFilterable = true;
     await em.flush();
 
@@ -144,7 +145,7 @@ describe('SearchEventSubscriber — incremental index updates', () => {
       }).emit('attribute.updated.v1', {
         eventId: 'evt-test-attr',
         occurredAt: new Date().toISOString(),
-        key: attr.key,
+        key: 'internal_sku_notes',
         isSearchable: attr.isSearchable,
         isFilterable: attr.isFilterable,
       });

@@ -19,6 +19,20 @@ export interface SupportedEntityMeta {
   readonly labelKey: string;
   /** True when the host entity is tenant-scoped (org/customer). Category & Organization are global. */
   readonly orgOwned: boolean;
+  /**
+   * Optional host-managed marker (feature 061). When present, definitions of
+   * this entity type are created/edited/deleted ONLY by the named host
+   * module's own surface; the generic admin mutation routes refuse writes with
+   * 409 `host_managed` and the generic UI renders the type read-only with a
+   * link to `route`. Service-level `apply*` calls are NOT affected — they are
+   * the host's path. Generic: any future host may claim it; consumers check
+   * only for the marker's presence, never which module manages.
+   */
+  readonly managedBy?: {
+    readonly moduleId: string;
+    readonly labelKey: string;
+    readonly route: string;
+  };
 }
 
 export const SUPPORTED_ENTITIES: Record<SupportedEntityType, SupportedEntityMeta> = {
@@ -27,6 +41,16 @@ export const SUPPORTED_ENTITIES: Record<SupportedEntityType, SupportedEntityMeta
   organization: { labelKey: 'customFields.entity.organization', orgOwned: false },
   customer: { labelKey: 'customFields.entity.customer', orgOwned: true },
   quote_request: { labelKey: 'customFields.entity.quoteRequest', orgOwned: true },
+  product: {
+    labelKey: 'customFields.entity.product',
+    // Definitions are platform-global; product rows are catalog data, not org-tenant rows.
+    orgOwned: false,
+    managedBy: {
+      moduleId: 'catalog',
+      labelKey: 'customFields.managedBy.catalogAttributes',
+      route: '/catalog/attributes',
+    },
+  },
 };
 
 /** All registered entity-type codes. */

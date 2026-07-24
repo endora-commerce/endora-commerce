@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   DictionaryReferenceError,
   ERROR_CODES,
+  type AttributeValueType,
   type CartSnapshot,
   type DictionaryValidator,
   type PromotionAction,
@@ -18,7 +19,6 @@ import { Promotion } from '../entities/promotion.entity.js';
 import { PromotionRuleEntity } from '../entities/promotion-rule.entity.js';
 import { PromotionCoupon } from '../entities/promotion-coupon.entity.js';
 import { Product } from '../../catalog/entities/product.entity.js';
-import type { ProductAttribute } from '../../catalog/entities/product-attribute.entity.js';
 import {
   lineMatchesAllCriteria,
   type PromotionRuleAttributeLookup,
@@ -48,7 +48,7 @@ export interface PromotionRuleCatalogPort {
   getAttributeWithOptions(key: string): Promise<{
     id: string;
     key: string;
-    valueType: ProductAttribute['valueType'];
+    valueType: AttributeValueType;
     isPromoRule: boolean;
     options: Array<{ value: string; label: Record<string, string>; labelDefault: string }>;
   } | null>;
@@ -547,7 +547,7 @@ export class PromotionService {
       {
         id: string;
         key: string;
-        valueType: ProductAttribute['valueType'];
+        valueType: AttributeValueType;
         isPromoRule: boolean;
         options: Array<{ value: string }>;
       }
@@ -634,7 +634,7 @@ export class PromotionService {
 }
 
 function allowedOpsFor(
-  valueType: ProductAttribute['valueType'],
+  valueType: AttributeValueType,
 ): Array<'equals' | 'in' | 'range'> {
   switch (valueType) {
     case 'string':
@@ -659,7 +659,7 @@ function allowedOpsFor(
 function validateValuesShape(
   op: 'equals' | 'in' | 'range',
   values: readonly unknown[],
-  valueType: ProductAttribute['valueType'],
+  valueType: AttributeValueType,
 ): void {
   if (op === 'equals' && values.length !== 1) {
     throw new HttpError(

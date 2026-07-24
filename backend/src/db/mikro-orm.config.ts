@@ -107,6 +107,8 @@ import { Migration098CustomerSubtreeRollup } from '../modules/customer_accounts/
 import { Migration099CredentialsInit } from '../modules/credentials/migrations/099_credentials_init.js';
 import { Migration100SettingsCredentialRefValueType } from '../modules/settings/migrations/100_settings_credential_ref_value_type.js';
 import { Migration101KsefInit } from '../modules/ksef/migrations/101_ksef_init.js';
+// Feature 061 — product attributes converge onto the Custom Fields layer.
+import { Migration102AttributesOnCustomFields } from '../modules/catalog/migrations/102_attributes_on_custom_fields.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -510,6 +512,10 @@ export default defineConfig({
       {
         name: 'Migration101KsefInit',
         class: Migration101KsefInit,
+      },
+      {
+        name: 'Migration102AttributesOnCustomFields',
+        class: Migration102AttributesOnCustomFields,
       },
     ],
     transactional: true,

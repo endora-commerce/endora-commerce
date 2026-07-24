@@ -6,8 +6,8 @@ import {
 } from '../../helpers/test-server.js';
 import { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
 import { CatalogQueryService } from '../../../src/modules/catalog/services/catalog-query.service.js';
-import { ProductAttribute } from '../../../src/modules/catalog/entities/product-attribute.entity.js';
 import {
+  findAttributeExtensionByKey,
   SEED_PRODUCT_101_ID,
   SEED_PRODUCT_102_ID,
   SEED_PRODUCT_103_ID,
@@ -55,12 +55,12 @@ describe('PromotionService — attribute criterion resolution (T056)', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    const catalog = new CatalogQueryService(h.em);
+    const catalog = new CatalogQueryService(h.em, undefined, undefined, h.catalogAttributeRead);
     svc = new PromotionService(h.em, undefined, catalog);
     // Mark `material` as promo-eligible for the duration of the suite.
     const em = h.em();
-    const material = await em.findOneOrFail(ProductAttribute, { key: 'material' });
-    material.isPromoRule = true;
+    const material = await findAttributeExtensionByKey(em, 'material');
+    material!.isPromoRule = true;
     await em.flush();
   });
 
@@ -116,7 +116,7 @@ describe('PromotionService — attribute criterion resolution (T056)', () => {
 
     // Flip the flag off — the rule must be skipped on the next eval.
     const em = h.em();
-    const material = await em.findOneOrFail(ProductAttribute, { key: 'material' });
+    const material = (await findAttributeExtensionByKey(em, 'material'))!;
     material.isPromoRule = false;
     await em.flush();
 

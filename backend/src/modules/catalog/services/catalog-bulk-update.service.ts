@@ -7,7 +7,6 @@ import type { SalesChannelMembershipService } from '../../sales_channels/service
 import type { CatalogAdminService} from './catalog-admin.service.js';
 import { type AdminAuditContext } from './catalog-admin.service.js';
 import { Product } from '../entities/product.entity.js';
-import { ProductAttribute } from '../entities/product-attribute.entity.js';
 
 /**
  * Feature 022 — Products Bulk Edit.
@@ -164,15 +163,13 @@ export class CatalogBulkUpdateService {
   // --------------------------------------------------------------------
 
   private async assertAllAttributesAreMassEditable(keys: string[]): Promise<void> {
-    const em = this.emFactory();
-    const rows = await em.find(
-      ProductAttribute,
-      { key: { $in: keys } },
-    );
-    const byKey = new Map(rows.map((r) => [r.key, r]));
+    // Feature 061 — the flag lives on the extension; the key on the definition.
+    // Read through the composed view (catalog's sanctioned attribute read).
+    const views = await this.catalogAdmin.listAttributes();
+    const byKey = new Map(views.map((v) => [v.key, v]));
     for (const key of keys) {
-      const row = byKey.get(key);
-      if (!row || !row.massEditable) {
+      const view = byKey.get(key);
+      if (!view || !view.massEditable) {
         throw new HttpError(
           400,
           ERROR_CODES.ATTRIBUTE_NOT_MASS_EDITABLE,
@@ -364,17 +361,24 @@ export class CatalogBulkUpdateService {
     em: EntityManager,
     attributeSetId: string,
   ): Promise<Set<string>> {
+    // Feature 061 — set membership is definition-keyed; keys come from the
+    // composed view.
     const rows = await em
       .getConnection()
-      .execute<Array<{ key: string }>>(
-        `select pa.key from attribute_set_attributes asa ` +
-          `join product_attributes pa on pa.id = asa.product_attribute_id ` +
-          `where asa.attribute_set_id = ?`,
+      .execute<Array<{ custom_field_definition_id: string }>>(
+        `select custom_field_definition_id from attribute_set_attributes ` +
+          `where attribute_set_id = ?`,
         [attributeSetId],
         'all',
         em.getTransactionContext(),
       );
-    return new Set(rows.map((r) => r.key));
+    const views = await this.catalogAdmin.listAttributes();
+    const keyByDefinitionId = new Map(views.map((v) => [v.customFieldDefinitionId, v.key]));
+    return new Set(
+      rows
+        .map((r) => keyByDefinitionId.get(r.custom_field_definition_id))
+        .filter((k): k is string => k !== undefined),
+    );
   }
 
   private async applySalesChannels(

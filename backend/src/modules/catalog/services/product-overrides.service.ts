@@ -5,9 +5,12 @@ import type { CommandBus } from '../../../commands/index.js';
 import type { SalesChannelMembershipService } from '../../sales_channels/services/sales-channel-membership.service.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import { Product } from '../entities/product.entity.js';
-import { ProductAttribute } from '../entities/product-attribute.entity.js';
 import { ProductValueOverride } from '../entities/product-value-override.entity.js';
 import { getAttributeScope, isSystemAttributeKey } from './system-attribute-scopes.js';
+import type {
+  CatalogAttributeReadService,
+  CatalogAttributeView,
+} from './catalog-attribute-read.service.js';
 
 /**
  * Feature 022 — channel-aware value-override CRUD.
@@ -64,7 +67,18 @@ export class ProductOverridesService {
     private readonly salesChannelMembership: SalesChannelMembershipService,
     /** Feature 054 — audits the override apply co-transactionally when provided. */
     private readonly commandBus?: CommandBus,
+    /** Feature 061 — composed attribute read model (scope + value-type lookups). */
+    private readonly attributeRead?: CatalogAttributeReadService,
   ) {}
+
+  #requireAttributeRead(): CatalogAttributeReadService {
+    if (!this.attributeRead) {
+      throw new Error(
+        'ProductOverridesService: CatalogAttributeReadService is not wired — attribute reads are unavailable.',
+      );
+    }
+    return this.attributeRead;
+  }
 
   /**
    * Feature 054 — run the override mutations through the Command Bus (its
@@ -125,10 +139,11 @@ export class ProductOverridesService {
         ...input.deletes.map((d) => d.attributeKey),
       ]),
     ).filter((k) => !isSystemAttributeKey(k));
-    const attrRows =
+    const wantedKeys = new Set<string>(attrKeys);
+    const attrRows: CatalogAttributeView[] =
       attrKeys.length === 0
         ? []
-        : await em.find(ProductAttribute, { key: { $in: attrKeys } });
+        : (await this.#requireAttributeRead().listAll()).filter((v) => wantedKeys.has(v.key));
     const attrByKey = new Map(attrRows.map((r) => [r.key, r]));
 
     const assignedChannels = await this.salesChannelMembership.listChannelsForEntity(

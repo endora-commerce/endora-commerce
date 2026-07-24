@@ -5,9 +5,9 @@ import type {
   ComparisonDisplayMode,
 } from '@b2b/contracts';
 import { Product } from '../../catalog/entities/product.entity.js';
-import { ProductAttribute } from '../../catalog/entities/product-attribute.entity.js';
 import { SalesChannel } from '../../sales_channels/entities/sales-channel.entity.js';
 import type { CatalogQueryService } from '../../catalog/services/catalog-query.service.js';
+import type { CatalogAttributeReadService } from '../../catalog/services/catalog-attribute-read.service.js';
 import type { SettingsService } from '../../settings/services/settings.service.js';
 import { Comparison } from '../entities/comparison.entity.js';
 import { ComparisonProduct } from '../entities/comparison-product.entity.js';
@@ -51,7 +51,8 @@ import {
 export class ComparisonService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly catalogQuery: CatalogQueryService,
+    /** Catalog read port (constructor contract kept; attribute reads moved to `catalogAttributes`). */
+    _catalogQuery: CatalogQueryService,
     private readonly projection: ComparableAttributeProjection,
     private readonly tokens: ShareTokenGenerator,
     /**
@@ -60,6 +61,11 @@ export class ComparisonService {
      * useful for foundation tests that pre-date Settings wiring.
      */
     private readonly settingsService?: SettingsService,
+    /**
+     * Feature 061 — the catalog's composed attribute read model (Principle I:
+     * replaces the former direct `ProductAttribute` entity find).
+     */
+    private readonly catalogAttributes?: CatalogAttributeReadService,
   ) {}
 
   // ------------------------------------------------------------------
@@ -257,16 +263,11 @@ export class ComparisonService {
         ? await this.loadBaseImageUrls(em, productIds)
         : new Map<string, string | null>();
 
-    // Comparable attribute keys (catalog adapter port — Constitution I).
-    const comparableKeys = await this.catalogQuery.comparableAttributeKeys();
-    const attributeDefs =
-      comparableKeys.length > 0
-        ? await em.find(
-            ProductAttribute,
-            { key: { $in: comparableKeys } },
-            { orderBy: { key: 'asc' } },
-          )
-        : [];
+    // Comparable attribute definitions (catalog adapter port — Constitution I).
+    // `listByFlag` orders by key ASC, matching the pre-061 entity query.
+    const attributeDefs = this.catalogAttributes
+      ? await this.catalogAttributes.listByFlag('isComparable')
+      : [];
 
     const productSummaries = bridgeRows.map((row) => {
       const p = productById.get(row.productId);

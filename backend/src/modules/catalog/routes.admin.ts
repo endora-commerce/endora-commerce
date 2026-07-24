@@ -56,7 +56,8 @@ import { productValueOverridesPatchRequestSchema } from '@b2b/contracts';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { ProductVariant } from './entities/product-variant.entity.js';
 import type { Product } from './entities/product.entity.js';
-import type { ProductAttribute } from './entities/product-attribute.entity.js';
+import type { CatalogAttributeView } from './services/catalog-attribute-read.service.js';
+import type { AttributeOptionResult } from './commands/attribute-commands.js';
 import type { Category } from './entities/category.entity.js';
 
 /**
@@ -847,9 +848,9 @@ export async function registerCatalogAdminRoutes(
   );
 
   // Feature 012 / US4 — option-list CRUD per contracts/attribute-options.contract.md.
-  function serializeOption(
-    o: import('./entities/attribute-option.entity.js').AttributeOption,
-  ): Record<string, unknown> {
+  // Backed by `custom_field_options` since feature 061; `attributeId` stays the
+  // attribute (extension) id the admin API has always exposed.
+  function serializeOption(o: AttributeOptionResult): Record<string, unknown> {
     return {
       id: o.id,
       attributeId: o.attributeId,
@@ -1021,13 +1022,10 @@ export async function registerCatalogAdminRoutes(
       },
       async (request, reply) => {
         const body = createAttributeSetRequestSchema.parse(request.body);
+        // Feature 054/061 — audited co-transactionally inside the service's
+        // `attribute_set.create` Command (no hand audit here, Principle XIII).
         const detail = await attrSetService.createSet(body);
         reply.status(201);
-        await auditEmit(request, {
-          action: 'attribute_set.create',
-          objectType: 'attribute_set',
-          objectId: detail.id,
-        });
         return { data: detail };
       },
     );
@@ -1040,12 +1038,8 @@ export async function registerCatalogAdminRoutes(
       },
       async (request) => {
         const body = updateAttributeSetRequestSchema.parse(request.body);
+        // Audited co-transactionally via the `attribute_set.update` Command.
         const set = await attrSetService.updateSet(request.params.id, body);
-        await auditEmit(request, {
-          action: 'attribute_set.update',
-          objectType: 'attribute_set',
-          objectId: request.params.id,
-        });
         return { data: set };
       },
     );
@@ -1054,12 +1048,8 @@ export async function registerCatalogAdminRoutes(
       '/api/v1/admin/catalog/attribute-sets/:id',
       { preHandler: requireAdmin('catalog:write') },
       async (request, reply) => {
+        // Audited co-transactionally via the `attribute_set.delete` Command.
         await attrSetService.deleteSet(request.params.id);
-        await auditEmit(request, {
-          action: 'attribute_set.delete',
-          objectType: 'attribute_set',
-          objectId: request.params.id,
-        });
         return reply.status(204).send();
       },
     );
@@ -1072,12 +1062,9 @@ export async function registerCatalogAdminRoutes(
       },
       async (request) => {
         const body = assignAttributesRequestSchema.parse(request.body);
+        // Audited co-transactionally via the `attribute_set.assign_attributes`
+        // Command (feature 061 — the bridge write and audit share one tx).
         const detail = await attrSetService.assignAttributes(request.params.id, body);
-        await auditEmit(request, {
-          action: 'attribute_set.assign_attributes',
-          objectType: 'attribute_set',
-          objectId: request.params.id,
-        });
         return { data: detail };
       },
     );
@@ -1086,15 +1073,12 @@ export async function registerCatalogAdminRoutes(
       '/api/v1/admin/catalog/attribute-sets/:id/attributes/:attributeId',
       { preHandler: requireAdmin('catalog:write') },
       async (request, reply) => {
+        // Audited co-transactionally via the `attribute_set.unassign_attribute`
+        // Command (no-op deletes stay 204 and are not double-audited).
         await attrSetService.unassignAttribute(
           request.params.id,
           request.params.attributeId,
         );
-        await auditEmit(request, {
-          action: 'attribute_set.unassign_attribute',
-          objectType: 'attribute_set',
-          objectId: request.params.id,
-        });
         return reply.status(204).send();
       },
     );
@@ -1784,7 +1768,7 @@ function serializeAdminProduct(p: Product) {
 }
 
 function serializeAdminAttribute(
-  a: ProductAttribute,
+  a: CatalogAttributeView,
   optionValues: string[] | null = null,
 ) {
   const api = dbToApiAttributeType(a.valueType, a.displayAsSlider);
@@ -1798,10 +1782,10 @@ function serializeAdminAttribute(
     type: api.type,
     numericKind: api.numericKind,
     valueType: a.valueType,
-    // Feature 012 — legacy projection of the attribute_options rows
-    // (callers that need the rich shape use the dedicated
-    // /attributes/:id/options endpoints). Null when the attribute
-    // has no options or the caller didn't fetch them.
+    // Feature 012 — legacy projection of the option rows (callers that
+    // need the rich shape use the dedicated /attributes/:id/options
+    // endpoints). Null when the attribute has no options or the caller
+    // didn't fetch them.
     enumValues: optionValues,
     isSearchable: a.isSearchable,
     isFilterable: a.isFilterable,
@@ -1816,6 +1800,9 @@ function serializeAdminAttribute(
     massEditable: a.massEditable,
     // Feature 039 — gates participation in Quick Order search.
     quickSearchable: a.quickSearchable,
+    // Feature 061 (additive) — id of the backing product-host Custom Field
+    // definition (adminAttributeResponseSchema.customFieldDefinitionId).
+    customFieldDefinitionId: a.customFieldDefinitionId,
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
   };

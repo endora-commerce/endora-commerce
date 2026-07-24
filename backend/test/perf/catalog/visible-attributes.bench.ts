@@ -5,10 +5,10 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { CatalogQueryService } from '../../../src/modules/catalog/services/catalog-query.service.js';
-import { ProductAttribute } from '../../../src/modules/catalog/entities/product-attribute.entity.js';
+import type { ProductAttribute } from '../../../src/modules/catalog/entities/product-attribute.entity.js';
 import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { AttributeOption } from '../../../src/modules/catalog/entities/attribute-option.entity.js';
 import { AttributeSetAttribute } from '../../../src/modules/catalog/entities/attribute-set-attribute.entity.js';
+import { createAttributeFixture } from '../../helpers/seed-catalog.js';
 
 /**
  * Feature 012 / T067 — `visibleAttributes` projection p95 latency.
@@ -50,40 +50,36 @@ describe.skipIf(!shouldRun)('catalog visibleAttributes — p95 latency', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    svc = new CatalogQueryService(h.em);
+    svc = new CatalogQueryService(h.em, undefined, undefined, h.catalogAttributeRead);
     const em = h.em();
 
     // Seed 50 attributes — mix of value types so every code branch fires.
-    const attrs: ProductAttribute[] = [];
+    // Feature 061 — each fixture creates the definition + extension pair.
+    const attrs: Array<{ extension: ProductAttribute; key: string; valueType: string }> = [];
     for (let i = 0; i < attrCount; i++) {
       const valueType =
         i % 5 === 0 ? 'enum' : i % 5 === 1 ? 'multiselect' : i % 5 === 2 ? 'number' : i % 5 === 3 ? 'boolean' : 'string';
-      const attr = em.create(ProductAttribute, {
+      const isSelectStyle = valueType === 'enum' || valueType === 'multiselect';
+      const { extension } = await createAttributeFixture(em, {
         key: `bench_attr_${i}`,
         label: { 'en-US': `Bench ${i}`, 'pl-PL': `Test ${i}` },
         labelDefault: `Bench ${i}`,
-        valueType: valueType as ProductAttribute['valueType'],
+        valueType: valueType as 'enum' | 'multiselect' | 'number' | 'boolean' | 'string',
         isVisibleOnProductPage: true,
+        sortOrder: i,
+        ...(isSelectStyle
+          ? {
+              options: ['opt_a', 'opt_b', 'opt_c'].map((v) => ({
+                value: v,
+                label: { 'en-US': v.toUpperCase(), 'pl-PL': v.toUpperCase() },
+                labelDefault: v.toUpperCase(),
+                sortOrder: 0,
+              })),
+            }
+          : {}),
       });
-      attrs.push(attr);
+      attrs.push({ extension, key: `bench_attr_${i}`, valueType });
     }
-    await em.persistAndFlush(attrs);
-
-    // Seed option-list rows for select-style attributes.
-    for (const a of attrs) {
-      if (a.valueType !== 'enum' && a.valueType !== 'multiselect' && a.valueType !== 'select') continue;
-      for (const v of ['opt_a', 'opt_b', 'opt_c']) {
-        em.create(AttributeOption, {
-          attributeId: a.id,
-          value: v,
-          label: { 'en-US': v.toUpperCase(), 'pl-PL': v.toUpperCase() },
-          labelDefault: v.toUpperCase(),
-          isDefault: false,
-          sortOrder: 0,
-        });
-      }
-    }
-    await em.flush();
 
     // Wire every attribute into the Default set so the position lookup
     // in buildVisibleAttributesProjection has work to do.
@@ -91,7 +87,7 @@ describe.skipIf(!shouldRun)('catalog visibleAttributes — p95 latency', () => {
       attrs.map((a, idx) =>
         em.create(AttributeSetAttribute, {
           attributeSetId: DEFAULT_SET_ID,
-          productAttributeId: a.id,
+          customFieldDefinitionId: a.extension.customFieldDefinitionId,
           position: idx,
         }),
       ),

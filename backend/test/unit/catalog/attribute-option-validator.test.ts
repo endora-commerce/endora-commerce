@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   validateOptionList,
-  isValidAttributeKey,
   isValidOptionValue,
 } from '../../../src/modules/catalog/services/attribute-option-validator.js';
 
@@ -90,25 +89,6 @@ describe('validateOptionList (catalog/attribute-option-validator)', () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.errors[0]?.code).toBe('attribute_type_unsupported');
-  });
-});
-
-describe('isValidAttributeKey', () => {
-  it('accepts snake_case starting with a letter', () => {
-    expect(isValidAttributeKey('gear_ratio')).toBe(true);
-    expect(isValidAttributeKey('a')).toBe(true);
-    expect(isValidAttributeKey('material_2')).toBe(true);
-  });
-
-  it('refuses keys starting with a digit or underscore', () => {
-    expect(isValidAttributeKey('1material')).toBe(false);
-    expect(isValidAttributeKey('_material')).toBe(false);
-  });
-
-  it('refuses keys with uppercase or special characters', () => {
-    expect(isValidAttributeKey('Material')).toBe(false);
-    expect(isValidAttributeKey('gear-ratio')).toBe(false);
-    expect(isValidAttributeKey('gear ratio')).toBe(false);
   });
 });
 

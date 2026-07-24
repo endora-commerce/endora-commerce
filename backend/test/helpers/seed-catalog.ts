@@ -1,9 +1,18 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Product } from '../../src/modules/catalog/entities/product.entity.js';
 import { Category } from '../../src/modules/catalog/entities/category.entity.js';
-import { ProductAttribute } from '../../src/modules/catalog/entities/product-attribute.entity.js';
 import { AttributeSetAttribute } from '../../src/modules/catalog/entities/attribute-set-attribute.entity.js';
+import { createAttributeFixture } from '../../src/modules/catalog/seeds/attribute-fixtures.js';
 import { SalesChannel } from '../../src/modules/sales_channels/entities/sales-channel.entity.js';
+
+// Feature 061 — attribute fixtures create the product-host Custom Field
+// definition + catalog extension pair; re-export the helpers so test files
+// keep their fixture edits mechanical.
+export {
+  createAttributeFixture,
+  findAttributeDefinitionByKey,
+  findAttributeExtensionByKey,
+} from '../../src/modules/catalog/seeds/attribute-fixtures.js';
 
 /** Fixed UUIDs for the three seeded Products — the RFQ tests reference these directly. */
 export const SEED_PRODUCT_101_ID = '00000000-0000-4000-8000-000000000101';
@@ -59,80 +68,54 @@ export async function seedUs1Catalog(em: EntityManager): Promise<void> {
   await em.persistAndFlush([childA, childB]);
 
   // --- Attributes --------------------------------------------------------
-  const color = em.create(ProductAttribute, {
+  // Feature 061 — each fixture creates the product-host Custom Field
+  // definition + the catalog extension pair. Option sortOrder 0 for every
+  // option matches the pre-061 seed shape (ties break by value ASC).
+  const { extension: color } = await createAttributeFixture(em, {
     key: 'color',
     label: { 'en-US': 'Color', 'pl-PL': 'Kolor' },
     labelDefault: 'Color',
     valueType: 'enum',
     isSearchable: true,
     isFilterable: true,
-    isVariantAxis: false,
+    sortOrder: 0,
+    options: ['red', 'green', 'blue'].map((v) => ({ value: v, sortOrder: 0 })),
   });
-  const internalNotes = em.create(ProductAttribute, {
+  const { extension: internalNotes } = await createAttributeFixture(em, {
     key: 'internal_sku_notes',
     label: { 'en-US': 'Internal SKU notes', 'pl-PL': 'Notatki wewnętrzne' },
     labelDefault: 'Internal SKU notes',
     valueType: 'string',
     isSearchable: true,
-    isFilterable: false,
-    isVariantAxis: false,
+    sortOrder: 1,
   });
-  const material = em.create(ProductAttribute, {
+  const { extension: material } = await createAttributeFixture(em, {
     key: 'material',
     label: { 'en-US': 'Material', 'pl-PL': 'Materiał' },
     labelDefault: 'Material',
     valueType: 'enum',
-    isSearchable: false,
     isFilterable: true,
-    isVariantAxis: false,
+    sortOrder: 2,
+    options: ['steel', 'aluminium', 'plastic'].map((v) => ({ value: v, sortOrder: 0 })),
   });
-  const certification = em.create(ProductAttribute, {
+  const { extension: certification } = await createAttributeFixture(em, {
     key: 'certification',
     label: { 'en-US': 'Certification', 'pl-PL': 'Certyfikat' },
     labelDefault: 'Certification',
     valueType: 'string',
-    isSearchable: false,
-    isFilterable: false,
-    isVariantAxis: false,
+    sortOrder: 3,
   });
-  await em.persistAndFlush([color, internalNotes, material, certification]);
-
-  // Feature 012 — option-list rows for the two enum attributes (formerly
-  // stored as enum_values: string[] on the parent; the column is gone).
-  const { AttributeOption } = await import(
-    '../../src/modules/catalog/entities/attribute-option.entity.js'
-  );
-  for (const v of ['red', 'green', 'blue']) {
-    em.create(AttributeOption, {
-      attributeId: color.id,
-      value: v,
-      label: {},
-      labelDefault: v,
-      isDefault: false,
-      sortOrder: 0,
-    });
-  }
-  for (const v of ['steel', 'aluminium', 'plastic']) {
-    em.create(AttributeOption, {
-      attributeId: material.id,
-      value: v,
-      label: {},
-      labelDefault: v,
-      isDefault: false,
-      sortOrder: 0,
-    });
-  }
-  await em.flush();
 
   // Feature 002 (T023) — assign every seeded attribute to the system
   // Default Attribute Set so the catalog-admin's attribute-values
-  // validation accepts these keys for the seeded Products.
+  // validation accepts these keys for the seeded Products. Membership is
+  // definition-keyed since feature 061.
   const DEFAULT_ATTRIBUTE_SET_ID = 'defa0017-0000-4000-8000-000000000000';
   await em.persistAndFlush(
     [color, internalNotes, material, certification].map((attr, idx) =>
       em.create(AttributeSetAttribute, {
         attributeSetId: DEFAULT_ATTRIBUTE_SET_ID,
-        productAttributeId: attr.id,
+        customFieldDefinitionId: attr.customFieldDefinitionId,
         position: idx,
       }),
     ),

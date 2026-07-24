@@ -22,6 +22,7 @@ import type { OrderService } from '../orders/services/order-service.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import type { OrganizationRestrictionService } from '../organizations/services/organization-restriction-service.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
+import type { CatalogAttributeReadService } from '../catalog/services/catalog-attribute-read.service.js';
 
 /** Default import row cap when no settings service is wired (matches the
  *  `quick_order.import_max_rows` manifest default). */
@@ -39,6 +40,11 @@ const DEFAULT_IMPORT_MAX_ROWS = 2000;
 export interface ShoppingListsModuleOptions {
   emFactory: () => EntityManager;
   rfqService: RfqService;
+  /**
+   * Feature 061 — the catalog's composed attribute read model, threaded into
+   * the quick-order search route (Principle I: no catalog entity imports).
+   */
+  catalogAttributeRead: CatalogAttributeReadService;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   resolveCustomerContext: (req: FastifyRequest) => {
     customerAccountId: string;
@@ -141,6 +147,7 @@ export function shoppingListsModule(options: ShoppingListsModuleOptions) {
       requireCustomer: options.requireCustomer,
       resolveCustomerContext: options.resolveCustomerContext,
       resolveImportMaxRows,
+      catalogAttributeRead: options.catalogAttributeRead,
     });
     if (options.requireAdmin) {
       await registerQuickOrderAdminRoutes(app, {

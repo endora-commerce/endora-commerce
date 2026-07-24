@@ -9,16 +9,21 @@ schema migration or code deploy** (Constitution Principle XIV, feature `055`).
 The Custom Fields Layer is a generic, **entity-agnostic** module that reuses the
 *design* of the catalog's `product_attributes` (typed definitions, option lists,
 per-locale labels) as a cross-cutting capability — without embedding any
-host-specific concern in its core, and without touching `product_attributes`,
-which stays the untouched source of truth for products.
+host-specific concern in its core.
 
 ## Supported host entities
 
 Custom fields are available on **Category, Order, Organization, CustomerAccount,
-and QuoteRequest**. Each host entity carries an additive JSONB
-`customFieldValues` bag (`{ [definitionKey]: value }`); the host owns that column
-and its writes. Product keeps its own `product_attributes` mechanism — the two
-converge only via an adapter, never a rewrite.
+QuoteRequest, and Product**. Each host entity carries an additive JSONB value
+bag (`{ [definitionKey]: value }`); the host owns that column and its writes.
+For most hosts the bag is the `customFieldValues` column; the product host binds
+to the pre-existing `products.attribute_values` column instead (see the value-probe
+binding below). Product attributes converged onto this layer in feature `061` —
+as an **adapter**, per Principle XIV's convergence clause ("any later convergence
+is an adapter, not a rewrite"): the generic layer owns each attribute's identity
+(key, per-locale labels, value type, required, options), while the catalog keeps
+its behaviour flags on its own 1:1 extension table (`product_attributes`) and
+remains the only write surface (see "Host-managed entity types" below).
 
 ## How it works
 
@@ -50,6 +55,56 @@ The generic layer owns **definitions + validation**; the host owns **persistence
   the **Command Bus** (Principle XIII); the module registers its permissions
   (`custom_fields:read`, `custom_fields:write`) and participates in module
   lifecycle.
+
+## Host-managed entity types (`managedBy`)
+
+The entity registry (`custom-field-registry.ts`) supports a **generic**
+`managedBy` capability on a host entry: `{ moduleId, labelKey, route }`. When
+set, that host's definitions are authored by the named module through its own
+surface, and the generic admin surface becomes **read-only** for that entity
+type: `POST` / `PATCH` / `DELETE` on `/api/v1/admin/custom-fields/definitions*`
+are refused with `409 host_managed`, and the admin Custom Fields page renders
+the entity read-only with a notice linking to the managing surface. The refusal
+is registry-driven — the generic core checks only for the marker's presence,
+never which module manages (no host identifier in core logic).
+
+The product host is the first user: `managedBy` points at the catalog module's
+`/catalog/attributes` page, which stays the single write surface for product
+attributes.
+
+## Value-probe binding (`{table, column}`)
+
+The generic layer's change guards (`hasStoredValues`, `isOptionInUse` — backing
+`value_type_locked` and `option_in_use` refusals) probe the host's value bag with
+read-only JSONB introspection. The probe target is a per-entity **storage
+binding** `{ table, column }`: most hosts bind to their `custom_field_values`
+column, while the product host binds to `products.attribute_values`. The binding
+is purely storage metadata — no host logic lives in the generic module.
+
+## Transactional apply seam (host commands)
+
+Host modules that manage their entity's definitions (per `managedBy`) mutate
+them through the exported `CustomFieldDefinitionApplyApi`
+(`applyCreate` / `applyUpdate` / `applyDelete` + the option variants). Each
+apply function runs on a **caller-provided EntityManager**, enforces the generic
+invariants (duplicate key, options rules, value-type lock, option-in-use), and
+performs **no audit and no cache publish** — the calling host command owns the
+transaction, writes the single audit row, and publishes the definitions-cache
+invalidation after commit. This keeps `custom_fields` the sole writer of its
+tables (Principle I) while letting a host command keep its definition + its own
+rows consistent atomically (the Command Bus does not nest).
+
+## Convergence note: product attributes (feature 061)
+
+Principle XIV's convergence clause — "any later convergence is an **adapter**,
+not a rewrite" — was exercised by feature `061`: product attributes became
+Custom Field definitions on the `product` host, with the catalog keeping a 1:1
+extension row (`product_attributes`) for its behaviour flags and presentation
+refinements. The generic core gained only the three entity-agnostic seams
+described above (the `product` registry entry with `managedBy`, the
+`{table, column}` probe binding, and the apply seam) — zero catalog logic. See
+the [catalog module page](../modules/catalog.md#feature-061--attributes-as-custom-field-extensions)
+for the catalog-side view and the migration outcome.
 
 ## Tenant scope (inherited)
 

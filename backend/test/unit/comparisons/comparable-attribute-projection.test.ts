@@ -3,41 +3,30 @@ import {
   ComparableAttributeProjection,
   classifyRow,
   formatForDisplay,
+  type ComparableAttributeDefinition,
 } from '../../../src/modules/comparisons/services/comparable-attribute-projection.js';
-import type { ProductAttribute } from '../../../src/modules/catalog/entities/product-attribute.entity.js';
 
 /**
  * T017 — projection rules per research.md R-6. No DB; pure functions.
  * Covers scalar equality, multiselect set equality, missing-on-one-side
  * → 'different', null in the values array, all-products-equal → 'common'.
+ *
+ * Feature 061 — the projection input is the `ComparableAttributeDefinition`
+ * slice of the composed view (no catalog entity import).
  */
 
 const SUT = new ComparableAttributeProjection();
 
-function attr(
-  partial: Partial<ProductAttribute> & {
-    key: string;
-    valueType: ProductAttribute['valueType'];
-  },
-): ProductAttribute {
+function attr(partial: {
+  key: string;
+  valueType: ComparableAttributeDefinition['valueType'];
+  label?: Record<string, string>;
+}): ComparableAttributeDefinition {
   return {
-    id: '00000000-0000-4000-8000-000000000000',
     key: partial.key,
     label: partial.label ?? { en: partial.key, pl: partial.key },
-    labelDefault: partial.labelDefault ?? partial.key,
     valueType: partial.valueType,
-    isSearchable: false,
-    isFilterable: false,
-    isVariantAxis: false,
-    displayAsSlider: false,
-    isComparable: true,
-    isRequired: false,
-    isPromoRule: false,
-    filterPosition: 0,
-    isVisibleOnProductPage: false,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  } as unknown as ProductAttribute;
+  };
 }
 
 describe('classifyRow', () => {
