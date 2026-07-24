@@ -27,8 +27,9 @@ import { isoDateTimeSchema, moneySchema, uuidSchema } from './common.js';
 
 /**
  * Attribute-key syntax: lowercase, must start with a letter, then letters,
- * digits, or underscore. Mirrors `isValidAttributeKey()` in the catalog
- * module so the picker and the schema reject the same invalid keys.
+ * digits, or underscore. Mirrors the attribute-key regex on the catalog
+ * create-attribute schema so the picker and the schema reject the same
+ * invalid keys.
  */
 export const attributeKeyRegex = /^[a-z][a-z0-9_]*$/;
 

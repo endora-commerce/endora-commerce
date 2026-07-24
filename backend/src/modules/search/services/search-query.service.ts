@@ -101,7 +101,7 @@ export class SearchQueryService {
     const em = this.emFactory();
     const channel = ctx.resolvedChannel;
 
-    // Validate filter keys against the live ProductAttribute rows so that an
+    // Validate filter keys against the live composed attribute views so that an
     // unfilterable attribute returns the same 400 the Postgres path returns
     // (FR-005, T043). The Meilisearch index only enforces shape, not policy.
     if (params.attributeFilters) {

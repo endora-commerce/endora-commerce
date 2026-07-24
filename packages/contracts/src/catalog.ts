@@ -844,7 +844,8 @@ const baseCreateAttributeObject = z.object({
   /**
    * Feature 012 — rich option list for select / enum / multiselect types.
    * When supplied alongside the legacy `enumValues`, this wins. The
-   * service layer creates corresponding `attribute_options` rows.
+   * service layer creates corresponding `custom_field_options` rows
+   * (feature 061; formerly the catalog-owned `attribute_options` table).
    */
   options: z.array(createAttributeOptionRequestSchema).optional(),
 });
@@ -858,7 +859,7 @@ export const createAttributeRequestSchema = baseCreateAttributeObject
     (v) => {
       // Select-style attributes need either the legacy `enumValues: string[]`
       // shape OR the new feature-012 `options: AttributeOption[]` shape.
-      // The service maps either to `attribute_options` rows.
+      // The service maps either to `custom_field_options` rows (feature 061).
       const wantsEnum =
         v.type === 'multiselect' ||
         v.type === 'select' ||

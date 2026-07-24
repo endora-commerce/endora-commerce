@@ -33,7 +33,7 @@ interface AdminAttribute {
   /** Feature 012 — fallback label used when active locale is missing from `label`. */
   labelDefault: string;
   valueType: ValueType;
-  /** Legacy projection from `attribute_options` rows (feature 012 read shape). */
+  /** Legacy projection of the option values (feature 012 read shape; backed by `custom_field_options` since feature 061). */
   enumValues: string[] | null;
   isSearchable: boolean;
   isFilterable: boolean;
