@@ -91,6 +91,13 @@ import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
 import { creditLimitsModule } from './modules/credit_limits/plugin.js';
 import { customFieldsModule } from './modules/custom_fields/plugin.js';
 import { integrationsModule } from './modules/api_keys/plugin.js';
+// Feature 062 (T029) — outbound webhook delivery pipeline.
+import { wireEventBridge } from './modules/webhooks/services/event-bridge.js';
+import {
+  createWebhookQueue,
+  createWebhookWorker,
+} from './modules/webhooks/services/webhook-queue.js';
+import { createDeliveryProcessor } from './modules/webhooks/services/webhook-delivery-worker.js';
 import { analyticsModule } from './modules/analytics/plugin.js';
 import { importExportModule } from './modules/import_export/plugin.js';
 import { seoModule } from './modules/seo/plugin.js';
@@ -405,6 +412,33 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     auditLogService,
     requireAdmin,
   });
+
+  // Feature 062 (T029 / FR-014) — outbound webhook delivery, org-scoped.
+  // The bridge (producer) runs in every role: it maps bridged in-process
+  // events onto the durable BullMQ queue, filtered per subscription through
+  // `WebhookService.findActiveByEventType(eventType, organizationId)` so an
+  // org-bound subscription only ever sees its own organization's events
+  // (Principle XI; contracts/order-webhooks.md §2). The consumer (delivery
+  // worker: HMAC signing + retries + `webhook_deliveries` bookkeeping) runs
+  // co-located unless BACKEND_ROLE=api, exactly like the other workers
+  // (Principle X — separable via `pnpm --filter backend run worker`).
+  const webhookQueue = createWebhookQueue(redis);
+  const unwireWebhookBridge = wireEventBridge({
+    eventBus,
+    queue: webhookQueue,
+    subscriptionLookup: integrations.handle.webhookService,
+    bridgedEventTypes: ['order.created.v1', 'order.status_changed.v1'],
+  });
+  const webhookWorker = runWorkers
+    ? createWebhookWorker(
+        redis,
+        createDeliveryProcessor({
+          recordDelivery: async (input) => {
+            await integrations.handle.webhookService.recordDelivery(input);
+          },
+        }),
+      )
+    : null;
 
   const authModulePlugin: ModulePlugin = async (app) => {
     await app.register(authPlugin, {
@@ -2612,6 +2646,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
     },
     dispose: async () => {
+      // Feature 062 — stop bridging + drain the webhook delivery pipeline
+      // before dropping the Redis connections (graceful shutdown).
+      unwireWebhookBridge();
+      if (webhookWorker) await webhookWorker.close().catch(() => undefined);
+      await webhookQueue.close().catch(() => undefined);
       redis.disconnect();
       redisSubscriber.disconnect();
       await closeOrm();

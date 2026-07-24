@@ -146,6 +146,8 @@ export class OrderTransitionService {
       to,
       actor,
       reason: reason ?? null,
+      // Feature 062 — webhook receivers get the human-readable order number.
+      businessId: order.businessId,
     });
 
     return order;

@@ -14,6 +14,12 @@ export const webhookSchema = z.object({
   url: z.string().url(),
   eventTypes: z.array(z.string()),
   status: webhookStatusSchema,
+  /**
+   * Feature 062 — org-scoped delivery (additive). `null` = platform-wide
+   * subscription (legacy semantics); a value restricts delivery to events
+   * whose payload `organizationId` matches.
+   */
+  organizationId: uuidSchema.nullable(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
@@ -23,6 +29,8 @@ export const createWebhookRequestSchema = z.object({
   name: z.string().min(1).max(160),
   url: z.string().url(),
   eventTypes: z.array(z.string().min(1)).min(1),
+  /** Feature 062 — optional organization binding (additive; omitted/null = platform-wide). */
+  organizationId: uuidSchema.nullable().optional(),
 });
 export type CreateWebhookRequest = z.infer<typeof createWebhookRequestSchema>;
 

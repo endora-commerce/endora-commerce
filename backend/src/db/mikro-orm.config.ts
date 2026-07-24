@@ -113,6 +113,8 @@ import { Migration102AttributesOnCustomFields } from '../modules/catalog/migrati
 import { Migration103ApiKeysDistributorBinding } from '../modules/api_keys/migrations/103_api_keys_distributor_binding.js';
 // Feature 062 — Distributor API: durable order-intake idempotency.
 import { Migration104OrderPlacementIntents } from '../modules/orders/migrations/104_order_placement_intents.js';
+// Feature 062 — Distributor API: org-scoped webhook delivery filter.
+import { Migration105WebhooksOrgFilter } from '../modules/webhooks/migrations/105_webhooks_org_filter.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -528,6 +530,10 @@ export default defineConfig({
       {
         name: 'Migration104OrderPlacementIntents',
         class: Migration104OrderPlacementIntents,
+      },
+      {
+        name: 'Migration105WebhooksOrgFilter',
+        class: Migration105WebhooksOrgFilter,
       },
     ],
     transactional: true,
