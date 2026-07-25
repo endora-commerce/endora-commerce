@@ -109,6 +109,12 @@ import { Migration100SettingsCredentialRefValueType } from '../modules/settings/
 import { Migration101KsefInit } from '../modules/ksef/migrations/101_ksef_init.js';
 // Feature 061 — product attributes converge onto the Custom Fields layer.
 import { Migration102AttributesOnCustomFields } from '../modules/catalog/migrations/102_attributes_on_custom_fields.js';
+// Feature 062 — Distributor API: api-key binding columns.
+import { Migration103ApiKeysDistributorBinding } from '../modules/api_keys/migrations/103_api_keys_distributor_binding.js';
+// Feature 062 — Distributor API: durable order-intake idempotency.
+import { Migration104OrderPlacementIntents } from '../modules/orders/migrations/104_order_placement_intents.js';
+// Feature 062 — Distributor API: org-scoped webhook delivery filter.
+import { Migration105WebhooksOrgFilter } from '../modules/webhooks/migrations/105_webhooks_org_filter.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -516,6 +522,18 @@ export default defineConfig({
       {
         name: 'Migration102AttributesOnCustomFields',
         class: Migration102AttributesOnCustomFields,
+      },
+      {
+        name: 'Migration103ApiKeysDistributorBinding',
+        class: Migration103ApiKeysDistributorBinding,
+      },
+      {
+        name: 'Migration104OrderPlacementIntents',
+        class: Migration104OrderPlacementIntents,
+      },
+      {
+        name: 'Migration105WebhooksOrgFilter',
+        class: Migration105WebhooksOrgFilter,
       },
     ],
     transactional: true,

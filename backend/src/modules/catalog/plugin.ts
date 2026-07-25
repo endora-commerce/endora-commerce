@@ -47,6 +47,12 @@ import type { Mailer } from '../email/services/mailer.js';
 import { registerCatalogPublicRoutes } from './routes.public.js';
 import { registerCatalogAdminRoutes, type RequireAdminFactory } from './routes.admin.js';
 import { registerCatalogApiKeyRoutes } from './routes.api-key.js';
+import { registerCatalogExternalRoutes } from './routes.external.js';
+import {
+  CatalogOrgPriceDecorator,
+  type ResolveAvailabilityPort,
+} from './services/catalog-org-price-decorator.js';
+import type { PricingServiceContract } from '../price_lists/services/pricing-service.interface.js';
 
 /**
  * Composition root for the catalog module. Wires the ORM's per-request EM into
@@ -76,6 +82,24 @@ export interface CatalogModuleOptions {
    * pass-through gate.
    */
   requireApiKey?: RequireApiKeyFactory;
+  /**
+   * Feature 062 — bound-key gate injected by the integrations module. When
+   * BOTH this and `pricingService` are provided (alongside `requireApiKey`),
+   * the external catalog namespace (`/api/v1/external/catalog/*`) is
+   * registered. When omitted (legacy fixtures), the namespace is absent.
+   */
+  requireBoundApiKey?: RequireApiKeyFactory;
+  /**
+   * Feature 062 — the price-lists pricing engine (the same resolver cart
+   * pricing uses). Consumed only by the external catalog namespace's
+   * decoration layer — SC-001 parity by construction.
+   */
+  pricingService?: PricingServiceContract;
+  /**
+   * Feature 062 — inventory availability port for the external namespace's
+   * `availability` indication. Optional: when omitted the field is omitted.
+   */
+  resolveExternalAvailability?: ResolveAvailabilityPort;
   /**
    * Feature 005 / T027 — when provided, every newly-created Product is
    * automatically bound to the system-default Sales Channel unless it
@@ -277,6 +301,24 @@ export function catalogModule(options: CatalogModuleOptions) {
       emFactory: options.emFactory,
       ...(options.requireApiKey ? { requireApiKey: options.requireApiKey } : {}),
     });
+    // Feature 062 — external catalog namespace (/api/v1/external/catalog/*).
+    // Registered only when the api-key gates AND the pricing engine are wired
+    // (production + full test harness); legacy fixtures skip it.
+    if (options.requireApiKey && options.requireBoundApiKey && options.pricingService) {
+      const decorator = new CatalogOrgPriceDecorator({
+        emFactory: options.emFactory,
+        pricingService: options.pricingService,
+        ...(options.resolveExternalAvailability
+          ? { resolveAvailability: options.resolveExternalAvailability }
+          : {}),
+      });
+      await registerCatalogExternalRoutes(app, {
+        queryService,
+        decorator,
+        requireApiKey: options.requireApiKey,
+        requireBoundApiKey: options.requireBoundApiKey,
+      });
+    }
     // Feature 022 — scope editor services. Conditional on the
     // composition root providing both LanguageService and the
     // SalesChannelMembershipService, since the context endpoint needs

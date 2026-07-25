@@ -540,6 +540,96 @@ export class StockLevelService {
     };
   }
 
+  /**
+   * Feature 062 — batch availability indication for the external catalog
+   * surface. Mirrors the storefront per-product stock readout: cumulative
+   * on-hand (optionally restricted to the channel's candidate warehouses)
+   * mapped through the product/category/global threshold chain to a display
+   * band; `inStock` is the same channel-public flag the storefront derives
+   * (`manageStock && onHand <= 0` ⇒ out of stock). Products with no stock
+   * rows still get an entry (out_of_stock or `available` when unmanaged).
+   */
+  async resolveAvailabilityBands(
+    productIds: string[],
+    candidateWarehouseIds?: string[],
+  ): Promise<Map<string, { band: DisplayBand; inStock: boolean }>> {
+    const out = new Map<string, { band: DisplayBand; inStock: boolean }>();
+    if (productIds.length === 0) return out;
+    const em = this.emFactory();
+    const knex = em.getKnex();
+
+    const products = await em.find(
+      Product,
+      { id: { $in: productIds } },
+      { fields: ['id', 'manageStock'] },
+    );
+
+    const sumRows = (await knex('stock_levels')
+      .whereIn('product_id', productIds)
+      .modify((qb) => {
+        if (candidateWarehouseIds && candidateWarehouseIds.length > 0) {
+          qb.whereIn('warehouse_id', candidateWarehouseIds);
+        }
+      })
+      .select('product_id')
+      .sum({ on_hand: 'on_hand' })
+      .groupBy('product_id')) as Array<{ product_id: string; on_hand: string | null }>;
+    const onHandByProduct = new Map(sumRows.map((r) => [r.product_id, Number(r.on_hand ?? 0)]));
+
+    const globalThresholds = await this.loadGlobalThresholds(em);
+    const productThresholdRows = await em.find(InventoryThreshold, {
+      scopeKind: 'product',
+      scopeId: { $in: productIds },
+    });
+    const productThresholdByProduct = new Map(
+      productThresholdRows.map((row) => [
+        row.scopeId,
+        {
+          high: row.thresholdHigh ?? null,
+          medium: row.thresholdMedium ?? null,
+          low: row.thresholdLow ?? null,
+        },
+      ]),
+    );
+
+    const productCategoryRows = (await knex('product_categories')
+      .whereIn('product_id', productIds)
+      .select('product_id', 'category_id')) as Array<{
+      product_id: string;
+      category_id: string;
+    }>;
+    const categoryIds = Array.from(new Set(productCategoryRows.map((r) => r.category_id)));
+    const categories = categoryIds.length
+      ? await em.find(Category, { id: { $in: categoryIds } })
+      : [];
+    const categoryById = new Map(categories.map((c) => [c.id, c]));
+
+    for (const product of products) {
+      const cumulativeOnHand = onHandByProduct.get(product.id) ?? 0;
+      const categoryThresholds = productCategoryRows
+        .filter((r) => r.product_id === product.id)
+        .map((r) => categoryById.get(r.category_id))
+        .filter((c): c is Category => Boolean(c))
+        .map((c) => ({
+          high: c.inventoryThresholdHigh ?? null,
+          medium: c.inventoryThresholdMedium ?? null,
+          low: c.inventoryThresholdLow ?? null,
+        }));
+      const thresholds = resolveThresholds({
+        productThresholds: productThresholdByProduct.get(product.id) ?? null,
+        categoryThresholds,
+        globalThresholds,
+      });
+      const manageStock = product.manageStock ?? true;
+      const band = resolveDisplayBand({ manageStock, cumulativeOnHand, thresholds });
+      out.set(product.id, {
+        band,
+        inStock: !(manageStock && cumulativeOnHand <= 0),
+      });
+    }
+    return out;
+  }
+
   private async loadGlobalThresholds(em: EntityManager): Promise<ThresholdLevel> {
     const row = await em.findOne(InventoryThreshold, { scopeKind: 'global', scopeId: null });
     return {

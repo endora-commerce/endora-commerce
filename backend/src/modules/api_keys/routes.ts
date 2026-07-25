@@ -37,6 +37,8 @@ export async function registerApiKeysAdminRoutes(
       const result = await apiKeyService.create({
         name: body.name,
         scopes: body.scopes,
+        ...(body.binding !== undefined ? { binding: body.binding } : {}),
+        ...(body.expiresAt !== undefined ? { expiresAt: new Date(body.expiresAt) } : {}),
         ...(adminId !== undefined ? { createdByAdminUserId: adminId } : {}),
       });
       reply.status(201);
@@ -70,5 +72,10 @@ function serializeApiKey(a: ApiKey): Record<string, unknown> {
     revokedAt: a.revokedAt?.toISOString() ?? null,
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
+    // Feature 062 — additive binding/expiry fields (null for unbound keys).
+    organizationId: a.organizationId ?? null,
+    salesChannelId: a.salesChannelId ?? null,
+    customerAccountId: a.customerAccountId ?? null,
+    expiresAt: a.expiresAt?.toISOString() ?? null,
   };
 }

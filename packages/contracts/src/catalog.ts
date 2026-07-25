@@ -141,6 +141,39 @@ export const productAssetSchema = z.object({
 });
 export type ProductAsset = z.infer<typeof productAssetSchema>;
 
+// --- Feature 062 — external (api-key) catalog read decorations ---------------
+
+/**
+ * Availability indication mirrored from the inventory display bands the
+ * storefront shows (`available` = stock not managed for the product).
+ */
+export const productAvailabilityBandSchema = z.enum([
+  'high',
+  'medium',
+  'low',
+  'out_of_stock',
+  'available',
+]);
+export type ProductAvailabilityBand = z.infer<typeof productAvailabilityBandSchema>;
+
+export const productAvailabilitySchema = z.object({
+  band: productAvailabilityBandSchema,
+  inStock: z.boolean(),
+});
+export type ProductAvailability = z.infer<typeof productAvailabilitySchema>;
+
+/**
+ * One rung of the bound Organization's resolved quantity-bracket price
+ * ladder (external product detail only).
+ */
+export const productPriceTierSchema = z.object({
+  minQuantity: z.number().int().min(1),
+  amount: z.number().finite(),
+  currency: z.string().length(3),
+  isSale: z.boolean(),
+});
+export type ProductPriceTier = z.infer<typeof productPriceTierSchema>;
+
 // --- Product summary (list response) ----------------------------------------
 
 export const productSummarySchema = z.object({
@@ -154,6 +187,17 @@ export const productSummarySchema = z.object({
   price: moneySchema.nullable(),
   stockIndicator: stockIndicatorSchema.nullable(),
   stockLevel: z.number().int().nullable(),
+  /**
+   * Feature 062 — external namespace only (`/api/v1/external/catalog/*`):
+   * set to `true` for bound api-key callers when the Organization-effective
+   * price resolved to `null`. Never present on the public surface.
+   */
+  priceUnavailable: z.boolean().optional(),
+  /**
+   * Feature 062 — external namespace only: channel-public availability
+   * indication (band + in-stock flag), present for bound and unbound keys.
+   */
+  availability: productAvailabilitySchema.optional(),
 });
 export type ProductSummary = z.infer<typeof productSummarySchema>;
 
@@ -379,8 +423,67 @@ export const productDetailSchema = productSummarySchema.extend({
       }),
     )
     .optional(),
+  /**
+   * Feature 062 — external namespace only: the bound Organization's resolved
+   * quantity-bracket price ladder. Never present on the public surface nor
+   * for unbound api-key callers.
+   */
+  priceTiers: z.array(productPriceTierSchema).optional(),
 });
 export type ProductDetail = z.infer<typeof productDetailSchema>;
+
+// --- Feature 062 — external bulk pricing (`POST /api/v1/external/catalog/prices`) ---
+
+export const catalogBulkPriceRequestSchema = z.object({
+  lines: z
+    .array(
+      z.object({
+        sku: z.string().min(1),
+        quantity: z.number().int().min(1),
+      }),
+    )
+    .min(1)
+    .max(200),
+});
+export type CatalogBulkPriceRequest = z.infer<typeof catalogBulkPriceRequestSchema>;
+
+export const catalogBulkPriceMissReasonSchema = z.enum([
+  'sku_not_in_assortment',
+  'price_unavailable',
+]);
+export type CatalogBulkPriceMissReason = z.infer<typeof catalogBulkPriceMissReasonSchema>;
+
+/**
+ * Per-line result, order-preserving. Misses are data, not errors — the
+ * partner needs a total answer for a basket. `amount` is the exact decimal
+ * string the pricing resolver charges the bound org on the bound channel at
+ * that quantity (SC-001 parity with cart pricing).
+ */
+export const catalogBulkPriceLineSchema = z.union([
+  z.object({
+    sku: z.string(),
+    quantity: z.number().int(),
+    price: z.object({
+      amount: z.string(),
+      currency: z.string().length(3),
+      isSale: z.boolean(),
+      bracketStartQuantity: z.number().int(),
+      priceListId: uuidSchema,
+    }),
+  }),
+  z.object({
+    sku: z.string(),
+    quantity: z.number().int(),
+    price: z.null(),
+    reason: catalogBulkPriceMissReasonSchema,
+  }),
+]);
+export type CatalogBulkPriceLine = z.infer<typeof catalogBulkPriceLineSchema>;
+
+export const catalogBulkPriceResponseSchema = z.object({
+  data: z.array(catalogBulkPriceLineSchema),
+});
+export type CatalogBulkPriceResponse = z.infer<typeof catalogBulkPriceResponseSchema>;
 
 // --- Category tree ----------------------------------------------------------
 

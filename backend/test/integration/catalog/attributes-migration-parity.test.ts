@@ -163,11 +163,20 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
   }
 
   async function revert102(): Promise<void> {
-    const latest = await latestExecutedMigration();
-    expect(
-      latest,
-      'expected migration 102 to be the latest executed migration — refusing to down() anything else',
-    ).toBe('Migration102AttributesOnCustomFields');
+    // Later features keep appending migrations (103+ as of feature 062), so on
+    // a fully-migrated shared DB the latest executed migration is usually not
+    // 102. Step down through anything newer first, then revert 102 itself —
+    // but refuse to ever down() a migration OLDER than 102.
+    for (;;) {
+      const latest = await latestExecutedMigration();
+      const ordinal = Number(/^Migration(\d+)/.exec(latest ?? '')?.[1] ?? Number.NaN);
+      expect(
+        ordinal,
+        `expected migration 102 or a later one as the latest executed migration (got "${latest ?? 'none'}") — refusing to down() anything older than 102`,
+      ).toBeGreaterThanOrEqual(102);
+      if (latest === 'Migration102AttributesOnCustomFields') break;
+      await db.orm.getMigrator().down();
+    }
     await db.orm.getMigrator().down();
   }
 
@@ -470,9 +479,12 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
     expect(Number(defsLeft[0]?.count)).toBe(0);
 
     // Clean up the offending row; re-apply so the suite continues migrated.
+    // (up() also re-applies any post-102 migrations stepped down by revert102.)
     await conn().execute(`delete from "product_attributes" where "key" = 'name'`);
     await db.orm.getMigrator().up();
-    const latest = await latestExecutedMigration();
-    expect(latest).toBe('Migration102AttributesOnCustomFields');
+    const executed = await conn().execute<Array<{ name: string }>>(
+      `select "name" from "mikro_orm_migrations"`,
+    );
+    expect(executed.map((r) => r.name)).toContain('Migration102AttributesOnCustomFields');
   });
 });

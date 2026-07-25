@@ -87,16 +87,36 @@ export function emitOrderStatusAfter(
     to: string;
     actor: OrderStatusActor;
     reason?: string | null;
+    /**
+     * Feature 062 — human-readable order number for webhook receivers
+     * (contracts/order-webhooks.md §5). Optional: system-driven callers
+     * (payments/shipments) may not have it in scope.
+     */
+    businessId?: string | null;
   },
 ): void {
   if (p.from === p.to) return;
   const base = { eventId: randomUUID(), occurredAt: new Date().toISOString() };
-  const event: OrderStatusEvent = { ...base, ...p, reason: p.reason ?? null };
+  const event: OrderStatusEvent = {
+    ...base,
+    orderId: p.orderId,
+    organizationId: p.organizationId,
+    salesChannelId: p.salesChannelId,
+    from: p.from,
+    to: p.to,
+    actor: p.actor,
+    reason: p.reason ?? null,
+  };
+  // Coarse event — feature 062 additively includes `organizationId` (webhook
+  // tenant filtering, Principle XI), `salesChannelId`, and `businessId`.
   events.emit('order.status_changed.v1', {
     ...base,
     orderId: p.orderId,
+    organizationId: p.organizationId,
+    salesChannelId: p.salesChannelId,
     from: p.from,
     to: p.to,
+    ...(p.businessId != null ? { businessId: p.businessId } : {}),
   } as OrderStatusEvent);
   for (const name of orderStatusAfterEventNames(p.from, p.to)) {
     events.emit(name, event);

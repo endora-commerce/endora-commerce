@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
-import { ApiKeyService } from './services/api-key-service.js';
+import { ApiKeyService, type AuthenticatedApiKey } from './services/api-key-service.js';
 import { WebhookService } from '../webhooks/services/webhook-service.js';
 import { IntegrationService } from '../integrations/services/integration-service.js';
 import { registerApiKeysAdminRoutes } from './routes.js';
@@ -23,6 +23,25 @@ export interface IntegrationsModuleOptions {
   auditLogService?: AuditLogService;
 }
 
+/**
+ * Feature 062 — the resolved binding `requireBoundApiKey` stashes on the
+ * request for the distributor services.
+ */
+export interface ApiKeyRequestBinding {
+  apiKeyId: string;
+  scopes: string[];
+  organizationId: string;
+  salesChannelId: string;
+  customerAccountId: string;
+}
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    /** Set by `requireBoundApiKey` after a successful binding assertion. */
+    apiKeyBinding?: ApiKeyRequestBinding;
+  }
+}
+
 export interface IntegrationsModuleHandle {
   apiKeyService: ApiKeyService;
   webhookService: WebhookService;
@@ -36,6 +55,14 @@ export interface IntegrationsModuleHandle {
   requireApiKey: (
     scope: string,
   ) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+  /**
+   * Feature 062 — distributor gate: authenticate → scope (audited 403,
+   * unchanged) → binding assertion (403 `API_KEY_NOT_BOUND` + audit
+   * `api_key.not_bound`) → stash the resolved binding on the request.
+   */
+  requireBoundApiKey: (
+    scope: string,
+  ) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 }
 
 export function integrationsModule(options: IntegrationsModuleOptions): {
@@ -46,33 +73,75 @@ export function integrationsModule(options: IntegrationsModuleOptions): {
   const webhookService = new WebhookService(options.emFactory, options.auditLogService);
   const integrationService = new IntegrationService(options.emFactory, options.auditLogService);
 
+  // Shared authenticate + scope assertion used by both gates.
+  const resolveScopedKey = async (
+    request: FastifyRequest,
+    scope: string,
+  ): Promise<AuthenticatedApiKey> => {
+    const header = request.headers.authorization;
+    if (!header?.startsWith('Bearer ')) {
+      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'API key required.');
+    }
+    const token = header.slice('Bearer '.length).trim();
+    const resolved = await apiKeyService.authenticate(token);
+    if (!resolved) {
+      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'API key is invalid or revoked.');
+    }
+    if (!resolved.scopes.includes(scope)) {
+      if (options.auditLogService) {
+        await options.auditLogService.record({
+          action: 'api_key.out_of_scope',
+          objectType: 'api_key',
+          objectId: resolved.apiKeyId,
+          stateBefore: null,
+          stateAfter: { attemptedScope: scope, grantedScopes: resolved.scopes },
+        });
+      }
+      throw new HttpError(
+        403,
+        ERROR_CODES.API_KEY_OUT_OF_SCOPE,
+        `API key lacks the required scope: ${scope}.`,
+      );
+    }
+    return resolved;
+  };
+
   const requireApiKey =
     (scope: string) => async (request: FastifyRequest): Promise<void> => {
-      const header = request.headers.authorization;
-      if (!header?.startsWith('Bearer ')) {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'API key required.');
-      }
-      const token = header.slice('Bearer '.length).trim();
-      const resolved = await apiKeyService.authenticate(token);
-      if (!resolved) {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'API key is invalid or revoked.');
-      }
-      if (!resolved.scopes.includes(scope)) {
+      await resolveScopedKey(request, scope);
+    };
+
+  // Feature 062 — distributor gate (contracts/api-key-binding.md §4).
+  const requireBoundApiKey =
+    (scope: string) => async (request: FastifyRequest): Promise<void> => {
+      const resolved = await resolveScopedKey(request, scope);
+      if (
+        !resolved.organizationId ||
+        !resolved.salesChannelId ||
+        !resolved.customerAccountId
+      ) {
         if (options.auditLogService) {
           await options.auditLogService.record({
-            action: 'api_key.out_of_scope',
+            action: 'api_key.not_bound',
             objectType: 'api_key',
             objectId: resolved.apiKeyId,
             stateBefore: null,
-            stateAfter: { attemptedScope: scope, grantedScopes: resolved.scopes },
+            stateAfter: { attemptedScope: scope },
           });
         }
         throw new HttpError(
           403,
-          ERROR_CODES.API_KEY_OUT_OF_SCOPE,
-          `API key lacks the required scope: ${scope}.`,
+          ERROR_CODES.API_KEY_NOT_BOUND,
+          'This endpoint requires a distributor-bound API key.',
         );
       }
+      request.apiKeyBinding = {
+        apiKeyId: resolved.apiKeyId,
+        scopes: resolved.scopes,
+        organizationId: resolved.organizationId,
+        salesChannelId: resolved.salesChannelId,
+        customerAccountId: resolved.customerAccountId,
+      };
     };
 
   return {
@@ -81,6 +150,7 @@ export function integrationsModule(options: IntegrationsModuleOptions): {
       webhookService,
       integrationService,
       requireApiKey,
+      requireBoundApiKey,
     },
     plugin: async (app) => {
       await registerApiKeysAdminRoutes(app, {

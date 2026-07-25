@@ -85,10 +85,19 @@ import {
   type OAuthProviderPort,
 } from './modules/mfa/services/oauth-provider-service.js';
 import { inventoryModule } from './modules/inventory/plugin.js';
+import { StockLevelService } from './modules/inventory/services/stock-level-service.js';
+import { WarehouseChannelService } from './modules/inventory/services/warehouse-channel-service.js';
 import { shoppingListsModule } from './modules/shopping_lists/plugin.js';
 import { creditLimitsModule } from './modules/credit_limits/plugin.js';
 import { customFieldsModule } from './modules/custom_fields/plugin.js';
 import { integrationsModule } from './modules/api_keys/plugin.js';
+// Feature 062 (T029) — outbound webhook delivery pipeline.
+import { wireEventBridge } from './modules/webhooks/services/event-bridge.js';
+import {
+  createWebhookQueue,
+  createWebhookWorker,
+} from './modules/webhooks/services/webhook-queue.js';
+import { createDeliveryProcessor } from './modules/webhooks/services/webhook-delivery-worker.js';
 import { analyticsModule } from './modules/analytics/plugin.js';
 import { importExportModule } from './modules/import_export/plugin.js';
 import { seoModule } from './modules/seo/plugin.js';
@@ -403,6 +412,33 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     auditLogService,
     requireAdmin,
   });
+
+  // Feature 062 (T029 / FR-014) — outbound webhook delivery, org-scoped.
+  // The bridge (producer) runs in every role: it maps bridged in-process
+  // events onto the durable BullMQ queue, filtered per subscription through
+  // `WebhookService.findActiveByEventType(eventType, organizationId)` so an
+  // org-bound subscription only ever sees its own organization's events
+  // (Principle XI; contracts/order-webhooks.md §2). The consumer (delivery
+  // worker: HMAC signing + retries + `webhook_deliveries` bookkeeping) runs
+  // co-located unless BACKEND_ROLE=api, exactly like the other workers
+  // (Principle X — separable via `pnpm --filter backend run worker`).
+  const webhookQueue = createWebhookQueue(redis);
+  const unwireWebhookBridge = wireEventBridge({
+    eventBus,
+    queue: webhookQueue,
+    subscriptionLookup: integrations.handle.webhookService,
+    bridgedEventTypes: ['order.created.v1', 'order.status_changed.v1'],
+  });
+  const webhookWorker = runWorkers
+    ? createWebhookWorker(
+        redis,
+        createDeliveryProcessor({
+          recordDelivery: async (input) => {
+            await integrations.handle.webhookService.recordDelivery(input);
+          },
+        }),
+      )
+    : null;
 
   const authModulePlugin: ModulePlugin = async (app) => {
     await app.register(authPlugin, {
@@ -1089,7 +1125,18 @@ export async function composeApp(): Promise<ComposeAppHandle> {
             const scope = await resolveAdminOrdersScope(request);
             return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
           }
-          // anonymous / api_key: trusted platform read scope. Guest-owned rows are
+          // Feature 062 — a BOUND api key pins the request to its organization +
+          // designated service account; an unbound key keeps the legacy trusted
+          // system scope (its only surface is the global-entity PIM path).
+          if (actor.kind === 'api_key') {
+            return resolveTenantContext({
+              kind: 'api_key',
+              apiKeyId: actor.apiKeyId,
+              organizationId: actor.organizationId ?? null,
+              customerAccountId: actor.customerAccountId ?? null,
+            });
+          }
+          // anonymous: trusted platform read scope. Guest-owned rows are
           // scoped by their own token mechanism, not by the tenant filter.
           return systemTenantContext(`actor:${actor.kind}`);
         };
@@ -1104,6 +1151,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       }),
     );
   };
+
+  // Feature 062 — read-only inventory accessors backing the external catalog
+  // namespace's availability indication (channel-candidate warehouses +
+  // cumulative on-hand → display band). Standalone instances: reads only,
+  // no event emission, no audit.
+  const externalAvailabilityStockLevels = new StockLevelService(em);
+  const externalAvailabilityWarehouseChannels = new WarehouseChannelService(em);
 
   const modules: ModulePlugin[] = [
     healthPlugin,
@@ -1141,6 +1195,20 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       addressService: new AddressService(em, dictionaries.handle.validator, auditLogService),
       promotionService: promotions.handle.promotionService,
       redis,
+      // Feature 062 — external orders namespace (/api/v1/external/orders*):
+      // bound-key gate + the org method allow-lists (FR-021 envelope).
+      requireBoundApiKey: integrations.handle.requireBoundApiKey,
+      resolveOrganizationMethodAllowLists: async (organizationId: string) => {
+        try {
+          const lists = await organizationRestrictionService.readAllowLists(organizationId);
+          return {
+            paymentMethodIds: lists.paymentMethodIds,
+            deliveryMethodIds: lists.deliveryMethodIds,
+          };
+        } catch {
+          return null;
+        }
+      },
       // Feature 027 US5 — abandonment-sweep resolvers + dispatcher.
       resolveCartAbandonmentInactivityMinutes: async () => {
         try {
@@ -1438,6 +1506,19 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       customFieldsPort: customFields.handle.definitionService,
       attributeReadService: catalogAttributeReadService,
       requireApiKey: integrations.handle.requireApiKey,
+      // Feature 062 — external catalog namespace (/api/v1/external/catalog/*):
+      // bound-key gate + the SAME pricing engine cart pricing uses (SC-001
+      // parity by construction) + the inventory availability indication port.
+      requireBoundApiKey: integrations.handle.requireBoundApiKey,
+      pricingService: priceLists.handle.pricingService,
+      resolveExternalAvailability: async (productIds, salesChannelId) => {
+        const candidateWarehouseIds =
+          await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
+        return externalAvailabilityStockLevels.resolveAvailabilityBands(
+          productIds,
+          candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
+        );
+      },
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,
       adminNotificationService: adminNotifications.handle.adminNotificationService,
@@ -2565,6 +2646,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
     },
     dispose: async () => {
+      // Feature 062 — stop bridging + drain the webhook delivery pipeline
+      // before dropping the Redis connections (graceful shutdown).
+      unwireWebhookBridge();
+      if (webhookWorker) await webhookWorker.close().catch(() => undefined);
+      await webhookQueue.close().catch(() => undefined);
       redis.disconnect();
       redisSubscriber.disconnect();
       await closeOrm();

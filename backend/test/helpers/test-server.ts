@@ -53,6 +53,8 @@ import { ConsoleMailer } from '../../src/modules/email/services/mailer.js';
 import { commerceModule } from '../../src/modules/orders/plugin.js';
 import { adminModule } from '../../src/modules/admin_users/plugin.js';
 import { inventoryModule } from '../../src/modules/inventory/plugin.js';
+import { StockLevelService } from '../../src/modules/inventory/services/stock-level-service.js';
+import { WarehouseChannelService } from '../../src/modules/inventory/services/warehouse-channel-service.js';
 import { shoppingListsModule } from '../../src/modules/shopping_lists/plugin.js';
 import { returnsModule } from '../../src/modules/returns/plugin.js';
 import { invoicesModule } from '../../src/modules/invoices/plugin.js';
@@ -190,6 +192,11 @@ export interface BackendServerOptions {
   extraModules?: ModulePlugin[];
   /** When set, injected into `organizationsModule` so tests can assert outbound mail (verification + invitations). */
   organizationsMailer?: Mailer;
+  /**
+   * Feature 062 — when set, injected into `commerceModule` so tests can assert
+   * the order-confirmation e-mail on placement paths (SC-004 parity).
+   */
+  commerceMailer?: Mailer;
   /** Feature 043 — scripted LLM fetch + clock/TTL seams for prompt-action tests. */
   promptActionsLlmFetch?: PromptActionsModuleOptions['llmFetch'];
   promptActionsNow?: () => Date;
@@ -230,6 +237,8 @@ export interface BackendServerHandle {
   pwa: ReturnType<typeof pwaModule>['handle'];
   /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
   salesChannels: ReturnType<typeof salesChannelsModule>['handle'];
+  /** Feature 062 — api-keys/webhooks/integrations handle (api-key gates). */
+  integrations: ReturnType<typeof integrationsModule>['handle'];
   /** Feature 006 — exposes the indexer + suggest service for tests that
    *  want deterministic teardown or to exercise embedder attach/detach. */
   search: ReturnType<typeof searchModule>['handle'];
@@ -769,9 +778,21 @@ export async function setupBackendServer(
   // Feature 047 — late-bound transactional-email sender (mirrors composition).
   let transactionalEmailSender: import('@b2b/contracts').TransactionalEmailSender | undefined;
 
+  // Feature 062 — read-only inventory accessors backing the external catalog
+  // namespace's availability indication (mirrors composition.ts).
+  const externalAvailabilityStockLevels = new StockLevelService(em);
+  const externalAvailabilityWarehouseChannels = new WarehouseChannelService(em);
+
   const modules: ModulePlugin[] = [
     async (app) => {
-      registerTestAuth(app, { sessionService, emFactory: em });
+      registerTestAuth(app, {
+        sessionService,
+        emFactory: em,
+        // Feature 062 — mirror production: Bearer sk_live_* resolves to an
+        // api_key actor (incl. distributor binding) before the tenant hook
+        // and the sales-channel resolver run.
+        apiKeyResolver: async (token) => integrations.handle.apiKeyService.authenticate(token),
+      });
       // Feature 050 — establish the ambient TenantContext from the resolved test
       // actor, after registerTestAuth sets it. Mirrors composition.ts wiring
       // (callback-style so the AsyncLocalStorage store reaches the handler).
@@ -802,6 +823,16 @@ export async function setupBackendServer(
         if (actor?.kind === 'admin') {
           const scope = await resolveTestAdminOrdersScope(request);
           return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
+        }
+        // Feature 062 — mirror production: a bound api key derives single-org
+        // scope from its binding; an unbound key keeps trusted system scope.
+        if (actor?.kind === 'api_key') {
+          return resolveTenantContext({
+            kind: 'api_key',
+            apiKeyId: actor.apiKeyId,
+            organizationId: actor.organizationId ?? null,
+            customerAccountId: actor.customerAccountId ?? null,
+          });
         }
         return systemTenantContext(`test-actor:${actor?.kind ?? 'anonymous'}`);
       };
@@ -858,6 +889,21 @@ export async function setupBackendServer(
       pricingService: priceLists.handle.pricingService,
       promotionService: promotions.handle.promotionService,
       redis,
+      // Feature 062 — external orders namespace (mirrors composition.ts):
+      // bound-key gate + the org method allow-lists (FR-021 envelope).
+      requireBoundApiKey: integrations.handle.requireBoundApiKey,
+      resolveOrganizationMethodAllowLists: async (organizationId: string) => {
+        try {
+          const lists = await sharedRestrictionService.readAllowLists(organizationId);
+          return {
+            paymentMethodIds: lists.paymentMethodIds,
+            deliveryMethodIds: lists.deliveryMethodIds,
+          };
+        } catch {
+          return null;
+        }
+      },
+      ...(options.commerceMailer ? { mailer: options.commerceMailer } : {}),
       getRfqService: () => quoteRequests?.handle().rfqService ?? null,
       // Global backorder gate — resolved at request time via the Settings
       // module (declared below; the closure runs well after setup completes).
@@ -1069,6 +1115,19 @@ export async function setupBackendServer(
       customFieldsPort: customFields.handle.definitionService,
       attributeReadService: catalogAttributeReadService,
       requireApiKey: integrations.handle.requireApiKey,
+      // Feature 062 — external catalog namespace (mirrors composition.ts):
+      // bound-key gate + the SAME pricing engine cart pricing uses + the
+      // inventory availability port.
+      requireBoundApiKey: integrations.handle.requireBoundApiKey,
+      pricingService: priceLists.handle.pricingService,
+      resolveExternalAvailability: async (productIds, salesChannelId) => {
+        const candidateWarehouseIds =
+          await externalAvailabilityWarehouseChannels.resolveCandidateWarehouseIds(salesChannelId);
+        return externalAvailabilityStockLevels.resolveAvailabilityBands(
+          productIds,
+          candidateWarehouseIds.length > 0 ? candidateWarehouseIds : undefined,
+        );
+      },
       salesChannelMembership: salesChannels.handle.membershipService,
       languageService: i18n.handle.languageService,
       // Tests assert the queued ack only: no `redis` is wired into the catalog
@@ -2036,6 +2095,7 @@ export async function setupBackendServer(
     permissionCatalogueService,
     settings: settings.handle,
     salesChannels: salesChannels.handle,
+    integrations: integrations.handle,
     search: search.handle,
     comparisons: comparisons.handle,
     assetsLibrary: assetsLibrary.handle,

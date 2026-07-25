@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '../../events/bus.js';
 import type { CommandBus } from '../../commands/index.js';
@@ -39,6 +39,8 @@ import { OrderReorderService } from './services/order-reorder-service.js';
 import { OrderCloneToQuoteService } from './services/order-clone-to-quote-service.js';
 import { OrderConfirmationService } from './services/order-confirmation-service.js';
 import { OrderCreationAdminService } from './services/order-creation-admin-service.js';
+import { OrderApiIntakeService } from './services/order-api-intake-service.js';
+import { registerOrdersExternalRoutes } from './routes.external.js';
 import type { OrganizationConfirmationEmailsPort } from './ports/organization-confirmation-emails.port.js';
 import type { FulfilmentStrategy } from '@b2b/contracts';
 import { Organization } from '../organizations/entities/organization.entity.js';
@@ -286,6 +288,24 @@ export interface OrdersModuleOptions {
     productType: string;
     vatStatus: string;
   }) => Promise<number>;
+  /**
+   * Feature 062 — bound-api-key gate from the api_keys module handle. When
+   * provided, the external orders namespace (`/api/v1/external/orders*`) is
+   * mounted (routes.external.ts); the customer surface stays untouched.
+   */
+  requireBoundApiKey?: (
+    scope: string,
+  ) => (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+  /**
+   * Feature 062 / FR-021 — the org's payment/delivery allow-lists (feature
+   * 026 restriction service; empty list = unrestricted). The external intake
+   * enforces them at submit with the customer flow's method-unavailable
+   * refusal, since this surface has no listing/preflight step.
+   */
+  resolveOrganizationMethodAllowLists?: (organizationId: string) => Promise<{
+    paymentMethodIds: string[];
+    deliveryMethodIds: string[];
+  } | null>;
 }
 
 export function commerceModule(options: OrdersModuleOptions) {
@@ -545,6 +565,30 @@ export function commerceModule(options: OrdersModuleOptions) {
       ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
       ...(options.commandBus ? { commandBus: options.commandBus } : {}),
     });
+
+    // Feature 062 — external orders namespace for bound api keys. Mounted only
+    // when the api_keys gate is wired; the customer routes above are untouched.
+    if (options.requireBoundApiKey) {
+      const orderApiIntakeService = new OrderApiIntakeService({
+        emFactory: options.emFactory,
+        cartService,
+        orderService,
+        addressService,
+        salesChannelMembership: options.salesChannelMembership,
+        pricingService: options.pricingService,
+        redis: options.redis,
+        resolveOrganizationMethodAllowLists: options.resolveOrganizationMethodAllowLists,
+        auditLogService: options.auditLogService,
+      });
+      await registerOrdersExternalRoutes(app, {
+        emFactory: options.emFactory,
+        orderService,
+        intakeService: orderApiIntakeService,
+        requireBoundApiKey: options.requireBoundApiKey,
+        assertOrganizationCanTransact: options.assertOrganizationCanTransact,
+      });
+    }
+
     await registerDeliveryMethodsPublicRoutes(app, {
       emFactory: options.emFactory,
       registry: shippingAdapterRegistry,

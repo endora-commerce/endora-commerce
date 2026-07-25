@@ -36,7 +36,21 @@ export interface AdminActorInput {
   readonly adminUserId: string;
 }
 
-export type TenantActorInput = CustomerActorInput | AdminActorInput;
+/**
+ * Feature 062 — an api-key actor. A BOUND key (organizationId present) pins the
+ * request to its organization + designated service customer account with a
+ * first-class `api_key` actor for audit attribution. An UNBOUND key keeps the
+ * legacy trusted system scope (its only mounted surface is the global-entity
+ * PIM read/write path — research §R5).
+ */
+export interface ApiKeyActorInput {
+  readonly kind: 'api_key';
+  readonly apiKeyId: string;
+  readonly organizationId?: string | null;
+  readonly customerAccountId?: string | null;
+}
+
+export type TenantActorInput = CustomerActorInput | AdminActorInput | ApiKeyActorInput;
 
 /**
  * A scoped admin's reach. `allowAll: true` ⇒ platform admin (no restriction).
@@ -82,6 +96,20 @@ export function resolveTenantContext(actor: TenantActorInput, adminScope?: Admin
           }
         : {}),
     };
+  }
+
+  // Feature 062 — api-key actor: bound ⇒ single-org pinned to the binding;
+  // unbound ⇒ trusted system scope (unchanged legacy behavior, FR-020).
+  if (actor.kind === 'api_key') {
+    if (actor.organizationId) {
+      return {
+        mode: 'single-org',
+        organizationId: actor.organizationId,
+        customerAccountId: actor.customerAccountId ?? null,
+        actor: { kind: 'api_key', id: actor.apiKeyId },
+      };
+    }
+    return systemTenantContext('actor:api_key');
   }
 
   // Admin actor.

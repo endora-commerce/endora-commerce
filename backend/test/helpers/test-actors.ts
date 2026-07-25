@@ -40,7 +40,25 @@ export interface TestAdminActor {
   adminUserId: string;
 }
 
-export type TestActor = TestCustomerActor | TestAdminActor | { kind: 'anonymous' };
+/**
+ * Feature 062 — mirrors the production ActorApiKey (auth/plugin.ts): resolved
+ * from a real `Bearer sk_live_*` token via ApiKeyService.authenticate, incl.
+ * the distributor binding for bound keys.
+ */
+export interface TestApiKeyActor {
+  kind: 'api_key';
+  apiKeyId: string;
+  scopes: string[];
+  organizationId?: string | null;
+  salesChannelId?: string | null;
+  customerAccountId?: string | null;
+}
+
+export type TestActor =
+  | TestCustomerActor
+  | TestAdminActor
+  | TestApiKeyActor
+  | { kind: 'anonymous' };
 
 export const CUSTOMER_COOKIES: Record<string, { customerAccountId: string; organizationId: string }> = {
   'stub-customer-session': {
@@ -127,6 +145,14 @@ declare module 'fastify' {
 export interface TestAuthDeps {
   sessionService: SessionService;
   emFactory: () => EntityManager;
+  /**
+   * Feature 062 — mirrors the production auth plugin's `apiKeyResolver`
+   * (composition.ts): resolves `Bearer sk_live_*` tokens into an api_key
+   * actor so the tenant-context hook and the sales-channel resolver see the
+   * binding. Only `sk_live_*` bearers are intercepted — other Authorization
+   * headers keep their pre-062 harness behavior.
+   */
+  apiKeyResolver?: (token: string) => Promise<Omit<TestApiKeyActor, 'kind'> | null>;
 }
 
 /**
@@ -145,6 +171,17 @@ export function registerTestAuth(app: FastifyInstance, deps: TestAuthDeps): void
       request.testActor = actor;
       (request as unknown as { actor: TestActor }).actor = actor;
     };
+
+    // Feature 062 — API key (Bearer) beats cookie, matching the production
+    // auth plugin. A failed sk_live resolution leaves the actor anonymous
+    // (route-level gates reject), same as production.
+    const authHeader = request.headers.authorization;
+    if (authHeader?.startsWith('Bearer sk_live_') && deps.apiKeyResolver) {
+      const token = authHeader.slice('Bearer '.length).trim();
+      const resolved = await deps.apiKeyResolver(token);
+      setActor(resolved ? { kind: 'api_key', ...resolved } : { kind: 'anonymous' });
+      return;
+    }
 
     const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
 

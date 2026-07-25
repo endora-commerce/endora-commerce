@@ -85,4 +85,34 @@ describe('API key scope enforcement', () => {
     // 201 (created) since the SKU is fresh.
     expect(res.statusCode).toBe(201);
   });
+
+  it('feature 062 — an unbound key still operates under system scope on the PIM surface', async () => {
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/api-keys',
+      payload: { name: 'Unbound PIM writer (062)', scopes: ['catalog:write'] },
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    const token = (created.json() as { data: { bearerToken: string } }).data.bearerToken;
+
+    const res = await h.app.inject({
+      method: 'PUT',
+      url: '/api/v1/catalog/products/by-sku/SCOPE-TEST-003',
+      payload: {
+        sku: 'SCOPE-TEST-003',
+        type: 'simple',
+        name: { 'en-US': 'Unbound system-scope test' },
+        description: { 'en-US': 'Unbound system-scope test' },
+        categoryIds: [],
+        attributeValues: {},
+        visibility: 'public',
+      },
+      headers: { authorization: `Bearer ${token}` },
+    });
+    // The write succeeds with no organization attached to the key — the
+    // unbound key keeps trusted system tenant scope (FR-020) and channel
+    // resolution keeps the header/host/default path (no pinning).
+    expect(res.statusCode).toBe(201);
+    expect(res.headers['x-sales-channel']).toBe('default');
+  });
 });
