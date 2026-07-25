@@ -152,7 +152,7 @@ const sidebars = {
       type: 'category',
       label: 'Integrations',
       link: { type: 'generated-index', title: 'Integrations' },
-      items: ['integrations/README'],
+      items: ['integrations/README', 'integrations/api-access'],
     },
     {
       type: 'category',

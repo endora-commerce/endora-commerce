@@ -42,6 +42,9 @@ export interface CustomerPickerProps {
   value: string | null;
   onChange: (customerAccountId: string | null) => void;
   status?: 'active' | 'blocked' | 'deleted';
+  /** When set, only accounts belonging to this organization are searched
+   *  (feature 062 — distributor-binding service-account picker). */
+  organizationId?: string;
   placeholder?: string;
   emptyMessage?: string;
   clearable?: boolean;
@@ -74,6 +77,7 @@ export function CustomerPicker(props: CustomerPickerProps): ReactNode {
         const params = new URLSearchParams();
         params.set('pageSize', String(DEFAULT_PAGE_SIZE));
         if (props.status) params.set('status', props.status);
+        if (props.organizationId) params.set('organizationId', props.organizationId);
         const trimmed = query.trim();
         if (trimmed.length > 0) params.set('q', trimmed);
         const res = await apiClient.get<{ data: AdminCustomerSummary[] }>(
@@ -100,7 +104,7 @@ export function CustomerPicker(props: CustomerPickerProps): ReactNode {
         if (seq === seqRef.current) setSearching(false);
       }
     },
-    [props.status],
+    [props.status, props.organizationId],
   );
 
   const handleSearchChange = useCallback(
