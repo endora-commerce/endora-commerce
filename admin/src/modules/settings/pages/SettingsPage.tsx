@@ -109,6 +109,20 @@ export function SettingsPage(): ReactNode {
     [groups, search, channelContext],
   );
 
+  // `/settings?group=<code>` scrolls to that group and expands it — module
+  // pages link here to point an operator at their own settings (e.g. the KSeF
+  // page's "Open module settings"). Runs once the groups have rendered; an
+  // unknown code is a no-op rather than an error, since the group may belong
+  // to a module that is currently disabled.
+  const requestedGroup = new URLSearchParams(location.search).get('group');
+  useEffect(() => {
+    if (!requestedGroup || loading) return;
+    const card = document.getElementById(`settings-group-${requestedGroup}`);
+    if (!card) return;
+    setCollapsed((prev) => ({ ...prev, [requestedGroup]: false }));
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [requestedGroup, loading]);
+
   const channelOptions = useMemo<ChannelOption[]>(() => {
     const byCode = new Map<string, ChannelOption>();
     for (const c of allChannels) {
@@ -397,7 +411,7 @@ export function SettingsPage(): ReactNode {
             const isCollapsed = !!collapsed[group.code];
             const dirtyCount = dirtyCountFor(group);
             return (
-              <Card key={group.code}>
+              <Card key={group.code} id={`settings-group-${group.code}`}>
                 <CardHeader>
                   <button
                     type="button"
