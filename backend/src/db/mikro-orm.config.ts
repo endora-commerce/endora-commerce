@@ -115,6 +115,7 @@ import { Migration103ApiKeysDistributorBinding } from '../modules/api_keys/migra
 import { Migration104OrderPlacementIntents } from '../modules/orders/migrations/104_order_placement_intents.js';
 // Feature 062 — Distributor API: org-scoped webhook delivery filter.
 import { Migration105WebhooksOrgFilter } from '../modules/webhooks/migrations/105_webhooks_org_filter.js';
+import { Migration106DropExternalIntegrations } from '../modules/webhooks/migrations/106_drop_external_integrations.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -534,6 +535,10 @@ export default defineConfig({
       {
         name: 'Migration105WebhooksOrgFilter',
         class: Migration105WebhooksOrgFilter,
+      },
+      {
+        name: 'Migration106DropExternalIntegrations',
+        class: Migration106DropExternalIntegrations,
       },
     ],
     transactional: true,

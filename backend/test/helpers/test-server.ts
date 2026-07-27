@@ -237,7 +237,7 @@ export interface BackendServerHandle {
   pwa: ReturnType<typeof pwaModule>['handle'];
   /** Feature 005 — exposes the resolver, membership service, and CRUD service. */
   salesChannels: ReturnType<typeof salesChannelsModule>['handle'];
-  /** Feature 062 — api-keys/webhooks/integrations handle (api-key gates). */
+  /** Feature 062 — api-keys/webhooks handle (api-key gates). */
   integrations: ReturnType<typeof integrationsModule>['handle'];
   /** Feature 006 — exposes the indexer + suggest service for tests that
    *  want deterministic teardown or to exercise embedder attach/detach. */
@@ -371,7 +371,6 @@ const SEEDED_TABLES = [
   'admin_roles',
   'webhook_deliveries',
   'webhooks',
-  'external_integrations',
   'api_keys',
   'credit_limit_reservations',
   'credit_limits',
@@ -620,7 +619,7 @@ export async function setupBackendServer(
     customFields.handle.definitionService,
   );
 
-  // US7 — API keys, webhooks, external integrations. The handle exposes
+  // US7 — API keys + webhooks. The handle exposes
   // requireApiKey, threaded into the catalog module's by-sku route so that
   // surface gets real bearer-token gating.
   const integrations = integrationsModule({

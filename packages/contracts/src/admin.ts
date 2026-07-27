@@ -134,7 +134,10 @@ export const PERMISSION_CATALOGUE = [
   { code: 'rfqs:handle', module: 'quote_requests', label: 'Handle quote requests' },
   { code: 'customers:read', module: 'customers', label: 'View customers' },
   { code: 'customers:impersonate', module: 'customers', label: 'Impersonate customers' },
-  { code: 'integrations:manage', module: 'integrations', label: 'Manage integrations' },
+  // Shared gate for the API-keys and webhooks admin surfaces. The name predates
+  // the removal of the `integrations` module; renaming it would need a data
+  // migration on every admin role's permission list.
+  { code: 'integrations:manage', module: 'api_keys', label: 'Manage API keys + webhooks' },
   { code: 'audit_log:read', module: 'audit_log', label: 'View audit log' },
   { code: 'admin_users:manage', module: 'admin_users', label: 'Manage admin users + roles' },
   { code: 'credit_limits:manage', module: 'credit_limits', label: 'Grant + adjust credit limits' },

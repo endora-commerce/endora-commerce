@@ -87,7 +87,6 @@ const sidebars = {
         },
         'modules/health_checks',
         'modules/import_export',
-        'modules/integrations',
         'modules/inventory',
         'modules/invoices',
         'modules/languages',

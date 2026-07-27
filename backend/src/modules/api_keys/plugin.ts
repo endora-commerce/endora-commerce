@@ -4,15 +4,13 @@ import { ERROR_CODES } from '@b2b/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { ApiKeyService, type AuthenticatedApiKey } from './services/api-key-service.js';
 import { WebhookService } from '../webhooks/services/webhook-service.js';
-import { IntegrationService } from '../integrations/services/integration-service.js';
 import { registerApiKeysAdminRoutes } from './routes.js';
 import { registerWebhooksAdminRoutes } from '../webhooks/routes.js';
-import { registerIntegrationsAdminRoutes } from '../integrations/routes.js';
 import type { RequireAdminFactory } from '../catalog/routes.admin.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 
 /**
- * Composition root for the US7 surface — API keys + webhooks + integrations.
+ * Composition root for the US7 surface — API keys + webhooks.
  * Returns a handle so other modules (e.g. catalog routes.api-key.ts) can
  * consume the api-key gate this builds.
  */
@@ -45,7 +43,6 @@ declare module 'fastify' {
 export interface IntegrationsModuleHandle {
   apiKeyService: ApiKeyService;
   webhookService: WebhookService;
-  integrationService: IntegrationService;
   /**
    * Pre-handler factory that authenticates a Bearer token via ApiKeyService
    * and gates on the requested scope. Used by api-key route surfaces (e.g.
@@ -71,7 +68,6 @@ export function integrationsModule(options: IntegrationsModuleOptions): {
 } {
   const apiKeyService = new ApiKeyService(options.emFactory, options.auditLogService);
   const webhookService = new WebhookService(options.emFactory, options.auditLogService);
-  const integrationService = new IntegrationService(options.emFactory, options.auditLogService);
 
   // Shared authenticate + scope assertion used by both gates.
   const resolveScopedKey = async (
@@ -148,7 +144,6 @@ export function integrationsModule(options: IntegrationsModuleOptions): {
     handle: {
       apiKeyService,
       webhookService,
-      integrationService,
       requireApiKey,
       requireBoundApiKey,
     },
@@ -159,10 +154,6 @@ export function integrationsModule(options: IntegrationsModuleOptions): {
       });
       await registerWebhooksAdminRoutes(app, {
         webhookService,
-        requireAdmin: options.requireAdmin,
-      });
-      await registerIntegrationsAdminRoutes(app, {
-        integrationService,
         requireAdmin: options.requireAdmin,
       });
     },

@@ -28,7 +28,6 @@ const REQUIRED_PATHS = [
   '/api/v1/me/credit-limit',
   '/api/v1/admin/api-keys',
   '/api/v1/admin/webhooks',
-  '/api/v1/admin/integrations',
 ];
 
 describe('GET /api/v1/_openapi.json — module coverage', () => {

@@ -72,7 +72,6 @@ export const MIGRATED_MODULES: readonly string[] = [
   'taxes',
   'api_keys',
   'admin_roles',
-  'integrations',
   'seo',
   'webhooks',
   'settings',
