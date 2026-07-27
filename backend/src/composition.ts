@@ -2206,6 +2206,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         const adapter = await assetsLibrary.handle.adapters.getForBackend(
           a.storageBackend as 'local' | 's3' | 'gcs' | 'legacy',
         );
+        // Legacy resolver only has resolveUrl — cannot stream bytes for PDF embed.
+        if (!('open' in adapter) || typeof adapter.open !== 'function') return null;
         const stream = await adapter.open({ locator: a.storageLocator || a.storageUrl });
         const chunks: Buffer[] = [];
         for await (const chunk of stream) {

@@ -115,6 +115,7 @@ import { Migration103ApiKeysDistributorBinding } from '../modules/api_keys/migra
 import { Migration104OrderPlacementIntents } from '../modules/orders/migrations/104_order_placement_intents.js';
 // Feature 062 — Distributor API: org-scoped webhook delivery filter.
 import { Migration105WebhooksOrgFilter } from '../modules/webhooks/migrations/105_webhooks_org_filter.js';
+import { Migration106InvoiceGenericTemplateReseed } from '../modules/invoices/migrations/106_invoice_generic_template_reseed.js';
 import { Migration099EmailDefaultsReseed } from '../modules/transactional_emails/migrations/099_email_defaults_reseed.js';
 
 /**
@@ -535,6 +536,10 @@ export default defineConfig({
       {
         name: 'Migration105WebhooksOrgFilter',
         class: Migration105WebhooksOrgFilter,
+      },
+      {
+        name: 'Migration106InvoiceGenericTemplateReseed',
+        class: Migration106InvoiceGenericTemplateReseed,
       },
       {
         name: 'Migration099EmailDefaultsReseed',

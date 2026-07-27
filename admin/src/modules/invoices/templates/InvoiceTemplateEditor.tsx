@@ -29,6 +29,26 @@ const API_BASE =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
 const invoiceBuilderPlugin = createInvoiceBuilderEditorPlugin();
 
+/**
+ * Fill missing props from each component's `defaultProps`. Persisted trees
+ * (esp. older seeds) often only store `{ id }`, which leaves radio/select
+ * fields unselected in the Puck sidebar even though canvas fallbacks work.
+ */
+function hydrateInvoiceDefaults(data: Data): Data {
+  const components = invoicePuckConfig.components ?? {};
+  const content = (data.content ?? []).map((node) => {
+    const defaults = components[node.type]?.defaultProps as Record<string, unknown> | undefined;
+    if (!defaults) return node;
+    const props = node.props as Record<string, unknown>;
+    const merged: Record<string, unknown> = { ...defaults };
+    for (const [key, value] of Object.entries(props)) {
+      if (value !== undefined) merged[key] = value;
+    }
+    return { ...node, props: merged };
+  });
+  return { ...data, content };
+}
+
 /** Admin editor for an invoice PDF template (feature 047, US6). */
 export function InvoiceTemplateEditor(): ReactNode {
   const t = useTranslation('core');
@@ -58,7 +78,7 @@ export function InvoiceTemplateEditor(): ReactNode {
       const res = await apiClient.get<{ data: TemplateDetail }>(`/api/v1/admin/invoice-templates/${id}`);
       setTpl(res.data);
       const tree = res.data.content.languages?.[LANGUAGE] ?? emptyData;
-      setDraft(tree);
+      setDraft(hydrateInvoiceDefaults(tree));
       setLoaded(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load template.');
@@ -170,7 +190,7 @@ export function InvoiceTemplateEditor(): ReactNode {
         <CardContent className="pt-6">
           <div
             className={cn(
-              'space-y-3',
+              'cms-page-builder space-y-3',
               fullscreen && 'fixed inset-0 z-50 flex flex-col overflow-auto bg-background p-4',
             )}
           >
@@ -189,15 +209,13 @@ export function InvoiceTemplateEditor(): ReactNode {
                   plugins={[invoiceBuilderPlugin]}
                   overrides={{
                     headerActions: () => (
-                      <div className="cms-pb-header-actions">
-                        <PageBuilderHeaderActions
-                          fullscreen={fullscreen}
-                          onToggleFullscreen={(): void => setFullscreen((f) => !f)}
-                          currentData={draft}
-                          onClearCanvas={(): void => applyCanvasData(emptyData)}
-                          t={tCms}
-                        />
-                      </div>
+                      <PageBuilderHeaderActions
+                        fullscreen={fullscreen}
+                        onToggleFullscreen={(): void => setFullscreen((f) => !f)}
+                        currentData={draft}
+                        onClearCanvas={(): void => applyCanvasData(emptyData)}
+                        t={tCms}
+                      />
                     ),
                     componentOverlay: ({
                       children,

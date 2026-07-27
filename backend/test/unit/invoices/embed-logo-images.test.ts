@@ -9,7 +9,7 @@ import { InvoicePdfRenderer } from '../../../src/modules/invoices/services/invoi
 import { sampleInvoiceDetail } from '../../../src/modules/invoices/pdf-components/sample.js';
 
 /** Minimal 1×1 PNG. */
-const PNG_1x1 = Buffer.from(
+const PNG_1X1 = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5X2ZkAAAAASUVORK5CYII=',
   'base64',
 );
@@ -22,13 +22,13 @@ describe('embedInvoiceLogoImages', () => {
   });
 
   it('builds a jpeg/png data URI and rejects svg', () => {
-    expect(toImageDataUri(PNG_1x1, 'image/png')).toMatch(/^data:image\/png;base64,/);
-    expect(toImageDataUri(PNG_1x1, 'image/svg+xml')).toBeNull();
+    expect(toImageDataUri(PNG_1X1, 'image/png')).toMatch(/^data:image\/png;base64,/);
+    expect(toImageDataUri(PNG_1X1, 'image/svg+xml')).toBeNull();
   });
 
   it('replaces library logo src with a data URI via loadAssetImage', async () => {
     const assetId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
-    const loadAssetImage = vi.fn(async () => ({ bytes: PNG_1x1, mimeType: 'image/png' }));
+    const loadAssetImage = vi.fn(async () => ({ bytes: PNG_1X1, mimeType: 'image/png' }));
     const tree = {
       content: [
         {
@@ -70,13 +70,13 @@ describe('embedInvoiceLogoImages', () => {
 
 describe('logoSection + InvoicePdfRenderer with embedded logo', () => {
   it('accepts data URI images', () => {
-    const dataUri = toImageDataUri(PNG_1x1, 'image/png')!;
+    const dataUri = toImageDataUri(PNG_1X1, 'image/png')!;
     const content = logoSection({ src: dataUri, width: 100, maxHeight: 40 });
     expect(content).toMatchObject({ image: dataUri });
   });
 
   it('renders a PDF when the template logo is an inlined data URI', async () => {
-    const dataUri = toImageDataUri(PNG_1x1, 'image/png')!;
+    const dataUri = toImageDataUri(PNG_1X1, 'image/png')!;
     const tree = {
       content: [
         { type: 'InvoiceLogo', props: { src: dataUri, width: 80, maxHeight: 40 } },
@@ -90,7 +90,7 @@ describe('logoSection + InvoicePdfRenderer with embedded logo', () => {
   it('renders a PDF when logo bytes come from loadAssetImage', async () => {
     const assetId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
     const renderer = new InvoicePdfRenderer({
-      loadAssetImage: async () => ({ bytes: PNG_1x1, mimeType: 'image/png' }),
+      loadAssetImage: async () => ({ bytes: PNG_1X1, mimeType: 'image/png' }),
     });
     const tree = {
       content: [

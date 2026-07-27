@@ -9,6 +9,7 @@ import {
   GENERIC_INVOICE_TEMPLATE_CODE,
   GENERIC_INVOICE_TEMPLATE_CONTENT,
   GENERIC_INVOICE_TEMPLATE_LANGUAGES,
+  GENERIC_INVOICE_TEMPLATE_SEED_REVISION,
 } from '../seeds/generic-invoice-template.js';
 
 export interface InvoiceTemplateSummary {
@@ -58,21 +59,33 @@ export class InvoiceTemplateService {
     }
   }
 
-  /** Idempotently install the system generic template (lifecycle / boot). */
+  /**
+   * Install or refresh the system generic template (lifecycle / boot).
+   * When the on-disk seed revision advances, existing `generic` system rows
+   * are rewritten so admin editors see the current default props/layout.
+   */
   async ensureGenericSeed(): Promise<void> {
     // command-coverage-ignore: idempotent boot seed of the system generic invoice
     // template — a bootstrap, not an operator-initiated write.
     const em = this.emFactory();
     const existing = await em.findOne(InvoiceTemplate, { code: GENERIC_INVOICE_TEMPLATE_CODE, isSystem: true });
-    if (existing) return;
+    if (existing) {
+      const rev = Number((existing.content as { schema_version?: number } | null)?.schema_version ?? 0);
+      if (rev >= GENERIC_INVOICE_TEMPLATE_SEED_REVISION) return;
+      existing.content = structuredClone(GENERIC_INVOICE_TEMPLATE_CONTENT) as Record<string, unknown>;
+      existing.languages = [...GENERIC_INVOICE_TEMPLATE_LANGUAGES];
+      existing.version += 1;
+      await em.flush();
+      return;
+    }
     // Only seed if no global template occupies the active-global slot.
     const globalActive = await em.findOne(InvoiceTemplate, { salesChannelId: null, active: true });
     const tpl = em.create(InvoiceTemplate, {
       code: GENERIC_INVOICE_TEMPLATE_CODE,
       name: 'Generic invoice template',
       salesChannelId: null,
-      content: GENERIC_INVOICE_TEMPLATE_CONTENT,
-      languages: GENERIC_INVOICE_TEMPLATE_LANGUAGES,
+      content: structuredClone(GENERIC_INVOICE_TEMPLATE_CONTENT) as Record<string, unknown>,
+      languages: [...GENERIC_INVOICE_TEMPLATE_LANGUAGES],
       active: !globalActive,
       isSystem: true,
       version: 1,
