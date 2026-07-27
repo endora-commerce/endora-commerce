@@ -72,6 +72,7 @@
   "actions.copyCode.copied": "Copied!",
   "search.placeholder": "Search by name, code or description…",
   "search.noResults": "No settings match your search.",
+  "search.shortcut": "Ctrl+Shift+K",
   "groups.expandAll": "Expand all",
   "groups.collapseAll": "Collapse all",
   "groups.empty": "No settings registered in this group.",

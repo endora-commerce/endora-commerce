@@ -755,7 +755,9 @@ export function AppShell(): ReactNode {
   // sidebar rail (matches the shadcn / VS Code shortcut convention).
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      // `!e.shiftKey` keeps ⌘K off Ctrl/⌘+Shift+K, which pages claim for
+      // their own in-page search (e.g. the Settings page's filter box).
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setPaletteOpen(true);
       } else if (
