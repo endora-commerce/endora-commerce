@@ -72,6 +72,7 @@
   "actions.copyCode.copied": "Skopiowano!",
   "search.placeholder": "Szukaj po nazwie, kodzie lub opisie…",
   "search.noResults": "Żadne ustawienie nie pasuje do wyszukiwania.",
+  "search.shortcut": "Ctrl+Shift+K",
   "groups.expandAll": "Rozwiń wszystkie",
   "groups.collapseAll": "Zwiń wszystkie",
   "groups.empty": "Brak zarejestrowanych ustawień w tej grupie.",
