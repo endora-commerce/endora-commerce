@@ -36,8 +36,9 @@ one banner and one stored answer.
 Define your conversions in Campaign Manager first; each gets a numeric conversion ID. Then map
 storefront actions to those IDs under **Admin → LinkedIn Ads**.
 
-Supported actions: product viewed, added to cart, checkout started, order completed, quote request
-submitted, contact form submitted, account registered.
+Supported actions: product viewed, added to cart, added to quote request, added to shopping list,
+checkout started, Place Order clicked, order completed, contact form submitted. The list is exactly
+what the storefront emits — you cannot map an action that could never fire.
 
 A mapping can target one sales channel or all of them, and can be disabled without deleting it. An
 action with no enabled mapping simply reports nothing — that is a normal state, not a
@@ -55,12 +56,13 @@ deleting one revalidates that cache immediately rather than waiting for the TTL.
 
 Both appear on `/admin-roles`. Mapping changes are audited with the acting operator.
 
+Conversions are reported from the browser via `lintrk`, and only when the visitor has consented.
+An action mapped more than once reports once per mapping.
+
 ## Not yet implemented
 
-- **Browser conversion firing.** Mappings are configurable and delivered to the storefront, and the
-  dispatcher exists, but it is not yet wired into the storefront's commerce-event helpers. Until it
-  is, the Insight Tag collects audiences and LinkedIn's own page-level rules work, but mapped
-  conversions are not reported.
 - **Server-side reporting through the Conversions API.** Specified and settings-ready, so enabling
-  it later needs no contract change. See `specs/063-linkedin-ads/tasks.md` Phase 5.
+  it later needs no contract change; `linkedin_ads.server_side_enabled` stays off. When it is
+  turned on, the browser path for mapped conversions is suppressed so each conversion has exactly
+  one transport. See `specs/063-linkedin-ads/tasks.md` Phase 5.
 - **Conversion retraction** for refunded or cancelled orders.

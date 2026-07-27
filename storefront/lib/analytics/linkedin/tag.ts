@@ -1,4 +1,5 @@
 import type { LinkedInStorefrontConfig, LinkedInTriggerAction } from '@b2b/contracts';
+import { readConsent } from '../consent';
 
 /**
  * LinkedIn Insight Tag loader + conversion dispatcher.
@@ -78,6 +79,10 @@ export function loadInsightTag(): void {
 export function trackLinkedInConversions(action: LinkedInTriggerAction): void {
   if (typeof window === 'undefined') return;
   if (!isLinkedInConfigured() || config!.serverSide) return;
+  // A denied visitor would already fail the `lintrk` check below, since the tag
+  // is never injected — but that is incidental. Check consent explicitly so the
+  // guarantee does not depend on load order (FR-007).
+  if (config!.requireConsent && readConsent() !== 'granted') return;
   const lintrk = window.lintrk;
   if (!lintrk) return;
   for (const mapping of config!.conversionMappings) {

@@ -16,19 +16,21 @@ import { isoDateTimeSchema, uuidSchema } from './common.js';
 /**
  * Storefront actions a LinkedIn conversion can be bound to.
  *
- * Deliberately a closed set matching the call sites that already exist in the
- * storefront's commerce-event layer (plus registration). An operator cannot map
- * an action the storefront never emits, which is what makes "no mapping" a
- * normal state rather than a silent misconfiguration (FR-012).
+ * Deliberately a closed set: one entry per emitter that already exists in
+ * `storefront/lib/analytics/ecommerce.ts`, no more. An operator cannot map an
+ * action the storefront never emits — a mapping that could never fire would be
+ * indistinguishable from a broken one, and it is that guarantee which makes
+ * "no mapping" a normal state rather than a silent misconfiguration (FR-012).
  */
 export const linkedInTriggerActionSchema = z.enum([
   'product_viewed',
   'add_to_cart',
+  'add_to_quote_request',
+  'add_to_shopping_list',
   'begin_checkout',
+  'place_order_clicked',
   'purchase',
-  'quote_request_submitted',
   'contact_form_submitted',
-  'account_registered',
 ]);
 export type LinkedInTriggerAction = z.infer<typeof linkedInTriggerActionSchema>;
 
