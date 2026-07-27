@@ -12,6 +12,10 @@ import {
  *
  * Newsletter campaign bodies are left untouched — only the system default
  * header/footer blocks are refreshed (same trees as TE).
+ *
+ * Numbered **107** (not 099) so it sorts after 100–106. The mis-numbered
+ * `Migration099EmailDefaultsReseed` broke `migrator.down()` loops that parse
+ * the latest migration ordinal (catalog attributes-migration-parity tests).
  */
 const DEFAULT_LANGUAGES = ['en-US', 'pl-PL'] as const;
 
@@ -24,8 +28,13 @@ function jsonbLiteral(value: unknown): string {
   return JSON.stringify(value).replace(/'/g, "''");
 }
 
-export class Migration099EmailDefaultsReseed extends Migration {
+export class Migration107EmailDefaultsReseed extends Migration {
   override async up(): Promise<void> {
+    // Retire the mis-numbered 099 row if a previous deploy already applied it.
+    this.addSql(
+      `delete from "mikro_orm_migrations" where "name" = 'Migration099EmailDefaultsReseed';`,
+    );
+
     const header = envelopeFromTree(defaultHeaderTree(), DEFAULT_LANGUAGES);
     const footer = envelopeFromTree(defaultFooterTree(), DEFAULT_LANGUAGES);
     const headerJson = jsonbLiteral(header);

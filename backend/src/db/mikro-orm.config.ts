@@ -116,7 +116,7 @@ import { Migration104OrderPlacementIntents } from '../modules/orders/migrations/
 // Feature 062 — Distributor API: org-scoped webhook delivery filter.
 import { Migration105WebhooksOrgFilter } from '../modules/webhooks/migrations/105_webhooks_org_filter.js';
 import { Migration106InvoiceGenericTemplateReseed } from '../modules/invoices/migrations/106_invoice_generic_template_reseed.js';
-import { Migration099EmailDefaultsReseed } from '../modules/transactional_emails/migrations/099_email_defaults_reseed.js';
+import { Migration107EmailDefaultsReseed } from '../modules/transactional_emails/migrations/107_email_defaults_reseed.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -542,8 +542,8 @@ export default defineConfig({
         class: Migration106InvoiceGenericTemplateReseed,
       },
       {
-        name: 'Migration099EmailDefaultsReseed',
-        class: Migration099EmailDefaultsReseed,
+        name: 'Migration107EmailDefaultsReseed',
+        class: Migration107EmailDefaultsReseed,
       },
     ],
     transactional: true,
