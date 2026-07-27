@@ -32,7 +32,6 @@ export * from './admin.js';
 export * from './credit-limits.js';
 export * from './api-keys.js';
 export * from './webhooks.js';
-export * from './integrations.js';
 export * from './analytics.js';
 export * from './seo.js';
 export * from './i18n.js';

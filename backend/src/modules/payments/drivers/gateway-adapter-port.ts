@@ -41,7 +41,7 @@ export type GatewayReserveResult =
   | { ok: false; code: string; message: string };
 
 export interface GatewayAdapterPort {
-  /** Vendor identifier matching ExternalIntegration.vendor when configured. */
+  /** Vendor identifier, e.g. `stripe`. Matches the adapter's own module. */
   readonly vendor: string;
   reserve(input: GatewayReserveInput): Promise<GatewayReserveResult>;
   settle(input: GatewaySettleInput): Promise<{ ok: true } | { ok: false; code: string }>;

@@ -116,7 +116,6 @@ import { CreditLimitReservation } from '../modules/credit_limits/entities/credit
 import { ApiKey } from '../modules/api_keys/entities/api-key.entity.js';
 import { Webhook } from '../modules/webhooks/entities/webhook.entity.js';
 import { WebhookDelivery } from '../modules/webhooks/entities/webhook-delivery.entity.js';
-import { ExternalIntegration } from '../modules/integrations/entities/external-integration.entity.js';
 import { AnalyticsEvent } from '../modules/analytics/entities/analytics-event.entity.js';
 import { SeoMetaOverride } from '../modules/seo/entities/seo-meta-override.entity.js';
 import { SitemapCache } from '../modules/seo/entities/sitemap-cache.entity.js';
@@ -283,11 +282,10 @@ export const ALL_ENTITIES = [
   // credit limits (US6)
   CreditLimit,
   CreditLimitReservation,
-  // US7 — API keys, webhooks, integrations
+  // US7 — API keys, webhooks
   ApiKey,
   Webhook,
   WebhookDelivery,
-  ExternalIntegration,
   // analytics (Phase 10 / T237)
   AnalyticsEvent,
   // seo (Phase 10 / T235)

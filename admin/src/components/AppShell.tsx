@@ -8,7 +8,6 @@ import {
   ChevronRight,
   CircleDollarSign,
   ClipboardCheck,
-  Code2,
   CreditCard,
   Bell as BellOutline,
   Box,
@@ -280,7 +279,6 @@ const NAV: NavSection[] = [
       { to: '/audit-log', labelKey: 'appShell.nav.auditLog', icon: ListChecks },
       { to: '/api-keys', labelKey: 'appShell.nav.apiKeys', icon: KeyRound },
       { to: '/webhooks', labelKey: 'appShell.nav.webhooks', icon: Webhook },
-      { to: '/integrations', labelKey: 'appShell.nav.integrations', icon: Code2 },
       {
         to: '/credentials',
         labelKey: 'appShell.nav.credentials',
@@ -626,10 +624,6 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   { test: /^\/webhooks\/?$/, build: () => [
     { labelKey: 'appShell.section.system', href: '/admin-users' },
     { labelKey: 'appShell.nav.webhooks', href: null },
-  ] },
-  { test: /^\/integrations\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.integrations', href: null },
   ] },
   { test: /^\/google-analytics(\/.*)?$/, build: () => [
     { labelKey: 'appShell.nav.googleAnalytics', href: '/google-analytics' },

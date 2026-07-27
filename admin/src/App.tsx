@@ -13,7 +13,6 @@ import { AppLanguageContext } from './i18n/app-language-context.js';
 import type { SupportedAdminLanguage } from './i18n/types.js';
 import { ApiKeysPage } from './modules/api_keys/ApiKeysPage.js';
 import { WebhooksPage } from './modules/webhooks/WebhooksPage.js';
-import { IntegrationsPage } from './modules/integrations/IntegrationsPage.js';
 import { AnalyticsPage } from './modules/analytics/AnalyticsPage.js';
 import { CustomEventsListPage } from './modules/google_analytics/pages/CustomEventsListPage.js';
 import { CustomEventEditPage } from './modules/google_analytics/pages/CustomEventEditPage.js';
@@ -249,7 +248,6 @@ export function App(): ReactNode {
         <Route path="/audit-log" element={<AuditLogViewer />} />
         <Route path="/api-keys" element={<ApiKeysPage />} />
         <Route path="/webhooks" element={<WebhooksPage />} />
-        <Route path="/integrations" element={<IntegrationsPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/google-analytics" element={<CustomEventsListPage />} />
         <Route path="/google-analytics/new" element={<CustomEventEditPage />} />

@@ -71,7 +71,6 @@ import { manifest as customersManifest } from '../customers/manifest.js';
 import { manifest as deliveryMethodsManifest } from '../delivery_methods/manifest.js';
 import { manifest as emailManifest } from '../email/manifest.js';
 import { manifest as healthChecksManifest } from '../health_checks/manifest.js';
-import { manifest as integrationsManifest } from '../integrations/manifest.js';
 import { manifest as invoicesManifest } from '../invoices/manifest.js';
 import { manifest as languagesManifest } from '../languages/manifest.js';
 import { manifest as ordersManifest } from '../orders/manifest.js';
@@ -189,7 +188,6 @@ export const REGISTERED_MANIFESTS: ReadonlyArray<RegisteredManifestEntry> = [
   { manifest: deliveryMethodsManifest, filePath: pathFor('delivery_methods') },
   { manifest: emailManifest, filePath: pathFor('email') },
   { manifest: healthChecksManifest, filePath: pathFor('health_checks') },
-  { manifest: integrationsManifest, filePath: pathFor('integrations') },
   { manifest: invoicesManifest, filePath: pathFor('invoices') },
   { manifest: languagesManifest, filePath: pathFor('languages') },
   { manifest: ordersManifest, filePath: pathFor('orders') },

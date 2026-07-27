@@ -17,9 +17,9 @@ backend module under `backend/src/modules/`:
 - **Webhooks** — outbound HTTP POST notifications driven by the in-process
   event bus, signed with HMAC-SHA-256; subscriptions may be scoped to a
   single Organization.
-- **External integration configurations** — encrypted vendor credentials
-  (e.g. payment gateway secrets, shipping carrier tokens) managed in the
-  Admin Panel and consumed by per-vendor adapters.
+- **Credentials** — encrypted vendor credentials (e.g. LLM API keys, mail
+  provider secrets) managed in the Admin Panel and referenced by Settings —
+  see [Credentials](../modules/credentials.md).
 
 The live OpenAPI document at `GET /api/v1/_openapi.json` is the source of
 truth for every endpoint described here. Schemas are generated from the Zod
@@ -189,25 +189,18 @@ US-relevant examples:
 Refer to `packages/contracts/src/*.ts` for the exact payload shape per
 event.
 
-## External integration configurations
+## Vendor credentials
 
-When a Supplier hooks up a payment gateway, courier, or third-party CRM, its
-credentials live in `external_integrations`. The configuration is encrypted
-at rest and only readable through the per-vendor adapter that needs it.
-Configure them at **Admin Panel → Integrations**.
+Third-party vendor credentials are owned by the **Credentials** module, not by
+this surface. A credential configuration is an instance of a code-registered
+configuration type; secret fields are encrypted at rest, write-only at the API
+boundary, and referenced from Settings through the `credential_ref` value type.
+Configure them at **Admin Panel → Credentials**. See
+[Credentials](../modules/credentials.md).
 
-Each integration has:
-
-- `kind` — adapter family (`payment_gateway`, `shipping_carrier`,
-  `analytics`, `crm`, …).
-- `vendor` — concrete vendor identifier (e.g. `stripe`, `inpost`).
-- `encryptedConfig` — opaque blob; decryption is encapsulated by the
-  adapter, never returned over the API.
-- `status` — `active` once the platform has run a successful test call;
-  otherwise `inactive` with the last error message preserved.
-
-Calling `POST /api/v1/admin/integrations` runs the adapter's `testConnection`
-hook synchronously; the response surfaces success or the error envelope.
+Vendor-specific integrations (Stripe, Google Analytics, KSeF, newsletter
+providers, VIES / Biała lista lookups) each ship as their own module with their
+own settings and admin surface — there is no generic vendor-adapter registry.
 
 ## Operational checklist
 
