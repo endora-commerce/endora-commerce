@@ -100,5 +100,15 @@ export const manifest = defineModuleManifest({
       keywords: ['google', 'analytics', 'ga4', 'tracking', 'events', 'ecommerce'],
       weight: 240,
     },
+    {
+      id: 'new-google-analytics-event',
+      labelKey: 'actions.newCustomEvent.label',
+      descriptionKey: 'actions.newCustomEvent.description',
+      icon: 'Plus',
+      targetRoute: '/google-analytics/new',
+      requiredPermission: 'google_analytics:write',
+      keywords: ['google', 'analytics', 'ga4', 'event', 'zdarzenie', 'custom'],
+      weight: 241,
+    },
   ],
 });

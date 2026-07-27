@@ -1,22 +1,12 @@
 {
-  "actions": {
-    "openNewsletter": {
-      "label": "Newsletter",
-      "description": "Zarządzaj subskrybentami, kampaniami i automatyzacjami newslettera"
-    },
-    "newCampaign": {
-      "label": "Nowa kampania newslettera",
-      "description": "Utwórz i wyślij nową kampanię newslettera"
-    }
-  },
-  "newsletter": {
-    "nav": {
-      "subscribers": "Subskrybenci",
-      "campaigns": "Kampanie",
-      "automations": "Automatyzacje",
-      "tags": "Tagi",
-      "customFields": "Pola dodatkowe",
-      "provider": "Usługa wysyłki"
-    }
-  }
+  "actions.openNewsletter.label": "Newsletter",
+  "actions.openNewsletter.description": "Zarządzaj subskrybentami, kampaniami i automatyzacjami newslettera",
+  "actions.newCampaign.label": "Nowa kampania newslettera",
+  "actions.newCampaign.description": "Utwórz i wyślij nową kampanię newslettera",
+  "newsletter.nav.subscribers": "Subskrybenci",
+  "newsletter.nav.campaigns": "Kampanie",
+  "newsletter.nav.automations": "Automatyzacje",
+  "newsletter.nav.tags": "Tagi",
+  "newsletter.nav.customFields": "Pola dodatkowe",
+  "newsletter.nav.provider": "Usługa wysyłki"
 }
