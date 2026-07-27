@@ -111,7 +111,6 @@ const NAV: NavSection[] = [
       { to: '/orders/quick-order', labelKey: 'appShell.nav.quickOrder', icon: ClipboardCheck },
       { to: '/orders/statuses', labelKey: 'appShell.nav.orderStatuses', icon: ClipboardCheck },
       { to: '/returns', labelKey: 'appShell.nav.returns', icon: Package, requiredPermission: 'returns:read' },
-      { to: '/custom-fields', labelKey: 'appShell.nav.customFields', icon: Layers, requiredPermission: 'custom_fields:read' },
       { to: '/quote-requests', labelKey: 'appShell.nav.quoteRequests', icon: FileText },
       { to: '/invoices', labelKey: 'appShell.nav.invoices', icon: Receipt, requiredPermission: 'invoices:read' },
       { to: '/invoices/templates', labelKey: 'appShell.nav.invoiceTemplates', icon: Receipt, requiredPermission: 'invoices:read' },
@@ -275,6 +274,14 @@ const NAV: NavSection[] = [
         labelKey: 'appShell.nav.bulkOperations',
         icon: ListChecks,
         requiredPermission: 'catalog:read',
+      },
+      // Custom fields extend Organizations, Orders, Customers, Categories and
+      // more, so the entry belongs to System rather than to any one domain.
+      {
+        to: '/custom-fields',
+        labelKey: 'appShell.nav.customFields',
+        icon: Layers,
+        requiredPermission: 'custom_fields:read',
       },
       { to: '/audit-log', labelKey: 'appShell.nav.auditLog', icon: ListChecks },
       { to: '/api-keys', labelKey: 'appShell.nav.apiKeys', icon: KeyRound },
