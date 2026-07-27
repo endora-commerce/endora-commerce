@@ -1,0 +1,66 @@
+# LinkedIn Ads
+
+Puts the **LinkedIn Insight Tag** on the storefront per sales channel and reports storefront
+actions against conversion rules defined in LinkedIn Campaign Manager.
+
+Feature `063-linkedin-ads`. Module id `linkedin_ads`.
+
+## Configuration (Settings module)
+
+All values live in the **LinkedIn Ads** settings group and are overridable per sales channel.
+
+| Setting | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `linkedin_ads.enabled` | boolean | `false` | Master switch for the channel. |
+| `linkedin_ads.partner_id` | string | `''` | Insight Tag Partner ID from Campaign Manager. |
+| `linkedin_ads.require_consent` | boolean | `true` | Gate all LinkedIn behaviour on the cookie-banner decision. |
+| `linkedin_ads.server_side_enabled` | boolean | `false` | Reserved for Conversions API reporting (not yet implemented). |
+| `linkedin_ads.access_token` | secret | `''` | Conversions API token. Encrypted at rest, write-only — it is never returned by any API. |
+
+A channel is tracked only when the master switch is on **and** the Partner ID is non-blank. A blank
+Partner ID is treated as "not configured", never as an error the visitor can see, so clearing the
+field is a safe way to switch a channel off.
+
+## Storefront behaviour
+
+The Insight Tag is injected client-side, after interaction, so it never blocks the first paint.
+Nothing LinkedIn-related runs — no script, no cookie, no request — until the visitor accepts the
+cookie banner, unless the operator has turned the consent requirement off for that channel. A
+visitor who accepts mid-session is tracked from that moment without a page reload.
+
+Consent is the storefront's single decision, shared with Google Analytics, so there is only ever
+one banner and one stored answer.
+
+## Conversion mappings
+
+Define your conversions in Campaign Manager first; each gets a numeric conversion ID. Then map
+storefront actions to those IDs under **Admin → LinkedIn Ads**.
+
+Supported actions: product viewed, added to cart, checkout started, order completed, quote request
+submitted, contact form submitted, account registered.
+
+A mapping can target one sales channel or all of them, and can be disabled without deleting it. An
+action with no enabled mapping simply reports nothing — that is a normal state, not a
+misconfiguration. One action may map to several conversion IDs; each reports once.
+
+Mappings are served to the storefront through a cached per-channel config; creating, editing, or
+deleting one revalidates that cache immediately rather than waiting for the TTL.
+
+## Permissions
+
+| Code | Grants |
+| --- | --- |
+| `linkedin_ads:read` | View conversion mappings and the module page. |
+| `linkedin_ads:write` | Create, edit, and delete conversion mappings. |
+
+Both appear on `/admin-roles`. Mapping changes are audited with the acting operator.
+
+## Not yet implemented
+
+- **Browser conversion firing.** Mappings are configurable and delivered to the storefront, and the
+  dispatcher exists, but it is not yet wired into the storefront's commerce-event helpers. Until it
+  is, the Insight Tag collects audiences and LinkedIn's own page-level rules work, but mapped
+  conversions are not reported.
+- **Server-side reporting through the Conversions API.** Specified and settings-ready, so enabling
+  it later needs no contract change. See `specs/063-linkedin-ads/tasks.md` Phase 5.
+- **Conversion retraction** for refunded or cancelled orders.

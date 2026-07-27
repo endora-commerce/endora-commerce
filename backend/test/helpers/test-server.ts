@@ -63,6 +63,8 @@ import { emailDefaultsRegistry } from '../../src/modules/transactional_emails/se
 import { newsletterModule } from '../../src/modules/newsletter/plugin.js';
 import { newsletterSettingsManifest } from '../../src/modules/newsletter/manifest.js';
 import { googleAnalyticsModule } from '../../src/modules/google_analytics/plugin.js';
+import { linkedInAdsModule } from '../../src/modules/linkedin_ads/plugin.js';
+import { linkedInAdsSettingsManifest } from '../../src/modules/linkedin_ads/manifest.js';
 import { googleAnalyticsSettingsManifest } from '../../src/modules/google_analytics/manifest.js';
 import { ORDER_CONFIRMATION_DEFAULT } from '../../src/modules/orders/email-templates/order-confirmation.default.js';
 import {
@@ -1962,6 +1964,19 @@ export async function setupBackendServer(
     }),
   );
 
+  // Feature 063 — LinkedIn Ads. Config + mapping CRUD are fully exercised.
+  modules.push(
+    linkedInAdsModule({
+      emFactory: em,
+      settings: settings.handle.settingsService,
+      requireAdmin: requireTestAdmin(permissionService),
+      resolveAuditContext: (req) => ({
+        actorAdminUserId: req.testActor?.kind === 'admin' ? req.testActor.adminUserId : null,
+      }),
+      auditLog: auditLogService,
+    }),
+  );
+
   modules.push(
     shoppingListsModule({
       emFactory: em,
@@ -2035,6 +2050,7 @@ export async function setupBackendServer(
     transactionalEmailsSettingsManifest,
     newsletterSettingsManifest,
     googleAnalyticsSettingsManifest,
+    linkedInAdsSettingsManifest,
     invoicesSettingsManifest,
     ksefSettingsManifest,
   ]);

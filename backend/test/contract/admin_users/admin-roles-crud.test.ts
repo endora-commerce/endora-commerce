@@ -46,7 +46,8 @@ describe('Admin roles CRUD', () => {
     // +1 for feature 056 hierarchical organizations (organizations:rollup).
     // +2 for feature 058 credentials (credentials:read, credentials:write).
     // +2 for feature 059 KSeF (ksef:read, ksef:write).
-    expect(body.data.length).toBe(57);
+    // +2 for feature 063 LinkedIn Ads (linkedin_ads:read, linkedin_ads:write).
+    expect(body.data.length).toBe(59);
     expect(body.data.some((p) => p.code === 'promotions:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'stripe:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'mfa:reset')).toBe(true);

@@ -13,6 +13,12 @@ import { SalesChannel } from '../../../src/modules/sales_channels/entities/sales
  * Spec: when a module ships a manifest, repeated applications never duplicate
  * data and never overwrite admin-chosen `setting_values`. The reconciler is
  * the function `composeApp()` calls before HTTP routes start serving (T024).
+ *
+ * The fixture deliberately uses a group code no shipped module owns. It used to
+ * claim `sales_channels`, which only worked while that module's real manifest
+ * happened not to have been reconciled into the test database — once it was,
+ * the fixture hit GroupCodeConflict, because a group belongs to exactly one
+ * owner module.
  */
 describe('boot-time manifest sync (T019)', () => {
   let db: TestDb;
@@ -54,12 +60,12 @@ describe('boot-time manifest sync (T019)', () => {
 
       const catalogManifest = defineModuleSettingsManifest({
         moduleCode: 'catalog',
-        groups: [{ code: 'sales_channels', name: 'Sales Channels' }],
+        groups: [{ code: 'catalog', name: 'Catalog' }],
         settings: [
           {
-            code: 'sales_channels.base_url',
+            code: 'catalog.base_url',
             name: 'Base URL',
-            groupCode: 'sales_channels',
+            groupCode: 'catalog',
             valueType: 'string',
             defaultValue: 'https://default.example',
           },
@@ -85,12 +91,12 @@ describe('boot-time manifest sync (T019)', () => {
 
       const catalogManifest = defineModuleSettingsManifest({
         moduleCode: 'catalog',
-        groups: [{ code: 'sales_channels', name: 'Sales Channels' }],
+        groups: [{ code: 'catalog', name: 'Catalog' }],
         settings: [
           {
-            code: 'sales_channels.base_url',
+            code: 'catalog.base_url',
             name: 'Base URL',
-            groupCode: 'sales_channels',
+            groupCode: 'catalog',
             valueType: 'string',
             defaultValue: 'https://default.example',
           },
@@ -101,7 +107,7 @@ describe('boot-time manifest sync (T019)', () => {
 
       // Admin-chosen value (simulates what US2's admin service will do).
       const setting = (await em.findOneOrFail(Setting, {
-        code: 'sales_channels.base_url',
+        code: 'catalog.base_url',
       })) as Setting;
       const value = em.create(SettingValue, {
         setting,
@@ -114,7 +120,7 @@ describe('boot-time manifest sync (T019)', () => {
       await reconciler.apply([settingsManifest, catalogManifest]);
 
       const after = await em.findOneOrFail(SettingValue, {
-        setting: { code: 'sales_channels.base_url' },
+        setting: { code: 'catalog.base_url' },
         salesChannel: { code: 'main' },
       });
       expect(after.value).toBe('https://admin-chosen.example');

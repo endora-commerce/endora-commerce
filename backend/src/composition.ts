@@ -148,6 +148,9 @@ import { newsletterModule } from './modules/newsletter/plugin.js';
 import { newsletterSettingsManifest } from './modules/newsletter/manifest.js';
 // Feature 049 — Google Analytics.
 import { googleAnalyticsModule } from './modules/google_analytics/plugin.js';
+// Feature 063 — LinkedIn Ads.
+import { linkedInAdsModule } from './modules/linkedin_ads/plugin.js';
+import { linkedInAdsSettingsManifest } from './modules/linkedin_ads/manifest.js';
 import { googleAnalyticsSettingsManifest } from './modules/google_analytics/manifest.js';
 import { invoicesSettingsManifest } from './modules/invoices/manifest.js';
 import { stripeSettingsManifest } from './modules/stripe/manifest.js';
@@ -2403,6 +2406,32 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     }),
   );
 
+  // Feature 063 — LinkedIn Ads. Per-channel Insight Tag + conversion mappings.
+  // Config lives in the Settings module; the access token is a `secret` setting.
+  modules.push(
+    linkedInAdsModule({
+      emFactory: em,
+      settings: settings.handle.settingsService,
+      requireAdmin,
+      resolveAuditContext: (request) => ({
+        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+      }),
+      auditLog: auditLogService,
+      // Any linkedin_ads.* setting change (and mapping CRUD) revalidates the
+      // storefront `linkedin:config` cache tag.
+      onSettingChanged: (handler) =>
+        eventBus.on('settings.value_changed', (payload) =>
+          handler((payload as unknown as { settingCode: string }).settingCode),
+        ),
+      ...(process.env['STOREFRONT_BASE_URL']
+        ? { storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] }
+        : {}),
+      ...(process.env['REVALIDATE_SECRET']
+        ? { revalidateSecret: process.env['REVALIDATE_SECRET'] }
+        : {}),
+    }),
+  );
+
   // Shopping lists / quick order — depends on the RFQ service built above
   // so the "convert to RFQ" flow goes through the new createForCustomer API.
   modules.push(
@@ -2586,6 +2615,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     transactionalEmailsSettingsManifest,
     newsletterSettingsManifest,
     googleAnalyticsSettingsManifest,
+    linkedInAdsSettingsManifest,
     invoicesSettingsManifest,
     stripeSettingsManifest,
     // Other modules' manifests are appended here as they start using settings.
