@@ -68,6 +68,8 @@ export const KnownIconNameSchema = z.enum([
   // navigation
   'LayoutDashboard',
   'PanelLeft',
+  // security
+  'KeyRound',
 ]);
 export type KnownIconName = z.infer<typeof KnownIconNameSchema>;
 

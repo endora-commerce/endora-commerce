@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type {
   ConfigurationDto,
   ConfigurationTypeDescriptor,
@@ -21,13 +22,21 @@ import { ConfigurationPreviewModal } from '../components/ConfigurationPreviewMod
  * Lists configurations (secrets masked), supports create/edit via the dynamic
  * `ConfigurationForm`, delete via `window.confirm`, and a read-only preview.
  * Inert configurations (unregistered type) render read-only.
+ *
+ * `initialMode` lets the `/credentials/new` route (the command-palette
+ * "New credential configuration" action) land straight on the empty form.
  */
-export function CredentialsPage(): ReactNode {
+export interface CredentialsPageProps {
+  initialMode?: 'list' | 'new';
+}
+
+export function CredentialsPage({ initialMode = 'list' }: CredentialsPageProps = {}): ReactNode {
   const t = useTranslation('credentials');
+  const navigate = useNavigate();
   const [types, setTypes] = useState<ConfigurationTypeDescriptor[]>([]);
   const [items, setItems] = useState<ConfigurationDto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState<'list' | 'new' | 'edit'>('list');
+  const [mode, setMode] = useState<'list' | 'new' | 'edit'>(initialMode);
   const [editing, setEditing] = useState<ConfigurationDto | null>(null);
   const [preview, setPreview] = useState<ConfigurationDto | null>(null);
   const [busy, setBusy] = useState(false);
@@ -78,12 +87,21 @@ export function CredentialsPage(): ReactNode {
     void reload();
   }, [reload]);
 
+  // Leaving the form. When the page was entered through the /credentials/new
+  // deep link, drop that segment too so a reload does not reopen the form.
+  const backToList = useCallback((): void => {
+    setMode('list');
+    setEditing(null);
+    setFormError(null);
+    if (initialMode === 'new') navigate('/credentials', { replace: true });
+  }, [initialMode, navigate]);
+
   const onCreate = async (body: CreateConfiguration): Promise<void> => {
     setBusy(true);
     setFormError(null);
     try {
       await credentialsClient.create(body);
-      setMode('list');
+      backToList();
       await reload();
     } catch (err) {
       setFormError(messageFor(err));
@@ -97,8 +115,7 @@ export function CredentialsPage(): ReactNode {
     setFormError(null);
     try {
       await credentialsClient.update(code, body);
-      setMode('list');
-      setEditing(null);
+      backToList();
       await reload();
     } catch (err) {
       setFormError(messageFor(err));
@@ -142,11 +159,7 @@ export function CredentialsPage(): ReactNode {
           existing={mode === 'edit' ? editing : null}
           onCreate={onCreate}
           onUpdate={onUpdate}
-          onCancel={() => {
-            setMode('list');
-            setEditing(null);
-            setFormError(null);
-          }}
+          onCancel={backToList}
           busy={busy}
           error={formError}
         />
