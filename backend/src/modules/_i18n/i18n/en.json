@@ -247,6 +247,7 @@
   "appShell.palette.sub.deliveryMethods": "Delivery & shipping methods",
   "appShell.palette.sub.apiKeys": "Machine-to-machine bearer tokens",
   "appShell.palette.sub.webhooks": "Event subscriptions & deliveries",
+  "appShell.palette.sub.credentials": "Reusable provider credential configurations",
   "appShell.palette.sub.promotions": "Discounts, coupons & promotion rules",
   "appShell.palette.sub.promotionRules": "Reusable promotion rule definitions",
   "appShell.palette.sub.newsletterSubscribers": "Newsletter subscribers & fields",

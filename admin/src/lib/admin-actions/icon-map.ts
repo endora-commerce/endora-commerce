@@ -11,6 +11,7 @@ import {
   FolderPlus,
   Image as ImageIcon,
   Inbox,
+  KeyRound,
   Layers,
   LayoutDashboard,
   ListChecks,
@@ -77,6 +78,7 @@ const ICON_MAP: Record<KnownIconName, LucideIcon> = {
   Video,
   LayoutDashboard,
   PanelLeft,
+  KeyRound,
 };
 
 export function resolveIcon(name: string): LucideIcon {
