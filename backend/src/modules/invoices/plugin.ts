@@ -9,6 +9,7 @@ import { Invoice } from './entities/invoice.entity.js';
 import { InvoiceService, type InvoiceAuditRecorder } from './services/invoice-service.js';
 import type { AuditLogService } from '../audit_logs/services/audit-log-service.js';
 import { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
+import type { LoadAssetImage } from './pdf-components/embed-logo-images.js';
 import { InvoiceNumberGenerator, createSettingsPatternResolver } from './services/invoice-number-generator.js';
 import { SellerSettingsResolver, type SettingsReader } from './services/seller-settings.js';
 import { InvoiceEmailDispatcher } from './services/invoice-email-dispatch.js';
@@ -41,6 +42,11 @@ export interface InvoicesModuleOptions {
   audit?: InvoiceAuditRecorder;
   /** Feature 054 — full audit sink for invoice-template writes (co-transactional). */
   auditLog?: AuditLogService;
+  /**
+   * Load image bytes for InvoiceLogo from the Assets Library (avoids pdfmake
+   * self-fetching `/assets/file/:id` during Preview PDF).
+   */
+  loadAssetImage?: LoadAssetImage;
 }
 
 export interface InvoicesModuleHandle {
@@ -65,7 +71,9 @@ export function invoicesModule(options: InvoicesModuleOptions): {
     sellerSettings,
     options.audit,
   );
-  const pdfRenderer = new InvoicePdfRenderer();
+  const pdfRenderer = new InvoicePdfRenderer({
+    ...(options.loadAssetImage ? { loadAssetImage: options.loadAssetImage } : {}),
+  });
   const templateService = new InvoiceTemplateService(options.emFactory, options.auditLog);
 
   let emailDispatcher: InvoiceEmailDispatcher | undefined;

@@ -12,6 +12,10 @@ import {
   ksefSection,
 } from '../pdf-components/sections.js';
 import { treeToContent } from '../pdf-components/tree-mapper.js';
+import {
+  embedInvoiceLogoImages,
+  type LoadAssetImage,
+} from '../pdf-components/embed-logo-images.js';
 
 interface PdfMakeOutput {
   getBuffer(): Promise<Buffer>;
@@ -60,6 +64,11 @@ function builtinLayout(inv: InvoiceDetail, locale: AmountToWordsLocale): Content
   ];
 }
 
+export type InvoicePdfRendererOptions = {
+  /** Load library asset bytes for InvoiceLogo (avoids pdfmake self-HTTP). */
+  loadAssetImage?: LoadAssetImage;
+};
+
 /**
  * Renders an invoice to a PDF Buffer using pdfmake (feature 047, R1/R2/US6).
  *
@@ -68,17 +77,27 @@ function builtinLayout(inv: InvoiceDetail, locale: AmountToWordsLocale): Content
  * built-in generic layout (FR-016). Both paths share the same section builders.
  */
 export class InvoicePdfRenderer {
-  render(
+  readonly #loadAssetImage: LoadAssetImage | undefined;
+
+  constructor(opts: InvoicePdfRendererOptions = {}) {
+    this.#loadAssetImage = opts.loadAssetImage;
+  }
+
+  async render(
     invoice: InvoiceDetail,
     locale: AmountToWordsLocale = 'pl',
     templateTree?: unknown,
   ): Promise<Buffer> {
     if (!fontsRegistered) {
       pdfMake.setFonts(buildFontDictionary());
+      // Images are inlined as data URIs by embedInvoiceLogoImages — deny network.
       pdfMake.setUrlAccessPolicy(() => false);
       fontsRegistered = true;
     }
-    const fromTemplate = templateTree ? treeToContent(templateTree, invoice, locale) : null;
+    const tree = templateTree
+      ? await embedInvoiceLogoImages(templateTree, this.#loadAssetImage)
+      : undefined;
+    const fromTemplate = tree ? treeToContent(tree, invoice, locale) : null;
     const content = fromTemplate ?? builtinLayout(invoice, locale);
     return pdfMake.createPdf(this.buildDoc(content)).getBuffer();
   }

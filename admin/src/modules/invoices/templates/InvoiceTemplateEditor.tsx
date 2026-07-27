@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Puck, type Data } from '@measured/puck';
 import '@measured/puck/puck.css';
-import { Maximize2, Minimize2 } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -11,7 +10,10 @@ import { PageHeader } from '@/components/ui/page-header';
 import { SaveButtonGroup } from '@/components/ui/save-button-group';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
+import { PageBuilderHeaderActions } from '@/modules/cms/components/PageBuilderHeaderActions';
+import { PageBuilderOverlayBridge } from '@/modules/cms/components/PageBuilderOverlayBridge';
 import { invoicePuckConfig } from './invoice-puck-config';
+import { createInvoiceBuilderEditorPlugin } from './invoice-builder-plugin';
 
 interface TemplateDetail {
   id: string;
@@ -23,10 +25,14 @@ interface TemplateDetail {
 
 const emptyData: Data = { root: { props: {} }, content: [] };
 const LANGUAGE = 'pl-PL';
+const API_BASE =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
+const invoiceBuilderPlugin = createInvoiceBuilderEditorPlugin();
 
 /** Admin editor for an invoice PDF template (feature 047, US6). */
 export function InvoiceTemplateEditor(): ReactNode {
   const t = useTranslation('core');
+  const tCms = useTranslation('cms');
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const [tpl, setTpl] = useState<TemplateDetail | null>(null);
@@ -35,10 +41,9 @@ export function InvoiceTemplateEditor(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [canvasEpoch, setCanvasEpoch] = useState(0);
+  const [previewBusy, setPreviewBusy] = useState(false);
 
-  const baseUrl = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? '';
-
-  // Allow exiting fullscreen with Escape.
   useEffect(() => {
     if (!fullscreen) return undefined;
     const onKey = (e: KeyboardEvent): void => {
@@ -64,6 +69,11 @@ export function InvoiceTemplateEditor(): ReactNode {
     void load();
   }, [load]);
 
+  const applyCanvasData = useCallback((next: Data): void => {
+    setDraft(next);
+    setCanvasEpoch((n) => n + 1);
+  }, []);
+
   const save = useCallback(async (): Promise<boolean> => {
     if (!tpl) return false;
     setError(null);
@@ -86,6 +96,34 @@ export function InvoiceTemplateEditor(): ReactNode {
     if (await save()) navigate('/invoices/templates');
   }, [save, navigate]);
 
+  const previewPdf = useCallback(async (): Promise<void> => {
+    if (!tpl) return;
+    setPreviewBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `${API_BASE.replace(/\/+$/, '')}/api/v1/admin/invoice-templates/${tpl.id}/preview`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/pdf' },
+          body: JSON.stringify({ data: draft }),
+        },
+      );
+      if (!res.ok) {
+        throw new Error(t('invoiceTemplates.previewError'));
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('invoiceTemplates.previewError'));
+    } finally {
+      setPreviewBusy(false);
+    }
+  }, [tpl, draft, t]);
+
   return (
     <>
       <PageHeader
@@ -97,14 +135,14 @@ export function InvoiceTemplateEditor(): ReactNode {
               <Link to="/invoices/templates">{t('common.action.back')}</Link>
             </Button>
             {tpl ? (
-              <Button asChild variant="outline" size="sm">
-                <a
-                  href={`${baseUrl}/api/v1/admin/invoice-templates/${tpl.id}/preview`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {t('invoiceTemplates.preview')}
-                </a>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={previewBusy}
+                onClick={() => void previewPdf()}
+              >
+                {previewBusy ? t('invoiceTemplates.previewLoading') : t('invoiceTemplates.preview')}
               </Button>
             ) : null}
             <SaveButtonGroup
@@ -142,41 +180,43 @@ export function InvoiceTemplateEditor(): ReactNode {
                 fullscreen ? 'min-h-0 flex-1' : 'min-h-[560px]',
               )}
             >
-              {/* Puck seeds its internal state from `data` only on mount; it
-                  ignores later `data` prop changes. Mounting it before the
-                  template has loaded would seed it with `emptyData` and leave
-                  the canvas blank even though the saved tree arrived later.
-                  Gate the mount on `loaded` so Puck seeds from the real tree. */}
               {loaded ? (
-              <Puck
-                key={`${id}:${LANGUAGE}`}
-                config={invoicePuckConfig}
-                data={draft}
-                onChange={setDraft}
-                overrides={{
-                  headerActions: () => (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={(): void => setFullscreen((f) => !f)}
-                      aria-pressed={fullscreen}
-                    >
-                      {fullscreen ? (
-                        <>
-                          <Minimize2 className="mr-1 h-4 w-4" />
-                          {t('invoiceTemplates.fullscreen.exit')}
-                        </>
-                      ) : (
-                        <>
-                          <Maximize2 className="mr-1 h-4 w-4" />
-                          {t('invoiceTemplates.fullscreen.enter')}
-                        </>
-                      )}
-                    </Button>
-                  ),
-                }}
-              />
+                <Puck
+                  key={`${id}:${LANGUAGE}:${canvasEpoch}`}
+                  config={invoicePuckConfig}
+                  data={draft}
+                  onChange={setDraft}
+                  plugins={[invoiceBuilderPlugin]}
+                  overrides={{
+                    headerActions: () => (
+                      <div className="cms-pb-header-actions">
+                        <PageBuilderHeaderActions
+                          fullscreen={fullscreen}
+                          onToggleFullscreen={(): void => setFullscreen((f) => !f)}
+                          currentData={draft}
+                          onClearCanvas={(): void => applyCanvasData(emptyData)}
+                          t={tCms}
+                        />
+                      </div>
+                    ),
+                    componentOverlay: ({
+                      children,
+                      hover,
+                      isSelected,
+                      componentId,
+                      componentType,
+                    }) => (
+                      <PageBuilderOverlayBridge
+                        hover={hover}
+                        isSelected={isSelected}
+                        componentId={componentId}
+                        componentType={componentType}
+                      >
+                        {children}
+                      </PageBuilderOverlayBridge>
+                    ),
+                  }}
+                />
               ) : (
                 <div className="flex min-h-[560px] items-center justify-center text-sm text-muted-foreground">
                   {t('invoiceTemplates.loading')}

@@ -178,6 +178,7 @@ import type { PromptActionTool } from './modules/prompt_actions/services/tool-re
 import { priceListsManifest } from './modules/price_lists/manifest.js';
 import { assetsLibraryManifest } from './modules/assets_library/manifest.js';
 import { assetsLibraryModule } from './modules/assets_library/plugin.js';
+import { Asset } from './modules/assets_library/entities/asset.entity.js';
 import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
 import { REGISTERED_MANIFESTS } from './modules/_lifecycle/registered-manifests.js';
 import { i18nModule as adminI18nModule } from './modules/_i18n/plugin.js';
@@ -2014,6 +2015,23 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       (salesChannelId
         ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
         : null) ?? 'en-US',
+    loadAssetImage: async (assetId) => {
+      try {
+        const a = await em().findOne(Asset, { id: assetId, deletedAt: null });
+        if (!a || !a.mimeType.startsWith('image/')) return null;
+        const adapter = await assetsLibrary.handle.adapters.getForBackend(
+          a.storageBackend as 'local' | 's3' | 'gcs' | 'legacy',
+        );
+        const stream = await adapter.open({ locator: a.storageLocator || a.storageUrl });
+        const chunks: Buffer[] = [];
+        for await (const chunk of stream) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        return { bytes: Buffer.concat(chunks), mimeType: a.mimeType };
+      } catch {
+        return null;
+      }
+    },
   });
   modules.push(invoices.plugin);
 

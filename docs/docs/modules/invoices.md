@@ -35,3 +35,18 @@ and writes the asset id back onto the Order. Failures emit
   `nextNumber(date, scope)` function; localize numbering rules there.
 - **e-invoicing** — for KSeF / Peppol / similar, plug a sender adapter
   that consumes `invoice.issued.v1` events.
+
+## PDF templates (page builder)
+
+Admin route `/invoices/templates` edits a Puck tree of invoice sections
+(`InvoiceHeader`, `InvoiceParties`, line/VAT tables, totals, notes, KSeF,
+plus layout blocks: spacer, divider, logo, footer). Section props
+personalize typography, column visibility, and labels; missing props keep
+the historical default layout.
+
+- `GET /api/v1/admin/invoice-templates/:id/preview` — PDF of the **saved**
+  template content for that id (sample invoice fixture).
+- `POST /api/v1/admin/invoice-templates/:id/preview` — same, with a draft
+  `{ data }` body so authors can preview unsaved canvas state.
+- Runtime issue path still uses `resolveTree(salesChannelId)` (active
+  channel/global template).

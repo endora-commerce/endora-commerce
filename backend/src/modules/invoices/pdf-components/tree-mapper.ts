@@ -8,10 +8,14 @@ import {
   vatSummarySection,
   totalsSection,
   notesSection,
+  footerSection,
   ksefSection,
+  spacerSection,
+  dividerSection,
+  logoSection,
 } from './sections.js';
 
-/** Invoice template component names (the bounded WYSIWYG palette, research R2). */
+/** Invoice template component names (the bounded WYSIWYG palette). */
 export const INVOICE_COMPONENT_NAMES = [
   'InvoiceHeader',
   'InvoiceParties',
@@ -20,19 +24,27 @@ export const INVOICE_COMPONENT_NAMES = [
   'InvoiceTotals',
   'InvoiceNotes',
   'InvoiceKsef',
+  'InvoiceSpacer',
+  'InvoiceDivider',
+  'InvoiceLogo',
+  'InvoiceFooter',
 ] as const;
 export type InvoiceComponentName = (typeof INVOICE_COMPONENT_NAMES)[number];
 
 type Mapper = (props: Record<string, unknown>, inv: InvoiceDetail, locale: AmountToWordsLocale) => Content;
 
 const COMPONENT_MAP: Record<InvoiceComponentName, Mapper> = {
-  InvoiceHeader: (_p, inv) => headerSection(inv),
-  InvoiceParties: (_p, inv) => partiesSection(inv),
-  InvoiceLineItems: (_p, inv) => lineItemsSection(inv),
-  InvoiceVatSummary: (_p, inv) => vatSummarySection(inv),
-  InvoiceTotals: (_p, inv, locale) => totalsSection(inv, locale),
-  InvoiceNotes: (p, inv) => notesSection(p as { text?: string }, inv),
-  InvoiceKsef: (_p, inv) => ksefSection(inv),
+  InvoiceHeader: (p, inv) => headerSection(inv, p),
+  InvoiceParties: (p, inv) => partiesSection(inv, p),
+  InvoiceLineItems: (p, inv) => lineItemsSection(inv, p),
+  InvoiceVatSummary: (p, inv) => vatSummarySection(inv, p),
+  InvoiceTotals: (p, inv, locale) => totalsSection(inv, locale, p),
+  InvoiceNotes: (p, inv) => notesSection(p, inv),
+  InvoiceKsef: (p, inv) => ksefSection(inv, p),
+  InvoiceSpacer: (p) => spacerSection(p),
+  InvoiceDivider: (p) => dividerSection(p),
+  InvoiceLogo: (p) => logoSection(p),
+  InvoiceFooter: (p, inv) => footerSection(p, inv),
 };
 
 interface PuckNode {
@@ -67,10 +79,7 @@ export function treeToContent(
 }
 
 /** Extract the per-language Puck tree from a CMS-style content envelope. */
-export function pickLanguageTree(
-  content: unknown,
-  language: string,
-): unknown {
+export function pickLanguageTree(content: unknown, language: string): unknown {
   const env = content as { languages?: Record<string, unknown> } | null;
   if (!env?.languages) return null;
   return env.languages[language] ?? Object.values(env.languages)[0] ?? null;

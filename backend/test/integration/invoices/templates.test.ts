@@ -87,6 +87,23 @@ describe('invoices — templates (US6)', () => {
     expect(preview.statusCode).toBe(200);
     expect(preview.headers['content-type']).toContain('application/pdf');
     expect(preview.rawPayload.subarray(0, 5).toString('utf8')).toBe('%PDF-');
+
+    const draftPreview = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/invoice-templates/${tpl.id}/preview`,
+      cookies: ADMIN_COOKIE,
+      payload: {
+        data: {
+          content: [
+            { type: 'InvoiceHeader', props: { showSaleDate: false } },
+            { type: 'InvoiceNotes', props: { text: 'Draft {{var invoice.number}}' } },
+          ],
+        },
+      },
+    });
+    expect(draftPreview.statusCode).toBe(200);
+    expect(draftPreview.headers['content-type']).toContain('application/pdf');
+    expect(draftPreview.rawPayload.subarray(0, 5).toString('utf8')).toBe('%PDF-');
   });
 
   it('resolves per-channel template over the global generic; unknown channel falls back', async () => {
