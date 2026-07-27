@@ -508,6 +508,21 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.crumb.detail', href: null },
   ] },
   { test: /^\/orders\/?$/, build: () => [{ labelKey: 'appShell.nav.orders', href: null }] },
+  // These three must precede the generic /orders/:id rule below — buildCrumbs
+  // returns on first match, so without them the named sub-pages were labelled
+  // "Orders / Detail" as if their path segment were an order id.
+  { test: /^\/orders\/new\/?$/, build: () => [
+    { labelKey: 'appShell.nav.orders', href: '/orders' },
+    { labelKey: 'appShell.nav.newOrder', href: null },
+  ] },
+  { test: /^\/orders\/quick-order\/?$/, build: () => [
+    { labelKey: 'appShell.nav.orders', href: '/orders' },
+    { labelKey: 'appShell.nav.quickOrder', href: null },
+  ] },
+  { test: /^\/orders\/statuses\/?$/, build: () => [
+    { labelKey: 'appShell.nav.orders', href: '/orders' },
+    { labelKey: 'appShell.nav.orderStatuses', href: null },
+  ] },
   { test: /^\/orders\/[^/]+\/?$/, build: () => [
     { labelKey: 'appShell.nav.orders', href: '/orders' },
     { labelKey: 'appShell.crumb.detail', href: null },
